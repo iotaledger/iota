@@ -3,10 +3,11 @@
 
 /// The public key of a `SmartAccount`: attach, detach and rotate it, for use by any authenticator.
 ///
-/// The key is stored in the same dynamic field that `builtin_authenticator_functions` manages for
-/// every account type, so the built-in authenticator and custom authenticators read the same key.
-/// This module does not look at the account's authenticator: detaching the key while the
-/// built-in authenticator is attached leaves the account unable to send any transaction.
+/// The key is stored under `public_key::PublicKeyFieldName`, the same field `iota::public_key`
+/// manages for every account type, so the built-in authenticator and custom authenticators read
+/// the same key. This module does not look at the account's authenticator: detaching the key
+/// while the built-in authenticator is attached leaves the account unable to send any
+/// transaction.
 ///
 /// A custom authenticator can check a signature against the attached key:
 ///
@@ -18,51 +19,64 @@
 /// ```
 module iota::smart_account_public_key;
 
-use iota::builtin_authenticator_functions;
-use iota::public_key::PublicKey;
+use iota::public_key::{Self, PublicKey};
 use iota::smart_account::{SmartAccount, SmartAccountBuilder};
+
+// === Errors ===
+
+#[error(code = 0)]
+const EPublicKeyMissing: vector<u8> = b"Public key missing.";
+#[error(code = 1)]
+const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
 
 // === SmartAccountBuilder Functions ===
 
 /// Attaches `public_key` to the account being built.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+/// Emits a `public_key::PublicKeyAttached` event on success.
 ///
 /// Aborts if a public key is already attached.
 public fun with_public_key(
-    mut builder: SmartAccountBuilder,
+    builder: SmartAccountBuilder,
     public_key: PublicKey,
 ): SmartAccountBuilder {
-    builtin_authenticator_functions::attach_public_key(builder.builder_uid_mut(), public_key);
-    builder
+    public_key::emit_public_key_attached(
+        object::id_from_address(builder.builder_account_address()),
+        public_key,
+    );
+    builder.with_field(public_key::public_key_field_name(), public_key)
 }
 
 // === View Functions ===
 
 /// Returns `true` if and only if the account has a public key attached.
 public fun has_public_key(account: &SmartAccount): bool {
-    builtin_authenticator_functions::has_public_key(account.uid())
+    account.has_field(public_key::public_key_field_name())
 }
 
 /// Borrows the public key attached to the account.
 ///
 /// Aborts if no public key is attached.
 public fun borrow_public_key(account: &SmartAccount): &PublicKey {
-    builtin_authenticator_functions::borrow_public_key(account.uid())
+    assert!(has_public_key(account), EPublicKeyMissing);
+
+    account.borrow_field(public_key::public_key_field_name())
 }
 
 // === Admin Functions ===
 
 /// Attaches `public_key` to the account. The authenticator is unchanged.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+/// Emits a `public_key::PublicKeyAttached` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if a public key is already attached.
 public fun attach_public_key(account: &mut SmartAccount, public_key: PublicKey, ctx: &TxContext) {
     account.ensure_tx_sender_is_smart_account(ctx);
+    assert!(!has_public_key(account), EPublicKeyAlreadyAttached);
 
-    builtin_authenticator_functions::attach_public_key(account.uid_mut(), public_key);
+    account.add_field(public_key::public_key_field_name(), public_key, ctx);
+    public_key::emit_public_key_attached(object::id(account), public_key);
 }
 
 /// Detaches and returns the public key attached to the account. The authenticator is unchanged.
@@ -70,20 +84,23 @@ public fun attach_public_key(account: &mut SmartAccount, public_key: PublicKey, 
 /// Detaching the key while the account's authenticator is the built-in one leaves the account
 /// unable to send any transaction; rotate to another authenticator first.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyDetached` event on success.
+/// Emits a `public_key::PublicKeyDetached` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if no public key is attached.
 public fun detach_public_key(account: &mut SmartAccount, ctx: &TxContext): PublicKey {
     account.ensure_tx_sender_is_smart_account(ctx);
+    assert!(has_public_key(account), EPublicKeyMissing);
 
-    builtin_authenticator_functions::detach_public_key(account.uid_mut())
+    let public_key = account.remove_field(public_key::public_key_field_name(), ctx);
+    public_key::emit_public_key_detached(object::id(account), public_key);
+    public_key
 }
 
 /// Replaces the attached public key with `public_key`, of any supported scheme, and returns the
 /// previous key. The authenticator is unchanged.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
+/// Emits a `public_key::PublicKeyRotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if no public key is attached.
@@ -93,6 +110,13 @@ public fun rotate_public_key(
     ctx: &TxContext,
 ): PublicKey {
     account.ensure_tx_sender_is_smart_account(ctx);
+    assert!(has_public_key(account), EPublicKeyMissing);
 
-    builtin_authenticator_functions::rotate_public_key(account.uid_mut(), public_key)
+    let previous_public_key = account.rotate_field(
+        public_key::public_key_field_name(),
+        public_key,
+        ctx,
+    );
+    public_key::emit_public_key_rotated(object::id(account), previous_public_key, public_key);
+    previous_public_key
 }

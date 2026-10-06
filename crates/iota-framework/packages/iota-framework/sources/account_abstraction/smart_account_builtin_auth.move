@@ -38,7 +38,7 @@ const EPublicKeyMissing: vector<u8> =
 ///
 /// Finish it with `smart_account::build_v1`.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+/// Emits a `public_key::PublicKeyAttached` event on success.
 ///
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
@@ -96,7 +96,7 @@ public fun builtin_auth_function_ref_v1(): AuthenticatorFunctionRefV1<SmartAccou
 /// else — not from a user PTB, and not from another package, which could otherwise wrap a public
 /// entry point. See the `iota::clock::consensus_commit_prologue` function for the same idiom.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// Emits a `public_key::PublicKeyAttached` event and an
 /// `account::MutableAccountCreated` event.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
