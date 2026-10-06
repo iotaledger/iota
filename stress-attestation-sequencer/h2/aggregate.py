@@ -12,6 +12,12 @@ Reported per run (Run A and Run B):
     cancelled minus commits (see aggregate_arm for why each term is there).
     Also its spread across iterations (sample standard deviation), likewise
     for cancelled/s and the checkpoint-lag mean.
+  - computation units per second: the units executed per second by user
+    transactions that did real work, from the actual_computation_units
+    histogram's _sum, with each cancelled transaction's 1,000-unit charge
+    taken out. Success tps counts every transaction as one; this weighs each
+    by its units, so it shows whether a run that executes more transactions
+    also executes more work. Also its spread across iterations.
   - finalized tps: the checkpoint-inclusion rate as scraped, prologues
     included — comparable to the client's own reported throughput.
   - cancelled/s: transactions dropped at max_deferral_rounds.
@@ -110,6 +116,11 @@ N_TO_UNITS = {
     3511: 2000000,
     8000: 5000000,
 }
+
+# Computation units charged to a cancelled transaction: the minimum, one
+# gas_rounding_step. Runs whose limit cancels everything average exactly this
+# per transaction in actual_computation_units.
+CANCELLED_UNITS = 1000
 
 # Slice widths for the checkpoint-lag-over-time output, in seconds.
 LAG_WINDOWS = (10, 60)
@@ -349,6 +360,15 @@ def aggregate_arm(runs, top_units=None):
         e - c - k if None not in (e, c, k) else None
         for e, c, k in zip(execd_runs, canc_runs, commit_runs)
     ]
+    # Computation units executed per second by the same transactions. Every
+    # executed user transaction records its charged units in
+    # actual_computation_units (attestation is on in every run); a cancelled
+    # one records the minimum, taken back out here. Commit prologues are
+    # system transactions and record nothing.
+    units_runs = [
+        u - CANCELLED_UNITS * c if None not in (u, c) else None
+        for u, c in zip(rate_runs(runs, "actual_computation_units_sum"), canc_runs)
+    ]
     canc = mean(canc_runs)
     commits = mean(commit_runs)
     ckpt = rate_mean(runs, "transactions_included_in_checkpoint")
@@ -365,6 +385,10 @@ def aggregate_arm(runs, top_units=None):
         # Spread across iterations, so a difference between the runs can be
         # read against the run-to-run noise of the same configuration.
         "succ_sd": sd(succ_runs),
+        # Success tps counts a cheap and an expensive transaction alike; this
+        # weighs each by its units.
+        "units_per_s": mean(units_runs),
+        "units_per_s_sd": sd(units_runs),
         "canc_sd": sd(canc_runs),
         "lag_mean_sd": sd(lag_runs),
         "n_runs": len(runs),
@@ -492,6 +516,11 @@ def fmt_share(v):
     return "—" if v is None else f"{100 * v:.0f}%"
 
 
+def fmt_munits(v):
+    """Units per second in, millions out."""
+    return "—" if v is None else f"{v / 1e6:.2f}"
+
+
 def fmt_ms(v):
     """Seconds in, milliseconds out — these latencies span microseconds to
     seconds, and ms keeps both ends readable."""
@@ -536,6 +565,10 @@ def main():
         "  that did real work. Cancelled ones execute but do nothing, and",
         "  every commit carries one consensus commit prologue, which the",
         "  transaction counters count as a transaction.",
+        "- M units/s = millions of computation units executed per second by",
+        "  those transactions: the executed transactions' charged units,",
+        "  minus the 1,000 each cancelled one is charged. success tps counts",
+        "  every transaction as one; this weighs each by its units.",
         "- checkpoint lag: the mean and the >30s share are exact; the p95",
         "  is not past 30s, where the buckets jump 30 to 60, so it prints",
         '  as ">30" there. Compare the mean and the share, not that bound.',
@@ -571,15 +604,16 @@ def main():
         L += [
             f"## A = {mode_a}, B = {mode_b}\n",
             "| label | units/tx | B tx/cmt | iters | success tps A → B |"
-            " cancelled/s A → B | ckpt lag mean s A → B |"
+            " M units/s A → B | cancelled/s A → B | ckpt lag mean s A → B |"
             " lag >30s A → B | lag p95 s A → B | skips A → B | safety |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for r in grp:
             a, b = r["a"], r["b"]
             L.append(
                 f"| {r['label']} | {fmt(r['units'])} | {fmt(r['txcmt'])} |"
                 f" {r['iters']} | {ab(a['succ'], b['succ'])} |"
+                f" {ab(a['units_per_s'], b['units_per_s'], fmt_munits)} |"
                 f" {ab(a['canc'], b['canc'])} |"
                 f" {ab(a['lag_mean'], b['lag_mean'], fmt_secs)} |"
                 f" {ab(a['lag_gt_coarse'], b['lag_gt_coarse'], fmt_share)} |"
@@ -610,15 +644,16 @@ def main():
 
     L += [
         "## spread across iterations (sample standard deviation)\n",
-        "| label | iters | success tps sd A → B | cancelled/s sd A → B |"
-        " ckpt lag mean s sd A → B |",
-        "| --- | --- | --- | --- | --- |",
+        "| label | iters | success tps sd A → B | M units/s sd A → B |"
+        " cancelled/s sd A → B | ckpt lag mean s sd A → B |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for r in rows:
         a, b = r["a"], r["b"]
         L.append(
             f"| {r['label']} | {r['iters']} |"
             f" {ab(a['succ_sd'], b['succ_sd'])} |"
+            f" {ab(a['units_per_s_sd'], b['units_per_s_sd'], fmt_munits)} |"
             f" {ab(a['canc_sd'], b['canc_sd'])} |"
             f" {ab(a['lag_mean_sd'], b['lag_mean_sd'], fmt_secs)} |"
         )
@@ -707,6 +742,8 @@ def main():
         "n_runs",
         "expensive_per_s",
         "expensive_per_s_sd",
+        "units_per_s",
+        "units_per_s_sd",
         "over_max_deferrals",
     )
     arm_keys = (
@@ -731,6 +768,8 @@ def main():
         "n_runs",
         "expensive",
         "expensive_sd",
+        "units_per_s",
+        "units_per_s_sd",
     )
 
     def cell(v):
@@ -805,12 +844,16 @@ def main():
     lag_path = os.path.join(os.path.dirname(csv_path), "lag_over_time.csv")
     with open(lag_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["label", "run", "window_s", "t_start_s", "lag_mean_s", "checkpoints"])
+        w.writerow(
+            ["label", "run", "window_s", "t_start_s", "lag_mean_s", "checkpoints"]
+        )
         for r in rows:
             for arm in "ab":
                 for window, slices in r[arm]["lag_over_time"].items():
                     for t, (lag_mean, count) in slices.items():
-                        w.writerow([r["label"], arm, window, t, cell(lag_mean), cell(count)])
+                        w.writerow(
+                            [r["label"], arm, window, t, cell(lag_mean), cell(count)]
+                        )
 
     print(f"{len(rows)} label(s) -> {out}", file=sys.stderr)
     print(f"scalar table -> {csv_path}", file=sys.stderr)
