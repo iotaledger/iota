@@ -4,12 +4,11 @@
 
 //! Publishing a formal state snapshot of the epoch the node has just left.
 //!
-//! - An epoch is offered once, when this node executes its boundary, including
-//!   a boundary executed while catching up.
-//! - A write or upload that fails is not retried: the database snapshot it read
-//!   from cannot be taken again once the node has moved on.
-//! - A boundary executed while an earlier snapshot is still being written is
-//!   skipped.
+//! - An epoch is offered once, when this node executes its boundary, including a boundary executed
+//!   while catching up.
+//! - A write or upload that fails is not retried: the database snapshot it read from cannot be
+//!   taken again once the node has moved on.
+//! - A boundary executed while an earlier snapshot is still being written is skipped.
 //!
 //! `first_missing_state_snapshot_epoch` shows an epoch that was lost or
 //! skipped, and keeps being updated if the writer task dies.
