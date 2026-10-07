@@ -6,7 +6,6 @@ use std::any::Any;
 
 use async_trait::async_trait;
 use diesel::PgConnection;
-use strum::IntoEnumIterator;
 
 use crate::{
     errors::IndexerError,
@@ -99,12 +98,13 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     ) -> Result<(), IndexerError>;
 
     /// Update the upper bound of the watermarks for the given tables.
-    async fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+    async fn update_watermarks_upper_bound<Tables>(
         &self,
+        tables: Tables,
         watermark: CommitterWatermark,
     ) -> Result<(), IndexerError>
     where
-        E::Iterator: Iterator<Item: AsRef<str>>;
+        Tables: IntoIterator<Item: AsRef<str>> + Send + 'static;
 
     /// Updates each watermark entry's lower bounds per the list of tables and
     /// their new epoch lower bounds.
