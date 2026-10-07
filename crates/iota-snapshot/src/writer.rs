@@ -268,6 +268,20 @@ impl LiveObjectSetWriterV1 {
     }
 }
 
+/// The error a write fails with when the epoch boundary stopped waiting
+/// before the database snapshot was taken. The epoch is given up and nothing
+/// in the remote store is touched.
+#[derive(Debug)]
+pub(crate) struct BoundaryStoppedWaiting;
+
+impl std::fmt::Display for BoundaryStoppedWaiting {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the epoch boundary stopped waiting for the snapshot of the perpetual store")
+    }
+}
+
+impl std::error::Error for BoundaryStoppedWaiting {}
+
 /// StateSnapshotWriterV1 writes snapshot files to a local staging dir and
 /// simultaneously uploads them to a remote object store
 pub struct StateSnapshotWriterV1 {
@@ -367,13 +381,23 @@ impl StateSnapshotWriterV1 {
         let (remote_dir_cleared, remote_dir_is_cleared) = oneshot::channel();
         // Starts the upload loop, which listens on the receiver for FileMetadata
         let upload_handle = self.start_upload(epoch, receiver, remote_dir_is_cleared)?;
-        // Runs alongside the scan: the boundary is blocked until the database
-        // snapshot exists, and must not wait on a network round trip.
+        // Starts once the scan has its database snapshot and then runs
+        // alongside it: the boundary must not wait on a network round trip,
+        // and an epoch given up before its snapshot must not delete a
+        // directory that is already published. Returns whether it cleared.
+        let (scan_started, scan_is_started) = oneshot::channel::<()>();
         let clear_handle = {
             let epoch_dir = self.epoch_dir(epoch);
             let remote = self.remote_object_store.clone();
             let concurrency = self.concurrency;
-            tokio::spawn(async move { delete_recursively(&epoch_dir, &remote, concurrency).await })
+            tokio::spawn(async move {
+                if scan_is_started.await.is_err() {
+                    return Ok(false);
+                }
+                delete_recursively(&epoch_dir, &remote, concurrency)
+                    .await
+                    .map(|_| true)
+            })
         };
         let write_handler = tokio::task::spawn_blocking(move || {
             // The per-epoch `epoch_info` rows are read from the checkpoint
@@ -383,8 +407,11 @@ impl StateSnapshotWriterV1 {
             if db_snapshot_taken.send(()).is_err() {
                 // The boundary stopped waiting, so execution has resumed and
                 // this snapshot may include writes from the next epoch.
-                bail!("the epoch boundary stopped waiting for the snapshot of the perpetual store");
+                return Err(BoundaryStoppedWaiting.into());
             }
+            // The receiver only goes away if the clear task died, which the
+            // caller reports.
+            let _ = scan_started.send(());
             // After the signal, so clearing a large leftover directory does not
             // delay the boundary.
             self.setup_local_epoch_dir(epoch)?;
@@ -400,9 +427,9 @@ impl StateSnapshotWriterV1 {
         let cleared = clear_handle
             .await
             .map_err(anyhow::Error::from)
-            .and_then(|result| result.map(|_| ()))
+            .and_then(|result| result)
             .context(format!("Failed to clear the remote dir for epoch: {epoch}"));
-        if cleared.is_ok() {
+        if let Ok(true) = cleared {
             if remote_dir_cleared.send(()).is_err() {
                 debug!(epoch, "the state snapshot upload loop is already gone");
             }

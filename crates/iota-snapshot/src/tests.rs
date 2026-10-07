@@ -62,7 +62,7 @@ use crate::{
     restore::RestoreWithGrpcIndexes,
     uploader::StateSnapshotUploader,
     verify_epoch_info_chain,
-    writer::StateSnapshotWriterV1,
+    writer::{BoundaryStoppedWaiting, StateSnapshotWriterV1},
 };
 
 /// A fresh `CheckpointStore` seeded with fully-populated `epoch_info` rows for
@@ -1496,7 +1496,12 @@ async fn a_writer_abandons_an_epoch_no_boundary_is_waiting_for() -> Result<(), a
     let checkpoint_store = checkpoint_store_with_epochs(0);
     insert_end_of_epoch_zero_checkpoint(&checkpoint_store, ecmh_digest);
 
+    // A snapshot of this epoch published earlier, for example by another run.
     let remote_dir = dir.path().join("remote");
+    let published = remote_dir.join("epoch_0");
+    fs::create_dir_all(&published)?;
+    fs::write(published.join(SUCCESS_MARKER), b"from an earlier run")?;
+
     let uploader = test_uploader(
         &dir.path().join("staging"),
         &remote_dir,
@@ -1518,11 +1523,12 @@ async fn a_writer_abandons_an_epoch_no_boundary_is_waiting_for() -> Result<(), a
         })
         .await
         .expect_err("a snapshot nobody is waiting for must not be written");
-    assert!(format!("{err:#}").contains("stopped waiting"), "{err:#}");
+    assert!(err.is::<BoundaryStoppedWaiting>(), "{err:#}");
 
-    assert!(
-        !remote_dir.join("epoch_0").join(SUCCESS_MARKER).exists(),
-        "an abandoned epoch must not leave a published snapshot behind",
+    assert_eq!(
+        fs::read(published.join(SUCCESS_MARKER))?,
+        b"from an earlier run",
+        "an abandoned epoch must leave the published snapshot alone",
     );
     Ok(())
 }

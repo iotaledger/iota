@@ -37,9 +37,9 @@ use prometheus_filtered::{
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
-use crate::writer::StateSnapshotWriterV1;
+use crate::writer::{BoundaryStoppedWaiting, StateSnapshotWriterV1};
 
 /// Default parallelism for uploading a snapshot's files to the remote store,
 /// used when `state_snapshot_write_config.concurrency` is unset (`0`).
@@ -275,11 +275,18 @@ impl StateSnapshotUploader {
                 request = requests.recv() => {
                     let Some(request) = request else { break };
                     let epoch = request.epoch;
-                    if let Err(err) = self.write_state_snapshot(request).await {
-                        // Not retried: a later scan would not see the state
-                        // this epoch ended with.
-                        self.metrics.state_snapshot_upload_err.inc();
-                        error!("Failed to write the state snapshot for epoch {epoch}, which will not be published: {err:?}");
+                    match self.write_state_snapshot(request).await {
+                        Ok(()) => {}
+                        // Already counted as skipped at the epoch boundary.
+                        Err(err) if err.is::<BoundaryStoppedWaiting>() => {
+                            warn!("Not writing the state snapshot for epoch {epoch}: {err:#}");
+                        }
+                        Err(err) => {
+                            // Not retried: a later scan would not see the
+                            // state this epoch ended with.
+                            self.metrics.state_snapshot_upload_err.inc();
+                            error!("Failed to write the state snapshot for epoch {epoch}, which will not be published: {err:?}");
+                        }
                     }
                 },
                 _ = recv.recv() => break,
