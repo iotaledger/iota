@@ -1206,10 +1206,19 @@ impl GrpcReader {
             _ => None,
         };
 
-        let (store_transaction, store_effects) = match pruned {
+        let requested_fields = |transaction: &iota_sdk_types::SenderSignedTransaction| {
+            (
+                (fields.include_transaction || fields.include_object_changes)
+                    .then(|| transaction.transaction().clone()),
+                fields
+                    .include_signatures
+                    .then(|| transaction.signatures().to_owned()),
+            )
+        };
+        // A pruned transaction reads both from the store, any other both from the node.
+        let (transaction, effects) = match pruned {
             Some((store, _)) => {
-                let transaction_keys =
-                    (needs_transaction && local_transaction.is_none()).then_some(*digest);
+                let transaction_keys = needs_transaction.then_some(*digest);
                 let effects_keys = needs_effects.then_some(*digest);
                 if transaction_keys.is_none() && effects_keys.is_none() {
                     (None, None)
@@ -1219,10 +1228,16 @@ impl GrpcReader {
                         store_budget,
                     )
                     .await?;
-                    (first(transactions), first(effects))
+                    (
+                        first(transactions).map(|transaction| requested_fields(&transaction)),
+                        first(effects),
+                    )
                 }
             }
-            None => (None, None),
+            None => (
+                local_transaction.map(|transaction| requested_fields(&transaction)),
+                local_effects,
+            ),
         };
 
         // The store has placed a pruned transaction in a checkpoint, so its
@@ -1238,19 +1253,7 @@ impl GrpcReader {
         };
 
         let (transaction, signatures) = if needs_transaction {
-            let transaction: &iota_sdk_types::SenderSignedTransaction =
-                match (&local_transaction, &store_transaction) {
-                    (Some(transaction), _) => transaction,
-                    (None, Some(transaction)) => transaction,
-                    (None, None) => return Err(not_found()),
-                };
-            (
-                (fields.include_transaction || fields.include_object_changes)
-                    .then(|| transaction.transaction().clone()),
-                fields
-                    .include_signatures
-                    .then(|| transaction.signatures().to_owned()),
-            )
+            transaction.ok_or_else(not_found)?
         } else {
             (None, None)
         };
@@ -1283,7 +1286,7 @@ impl GrpcReader {
         };
 
         let (effects, events, input_objects, output_objects) = if needs_effects {
-            let effects = local_effects.or(store_effects).ok_or_else(not_found)?;
+            let effects = effects.ok_or_else(not_found)?;
 
             let events = match effects.events_digest().filter(|_| fields.include_events) {
                 Some(events_digest) => Some(

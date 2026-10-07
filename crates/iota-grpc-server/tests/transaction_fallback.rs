@@ -761,14 +761,14 @@ const CASES: &[Case] = &[
     },
     // Transaction and effects
     Case {
-        name: "local transaction, pruned effects: only the effects are read",
+        name: "local transaction, pruned effects: both read from the store",
         node: Node {
             transaction: true,
             ..PRUNED
         },
         store: FULL_STORE,
         expect: SERVED,
-        requests: &[LOOKUP, "multi_get(effects)"],
+        requests: &[LOOKUP, READ_BOTH],
         ..CASE
     },
     Case {
