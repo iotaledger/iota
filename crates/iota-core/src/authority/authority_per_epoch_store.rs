@@ -135,7 +135,7 @@ use crate::{
     overload_monitor::should_reject_tx,
     post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
-    post_consensus_validation,
+    post_consensus_validation::{self, PostConsensusVerdict},
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
 };
@@ -906,6 +906,17 @@ pub struct AuthorityEpochTables {
     /// that we won't receive another handle_consensus_transaction call for
     /// the given digest. This probably means at epoch change.
     consensus_message_processed: DBMap<SequencedConsensusTransactionKey, bool>,
+
+    /// The post-consensus validation decision of every candidate of a
+    /// consensus commit, keyed by commit and transaction digest. Written when
+    /// the handler first validates the commit and deleted when the commit's
+    /// output flushes, so a commit replayed after a restart finds them.
+    pub(crate) post_consensus_verdicts:
+        DBMap<(CommitIndex, TransactionDigest), PostConsensusVerdict>,
+    /// The candidates of a consensus commit in consensus order, written in
+    /// the same batch as their rows in `post_consensus_verdicts`, so its
+    /// presence means every candidate of the commit has a decision.
+    pub(crate) post_consensus_verdict_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
 
     /// Map stores pending transactions that this authority submitted to
     /// consensus
@@ -1829,6 +1840,49 @@ impl AuthorityPerEpochStore {
         self.handler_object_state
             .wait_for_fully_executed_commit(index)
             .await
+    }
+
+    /// The saved post-consensus validation decision for `digest` at commit
+    /// `index`, if the handler validated that commit and its output has not
+    /// flushed yet.
+    pub(crate) fn post_consensus_verdict(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<PostConsensusVerdict>> {
+        Ok(self
+            .tables()?
+            .post_consensus_verdicts
+            .get(&(index, digest))?)
+    }
+
+    /// Saves the decisions of every candidate of commit `index`, in consensus
+    /// order, together with the commit's candidate list, in one batch.
+    pub(crate) fn persist_post_consensus_verdicts(
+        &self,
+        index: CommitIndex,
+        verdicts: &[(TransactionDigest, PostConsensusVerdict)],
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let mut batch = tables.post_consensus_verdicts.batch();
+        batch.insert_batch(
+            &tables.post_consensus_verdicts,
+            verdicts
+                .iter()
+                .map(|(digest, verdict)| ((index, *digest), verdict)),
+        )?;
+        batch.insert_batch(
+            &tables.post_consensus_verdict_candidates,
+            [(
+                index,
+                verdicts
+                    .iter()
+                    .map(|(digest, _)| *digest)
+                    .collect::<Vec<_>>(),
+            )],
+        )?;
+        batch.write()?;
+        Ok(())
     }
 
     /// Records one executed transaction's object writes for the P-COOL

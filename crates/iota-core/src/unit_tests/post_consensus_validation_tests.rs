@@ -61,7 +61,7 @@ use crate::{
         DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
         reader::CommitIndexedReader,
     },
-    post_consensus_validation,
+    post_consensus_validation::{self, PostConsensusVerdict},
     test_utils::make_transfer_object_transaction,
     transaction_input_loader::TransactionInputLoader,
 };
@@ -5717,6 +5717,50 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         "{:?}",
         dropped[1].1
     );
+}
+
+/// The decisions of a commit and its candidate list read back as written,
+/// before and after a restart.
+#[tokio::test]
+async fn post_consensus_verdicts_survive_a_restart() {
+    use typed_store::Map;
+
+    let mut s = setup_bookkeeping(vec![], true).await;
+    let kept = TransactionDigest::random();
+    let dropped = TransactionDigest::random();
+    let error: IotaError = UserInputError::ObjectNotFound {
+        object_id: ObjectId::random(),
+        version: None,
+    }
+    .into();
+    let verdicts = vec![
+        (kept, PostConsensusVerdict::Kept),
+        (dropped, PostConsensusVerdict::Dropped(error)),
+    ];
+    s.epoch_store
+        .persist_post_consensus_verdicts(1, &verdicts)
+        .unwrap();
+    for reopened in [false, true] {
+        if reopened {
+            s.epoch_store = reopen(&s.authority, &s.epoch_store);
+        }
+        for (digest, verdict) in &verdicts {
+            assert_eq!(
+                s.epoch_store.post_consensus_verdict(1, *digest).unwrap(),
+                Some(verdict.clone())
+            );
+        }
+        assert_eq!(
+            s.epoch_store
+                .tables()
+                .unwrap()
+                .post_consensus_verdict_candidates
+                .get(&1)
+                .unwrap(),
+            Some(vec![kept, dropped])
+        );
+        assert_eq!(s.epoch_store.post_consensus_verdict(2, kept).unwrap(), None);
+    }
 }
 
 /// A Move authenticator's account object that the reader answered as deleted
