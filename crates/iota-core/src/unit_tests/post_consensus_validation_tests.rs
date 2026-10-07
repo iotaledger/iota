@@ -5763,6 +5763,65 @@ async fn post_consensus_verdicts_survive_a_restart() {
     }
 }
 
+/// A commit's saved decisions are deleted in the batch that flushes its
+/// output, together with its processed flags and the resume point, so they
+/// exist exactly as long as the commit can be replayed.
+#[tokio::test]
+async fn decisions_retire_with_resume_progress_and_processed_state() {
+    use crate::authority::authority_per_epoch_store::{
+        ExecutionIndices, ExecutionIndicesWithStats,
+    };
+
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    s.epoch_store
+        .persist_post_consensus_verdicts(1, &[(*tx.digest(), PostConsensusVerdict::Kept)])
+        .unwrap();
+    let key = make_user_tx_v1_verified(tx.clone()).0.key();
+    let mut output = ConsensusCommitOutput::new(1, 1);
+    output.record_consensus_message_processed(key.clone());
+    output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+        index: ExecutionIndices {
+            sub_dag_index: 1,
+            last_committed_round: 1,
+            transaction_index: 1,
+        },
+        ..Default::default()
+    });
+    let mut batch = s.epoch_store.db_batch_for_test();
+    output.write_to_batch(&s.epoch_store, &mut batch).unwrap();
+    assert!(
+        s.epoch_store
+            .post_consensus_verdict(1, *tx.digest())
+            .unwrap()
+            .is_some()
+    );
+    assert!(!s.epoch_store.is_consensus_message_processed(&key).unwrap());
+    batch.write().unwrap();
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    assert!(
+        reopened
+            .post_consensus_verdict(1, *tx.digest())
+            .unwrap()
+            .is_none()
+    );
+    assert!(reopened.is_consensus_message_processed(&key).unwrap());
+    assert_eq!(
+        *reopened.subscribe_highest_fully_executed_commit().borrow(),
+        1
+    );
+}
+
 /// A Move authenticator's account object that the reader answered as deleted
 /// is not a rejection at a commit. The check proceeds to the function
 /// reference lookup, which here fails only because the random account has

@@ -291,6 +291,25 @@ impl ConsensusCommitOutput {
         batch: &mut DBBatch,
     ) -> IotaResult {
         let tables = epoch_store.tables()?;
+        // Once this batch is durable the handler resumes above this commit and
+        // never replays it, so its saved validation decisions retire with it.
+        if epoch_store.pcool_bookkeeping_enabled() {
+            if let Some(candidates) = tables
+                .post_consensus_verdict_candidates
+                .get(&self.commit_index)?
+            {
+                batch.delete_batch(
+                    &tables.post_consensus_verdicts,
+                    candidates
+                        .into_iter()
+                        .map(|digest| (self.commit_index, digest)),
+                )?;
+                batch.delete_batch(
+                    &tables.post_consensus_verdict_candidates,
+                    [self.commit_index],
+                )?;
+            }
+        }
         batch.insert_batch(
             &tables.consensus_message_processed,
             self.consensus_messages_processed
