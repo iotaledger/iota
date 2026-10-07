@@ -747,20 +747,19 @@ impl IotaNode {
             None
         };
 
-        // Validators expose neither JSON-RPC nor gRPC. Both APIs share the
-        // store metrics, which register once.
-        let kv_stores = if config.is_validator() {
+        // Validators expose neither JSON-RPC nor gRPC.
+        let kv_store = if config.is_validator() {
             None
         } else {
-            Some(build_kv_stores(&state, &config, &prometheus_registry)?)
+            Some(SharedKeyValueStore::new(&config, &prometheus_registry)?)
         };
 
         // Run the JSON-RPC server (and its per-request handlers) on the serving
         // runtime. `iota_http::Builder::serve` spawns the accept loop via
         // `Handle::current()`, so the builder must execute on the serving runtime.
-        let http_server = match kv_stores
+        let http_server = match kv_store
             .as_ref()
-            .map(|stores| stores.local_with_fallback.clone())
+            .map(|kv_store| kv_store.json_rpc_store(&state))
         {
             Some(kv_store) => Some(
                 serving_rt_handle
@@ -839,7 +838,7 @@ impl IotaNode {
                 let state = state.clone();
                 let state_sync_store = state_sync_store.clone();
                 let prometheus_registry = prometheus_registry.clone();
-                let transaction_fallback = kv_stores.and_then(|stores| stores.remote);
+                let transaction_fallback = kv_store.and_then(|kv_store| kv_store.grpc_store());
                 async move {
                     build_grpc_server(
                         &config,
@@ -2460,56 +2459,67 @@ fn send_trusted_peer_change(
     })
 }
 
-/// The key-value stores serving reads on a full node.
-struct KeyValueStores {
-    /// Local store, falling back to the remote one when configured.
-    local_with_fallback: Arc<TransactionKeyValueStore>,
-    /// Remote store, `None` without a base URL.
-    remote: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
+/// What the JSON-RPC and gRPC servers share to read the key-value store: the store metrics, which
+/// register once, and the HTTP store, so that both use its client and cache.
+struct SharedKeyValueStore {
+    metrics: Arc<KeyValueStoreMetrics>,
+    /// `None` without a base URL.
+    http_store: Option<Arc<HttpKVStore>>,
 }
 
-fn build_kv_stores(
-    state: &Arc<AuthorityState>,
-    config: &NodeConfig,
-    registry: &Registry,
-) -> Result<KeyValueStores> {
-    let metrics = KeyValueStoreMetrics::new(registry);
-    let db_store = TransactionKeyValueStore::new("rocksdb", metrics.clone(), state.clone());
+impl SharedKeyValueStore {
+    fn new(config: &NodeConfig, registry: &Registry) -> Result<Self> {
+        let metrics = KeyValueStoreMetrics::new(registry);
+        let base_url = &config.transaction_kv_store_read_config.base_url;
+        if base_url.is_empty() {
+            info!("no http kv store url provided, using local db only");
+            return Ok(Self {
+                metrics,
+                http_store: None,
+            });
+        }
 
-    let base_url = &config.transaction_kv_store_read_config.base_url;
-
-    if base_url.is_empty() {
-        info!("no http kv store url provided, using local db only");
-        return Ok(KeyValueStores {
-            local_with_fallback: Arc::new(db_store),
-            remote: None,
-        });
+        base_url.parse::<url::Url>().tap_err(|e| {
+            error!(
+                "failed to parse config.transaction_kv_store_read_config.base_url ({:?}) as url: {}",
+                base_url, e
+            )
+        })?;
+        info!("using local key-value store with fallback to http key-value store");
+        Ok(Self {
+            http_store: Some(Arc::new(HttpKVStore::new(
+                base_url,
+                config.transaction_kv_store_read_config.cache_size,
+                metrics.clone(),
+            )?)),
+            metrics,
+        })
     }
 
-    base_url.parse::<url::Url>().tap_err(|e| {
-        error!(
-            "failed to parse config.transaction_kv_store_read_config.base_url ({:?}) as url: {}",
-            base_url, e
-        )
-    })?;
+    /// The store JSON-RPC reads: the node's own, falling back to the HTTP store.
+    fn json_rpc_store(&self, state: &Arc<AuthorityState>) -> Arc<TransactionKeyValueStore> {
+        let db_store =
+            TransactionKeyValueStore::new("rocksdb", self.metrics.clone(), state.clone());
+        match &self.http_store {
+            Some(http_store) => Arc::new(FallbackTransactionKVStore::new_kv(
+                db_store,
+                TransactionKeyValueStore::new("http", self.metrics.clone(), http_store.clone()),
+                self.metrics.clone(),
+                "json_rpc_fallback",
+            )),
+            None => Arc::new(db_store),
+        }
+    }
 
-    // One HTTP store, so both APIs share its client and cache.
-    let http_store = Arc::new(HttpKVStore::new(
-        base_url,
-        config.transaction_kv_store_read_config.cache_size,
-        metrics.clone(),
-    )?);
-    let remote = TransactionKeyValueStore::new("grpc_http", metrics.clone(), http_store.clone());
-    info!("using local key-value store with fallback to http key-value store");
-    Ok(KeyValueStores {
-        local_with_fallback: Arc::new(FallbackTransactionKVStore::new_kv(
-            db_store,
-            TransactionKeyValueStore::new("http", metrics.clone(), http_store),
-            metrics,
-            "json_rpc_fallback",
-        )),
-        remote: Some(Arc::new(remote)),
-    })
+    /// The store gRPC reads pruned data from.
+    fn grpc_store(&self) -> Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>> {
+        let http_store = self.http_store.clone()?;
+        Some(Arc::new(TransactionKeyValueStore::new(
+            "grpc_http",
+            self.metrics.clone(),
+            http_store,
+        )))
+    }
 }
 
 /// Builds and starts the gRPC server for the IOTA node based on the node's
