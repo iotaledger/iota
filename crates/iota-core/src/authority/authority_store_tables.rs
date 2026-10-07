@@ -578,13 +578,17 @@ impl AuthorityPerpetualTables {
         for sst_file in self.objects.db.live_files()? {
             let file_path = db_path.join(sst_file.name.clone().trim_matches('/'));
             let last_modified = std::fs::metadata(file_path)?.modified()?;
-            if !compacted_tables.contains(sst_file.column_family_name.as_str())
-                || sst_file.level < 1
+            if sst_file.level < 1
                 || sst_file.start_key.is_none()
                 || sst_file.end_key.is_none()
                 || last_modified > time_threshold
                 || state.get(&sst_file.name).unwrap_or(&UNIX_EPOCH) > &time_threshold
             {
+                continue;
+            }
+            // Checked before the file is looked up: the historic buckets keep
+            // their files outside `db_path`, and are never compacted here.
+            if !compacted_tables.contains(sst_file.column_family_name.as_str()) {
                 continue;
             }
             if let Some(candidate) = &sst_file_for_compaction {
@@ -1271,3 +1275,28 @@ mod tests {
         more_asserts::assert_lt!(after_compaction_size, before_compaction_size);
     }
 }
+
+    /// The periodic compaction walks every live file of the perpetual
+    /// database, and the historic buckets keep theirs outside its directory:
+    /// it must pass over those rather than fail looking them up there.
+    #[tokio::test]
+    async fn periodic_compaction_passes_over_the_historic_bucket_files() {
+        let tmp_dir = iota_common::tempdir();
+        let (perpetual_db, historic_objects, _historic_ledger, _epoch_markers) =
+            AuthorityPerpetualTables::open_with_historic_objects(tmp_dir.path(), None).unwrap();
+        let object = Object::immutable_with_id_for_testing(ObjectId::random());
+        let bucket = historic_objects.ensure(1).unwrap();
+        let mut batch = perpetual_db.objects.batch();
+        batch
+            .insert_batch_tagged(
+                &bucket.objects,
+                [(ObjectKey(object.id(), object.version()), object)],
+            )
+            .unwrap();
+        batch.write().unwrap();
+        perpetual_db.objects.flush_all().unwrap();
+
+        perpetual_db
+            .compact_next_sst_file(0, &Mutex::new(HashMap::new()))
+            .unwrap();
+    }
