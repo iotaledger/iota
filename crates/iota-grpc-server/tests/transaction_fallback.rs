@@ -1524,6 +1524,12 @@ async fn a_failed_call_fails_every_transaction_that_needed_it() {
     let results = get_transactions(&handle, &digests, "transaction,input_objects").await;
 
     assert_eq!(served_digest(&results[0]), digests[0].bytes().to_vec());
+    let executed = results[0].executed_transaction().unwrap().unwrap();
+    assert_eq!(
+        served_object_keys(&executed.input_objects).len(),
+        tests[0].input_objects.len(),
+        "the transaction whose objects are on the node lost them"
+    );
     assert_eq!(error_code(&results[1]), Some(tonic::Code::Unavailable));
     assert_eq!(error_code(&results[2]), Some(tonic::Code::Unavailable));
     assert_eq!(*requests.lock().unwrap(), [READ_OBJECTS]);
