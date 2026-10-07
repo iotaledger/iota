@@ -20,10 +20,7 @@ use crate::{
     errors::IndexerError,
     ingestion::{
         common::{orchestration::OperationalLevel, prepare::ValidatedCheckpoint},
-        primary::persist::{
-            BasicData, CheckpointDataToCommit, CombinedEventFiltersData, EpochToCommit,
-            FilteredQueriesData, ObjectsHistoryData,
-        },
+        primary::persist::{CheckpointDataToCommit, EpochToCommit, data},
     },
     metrics::IndexerMetrics,
     models::epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
@@ -150,7 +147,7 @@ impl<'chk, 'm> Transformer<'chk, 'm> {
             "Indexer lag: indexed checkpoint {time_now_ms} with time now {} and checkpoint time {}",
             checkpoint.sequence_number, checkpoint.timestamp_ms
         );
-        let basic = BasicData {
+        let basic = data::Basic {
             checkpoint,
             transactions: transaction_data.transactions,
             displays: event_data.displays,
@@ -161,13 +158,13 @@ impl<'chk, 'm> Transformer<'chk, 'm> {
         };
         let objects_history = object_data
             .history_objects
-            .map(|objects| ObjectsHistoryData {
+            .map(|objects| data::ObjectsHistory {
                 history_objects: objects,
             });
         let filtered_queries = transaction_data
             .transaction_indices
             .zip(event_data.events)
-            .map(|(tx_indices, events)| FilteredQueriesData { tx_indices, events });
+            .map(|(tx_indices, events)| data::FilteredQueries { tx_indices, events });
         if filtered_queries.is_none()
             && operational_level.includes(OperationalLevel::FilteredQueries)
         {
@@ -177,7 +174,7 @@ impl<'chk, 'm> Transformer<'chk, 'm> {
         }
         let combined_event_filters = event_data
             .event_indices
-            .map(|event_indices| CombinedEventFiltersData { event_indices });
+            .map(|event_indices| data::CombinedEventFilters { event_indices });
 
         Ok(CheckpointDataToCommit {
             basic,
