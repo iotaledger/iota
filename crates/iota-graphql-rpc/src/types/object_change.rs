@@ -2,8 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use async_graphql::*;
-use iota_sdk_types::{ChangedObject, IdOperation, ObjectOut, Version};
+use iota_sdk_types::{ChangedObject, IdOperation, ObjectId, ObjectOut, Version};
+use iota_types::object::Object as NativeObject;
 
 use crate::types::{iota_address::IotaAddress, object::Object};
 
@@ -14,8 +17,8 @@ pub(crate) enum ObjectChangeSource {
     Checkpointed,
     /// Object change from an executed (not yet checkpointed) transaction
     Executed,
-    /// Object change from a dry run transaction (dryRunTransactionBlock)
-    DryRun,
+    /// Object change from a simulated transaction (`dryRunTransactionBlock`)
+    Simulated,
 }
 
 pub(crate) struct ObjectChange {
@@ -26,6 +29,13 @@ pub(crate) struct ObjectChange {
     pub checkpoint_viewed_at: u64,
     /// The source of this object change (derived from transaction kind)
     pub source: ObjectChangeSource,
+    /// For a simulated transaction, the simulation's input and output objects.
+    /// Object state is resolved from here rather than the
+    /// database: objects a simulation writes are not indexed, and the state it
+    /// reads may be ahead of indexer if the node is ahead. `None` for the other
+    /// sources.
+    pub input_objects: Option<Arc<BTreeMap<ObjectId, NativeObject>>>,
+    pub output_objects: Option<Arc<BTreeMap<ObjectId, NativeObject>>>,
 }
 
 /// Effect on an individual Object (keyed by its ID).
@@ -42,9 +52,18 @@ impl ObjectChange {
             return Ok(None);
         };
 
+        // Resolve from the simulation's input objects: it ran against the
+        // fullnode's state, which may be ahead of the index. Fall back to the
+        // database when the simulation did not return that object.
+        if let ObjectChangeSource::Simulated = self.source {
+            if let Some(object) = self.simulation_object(&self.input_objects) {
+                return Ok(Some(object));
+            }
+        }
+
         let object_lookup = match self.source {
             ObjectChangeSource::Executed => Object::at_optimistic_version(version.as_u64()),
-            ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
+            ObjectChangeSource::Checkpointed | ObjectChangeSource::Simulated => {
                 Object::at_version(version.as_u64(), self.checkpoint_viewed_at)
             }
         };
@@ -59,9 +78,18 @@ impl ObjectChange {
             return Ok(None);
         };
 
+        // Objects a simulation writes are never indexed, so resolve their state
+        // from the simulation's output objects. Fall back to the database when
+        // the simulation did not return that object.
+        if let ObjectChangeSource::Simulated = self.source {
+            if let Some(object) = self.simulation_object(&self.output_objects) {
+                return Ok(Some(object));
+            }
+        }
+
         let object_lookup = match self.source {
             ObjectChangeSource::Executed => Object::at_optimistic_version(version.as_u64()),
-            ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
+            ObjectChangeSource::Checkpointed | ObjectChangeSource::Simulated => {
                 Object::at_version(version.as_u64(), self.checkpoint_viewed_at)
             }
         };
@@ -95,6 +123,25 @@ impl ObjectChange {
             _ => unimplemented!("a new ObjectOut enum variant was added and needs to be handled"),
         }
     }
+
+    /// This object's state from objects used/produced by simulation, if
+    /// present. Used instead of a database lookup since simulation input
+    /// may not be indexed yet, and simulation output is never indexed. Pass
+    /// the input objects for the prior state, the output objects for the
+    /// resulting state.
+    #[graphql(skip)]
+    fn simulation_object(
+        &self,
+        objects: &Option<Arc<BTreeMap<ObjectId, NativeObject>>>,
+    ) -> Option<Object> {
+        let native = objects.as_ref()?.get(&self.native.object_id)?;
+        Some(Object::from_native(
+            self.native.object_id.into(),
+            native.clone(),
+            self.checkpoint_viewed_at,
+            None,
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -123,6 +170,8 @@ mod tests {
                 lamport_version: lamport,
                 checkpoint_viewed_at: 0,
                 source: ObjectChangeSource::Checkpointed,
+                input_objects: None,
+                output_objects: None,
             }
             .output_version()
         };

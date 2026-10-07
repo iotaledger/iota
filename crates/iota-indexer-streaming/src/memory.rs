@@ -243,7 +243,7 @@ impl InMemory {
                                 "failed to get connection from postgres connection pool with error: {e:?}"
                             );
                             Self::publish_error(
-                                IndexerStreamingError::Postgres(e.to_string()),
+                                IndexerStreamingError::Postgres,
                                 &event_tx,
                                 &transaction_tx,
                             );
@@ -786,9 +786,10 @@ impl InMemory {
                     Err(_) => None,
                 }
             }
-            Err(e) => Some(Err(IndexerStreamingError::Postgres(format!(
-                "database connection error: {e}"
-            )))),
+            Err(e) => {
+                error!("failed to receive postgres notification: {e:?}");
+                Some(Err(IndexerStreamingError::Postgres))
+            }
         })
     }
 
@@ -1075,19 +1076,13 @@ impl HistoricalFetch {
                             // have data in transactions table.
                             Ok(None) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(
-                                    "unable to fetch latest tx sequence number".into(),
-                                );
-                                error!("{e}");
-                                return Some((Err(e), state));
+                                error!("unable to fetch latest tx sequence number");
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                             Err(e) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(format!(
-                                    "unable to fetch latest tx sequence number: {e}"
-                                ));
-                                error!("{e}");
-                                return Some((Err(e), state));
+                                error!("unable to fetch latest tx sequence number: {e:?}");
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                         };
 
@@ -1133,14 +1128,13 @@ impl HistoricalFetch {
                         }
                         Err(e) => {
                             state.should_close_stream = true;
-                            let e = IndexerStreamingError::Postgres(e.to_string());
                             error!(
                                 batch_start = start,
                                 batch_end = end,
                                 error = ?e,
                                 "batch processing failed after retries, publishing error to clients"
                             );
-                            return Some((Err(e), state));
+                            return Some((Err(IndexerStreamingError::Postgres), state));
                         }
                     }
                 }

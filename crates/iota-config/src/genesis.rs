@@ -16,8 +16,7 @@ use fastcrypto::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, ObjectId, TransactionEffects, TransactionEvents,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    Address, CheckpointContents, CheckpointSummary, ObjectId, TransactionEffects, TransactionEvents,
 };
 use iota_types::{
     clock::Clock,

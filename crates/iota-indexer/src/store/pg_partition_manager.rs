@@ -12,7 +12,7 @@ use diesel::{
     sql_types::{BigInt, VarChar},
 };
 use downcast::Any;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{
     db::ConnectionPool, errors::IndexerError, ingestion::primary::persist::EpochToCommit,
@@ -96,22 +96,15 @@ impl EpochPartitionData {
 }
 
 impl PgPartitionManager {
-    pub fn new(cp: ConnectionPool) -> Result<Self, IndexerError> {
+    pub fn new(cp: ConnectionPool) -> Self {
         let mut partition_strategies = HashMap::new();
         partition_strategies.insert("events", PgPartitionStrategy::TxSequenceNumber);
         partition_strategies.insert("transactions", PgPartitionStrategy::TxSequenceNumber);
         partition_strategies.insert("objects_version", PgPartitionStrategy::ObjectId);
-        let manager = Self {
+        Self {
             cp,
             partition_strategies,
-        };
-        let tables = manager.get_table_partitions()?;
-        info!(
-            "Found {} tables with partitions : [{:?}]",
-            tables.len(),
-            tables
-        );
-        Ok(manager)
+        }
     }
 
     pub fn get_table_partitions(&self) -> Result<BTreeMap<String, (u64, u64)>, IndexerError> {
@@ -230,11 +223,11 @@ impl PgPartitionManager {
                 table, last_partition, data.next_epoch, next_epoch_start
             );
         } else if last_partition != data.next_epoch {
-            let emsg = format!(
+            error!(
                 "Advancing to epoch {} failed. Corrupted partitions for table {table}",
                 data.last_epoch
             );
-            return Err(IndexerError::PostgresWrite(emsg));
+            return Err(IndexerError::PostgresWrite);
         } else {
             info!(
                 "Epoch has been advanced to {} already, skipping.",

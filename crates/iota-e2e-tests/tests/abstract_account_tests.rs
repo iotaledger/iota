@@ -19,6 +19,7 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::Authenticator,
 };
+use iota_config::transaction_deny_config::TransactionDenyConfigBuilder;
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_json_rpc_types::{DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
@@ -33,6 +34,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::AuthorityName,
     crypto::PublicKey,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
@@ -889,6 +891,153 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
     Ok(())
 }
 
+/// Denying the package that holds the authenticate function must stop the
+/// transaction, even though that package is named by neither a command nor a
+/// linkage table.
+///
+/// The second half pins the ordering: with a signature that cannot verify, the
+/// deny check has to win over the authenticator execution that would otherwise
+/// report the Move abort. Reaching that abort would mean code from a denied
+/// package ran before the transaction was turned away.
+#[sim_test]
+async fn test_authenticator_package_denied() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let aa_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(1000000), aa_sender)
+        .await;
+
+    // The package id only exists once the package is published, which is after
+    // the cluster was built, so the deny list is installed by restarting. Only
+    // the validator this test queries needs it.
+    test_env
+        .test_cluster
+        .update_transaction_deny_config_on(
+            &validator,
+            TransactionDenyConfigBuilder::new()
+                .add_denied_package(test_env.aa_package_id.unwrap())
+                .build(),
+        )
+        .await;
+
+    // A plain transfer, so the account's package is named by the authenticator
+    // alone. A transaction that called into that package would be turned away
+    // by the command-level check even without the one under test.
+    let pt = test_env.craft_object_transfer(aa_coin, test_env.owner.unwrap())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // A transaction that would otherwise succeed.
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data.clone(), signatures);
+
+    let err = test_env
+        .handle_tx_in_process(&validator, tx)
+        .await
+        .unwrap_err();
+    let IotaError::UserInput {
+        error: UserInputError::TransactionDenied { error },
+    } = &err
+    else {
+        panic!("Expected TransactionDenied, got: {err:?}");
+    };
+    assert!(
+        error.contains(&test_env.aa_package_id.unwrap().to_string()),
+        "Expected the denied authenticator package to be named, got: {error}",
+    );
+
+    // A signature over the wrong digest, which `authenticate_ed25519` would
+    // abort on. The deny check must answer first.
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+
+    let err = test_env
+        .handle_tx_in_process(&validator, tx)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "Expected the deny check to precede authenticator execution, got: {err:?}",
+    );
+
+    Ok(())
+}
+
+/// Same scenario as [`test_authenticator_package_denied`] with
+/// `deny_authenticator_packages` disabled: the transaction goes through, which
+/// is both the pre-37 behaviour and the proof that the other test's rejection
+/// comes from the check under test rather than from somewhere else.
+#[sim_test]
+async fn test_authenticator_package_denied_without_flag() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_deny_authenticator_packages_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let aa_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(1000000), aa_sender)
+        .await;
+
+    test_env
+        .test_cluster
+        .update_transaction_deny_config_on(
+            &validator,
+            TransactionDenyConfigBuilder::new()
+                .add_denied_package(test_env.aa_package_id.unwrap())
+                .build(),
+        )
+        .await;
+
+    let pt = test_env.craft_object_transfer(aa_coin, test_env.owner.unwrap())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+
+    test_env.handle_tx_in_process(&validator, tx).await?;
+
+    Ok(())
+}
+
 /// Same scenario as [`test_pre_consensus_authentication_failure`], but with
 /// `report_move_authentication_error` disabled: the pre-consensus path must
 /// still gate on the flag and surface the authenticator's bare Move abort,
@@ -1399,13 +1548,13 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
         summary.status.is_success(),
         "Expected the TX1 execution to succeed"
     );
-    let conflict_coin_ref = effects_cert
+    let conflict_coin_ref = *effects_cert
         .all_changed_objects()
         .iter()
-        .find(|(changed, _)| changed.reference.object_id == conflict_coin_ref.object_id)
+        .find(|(changed, _)| changed.reference().object_id == conflict_coin_ref.object_id)
         .expect("Expected to find the updated conflict coin object")
         .0
-        .reference;
+        .reference();
 
     // Step 3: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
@@ -2076,7 +2225,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
     );
     assert_eq!(
-        effects_cert.data().gas_object().reference.object_id,
+        effects_cert.data().gas_object().reference().object_id,
         sponsor_gas.object_id,
         "Expected the sponsor's gas coin to be used for the failed TX"
     );
@@ -3079,6 +3228,31 @@ impl TestEnvironment {
         Ok(())
     }
 
+    /// Runs the given validator's signing checks in process.
+    ///
+    /// Unlike [`Self::handle_tx`] this needs no network, so it still works
+    /// after that validator has been restarted — restarting leaves the
+    /// fullnode's cached authority clients pointing at dead connections.
+    async fn handle_tx_in_process(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> Result<HandleTransactionResponse, IotaError> {
+        self.test_cluster
+            .swarm
+            .node(authority)
+            .unwrap()
+            .get_node_handle()
+            .unwrap()
+            .with_async(|node| async move {
+                let state = node.state();
+                let epoch_store = state.epoch_store_for_testing();
+                let tx = epoch_store.verify_transaction(tx)?;
+                state.handle_transaction(&epoch_store, tx).await
+            })
+            .await
+    }
+
     async fn handle_tx(
         &self,
         tx: TransactionEnvelope,
@@ -3117,14 +3291,14 @@ fn abstract_account_from_all_changed_objects(
     // Extract the only created shared or immutable object which is the abstract
     // account. The other object the creation transaction writes is the
     // authenticator function ref, which is owned by the account object.
-    all_changed_objects
+    *all_changed_objects
         .iter()
         .find_map(|(changed, kind)| {
             matches!(
-                (changed.owner, kind),
+                (changed.owner(), kind),
                 (Owner::Shared(_) | Owner::Immutable, WriteKind::Create)
             )
-            .then_some(changed.reference)
+            .then_some(changed.reference())
         })
         .expect("Expected a shared or immutable object in the transaction response")
 }

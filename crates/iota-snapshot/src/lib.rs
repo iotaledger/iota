@@ -42,7 +42,7 @@ use iota_storage::{
 use iota_types::{
     IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::ExecutionDigests,
-    committee::{Committee, CommitteeChainVerifier},
+    committee::{Committee, CommitteeChainVerifier, EpochId},
     digests::ChainIdentifier,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     global_state_hash::GlobalStateHash,
@@ -296,8 +296,8 @@ impl Manifest {
 }
 
 /// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
-/// future schema evolution. `entries[i]` is the entry for epoch `i`;
-/// length is `snapshot_epoch + 1`.
+/// future schema evolution. `entries[i]` is the entry for epoch `i`; the length
+/// must be `snapshot_epoch + 1`, which `verify_epoch_info_chain` enforces.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EpochInfo {
     V1(EpochInfoV1),
@@ -346,6 +346,15 @@ impl VerifiedEpochInfo {
     /// the start system state of the epoch following the snapshot epoch.
     pub fn entries(&self) -> &[EpochInfoV1Entry] {
         self.epoch_info.entries()
+    }
+
+    /// The entry for the snapshot epoch, i.e. the last of [`Self::entries`].
+    pub fn snapshot_entry(&self) -> &EpochInfoV1Entry {
+        // `verify_epoch_info_chain` is the only constructor and rejects an
+        // entry count other than `snapshot_epoch + 1`, so there is one.
+        self.entries()
+            .last()
+            .expect("a verified EPOCH_INFO covers epochs [0, snapshot_epoch]")
     }
 
     /// Committees for epochs `[0, snapshot_epoch + 1]`: the genesis committee
@@ -409,13 +418,14 @@ impl VerifiedEpochInfo {
 /// Verify a snapshot's `EPOCH_INFO` against the operator's trust roots: the
 /// expected `chain_id`, the committee chain walked from `genesis_committee`,
 /// and `genesis_system_state` (epoch 0's start state, which no entry proves).
-/// Each entry must be the contiguous certified close of its epoch, signed by
-/// the committee the previous entry handed forward, with its proof bundle
-/// hashing back to the signed summary (see `verify_epoch_boundary_proof`).
-/// Nothing is written; the returned `VerifiedEpochInfo` is the witness
-/// consumers require.
+/// The entries must be the contiguous certified closes of epochs
+/// `[0, snapshot_epoch]`, each signed by the committee the previous entry
+/// handed forward, with its proof bundle hashing back to the signed summary
+/// (see `verify_epoch_boundary_proof`). Nothing is written; the returned
+/// `VerifiedEpochInfo` is the witness consumers require.
 pub fn verify_epoch_info_chain(
     epoch_info: EpochInfo,
+    snapshot_epoch: EpochId,
     genesis_committee: Committee,
     genesis_system_state: IotaSystemState,
     snapshot_chain_id: ChainIdentifier,
@@ -430,6 +440,15 @@ pub fn verify_epoch_info_chain(
         genesis_committee.epoch == 0,
         "the trust root must be the genesis committee, got epoch {}",
         genesis_committee.epoch
+    );
+    // With the contiguity check below, this binds the last entry to the
+    // requested epoch: a shorter chain would restore an earlier epoch, and an
+    // empty one leaves consumers with no snapshot boundary at all.
+    let entry_count = epoch_info.entries().len();
+    anyhow::ensure!(
+        entry_count as u64 == snapshot_epoch + 1,
+        "EPOCH_INFO carries {entry_count} entries, but a snapshot of epoch \
+         {snapshot_epoch} must carry one entry per epoch in [0, {snapshot_epoch}]"
     );
 
     let mut chain_verifier = CommitteeChainVerifier::new(genesis_committee);
@@ -524,7 +543,7 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
     let written: HashSet<ObjectReference> = effects
         .all_changed_objects()
         .into_iter()
-        .map(|(changed, _)| changed.reference)
+        .map(|(changed, _)| *changed.reference())
         .collect();
     let mut objects = Vec::with_capacity(entry.next_epoch_start_system_state_objects.len());
     for raw in &entry.next_epoch_start_system_state_objects {

@@ -18,7 +18,7 @@ use tracing::warn;
 use crate::{
     base_types::{AuthorityName, EpochId},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
-    crypto::{AuthorityPublicKey, NetworkPublicKey},
+    crypto::{AggregateAuthorityPublicKey, NetworkPublicKey},
     iota_system_state::iota_system_state_inner_v1::ValidatorV1,
 };
 
@@ -40,7 +40,7 @@ pub trait EpochStartSystemStateTrait {
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
-    fn get_active_validators(&self) -> Vec<AuthorityPublicKey>;
+    fn get_active_validators(&self) -> Vec<AggregateAuthorityPublicKey>;
 }
 
 /// This type captures the minimum amount of information from IotaSystemState
@@ -281,7 +281,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .collect()
     }
 
-    fn get_active_validators(&self) -> Vec<AuthorityPublicKey> {
+    fn get_active_validators(&self) -> Vec<AggregateAuthorityPublicKey> {
         // for V1 the committee and active validators are the same as there is no
         // additional committee selection
         self.committee_validators
@@ -363,7 +363,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
         self.v1.get_authority_names_to_hostnames()
     }
 
-    fn get_active_validators(&self) -> Vec<AuthorityPublicKey> {
+    fn get_active_validators(&self) -> Vec<AggregateAuthorityPublicKey> {
         self.active_validators
             .iter()
             .map(|validator| validator.authority_pubkey.clone())
@@ -374,7 +374,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct EpochStartValidatorInfoV1 {
     pub iota_address: Address,
-    pub authority_pubkey: AuthorityPublicKey,
+    pub authority_pubkey: AggregateAuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
     pub iota_net_address: Multiaddr,

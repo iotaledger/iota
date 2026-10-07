@@ -1462,9 +1462,8 @@ mod tests {
 
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        CheckpointDigest, TransactionEffectsDigest, TransactionEvents,
-        checkpoint::{CheckpointContents, CheckpointSummary},
-        gas::GasCostSummary,
+        CheckpointContents, CheckpointDigest, CheckpointSummary, GasCostSummary,
+        TransactionEffectsDigest, TransactionEvents,
     };
     use iota_storage::{
         key_value_store::{

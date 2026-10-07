@@ -4,7 +4,7 @@
 
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use iota_sdk_types::{ObjectId, move_package::MovePackage};
+use iota_sdk_types::{MovePackage, ObjectId};
 use iota_types::error::IotaResult;
 
 use crate::data_store::PackageStore;

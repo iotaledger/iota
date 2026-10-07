@@ -149,6 +149,11 @@ pub fn make_authority_clients_with_timeout_config(
     let mut network_config = iota_network_stack::config::Config::new();
     network_config.connect_timeout = Some(connect_timeout);
     network_config.request_timeout = Some(request_timeout);
+    // Without keepalive a dead validator connection is only noticed when a
+    // request on it times out; the connect timeout is already the accepted
+    // wait for reaching a validator, so it bounds the silence here too.
+    network_config.http2_keepalive_interval = Some(connect_timeout);
+    network_config.http2_keepalive_timeout = Some(connect_timeout);
     make_network_authority_clients_with_network_config(committee, &network_config)
 }
 

@@ -11,13 +11,10 @@ use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest, Digest, RandomnessRound,
-    Transaction,
-    checkpoint::{
-        CheckpointContents, CheckpointSummary, CheckpointTransactionInfo, EndOfEpochData,
-    },
+    CheckpointContents, CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest,
+    CheckpointSummary, CheckpointTransactionInfo, Digest, EndOfEpochData, GasCostSummary,
+    RandomnessRound, Transaction,
     crypto::{Intent, IntentScope, UserSignature},
-    gas::GasCostSummary,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use prometheus_filtered::Histogram;

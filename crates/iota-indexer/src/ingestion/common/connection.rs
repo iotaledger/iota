@@ -7,7 +7,7 @@ use backoff::{self, ExponentialBackoff};
 use iota_data_ingestion_core::{
     create_remote_store_client, history::manifest::Manifest, reader::v2::RemoteUrl,
 };
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::GrpcClient;
 use object_store::ObjectStoreExt;
 use tracing::{debug, info};
 
@@ -15,6 +15,9 @@ use crate::{
     config::IngestionSources,
     errors::{IndexerError, IndexerResult},
 };
+
+/// Maximum timeout for resolving the remote checkpoint source.
+pub const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Resolves the remote checkpoint source from the provided
 /// [`remote_store_url`](IngestionSources::remote_store_url).
@@ -72,7 +75,7 @@ pub async fn resolve_remote_url(
         async move {
             let grpc_result = async {
                 let client = GrpcClient::new(url.clone())?;
-                client.get_health(None).await
+                client.health(None).await
             }
             .await
             .inspect_err(|e| debug!("gRPC health check failed: {e}"));

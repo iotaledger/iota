@@ -38,10 +38,7 @@ fn published_size_matches_move_package_size() {
     use std::collections::BTreeMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
-        ObjectId, Version,
-        move_package::{MovePackage, UpgradeInfo},
-    };
+    use iota_sdk_types::{MovePackage, ObjectId, UpgradeInfo, Version};
     use iota_types::move_package::MovePackageExt;
 
     // A dependency-free package: its linkage table is empty, so the on-chain

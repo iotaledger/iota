@@ -6,12 +6,14 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_indexer::apis::ReadApi;
+use iota_indexer::apis::{ReadApi, SimulationFields};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
-use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
-use iota_sdk_types::{ObjectReference, StructTag, Transaction, TransactionKind, TypeTag};
-use iota_types::transaction::TransactionAPI;
+use iota_json_rpc_types::IotaTypeTag;
+use iota_sdk_types::{
+    GasPayment, ObjectReference, StructTag, Transaction, TransactionExpiration, TransactionKind,
+    TransactionV1, TypeTag,
+};
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
@@ -132,80 +134,72 @@ impl Query {
         tx_meta: Option<TransactionMetadata>,
         skip_checks: Option<bool>,
     ) -> Result<DryRunResult> {
-        let skip_checks = skip_checks.unwrap_or(false);
-
         let write_api = get_write_api(ctx).extend()?;
-        let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
-            if let Some(TransactionMetadata {
+
+        // With no metadata the bytes are a full `TransactionData`; with metadata they
+        // are a `TransactionKind` that is complemented by metadata.
+        let tx = match tx_meta {
+            None => deserialize_tx_data::<Transaction>(&tx_bytes)?,
+            Some(TransactionMetadata {
                 sender,
                 gas_price,
                 gas_objects,
                 gas_budget,
                 gas_sponsor,
-            }) = tx_meta
-            {
-                // This implies `TransactionKind`
-                let tx_kind = deserialize_tx_data::<TransactionKind>(&tx_bytes)?;
-
+            }) => {
+                let kind = deserialize_tx_data::<TransactionKind>(&tx_bytes)?;
                 // Default is 0x0
-                let sender_address = sender.unwrap_or_else(|| AccountAddress::ZERO.into()).into();
-
-                let gas_sponsor = gas_sponsor.map(|addr| addr.into());
-
-                let gas_objects = gas_objects.map(|objs| {
-                    objs.into_iter()
-                        .map(|obj| {
-                            ObjectReference::new(
-                                obj.address.into(),
-                                obj.version.into(),
-                                obj.digest.into(),
-                            )
-                        })
-                        .collect()
-                });
-
-                (
-                    sender_address,
-                    tx_kind,
-                    gas_price.map(|p| p.into()),
-                    gas_sponsor,
-                    gas_budget.map(|b| b.into()),
-                    gas_objects,
-                )
-            } else {
-                // This implies `Transaction`
-                let tx = deserialize_tx_data::<Transaction>(&tx_bytes)?;
-
-                (
-                    tx.sender(),
-                    tx.clone().into_kind(),
-                    Some(tx.gas_price().into()),
-                    Some(tx.gas_owner()),
-                    Some(tx.gas_budget()),
-                    Some(tx.gas().to_vec()),
-                )
-            };
-
-        let dev_inspect_args = DevInspectArgs {
-            gas_sponsor,
-            gas_budget,
-            gas_objects,
-            show_raw_txn_data_and_effects: Some(true),
-            skip_checks: Some(skip_checks),
+                let sender = sender.unwrap_or_else(|| AccountAddress::ZERO.into()).into();
+                let gas_objects = gas_objects
+                    .map(|objs| {
+                        objs.into_iter()
+                            .map(|obj| {
+                                ObjectReference::new(
+                                    obj.address.into(),
+                                    obj.version.into(),
+                                    obj.digest.into(),
+                                )
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Transaction::V1(TransactionV1 {
+                    kind,
+                    sender,
+                    gas_payment: GasPayment {
+                        // Any of these the caller leaves out is filled in by the simulation on
+                        // the node: an empty payment gets a mock gas coin, a zero price gets the
+                        // epoch's reference gas price, and a zero budget gets the protocol
+                        // maximum.
+                        objects: gas_objects,
+                        owner: gas_sponsor.map(|addr| addr.into()).unwrap_or(sender),
+                        price: gas_price.map(u64::from).unwrap_or_default(),
+                        budget: gas_budget.map(u64::from).unwrap_or_default(),
+                    },
+                    expiration: TransactionExpiration::None,
+                })
+            }
         };
 
-        let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
-        let res = write_api
-            .dev_inspect_transaction_block(
-                sender_address,
-                tx_bytes,
-                gas_price,
-                None,
-                Some(dev_inspect_args),
+        let simulation = write_api
+            .simulate_transaction(
+                tx,
+                skip_checks.unwrap_or(false),
+                SimulationFields {
+                    transaction: true,
+                    balance_changes: true,
+                    suggested_gas_price: true,
+                    input_objects: true,
+                    command_results: true,
+                    execution_error: true,
+                    ..Default::default()
+                },
             )
-            .await?;
+            .await
+            .map_err(Error::from)
+            .extend()?;
 
-        DryRunResult::try_from(res).extend()
+        DryRunResult::try_from(simulation).extend()
     }
 
     /// Check if a transaction is indexed on the fullnode.

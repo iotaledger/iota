@@ -352,10 +352,10 @@ async fn find_package_object_id(
             .await?;
 
         for created in effect.created() {
-            if let Ok(object_read) = state.get_object_read(&created.reference.object_id) {
+            if let Ok(object_read) = state.get_object_read(&created.reference().object_id) {
                 if let Ok(object) = object_read.into_object() {
                     if matches!(object.data.opt_object_type(), Some(object_type) if object_type == &object_struct_tag) {
-                        return Ok(created.reference.object_id);
+                        return Ok(created.reference().object_id);
                     }
                 }
             }

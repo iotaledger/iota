@@ -60,7 +60,7 @@ async fn request_gas_internal(
             for created in effects.created().iter() {
                 sent_coins.push(CoinInfo {
                     amount,
-                    id: created.reference.object_id,
+                    id: created.reference().object_id,
                     transfer_tx_digest: *effects.transaction_digest(),
                 });
             }

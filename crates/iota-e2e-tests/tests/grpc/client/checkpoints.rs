@@ -17,7 +17,7 @@ async fn get_checkpoint_scenarios() {
 
     // Test: get latest checkpoint
     let latest = client
-        .get_checkpoint_latest(None, None, CheckpointResponseReadMask::default())
+        .checkpoint_latest(None, None, CheckpointResponseReadMask::default())
         .await
         .expect("Failed to get latest checkpoint");
     assert!(
@@ -27,7 +27,7 @@ async fn get_checkpoint_scenarios() {
 
     // Test: get genesis checkpoint (sequence 0)
     let genesis = client
-        .get_checkpoint_by_sequence_number(0, None, None, CheckpointResponseReadMask::default())
+        .checkpoint_by_sequence_number(0, None, None, CheckpointResponseReadMask::default())
         .await
         .expect("Failed to get genesis checkpoint");
     assert_eq!(
@@ -38,7 +38,7 @@ async fn get_checkpoint_scenarios() {
 
     // Test: get checkpoint by sequence number
     let checkpoint_1 = client
-        .get_checkpoint_by_sequence_number(1, None, None, CheckpointResponseReadMask::default())
+        .checkpoint_by_sequence_number(1, None, None, CheckpointResponseReadMask::default())
         .await
         .expect("Failed to get checkpoint by sequence number");
     assert_eq!(
@@ -55,7 +55,7 @@ async fn get_checkpoint_scenarios() {
         .digest()
         .expect("genesis summary should have a digest");
     let by_digest = client
-        .get_checkpoint_by_digest(
+        .checkpoint_by_digest(
             genesis_digest,
             None,
             None,
@@ -71,7 +71,7 @@ async fn get_checkpoint_scenarios() {
 
     // Test: nonexistent checkpoint returns not-found error
     let result = client
-        .get_checkpoint_by_sequence_number(
+        .checkpoint_by_sequence_number(
             999_999_999,
             None,
             None,
@@ -83,7 +83,7 @@ async fn get_checkpoint_scenarios() {
     // Test: future checkpoint returns not-found error
     let future_sequence = latest.body().sequence_number() + 100;
     let result = client
-        .get_checkpoint_by_sequence_number(
+        .checkpoint_by_sequence_number(
             future_sequence,
             None,
             None,
@@ -104,7 +104,7 @@ async fn stream_checkpoints_live() {
     let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
     let latest = client
-        .get_checkpoint_latest(None, None, CheckpointResponseField::ALL)
+        .checkpoint_latest(None, None, CheckpointResponseField::ALL)
         .await
         .expect("get latest checkpoint")
         .body()
@@ -112,7 +112,7 @@ async fn stream_checkpoints_live() {
     let target = latest + 5;
 
     let mut stream = client
-        .stream_checkpoints(
+        .checkpoints_stream(
             Some(target),
             Some(target),
             None,
@@ -128,7 +128,8 @@ async fn stream_checkpoints_live() {
         .expect("stream ended without a checkpoint")
         .expect("stream error");
     assert_eq!(
-        first.sequence_number, target,
+        first.sequence_number(),
+        target,
         "expected checkpoint {target}"
     );
 }

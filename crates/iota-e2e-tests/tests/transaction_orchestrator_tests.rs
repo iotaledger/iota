@@ -621,13 +621,13 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     let mut expected_input_objects = fx
         .modified_at_versions()
         .into_iter()
-        .map(|modified| (modified.object_id, modified.version))
+        .map(|modified| (*modified.object_id(), modified.version()))
         .collect::<Vec<_>>();
     expected_input_objects.sort_by_key(|&(id, _version)| id);
     let mut expected_output_objects = fx
         .all_changed_objects()
         .into_iter()
-        .map(|(owned_object_ref, _)| owned_object_ref.reference)
+        .map(|(owned_object_ref, _)| *owned_object_ref.reference())
         .collect::<Vec<_>>();
     expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
@@ -975,8 +975,8 @@ async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow
     let first_err = first.expect_err("transaction spending a stale gas object must fail");
     let second_err = second.expect_err("transaction spending a stale gas object must fail");
     assert!(
-        matches!(first_err, QuorumDriverError::InvalidTransaction(_)),
-        "expected the submission to be rejected as invalid, got {first_err:?}"
+        matches!(first_err, QuorumDriverError::RejectedByValidators(_)),
+        "expected the submission to be rejected by validators, got {first_err:?}"
     );
     assert_eq!(
         first_err, second_err,
@@ -1206,13 +1206,13 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
     let mut expected_input_objects = fx
         .modified_at_versions()
         .into_iter()
-        .map(|modified| (modified.object_id, modified.version))
+        .map(|modified| (*modified.object_id(), modified.version()))
         .collect::<Vec<_>>();
     expected_input_objects.sort_by_key(|&(id, _version)| id);
     let mut expected_output_objects = fx
         .all_changed_objects()
         .into_iter()
-        .map(|(owned_object_ref, _)| owned_object_ref.reference)
+        .map(|(owned_object_ref, _)| *owned_object_ref.reference())
         .collect::<Vec<_>>();
     expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
@@ -1526,12 +1526,12 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
             // The cancelled execution charged gas, so the gas object's
             // version moved: take the current reference from the certified
             // effects (the fullnode's own object view may lag behind them).
-            let gas_object = effects
+            let gas_object = *effects
                 .mutated()
                 .iter()
-                .find(|mutated| mutated.reference.object_id == obj.object_id)
+                .find(|mutated| mutated.reference().object_id == obj.object_id)
                 .expect("the cancelled execution charges the gas object")
-                .reference;
+                .reference();
             congested = Some((*address, gas_object, suggested_gas_price));
             break 'bursts;
         }
@@ -1651,12 +1651,12 @@ async fn test_execution_worker_congestion_cancellation_validator_restart()
             else {
                 continue;
             };
-            let gas_object = effects
+            let gas_object = *effects
                 .mutated()
                 .iter()
-                .find(|mutated| mutated.reference.object_id == obj.object_id)
+                .find(|mutated| mutated.reference().object_id == obj.object_id)
                 .expect("the cancelled execution charges the gas object")
-                .reference;
+                .reference();
             congested = Some((*address, gas_object, suggested_gas_price));
             break 'bursts;
         }

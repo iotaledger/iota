@@ -39,14 +39,13 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
-    ExecutionStatus, InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference,
-    Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
+    InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
     TransactionKind, TypeTag, Version, WriteKind,
-    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
-    gas::GasCostSummary,
 };
 use iota_storage::{
     key_value_store::{
@@ -67,7 +66,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
+    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
@@ -149,7 +148,6 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
-        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
@@ -235,6 +233,7 @@ pub mod transaction_deferral;
 pub(crate) mod authority_store;
 pub mod backpressure;
 pub(crate) mod dropped_tx_status_cache;
+pub(crate) mod pruner_db_migration;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 pub struct AuthorityMetrics {
@@ -1093,6 +1092,22 @@ impl AuthorityState {
                 .all(|objects| objects.inner().filter_owned_objects().is_empty()),
             "Move authenticator input objects must not contain owned objects"
         );
+
+        // The package holding each authenticate function is known only now that the
+        // `AuthenticatorFunctionRef`s are loaded, so the deny-list check for it
+        // stands apart from the one above. It must stay ahead of two things: the
+        // filtering below, which drops authenticators that do not run
+        // pre-consensus, so that every authenticator is covered; and the
+        // authenticator execution itself, so that a denied package is never run.
+        if protocol_config.deny_authenticator_packages() {
+            iota_transaction_checks::deny::check_authenticator_packages(
+                deny_config,
+                per_authenticator_checked_inputs
+                    .iter()
+                    .map(|(_, authenticator_function_ref)| authenticator_function_ref),
+                self.get_backing_package_store().as_ref(),
+            )?;
+        }
 
         // Check if any of the sender, the transaction input objects, the receiving
         // objects and the authenticator input objects are in the coin deny
@@ -2489,7 +2504,7 @@ impl AuthorityState {
             effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(changed, _kind)| (changed.reference, changed.owner)),
+                .map(|(changed, _kind)| (*changed.reference(), *changed.owner())),
             transaction
                 .data()
                 .transaction()
@@ -2557,7 +2572,7 @@ impl AuthorityState {
         let modified_at_version = effects
             .modified_at_versions()
             .into_iter()
-            .map(|modified| (modified.object_id, modified.version))
+            .map(|modified| (*modified.object_id(), modified.version()))
             .collect::<HashMap<_, _>>();
 
         let tx_digest = effects.transaction_digest();
@@ -2582,7 +2597,7 @@ impl AuthorityState {
         let mut new_dynamic_fields = vec![];
 
         for (changed, kind) in effects.all_changed_objects() {
-            let (oref, owner) = (changed.reference, changed.owner);
+            let (oref, owner) = (*changed.reference(), *changed.owner());
             let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
@@ -3054,7 +3069,6 @@ impl AuthorityState {
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
-        pruner_db: Option<Arc<AuthorityPrunerTables>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
@@ -3090,7 +3104,6 @@ impl AuthorityState {
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            pruner_db,
             checkpoint_progress_tracker.clone(),
         );
         let input_loader =
@@ -3211,7 +3224,6 @@ impl AuthorityState {
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
             self.grpc_indexes_store.as_deref(),
-            None,
             config.authority_store_pruning_config,
             metrics,
             EPOCH_DURATION_MS_FOR_TESTING,
@@ -4801,7 +4813,7 @@ impl AuthorityState {
         // "written_coins" but their input isn't included in the set of input
         // objects in a inner_temporary_store.
         for modified in effects.modified_at_versions() {
-            let (object_id, version) = (modified.object_id, modified.version);
+            let (object_id, version) = (*modified.object_id(), modified.version());
             if inner_temporary_store
                 .loaded_runtime_objects
                 .contains_key(&object_id)
@@ -5208,7 +5220,7 @@ impl AuthorityState {
     fn get_validators_supporting_protocol_version(
         target_protocol_version: ProtocolVersion,
         target_digest: Digest,
-        active_validators: &[AuthorityPublicKey],
+        active_validators: &[AggregateAuthorityPublicKey],
         capabilities: &[AuthorityCapabilitiesV1],
     ) -> Vec<u64> {
         let mut eligible_validators = Vec::new();
@@ -5242,7 +5254,7 @@ impl AuthorityState {
     /// to committee members to get their weights.
     fn calculate_eligible_validators_weight(
         eligible_validator_indices: &[u64],
-        active_validators: &[AuthorityPublicKey],
+        active_validators: &[AggregateAuthorityPublicKey],
         committee: &Committee,
     ) -> u64 {
         let mut total_weight = 0u64;
@@ -5325,7 +5337,7 @@ impl AuthorityState {
         // by the rules of the current epoch, including the current epoch's max
         // Move binary format version
         let config = epoch_store.protocol_config();
-        let binary_config = to_binary_config(config);
+        let binary_config = to_binary_config(config, None);
         let Some(next_epoch_system_package_bytes) = self
             .get_system_package_bytes(next_epoch_system_packages.clone(), &binary_config)
             .await
@@ -5727,32 +5739,32 @@ impl AuthorityState {
                 );
 
                 let auth_account_object_seq_number =
-                    if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
+                    if let Some(expected_version) = auth_account_object_seq_number {
                         let account_object_version = object.version();
 
                         fp_ensure!(
-                            account_object_version == auth_account_object_seq_number,
+                            account_object_version == expected_version,
                             UserInputError::AccountObjectVersionMismatch {
                                 object_id: auth_account_object_id,
-                                expected_version: auth_account_object_seq_number,
+                                expected_version,
                                 actual_version: account_object_version,
                             }
                             .into()
                         );
 
-                        auth_account_object_seq_number
+                        expected_version
                     } else {
                         object.version()
                     };
 
-                if let Some(auth_account_object_digest) = auth_account_object_digest {
-                    let expected_digest = object.digest();
+                if let Some(expected_digest) = auth_account_object_digest {
+                    let account_object_digest = object.digest();
                     fp_ensure!(
-                        expected_digest == auth_account_object_digest,
+                        account_object_digest == expected_digest,
                         UserInputError::InvalidAccountObjectDigest {
                             object_id: auth_account_object_id,
                             expected_digest,
-                            actual_digest: auth_account_object_digest,
+                            actual_digest: account_object_digest,
                         }
                         .into()
                     );
@@ -6433,8 +6445,11 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Canceled(..) => (), /* TODO: consider record congested
-                                                          * objects. */
+                // TODO: consider record congested objects.
+                | InputSharedObject::Canceled(..) => (),
+                _ => unimplemented!(
+                    "a new InputSharedObject enum variant was added and needs to be handled"
+                ),
             }
         }
 
@@ -6450,8 +6465,8 @@ impl NodeStateDump {
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
         for modified in effects.modified_at_versions() {
-            let (id, ver) = (modified.object_id, modified.version);
-            if let Some(w) = object_store.try_get_object_by_key(&id, ver)? {
+            let (id, ver) = (modified.object_id(), modified.version());
+            if let Some(w) = object_store.try_get_object_by_key(id, ver)? {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }
         }

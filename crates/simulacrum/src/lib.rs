@@ -32,10 +32,9 @@ use iota_config::{
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
-    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
-    checkpoint::{CheckpointContents, EndOfEpochData},
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
+    EndOfEpochData, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage,
+    Transaction, TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{

@@ -28,8 +28,8 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    RandomnessRound, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionKind, checkpoint::CheckpointContents,
+    CheckpointContents, RandomnessRound, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionKind,
 };
 use iota_types::{
     base_types::ExecutionData,

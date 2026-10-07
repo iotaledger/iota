@@ -12,7 +12,7 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_multiaddr::Multiaddr;
 pub use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{TransactionDigest, validator::ValidatorCommitteeMember};
+use iota_sdk_types::{TransactionDigest, ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
 use rand::{
     Rng, SeedableRng,
@@ -24,7 +24,8 @@ use serde::{Deserialize, Serialize};
 use super::base_types::*;
 use crate::{
     crypto::{
-        AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey, random_committee_key_pairs_of_size,
+        AggregateAuthorityPublicKey, AuthorityKeyPair, NetworkPublicKey,
+        random_committee_key_pairs_of_size,
     },
     error::{IotaError, IotaResult},
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
@@ -61,7 +62,7 @@ pub const VALIDITY_THRESHOLD: StakeUnit = 3_334;
 pub struct Committee {
     pub epoch: EpochId,
     pub voting_rights: Vec<(AuthorityName, StakeUnit)>,
-    expanded_keys: HashMap<AuthorityName, AuthorityPublicKey>,
+    expanded_keys: HashMap<AuthorityName, AggregateAuthorityPublicKey>,
     index_map: HashMap<AuthorityName, usize>,
 }
 
@@ -140,10 +141,10 @@ impl Committee {
     pub fn load_inner(
         voting_rights: &[(AuthorityName, StakeUnit)],
     ) -> (
-        HashMap<AuthorityName, AuthorityPublicKey>,
+        HashMap<AuthorityName, AggregateAuthorityPublicKey>,
         HashMap<AuthorityName, usize>,
     ) {
-        let expanded_keys: HashMap<AuthorityName, AuthorityPublicKey> = voting_rights
+        let expanded_keys: HashMap<AuthorityName, AggregateAuthorityPublicKey> = voting_rights
             .iter()
             .map(|(addr, _)| {
                 (
@@ -175,7 +176,10 @@ impl Committee {
         self.epoch
     }
 
-    pub fn public_key(&self, authority: &AuthorityName) -> IotaResult<&AuthorityPublicKey> {
+    pub fn public_key(
+        &self,
+        authority: &AuthorityName,
+    ) -> IotaResult<&AggregateAuthorityPublicKey> {
         debug_assert_eq!(self.expanded_keys.len(), self.voting_rights.len());
         match self.expanded_keys.get(authority) {
             Some(v) => Ok(v),
@@ -569,7 +573,7 @@ impl CommitteeChainVerifier {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
-    use iota_sdk_types::checkpoint::{CheckpointSummary, EndOfEpochData};
+    use iota_sdk_types::{CheckpointSummary, EndOfEpochData};
 
     use super::*;
     use crate::{
