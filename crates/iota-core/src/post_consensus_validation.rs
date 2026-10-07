@@ -46,6 +46,7 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_macros::fail_point;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
@@ -449,6 +450,24 @@ pub async fn validate_and_resolve_conflicts(
             owned_inputs = ?locked_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
+    }
+
+    if deterministic_validation {
+        let errors: HashMap<_, _> = dropped.iter().cloned().collect();
+        let verdicts: Vec<_> = all_user_tx_digests
+            .iter()
+            .map(|digest| {
+                let verdict = match errors.get(digest) {
+                    Some(error) => PostConsensusVerdict::Dropped(error.clone()),
+                    None => PostConsensusVerdict::Kept,
+                };
+                (*digest, verdict)
+            })
+            .collect();
+        epoch_store.persist_post_consensus_verdicts(commit_index, &verdicts)?;
+        if !verdicts.is_empty() {
+            fail_point!("crash-after-post-consensus-verdicts");
+        }
     }
 
     if !dropped.is_empty() {
