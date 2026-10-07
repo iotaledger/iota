@@ -72,6 +72,10 @@ pub(super) const CURRENT_DB_VERSION: u64 = 1;
 /// exist.
 pub(super) const HISTORY_CF_PREFIX: &str = "hist_rpc_e";
 
+/// The directory of each epoch, under the historic root, that the
+/// history buckets keep their files in.
+pub(super) const HISTORY_BUCKET_DIR: &str = "indexes";
+
 // The tag a history table's keys carry inside its bucket's column family.
 // Do not reuse a tag for a different table: mark it retired in a comment
 // instead, so an older bucket's rows can never be read as the wrong type.

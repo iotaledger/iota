@@ -16,13 +16,17 @@ use typed_store::{
 };
 
 use crate::epoch_buckets::{
-    BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
+    BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
     extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
 /// family is `{prefix}{epoch}`.
 const HISTORIC_CHECKPOINTS_CF_PREFIX: &str = "hist_ckpt_e";
+
+/// The directory of each epoch, under the historic root, that this
+/// store's buckets keep their files in.
+const BUCKET_DIR: &str = "checkpoints";
 
 /// Tags of the tables inside a bucket's column family. Do not reuse a tag
 /// for a different table: mark it retired in a comment instead, so an older
@@ -76,34 +80,33 @@ pub struct HistoricCheckpoints {
 }
 
 impl HistoricCheckpoints {
-    /// Options for a historic-checkpoint bucket's column family: written
-    /// once, while the epoch that closed its checkpoints is current, then
-    /// only ever read back by exact-key lookup.
-    ///
-    /// `db_options` are the checkpoint store's base options. Build this once
-    /// and clone it per column family, as
-    /// [`crate::authority::historic_objects::HistoricObjects::cf_options`]
-    /// does: the clones share the base options' block cache instead of each
-    /// allocating one of their own.
     /// The `(name, options)` pairs of the column families this store needs,
     /// to be opened alongside the checkpoint store's own tables.
     pub fn extra_column_family_options(
         checkpoint_db_path: &Path,
         db_options: &DBOptions,
+        historic_root: &Path,
     ) -> Vec<(String, DBOptions)> {
         extra_column_family_options(
             checkpoint_db_path,
             db_options,
             HISTORIC_CHECKPOINTS_CF_PREFIX,
             EARLIEST_RETAINED_CF,
+            Some(&BucketPaths::new(historic_root, BUCKET_DIR)),
         )
     }
 
     /// Opens the historic-checkpoint buckets already present among `db`'s
     /// column families. `db` is the checkpoint store's own handle: the
     /// buckets are its column families, not a database of their own, and
-    /// `db_options` are the options its tables were opened with.
-    pub fn open(db: Arc<Database>, db_options: &DBOptions) -> Result<Self, TypedStoreError> {
+    /// `db_options` are the options its tables were opened with, and
+    /// `historic_root` the root their files are under, the one `db` was opened
+    /// with.
+    pub fn open(
+        db: Arc<Database>,
+        db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> Result<Self, TypedStoreError> {
         let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
             .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
 
@@ -133,6 +136,7 @@ impl HistoricCheckpoints {
             "historic checkpoints",
             HISTORIC_CHECKPOINTS_CF_PREFIX,
             cf_options,
+            Some(BucketPaths::new(historic_root, BUCKET_DIR)),
             earliest_retained_table,
             buckets,
         )?;

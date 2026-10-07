@@ -146,10 +146,31 @@ upgrading.
 Even at `num-epochs-to-retain: 0`, the versions superseded during the epoch the
 node is in stay on disk until the next epoch boundary, where earlier releases
 deleted them within a few checkpoints. Disk usage therefore climbs over the
-course of an epoch and falls back at the boundary: size disks for one epoch of
-superseded versions on top of the live state.
+course of an epoch and falls back at the boundary. Size disks for one epoch of
+superseded versions on top of the live state: the size of the newest
+`<db-path>/live/historic/epoch_<N>/objects` directory just before an epoch
+boundary shows how much that is on your network.
 
 :::
+
+## Where the History Is Kept
+
+The retained epochs of all three kinds of history are kept in one directory
+inside the live database directory, `<db-path>/live/historic`, with a
+subdirectory per epoch:
+
+```text
+<db-path>/live/historic/
+  epoch_594/
+    objects/        superseded object versions
+    ledger/         transactions, effects and events
+    checkpoints/    checkpoint contents and summaries
+    indexes/        JSON-RPC and gRPC index history
+  epoch_595/
+    ...
+```
+
+An expired epoch's directory is removed together with its data.
 
 ## Configuration Examples
 
