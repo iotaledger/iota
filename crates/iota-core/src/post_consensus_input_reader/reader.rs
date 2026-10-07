@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ObjectId, ObjectReference, Version};
 use iota_types::{
     error::{IotaError, IotaResult},
@@ -30,6 +31,15 @@ use crate::{
     execution_cache::ObjectCacheRead,
 };
 
+/// The highest commit whose rows a verdict at `commit_index` may trust: the
+/// commit minus the protocol config's horizon distance. The reader applies it
+/// to rows, and the handler waits for it before validating.
+pub fn horizon(protocol_config: &ProtocolConfig, commit_index: CommitIndex) -> CommitIndex {
+    commit_index.saturating_sub(
+        protocol_config.pcool_deterministic_validation_horizon_distance_or_default(),
+    )
+}
+
 /// Reads inputs as of one consensus commit. Built once per commit and passed
 /// to every transition that touches a store.
 pub struct CommitIndexedReader {
@@ -46,13 +56,11 @@ impl CommitIndexedReader {
         epoch_store: Arc<AuthorityPerEpochStore>,
         commit_index: CommitIndex,
     ) -> Self {
-        let horizon_distance = epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation_horizon_distance_or_default();
+        let horizon = horizon(epoch_store.protocol_config(), commit_index);
         Self {
             cache,
             epoch_store,
-            horizon: commit_index.saturating_sub(horizon_distance),
+            horizon,
         }
     }
 
