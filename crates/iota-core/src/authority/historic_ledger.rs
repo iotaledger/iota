@@ -25,13 +25,17 @@ use typed_store::{
 };
 
 use crate::epoch_buckets::{
-    BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
+    BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
     extra_column_family_options,
 };
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
 /// is `{prefix}{epoch}`.
 const HISTORIC_LEDGER_CF_PREFIX: &str = "hist_ledger_e";
+
+/// The directory of each epoch, under the historic root, that this
+/// store's buckets keep their files in.
+const BUCKET_DIR: &str = "ledger";
 
 /// Tags of the tables inside a bucket's column family. Do not reuse a tag
 /// for a different table: mark it retired in a comment instead, so an older
@@ -124,20 +128,28 @@ impl HistoricLedger {
     pub fn extra_column_family_options(
         perpetual_path: &Path,
         db_options: &DBOptions,
+        historic_root: &Path,
     ) -> Vec<(String, DBOptions)> {
         extra_column_family_options(
             perpetual_path,
             db_options,
             HISTORIC_LEDGER_CF_PREFIX,
             EARLIEST_RETAINED_CF,
+            Some(&BucketPaths::new(historic_root, BUCKET_DIR)),
         )
     }
 
     /// Opens the historic-ledger buckets already present among `db`'s
     /// column families. `db` is the perpetual database's own handle: the
     /// buckets are its column families, not a database of their own, and
-    /// `db_options` are the options its tables were opened with.
-    pub fn open(db: Arc<Database>, db_options: &DBOptions) -> Result<Self, TypedStoreError> {
+    /// `db_options` are the options its tables were opened with, and
+    /// `historic_root` the root their files are under, the one `db` was opened
+    /// with.
+    pub fn open(
+        db: Arc<Database>,
+        db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> Result<Self, TypedStoreError> {
         let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
             .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
 
@@ -164,6 +176,7 @@ impl HistoricLedger {
             "historic ledger",
             HISTORIC_LEDGER_CF_PREFIX,
             cf_options,
+            Some(BucketPaths::new(historic_root, BUCKET_DIR)),
             earliest_retained_table,
             buckets,
         )?;

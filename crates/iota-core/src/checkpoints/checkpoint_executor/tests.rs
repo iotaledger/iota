@@ -80,6 +80,7 @@ pub async fn test_fallback_load_skips_contents_cache_when_disabled() {
     let tmp_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new_with_contents_cache(
         tmp_dir.path(),
+        None,
         FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests()),
     );
     let (_state, executor, _hasher, committee) =
@@ -107,6 +108,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     let tmp_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new_with_contents_cache(
         tmp_dir.path(),
+        None,
         // A 1-byte budget any real entry exceeds, so the cache is at budget
         // as soon as the frontier entry below lands.
         FullCheckpointContentsCache::new(1, FullCheckpointContentsCacheMetrics::new_for_tests()),
