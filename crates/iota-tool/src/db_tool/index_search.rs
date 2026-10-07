@@ -2,16 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Debug, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    fmt::Debug,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, bail};
-use iota_core::rpc_indexes::schema::{
-    DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE,
-    DB_PREFIX_HISTORIC_EVENT_BY_SENDER, DB_PREFIX_HISTORIC_EVENT_ORDER,
-    DB_PREFIX_HISTORIC_TX_ORDER, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID,
-    DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION, DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID,
-    DB_PREFIX_HISTORIC_TXS_FROM_ADDR, DB_PREFIX_HISTORIC_TXS_SEQ, DB_PREFIX_HISTORIC_TXS_TO_ADDR,
-    IndexStoreTables, OwnerIndexKey, history_cf_epoch, history_cf_name,
+use iota_core::rpc_indexes::{
+    column_family_options,
+    schema::{
+        DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE,
+        DB_PREFIX_HISTORIC_EVENT_BY_SENDER, DB_PREFIX_HISTORIC_EVENT_ORDER,
+        DB_PREFIX_HISTORIC_TX_ORDER, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID,
+        DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION, DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID,
+        DB_PREFIX_HISTORIC_TXS_FROM_ADDR, DB_PREFIX_HISTORIC_TXS_SEQ,
+        DB_PREFIX_HISTORIC_TXS_TO_ADDR, IndexStoreTables, OwnerIndexKey, history_cf_epoch,
+        history_cf_name,
+    },
 };
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEventsDigest};
 use iota_types::{base_types::TxSequenceNumber, committee::EpochId, storage::DynamicFieldKey};
@@ -19,14 +28,12 @@ use move_core_types::{account_address::AccountAddress, language_storage::ModuleI
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
     database::Database,
-    rocks::{
-        DBMap, MetricConf, ReadWriteOptions, TaggedDBMap, list_tables, open_cf_opts_secondary,
-    },
+    rocks::{DBMap, MetricConf, ReadWriteOptions, TaggedDBMap, open_cf_opts_secondary},
     rocksdb,
     traits::Map,
 };
 
-use crate::get_db_entries;
+use crate::{db_tool::historic_db_path_of_store, get_db_entries};
 
 #[derive(Clone, Debug)]
 pub enum SearchRange<T: Serialize + Clone + Debug> {
@@ -58,8 +65,10 @@ pub fn search_index(
     println!("Opening db at {db_path:?} ...");
     match table_name.as_str() {
         "owner" => {
-            let db_read_only_handle =
-                IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
+            let db_read_only_handle = IndexStoreTables::open_readonly(
+                &db_path,
+                Some(&historic_db_path_of_store(&db_path)),
+            )?;
             get_db_entries!(
                 db_read_only_handle.owner,
                 from_addr_owner_key,
@@ -68,8 +77,10 @@ pub fn search_index(
             )
         }
         "dynamic_field" => {
-            let db_read_only_handle =
-                IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
+            let db_read_only_handle = IndexStoreTables::open_readonly(
+                &db_path,
+                Some(&historic_db_path_of_store(&db_path)),
+            )?;
             get_db_entries!(
                 db_read_only_handle.dynamic_field,
                 from_parent_field_key,
@@ -83,7 +94,10 @@ pub fn search_index(
         "dynamic_field_index" => {
             bail!("no such table \"dynamic_field_index\"; it was renamed to \"dynamic_field\"")
         }
-        _ => search_history_table(db_path, &table_name, start, termination),
+        _ => {
+            let historic_db_path = historic_db_path_of_store(&db_path);
+            search_history_table(db_path, &historic_db_path, &table_name, start, termination)
+        }
     }
 }
 
@@ -91,25 +105,27 @@ pub fn search_index(
 /// per-epoch column families. Entries come back in global order.
 fn search_history_table(
     db_path: PathBuf,
+    historic_db_path: &Path,
     table_name: &str,
     start: &str,
     termination: SearchRange<String>,
 ) -> Result<Vec<(String, String)>, anyhow::Error> {
-    let cf_names = list_tables(db_path.clone())
+    // Every existing column family must be listed for RocksDB to open the
+    // database, each history bucket with the directory its files are in; the
+    // scan itself only touches the history buckets.
+    let cf_options = column_family_options(&db_path, Some(historic_db_path))
         .map_err(|e| anyhow!("unable to list the column families of {db_path:?}: {e}"))?;
-    let mut epochs: Vec<EpochId> = cf_names
+    let mut epochs: Vec<EpochId> = cf_options
         .iter()
-        .filter_map(|name| history_cf_epoch(name))
+        .filter_map(|(name, _)| history_cf_epoch(name))
         .collect();
     epochs.sort_unstable();
     if epochs.is_empty() {
         bail!("the database at {db_path:?} holds no history column families");
     }
-    // Every existing column family must be listed for RocksDB to open the
-    // database; the scan itself only touches the history buckets.
-    let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_names
+    let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_options
         .iter()
-        .map(|name| (name.as_str(), rocksdb::Options::default()))
+        .map(|(name, options)| (name.as_str(), options.clone()))
         .collect();
     let db = open_cf_opts_secondary(
         &db_path,
@@ -476,12 +492,14 @@ mod tests {
     use super::*;
 
     /// The history value types spelled out above still decode what the node
-    /// writes.
+    /// writes, also once it is flushed into the bucket's own directory.
     #[tokio::test(flavor = "multi_thread")]
     async fn digests_search_decodes_what_the_index_wrote() {
         let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("rpc_indexes");
         let store = RpcIndexesStore::new_without_init(
-            dir.path().to_path_buf(),
+            db_path.clone(),
+            Some(&historic_db_path_of_store(&db_path)),
             BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         );
         let checkpoint = TestCheckpointDataBuilder::new(0)
@@ -493,10 +511,11 @@ mod tests {
         store
             .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
             .unwrap();
+        store.flush_for_testing().unwrap();
         let digest = *checkpoint.transactions[0].effects.transaction_digest();
 
         let entries = search_index(
-            dir.path().to_path_buf(),
+            db_path,
             "txs_seq".to_owned(),
             TransactionDigest::new([0; 32]).to_string(),
             SearchRange::Count(10),

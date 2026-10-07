@@ -10,9 +10,10 @@ use comfy_table::{ContentArrangement, Table};
 use iota_core::{
     authority::{
         authority_per_epoch_store::AuthorityEpochTables,
-        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
     },
     checkpoints::CheckpointStore,
+    epoch_buckets::HISTORIC_DB_DIR,
 };
 use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use iota_types::{
@@ -232,6 +233,29 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
     }
 }
 
+/// The root a node keeps the per-epoch history of its stores under, for the
+/// node whose live database directory is `live_db_path`. Every open of the
+/// node's stores must name it, as the node does.
+pub(crate) fn historic_db_path(live_db_path: &Path) -> PathBuf {
+    live_db_path.join(HISTORIC_DB_DIR)
+}
+
+/// [`historic_db_path`] for a store whose own directory, `store_path`, is one
+/// of those in a node's live database directory: the path the table dumps are
+/// given.
+pub(crate) fn historic_db_path_of_store(store_path: &Path) -> PathBuf {
+    historic_db_path(store_path.parent().unwrap_or(store_path))
+}
+
+/// The options to open the perpetual store of the node whose live database
+/// directory is `live_db_path` with.
+pub(crate) fn perpetual_options(live_db_path: &Path) -> Option<AuthorityPerpetualTablesOptions> {
+    Some(AuthorityPerpetualTablesOptions {
+        historic_db_path: Some(historic_db_path(live_db_path)),
+        ..Default::default()
+    })
+}
+
 pub fn print_db_all_tables(db_path: PathBuf) -> anyhow::Result<()> {
     list_tables(db_path)?.iter().for_each(|t| println!("{t}"));
     Ok(())
@@ -258,9 +282,37 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Fails for the perpetual store under `store` when a release before the
+/// per-epoch storage wrote it last: opening it read-write here would migrate
+/// parts of it that release still needs, such as the objects pruner's
+/// watermark, and started again it would stop pruning.
+pub fn ensure_migrated(store: &Path) -> anyhow::Result<()> {
+    let perpetual = store.join("perpetual");
+    if !perpetual.join("CURRENT").exists() {
+        return Ok(());
+    }
+    if typed_store::rocks::list_tables(perpetual)
+        .map_err(|e| anyhow!("cannot list the column families of the perpetual store: {e}"))?
+        .iter()
+        .any(|table| table == "pruned_checkpoint")
+    {
+        bail!(
+            "the database under {} was last opened by a release before the per-epoch storage; \
+             start the node on this release once before using this command, or use a \
+             read-only command such as `db-tool dump`",
+            store.display()
+        );
+    }
+    Ok(())
+}
+
 pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
+    ensure_migrated(&path.join("store"))?;
     let (_perpetual_db, _historic_objects, historic_ledger, _epoch_markers) =
-        AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
+        AuthorityPerpetualTables::open_with_historic_objects(
+            &path.join("store"),
+            perpetual_options(path),
+        )?;
     if let Some((epoch, checkpoint_seq_num)) =
         historic_ledger.get_transaction_checkpoint(&opt.digest)?
     {
@@ -280,7 +332,8 @@ pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::R
 }
 
 pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> {
-    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
+    ensure_migrated(&path.join("store"))?;
+    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), perpetual_options(path));
 
     let obj = if let Some(version) = opt.version {
         perpetual_db.try_get_object_by_key(&opt.id, version.into())?
@@ -298,7 +351,10 @@ pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> 
 }
 
 pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Result<()> {
-    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
     let checkpoint = checkpoint_store
         .get_checkpoint_by_digest(&opt.digest)?
         .ok_or(anyhow!(
@@ -319,7 +375,10 @@ pub fn print_checkpoint_content(
     path: &Path,
     opt: PrintCheckpointContentOptions,
 ) -> anyhow::Result<()> {
-    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
     let contents = checkpoint_store
         .get_checkpoint_contents(&opt.digest)?
         .ok_or(anyhow!(
@@ -340,7 +399,10 @@ pub fn rewind_checkpoint_execution(
     epoch: EpochId,
     checkpoint_sequence_number: u64,
 ) -> anyhow::Result<()> {
-    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
+    let checkpoint_db = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
     let Some(checkpoint) =
         checkpoint_db.get_checkpoint_by_sequence_number(checkpoint_sequence_number)?
     else {
@@ -429,7 +491,8 @@ pub fn mark_object_backlog_swept(path: &Path) -> anyhow::Result<()> {
     if !store.join("perpetual").exists() {
         bail!("no perpetual store under {}", store.display());
     }
-    let perpetual = AuthorityPerpetualTables::open(&store, None);
+    ensure_migrated(&store)?;
+    let perpetual = AuthorityPerpetualTables::open(&store, perpetual_options(path));
     perpetual.mark_object_backlog_sweep_skipped()?;
     println!(
         "recorded the object backlog sweep as skipped; the versions it had not reached stay in \
@@ -444,7 +507,10 @@ pub fn mark_object_backlog_swept(path: &Path) -> anyhow::Result<()> {
 /// a watermark whose epoch has been expired is no longer reachable through the
 /// bucketed `checkpoint_by_digest`, and that is the case worth looking at.
 pub fn print_checkpoint_watermarks(path: &Path) -> anyhow::Result<()> {
-    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
+    let checkpoint_db = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
     let mut table = Table::new();
     table
         .set_content_arrangement(ContentArrangement::Dynamic)
@@ -469,7 +535,10 @@ pub fn set_checkpoint_watermark(
     path: &Path,
     options: SetCheckpointWatermarkOptions,
 ) -> anyhow::Result<()> {
-    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
+    let checkpoint_db = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(path),
+    );
 
     if let Some(highest_verified) = options.highest_verified {
         let Some(checkpoint) = checkpoint_db.get_checkpoint_by_sequence_number(highest_verified)?
@@ -498,4 +567,35 @@ pub fn set_checkpoint_watermark(
         checkpoint_db.set_highest_synced_checkpoint_subtle(&checkpoint)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use typed_store::rocksdb;
+
+    use super::ensure_migrated;
+
+    fn create_perpetual(store: &Path, column_families: &[&str]) {
+        let mut options = rocksdb::Options::default();
+        options.create_if_missing(true);
+        options.create_missing_column_families(true);
+        rocksdb::DB::open_cf(&options, store.join("perpetual"), column_families).unwrap();
+    }
+
+    /// A store a release before the per-epoch storage wrote last is refused;
+    /// a migrated one and a missing one are not.
+    #[test]
+    fn a_store_still_holding_the_pruner_watermark_is_refused() {
+        let old = tempfile::tempdir().unwrap();
+        create_perpetual(old.path(), &["objects", "pruned_checkpoint"]);
+        assert!(ensure_migrated(old.path()).is_err());
+
+        let migrated = tempfile::tempdir().unwrap();
+        create_perpetual(migrated.path(), &["objects"]);
+        ensure_migrated(migrated.path()).unwrap();
+
+        ensure_migrated(&tempfile::tempdir().unwrap().path().join("missing")).unwrap();
+    }
 }
