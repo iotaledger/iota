@@ -583,6 +583,122 @@ mod tests {
         ));
     }
 
+    /// Review finding U4, the reader half. Open. One checkpoint holds `P`,
+    /// which is handler-known at commit 11 and produces `X@4` from `X@3`, and
+    /// `Q`, sync-ahead, which consumes `X@4`. The checkpoint's bookkeeping
+    /// batch persists the row at `(X, 4)` and the record with base 4 together,
+    /// and the node crashes before the outputs. On replay the store's latest
+    /// `X` is `X@3`, commit 11 is validated again with horizon 9, and the
+    /// record's base sits above that horizon. Every other validator kept `P`
+    /// on `X@3`. This reader drops it.
+    ///
+    /// The test pins the wrong verdict so that the fix, a read of the row at
+    /// `(id, base)` that lets a base above the horizon decide nothing, or the
+    /// removal of sync-ahead execution, flips it on purpose.
+    #[tokio::test]
+    async fn record_whose_base_is_above_the_horizon_still_drops_on_replay() {
+        use std::collections::BTreeMap;
+
+        use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            object::Object,
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::authority_tests::init_state_with_objects_and_object_basics,
+            post_consensus_input_reader::OwnedVerdict,
+        };
+
+        const REPLAYED_COMMIT: CommitIndex = 11;
+
+        let sender = Address::ZERO;
+        let gas_id = ObjectId::random();
+        let x_id = ObjectId::random();
+        let owner = Owner::Address(sender);
+        let gas = Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(2), owner);
+        let x_before = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(3), owner);
+        let (authority, _) =
+            init_state_with_objects_and_object_basics([gas.clone(), x_before.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        let input = x_before.object_ref();
+
+        // `P` consumes X@3 and produces X@4 at commit 11, handler-known: the
+        // hook writes the row. The outputs never reach the store.
+        let gas_after =
+            Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(4), owner);
+        let x_after = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(4), owner);
+        let producer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let producer_effects = TestEffectsBuilder::new(&producer)
+            .with_mutated_objects([(x_id, input.version, owner)])
+            .build();
+        assert_eq!(producer_effects.lamport_version(), x_after.version());
+        let producer_key = TransactionKey::Digest(*producer_effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(REPLAYED_COMMIT, vec![producer_key]);
+        epoch_store
+            .record_executed_transaction(
+                &producer_key,
+                &producer_effects,
+                &BTreeMap::from([(gas_id, gas), (x_id, x_before)]),
+            )
+            .unwrap();
+
+        // `Q` consumes X@4 ahead of the handler: the hook writes a record with
+        // base 4, the version the crash rolled back.
+        let consumer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas_after.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let consumer_effects = TestEffectsBuilder::new(&consumer)
+            .with_mutated_objects([(x_id, x_after.version(), owner)])
+            .build();
+        let consumer_key = TransactionKey::Digest(*consumer_effects.transaction_digest());
+        epoch_store
+            .record_executed_transaction(
+                &consumer_key,
+                &consumer_effects,
+                &BTreeMap::from([(gas_id, gas_after), (x_id, x_after.clone())]),
+            )
+            .unwrap();
+        assert_eq!(
+            epoch_store
+                .sync_ahead_record(&x_id)
+                .unwrap()
+                .unwrap()
+                .base_version,
+            Some(x_after.version())
+        );
+        assert_eq!(
+            epoch_store
+                .handler_processed_object(&ObjectKey(x_id, x_after.version()))
+                .unwrap()
+                .unwrap()
+                .produced_at,
+            REPLAYED_COMMIT
+        );
+
+        // Replay of commit 11: the row at (X, 4) is above its horizon.
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store,
+            REPLAYED_COMMIT,
+        );
+        // The stable answer is keep. The current verdict is the open finding.
+        assert!(matches!(
+            ctx.read_owned(input).unwrap(),
+            OwnedVerdict::Drop(reason) if reason.kind() == DropKind::SyncAheadBaseAboveVersion
+        ));
+    }
+
     fn drop(kind: DropKind) -> Classification {
         Classification::Drop(DropReason(kind))
     }
