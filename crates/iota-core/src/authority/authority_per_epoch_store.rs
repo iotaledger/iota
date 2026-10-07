@@ -133,6 +133,7 @@ use crate::{
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
+    post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
     post_consensus_validation,
     signature_verifier::*,
@@ -4240,6 +4241,22 @@ impl AuthorityPerEpochStore {
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
         let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+
+        // Validation reads rows produced at or below the horizon, so every
+        // commit up to it must be fully executed before any input is read.
+        // Only a node that keeps the bookkeeping has a frontier that moves.
+        // Commits after the final round make no checkpoint and are never
+        // assigned, so the frontier cannot reach them. They admit no user
+        // transaction either, so they do not wait.
+        if self.pcool_bookkeeping_enabled
+            && self.get_reconfig_state_read_lock_guard().should_accept_tx()
+        {
+            self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
+                &self.protocol_config,
+                consensus_commit_info.index,
+            )))
+            .await?;
+        }
 
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
