@@ -19,8 +19,12 @@
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. Already executed — **retained** as a committee-agreed winner (registers the locks its own
-//!    effects report, skips re-validation); not dropped. See issue #11649.
+//! 3. With deterministic validation, a commit replayed after a restart repeats the decisions saved
+//!    on its first run: a saved drop is dropped again without checks, and a saved keep that has
+//!    executed is retained as below. Otherwise, an already-executed transaction is **retained** as
+//!    a committee-agreed winner (registers the locks its own effects report, skips re-validation);
+//!    not dropped. See issue #11649. With deterministic validation, a transaction with no saved
+//!    decision goes through the checks below even if it has executed.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt.
@@ -95,6 +99,14 @@ pub enum PostConsensusVerdict {
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it registers the locks its
 ///   effects report (the raw input set without the flag) and skips re-validation. See issue #11649.
+///   With deterministic validation, this holds only for a transaction whose keep at this commit was
+///   saved; one with no saved decision is validated like any other.
+///
+/// With deterministic validation, the decision for every candidate is saved before returning,
+/// including keeps that the caller then defers. When the commit is replayed after a restart, a
+/// saved drop is repeated without checks, and a saved keep is validated again unless it has
+/// executed. Panics if the saved decisions are incomplete, the candidates differ from the saved
+/// ones, or a saved keep is now dropped.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -240,6 +252,11 @@ pub async fn validate_and_resolve_conflicts(
         // validator (dropping it forks — issue #11649). Register its owned-object
         // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
         // the active scheduler's enqueue filter suppresses the re-execution.
+        //
+        // With deterministic validation, effects alone do not show at which
+        // commit the transaction was kept, so only a saved keep at this commit
+        // skips validation; its consumed inputs may be pruned by now. Without
+        // one, the commit-indexed reader decides, as on every other validator.
         if (!deterministic_validation || saved == Some(PostConsensusVerdict::Kept))
             && authority_state
                 .get_transaction_cache_reader()
