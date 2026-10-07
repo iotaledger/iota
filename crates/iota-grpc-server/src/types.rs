@@ -1511,7 +1511,10 @@ impl GrpcReader {
                         .zip(fetched)
                         .filter_map(|(key, object)| Some((key, object?)))
                         .collect::<std::collections::HashMap<_, _>>(),
-                    Err(error) => return fail_reads(reads, &missing, &error),
+                    Err(error) => {
+                        fail_reads(reads, &missing, &error);
+                        std::collections::HashMap::new()
+                    }
                 };
 
             let mut mismatched = std::collections::BTreeSet::new();
