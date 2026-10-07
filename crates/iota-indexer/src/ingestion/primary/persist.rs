@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use futures::{StreamExt, stream::ReadyChunks};
 use iota_metrics::metered_channel::ReceiverStream;
-use strum::IntoEnumIterator;
 use tap::tap::TapFallible;
 use tracing::{error, info, instrument};
 
@@ -138,7 +137,18 @@ impl PrimaryWriter {
         }
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
+
         let committer_watermark = CommitterWatermark::from(checkpoint_batch.last().unwrap());
+        let mut committer_tables = CommitterTables::basic().into_iter().collect::<Vec<_>>();
+        if objects_history.is_some() {
+            committer_tables.extend(CommitterTables::objects_history());
+        }
+        if filtered_queries.is_some() {
+            committer_tables.extend(CommitterTables::filtered_queries());
+        }
+        if combined_event_filters.is_some() {
+            committer_tables.extend(CommitterTables::combined_event_filters());
+        }
 
         let guard = self.metrics.checkpoint_db_commit_latency.start_timer();
         let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
@@ -270,7 +280,7 @@ impl PrimaryWriter {
         }
 
         self.state
-            .update_watermarks_upper_bound(CommitterTables::iter(), committer_watermark)
+            .update_watermarks_upper_bound(committer_tables, committer_watermark)
             .await
             .tap_err(|e| {
                 error!(

@@ -102,6 +102,59 @@ pub enum CommitterTables {
     PrunerCpWatermark,
 }
 
+impl CommitterTables {
+    pub(crate) fn basic() -> impl IntoIterator<Item = Self> {
+        [
+            Self::ChainIdentifier,
+            Self::Display,
+            Self::Epochs,
+            Self::FeatureFlags,
+            Self::Objects,
+            Self::ObjectsVersion,
+            Self::Packages,
+            Self::ProtocolConfigs,
+            Self::Transactions,
+            Self::TxGlobalOrder,
+            Self::Checkpoints,
+            Self::PrunerCpWatermark,
+        ]
+        .into_iter()
+    }
+
+    pub(crate) fn objects_history() -> impl IntoIterator<Item = Self> {
+        [Self::ObjectsBackwardHistory].into_iter()
+    }
+
+    pub(crate) fn filtered_queries() -> impl IntoIterator<Item = Self> {
+        [
+            Self::TxCallsPkg,
+            Self::TxCallsMod,
+            Self::TxCallsFun,
+            Self::TxChangedObjects,
+            Self::TxInputObjects,
+            Self::TxKinds,
+            Self::TxRecipients,
+            Self::TxSenders,
+            Self::TxWrappedOrDeletedObjects,
+            Self::Events,
+        ]
+        .into_iter()
+    }
+
+    pub(crate) fn combined_event_filters() -> impl IntoIterator<Item = Self> {
+        [
+            Self::EventEmitPackage,
+            Self::EventEmitModule,
+            Self::EventSenders,
+            Self::EventStructInstantiation,
+            Self::EventStructModule,
+            Self::EventStructName,
+            Self::EventStructPackage,
+        ]
+        .into_iter()
+    }
+}
+
 /// Enum representing tables that are written by optimistic indexing, and not by
 /// main pipeline
 #[derive(
@@ -121,4 +174,31 @@ pub enum CommitterTables {
 #[serde(rename_all = "snake_case")]
 pub enum OptimisticIndexingTables {
     OptimisticTransactions,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use strum::IntoEnumIterator;
+
+    use super::CommitterTables;
+
+    #[test]
+    fn committer_table_groups_cover_all_tables_once() {
+        let grouped = CommitterTables::basic()
+            .into_iter()
+            .chain(CommitterTables::objects_history())
+            .chain(CommitterTables::filtered_queries())
+            .chain(CommitterTables::combined_event_filters())
+            .collect::<Vec<_>>();
+        let unique = grouped.iter().cloned().collect::<HashSet<_>>();
+
+        assert_eq!(
+            grouped.len(),
+            unique.len(),
+            "a table is in more than one group"
+        );
+        assert_eq!(unique, CommitterTables::iter().collect::<HashSet<_>>());
+    }
 }
