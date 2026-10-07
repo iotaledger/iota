@@ -20,7 +20,7 @@
 module iota::smart_account_builtin_auth;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
-use iota::builtin_authenticator_functions;
+use iota::builtin_authenticator_functions::{Self, builtin_authenticator_function_ref_v1};
 use iota::public_key::PublicKey;
 use iota::smart_account::{Self, SmartAccount, SmartAccountBuilder};
 use iota::smart_account_public_key;
@@ -38,11 +38,11 @@ const EPublicKeyMissing: vector<u8> =
 ///
 /// Finish it with `smart_account::build_v1`.
 ///
-/// Emits a `public_key::PublicKeyAttached` event on success.
+/// Emits a `public_key_authentication::PublicKeyAttached` event on success.
 ///
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
-    let builder = smart_account::builder_v1(builtin_auth_function_ref_v1(), ctx);
+    let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
     smart_account_public_key::with_public_key(builder, public_key)
 }
 
@@ -74,14 +74,7 @@ public fun rotate_to_builtin_auth_v1(
     account.ensure_tx_sender_is_smart_account(ctx);
     assert!(smart_account_public_key::has_public_key(account), EPublicKeyMissing);
 
-    account.rotate_auth_function_ref_v1(builtin_auth_function_ref_v1(), ctx)
-}
-
-/// Returns the built-in authenticator ref for `SmartAccount`.
-///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun builtin_auth_function_ref_v1(): AuthenticatorFunctionRefV1<SmartAccount> {
-    builtin_authenticator_functions::builtin_authenticator_function_ref_v1()
+    account.rotate_auth_function_ref_v1(builtin_authenticator_function_ref_v1(), ctx)
 }
 
 // === Private Functions ===
@@ -96,7 +89,7 @@ public fun builtin_auth_function_ref_v1(): AuthenticatorFunctionRefV1<SmartAccou
 /// else — not from a user PTB, and not from another package, which could otherwise wrap a public
 /// entry point. See the `iota::clock::consensus_commit_prologue` function for the same idiom.
 ///
-/// Emits a `public_key::PublicKeyAttached` event and an
+/// Emits a `public_key_authentication::PublicKeyAttached` event and an
 /// `account::MutableAccountCreated` event.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
@@ -104,7 +97,7 @@ public fun builtin_auth_function_ref_v1(): AuthenticatorFunctionRefV1<SmartAccou
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
     let builder = smart_account::new_claim_builder(
         public_key,
-        builtin_auth_function_ref_v1(),
+        builtin_authenticator_function_ref_v1(),
         ctx,
     );
     smart_account_public_key::with_public_key(builder, public_key).build_v1();

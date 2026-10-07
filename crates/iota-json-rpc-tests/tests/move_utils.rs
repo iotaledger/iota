@@ -77,6 +77,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "ptb_command",
             "prover",
             "public_key",
+            "public_key_authentication",
             "random",
             "signature_scheme",
             "smart_account",

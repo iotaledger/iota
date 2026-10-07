@@ -2476,18 +2476,6 @@ secp256k1_verify
 PublicKey
 	public struct
 	0x2::public_key
-PublicKeyFieldName
-	public struct
-	0x2::public_key
-PublicKeyAttached
-	public struct
-	0x2::public_key
-PublicKeyDetached
-	public struct
-	0x2::public_key
-PublicKeyRotated
-	public struct
-	0x2::public_key
 from_prefixed_bytes
 	public fun
 	0x2::public_key
@@ -2503,27 +2491,39 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
-attach_public_key
-	public fun
-	0x2::public_key
-detach_public_key
-	public fun
-	0x2::public_key
-rotate_public_key
-	public fun
-	0x2::public_key
-has_public_key
-	public fun
-	0x2::public_key
-borrow_public_key
-	public fun
-	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
 to_iota_address_impl
 	fun
 	0x2::public_key
+PublicKeyFieldName
+	public struct
+	0x2::public_key_authentication
+PublicKeyAttached
+	public struct
+	0x2::public_key_authentication
+PublicKeyDetached
+	public struct
+	0x2::public_key_authentication
+PublicKeyRotated
+	public struct
+	0x2::public_key_authentication
+attach_public_key
+	public fun
+	0x2::public_key_authentication
+detach_public_key
+	public fun
+	0x2::public_key_authentication
+rotate_public_key
+	public fun
+	0x2::public_key_authentication
+has_public_key
+	public fun
+	0x2::public_key_authentication
+borrow_public_key
+	public fun
+	0x2::public_key_authentication
 is_feature_enabled
 	public(package) fun
 	0x2::protocol_config
@@ -3860,9 +3860,6 @@ has_builtin_auth
 	public fun
 	0x2::smart_account_builtin_auth
 rotate_to_builtin_auth_v1
-	public fun
-	0x2::smart_account_builtin_auth
-builtin_auth_function_ref_v1
 	public fun
 	0x2::smart_account_builtin_auth
 claim_account_v1
