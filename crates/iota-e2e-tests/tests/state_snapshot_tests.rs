@@ -35,7 +35,6 @@ async fn a_fullnode_publishes_the_snapshot_of_an_epoch_it_leaves() {
     let remote_path = remote_dir.path().to_path_buf();
 
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(20_000)
         .with_fullnode_state_snapshot_config(StateSnapshotConfig {
             object_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::File),
