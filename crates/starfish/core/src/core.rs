@@ -419,6 +419,12 @@ impl Core {
 
             new_missing_committed_txns
         } else {
+            // Suspended blocks can show that the previous round's leader block
+            // is late to us.
+            if !missing_block_refs.is_empty() {
+                self.try_propose(ReasonToCreateBlock::AddBlock)?;
+                self.try_signal_new_round();
+            }
             BTreeMap::new()
         };
 
@@ -489,6 +495,12 @@ impl Core {
 
             new_missing_committed_txns
         } else {
+            // Suspended blocks can show that the previous round's leader block
+            // is late to us.
+            if !missing_block_refs.is_empty() {
+                self.try_propose(ReasonToCreateBlock::AddBlockHeader)?;
+                self.try_signal_new_round();
+            }
             BTreeMap::new()
         };
 
@@ -852,7 +864,6 @@ impl Core {
         if matches!(reason, ReasonToCreateBlock::SoftTimeout) {
             self.strong_vote_timed_out_round = Some(clock_round);
         }
-        let strong_vote_timed_out = self.strong_vote_timed_out_round == Some(clock_round);
 
         // There must be a quorum of blocks from the previous round.
         let quorum_round = clock_round.saturating_sub(1);
@@ -861,6 +872,21 @@ impl Core {
         // leader-existence check, the strong-vote readiness check, and the
         // block header's strong_vote field.
         let leader_header = self.leader_header(quorum_round);
+
+        // A missing leader block is late to us, not absent, once f+1 stake of
+        // later blocks is already waiting on it. Those voters have moved on,
+        // so our vote would come too late to count; waiting would only lose
+        // the round.
+        let leader_late = !reason.is_forced()
+            && leader_header.is_none()
+            && self.leaders(quorum_round).first().is_some_and(|slot| {
+                self.context.committee.reached_validity(
+                    self.block_manager
+                        .stake_waiting_for(quorum_round, slot.authority),
+                )
+            });
+        let strong_vote_timed_out =
+            self.strong_vote_timed_out_round == Some(clock_round) || leader_late;
 
         // If an ordinary-ready moment was recorded for an earlier clock round
         // but we never proposed in it (the round advanced first), the
@@ -896,7 +922,9 @@ impl Core {
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and the block rate budget allows it).
         if !reason.is_forced() {
-            leader_header.as_ref()?;
+            if leader_header.is_none() && !leader_late {
+                return None;
+            }
 
             // Strong-vote readiness check 1 (StarfishSpeed only, bypassed on
             // soft-timeout): 2f+1 strong votes at quorum_round pinned to the
@@ -940,6 +968,14 @@ impl Core {
             && !strong_vote.as_ref().is_some_and(|sv| sv.is_strong_vote())
         {
             return None;
+        }
+
+        if leader_late {
+            self.context
+                .metrics
+                .node_metrics
+                .proposals_without_late_leader
+                .inc();
         }
 
         // Determine the ancestors to be included in proposal. A quorum of ancestor must
@@ -4399,5 +4435,98 @@ mod test {
                 .get(),
             2
         );
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn proposes_without_a_late_leader() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let min_block_delay = context.parameters.min_block_delay;
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
+        let mut last_round_blocks = Vec::new();
+        for round in 1..=2 {
+            last_round_blocks = gossip_one_round(
+                &mut cores,
+                round,
+                &last_round_blocks,
+                min_block_delay,
+                &mut BTreeSet::new(),
+            )
+            .await;
+        }
+
+        // One core misses the leader block of round 2; the other three round-2
+        // blocks still complete its quorum, but it does not propose at round 3.
+        let leader = cores[0].core.leaders(2)[0].authority;
+        let late = AuthorityIndex::new_for_test(((leader.value() + 1) % 4) as u8);
+        let leader_block = last_round_blocks
+            .iter()
+            .find(|block| block.author() == leader)
+            .unwrap()
+            .clone();
+        let without_leader: Vec<VerifiedBlock> = last_round_blocks
+            .iter()
+            .filter(|block| block.author() != leader)
+            .cloned()
+            .collect();
+        sleep(min_block_delay).await;
+        cores[late.value()]
+            .core
+            .add_blocks(without_leader, DataSource::Test)
+            .unwrap();
+        assert_eq!(cores[late.value()].core.last_proposed_round(), 2);
+
+        // Two other cores hold the leader block and propose round 3 on it.
+        let mut round_3_blocks = Vec::new();
+        for core_fixture in cores.iter_mut() {
+            let own = core_fixture.core.context.own_index;
+            if own == late || round_3_blocks.len() == 2 {
+                continue;
+            }
+            core_fixture
+                .core
+                .add_blocks(last_round_blocks.clone(), DataSource::Test)
+                .unwrap();
+            if core_fixture.core.last_proposed_round() < 3 {
+                core_fixture
+                    .core
+                    .new_block(3, ReasonToCreateBlock::SoftTimeout)
+                    .unwrap();
+            }
+            assert_eq!(core_fixture.core.last_proposed_round(), 3);
+            round_3_blocks.push(core_fixture.core.last_proposed_block());
+        }
+
+        // With one authority waiting for the leader block, the late core still
+        // waits; with f+1 = 2 it proposes round 3 without the leader.
+        let late_core = &mut cores[late.value()].core;
+        late_core
+            .add_blocks(vec![round_3_blocks[0].clone()], DataSource::Test)
+            .unwrap();
+        assert_eq!(late_core.last_proposed_round(), 2);
+        late_core
+            .add_blocks(vec![round_3_blocks[1].clone()], DataSource::Test)
+            .unwrap();
+        assert_eq!(late_core.last_proposed_round(), 3);
+        let block = late_core.last_proposed_block();
+        assert!(!block.ancestors().contains(&leader_block.reference()));
+        assert!(block.strong_vote().is_none());
+        let proposals_without_late_leader = late_core
+            .context
+            .metrics
+            .node_metrics
+            .proposals_without_late_leader
+            .clone();
+        assert_eq!(proposals_without_late_leader.get(), 1);
+
+        // The leader block arriving afterwards accepts the waiting blocks
+        // without a second proposal at round 3.
+        late_core
+            .add_blocks(vec![leader_block], DataSource::Test)
+            .unwrap();
+        assert!(late_core.last_proposed_round() >= 3);
+        assert_eq!(proposals_without_late_leader.get(), 1);
     }
 }

@@ -11,7 +11,7 @@ use iota_metrics::monitored_scope;
 #[cfg(test)]
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Stake};
 #[cfg(test)]
 use tracing::trace;
 
@@ -486,6 +486,12 @@ impl BlockManager {
     #[cfg(test)]
     pub(crate) fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {
         self.block_suspender.suspended_blocks_refs()
+    }
+
+    /// Stake of the authorities with a suspended header waiting for a block
+    /// of `author` at `round`.
+    pub(crate) fn stake_waiting_for(&self, round: Round, author: AuthorityIndex) -> Stake {
+        self.block_suspender.stake_waiting_for(round, author)
     }
 
     /// Returns the number of full blocks currently in suspended_blocks

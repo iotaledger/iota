@@ -7,12 +7,12 @@ use std::{
 };
 
 use itertools::Itertools;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Stake};
 use tracing::debug;
 
 use crate::{
-    BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader, block_header::BlockHeaderDigest,
-    context::Context,
+    BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader, authority_set::AuthoritySet,
+    block_header::BlockHeaderDigest, context::Context,
 };
 
 /// Outcome of [`BlockSuspender::evict_below_round`].
@@ -475,6 +475,25 @@ impl BlockSuspender {
     pub(crate) fn set_missing_ancestors_with_no_children(&mut self, block_ref: BlockRef) {
         self.missing_ancestors.entry(block_ref).or_default();
     }
+    /// Stake of the authorities with a suspended header waiting for a block
+    /// of `author` at `round`, each authority counted once.
+    pub(crate) fn stake_waiting_for(&self, round: Round, author: AuthorityIndex) -> Stake {
+        let slot = BlockRef::new(round, author, BlockHeaderDigest::MIN)
+            ..=BlockRef::new(round, author, BlockHeaderDigest::MAX);
+        let mut waiting = AuthoritySet::new();
+        for child in self
+            .missing_ancestors
+            .range(slot)
+            .flat_map(|(_, children)| children)
+        {
+            waiting.insert(child.author);
+        }
+        waiting
+            .iter()
+            .map(|authority| self.context.committee.stake(authority))
+            .sum()
+    }
+
     #[cfg(test)]
     pub(crate) fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {
         self.suspended_headers.keys().cloned().collect()
@@ -656,5 +675,31 @@ pub(crate) mod tests {
             }
         }
         (suspended, missing)
+    }
+
+    #[tokio::test]
+    async fn stake_waiting_for_counts_each_authority_once() {
+        let mut suspender = new_suspender();
+        let leader = block_ref(2, 0);
+        let leader_twin = BlockRef::new(2, 0.into(), BlockHeaderDigest::MAX);
+        let other = block_ref(2, 1);
+        let mut input = BTreeMap::new();
+        input.insert(
+            header(3, 2, vec![leader, other]),
+            BTreeSet::from([leader, other]),
+        );
+        input.insert(
+            header(3, 3, vec![leader_twin]),
+            BTreeSet::from([leader_twin]),
+        );
+        input.insert(header(4, 3, vec![leader]), BTreeSet::from([leader]));
+        suspender.accept_or_suspend_received_headers(input);
+
+        // Authorities 2 and 3 wait for the slot of authority 0, whichever
+        // digest; authority 3 counts once.
+        assert_eq!(suspender.stake_waiting_for(2, 0.into()), 2);
+        assert_eq!(suspender.stake_waiting_for(2, 1.into()), 1);
+        assert_eq!(suspender.stake_waiting_for(2, 2.into()), 0);
+        assert_eq!(suspender.stake_waiting_for(3, 0.into()), 0);
     }
 }

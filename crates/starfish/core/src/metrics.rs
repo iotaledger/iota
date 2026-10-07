@@ -192,6 +192,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) delay_in_sending_blocks: Histogram,
     pub(crate) block_header_commit_latency: Histogram,
     pub(crate) proposed_blocks: IntCounterVec,
+    pub(crate) proposals_without_late_leader: IntCounter,
     pub(crate) proposed_block_header_size: SumCount,
     pub(crate) proposed_block_size: SumCount,
     pub(crate) proposed_block_transactions: SumCount,
@@ -404,6 +405,12 @@ impl NodeMetrics {
                 "proposed_blocks",
                 "Total number of proposed blocks. The reason gives a hint what triggered block creation",
                 &["reason"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            proposals_without_late_leader: register_int_counter_with_registry!(
+                "proposals_without_late_leader",
+                "Blocks proposed without the previous round's leader block because at least f+1 stake of later blocks was already waiting on it, so our vote would have come too late to count.",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
