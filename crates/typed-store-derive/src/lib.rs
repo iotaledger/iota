@@ -501,7 +501,21 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 global_db_options_override: Option<typed_store::rocksdb::Options>,
                 metric_conf: typed_store::rocks::MetricConf,
                 ) -> #secondary_db_map_struct_name #generics {
-                #secondary_db_map_struct_name::open_tables_read_only(primary_path, with_secondary_path, metric_conf, global_db_options_override)
+                #secondary_db_map_struct_name::open_tables_read_only(primary_path, with_secondary_path, metric_conf, global_db_options_override, None)
+            }
+
+            /// Like `get_read_only_handle`, with the options of each column family. For a
+            /// database whose column families cannot be read with default options, such as
+            /// ones that keep their files outside the database directory: RocksDB does not
+            /// record that, so a read-only open has to be told it as well.
+            pub fn get_read_only_handle_with_table_options(
+                primary_path: std::path::PathBuf,
+                with_secondary_path: Option<std::path::PathBuf>,
+                global_db_options_override: Option<typed_store::rocksdb::Options>,
+                metric_conf: typed_store::rocks::MetricConf,
+                tables_db_options_override: typed_store::rocks::DBMapTableConfigMap,
+                ) -> #secondary_db_map_struct_name #generics {
+                #secondary_db_map_struct_name::open_tables_read_only(primary_path, with_secondary_path, metric_conf, global_db_options_override, Some(tables_db_options_override))
             }
         }
 
@@ -529,14 +543,15 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 with_secondary_path: Option<std::path::PathBuf>,
                 metric_conf: typed_store::rocks::MetricConf,
                 global_db_options_override: Option<typed_store::rocksdb::Options>,
+                tables_db_options_override: Option<typed_store::rocks::DBMapTableConfigMap>,
             ) -> Self {
                 let inner = match with_secondary_path {
-                    Some(q) => #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(q), metric_conf, global_db_options_override, None),
+                    Some(q) => #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(q), metric_conf, global_db_options_override, tables_db_options_override),
                     None => {
                         let p: std::path::PathBuf = tempfile::tempdir()
                         .expect("Failed to open temporary directory")
                         .keep();
-                        #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(p), metric_conf, global_db_options_override, None)
+                        #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(p), metric_conf, global_db_options_override, tables_db_options_override)
                     }
                 };
                 Self {
