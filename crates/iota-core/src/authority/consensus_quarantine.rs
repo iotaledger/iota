@@ -30,7 +30,7 @@ use crate::{
             LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
         },
         shared_object_congestion_tracker::{
-            CongestionPerObjectDebt, CongestionWorkerDebt, WorkerDebtSlots,
+            CongestionPerObjectDebt, CongestionResourceDebt, ResourceSlots,
         },
     },
     checkpoints::PendingCheckpoint,
@@ -61,10 +61,9 @@ pub(crate) struct ConsensusCommitOutput {
     congestion_control_object_debts: Vec<(ObjectId, u64)>,
     // debts for shared objects with randomness
     congestion_control_randomness_object_debts: Vec<(ObjectId, u64)>,
-    // execution-worker debt carried over to the next commit (slots relative
-    // to the next commit's start); covers all transactions, which one tracker
-    // schedules. `None` when execution-worker congestion control is inactive.
-    congestion_control_worker_debt: Option<WorkerDebtSlots>,
+    // resource debt carried over to the next commit, covering all
+    // transactions; `None` when execution-worker congestion control is inactive
+    congestion_control_resource_debt: Option<ResourceSlots>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -247,8 +246,8 @@ impl ConsensusCommitOutput {
         self.congestion_control_randomness_object_debts = object_debts;
     }
 
-    pub fn set_congestion_control_worker_debt(&mut self, debt: WorkerDebtSlots) {
-        self.congestion_control_worker_debt = Some(debt);
+    pub fn set_congestion_control_resource_debt(&mut self, debt: ResourceSlots) {
+        self.congestion_control_resource_debt = Some(debt);
     }
 
     pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
@@ -391,12 +390,12 @@ impl ConsensusCommitOutput {
                 }),
         )?;
 
-        if let Some(debt) = self.congestion_control_worker_debt {
+        if let Some(debt) = self.congestion_control_resource_debt {
             batch.insert_batch(
                 &tables.congestion_control_worker_debt,
                 [(
                     SINGLETON_KEY,
-                    CongestionWorkerDebt::new(self.consensus_round, debt),
+                    CongestionResourceDebt::new(self.consensus_round, debt),
                 )],
             )?;
         }
@@ -1116,16 +1115,16 @@ impl ConsensusOutputQuarantine {
             }))
     }
 
-    /// Loads the execution-worker debt carried over into `current_round`
-    /// (aged for the elapsed commits), to seed the resource slots.
+    /// Loads the resource debt carried over into `current_round` (aged for
+    /// the elapsed commits), to seed the resource slots.
     /// Reads the most recent debt from the in-memory quarantine, falling
     /// back to the last checkpointed value in the epoch store. Returns an
     /// empty debt when none is recorded.
-    pub(crate) fn load_initial_worker_debt(
+    pub(crate) fn load_initial_resource_debt(
         &self,
         epoch_store: &AuthorityPerEpochStore,
         current_round: CommitRound,
-    ) -> IotaResult<WorkerDebtSlots> {
+    ) -> IotaResult<ResourceSlots> {
         let tables = epoch_store.tables()?;
         let per_commit_limit = epoch_store
             .protocol_config()
@@ -1140,9 +1139,9 @@ impl ConsensusOutputQuarantine {
             .rev()
             .find_map(|output| {
                 output
-                    .congestion_control_worker_debt
+                    .congestion_control_resource_debt
                     .clone()
-                    .map(|slots| CongestionWorkerDebt::new(output.consensus_round, slots))
+                    .map(|slots| CongestionResourceDebt::new(output.consensus_round, slots))
             })
             .or_else(|| {
                 tables

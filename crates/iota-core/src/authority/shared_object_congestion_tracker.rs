@@ -208,7 +208,9 @@ impl ObjectExecutionSlots {
 }
 
 /// A contiguous interval `[start_time, end_time)` of [`ResourceSlots`].
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+/// Persisted in `CongestionResourceDebt::V2`, so a field change needs a new
+/// version.
+#[derive(PartialEq, Eq, Clone, Debug, Copy, Serialize, Deserialize)]
 struct ResourceSlot {
     start_time: ExecutionTime,
     end_time: ExecutionTime,
@@ -221,15 +223,10 @@ struct ResourceSlot {
 
 /// Execution workers and memory rate in use over the per-commit timeline, as
 /// sorted, non-overlapping busy slots; gaps have nothing in use.
-#[derive(PartialEq, Eq, Clone, Debug)]
-struct ResourceSlots(Vec<ResourceSlot>);
+#[derive(PartialEq, Eq, Clone, Debug, Default, Serialize, Deserialize)]
+pub(crate) struct ResourceSlots(Vec<ResourceSlot>);
 
 impl ResourceSlots {
-    #[cfg(test)]
-    fn new() -> Self {
-        Self(Vec::new())
-    }
-
     /// Appends `[start, end)` to `slots`, merging it into an adjacent equal
     /// last slot. Empty intervals and zero `workers_in_use` are dropped.
     fn push_slot(
@@ -379,55 +376,41 @@ impl ResourceSlots {
         self.0 = merged;
     }
 
-    /// Reconstructs a profile from a stored debt (`(start, end, count)`
-    /// slots). The input is assumed to already satisfy the invariant
-    /// (sorted, disjoint, merged), as produced by [`Self::overshoot`] and
-    /// [`Self::decay`]. The debt stores only workers, so `memory_rate_in_use`
-    /// starts at `0`.
-    fn from_debt(slots: WorkerDebtSlots) -> Self {
+    /// Returns the slots past `max_execution_duration_per_commit`, shifted so
+    /// that it becomes time `0`: the next commit's initial resource debt.
+    fn overshoot(&self, max_execution_duration_per_commit: ExecutionTime) -> Self {
         Self(
-            slots
-                .into_iter()
-                .map(|(start_time, end_time, workers_in_use)| ResourceSlot {
-                    start_time,
-                    end_time,
-                    workers_in_use,
-                    memory_rate_in_use: 0,
+            self.0
+                .iter()
+                .filter_map(|slot| {
+                    let start_time = slot.start_time.max(max_execution_duration_per_commit);
+                    (start_time < slot.end_time).then(|| ResourceSlot {
+                        start_time: start_time - max_execution_duration_per_commit,
+                        end_time: slot.end_time - max_execution_duration_per_commit,
+                        ..*slot
+                    })
                 })
                 .collect(),
         )
     }
 
-    /// Returns the `workers_in_use` of the slots past
-    /// `max_execution_duration_per_commit`, shifted so that it becomes time
-    /// `0`: the next commit's initial worker debt.
-    fn overshoot(&self, max_execution_duration_per_commit: ExecutionTime) -> WorkerDebtSlots {
-        self.0
-            .iter()
-            .filter_map(|s| {
-                let start = s.start_time.max(max_execution_duration_per_commit);
-                (start < s.end_time).then(|| {
-                    (
-                        start - max_execution_duration_per_commit,
-                        s.end_time - max_execution_duration_per_commit,
-                        s.workers_in_use,
-                    )
+    /// Shifts the slots left by `shift`, dropping what falls below time `0`.
+    /// Ages a stored debt by the budget of the commits elapsed since it was
+    /// recorded.
+    fn decay(self, shift: ExecutionTime) -> Self {
+        Self(
+            self.0
+                .into_iter()
+                .filter_map(|slot| {
+                    let end_time = slot.end_time.saturating_sub(shift);
+                    (end_time > 0).then(|| ResourceSlot {
+                        start_time: slot.start_time.saturating_sub(shift),
+                        end_time,
+                        ..slot
+                    })
                 })
-            })
-            .collect()
-    }
-
-    /// Shifts a debt left by `shift`, dropping the portion that falls below
-    /// time `0`. Used to age a stored debt by the budget of the commits
-    /// that elapsed since it was recorded.
-    fn decay(slots: WorkerDebtSlots, shift: ExecutionTime) -> WorkerDebtSlots {
-        slots
-            .into_iter()
-            .filter_map(|(start, end, count)| {
-                let end = end.saturating_sub(shift);
-                (end > 0).then(|| (start.saturating_sub(shift), end, count))
-            })
-            .collect()
+                .collect(),
+        )
     }
 }
 
@@ -452,12 +435,12 @@ pub(crate) struct SharedObjectCongestionTracker {
 impl SharedObjectCongestionTracker {
     /// Create a new `SharedObjectCongestionTracker` for the given
     /// `CongestionControlParameters`, taking into account the per-object debts
-    /// (`initial_object_debts`) and the execution-worker debt
-    /// (`initial_worker_debt`) carried over from prior commits. The worker debt
-    /// is ignored when execution-worker congestion control is inactive.
+    /// (`initial_object_debts`) and the resource debt (`initial_resource_debt`)
+    /// carried over from prior commits. The resource debt is ignored when
+    /// execution-worker congestion control is inactive.
     pub(super) fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectId, u64)>,
-        initial_worker_debt: WorkerDebtSlots,
+        initial_resource_debt: ResourceSlots,
         congestion_control_parameters: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
@@ -476,7 +459,7 @@ impl SharedObjectCongestionTracker {
 
         let resource_slots = congestion_control_parameters
             .max_concurrent_execution_workers()
-            .map(|_| ResourceSlots::from_debt(initial_worker_debt));
+            .map(|_| initial_resource_debt);
 
         Self {
             object_execution_slots,
@@ -906,16 +889,15 @@ impl SharedObjectCongestionTracker {
             .collect()
     }
 
-    /// Returns the `workers_in_use` of the slots that extend past
-    /// `max_execution_duration_per_commit`, shifted to start at time `0`, to be
-    /// carried over as the next commit's initial worker debt. Returns
+    /// Returns the resource slots past `max_execution_duration_per_commit`,
+    /// shifted to start at time `0`: the next commit's initial resource debt.
     /// `None` when execution-worker congestion control is inactive. Borrows
     /// (unlike [`Self::accumulated_object_debts`]) so it can be called before
     /// consuming the tracker for the per-object debts.
-    pub(super) fn accumulated_worker_debt(
+    pub(super) fn accumulated_resource_debt(
         &self,
         max_execution_duration_per_commit: u64,
-    ) -> Option<WorkerDebtSlots> {
+    ) -> Option<ResourceSlots> {
         self.resource_slots
             .as_ref()
             .map(|resource_slots| resource_slots.overshoot(max_execution_duration_per_commit))
@@ -940,28 +922,36 @@ impl CongestionPerObjectDebt {
     }
 }
 
-/// The `workers_in_use` of the resource slots as `(start, end, count)` slots,
-/// in the form it is carried between consensus commits.
-pub(super) type WorkerDebtSlots = Vec<(ExecutionTime, ExecutionTime, u16)>;
-
-/// The execution-worker debt carried over from a consensus commit: the
-/// `workers_in_use` of the resource slots that extend past the per-commit
-/// limit, stored as `(start, end, count)` slots together with the round in
-/// which it was recorded (so future commits can age it by their elapsed
-/// budget).
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) enum CongestionWorkerDebt {
-    V1(CommitRound, WorkerDebtSlots),
+/// The resource debt carried over from a consensus commit: the resource slots
+/// past the per-commit limit, with the round in which it was recorded so that
+/// later commits can age it by their elapsed budget. `V1` has no memory rate
+/// and reads as `0`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum CongestionResourceDebt {
+    V1(CommitRound, Vec<(ExecutionTime, ExecutionTime, u16)>),
+    V2(CommitRound, ResourceSlots),
 }
 
-impl CongestionWorkerDebt {
-    pub(super) fn new(round: CommitRound, slots: WorkerDebtSlots) -> Self {
-        Self::V1(round, slots)
+impl CongestionResourceDebt {
+    pub(super) fn new(round: CommitRound, slots: ResourceSlots) -> Self {
+        Self::V2(round, slots)
     }
 
-    pub(super) fn into_v1(self) -> (CommitRound, WorkerDebtSlots) {
+    fn into_round_and_slots(self) -> (CommitRound, ResourceSlots) {
         match self {
-            Self::V1(round, slots) => (round, slots),
+            Self::V1(round, slots) => {
+                let slots = slots
+                    .into_iter()
+                    .map(|(start_time, end_time, workers_in_use)| ResourceSlot {
+                        start_time,
+                        end_time,
+                        workers_in_use,
+                        memory_rate_in_use: 0,
+                    })
+                    .collect();
+                (round, ResourceSlots(slots))
+            }
+            Self::V2(round, slots) => (round, slots),
         }
     }
 
@@ -972,14 +962,14 @@ impl CongestionWorkerDebt {
         self,
         current_round: CommitRound,
         max_execution_duration_per_commit: ExecutionTime,
-    ) -> WorkerDebtSlots {
-        let (stored_round, slots) = self.into_v1();
+    ) -> ResourceSlots {
+        let (stored_round, slots) = self.into_round_and_slots();
         // Mirrors the per-object debt aging: the stored debt already
         // accounts for the budget of its own round, so only fully-elapsed
         // rounds since then are applied.
         let num_rounds = current_round.saturating_sub(stored_round).saturating_sub(1);
         let shift = max_execution_duration_per_commit.saturating_mul(num_rounds);
-        ResourceSlots::decay(slots, shift)
+        slots.decay(shift)
     }
 }
 
@@ -1272,7 +1262,7 @@ pub mod shared_object_test_utils {
     ) -> SharedObjectCongestionTracker {
         SharedObjectCongestionTracker::new(
             init_values.iter().map(|(id, debt)| (*id, *debt)),
-            Vec::new(),
+            ResourceSlots::default(),
             congestion_control_parameters,
         )
     }
@@ -1294,6 +1284,20 @@ mod object_cost_tests {
     use rstest::rstest;
 
     use super::{shared_object_test_utils::*, *};
+
+    fn resource_slot(
+        start_time: ExecutionTime,
+        end_time: ExecutionTime,
+        workers_in_use: u16,
+        memory_rate_in_use: u64,
+    ) -> ResourceSlot {
+        ResourceSlot {
+            start_time,
+            end_time,
+            workers_in_use,
+            memory_rate_in_use,
+        }
+    }
 
     #[rstest]
     fn test_compute_tx_start_at_time(#[values(true, false)] assign_min_free_execution_slot: bool) {
@@ -2214,7 +2218,7 @@ mod object_cost_tests {
                 //     301|            |
                 SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
-                    Vec::new(),
+                    ResourceSlots::default(),
                     congestion_control_parameters,
                 )
             }
@@ -2228,7 +2232,7 @@ mod object_cost_tests {
                 //        4|            |
                 SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 4), (shared_obj_1, 3)],
-                    Vec::new(),
+                    ResourceSlots::default(),
                     congestion_control_parameters,
                 )
             }
@@ -2336,7 +2340,7 @@ mod object_cost_tests {
                 (shared_obj_0, initial_object_debt),
                 (shared_obj_1, initial_object_debt),
             ],
-            Vec::new(),
+            ResourceSlots::default(),
             CongestionControlParameters::new_for_test(
                 mode,
                 assign_min_free_execution_slot,
@@ -2386,7 +2390,7 @@ mod object_cost_tests {
 
     #[test]
     fn test_resource_slots_occupy_and_free_slots() {
-        let mut resource_slots = ResourceSlots::new();
+        let mut resource_slots = ResourceSlots::default();
 
         resource_slots.occupy(0, 10, 0); // [0, 10) -> workers_in_use 1
         // With a cap of 2 workers, `workers_in_use` of 1 is below the cap everywhere.
@@ -2419,7 +2423,7 @@ mod object_cost_tests {
 
     #[test]
     fn test_resource_slots_gap_fill_and_coalesce() {
-        let mut resource_slots = ResourceSlots::new();
+        let mut resource_slots = ResourceSlots::default();
         // Two busy regions separated by a gap [5, 10).
         resource_slots.occupy(0, 5, 0); // [0, 5) -> 1
         resource_slots.occupy(10, 5, 0); // [10, 15) -> 1
@@ -2455,7 +2459,7 @@ mod object_cost_tests {
 
     #[test]
     fn test_resource_slots_track_memory_rate_alongside_workers_in_use() {
-        let mut resource_slots = ResourceSlots::new();
+        let mut resource_slots = ResourceSlots::default();
         resource_slots.occupy(0, 10, 600);
         resource_slots.occupy(5, 10, 300);
         assert_eq!(
@@ -2509,28 +2513,61 @@ mod object_cost_tests {
 
     #[test]
     fn test_resource_slots_debt_and_decay() {
-        // `workers_in_use`: [0, 5) -> 1, [5, 15) -> 2.
-        let mut resource_slots = ResourceSlots::new();
-        resource_slots.occupy(0, 5, 0);
-        resource_slots.occupy(5, 10, 0);
-        resource_slots.occupy(5, 10, 0);
+        // [0, 5) -> 1 worker at 100 B/s, [5, 15) -> 2 workers at 500 B/s.
+        let mut resource_slots = ResourceSlots::default();
+        resource_slots.occupy(0, 5, 100);
+        resource_slots.occupy(5, 10, 200);
+        resource_slots.occupy(5, 10, 300);
 
         // Only the part beyond the per-commit limit (10) carries over, shifted to start
-        // at 0: [10, 15) -> 2 becomes [0, 5) -> 2.
+        // at 0.
         let debt = resource_slots.overshoot(10);
-        assert_eq!(debt, vec![(0, 5, 2)]);
+        assert_eq!(debt, ResourceSlots(vec![resource_slot(0, 5, 2, 500)]));
+        // The carried memory rate blocks a 600 B/s transaction under a
+        // 1000 B/s memory bandwidth.
+        assert_eq!(
+            debt.slots_with_capacity(3, Some((600, 1_000))).0,
+            vec![ExecutionSlot::new(5, MAX_EXECUTION_TIME)]
+        );
 
         // Aging shifts left and drops anything that reaches time 0.
-        assert_eq!(ResourceSlots::decay(debt.clone(), 2), vec![(0, 3, 2)]);
-        assert_eq!(ResourceSlots::decay(debt.clone(), 5), vec![]);
-        assert_eq!(ResourceSlots::decay(debt, 6), vec![]);
+        assert_eq!(
+            debt.clone().decay(2),
+            ResourceSlots(vec![resource_slot(0, 3, 2, 500)])
+        );
+        assert_eq!(debt.clone().decay(5), ResourceSlots::default());
+        assert_eq!(debt.clone().decay(6), ResourceSlots::default());
 
         // `decayed` ages by the fully-elapsed commits' budget:
         // num_rounds = current - stored - 1, shift = num_rounds * limit.
-        let stored = CongestionWorkerDebt::new(3, vec![(0, 5, 2)]);
-        assert_eq!(stored.clone().decayed(4, 2), vec![(0, 5, 2)]); // 0 elapsed
-        assert_eq!(stored.clone().decayed(5, 2), vec![(0, 3, 2)]); // 1 elapsed
-        assert_eq!(stored.decayed(7, 2), vec![]); // 3 elapsed -> expired
+        let stored = CongestionResourceDebt::new(3, debt.clone());
+        assert_eq!(stored.clone().decayed(4, 2), debt); // 0 elapsed
+        assert_eq!(
+            stored.clone().decayed(5, 2),
+            ResourceSlots(vec![resource_slot(0, 3, 2, 500)])
+        ); // 1 elapsed
+        assert_eq!(stored.decayed(7, 2), ResourceSlots::default()); // 3 elapsed -> expired
+    }
+
+    #[test]
+    fn test_resource_debt_serialization() {
+        #[derive(Serialize)]
+        enum LegacyDebt {
+            V1(CommitRound, Vec<(ExecutionTime, ExecutionTime, u16)>),
+        }
+        let v1 = bcs::to_bytes(&LegacyDebt::V1(3, vec![(0, 5, 2)])).unwrap();
+        let debt: CongestionResourceDebt = bcs::from_bytes(&v1).unwrap();
+        assert_eq!(
+            debt.decayed(4, 2),
+            ResourceSlots(vec![resource_slot(0, 5, 2, 0)])
+        );
+
+        let v2 = CongestionResourceDebt::new(3, ResourceSlots(vec![resource_slot(0, 5, 2, 500)]));
+        let bytes = bcs::to_bytes(&v2).unwrap();
+        assert_eq!(
+            bcs::from_bytes::<CongestionResourceDebt>(&bytes).unwrap(),
+            v2
+        );
     }
 
     #[test]
@@ -2550,13 +2587,13 @@ mod object_cost_tests {
         // [0, 1) — the carried-over debt.
         let tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
-            vec![(0, 1, 1)],
+            ResourceSlots(vec![resource_slot(0, 1, 1, 0)]),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
 
         // An owned-object-only transaction cannot fit within the per-commit
-        // limit of 1 because the carried-over worker debt already fills the single
+        // limit of 1 because the carried-over debt already fills the single
         // worker on [0, 1); it is shed for worker congestion.
         let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
@@ -2587,7 +2624,7 @@ mod object_cost_tests {
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
-            Vec::new(),
+            ResourceSlots::default(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2635,7 +2672,7 @@ mod object_cost_tests {
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
-            Vec::new(),
+            ResourceSlots::default(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2678,7 +2715,7 @@ mod object_cost_tests {
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
-            Vec::new(),
+            ResourceSlots::default(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2752,7 +2789,7 @@ mod object_cost_tests {
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(2);
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
-            Vec::new(),
+            ResourceSlots::default(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2814,7 +2851,7 @@ mod object_cost_tests {
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
-            Vec::new(),
+            ResourceSlots::default(),
             congestion_control_parameters,
         );
         let mut previously_deferred = PreviouslyDeferredTransactions::new();

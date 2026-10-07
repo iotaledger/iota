@@ -102,7 +102,9 @@ use crate::{
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
+        shared_object_congestion_tracker::{
+            CongestionPerObjectDebt, CongestionResourceDebt, ResourceSlots,
+        },
         shared_object_version_manager::{
             AssignedTxAndVersions, AssignedVersions, ConsensusSharedObjVerAssignment, Schedulable,
             SharedObjVerManager,
@@ -1047,9 +1049,11 @@ pub struct AuthorityEpochTables {
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
 
-    /// Execution-worker debt carried over from the latest commit
-    /// (singleton, keyed by `SINGLETON_KEY`); covers all transactions.
-    congestion_control_worker_debt: DBMap<u64, CongestionWorkerDebt>,
+    /// Resource debt (workers and memory rate) carried over from the latest
+    /// commit (singleton, keyed by `SINGLETON_KEY`); covers all transactions.
+    /// The column family keeps the legacy name `congestion_control_worker_debt`
+    /// for storage compatibility.
+    congestion_control_worker_debt: DBMap<u64, CongestionResourceDebt>,
 
     /// Per-validator received misbehavior reports state. Keyed by the
     /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
@@ -4056,15 +4060,15 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
-        // Worker debt exists only when execution-worker congestion control
+        // Resource debt exists only when execution-worker congestion control
         // is active; without it, the tracker ignores the debt, so skip the
         // quarantine scan and DB read entirely.
-        let initial_worker_debt = if use_combined_congestion_tracker {
+        let initial_resource_debt = if use_combined_congestion_tracker {
             self.consensus_quarantine
                 .read()
-                .load_initial_worker_debt(self, consensus_commit_info.round)?
+                .load_initial_resource_debt(self, consensus_commit_info.round)?
         } else {
-            Vec::new()
+            ResourceSlots::default()
         };
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
@@ -4073,7 +4077,7 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
-            initial_worker_debt,
+            initial_resource_debt,
             congestion_control_parameters.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = if use_combined_congestion_tracker {
@@ -4086,9 +4090,9 @@ impl AuthorityPerEpochStore {
                     true,
                     &sequenced_randomness_transactions,
                 )?,
-                // No worker debt: worker congestion control implies a single
+                // No resource debt: worker congestion control implies a single
                 // tracker, so the randomness tracker never carries one.
-                Vec::new(),
+                ResourceSlots::default(),
                 congestion_control_parameters,
             ))
         };
@@ -4893,13 +4897,10 @@ impl AuthorityPerEpochStore {
             .congestion_control_parameters()
             .max_execution_duration_per_commit()
         {
-            // Carry over the execution-worker debt that runs past the
-            // per-commit limit (computed before the tracker is consumed for
-            // the per-object debts below). `None` when worker control is off.
             if let Some(debt) = shared_object_congestion_tracker
-                .accumulated_worker_debt(max_execution_duration_per_commit)
+                .accumulated_resource_debt(max_execution_duration_per_commit)
             {
-                output.set_congestion_control_worker_debt(debt);
+                output.set_congestion_control_resource_debt(debt);
             }
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker

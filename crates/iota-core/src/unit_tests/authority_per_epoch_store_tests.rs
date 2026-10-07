@@ -31,7 +31,7 @@ use crate::{
             consensus_quarantine::ConsensusCommitOutput,
         },
         shared_object_congestion_tracker::{
-            SequencingResult, SharedObjectCongestionTracker,
+            ResourceSlots, SequencingResult, SharedObjectCongestionTracker,
             shared_object_test_utils::{TEST_ONLY_GAS_PRICE, build_transaction},
         },
         test_authority_builder::TestAuthorityBuilder,
@@ -974,8 +974,11 @@ fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
     let shared_obj = ObjectId::random();
 
     // --- Attested commit: three transactions all schedule, end-to-end. ---
-    let mut tracker =
-        SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params.clone());
+    let mut tracker = SharedObjectCongestionTracker::new(
+        std::iter::empty(),
+        ResourceSlots::default(),
+        params.clone(),
+    );
     for i in 0..3 {
         let tx = attest(
             build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE),
@@ -999,7 +1002,8 @@ fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
     }
 
     // --- Unattested commit: the very first transaction defers. ---
-    let mut tracker = SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params);
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
     let tx = build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE);
     tracker.initialize_object_execution_slots(&tx.shared_input_objects());
     match tracker.try_schedule(&tx, &HashMap::new(), 0) {
@@ -1065,7 +1069,8 @@ fn test_gas_vector_mode_schedules_by_attested_cpu_time() {
 
     let params = gas_vector_params(COMMIT_TIME_BUDGET_NS, 4, 1_000_000_000);
     let shared_obj = ObjectId::random();
-    let mut tracker = SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params);
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
 
     for i in 0..3 {
         let tx = attest_gas_vector(
@@ -1116,7 +1121,8 @@ fn test_gas_vector_mode_keeps_overlapping_memory_rates_within_bandwidth() {
     const ONE_SECOND_NS: u64 = 1_000_000_000;
     // 3 s budget, 3 workers, 1000 B/s of memory bandwidth.
     let params = gas_vector_params(3 * ONE_SECOND_NS, 3, 1_000);
-    let mut tracker = SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params);
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
 
     // One second of cpu_time, so the declared memory rate equals the moved
     // bytes.
@@ -1165,7 +1171,8 @@ fn test_gas_vector_mode_keeps_overlapping_memory_rates_within_bandwidth() {
 fn test_gas_vector_mode_high_memory_rates_schedule_back_to_back() {
     const ONE_SECOND_NS: u64 = 1_000_000_000;
     let params = gas_vector_params(10 * ONE_SECOND_NS, 1, 1_000);
-    let mut tracker = SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params);
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
 
     for (i, declared_memory_rate) in [600, 900, 999].into_iter().enumerate() {
         let tx = attest_gas_vector(
