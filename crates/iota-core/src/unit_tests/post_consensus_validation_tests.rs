@@ -39,7 +39,7 @@ use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
-            ExecutionIndicesWithStats, LockDetails,
+            ExecutionIndices, ExecutionIndicesWithStats, LockDetails,
             authority_per_epoch_store_tests::reopen,
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
@@ -2190,6 +2190,15 @@ struct BookkeepingSetup {
     _config_guard: Option<OverrideGuard>,
 }
 
+/// What one call of `validate_and_resolve_conflicts` decided, for comparing
+/// two runs of the same commit.
+#[derive(Debug, PartialEq, Eq)]
+struct ValidationResult {
+    kept: Vec<TransactionDigest>,
+    dropped: Vec<(TransactionDigest, IotaError)>,
+    locks: std::collections::HashMap<ObjectReference, LockDetails>,
+}
+
 async fn setup_bookkeeping(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
@@ -2762,6 +2771,113 @@ impl BookkeepingSetup {
                 .is_none(),
             "a version no sync execution consumed must not be sheltered"
         );
+    }
+
+    /// Assigns commit `index` with no roots and marks it fully executed.
+    fn complete_empty_commit(&self, index: CommitIndex) {
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![]);
+        self.epoch_store
+            .record_commit_fully_executed(index, &[])
+            .unwrap();
+    }
+
+    /// Installs a randomness manager on a reopened epoch store, which the
+    /// handler's commit processing needs.
+    async fn initialize_randomness(&self) {
+        let randomness = crate::epoch::randomness::RandomnessManager::try_new(
+            Arc::downgrade(&self.epoch_store),
+            Box::new(crate::mock_consensus::MockConsensusClient::new(
+                Arc::downgrade(&self.authority),
+                crate::mock_consensus::ConsensusMode::Noop,
+            )),
+            iota_network::randomness::Handle::new_stub(),
+            self.authority.config.authority_key_pair(),
+        )
+        .await
+        .unwrap();
+        self.epoch_store
+            .set_randomness_manager(randomness)
+            .await
+            .unwrap();
+    }
+
+    /// Runs `transactions` through the consensus handler's processing of
+    /// commit `index`, dropping copies already marked processed as the handler
+    /// does, and returns the transactions it schedules.
+    async fn process_at(
+        &self,
+        index: CommitIndex,
+        transactions: &[VerifiedTransaction],
+    ) -> Vec<VerifiedExecutableTransaction> {
+        let verified = transactions
+            .iter()
+            .cloned()
+            .filter_map(|tx| {
+                self.epoch_store.verify_consensus_transaction(
+                    make_user_tx_v1_verified(tx).0,
+                    &self.authority.metrics.skipped_consensus_txns,
+                )
+            })
+            .collect();
+        let (scheduled, _) = self
+            .epoch_store
+            .process_consensus_transactions_and_commit_boundary(
+                verified,
+                &ExecutionIndicesWithStats::default(),
+                &Arc::new(CheckpointServiceNoop {}),
+                self.authority.get_object_cache_reader().as_ref(),
+                &ConsensusCommitInfo::new_for_test(index, index, index * 1_000, true),
+                &self.authority.metrics,
+                &self.authority,
+            )
+            .await
+            .unwrap();
+        scheduled
+            .into_iter()
+            .map(|tx| tx.as_tx().unwrap().clone())
+            .collect()
+    }
+
+    /// Validates `transactions` at commit `index` with deterministic
+    /// validation on.
+    async fn validate_at(
+        &self,
+        index: CommitIndex,
+        transactions: &[VerifiedTransaction],
+    ) -> ValidationResult {
+        let mut sequenced: Vec<_> = transactions
+            .iter()
+            .cloned()
+            .map(make_user_tx_v1_verified)
+            .collect();
+        let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+            &self.authority,
+            &self.epoch_store,
+            index,
+            true,
+            &mut sequenced,
+        )
+        .await
+        .unwrap();
+        ValidationResult {
+            kept: sequenced
+                .iter()
+                .map(|tx| tx.0.transaction.user_transaction_digest().unwrap())
+                .collect(),
+            dropped,
+            locks,
+        }
+    }
+
+    /// The roots of every pending checkpoint, by height.
+    fn checkpoint_roots(&self) -> Vec<(u64, Vec<TransactionKey>)> {
+        self.epoch_store
+            .get_pending_checkpoints(None)
+            .unwrap()
+            .into_iter()
+            .map(|(height, checkpoint)| (height, checkpoint.into_v1().roots))
+            .collect()
     }
 }
 
@@ -5783,14 +5899,12 @@ async fn post_consensus_verdicts_survive_a_restart() {
 /// exist exactly as long as the commit can be replayed.
 #[tokio::test]
 async fn decisions_retire_with_resume_progress_and_processed_state() {
-    use crate::authority::authority_per_epoch_store::{
-        ExecutionIndices, ExecutionIndicesWithStats,
-    };
+    use typed_store::Map;
 
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let mut s = setup_bookkeeping(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -5842,6 +5956,444 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
     assert_eq!(
         *reopened.subscribe_highest_fully_executed_commit().borrow(),
         1
+    );
+
+    // A later copy of the same transaction is dropped as processed before
+    // validation, so it is no candidate at commit 2.
+    s.epoch_store = reopened;
+    s.initialize_randomness().await;
+    assert!(s.process_at(2, std::slice::from_ref(&tx)).await.is_empty());
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_verdict(2, *tx.digest())
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        s.epoch_store
+            .tables()
+            .unwrap()
+            .post_consensus_verdict_candidates
+            .get(&2)
+            .unwrap(),
+        Some(vec![])
+    );
+}
+
+/// A transaction kept at commit 1 and deferred by congestion control is kept
+/// again when it is reloaded at commit 2. After a restart both occurrences
+/// replay from their saved decisions and schedule the same way.
+#[tokio::test]
+async fn executed_deferred_transaction_replays_both_occurrences() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        config
+    });
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
+    let mut s = setup_bookkeeping_with_config_guard(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        Some(guard),
+    )
+    .await;
+    let transactions = vec![
+        s.build_transfer(&ids[0], &ids[1], sender, &key, Address::random()),
+        s.build_transfer(&ids[2], &ids[3], sender, &key, Address::random()),
+    ];
+    let first = s.process_at(1, &transactions).await;
+    assert_eq!(first.len(), 1);
+    let deferred = transactions
+        .iter()
+        .find(|tx| tx.digest() != first[0].digest())
+        .unwrap()
+        .clone();
+    assert_eq!(
+        s.epoch_store.get_all_deferred_transactions_for_test().len(),
+        1
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_verdict(1, *deferred.digest())
+            .unwrap(),
+        Some(PostConsensusVerdict::Kept)
+    );
+    let second = s.process_at(2, std::slice::from_ref(&deferred)).await;
+    assert_eq!(second.len(), 1);
+    assert_eq!(second[0].digest(), deferred.digest());
+    assert!(
+        s.epoch_store
+            .get_all_deferred_transactions_for_test()
+            .is_empty()
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_verdict(2, *deferred.digest())
+            .unwrap(),
+        Some(PostConsensusVerdict::Kept)
+    );
+    let roots = s.checkpoint_roots();
+    let effects: Vec<_> = transactions
+        .iter()
+        .map(|tx| s.execute(tx.clone()))
+        .collect();
+
+    s.epoch_store = reopen(&s.authority, &s.epoch_store);
+    s.epoch_store
+        .set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    s.initialize_randomness().await;
+    let replay_first = s.process_at(1, &transactions).await;
+    assert_eq!(replay_first.len(), 1);
+    assert_eq!(replay_first[0].digest(), first[0].digest());
+    assert_eq!(
+        s.epoch_store.get_all_deferred_transactions_for_test().len(),
+        1
+    );
+    let replay_second = s.process_at(2, std::slice::from_ref(&deferred)).await;
+    assert_eq!(replay_second.len(), 1);
+    assert_eq!(replay_second[0].digest(), second[0].digest());
+    assert!(
+        s.epoch_store
+            .get_all_deferred_transactions_for_test()
+            .is_empty()
+    );
+    assert_eq!(roots, s.checkpoint_roots());
+
+    // A later network copy is dropped as processed before validation, so it
+    // is no candidate.
+    let first_effects = effects
+        .iter()
+        .find(|effects| effects.transaction_digest() == first[0].digest())
+        .unwrap();
+    s.epoch_store
+        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1))
+        .unwrap();
+    assert!(
+        s.process_at(3, std::slice::from_ref(&deferred))
+            .await
+            .is_empty()
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_verdict(3, *deferred.digest())
+            .unwrap(),
+        None
+    );
+}
+
+/// A node whose state sync executed a transaction before its handler reached
+/// the commit decides like a node that did not: the transaction drops at
+/// commit 12, where its input is above the horizon, and is kept at commit 13.
+/// After a restart both nodes replay the saved drop and keep, although the
+/// transaction is executed by then.
+#[tokio::test]
+async fn sync_execution_does_not_change_the_accepted_occurrence() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let (other, other_key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let other_gas = ObjectId::random();
+    // The consumer pays with a coin the producer does not touch, so only one
+    // of its inputs is above the horizon at commit 12 and the drop error names
+    // it.
+    let consumer_gas = ObjectId::random();
+    let genesis = vec![
+        Object::with_id_owner_for_testing(object, sender),
+        Object::with_id_owner_for_testing(gas, sender),
+        Object::with_id_owner_for_testing(other_gas, other),
+        Object::with_id_owner_for_testing(consumer_gas, sender),
+    ];
+    let mut normal = setup_bookkeeping(genesis.clone(), true).await;
+    // Shares the override `normal` holds.
+    let mut synced = setup_bookkeeping_with_config_guard(genesis, None).await;
+    assert!(
+        synced
+            .epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+    );
+    let producer = normal.build_transfer(&object, &gas, sender, &key, sender);
+    normal.complete_empty_commit(10);
+    synced.complete_empty_commit(10);
+    normal
+        .epoch_store
+        .assign_commit_to_transactions(11, vec![TransactionKey::Digest(*producer.digest())]);
+    let producer_effects = normal.execute(producer.clone());
+    assert_eq!(producer_effects, synced.execute(producer.clone()));
+    let consumer = normal.build_transfer(&object, &consumer_gas, sender, &key, Address::random());
+    let contender = normal.build_transfer(&object, &other_gas, other, &other_key, other);
+    let synced_effects = synced.execute(consumer.clone());
+
+    let early = normal
+        .validate_at(12, std::slice::from_ref(&consumer))
+        .await;
+    assert!(early.kept.is_empty());
+    assert!(early.locks.is_empty());
+    assert_eq!(early.dropped.len(), 1);
+    assert_eq!(
+        early,
+        synced
+            .validate_at(12, std::slice::from_ref(&consumer))
+            .await
+    );
+    for node in [&normal, &synced] {
+        assert!(
+            node.process_at(12, std::slice::from_ref(&consumer))
+                .await
+                .is_empty()
+        );
+    }
+    assert_eq!(normal.checkpoint_roots(), synced.checkpoint_roots());
+
+    synced
+        .epoch_store
+        .assign_commit_to_transactions(11, vec![TransactionKey::Digest(*producer.digest())]);
+    for node in [&normal, &synced] {
+        node.epoch_store
+            .record_commit_fully_executed(11, &handler_processed_upserts(&producer_effects, 11))
+            .unwrap();
+    }
+    let candidates = [contender.clone(), consumer.clone()];
+    let late = normal.validate_at(13, &candidates).await;
+    assert_eq!(late.kept, vec![*consumer.digest()]);
+    assert_eq!(late.locks.len(), 2);
+    assert_eq!(late.dropped.len(), 1);
+    assert_eq!(late, synced.validate_at(13, &candidates).await);
+    for node in [&normal, &synced] {
+        let scheduled = node.process_at(13, &candidates).await;
+        assert_eq!(scheduled.len(), 1);
+        assert_eq!(scheduled[0].digest(), consumer.digest());
+    }
+    let roots = normal.checkpoint_roots();
+    assert_eq!(roots, synced.checkpoint_roots());
+    let normal_effects = normal.execute(consumer.clone());
+    assert_eq!(normal_effects, synced_effects);
+
+    for node in [&normal, &synced] {
+        node.epoch_store
+            .persist_checkpoint_bookkeeping([&producer_effects, &normal_effects])
+            .unwrap();
+        // Only one epoch DB can be open while a store reopens.
+        node.epoch_store.release_db_handles();
+    }
+    for node in [&mut normal, &mut synced] {
+        let reopened = reopen(&node.authority, &node.epoch_store);
+        reopened.set_effects_store(node.authority.get_transaction_cache_reader().clone());
+        node.epoch_store = reopened;
+        node.initialize_randomness().await;
+        node.complete_empty_commit(11);
+        assert_eq!(
+            node.epoch_store
+                .post_consensus_verdict(12, *consumer.digest())
+                .unwrap(),
+            Some(PostConsensusVerdict::Dropped(early.dropped[0].1.clone())),
+        );
+        assert_eq!(
+            node.epoch_store
+                .post_consensus_verdict(13, *consumer.digest())
+                .unwrap(),
+            Some(PostConsensusVerdict::Kept),
+        );
+        assert_eq!(
+            early,
+            node.validate_at(12, std::slice::from_ref(&consumer)).await
+        );
+        assert_eq!(late, node.validate_at(13, &candidates).await);
+        assert!(
+            node.process_at(12, std::slice::from_ref(&consumer))
+                .await
+                .is_empty()
+        );
+        assert_eq!(
+            node.process_at(13, &candidates).await[0].digest(),
+            consumer.digest()
+        );
+        assert_eq!(roots, node.checkpoint_roots());
+        node.epoch_store.release_db_handles();
+    }
+}
+
+/// Once commit 12 flushes, its saved drop is gone, and a retry of the dropped
+/// transaction at a later commit is validated afresh, the same way on a store
+/// that kept running and on one reopened after the flush.
+#[tokio::test]
+async fn retry_after_retired_drop_matches_reopened_store() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    // The consumer pays with a coin the producer does not touch, so only one
+    // of its inputs is above the horizon and the drop error names it.
+    let consumer_gas = ObjectId::random();
+    let genesis = vec![
+        Object::with_id_owner_for_testing(object, sender),
+        Object::with_id_owner_for_testing(gas, sender),
+        Object::with_id_owner_for_testing(consumer_gas, sender),
+    ];
+    let normal = setup_bookkeeping(genesis.clone(), true).await;
+    // Shares the override `normal` holds.
+    let mut restarted = setup_bookkeeping_with_config_guard(genesis, None).await;
+    let producer = normal.build_transfer(&object, &gas, sender, &key, sender);
+    for node in [&normal, &restarted] {
+        node.complete_empty_commit(10);
+        let effects = node
+            .execute_as_handler_known(vec![producer.clone()], 13)
+            .remove(0);
+        node.epoch_store
+            .persist_checkpoint_bookkeeping([&effects])
+            .unwrap();
+    }
+    let consumer = normal.build_transfer(&object, &consumer_gas, sender, &key, Address::random());
+    for node in [&normal, &restarted] {
+        assert_eq!(
+            node.validate_at(12, std::slice::from_ref(&consumer))
+                .await
+                .dropped
+                .len(),
+            1
+        );
+        let mut output = ConsensusCommitOutput::new(12, 12);
+        output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+            index: ExecutionIndices {
+                sub_dag_index: 12,
+                last_committed_round: 12,
+                transaction_index: 1,
+            },
+            ..Default::default()
+        });
+        let mut batch = node.epoch_store.db_batch_for_test();
+        output
+            .write_to_batch(&node.epoch_store, &mut batch)
+            .unwrap();
+        batch.write().unwrap();
+        assert!(
+            node.epoch_store
+                .post_consensus_verdict(12, *consumer.digest())
+                .unwrap()
+                .is_none()
+        );
+    }
+    normal.complete_empty_commit(12);
+    let retry = normal
+        .validate_at(14, std::slice::from_ref(&consumer))
+        .await;
+    assert_eq!(retry.dropped.len(), 1);
+    normal
+        .epoch_store
+        .record_commit_fully_executed(13, &[])
+        .unwrap();
+    let accepted = normal
+        .validate_at(15, std::slice::from_ref(&consumer))
+        .await;
+    assert_eq!(accepted.kept, vec![*consumer.digest()]);
+    // Only one epoch DB can be open while a store reopens.
+    normal.epoch_store.release_db_handles();
+    restarted.epoch_store = reopen(&restarted.authority, &restarted.epoch_store);
+    assert_eq!(
+        retry,
+        restarted
+            .validate_at(14, std::slice::from_ref(&consumer))
+            .await
+    );
+    restarted.complete_empty_commit(13);
+    assert_eq!(
+        accepted,
+        restarted
+            .validate_at(15, std::slice::from_ref(&consumer))
+            .await
+    );
+}
+
+/// A commit whose candidate list is saved but one of whose decisions is
+/// missing is never validated again: the two are written in one batch, so
+/// the store is corrupt.
+#[tokio::test]
+async fn incomplete_saved_decisions_are_not_revalidated() {
+    use typed_store::Map;
+
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    assert_eq!(
+        s.validate_at(1, std::slice::from_ref(&tx)).await.kept,
+        vec![*tx.digest()]
+    );
+    s.epoch_store
+        .tables()
+        .unwrap()
+        .post_consensus_verdicts
+        .remove(&(1, *tx.digest()))
+        .unwrap();
+    let task = tokio::spawn(async move { s.validate_at(1, &[tx]).await });
+    assert!(task.await.unwrap_err().is_panic());
+}
+
+/// A saved keep of a transaction that has not executed is validated again on
+/// replay. When the new result agrees, the replay matches the first run; when
+/// it is a drop, the node stops.
+#[tokio::test]
+async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let mut s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let result = s.validate_at(2, std::slice::from_ref(&tx)).await;
+    assert_eq!(result.kept, vec![*tx.digest()]);
+    assert!(
+        !s.authority
+            .get_transaction_cache_reader()
+            .try_is_tx_already_executed(tx.digest())
+            .unwrap()
+    );
+    s.epoch_store = reopen(&s.authority, &s.epoch_store);
+    assert_eq!(result, s.validate_at(2, std::slice::from_ref(&tx)).await);
+
+    let conflict = TransactionDigest::random();
+    let mut output = ConsensusCommitOutput::new(1, 1);
+    output.set_owned_object_locks([(s.latest_ref(&object), conflict)].into());
+    s.epoch_store.push_consensus_output_for_tests(output);
+    let authority = s.authority.clone();
+    let epoch_store = s.epoch_store.clone();
+    let digest = *tx.digest();
+    let task = tokio::spawn(async move {
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            2,
+            true,
+            &mut vec![make_user_tx_v1_verified(tx)],
+        )
+        .await
+    });
+    assert!(task.await.unwrap_err().is_panic());
+    assert_eq!(
+        s.epoch_store.post_consensus_verdict(2, digest).unwrap(),
+        Some(PostConsensusVerdict::Kept)
     );
 }
 
