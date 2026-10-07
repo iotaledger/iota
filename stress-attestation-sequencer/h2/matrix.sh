@@ -81,24 +81,30 @@
 # so those configs are the control. The mix configs at the end give transactions
 # in one commit DIFFERENT costs, which is the only way the modes can differ.
 #
-# 124 configs total: 105 that share one rate, one run length and the burst off,
+# 128 configs total: 107 that share one rate, one run length and the burst off,
 # then three groups that each vary one of those — -burst (production's burst),
-# -dur300 (a five-minute window) and -qps2000 (twice the rate). Use the
-# substring FILTER to run one cost point, one limit or one group at a time.
-# FILTER=mix matches the mixed-cost configs of every group, so name the group
-# when you want only one of them.
+# -dur300 (a five-minute window) and -qps2000 (twice the rate). Use FILTER, a
+# regular expression matched against the label (a plain substring works), to
+# run one cost point, one limit or one group at a time. FILTER=mix matches the
+# mixed-cost configs of every group, so name the group when you want only one
+# of them.
+#
+# LABEL_SUFFIX is appended to every label, so runs on another machine land in
+# their own results/matrix/<LABEL><suffix>/ dirs and never mix with these.
 #
 # Every config runs on 4 validators; N=4 is not in the label since nothing else
 # is planned.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 124 configs
+#   ITERS=5 ./matrix.sh             # run all 128 configs
 #   ITERS=5 ./matrix.sh cu10k       # one cost point, its whole limit ladder
 #   ITERS=5 ./matrix.sh lim100k     # one limit, every cost point that uses it
 #   ITERS=1 ./matrix.sh mix         # every mixed-cost config
 #   ITERS=10 ./matrix.sh burst      # production's burst, 3 configs
 #   ITERS=10 ./matrix.sh qps2000    # twice the rate, 14 configs
 #   SKIP_AT_LEAST=10 ITERS=10 ./matrix.sh dur300  # only the unfinished ones
+#   LABEL_SUFFIX=-ref ITERS=5 ./matrix.sh \
+#     '^mix(3700|20800|50900)-w[0-9]+-lim[0-9]+[km]-qps1000$'  # three ladders
 #
 # A failed config does not abort the matrix. Re-running appends iterations to an
 # existing label rather than overwriting (run.sh's config gate).
@@ -108,6 +114,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ITERS="${ITERS:-5}"
 FILTER="${1:-}"
+LABEL_SUFFIX="${LABEL_SUFFIX:-}"
 # Skip a config that already has this many iter-* dirs under results/matrix/.
 # Unset (the default) runs every filter-matching config. Lets one invocation add
 # new rows to a grid without re-running the finished ones next to them.
@@ -333,6 +340,13 @@ configs=(
   "mix3700-w30-lim100k-qps1000  | $MIX3700 $REF LIMIT_B=100000  TARGET_QPS=1000"
   "mix50900-w10-lim200k-qps1000 | $MIX50900 $REF LIMIT_B=200000  TARGET_QPS=1000"
   "mix50900-w10-lim1m-qps1000   | $MIX50900 $REF LIMIT_B=1000000 TARGET_QPS=1000"
+  #      Higher rungs for machines that execute faster than this one, where
+  #      the best limit sits higher: the WS ran the 200k and 1500k rungs, and
+  #      the reference machine adds 300k and 400k for mix20800.
+  "mix3700-w30-lim200k-qps1000   | $MIX3700 $REF LIMIT_B=200000   TARGET_QPS=1000"
+  "mix20800-w20-lim300k-qps1000  | $MIX20800 $REF LIMIT_B=300000  TARGET_QPS=1000"
+  "mix20800-w20-lim400k-qps1000  | $MIX20800 $REF LIMIT_B=400000  TARGET_QPS=1000"
+  "mix50900-w10-lim1500k-qps1000 | $MIX50900 $REF LIMIT_B=1500000 TARGET_QPS=1000"
   # ---- the cost gap at a fixed mean. The same expensive level with a
   #      cheaper or dearer cheap side, near the 10k mean (with mix10900) and
   #      the 55k mean (with mix50900), so the gap is the only change.
@@ -415,7 +429,8 @@ nconf=0
 for row in "${configs[@]}"; do
   l="${row%%|*}"
   l="${l// /}"
-  [[ -n "$FILTER" && "$l" != *"$FILTER"* ]] && continue
+  [[ -n "$FILTER" && ! "$l" =~ $FILTER ]] && continue
+  l="$l$LABEL_SUFFIX"
   if skip_done "$l"; then
     echo "skip $l: already has $(have_iters "$l") iterations (SKIP_AT_LEAST=$SKIP_AT_LEAST)"
     continue
@@ -435,7 +450,8 @@ for ((round = 1; round <= ITERS; round++)); do
     label="${row%%|*}"
     label="${label// /}" # strip alignment padding around |
     envs="${row#*|}"
-    [[ -n "$FILTER" && "$label" != *"$FILTER"* ]] && continue
+    [[ -n "$FILTER" && ! "$label" =~ $FILTER ]] && continue
+    label="$label$LABEL_SUFFIX"
     skip_done "$label" && continue
     n=$((n + 1))
     log="$LOGDIR/$label.log"
