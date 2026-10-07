@@ -7,6 +7,7 @@ module iota::smart_account_public_key_tests;
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::event;
 use iota::public_key::{Self, PublicKey};
+use iota::public_key_authentication::{PublicKeyAttached, PublicKeyDetached, PublicKeyRotated};
 use iota::signature_scheme;
 use iota::smart_account::{Self, SmartAccount};
 use iota::smart_account_builtin_auth;
@@ -37,7 +38,7 @@ fun with_public_key_builds_custom_account_with_key() {
 // === View functions ===
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::public_key_authentication::EPublicKeyMissing)]
 fun borrow_public_key_aborts_if_missing() {
     custom_account_view_test!(|account| {
         smart_account_public_key::borrow_public_key(account);
@@ -86,7 +87,7 @@ fun attach_public_key_again_after_detach() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EPublicKeyAlreadyAttached)]
+#[expected_failure(abort_code = iota::public_key_authentication::EPublicKeyAlreadyAttached)]
 fun attach_public_key_aborts_if_already_attached() {
     builtin_account_test!(|account, scenario| {
         smart_account_public_key::attach_public_key(
@@ -134,7 +135,7 @@ fun detach_public_key_succeeds_after_rotating_to_custom_authenticator() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::public_key_authentication::EPublicKeyMissing)]
 fun detach_public_key_aborts_if_missing() {
     custom_account_test!(|account, scenario| {
         smart_account_public_key::detach_public_key(account, scenario.ctx());
@@ -170,7 +171,7 @@ fun rotate_public_key_to_other_scheme_keeps_builtin_auth() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::public_key_authentication::EPublicKeyMissing)]
 fun rotate_public_key_aborts_if_missing() {
     custom_account_test!(|account, scenario| {
         smart_account_public_key::rotate_public_key(
@@ -202,7 +203,7 @@ fun with_public_key_emits_attached_event() {
     let builder = smart_account::builder_v1(custom_authenticator(), scenario.ctx());
     smart_account_public_key::with_public_key(builder, ed25519_public_key()).build_v1();
 
-    assert_eq(event::events_by_type<public_key::PublicKeyAttached>().length(), 1);
+    assert_eq(event::events_by_type<PublicKeyAttached>().length(), 1);
     scenario.end();
 }
 
@@ -217,9 +218,9 @@ fun key_calls_emit_events() {
         );
         smart_account_public_key::detach_public_key(account, scenario.ctx());
 
-        assert_eq(event::events_by_type<public_key::PublicKeyAttached>().length(), 1);
-        assert_eq(event::events_by_type<public_key::PublicKeyRotated>().length(), 1);
-        assert_eq(event::events_by_type<public_key::PublicKeyDetached>().length(), 1);
+        assert_eq(event::events_by_type<PublicKeyAttached>().length(), 1);
+        assert_eq(event::events_by_type<PublicKeyRotated>().length(), 1);
+        assert_eq(event::events_by_type<PublicKeyDetached>().length(), 1);
     });
 }
 

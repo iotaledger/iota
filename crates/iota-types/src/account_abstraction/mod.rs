@@ -5,4 +5,5 @@ pub mod account;
 pub mod authenticator_function;
 pub mod builtin_authenticator_functions;
 pub mod public_key;
+pub mod public_key_authentication;
 pub mod signature_scheme;

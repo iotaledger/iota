@@ -6,6 +6,7 @@ module iota::builtin_authenticator_functions_tests;
 
 use iota::builtin_authenticator_functions;
 use iota::public_key;
+use iota::public_key_authentication;
 use iota::signature_scheme;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
@@ -64,7 +65,7 @@ fun builtin_auth_function_ref_has_correct_fields() {
 // === Built-in authenticators ===
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::public_key_authentication::EPublicKeyMissing)]
 fun builtin_authenticator_aborts_without_public_key() {
     account_test!(|account| {
         builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
@@ -610,7 +611,7 @@ macro fun authenticator_test(
 ) {
     let mut scenario = test_scenario::begin(@0x0);
     let mut account = TestAccount { id: object::new(scenario.ctx()) };
-    public_key::attach_public_key(
+    public_key_authentication::attach_public_key(
         account.id_mut(),
         public_key::create($scheme, $raw_public_key),
     );
@@ -663,7 +664,7 @@ fun malformed(signature: vector<u8>): vector<u8> {
 macro fun rotation_test($f: |&TestAccount|) {
     let mut scenario = test_scenario::begin(@0x0);
     let mut account = TestAccount { id: object::new(scenario.ctx()) };
-    public_key::attach_public_key(
+    public_key_authentication::attach_public_key(
         account.id_mut(),
         public_key::create(signature_scheme::ed25519(), ED25519_PUBLIC_KEY),
     );
@@ -673,7 +674,7 @@ macro fun rotation_test($f: |&TestAccount|) {
         ED25519_SIGNATURE,
     );
 
-    public_key::rotate_public_key(
+    public_key_authentication::rotate_public_key(
         account.id_mut(),
         public_key::create(signature_scheme::secp256k1(), SECP256K1_PUBLIC_KEY),
     );
