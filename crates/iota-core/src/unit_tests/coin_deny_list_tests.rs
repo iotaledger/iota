@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_move_types::iota_framework::coin::{DenyCapV1, RegulatedCoinMetadata};
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
     TransactionDigest, TransactionEffects, TypeTag, Version,
@@ -15,8 +16,7 @@ use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_account_private_key},
     deny_list_v1::{
-        DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
-        get_per_type_coin_deny_list_v1,
+        check_address_denied_by_config, check_global_pause, get_per_type_coin_deny_list_v1,
     },
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
@@ -77,12 +77,13 @@ async fn test_regulated_coin_v1_types() {
     // Check that all their fields are consistent.
     let metadata_object = metadata_object.unwrap();
     let deny_cap_object = deny_cap_object.unwrap();
-    let deny_cap: DenyCapV1 = deny_cap_object.to_rust().unwrap();
+    let deny_cap: DenyCapV1<()> = deny_cap_object.to_rust().unwrap();
     assert_eq!(deny_cap.id.id.bytes, deny_cap_object.id());
     assert!(deny_cap.allow_global_pause);
 
     let regulated_metadata_object = regulated_metadata_object.unwrap();
-    let regulated_metadata: RegulatedCoinMetadata = regulated_metadata_object.to_rust().unwrap();
+    let regulated_metadata: RegulatedCoinMetadata<()> =
+        regulated_metadata_object.to_rust().unwrap();
     assert_eq!(
         regulated_metadata.id.id.bytes,
         regulated_metadata_object.id()

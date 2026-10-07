@@ -5,7 +5,6 @@
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -60,6 +59,7 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
@@ -75,7 +75,7 @@ use iota_types::{
         SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         VerifiedSignedTransactionEffects,
     },
-    error::{ExecutionError, IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
@@ -148,7 +148,6 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
-        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
@@ -158,6 +157,7 @@ use crate::{
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
+    epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, HandOver},
     execution_cache::{
         CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
         ExecutionCacheTraitPointers, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI,
@@ -211,6 +211,10 @@ mod batch_verification_tests;
 mod coin_deny_list_tests;
 
 #[cfg(test)]
+#[path = "unit_tests/pre_execution_failure_tests.rs"]
+mod pre_execution_failure_tests;
+
+#[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
@@ -234,6 +238,7 @@ pub mod transaction_deferral;
 pub(crate) mod authority_store;
 pub mod backpressure;
 pub(crate) mod dropped_tx_status_cache;
+pub(crate) mod pruner_db_migration;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 pub struct AuthorityMetrics {
@@ -261,7 +266,8 @@ pub struct AuthorityMetrics {
     execution_load_input_objects_latency: Histogram,
     prepare_certificate_latency: Histogram,
     commit_certificate_latency: Histogram,
-    db_checkpoint_latency: Histogram,
+    epoch_end_db_snapshot_handover_latency: Histogram,
+    epoch_end_db_snapshots_skipped: IntCounter,
 
     pub(crate) transaction_manager_num_enqueued_certificates: IntCounterVec,
     pub(crate) transaction_manager_num_missing_objects: IntGauge,
@@ -518,10 +524,17 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            db_checkpoint_latency: register_histogram_with_registry!(
-                "db_checkpoint_latency",
-                "Latency of checkpointing the perpetual store at epoch end",
+            epoch_end_db_snapshot_handover_latency: register_histogram_with_registry!(
+                "epoch_end_db_snapshot_handover_latency",
+                "Time the epoch boundary waits for the consumer to take its database \
+                 snapshot of the perpetual store",
                 LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            epoch_end_db_snapshots_skipped: register_int_counter_with_registry!(
+                "epoch_end_db_snapshots_skipped",
+                "Epoch boundaries whose database snapshot was not taken, because the \
+                 consumer was busy or did not take it in time",
                 registry,
             ).unwrap(),
             transaction_manager_num_enqueued_certificates: register_int_counter_vec_with_registry!(
@@ -843,8 +856,7 @@ impl AuthorityMetrics {
 }
 
 /// a Trait object for `Signer` that is:
-/// - Pin, i.e. confined to one place in memory (we don't want to copy private
-///   keys).
+/// - Pin, i.e. confined to one place in memory (we don't want to copy private keys).
 /// - Sync, i.e. can be safely shared between threads.
 ///
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
@@ -940,6 +952,9 @@ pub struct AuthorityState {
 
     /// Traffic controller for IOTA core servers (json-rpc, validator service)
     pub traffic_controller: Option<Arc<TrafficController>>,
+    /// Set when a consumer wants a database snapshot of the perpetual store at
+    /// each epoch boundary. See [`Self::hand_over_epoch_end_db_snapshot`].
+    epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -1003,20 +1018,18 @@ impl AuthorityState {
     /// post-consensus, where the verdict decides whether the transaction
     /// stays in the committed set. The two read modes intentionally disagree
     /// about deny-list changes made in the current epoch, in both directions:
-    /// - An entry added this epoch is enforced at admission right away, while
-    ///   the epoch-gated layers enforce it only from the next epoch. Since
-    ///   execution and post-consensus must read epoch-gated to stay
-    ///   deterministic, admission is the only layer that can react to a new
+    /// - An entry added this epoch is enforced at admission right away, while the epoch-gated
+    ///   layers enforce it only from the next epoch. Since execution and post-consensus must read
+    ///   epoch-gated to stay deterministic, admission is the only layer that can react to a new
     ///   denial or global pause before the epoch boundary.
-    /// - An entry removed this epoch is admitted right away but still denied by
-    ///   the epoch-gated post-consensus read, so such transactions are
-    ///   sequenced by consensus and then deterministically dropped (no
-    ///   execution, no gas charged) until the removal settles at the next epoch
-    ///   boundary. The wasted consensus slot is accepted: post-consensus must
-    ///   handle deterministic drops regardless (owned-object double-spend
-    ///   losers, for example), and validators that skip admission can put such
-    ///   transactions into their blocks anyway, so no admission policy can
-    ///   limit how many deterministically-dropped transactions reach consensus.
+    /// - An entry removed this epoch is admitted right away but still denied by the epoch-gated
+    ///   post-consensus read, so such transactions are sequenced by consensus and then
+    ///   deterministically dropped (no execution, no gas charged) until the removal settles at the
+    ///   next epoch boundary. The wasted consensus slot is accepted: post-consensus must handle
+    ///   deterministic drops regardless (owned-object double-spend losers, for example), and
+    ///   validators that skip admission can put such transactions into their blocks anyway, so no
+    ///   admission policy can limit how many deterministically-dropped transactions reach
+    ///   consensus.
     ///
     /// `verifier_limits_source` says where the metered bytecode verifier takes
     /// its limits for the packages the transaction publishes. Validator-local
@@ -1514,8 +1527,7 @@ impl AuthorityState {
     ///
     /// Guarantees that
     /// - If input objects are available, return no permanent failure.
-    /// - Execution and output commit are atomic. i.e. outputs are only written
-    ///   to storage,
+    /// - Execution and output commit are atomic. i.e. outputs are only written to storage,
     /// on successful execution; crashed execution has no observable effect and
     /// can be retried.
     ///
@@ -2043,44 +2055,48 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            let per_authenticator_inputs = move_authenticators
-                .iter()
-                .zip(per_authenticator_inputs)
-                .map(
-                    |(move_authenticator, (authenticator_input_objects, account_object))| {
-                        // Check basic `object_to_authenticate` preconditions and get its
-                        // components.
-                        let (
-                            auth_account_object_id,
-                            auth_account_object_seq_number,
-                            auth_account_object_digest,
-                        ) = move_authenticator
-                            .object_to_authenticate_components()
-                            .expect("the object to authenticate is validated before consensus and cannot be invalid during execution");
+            // The first account that cannot be resolved fails the transaction before
+            // any authenticator runs. The remaining inputs are still collected, since
+            // for the failure effects, we have to charge gas for those inputs.
+            let mut pre_execution_error = None;
+            let mut per_authenticator_input_objects = Vec::with_capacity(move_authenticators.len());
+            let mut function_refs = Vec::with_capacity(move_authenticators.len());
+            for (move_authenticator, (authenticator_input_objects, account_object)) in
+                move_authenticators.iter().zip(per_authenticator_inputs)
+            {
+                // The shape of the object to authenticate is decided by the
+                // transaction bytes, and `validity_check` settles it in the
+                // consensus handler, so it cannot be wrong here.
+                let (account_object_id, account_object_version, account_object_digest) =
+                    move_authenticator
+                        .object_to_authenticate_components()
+                        .expect(
+                            "the object to authenticate is validated before consensus and cannot \
+                                be invalid during execution",
+                        );
 
-                        let signer = move_authenticator.address();
+                // Unlike the shape above, resolving the account depends on state,
+                // so post-consensus validation cannot keep this check. Here, an
+                // account that fails it produces failure effects instead of a
+                // panic.
+                match self.check_move_account_for_execution(
+                    account_object_id,
+                    account_object_version,
+                    account_object_digest,
+                    account_object,
+                    &move_authenticator.address(),
+                    protocol_config,
+                ) {
+                    Ok(function_ref) => function_refs.push(function_ref),
+                    Err(error) => {
+                        if pre_execution_error.is_none() {
+                            pre_execution_error = Some(error);
+                        }
+                    }
+                }
 
-                        let authenticator_function_ref_for_execution = self
-                            .check_move_account_for_execution(
-                                auth_account_object_id,
-                                auth_account_object_seq_number,
-                                auth_account_object_digest,
-                                account_object,
-                                &signer,
-                            );
-
-                        (
-                            authenticator_input_objects,
-                            authenticator_function_ref_for_execution,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            let per_authenticator_input_objects = per_authenticator_inputs
-                .iter()
-                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
-                .collect::<Vec<_>>();
+                per_authenticator_input_objects.push(authenticator_input_objects);
+            }
 
             // Serialize the Transaction for the auth context.
             let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
@@ -2106,41 +2122,49 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
 
-            debug_assert_eq!(
-                move_authenticators.len(),
-                per_authenticator_checked_input_objects.len(),
-                "Move authenticators amount must match the number of checked authenticator inputs"
-            );
-
-            let move_authenticators = move_authenticators
-                .into_iter()
-                .zip(per_authenticator_inputs)
-                .zip(per_authenticator_checked_input_objects)
-                .map(
-                    |(
-                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
-                        authenticator_checked_input_objects,
-                    )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
             let owned_object_refs = authenticator_and_tx_checked_input_objects
                 .inner()
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
+            // With a pre-execution failure, no authenticator runs, the gas owner's
+            // included, so the executor gets the failure in place of the list. That
+            // changes neither
+            // who pays nor the outcome: the gas owner is charged either way, as
+            // when the first authenticator fails.
+            let move_authenticators = if pre_execution_error.is_some() {
+                Vec::new()
+            } else {
+                debug_assert_eq!(
+                    move_authenticators.len(),
+                    per_authenticator_checked_input_objects.len(),
+                    "Move authenticators amount must match the number of checked authenticator inputs"
+                );
+                move_authenticators
+                    .into_iter()
+                    .zip(function_refs)
+                    .zip(per_authenticator_checked_input_objects)
+                    .map(
+                        |(
+                            (move_authenticator, function_ref),
+                            authenticator_checked_input_objects,
+                        )| {
+                            MoveAuthenticatorForExecution {
+                                authenticator: move_authenticator.to_owned(),
+                                function_ref,
+                                input_objects: authenticator_checked_input_objects,
+                            }
+                        },
+                    )
+                    .collect::<Vec<_>>()
+            };
+
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .map(|a| a.function_ref.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -2149,6 +2173,11 @@ impl AuthorityState {
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
                 sponsor_authenticator_function_ref,
+            };
+
+            let authenticators = match pre_execution_error {
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed(error),
+                None => MoveAuthenticatorsForExecution::Resolved(move_authenticators),
             };
 
             epoch_store
@@ -2165,7 +2194,7 @@ impl AuthorityState {
                     epoch_start_timestamp,
                     gas_data,
                     gas_status,
-                    move_authenticators,
+                    authenticators,
                     authenticator_and_tx_checked_input_objects,
                     kind,
                     signer,
@@ -3068,10 +3097,10 @@ impl AuthorityState {
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
-        pruner_db: Option<Arc<AuthorityPrunerTables>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
+        epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3104,7 +3133,6 @@ impl AuthorityState {
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            pruner_db,
             checkpoint_progress_tracker.clone(),
         );
         let input_loader =
@@ -3144,6 +3172,7 @@ impl AuthorityState {
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
+            epoch_end_db_snapshots,
         });
 
         // Start a task to execute ready transactions.
@@ -3225,7 +3254,6 @@ impl AuthorityState {
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
             self.grpc_indexes_store.as_deref(),
-            None,
             config.authority_store_pruning_config,
             metrics,
             EPOCH_DURATION_MS_FOR_TESTING,
@@ -3505,22 +3533,8 @@ impl AuthorityState {
 
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        // When state snapshots are published, a RocksDB checkpoint of the
-        // perpetual store taken at epoch end serves as the snapshot creation
-        // input.
-        if self
-            .config
-            .state_snapshot_write_config
-            .object_store_config
-            .is_some()
-        {
-            let current_epoch = cur_epoch_store.epoch();
-            let epoch_checkpoint_path = self
-                .config
-                .db_checkpoint_path()
-                .join(format!("epoch_{current_epoch}"));
-            self.checkpoint_perpetual_db(&epoch_checkpoint_path, cur_epoch_store)?;
-        }
+        self.hand_over_epoch_end_db_snapshot(cur_epoch_store.epoch())
+            .await;
 
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self
@@ -3668,40 +3682,21 @@ impl AuthorityState {
         self.epoch_store_for_testing().epoch()
     }
 
-    /// Takes a RocksDB checkpoint of the perpetual store under
-    /// `<checkpoint_path>/store/perpetual`, the layout the state snapshot
-    /// uploader reads.
+    /// Lets the consumer take its database snapshot of the perpetual store as
+    /// the epoch ends, when there is one. See
+    /// [`EpochEndDbSnapshotHandle::hand_over`].
     #[instrument(level = "error", skip_all)]
-    fn checkpoint_perpetual_db(
-        &self,
-        checkpoint_path: &Path,
-        cur_epoch_store: &AuthorityPerEpochStore,
-    ) -> IotaResult {
-        let _metrics_guard = self.metrics.db_checkpoint_latency.start_timer();
-        let current_epoch = cur_epoch_store.epoch();
-
-        if checkpoint_path.exists() {
-            info!("Skipping db checkpoint as it already exists for epoch: {current_epoch}");
-            return Ok(());
+    async fn hand_over_epoch_end_db_snapshot(&self, epoch: EpochId) {
+        let Some(handle) = &self.epoch_end_db_snapshots else {
+            return;
+        };
+        let _metrics_guard = self
+            .metrics
+            .epoch_end_db_snapshot_handover_latency
+            .start_timer();
+        if handle.hand_over(epoch).await == HandOver::Skipped {
+            self.metrics.epoch_end_db_snapshots_skipped.inc();
         }
-
-        let checkpoint_path_tmp = checkpoint_path.with_extension("tmp");
-        let store_checkpoint_path_tmp = checkpoint_path_tmp.join("store");
-
-        if checkpoint_path_tmp.exists() {
-            fs::remove_dir_all(&checkpoint_path_tmp)
-                .map_err(|e| IotaError::FileIO(e.to_string()))?;
-        }
-
-        fs::create_dir_all(&checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
-        fs::create_dir(&store_checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
-
-        self.get_reconfig_api()
-            .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
-
-        fs::rename(checkpoint_path_tmp, checkpoint_path)
-            .map_err(|e| IotaError::FileIO(e.to_string()))?;
-        Ok(())
     }
 
     /// Load the current epoch store. This can change during reconfiguration. To
@@ -4663,12 +4658,10 @@ impl AuthorityState {
                 // - The tx makes it into final checkpoint.
                 // - 2 validators go away and are replaced in the new epoch.
                 // - The new epoch begins.
-                // - The quorum driver cannot complete the partial effects cert from the
-                //   previous epoch, because it may not be able to reach either of the 2 former
-                //   validators.
-                // - But, if the 2 validators that stayed are willing to re-sign the effects in
-                //   the new epoch, the QD can make a new effects cert and return it to the
-                //   client.
+                // - The quorum driver cannot complete the partial effects cert from the previous
+                //   epoch, because it may not be able to reach either of the 2 former validators.
+                // - But, if the 2 validators that stayed are willing to re-sign the effects in the
+                //   new epoch, the QD can make a new effects cert and return it to the client.
                 //
                 // This is a considered a short-term workaround. Eventually, Quorum Driver
                 // should be able to return either an effects certificate, -or-
@@ -4942,7 +4935,7 @@ impl AuthorityState {
     /// packages on-chain.
     pub async fn get_available_system_packages(
         &self,
-        binary_config: &BinaryConfig,
+        protocol_config: &ProtocolConfig,
     ) -> Vec<ObjectReference> {
         let mut results = vec![];
 
@@ -4970,7 +4963,7 @@ impl AuthorityState {
                 &system_package.id,
                 &modules,
                 system_package.dependencies.to_vec(),
-                binary_config,
+                protocol_config,
             )
             .await
             else {
@@ -4987,12 +4980,11 @@ impl AuthorityState {
     /// `system_packages`.  Loads the module contents from the binary, and
     /// performs the following checks:
     ///
-    /// - Whether its contents matches what is on-chain already, in which case
-    ///   no upgrade is required, and its contents are omitted from the output.
-    /// - Whether the contents in the binary can form a package whose digest
-    ///   matches the input, meaning the framework will be upgraded, and this
-    ///   authority can satisfy that upgrade, in which case the contents are
-    ///   included in the output.
+    /// - Whether its contents matches what is on-chain already, in which case no upgrade is
+    ///   required, and its contents are omitted from the output.
+    /// - Whether the contents in the binary can form a package whose digest matches the input,
+    ///   meaning the framework will be upgraded, and this authority can satisfy that upgrade, in
+    ///   which case the contents are included in the output.
     ///
     /// If a needed version of the framework can't be loaded, the binary does
     /// not contain the bytes for that framework ID, or the resulting
@@ -5339,7 +5331,7 @@ impl AuthorityState {
         // by the rules of the current epoch, including the current epoch's max
         // Move binary format version
         let config = epoch_store.protocol_config();
-        let binary_config = to_binary_config(config);
+        let binary_config = to_binary_config(config, None);
         let Some(next_epoch_system_package_bytes) = self
             .get_system_package_bytes(next_epoch_system_packages.clone(), &binary_config)
             .await
@@ -5351,13 +5343,12 @@ impl AuthorityState {
             );
             // the checkpoint builder will keep retrying forever when it hits this error.
             // Eventually, one of two things will happen:
-            // - The operator will upgrade this binary to one that has the new packages
-            //   locally, and this function will succeed.
-            // - The final checkpoint will be certified by other validators, we will receive
-            //   it via state sync, and execute it. This will upgrade the framework
-            //   packages, reconfigure, and most likely shut down in the new epoch (this
-            //   validator likely doesn't support the new protocol version, or else it
-            //   should have had the packages.)
+            // - The operator will upgrade this binary to one that has the new packages locally, and
+            //   this function will succeed.
+            // - The final checkpoint will be certified by other validators, we will receive it via
+            //   state sync, and execute it. This will upgrade the framework packages, reconfigure,
+            //   and most likely shut down in the new epoch (this validator likely doesn't support
+            //   the new protocol version, or else it should have had the packages.)
             return Err(CheckpointBuilderError::SystemPackagesMissing);
         };
 
@@ -5644,7 +5635,21 @@ impl AuthorityState {
     /// A deleted or cancelled account object is not an error here: its version
     /// is returned so execution can proceed and surface the proper effect
     /// (e.g. `InputObjectDeleted` or a shared-object congestion cancellation).
-    /// Any other failure is a broken invariant and panics.
+    ///
+    /// # Errors
+    ///
+    /// Any failure the check finds with the transaction, as the error the
+    /// transaction fails with, with the original error as the source:
+    /// [`ExecutionErrorKind::AuthenticatorFunctionNotFound`] when the account
+    /// has no authenticator function field or the field cannot be read, and
+    /// [`ExecutionErrorKind::AccountNotSharedObject`] when the account is not a
+    /// shared object.
+    ///
+    /// # Panics
+    ///
+    /// When the store cannot be read: that says nothing about the transaction,
+    /// so nobody can be charged for it, and effects written here would differ
+    /// from the other validators'.
     fn check_move_account_for_execution(
         &self,
         auth_account_object_id: ObjectId,
@@ -5652,16 +5657,49 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
-    ) -> AuthenticatorFunctionRefForExecution {
-        self.check_move_account(
+        protocol_config: &ProtocolConfig,
+    ) -> Result<AuthenticatorFunctionRefForExecution, ExecutionError> {
+        match self.check_move_account(
             auth_account_object_id,
             auth_account_object_seq_number,
             auth_account_object_digest,
             account_object,
             signer,
             true,
-        )
-        .expect("move account checks cannot fail during execution")
+            protocol_config,
+        ) {
+            Ok(function_ref) => Ok(function_ref),
+            Err(MoveAccountCheckError::Input(input_error)) => {
+                let status = match &input_error {
+                    UserInputError::MoveAuthenticatorNotFound {
+                        account_object_id, ..
+                    }
+                    | UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id } => {
+                        ExecutionErrorKind::AuthenticatorFunctionNotFound {
+                            object_id: *account_object_id,
+                        }
+                    }
+                    // Since protocol version 36, only a shared account named with
+                    // an immutable or owned reference reaches the digest
+                    // comparison. The fix is the same as for the other two: name
+                    // the account as a shared object.
+                    UserInputError::AccountObjectNotSupported { object_id }
+                    | UserInputError::ImmutableAccountObjectNotSupported { object_id }
+                    | UserInputError::InvalidAccountObjectDigest { object_id, .. } => {
+                        ExecutionErrorKind::AccountNotSharedObject {
+                            object_id: *object_id,
+                        }
+                    }
+                    // The check produces nothing else today. A failure added to
+                    // it gets this status until it is given one of its own.
+                    _ => ExecutionErrorKind::FunctionNotFound,
+                };
+                Err(ExecutionError::new_with_source(status, input_error))
+            }
+            Err(MoveAccountCheckError::Storage(storage_error)) => {
+                panic!("failed to read the store while checking a Move account: {storage_error}")
+            }
+        }
     }
 
     /// Resolves the account's `AuthenticatorFunctionRef` on the validation
@@ -5674,6 +5712,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         self.check_move_account(
             auth_account_object_id,
@@ -5682,15 +5721,27 @@ impl AuthorityState {
             account_object,
             signer,
             false,
+            protocol_config,
         )
+        .map_err(IotaError::from)
     }
 
     /// Checks whether `authenticator` unlocks a valid Move account and returns
-    /// the account-related `AuthenticatorFunctionRef`. When `is_execution` is
+    /// the account-related `AuthenticatorFunctionRef`. Where the protocol
+    /// config requires it, the account object must be shared, so that a
+    /// transaction carrying a `MoveAuthenticator` always has a shared input
+    /// and is ordered by consensus. When `is_execution` is
     /// set, a deleted or cancelled account object yields its version instead of
     /// an error, so execution can proceed to the proper effect. Prefer the
     /// `check_move_account_for_execution` / `check_move_account_for_validation`
     /// wrappers over calling this directly.
+    ///
+    /// # Errors
+    ///
+    /// [`MoveAccountCheckError::Input`] when the account fails a check, and
+    /// [`MoveAccountCheckError::Storage`] when the store cannot be read. The
+    /// error type is what lets the execution path distinguish the two, so a
+    /// new kind of failure here has to be added to it.
     fn check_move_account(
         &self,
         auth_account_object_id: ObjectId,
@@ -5699,7 +5750,8 @@ impl AuthorityState {
         account_object: ObjectReadResult,
         signer: &Address,
         is_execution: bool,
-    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
+        protocol_config: &ProtocolConfig,
+    ) -> Result<AuthenticatorFunctionRefForExecution, MoveAccountCheckError> {
         let auth_account_object_seq_number = match (&account_object.object, is_execution) {
             // In any case, if the account object is loaded, we can check its version and digest.
             // Then we return the version of the account object to be used for reading the
@@ -5713,6 +5765,16 @@ impl AuthorityState {
                     }
                     .into()
                 );
+
+                if protocol_config.reject_immutable_account_objects() {
+                    fp_ensure!(
+                        !object.is_immutable(),
+                        UserInputError::ImmutableAccountObjectNotSupported {
+                            object_id: auth_account_object_id
+                        }
+                        .into()
+                    );
+                }
 
                 fp_ensure!(
                     object.is_shared() || object.is_immutable(),
@@ -5795,7 +5857,8 @@ impl AuthorityState {
             .try_find_object_lt_or_eq_version(
                 authenticator_function_ref_field_id,
                 auth_account_object_seq_number,
-            )?;
+            )
+            .map_err(MoveAccountCheckError::Storage)?;
 
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
             Ok(authenticator_function_ref_v1_from_dynamic_field_object(
@@ -5894,6 +5957,7 @@ impl AuthorityState {
                         auth_account_object_digest,
                         account_object,
                         &signer,
+                        protocol_config,
                     )?;
 
                     // Check the MoveAuthenticator input objects.
@@ -6316,15 +6380,13 @@ pub mod framework_injection {
         name: AuthorityName,
     ) -> Option<SystemPackage> {
         let bytes = get_override_bytes(package_id, name)?;
-        let dependencies = if package_id.is_system_package() {
-            BuiltInFramework::get_package_by_id(package_id)
-                .dependencies
-                .to_vec()
-        } else {
-            // Assume that entirely new injected packages depend on all existing system
-            // packages.
-            BuiltInFramework::all_package_ids()
-        };
+        // A built-in package keeps the dependencies it declares. Anything else is a
+        // package being added -- including one at a system address that is not built in
+        // yet -- and is assumed to depend on all existing system packages.
+        let dependencies = BuiltInFramework::try_get_package_by_id(package_id)
+            .map_or_else(BuiltInFramework::all_package_ids, |package| {
+                package.dependencies.to_vec()
+            });
         Some(SystemPackage {
             id: *package_id,
             bytes,
@@ -6519,14 +6581,40 @@ impl NodeStateDump {
     }
 }
 
+/// The reason [`AuthorityState::check_move_account`] failed.
+/// Execution treats the two cases differently, because only
+/// the first one is about the transaction.
+enum MoveAccountCheckError {
+    /// The account fails a check.
+    Input(UserInputError),
+
+    /// This validator failed to read its store.
+    Storage(IotaError),
+}
+
+impl From<UserInputError> for MoveAccountCheckError {
+    fn from(error: UserInputError) -> Self {
+        Self::Input(error)
+    }
+}
+
+impl From<MoveAccountCheckError> for IotaError {
+    fn from(error: MoveAccountCheckError) -> Self {
+        match error {
+            MoveAccountCheckError::Input(error) => IotaError::UserInput { error },
+            MoveAccountCheckError::Storage(error) => error,
+        }
+    }
+}
+
 /// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus
 /// phase.
 ///
 /// When `pre_consensus_sponsor_only_move_authentication` is enabled:
-/// - For sponsored transactions: only the sponsor's [`MoveAuthenticator`] is
-///   returned (empty if the sponsor does not use one).
-/// - For non-sponsored transactions: all [`MoveAuthenticator`]s are returned
-///   (currently only the sender's).
+/// - For sponsored transactions: only the sponsor's [`MoveAuthenticator`] is returned (empty if the
+///   sponsor does not use one).
+/// - For non-sponsored transactions: all [`MoveAuthenticator`]s are returned (currently only the
+///   sender's).
 ///
 /// When the flag is not set, all [`MoveAuthenticator`]s are returned for
 /// compatibility.

@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod acknowledgment_stats;
 mod authority_node;
 mod authority_service;
 mod authority_set;
@@ -38,6 +39,7 @@ mod header_synchronizer;
 mod stake_aggregator;
 mod storage;
 mod subscriber;
+mod task;
 mod threshold_clock;
 #[cfg(not(msim))]
 mod transaction;

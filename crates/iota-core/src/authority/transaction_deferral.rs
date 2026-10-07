@@ -133,8 +133,8 @@ mod object_cost_tests {
         );
 
         for _ in 0..10000 {
-            let future_round = rand::thread_rng().gen_range(0..u64::MAX);
-            let current_round = rand::thread_rng().gen_range(0..u64::MAX);
+            let future_round = rand::rng().random_range(0..u64::MAX);
+            let current_round = rand::rng().random_range(0..u64::MAX);
 
             let key = DeferralKey::new_for_consensus_round(future_round, current_round);
             db.deferred_certs.insert(&key, &()).unwrap();
@@ -177,8 +177,8 @@ mod object_cost_tests {
         let min_future_round = 100;
         let max_future_round = 300;
         for _ in 0..10000 {
-            let future_round = rand::thread_rng().gen_range(min_future_round..=max_future_round);
-            let current_round = rand::thread_rng().gen_range(0..u64::MAX);
+            let future_round = rand::rng().random_range(min_future_round..=max_future_round);
+            let current_round = rand::rng().random_range(0..u64::MAX);
 
             db.deferred_certs
                 .insert(

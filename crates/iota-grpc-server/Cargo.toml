@@ -37,6 +37,7 @@ iota-metrics.workspace = true
 iota-node-storage.workspace = true
 iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-traffic-controller.workspace = true
@@ -48,6 +49,9 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 async-trait.workspace = true
+rcgen.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
 
 # internal dependencies
 iota-grpc-client.workspace = true

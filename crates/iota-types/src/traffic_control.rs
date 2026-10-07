@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use serde::{Deserialize, Serialize, de::Deserializer};
 use serde_with::serde_as;
 
@@ -45,15 +45,13 @@ const TRAFFIC_SINK_TIMEOUT_SEC: u64 = 300;
 /// operators to discover the number of hops that should be configured. To use:
 ///
 /// 1. Set `x-forwarded-for: 0` for the `client-id-source` in the config.
-/// 2. Run the node and query any endpoint (AuthorityServer for validator, or
-///    json rpc for rpc node) from a known IP address.
-/// 3. Search for lines containing `x-forwarded-for` in the logs. The log lines
-///    should contain the contents of the `x-forwarded-for` header, if present,
-///    or a corresponding error if not.
-/// 4. The value for number of hops is derived from any such log line that
-///    contains your known IP address, and is defined as 1 + the number of IP
-///    addresses in the `x-forwarded-for` that occur **after** the known client
-///    IP address. Example:
+/// 2. Run the node and query any endpoint (AuthorityServer for validator, or json rpc for rpc node)
+///    from a known IP address.
+/// 3. Search for lines containing `x-forwarded-for` in the logs. The log lines should contain the
+///    contents of the `x-forwarded-for` header, if present, or a corresponding error if not.
+/// 4. The value for number of hops is derived from any such log line that contains your known IP
+///    address, and is defined as 1 + the number of IP addresses in the `x-forwarded-for` that occur
+///    **after** the known client IP address. Example:
 ///
 /// ```ignore
 ///     [<known client IP>] <--- number of hops is 1
@@ -101,46 +99,17 @@ impl Weight {
     }
 
     pub fn is_sampled(&self) -> bool {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         // `Uniform::new` excludes the upper bound, so a weight of 1.0 accepts every
         // sample.
-        let sample = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut rng);
+        let sample = rand::distr::Uniform::new(0.0, 1.0)
+            .unwrap()
+            .sample(&mut rng);
         self.accepts(sample)
     }
 
     fn accepts(&self, sample: f32) -> bool {
         sample < self.value()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Weight;
-
-    #[test]
-    fn zero_weight_rejects_the_lowest_sample() {
-        assert!(!Weight::zero().accepts(0.0));
-    }
-
-    #[test]
-    fn full_weight_accepts_the_highest_sample() {
-        assert!(Weight::one().accepts(1.0 - f32::EPSILON));
-    }
-
-    #[test]
-    fn the_default_dos_protection_policy_blocks_for_a_nonzero_time() {
-        // A TTL of zero would expire every block at once, thus the policy would
-        // never keep a client out even with dry run off.
-        let policy = super::PolicyConfig::default_dos_protection_policy();
-        assert!(policy.connection_blocklist_ttl_sec > 0);
-        assert!(policy.proxy_blocklist_ttl_sec > 0);
-    }
-
-    #[test]
-    fn the_former_burst_key_still_parses() {
-        let config: super::FreqThresholdConfig =
-            serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();
-        assert_eq!(config.burst_secs, 7);
     }
 }
 
@@ -336,4 +305,35 @@ pub fn default_dry_run() -> bool {
 
 pub fn default_spam_sample_rate() -> Weight {
     Weight::new(0.2).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Weight;
+
+    #[test]
+    fn zero_weight_rejects_the_lowest_sample() {
+        assert!(!Weight::zero().accepts(0.0));
+    }
+
+    #[test]
+    fn full_weight_accepts_the_highest_sample() {
+        assert!(Weight::one().accepts(1.0 - f32::EPSILON));
+    }
+
+    #[test]
+    fn the_default_dos_protection_policy_blocks_for_a_nonzero_time() {
+        // A TTL of zero would expire every block at once, thus the policy would
+        // never keep a client out even with dry run off.
+        let policy = super::PolicyConfig::default_dos_protection_policy();
+        assert!(policy.connection_blocklist_ttl_sec > 0);
+        assert!(policy.proxy_blocklist_ttl_sec > 0);
+    }
+
+    #[test]
+    fn the_former_burst_key_still_parses() {
+        let config: super::FreqThresholdConfig =
+            serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();
+        assert_eq!(config.burst_secs, 7);
+    }
 }

@@ -15,7 +15,7 @@ use std::{
 use bytes::Bytes;
 use iota_metrics::monitored_mpsc::Sender;
 use itertools::Itertools as _;
-use starfish_config::{AuthorityIndex, Stake};
+use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{mpsc::error::TrySendError, watch},
     time::Instant,
@@ -25,7 +25,6 @@ use tracing::{debug, error, info, trace, warn};
 #[cfg(feature = "dag-visualizer")]
 use crate::dag_visualizer::grpc_streamer::DagVisualizerEvent;
 use crate::{
-    authority_set::AuthoritySet,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs,
         CommitmentVerifiedTransactions, GENESIS_ROUND, Round, Slot, TransactionsCommitment,
@@ -195,45 +194,6 @@ impl std::fmt::Display for DataSource {
     }
 }
 
-/// Number of recent leader rounds whose strong-vote complaints contribute to
-/// the adaptive-acknowledgment exclusion score for StarfishSpeed.
-const STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS: usize = 10;
-
-/// Per-leader-round complaint history derived from the strong-vote masks of
-/// blocks that voted for that leader. The first mask we observe from each
-/// voter is folded into `complaint_stakes` (which authorities the voter blamed,
-/// weighted by the voter's stake) and the voter is recorded in
-/// `voters_counted`; subsequent masks from the same voter — i.e. equivocations
-/// — are ignored, capping each voter's contribution at its own stake per
-/// blamed authority.
-#[derive(Default)]
-struct StarfishSpeedLeaderRoundHints {
-    voters_counted: AuthoritySet,
-    complaint_stakes: Vec<Stake>,
-}
-
-impl StarfishSpeedLeaderRoundHints {
-    fn new(committee_size: usize) -> Self {
-        Self {
-            voters_counted: AuthoritySet::new(),
-            complaint_stakes: vec![0; committee_size],
-        }
-    }
-
-    /// Records `voter`'s blame mask, accumulating `voter_stake` against each
-    /// authority in the mask. No-op if `voter` has already contributed to
-    /// this round (equivocations are ignored).
-    fn add_vote(&mut self, voter: AuthorityIndex, voter_stake: Stake, mask: AuthoritySet) {
-        if !self.voters_counted.insert(voter) {
-            return;
-        }
-        for authority in mask.iter() {
-            let stake = &mut self.complaint_stakes[authority.value()];
-            *stake = stake.saturating_add(voter_stake);
-        }
-    }
-}
-
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
 /// The rest of blocks are stored on disk.
@@ -364,10 +324,6 @@ pub(crate) struct DagState {
         watch::Sender<EvictionRounds>,
     )>,
 
-    /// History of strong-vote complaint masks against this node's own
-    /// leader rounds, keyed by leader round.
-    starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
-
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
     dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
@@ -493,7 +449,6 @@ impl DagState {
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
-            starfish_speed_leader_hints: BTreeMap::new(),
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -517,7 +472,6 @@ impl DagState {
             &state.context,
         );
 
-        state.replay_strong_vote_complaints_from_recovered_headers();
         state
     }
 
@@ -643,7 +597,6 @@ impl DagState {
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
         self.misbehavior_store.reset();
-        self.starfish_speed_leader_hints.clear();
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -675,8 +628,6 @@ impl DagState {
         // Rebuild scoring_subdag from stored commits so leader schedule state
         // matches peers after fast sync reinitialization.
         self.rebuild_scoring_subdag_from_store();
-
-        self.replay_strong_vote_complaints_from_recovered_headers();
 
         info!("DagState reinitialized successfully");
     }
@@ -2453,18 +2404,18 @@ impl DagState {
     }
 
     /// Takes at most `limit` acknowledgments from `pending_acknowledgments`
-    /// from rounds below `clock_round`. Refs whose author is in `exclude` are
-    /// skipped over and stay pending so they can be acked later.
+    /// from rounds below `clock_round`. Refs in `deferred` are skipped over and
+    /// stay pending so they can be acked later.
     pub(crate) fn take_acknowledgments(
         &mut self,
         limit: usize,
-        exclude: AuthoritySet,
+        deferred: &BTreeSet<BlockRef>,
     ) -> Vec<BlockRef> {
         self.evict_pending_acknowledgments();
         let clock_round = self.threshold_clock_round();
         let mut taken = Vec::with_capacity(limit);
 
-        if exclude.is_empty() {
+        if deferred.is_empty() {
             for ack in self.pending_acknowledgments.iter() {
                 if taken.len() >= limit || ack.round >= clock_round {
                     break;
@@ -2476,23 +2427,23 @@ impl DagState {
                 self.pending_acknowledgments.remove(&last_ack);
             }
         } else {
-            let mut dropped: u64 = 0;
+            let mut deferred_count: u64 = 0;
             for ack in self.pending_acknowledgments.iter() {
                 if taken.len() >= limit || ack.round >= clock_round {
                     break;
                 }
-                if exclude.contains(ack.author) {
-                    dropped += 1;
+                if deferred.contains(ack) {
+                    deferred_count += 1;
                     continue;
                 }
                 taken.push(*ack);
             }
-            if dropped > 0 {
+            if deferred_count > 0 {
                 self.context
                     .metrics
                     .node_metrics
-                    .adaptive_ack_acks_dropped
-                    .inc_by(dropped);
+                    .adaptive_ack_acks_deferred
+                    .inc_by(deferred_count);
             }
             for ack in &taken {
                 self.pending_acknowledgments.remove(ack);
@@ -2879,113 +2830,8 @@ impl DagState {
         &self.misbehavior_store
     }
 
-    /// Seeds adaptive-ack hints from strong-blame masks already present in
-    /// `recent_block_headers` so the heuristic survives a restart.
-    fn replay_strong_vote_complaints_from_recovered_headers(&mut self) {
-        if !self.context.protocol_config.consensus_starfish_speed()
-            || !self
-                .context
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
-        {
-            return;
-        }
-        let own_index = self.context.own_index;
-        // Snapshot before mutating self via record_strong_vote_complaint.
-        let to_replay: Vec<(AuthorityIndex, Round, AuthoritySet)> = self
-            .recent_block_headers
-            .values()
-            .filter_map(|h| {
-                if !h.is_strong_blame_for(own_index) {
-                    return None;
-                }
-                let leader_round = h.round().saturating_sub(1);
-                if leader_round == GENESIS_ROUND {
-                    return None;
-                }
-                Some((h.author(), leader_round, h.strong_vote()?.missing))
-            })
-            .collect();
-        for (voter, leader_round, mask) in to_replay {
-            self.record_strong_vote_complaint(voter, leader_round, mask);
-        }
-    }
-
-    /// Records a strong-vote complaint from `voter` against this node when
-    /// it was the leader at `leader_round`. Caller is responsible for
-    /// confirming `leader_round`'s leader was the local authority. No-op
-    /// when the feature is off.
-    pub(crate) fn record_strong_vote_complaint(
-        &mut self,
-        voter: AuthorityIndex,
-        leader_round: Round,
-        mask: AuthoritySet,
-    ) {
-        if !self.context.protocol_config.consensus_starfish_speed()
-            || !self
-                .context
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
-        {
-            return;
-        }
-        let committee_size = self.context.committee.size();
-        let voter_stake = self.context.committee.stake(voter);
-        let entry = self
-            .starfish_speed_leader_hints
-            .entry(leader_round)
-            .or_insert_with(|| StarfishSpeedLeaderRoundHints::new(committee_size));
-        entry.add_vote(voter, voter_stake, mask);
-
-        while self.starfish_speed_leader_hints.len() > STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS {
-            let Some(&oldest) = self.starfish_speed_leader_hints.keys().next() else {
-                break;
-            };
-            self.starfish_speed_leader_hints.remove(&oldest);
-        }
-    }
-
-    /// Returns the set of authorities the local node should drop from the
-    /// `acknowledgments` field of new blocks: those whose aggregated
-    /// complaint stake over the last `STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS`
-    /// of the local node's leader rounds reaches
-    /// `Committee::validity_threshold` (= f+1 in stake). Returns an empty set
-    /// when the feature is off.
-    pub(crate) fn starfish_speed_excluded_ack_authorities(&self) -> AuthoritySet {
-        if !self.context.protocol_config.consensus_starfish_speed()
-            || !self
-                .context
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
-        {
-            return AuthoritySet::new();
-        }
-        let committee_size = self.context.committee.size();
-        let mut scores: Vec<Stake> = vec![0; committee_size];
-        for hints in self
-            .starfish_speed_leader_hints
-            .iter()
-            .rev()
-            .take(STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS)
-            .map(|(_, h)| h)
-        {
-            for (auth, score) in scores.iter_mut().enumerate() {
-                *score = score.saturating_add(hints.complaint_stakes[auth]);
-            }
-        }
-        let threshold = self.context.committee.validity_threshold();
-        let mut mask = AuthoritySet::new();
-        for (auth, score) in scores.into_iter().enumerate() {
-            if score >= threshold {
-                mask.insert(AuthorityIndex::from(auth as u8));
-            }
-        }
-        self.context
-            .metrics
-            .node_metrics
-            .adaptive_ack_excluded_authorities
-            .set(mask.len() as i64);
-        mask
+    pub(crate) fn pending_acknowledgments(&self) -> &BTreeSet<BlockRef> {
+        &self.pending_acknowledgments
     }
 
     /// Loads the committed subdags in `range` from stored commits, for
@@ -4937,295 +4783,87 @@ mod test {
         assert_eq!(unset.pending_commit_votes.len(), 10);
     }
 
-    /// Builds a 4-authority context with `consensus_starfish_speed` toggled
-    /// per the argument and the local adaptive-ack parameter unchanged from
-    /// its default (`true`).
-    fn adaptive_ack_test_context(starfish_speed: bool) -> Arc<Context> {
-        let (mut ctx, _) = Context::new_for_test(4);
-        ctx.protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
-        Arc::new(ctx)
+    fn block_ref(round: Round, author: u8) -> BlockRef {
+        BlockRef::new(round, author.into(), BlockHeaderDigest::MIN)
     }
 
-    /// Single-authority `AuthoritySet` mask blaming `target`.
-    fn blame_mask(target: AuthorityIndex) -> AuthoritySet {
-        let mut mask = AuthoritySet::new();
-        mask.insert(target);
-        mask
-    }
-
-    /// Round-1 placeholder ref for an authority — only `(round, author)`
-    /// matters for the adaptive-ack filter; the digest is incidental.
-    fn ref_for(author: AuthorityIndex) -> BlockRef {
-        BlockRef::new(1, author, BlockHeaderDigest::MIN)
-    }
-
-    #[tokio::test]
-    async fn adaptive_ack_excludes_authority_at_validity_threshold() {
-        let context = adaptive_ack_test_context(true);
-        assert_eq!(
-            context.committee.validity_threshold(),
-            2,
-            "this test assumes f+1 = 2 (n=4)"
-        );
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
-
-        let target = AuthorityIndex::from(2u8);
-        let voter_0 = AuthorityIndex::from(0u8);
-        let voter_1 = AuthorityIndex::from(1u8);
-        let leader_round = 5;
-        let mask = blame_mask(target);
-
-        // First voter: count = 1, below f+1 = 2.
-        dag_state.record_strong_vote_complaint(voter_0, leader_round, mask);
-        assert!(
-            !dag_state
-                .starfish_speed_excluded_ack_authorities()
-                .contains(target),
-            "single voter must not exclude — below validity threshold"
-        );
-
-        // Second distinct voter: count = 2 = f+1 → exclude.
-        dag_state.record_strong_vote_complaint(voter_1, leader_round, mask);
-        assert!(
+    /// DagState of a 4-authority committee whose threshold clock is at
+    /// `round`.
+    fn dag_state_at_round(round: Round) -> DagState {
+        let (context, _) = Context::new_for_test(4);
+        let mut dag_state = DagState::new(Arc::new(context), Arc::new(MemStore::new()));
+        for author in 0..4u8 {
             dag_state
-                .starfish_speed_excluded_ack_authorities()
-                .contains(target),
-            "two distinct voters reached validity threshold, target should be excluded"
-        );
-    }
-
-    #[tokio::test]
-    async fn adaptive_ack_same_voter_counts_once_per_leader_round() {
-        let context = adaptive_ack_test_context(true);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
-
-        let target_x = AuthorityIndex::from(2u8);
-        let target_y = AuthorityIndex::from(3u8);
-        let voter_0 = AuthorityIndex::from(0u8);
-        let voter_1 = AuthorityIndex::from(1u8);
-        let leader_round = 5;
-
-        // Voter 0 records `{X}`.
-        dag_state.record_strong_vote_complaint(voter_0, leader_round, blame_mask(target_x));
-        // Same voter 0 records a second, different mask `{X, Y}` for the same
-        // leader round — first-vote-wins, the second mask is dropped entirely
-        // (Y stays at 0; X stays at 1).
-        let mut second_mask = AuthoritySet::new();
-        second_mask.insert(target_x);
-        second_mask.insert(target_y);
-        dag_state.record_strong_vote_complaint(voter_0, leader_round, second_mask);
-
-        // Add one more distinct voter blaming X. X reaches f+1 = 2 → excluded;
-        // Y is still at 0 → not excluded. If equivocations were counted, Y's
-        // count would be 1 here.
-        dag_state.record_strong_vote_complaint(voter_1, leader_round, blame_mask(target_x));
-
-        let excluded = dag_state.starfish_speed_excluded_ack_authorities();
-        assert!(excluded.contains(target_x), "X must be excluded");
-        assert!(
-            !excluded.contains(target_y),
-            "Y must not be excluded — voter_0's second mask was dropped"
-        );
-    }
-
-    #[tokio::test]
-    async fn adaptive_ack_prunes_complaints_outside_window() {
-        let context = adaptive_ack_test_context(true);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
-
-        let target = AuthorityIndex::from(2u8);
-        let voter_0 = AuthorityIndex::from(0u8);
-        let voter_1 = AuthorityIndex::from(1u8);
-        let initial_leader_round = 5;
-
-        // Two voters blame target at the initial leader round → would exclude.
-        dag_state.record_strong_vote_complaint(voter_0, initial_leader_round, blame_mask(target));
-        dag_state.record_strong_vote_complaint(voter_1, initial_leader_round, blame_mask(target));
-        assert!(
-            dag_state
-                .starfish_speed_excluded_ack_authorities()
-                .contains(target),
-            "target excluded before window slides"
-        );
-
-        // Record complaints at 10 later leader rounds with unrelated masks
-        // (blame voter_0 instead of target). The window keeps the most recent
-        // 10 entries — `initial_leader_round` is pruned.
-        for r in 1..=(STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS as Round) {
-            dag_state.record_strong_vote_complaint(
-                voter_0,
-                initial_leader_round + r,
-                blame_mask(voter_0),
-            );
+                .threshold_clock
+                .add_block_header(block_ref(round - 1, author));
         }
-        assert!(
-            !dag_state
-                .starfish_speed_excluded_ack_authorities()
-                .contains(target),
-            "initial leader round was pruned out of the window — target no longer excluded"
-        );
+        assert_eq!(dag_state.threshold_clock_round(), round);
+        dag_state
     }
 
     #[tokio::test]
-    async fn adaptive_ack_feature_gating() {
-        // Sweep all 4 (protocol_flag, local_param) combinations. Feature is
-        // active iff both are true; in every other combination both
-        // `record_strong_vote_complaint` and
-        // `starfish_speed_excluded_ack_authorities` short-circuit.
-        for (starfish_speed, adaptive_acks) in
-            [(false, false), (false, true), (true, false), (true, true)]
-        {
-            let (mut ctx, _) = Context::new_for_test(4);
-            ctx.protocol_config
-                .set_consensus_starfish_speed_for_testing(starfish_speed);
-            ctx.parameters
-                .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
-            let context = Arc::new(ctx);
-            let store = Arc::new(MemStore::new());
-            let mut dag_state = DagState::new(context, store);
-
-            let target = AuthorityIndex::from(2u8);
-            let leader_round = 5;
-            dag_state.record_strong_vote_complaint(
-                AuthorityIndex::from(0u8),
-                leader_round,
-                blame_mask(target),
-            );
-            dag_state.record_strong_vote_complaint(
-                AuthorityIndex::from(1u8),
-                leader_round,
-                blame_mask(target),
-            );
-
-            let feature_active = starfish_speed && adaptive_acks;
-            let case = format!("(starfish_speed={starfish_speed}, adaptive_acks={adaptive_acks})");
-            assert_eq!(
-                dag_state
-                    .starfish_speed_excluded_ack_authorities()
-                    .contains(target),
-                feature_active,
-                "{case}: target excluded iff feature active",
-            );
-            assert_eq!(
-                !dag_state.starfish_speed_leader_hints.is_empty(),
-                feature_active,
-                "{case}: hints recorded iff feature active",
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn adaptive_ack_filter_drops_blamed_authority_refs() {
-        let context = adaptive_ack_test_context(true);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
-
-        // Pending acknowledgments: one ref per authority.
-        let auth = |i: u8| AuthorityIndex::from(i);
-        let raw_acks = vec![
-            ref_for(auth(0)),
-            ref_for(auth(1)),
-            ref_for(auth(2)),
-            ref_for(auth(3)),
-        ];
-
-        // Two distinct voters blame authority 2 → exclude.
-        let target = auth(2);
-        let leader_round = 5;
-        dag_state.record_strong_vote_complaint(auth(0), leader_round, blame_mask(target));
-        dag_state.record_strong_vote_complaint(auth(1), leader_round, blame_mask(target));
-
-        let excluded = dag_state.starfish_speed_excluded_ack_authorities();
-        let filtered: Vec<BlockRef> = raw_acks
-            .into_iter()
-            .filter(|r| !excluded.contains(r.author))
-            .collect();
-
-        assert_eq!(filtered.len(), 3, "blamed authority's ref dropped");
-        assert!(
-            filtered.iter().all(|r| r.author != target),
-            "filtered acks must not contain target"
-        );
-        for kept in [auth(0), auth(1), auth(3)] {
-            assert!(
-                filtered.iter().any(|r| r.author == kept),
-                "non-blamed authority {kept} kept in acks"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn adaptive_ack_take_acknowledgments_skips_masked_authors() {
-        let (mut ctx, _) = Context::new_for_test(4);
-        ctx.protocol_config.set_gc_depth_for_testing(20);
-        let context = Arc::new(ctx);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
-
-        // Advance threshold_clock to round 5 — quorum (3 of 4) at round 4.
-        for author in 0..3u8 {
-            dag_state.threshold_clock.add_block_header(BlockRef::new(
-                4,
-                author.into(),
-                BlockHeaderDigest::MIN,
-            ));
-        }
-        assert_eq!(dag_state.threshold_clock_round(), 5);
-
-        let r =
-            |round: Round, author: u8| BlockRef::new(round, author.into(), BlockHeaderDigest::MIN);
+    async fn take_acknowledgments_skips_deferred_refs() {
+        let mut dag_state = dag_state_at_round(5);
 
         // Eligible: rounds 1..=4 × 4 authors (16). Above clock: round 6 × 4 authors.
         let mut seeded = Vec::new();
         for round in 1..=4u32 {
             for author in 0..4u8 {
-                seeded.push(r(round, author));
+                seeded.push(block_ref(round, author));
             }
         }
         for author in 0..4u8 {
-            seeded.push(r(6, author));
+            seeded.push(block_ref(6, author));
         }
         dag_state.set_pending_acknowledgments(seeded);
 
-        // First call: mask authors 1 and 3.
-        let mut mask = AuthoritySet::new();
-        mask.insert(AuthorityIndex::from(1u8));
-        mask.insert(AuthorityIndex::from(3u8));
-        let taken = dag_state.take_acknowledgments(1024, mask);
-        assert_eq!(taken.len(), 8, "2 unmasked authors × 4 eligible rounds");
-        assert!(taken.iter().all(
-            |x| x.author == AuthorityIndex::from(0u8) || x.author == AuthorityIndex::from(2u8)
-        ));
-        assert!(taken.iter().all(|x| x.round < 5));
+        // Defer the refs of authors 1 and 3.
+        let deferred: BTreeSet<BlockRef> = (1..=4u32)
+            .flat_map(|round| [block_ref(round, 1), block_ref(round, 3)])
+            .collect();
+        let taken = dag_state.take_acknowledgments(1024, &deferred);
+        assert_eq!(taken.len(), 8, "2 authors × 4 eligible rounds");
+        assert!(
+            taken
+                .iter()
+                .all(|ack| !deferred.contains(ack) && ack.round < 5)
+        );
+        assert_eq!(
+            dag_state
+                .context
+                .metrics
+                .node_metrics
+                .adaptive_ack_acks_deferred
+                .get(),
+            8
+        );
 
-        // Masked refs and round-6 refs stay pending.
-        for round in 1..=4u32 {
-            for author in [1u8, 3u8] {
-                assert!(
-                    dag_state
-                        .pending_acknowledgments
-                        .contains(&r(round, author))
-                );
-            }
+        // Deferred refs and round-6 refs stay pending.
+        for ack in &deferred {
+            assert!(dag_state.pending_acknowledgments().contains(ack));
         }
         for author in 0..4u8 {
-            assert!(dag_state.pending_acknowledgments.contains(&r(6, author)));
+            assert!(
+                dag_state
+                    .pending_acknowledgments()
+                    .contains(&block_ref(6, author))
+            );
         }
 
-        // Empty mask + capped limit: exactly `limit` returned.
-        let taken_limited = dag_state.take_acknowledgments(3, AuthoritySet::new());
+        // Nothing deferred + capped limit: exactly `limit` returned.
+        let taken_limited = dag_state.take_acknowledgments(3, &BTreeSet::new());
         assert_eq!(taken_limited.len(), 3);
 
-        // Empty mask + no cap: drains the remaining 5 previously-skipped refs;
+        // Nothing deferred, no cap: drains the remaining 5 deferred refs;
         // round-6 refs stay pending (above clock_round).
-        let taken_rest = dag_state.take_acknowledgments(1024, AuthoritySet::new());
+        let taken_rest = dag_state.take_acknowledgments(1024, &BTreeSet::new());
         assert_eq!(taken_rest.len(), 5);
         for author in 0..4u8 {
-            assert!(dag_state.pending_acknowledgments.contains(&r(6, author)));
+            assert!(
+                dag_state
+                    .pending_acknowledgments()
+                    .contains(&block_ref(6, author))
+            );
         }
     }
 }

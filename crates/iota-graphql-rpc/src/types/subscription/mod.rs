@@ -46,8 +46,8 @@ pub(crate) struct Lagged {
 ///
 /// It could be one of the following:
 /// - A successful payload from the subscription stream.
-/// - A notice that the subscription has been lagged behind the network with the
-///   number of lost payloads.
+/// - A notice that the subscription has been lagged behind the network with the number of lost
+///   payloads.
 #[derive(Union, Clone)]
 #[graphql(concrete(name = "EventSubscriptionPayload", params(Event)))]
 #[graphql(concrete(name = "TransactionBlockSubscriptionPayload", params(TransactionBlock)))]

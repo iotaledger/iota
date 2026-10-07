@@ -6,12 +6,9 @@
 //! implementations for the consensus protocol.
 //!
 //! Having an abstract network interface allows
-//! - simplifying the semantics of sending data and serving requests over the
-//!   network
-//! - hiding implementation specific types and semantics from the consensus
-//!   protocol
-//! - allowing easy swapping of network implementations, for better performance
-//!   or testing
+//! - simplifying the semantics of sending data and serving requests over the network
+//! - hiding implementation specific types and semantics from the consensus protocol
+//! - allowing easy swapping of network implementations, for better performance or testing
 //!
 //! When modifying the client and server interfaces, the principle is to keep
 //! the interfaces low level, close to underlying implementations in semantics.
@@ -32,6 +29,7 @@ use serde::{
     de::{self, SeqAccess, Visitor},
 };
 use starfish_config::{AuthorityIndex, Committee, MAX_HEADERS_OR_SHARDS_PER_BUNDLE};
+use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
     Round, VerifiedBlockHeader,
@@ -63,16 +61,17 @@ use crate::{
     commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
 };
 
-/// Controls transaction fetching truncation behavior for different sync modes
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TransactionFetchMode {
-    /// No truncation - used by fast commit sync which fetches all transactions
-    /// referenced by commits in a batch
-    FastCommitSync,
-    /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
-    /// max_transactions_per_transaction_sync_fetch- used by regular commit sync
-    /// and transactions synchronizer
-    TransactionSync,
+/// Serialized response of a fast commit-sync fetch. Each entry of
+/// `transactions` is a `SerializedTransactionsV2`, which carries its
+/// `TransactionRef`, and covers a prefix of the commits when not all of their
+/// payloads fit one response.
+pub(crate) struct FetchedCommitsAndTransactions {
+    pub(crate) commits: Vec<Bytes>,
+    pub(crate) certifier_block_headers: Vec<Bytes>,
+    pub(crate) transactions: Vec<Bytes>,
+    /// Held until the response has been sent, so a second oversized commit is
+    /// not read while this one is still in memory.
+    pub(crate) oversized_commit_permit: Option<OwnedSemaphorePermit>,
 }
 
 /// A stream of serialized blocks with additional information such as headers or
@@ -83,8 +82,7 @@ pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBun
 ///
 /// NOTE: the timeout parameters help saving resources at client and potentially
 /// server. But it is up to the server implementation if the timeout is honored.
-/// - To bound server resources, server should implement own timeout for
-///   incoming requests.
+/// - To bound server resources, server should implement own timeout for incoming requests.
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Subscribes to blocks from a peer after last_received round.
@@ -221,14 +219,11 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
 
     /// Handles the request to fetch commits and transactions by index range
     /// from the peer. Used in fast commit sync.
-    /// Returns (commits, certifier_block_headers, transactions) as serialized
-    /// bytes. Each transaction is serialized as SerializedTransactionsV2
-    /// which includes the TransactionRef.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<FetchedCommitsAndTransactions>;
 
     /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.
@@ -239,13 +234,11 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch transactions by references from the peer.
-    /// The `fetch_mode` parameter controls whether results should be truncated
-    /// to respect maximum transaction limits.
+    /// Results are truncated to the per-fetch transaction count cap.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
         transactions_refs: Vec<TransactionRef>,
-        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 
@@ -492,7 +485,7 @@ pub(crate) struct SerializedTransactionsV2 {
 
 #[cfg(test)]
 mod tests {
-    use rand::{seq::IteratorRandom, thread_rng};
+    use rand::{rng, seq::IteratorRandom};
 
     use super::*;
     use crate::TestBlockHeader;
@@ -500,9 +493,9 @@ mod tests {
     fn test_block_bundle_useful_authorities_set_bitmask_conversion() {
         let block = VerifiedBlock::new_for_test(TestBlockHeader::new(0u32, 0u8).build());
         // Generate a random sample of AuthorityIndex values (from 0..=255).
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let useful_authorities: BTreeSet<AuthorityIndex> = (0u8..=255)
-            .choose_multiple(&mut rng, 50) // pick 50 random distinct authorities
+            .sample(&mut rng, 50) // pick 50 random distinct authorities
             .into_iter()
             .map(AuthorityIndex::from)
             .collect();

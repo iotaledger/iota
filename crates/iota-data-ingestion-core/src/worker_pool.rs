@@ -442,23 +442,22 @@ impl<W: Worker + 'static> WorkerPool<W> {
     /// This function repeatedly calls the
     /// [`process_checkpoint`](Worker::process_checkpoint) method of the
     /// provided [`Worker`] until either:
-    /// - The checkpoint processing succeeds, returning `WorkerStatus::Running`
-    ///   with the processed message.
-    /// - A cancellation signal is received via the [`CancellationToken`],
-    ///   returning `WorkerStatus::Shutdown(<worker-id>)`.
-    /// - All retry attempts are exhausted within backoff's maximum elapsed
-    ///   time, causing a panic.
+    /// - The checkpoint processing succeeds, returning `WorkerStatus::Running` with the processed
+    ///   message.
+    /// - A cancellation signal is received via the [`CancellationToken`], returning
+    ///   `WorkerStatus::Shutdown(<worker-id>)`.
+    /// - All retry attempts are exhausted within backoff's maximum elapsed time, causing a panic.
     ///
     /// # Retry Mechanism:
-    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce
-    ///   increasing delays between retry attempts.
+    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce increasing delays
+    ///   between retry attempts.
     /// - Checks for cancellation both before and after each processing attempt.
-    /// - If a cancellation signal is received during a backoff delay, the
-    ///   function exits immediately with `WorkerStatus::Shutdown(<worker-id>)`.
+    /// - If a cancellation signal is received during a backoff delay, the function exits
+    ///   immediately with `WorkerStatus::Shutdown(<worker-id>)`.
     ///
     /// # Panics:
-    /// - If all retry attempts are exhausted within the backoff's maximum
-    ///   elapsed time, indicating a persistent failure.
+    /// - If all retry attempts are exhausted within the backoff's maximum elapsed time, indicating
+    ///   a persistent failure.
     async fn process_checkpoint_with_retry(
         worker_id: WorkerID,
         worker: &W,
@@ -523,8 +522,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///
     /// 2. Batch Processing (when reducer = Some):
     ///    - Reports progress only after successful batch commits.
-    ///    - A batch is committed based on
-    ///      [`should_close_batch`](Reducer::should_close_batch) policy.
+    ///    - A batch is committed based on [`should_close_batch`](Reducer::should_close_batch)
+    ///      policy.
     fn spawn_watermark_tracking(
         &mut self,
         watermark: CheckpointSequenceNumber,
@@ -557,8 +556,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///
     /// - Awaits all worker handles.
     /// - Awaits the reducer handle.
-    /// - Send `WorkerPoolStatus::Shutdown(<task-name>)` message notifying
-    ///   external components that Worker Pool has been shutdown.
+    /// - Send `WorkerPoolStatus::Shutdown(<task-name>)` message notifying external components that
+    ///   Worker Pool has been shutdown.
     async fn workers_graceful_shutdown(
         &self,
         workers_join_handles: Vec<JoinHandle<()>>,

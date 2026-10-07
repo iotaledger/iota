@@ -63,6 +63,11 @@ impl AuthoritySet {
         })
     }
 
+    /// Returns the authorities present in both sets.
+    pub fn intersection(&self, other: &AuthoritySet) -> AuthoritySet {
+        Self(std::array::from_fn(|i| self.0[i] & other.0[i]))
+    }
+
     /// Converts to a BTreeSet of AuthorityIndex.
     pub fn to_btreeset(self) -> BTreeSet<AuthorityIndex> {
         self.iter().collect()

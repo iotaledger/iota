@@ -29,7 +29,7 @@ use iota_types::{
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
 use once_cell::sync::OnceCell;
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use serde::{Deserialize, Serialize};
 use starfish_config::Parameters as StarfishParameters;
 use tracing::info;
@@ -705,7 +705,9 @@ fn default_grpc_address() -> Multiaddr {
     "/ip4/0.0.0.0/tcp/8080".parse().unwrap()
 }
 fn default_authority_key_pair() -> AuthorityKeyPairWithPath {
-    AuthorityKeyPairWithPath::new(get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut OsRng).1)
+    AuthorityKeyPairWithPath::new(
+        get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut UnwrapErr(SysRng)).1,
+    )
 }
 
 fn default_key_pair() -> KeyPairWithPath {
@@ -781,10 +783,6 @@ impl NodeConfig {
 
     pub fn db_path(&self) -> PathBuf {
         self.db_path.join("live")
-    }
-
-    pub fn db_checkpoint_path(&self) -> PathBuf {
-        self.db_path.join("db_checkpoints")
     }
 
     pub fn snapshot_path(&self) -> PathBuf {
@@ -1150,13 +1148,6 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    /// Enables the compaction filter for pruning the objects table.
-    /// If disabled, a range deletion approach is used instead.
-    /// While it is generally safe to switch between the two modes,
-    /// switching from the compaction filter approach back to range deletion
-    /// may result in some old versions that will never be pruned.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub enable_compaction_filter: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
@@ -1180,7 +1171,6 @@ impl Default for AuthorityStorePruningConfig {
             num_epochs_to_retain: 0,
             periodic_compaction_threshold_days: default_periodic_compaction_threshold_days(),
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
         }
     }

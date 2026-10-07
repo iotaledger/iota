@@ -17,12 +17,16 @@ pub(crate) struct NetworkMetrics {
     pub(crate) outbound: Arc<NetworkRouteMetrics>,
     #[cfg_attr(msim, allow(dead_code))]
     pub(crate) tcp_connection_metrics: Arc<TcpConnectionMetrics>,
-    /// Inbound requests rejected by per-peer admission control, by RPC group.
+    /// Inbound requests rejected by admission control, by RPC group and the
+    /// cap that was reached.
     pub(crate) admission_rejected: IntCounterVec,
     /// Inbound requests currently in flight under admission control, by RPC
     /// group (summed across peers). Shows live concurrency vs the per-peer
     /// caps.
     pub(crate) admission_in_use: IntGaugeVec,
+    /// Responses given up at the send deadline because the peer stopped
+    /// reading them, by RPC group.
+    pub(crate) admission_reclaimed: IntCounterVec,
     /// Connections each peer currently holds on the inbound listener.
     pub(crate) inbound_connections: IntGaugeVec,
     /// Connections refused for being over a peer's connection limit.
@@ -44,8 +48,8 @@ impl NetworkMetrics {
             tcp_connection_metrics: Arc::new(TcpConnectionMetrics::new(registry)),
             admission_rejected: register_int_counter_vec_with_registry!(
                 "inbound_admission_rejected",
-                "Inbound consensus requests rejected by per-peer admission control, by RPC group",
-                &["group"],
+                "Inbound consensus requests rejected by admission control, by RPC group and the cap that was reached",
+                &["group", "limit"],
                 registry;
                 MetricLevel::Warn,
             )
@@ -53,6 +57,14 @@ impl NetworkMetrics {
             admission_in_use: register_int_gauge_vec_with_registry!(
                 "inbound_admission_in_use",
                 "Inbound consensus requests currently in flight under admission control, by RPC group",
+                &["group"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            admission_reclaimed: register_int_counter_vec_with_registry!(
+                "inbound_admission_reclaimed",
+                "Inbound consensus responses given up at the send deadline because the peer stopped reading them, by RPC group",
                 &["group"],
                 registry;
                 MetricLevel::Warn,

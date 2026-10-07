@@ -33,7 +33,7 @@ impl Discovery for Server {
             .clone()
             .ok_or_else(|| anemo::rpc::Status::internal("own_info has not been initialized yet"))?;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Create a hashmap with all known peers that are not private
         let non_private_peers: std::collections::HashMap<_, _> = state
@@ -56,7 +56,7 @@ impl Discovery for Server {
                     .contains_key(peer_id)
                     .then_some(peer_info.clone())
             })
-            .choose_multiple(&mut rng, MAX_PEERS_TO_SEND);
+            .sample(&mut rng, MAX_PEERS_TO_SEND);
         known_peers.append(&mut connected_peers);
 
         // Step 2: Add not connected peers with addresses (lower priority)
@@ -68,7 +68,7 @@ impl Discovery for Server {
                         && !peer_info.addresses.is_empty())
                     .then_some(peer_info.clone())
                 })
-                .choose_multiple(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
+                .sample(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
             known_peers.append(&mut not_connected_with_addresses);
         }
 

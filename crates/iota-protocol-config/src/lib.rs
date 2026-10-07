@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 36;
+pub const MAX_PROTOCOL_VERSION: u64 = 38;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -227,7 +227,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
-// Version 36: Reject a transaction that names an object version in the range
+// Version 36: Reject a transaction whose sender or sponsor is authenticated by
+//             a `MoveAuthenticator` with an immutable account object.
+// Version 37: Reject a transaction that names an object version in the range
 //             assigned to canceled transactions, or one below it, from the
 //             transaction bytes, before any object is loaded.
 //             Reject `<SELF>` as an identifier in published modules.
@@ -239,6 +241,15 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Require the version field of a published module header to be the
 //             encoding the serializer produces for that version, rejecting a
 //             non-zero flavor byte below binary format version 7.
+//             Reject the randomness state object as a `MoveAuthenticator`
+//             input.
+//             Traverse the module graph when checking a published module for
+//             cyclic dependencies, instead of stopping at its immediate
+//             dependencies.
+// Version 38: Bound system Move packages by `max_move_system_package_size`
+//             rather than the limit that applies to user packages.
+//             Abort `iota::account::create_immutable_account_v1`, so no new
+//             immutable account object can be created.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -676,6 +687,16 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     allow_unbounded_system_objects: bool,
 
+    // If true, transaction validation rejects a `MoveAuthenticator` whose
+    // account object is immutable.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_objects: bool,
+
+    // If true, `iota::account::create_immutable_account_v1` aborts, so no new
+    // immutable account object can be created.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_creation: bool,
+
     // If true, `validity_check` rejects a transaction that names an object
     // version at or above `Version::MAX_VALID_EXCL`, the range assigned to the
     // objects of canceled transactions, or right below it, from the transaction
@@ -694,6 +715,23 @@ struct FeatureFlags {
     // a non-zero flavor byte is masked off instead of rejected.
     #[serde(skip_serializing_if = "is_false")]
     check_canonical_module_version_header: bool,
+
+    // If true, `validity_check` rejects a `MoveAuthenticator` that names the
+    // randomness state object among its inputs. An authenticate function cannot
+    // derive randomness from it, but naming it schedules the transaction as
+    // randomness-using and defers it to a randomness round for nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_randomness_in_move_authenticator: bool,
+
+    // If true, the cyclic dependency check traverses the module graph. Without it
+    // the traversal descends only into modules it has already visited, so it stops
+    // at the immediate dependencies and never reports a cycle.
+    #[serde(skip_serializing_if = "is_false")]
+    check_cyclic_dependencies: bool,
+
+    // If true, deprecate global storage ops during Move module deserialization
+    #[serde(skip_serializing_if = "is_false")]
+    deprecate_global_storage_ops_during_deserialization: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -793,9 +831,8 @@ impl ConsensusNetwork {
 /// - Initialize the field to `None` in prior protocol versions.
 /// - Initialize the field to `Some(val)` for your new protocol version.
 /// - Add a public getter that simply unwraps the field.
-/// - Two public getters of the form `field(&self) -> field_type` and
-///   `field_as_option(&self) -> Option<field_type>` will be automatically
-///   generated for you.
+/// - Two public getters of the form `field(&self) -> field_type` and `field_as_option(&self) ->
+///   Option<field_type>` will be automatically generated for you.
 /// Example for a field: `new_constant: Option<u64>`
 /// ```rust,ignore
 ///      pub fn new_constant(&self) -> u64 {
@@ -1640,6 +1677,12 @@ pub struct ProtocolConfig {
     /// over (the scoring depth). When unset, defaults to 600. Consulted only
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
+
+    /// Maximum size of a system Move package object, in bytes. System packages
+    /// are published by the network rather than by users, so they are held to a
+    /// larger bound than `max_move_package_size`. When unset, system packages
+    /// are bound by `max_move_package_size` like any other package.
+    max_move_system_package_size: Option<u64>,
 }
 
 // feature flags
@@ -2157,12 +2200,44 @@ impl ProtocolConfig {
         self.feature_flags.allow_unbounded_system_objects
     }
 
+    pub fn reject_immutable_account_objects(&self) -> bool {
+        let reject_immutable_account_objects = self.feature_flags.reject_immutable_account_objects;
+        assert!(
+            !reject_immutable_account_objects || self.enable_move_authentication(),
+            "reject_immutable_account_objects requires enable_move_authentication to be set"
+        );
+        reject_immutable_account_objects
+    }
+
+    pub fn reject_immutable_account_creation(&self) -> bool {
+        let reject_immutable_account_creation =
+            self.feature_flags.reject_immutable_account_creation;
+        assert!(
+            !reject_immutable_account_creation || self.reject_immutable_account_objects(),
+            "reject_immutable_account_creation requires reject_immutable_account_objects to be set"
+        );
+        reject_immutable_account_creation
+    }
+
     pub fn validate_input_object_versions(&self) -> bool {
         self.feature_flags.validate_input_object_versions
     }
 
     pub fn check_canonical_module_version_header(&self) -> bool {
         self.feature_flags.check_canonical_module_version_header
+    }
+
+    pub fn disallow_randomness_in_move_authenticator(&self) -> bool {
+        self.feature_flags.disallow_randomness_in_move_authenticator
+    }
+
+    pub fn check_cyclic_dependencies(&self) -> bool {
+        self.feature_flags.check_cyclic_dependencies
+    }
+
+    pub fn deprecate_global_storage_ops_during_deserialization(&self) -> bool {
+        self.feature_flags
+            .deprecate_global_storage_ops_during_deserialization
     }
 }
 
@@ -2828,6 +2903,8 @@ impl ProtocolConfig {
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
             consensus_leader_schedule_window_size: None,
+
+            max_move_system_package_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3528,6 +3605,11 @@ impl ProtocolConfig {
                         .pre_consensus_sponsor_only_move_authentication = false;
                 }
                 36 => {
+                    // No immutable account object can authenticate a sender or
+                    // a sponsor.
+                    cfg.feature_flags.reject_immutable_account_objects = true;
+                }
+                37 => {
                     // Refuse object versions in, or right below, the range
                     // assigned to canceled transactions before any object is
                     // loaded, by consulting the transaction bytes only.
@@ -3540,6 +3622,26 @@ impl ProtocolConfig {
                     // Require a published module header to carry the canonical
                     // encoding of its binary format version.
                     cfg.feature_flags.check_canonical_module_version_header = true;
+                    // An authenticate function cannot read randomness, so the
+                    // randomness state object is refused as an authenticator
+                    // input instead of scheduling the transaction as
+                    // randomness-using for nothing.
+                    cfg.feature_flags.disallow_randomness_in_move_authenticator = true;
+                    // Traverse the module graph when checking for cyclic
+                    // dependencies.
+                    cfg.feature_flags.check_cyclic_dependencies = true;
+                }
+                38 => {
+                    // A system package is published by the network, not by a
+                    // user, so the user-package bound was never meant to apply
+                    // to it: an existing system package is already exempt when
+                    // it is upgraded at an epoch change, and only a first
+                    // publish (genesis, or a newly added system package) is
+                    // checked against it.
+                    cfg.max_move_system_package_size = Some(200 * 1024);
+                    // An immutable account object cannot authenticate anything
+                    // since version 36, so stop creating new ones.
+                    cfg.feature_flags.reject_immutable_account_creation = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3615,6 +3717,7 @@ impl ProtocolConfig {
             additional_borrow_checks,
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
+            check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
         }
     }
 
@@ -3831,8 +3934,20 @@ impl ProtocolConfig {
             .pcool_verifier_limits_from_protocol_config = val;
     }
 
+    pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_objects = val;
+    }
+
+    pub fn set_reject_immutable_account_creation_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_creation = val;
+    }
+
     pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {
         self.feature_flags.validate_input_object_versions = val;
+    }
+
+    pub fn set_disallow_randomness_in_move_authenticator_for_testing(&mut self, val: bool) {
+        self.feature_flags.disallow_randomness_in_move_authenticator = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
@@ -4036,6 +4151,18 @@ mod test {
 
         prot.set_attr_for_testing("max_arguments".to_string(), "456".to_string());
         assert_eq!(prot.max_arguments(), 456);
+    }
+
+    #[test]
+    fn reject_immutable_account_creation_implies_rejecting_the_objects() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                // The getter asserts the dependency on
+                // `reject_immutable_account_objects`.
+                ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain)
+                    .reject_immutable_account_creation();
+            }
+        }
     }
 
     #[test]

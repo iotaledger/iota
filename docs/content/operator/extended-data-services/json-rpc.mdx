@@ -108,6 +108,8 @@ iota-indexer \
 The analytical worker runs on the same Postgres database as the indexer writer, so it increases load on the database.
 Operators should run it only when the methods below are needed.
 
+On a database whose history does not go back to genesis, for example one restored from a snapshot or one the pruner has moved past, the worker resumes from the first checkpoint and transaction still present. Metrics before that point stay absent. The cumulative address counts in `iotax_getLatestAddressMetrics`, `iotax_getCheckpointAddressMetrics`, `iotax_getAllEpochAddressMetrics` and `total_addresses` in `iotax_getNetworkMetrics` only include addresses seen from that point on.
+
 When the analytical worker is not running, these methods return empty or zeroed results:
 
 - `iotax_getMoveCallMetrics`

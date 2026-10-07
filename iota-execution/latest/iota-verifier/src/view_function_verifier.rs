@@ -85,8 +85,8 @@ fn verify_view_parameter_type(
 
 /// A valid view return type must:
 /// - contain no mutable references, including nested mutable references
-/// - be safe to return by value, which means it cannot be an object or a value
-///   that could contain an object
+/// - be safe to return by value, which means it cannot be an object or a value that could contain
+///   an object
 fn verify_view_return_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],

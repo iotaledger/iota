@@ -28,7 +28,6 @@ use iota_types::{
     crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
     effects::TransactionEffectsAPI,
     error::IotaError,
-    execution_config_utils::to_binary_config,
     iota_system_state::{
         IotaSystemStateTrait, get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
@@ -38,10 +37,8 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, VerifiedTransaction},
 };
-use rand::{
-    SeedableRng,
-    rngs::{OsRng, StdRng},
-};
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use rand08::{SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
@@ -552,7 +549,7 @@ async fn test_validator_resign_effects() {
 
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let address: Address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -673,7 +670,7 @@ async fn test_reconfig_with_committee_change_basic() {
     // This test exercise the full flow of a validator joining the network, catch up
     // and then leave.
 
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let new_authority_name = new_validator.authority_key_pair.public().into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let mut test_cluster = TestClusterBuilder::new()
@@ -925,7 +922,7 @@ async fn test_reconfig_with_committee_change_stress_determinism() {
 
 async fn do_test_reconfig_with_committee_change_stress() {
     let mut candidates = (0..6)
-        .map(|_| ValidatorGenesisConfigBuilder::new().build(&mut OsRng))
+        .map(|_| ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng)))
         .collect::<Vec<_>>();
     let addresses = candidates
         .iter()
@@ -1188,7 +1185,6 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
 
     // Create the capability notification
     let available_system_packages = test_cluster
@@ -1196,7 +1192,7 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .iota_node
         .with(|node| {
             let state = node.state();
-            async move { state.get_available_system_packages(&binary_config).await }
+            async move { state.get_available_system_packages(config).await }
         })
         .await;
     let capabilities = AuthorityCapabilitiesV1::new(
@@ -1244,7 +1240,7 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
 async fn test_authority_capabilities_incorrect_epoch_rejection() {
     // Test that SignedAuthorityCapabilities signed with an incorrect epoch
     // is rejected by the committee
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let new_authority_name = new_validator.authority_key_pair.public().into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
@@ -1262,13 +1258,12 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
     let available_system_packages = test_cluster
         .fullnode_handle
         .iota_node
         .with(|node| {
             let state = node.state();
-            async move { state.get_available_system_packages(&binary_config).await }
+            async move { state.get_available_system_packages(config).await }
         })
         .await;
     // Create the capability notification

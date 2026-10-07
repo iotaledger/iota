@@ -5,27 +5,6 @@
 use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 
-use crate::id::UID;
-
-/// Rust version of the Move iota::vec_map::VecMap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct VecMap<K, V> {
-    pub contents: Vec<Entry<K, V>>,
-}
-
-/// Rust version of the Move iota::vec_map::Entry type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct Entry<K, V> {
-    pub key: K,
-    pub value: V,
-}
-
-/// Rust version of the Move iota::vec_set::VecSet type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct VecSet<T> {
-    pub contents: Vec<T>,
-}
-
 /// Rust version of the Move iota::table::Table type.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TableVec {
@@ -54,22 +33,6 @@ impl Default for Table {
     fn default() -> Self {
         Table {
             id: ObjectId::ZERO,
-            size: 0,
-        }
-    }
-}
-
-/// Rust version of the Move iota::bag::Bag type.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct Bag {
-    pub id: UID,
-    pub size: u64,
-}
-
-impl Default for Bag {
-    fn default() -> Self {
-        Self {
-            id: UID::new(ObjectId::ZERO),
             size: 0,
         }
     }

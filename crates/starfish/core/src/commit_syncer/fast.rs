@@ -16,10 +16,9 @@ use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
 use rand::prelude::SliceRandom as _;
-use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
+use rand::{SeedableRng as _, rng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
-    runtime::Handle,
     sync::{oneshot, watch},
     task::JoinSet,
     time::{Instant, MissedTickBehavior},
@@ -32,10 +31,10 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, FetchedCommits, Inner, fetch_loop as shared_fetch_loop,
-        handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
-        try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
-        verify_transactions_commitments,
+        CommitSyncType, CommitSyncerHandle, FAST_FETCH_ATTEMPT_MULTIPLIER, FetchedCommits, Inner,
+        fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
+        schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
+        verify_fetched_headers, verify_transactions_commitments,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -46,18 +45,21 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     sliding_window_schedule::SlidingWindowSchedule,
+    task::spawn_blocking,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
-const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Demotes `authority` for subsequent header chunks after it failed to serve
 /// one, whether it errored, timed out, or returned headers that did not verify.
 fn record_headers_for_reinitialization_failure<C: NetworkClient>(
     inner: &Inner<C>,
+    failed_authorities: &mut BTreeSet<AuthorityIndex>,
     authority: AuthorityIndex,
 ) {
+    failed_authorities.insert(authority);
     inner
         .context
         .peer_responsiveness
@@ -427,8 +429,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // When close_to_quorum_mode is activated, the schedule_loop() will:
         // 1. Wait for all inflight/pending fetches to complete
         // 2. Fetch block headers for ~cached_rounds worth of commits
-        // 3. Send ReinitializeComponents to core thread to properly initialize DAG
-        //    state
+        // 3. Send ReinitializeComponents to core thread to properly initialize DAG state
         // 4. Reset fast sync state so regular syncer can take over
         if self.has_fetched_data && !self.close_to_quorum_mode {
             let current_fetch_after = self
@@ -590,7 +591,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, FastSyncOutput) {
-        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
+        shared_fetch_loop(
+            inner,
+            commit_range,
+            FAST_FETCH_ATTEMPT_MULTIPLIER,
+            Self::fetch_once,
+        )
+        .await
     }
 
     // Fetches commits and transactions from a single authority. When the
@@ -610,9 +617,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
 
-        // 1. Fetch commits, voting headers, and transactions in the commit range from
-        //    the target authority. Each transaction is serialized as
-        //    SerializedTransactionsV2 which includes the TransactionRef.
+        // 1. Fetch commits, voting headers, and transactions in the commit range from the target
+        //    authority. Each transaction is serialized as SerializedTransactionsV2 which includes
+        //    the TransactionRef.
         let (
             serialized_commits,
             serialized_proof_for_last_commit,
@@ -621,31 +628,34 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         ) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                inner
+                    .misbehavior_store
+                    .record_fetch_fault(target_authority, e);
+            })?;
 
-        // 2. Verify the response contains block headers that can certify the last
-        //    returned commit, and the returned commits are chained by digest,
+        // 2. Verify the response contains block headers that can certify the last returned commit,
+        //    and the returned commits are chained by digest,
         // so earlier commits are certified as well.
         let max_commits = inner.sync_type.max_commits_per_response(&commit_range);
-        let (mut commits, voting_block_headers) = Handle::current()
-            .spawn_blocking({
-                let inner = inner.clone();
-                move || {
-                    inner.verify_commits(
-                        target_authority,
-                        commit_range,
-                        serialized_commits,
-                        serialized_proof_for_last_commit,
-                        max_commits,
-                    )
-                }
-            })
-            .await
-            .expect("Spawn blocking should not fail")?;
+        let (mut commits, voting_block_headers) = spawn_blocking({
+            let inner = inner.clone();
+            move || {
+                inner.verify_commits(
+                    target_authority,
+                    commit_range,
+                    serialized_commits,
+                    serialized_proof_for_last_commit,
+                    max_commits,
+                )
+            }
+        })
+        .await??;
 
-        // 3. Collect the committed transaction refs of each commit. Commits passing
-        //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
-        //    legacy `BlockRef` variant is an error.
+        // 3. Collect the committed transaction refs of each commit. Commits passing verify_commits
+        //    are V2/V3, which only carry `TransactionRef`s, so the legacy `BlockRef` variant is an
+        //    error.
         let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
             .map(|c| {
@@ -659,8 +669,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             commits_tx_refs.iter().flatten().copied().collect();
 
         // 4. Process fetched transactions. Each serialized_transaction is a
-        //    SerializedTransactionsV2 containing both the TransactionRef and the actual
-        //    transaction data.
+        //    SerializedTransactionsV2 containing both the TransactionRef and the actual transaction
+        //    data.
         let mut fetched_transactions = process_serialized_transactions(
             target_authority,
             serialized_transactions,
@@ -719,29 +729,27 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // 5. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
-            Handle::current()
-                .spawn_blocking({
-                    let context = inner.context.clone();
+            spawn_blocking({
+                let context = inner.context.clone();
 
-                    move || {
-                        verify_transactions_commitments(
-                            &context,
-                            target_authority,
-                            fetched_transactions,
-                        )
-                    }
-                })
-                .await
-                .expect("Spawn blocking should not fail")
-                .inspect_err(|_| {
-                    // Not provable against the author, whose commitment the
-                    // peer may have forged.
-                    inner.misbehavior_store.record_faulty_transactions(
+                move || {
+                    verify_transactions_commitments(
+                        &context,
                         target_authority,
-                        false,
-                        [target_authority],
-                    );
-                })?
+                        fetched_transactions,
+                    )
+                }
+            })
+            .await?
+            .inspect_err(|_| {
+                // Not provable against the author, whose commitment the
+                // peer may have forged.
+                inner.misbehavior_store.record_faulty_transactions(
+                    target_authority,
+                    false,
+                    [target_authority],
+                );
+            })?
         } else {
             BTreeMap::new()
         };
@@ -798,9 +806,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // We need headers for three purposes:
         // 1. DagState cache: at least cached_rounds commits back
         // 2. Linearizer recovery: at least gc_depth * 2 commits back
-        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or
-        //    all commits since the last stored commit info
-        //    (commits_since_schedule_update)
+        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or all commits
+        //    since the last stored commit info (commits_since_schedule_update)
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
@@ -808,7 +815,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.
-        let (commits_since_schedule_update, block_refs) = {
+        let (last_commit_index, commits_since_schedule_update, block_refs) = {
             let dag_state = inner.dag_state.read();
             let last_commit_index = dag_state.last_commit_index();
             let last_commit_info_index = dag_state.last_commit_info_index();
@@ -838,7 +845,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 num_commits
             };
             let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
-            (commits_since_schedule_update, block_refs)
+            (last_commit_index, commits_since_schedule_update, block_refs)
         };
 
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
@@ -865,7 +872,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
             })
             .collect();
-        let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+        let mut rng = StdRng::from_rng(&mut rng());
         // Without ranking, one shuffle for load balancing covers every chunk.
         #[cfg(not(test))]
         if !inner.context.parameters.enable_peer_responsiveness_ranking {
@@ -874,6 +881,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // Fetch headers in chunks to avoid overwhelming the network
         let mut all_headers = Vec::new();
+        let mut failed_authorities = BTreeSet::new();
         for chunk in block_refs.chunks(max_headers_per_fetch) {
             let chunk_refs: Vec<_> = chunk.to_vec();
 
@@ -887,10 +895,20 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     &mut rng,
                 );
             }
+            // A peer that voted for the last commit holds these headers, while
+            // one with no observed vote may be down and cost the full timeout.
+            // A voter that failed an earlier chunk loses that preference, and
+            // sorting a copy puts it back where the ranking or shuffle placed it.
+            let mut chunk_authorities = target_authorities.clone();
+            inner.order_voters_first(
+                &mut chunk_authorities,
+                last_commit_index,
+                &failed_authorities,
+            );
 
             // Try fetching from different authorities until successful
             let mut fetched = false;
-            for &authority in &target_authorities {
+            for &authority in &chunk_authorities {
                 let started = Instant::now();
                 match tokio::time::timeout(
                     FETCH_HEADERS_TIMEOUT,
@@ -926,7 +944,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 inner
                                     .misbehavior_store
                                     .record_faulty_block(authority, authority, &e);
-                                record_headers_for_reinitialization_failure(&inner, authority);
+                                record_headers_for_reinitialization_failure(
+                                    &inner,
+                                    &mut failed_authorities,
+                                    authority,
+                                );
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
@@ -937,7 +959,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         }
                     }
                     Ok(Err(e)) => {
-                        record_headers_for_reinitialization_failure(&inner, authority);
+                        inner.misbehavior_store.record_fetch_fault(authority, &e);
+                        record_headers_for_reinitialization_failure(
+                            &inner,
+                            &mut failed_authorities,
+                            authority,
+                        );
                         warn!(
                             "[{}] Failed to fetch headers from {}: {}",
                             inner.sync_type.as_str(),
@@ -946,7 +973,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         );
                     }
                     Err(_) => {
-                        record_headers_for_reinitialization_failure(&inner, authority);
+                        record_headers_for_reinitialization_failure(
+                            &inner,
+                            &mut failed_authorities,
+                            authority,
+                        );
                         warn!(
                             "[{}] Timed out fetching headers from {}",
                             inner.sync_type.as_str(),
@@ -1592,9 +1623,9 @@ mod tests {
         }
     }
 
-    /// Covers the commit-vote ordering in the shared `fetch_loop`, driven
-    /// through the fast syncer because that is the flavour `FakeNetworkClient`
-    /// serves.
+    /// Covers the commit-vote ordering in the shared `fetch_loop` and in the
+    /// reinitialization header fetch. `fetch_loop` is driven through the fast
+    /// syncer because that is the flavour `FakeNetworkClient` serves.
     mod peer_selection_by_commit_votes {
         use std::{sync::Arc, time::Duration};
 
@@ -1602,10 +1633,11 @@ mod tests {
 
         use super::fetch_once::make_inner;
         use crate::{
-            block_header::{TestBlockHeader, VerifiedBlockHeader},
-            commit::{CommitDigest, CommitRef},
+            block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader, VerifiedBlockHeader},
+            commit::{CommitDigest, CommitRef, TrustedCommit},
             commit_syncer::{fast::FastCommitSyncer, fetch_loop, tests::FakeNetworkClient},
             context::Context,
+            dag_state::DataSource,
         };
 
         /// Drives one pass of `fetch_loop` over a committee where no peer can
@@ -1669,6 +1701,123 @@ mod tests {
                     AuthorityIndex::new_for_test(1),
                     AuthorityIndex::new_for_test(2),
                     AuthorityIndex::new_for_test(3),
+                ]
+            );
+        }
+
+        /// The reinitialization header fetch asks a peer that voted for the
+        /// last commit first, even when the responsiveness ranking prefers the
+        /// peers without a vote.
+        #[tokio::test(start_paused = true)]
+        async fn reinitialization_asks_voters_first() {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.enable_peer_responsiveness_ranking = true;
+            let context = Arc::new(context);
+            for peer in [1, 2] {
+                context.peer_responsiveness.record_success(
+                    DataSource::FastCommitSyncer,
+                    AuthorityIndex::new_for_test(peer),
+                    Duration::from_millis(1),
+                );
+            }
+            // An empty answer never matches the requested header, so every
+            // peer is asked in turn.
+            let network_client = Arc::new(FakeNetworkClient {
+                block_headers: Some(vec![]),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+            let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+            {
+                let mut dag_state = inner.dag_state.write();
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    1,
+                    CommitDigest::MIN,
+                    0,
+                    leader,
+                    vec![leader],
+                    vec![],
+                ));
+                dag_state.flush();
+            }
+            inner
+                .commit_vote_monitor
+                .observe_block(&VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(3, 3)
+                        .set_commit_votes(vec![CommitRef::new(1, CommitDigest::MIN)])
+                        .build(),
+                ));
+
+            let result = FastCommitSyncer::fetch_headers_for_reinitialization(inner).await;
+
+            assert!(result.is_err());
+            let asked = network_client.requested_header_peers.lock().clone();
+            assert_eq!(asked.len(), 3);
+            assert_eq!(asked[0], AuthorityIndex::new_for_test(3));
+        }
+
+        /// A voter that fails one chunk of the reinitialization header fetch
+        /// goes back to its committee-order place for the remaining chunks.
+        #[tokio::test(start_paused = true)]
+        async fn reinitialization_drops_preference_for_a_failed_voter() {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.max_headers_per_commit_sync_fetch = 1;
+            let context = Arc::new(context);
+            let headers: Vec<_> = (0..2)
+                .map(|author| {
+                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, author).build())
+                })
+                .collect();
+            let block_refs: Vec<_> = headers.iter().map(|header| header.reference()).collect();
+            let voter = AuthorityIndex::new_for_test(3);
+            let network_client = Arc::new(FakeNetworkClient {
+                stored_block_headers: headers
+                    .iter()
+                    .map(|header| (header.reference(), header.serialized().clone()))
+                    .collect(),
+                unreachable_header_peers: vec![voter],
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+            {
+                let mut dag_state = inner.dag_state.write();
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    1,
+                    CommitDigest::MIN,
+                    0,
+                    block_refs[0],
+                    block_refs.clone(),
+                    vec![],
+                ));
+                dag_state.flush();
+            }
+            inner
+                .commit_vote_monitor
+                .observe_block(&VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(3, 3)
+                        .set_commit_votes(vec![CommitRef::new(1, CommitDigest::MIN)])
+                        .build(),
+                ));
+
+            let fetched = FastCommitSyncer::fetch_headers_for_reinitialization(inner)
+                .await
+                .unwrap();
+
+            assert_eq!(fetched.len(), 2);
+            assert_eq!(
+                *network_client.requested_header_peers.lock(),
+                vec![
+                    voter,
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(1),
                 ]
             );
         }
@@ -2177,14 +2326,11 @@ mod tests {
     /// Test flow to ensure B requests commits A has in voting storage:
     /// - Phase 1: All run → commits 1-N1 (all validators have these)
     /// - Phase 2: Stop B first (B stops at N1)
-    /// - Phase 3: A + the other 5 validators continue → commits N1-N2 (B
-    ///   doesn't have these)
+    /// - Phase 3: A + the other 5 validators continue → commits N1-N2 (B doesn't have these)
     /// - Phase 4: Stop A (A stops at N2)
-    /// - Phase 5: The remaining 5 validators continue → commits N2-N3 (neither
-    ///   A nor B have these)
+    /// - Phase 5: The remaining 5 validators continue → commits N2-N3 (neither A nor B have these)
     /// - Phase 6: Restart A, fast syncs N2-N3 → stores voting headers
-    /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting
-    ///   storage
+    /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting storage
     #[tokio::test(flavor = "current_thread")]
     async fn test_fast_sync_voting_blocks_served_to_peer() {
         telemetry_subscribers::init_for_testing();
@@ -2198,10 +2344,14 @@ mod tests {
         // Fast-sync fetch batch size; also the stride at which a fast-syncing
         // validator stores voting block headers.
         const FAST_COMMIT_SYNC_BATCH_SIZE: u32 = 20;
-        // Gap a restarted validator must close, in commits. Set comfortably above
-        // COMMIT_GAP_THRESHOLD so fast sync (not regular sync) is selected even with
-        // some slack between the consumer high-water mark and the quorum index.
-        const TARGET_GAP: u32 = COMMIT_GAP_THRESHOLD * 2;
+        // Commits A misses while stopped. Above COMMIT_GAP_THRESHOLD so A fast
+        // syncs on restart, and large enough that A, fetching one batch at a
+        // time, is still fast syncing when B restarts and asks it for commits.
+        const COMMITS_MISSED_BY_A: u32 = 400;
+        // Commits B misses while stopped. Comfortably above COMMIT_GAP_THRESHOLD
+        // so B fast syncs on restart even with some slack between the consumer
+        // high-water mark and the quorum index.
+        const COMMITS_MISSED_BY_B: u32 = 60;
         // Safety bound on how long a work phase waits to reach its target commit
         // count; generous so a slow host still completes rather than hangs.
         let work_phase_timeout = Duration::from_secs(60);
@@ -2210,10 +2360,11 @@ mod tests {
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_gc_depth_for_testing(5);
         // Shrink the leader-schedule rotation window — which also bounds the
-        // fast-sync reinitialization fetch window — well below TARGET_GAP. With the
-        // default window a recovering node refetches the whole synced gap into its
-        // regular block storage, so the fallback always answers and the voting-block
-        // store this test exercises is never actually consulted.
+        // fast-sync reinitialization fetch window — well below
+        // COMMITS_MISSED_BY_A. With the default window a recovering node
+        // refetches the whole synced gap into its regular block storage, so the
+        // fallback always answers and the voting-block store this test
+        // exercises is never actually consulted.
         protocol_config.set_commits_per_schedule_for_testing(10);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
@@ -2267,14 +2418,15 @@ mod tests {
             consumer_monitors.push(monitor);
         }
 
-        // Phase 1: Let all authorities run and build a shared committed prefix.
+        // Phase 1: Let all authorities run and build a shared committed prefix
+        // of 60 commits.
         let mut committed_index = [0u32; NUM_AUTHORITIES];
         run_until_commit_index(
             &mut output_receivers,
             &mut committed_index,
             &consumer_monitors,
             &[],
-            TARGET_GAP,
+            60,
             work_phase_timeout,
         )
         .await;
@@ -2291,7 +2443,7 @@ mod tests {
             &mut committed_index,
             &consumer_monitors,
             &[validator_b_index],
-            last_processed_b + TARGET_GAP,
+            last_processed_b + COMMITS_MISSED_BY_B,
             work_phase_timeout,
         )
         .await;
@@ -2309,7 +2461,7 @@ mod tests {
             &mut committed_index,
             &consumer_monitors,
             &[validator_a_index, validator_b_index],
-            last_processed_a + TARGET_GAP,
+            last_processed_a + COMMITS_MISSED_BY_A,
             work_phase_timeout,
         )
         .await;
@@ -2318,7 +2470,8 @@ mod tests {
         let parameters = Parameters {
             db_path: temp_dirs[validator_a_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
-            commit_sync_parallel_fetches: 2,
+            // One batch at a time, so A is still fast syncing when B asks it.
+            commit_sync_parallel_fetches: 1,
             commit_sync_batch_size: 10,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
@@ -2346,11 +2499,10 @@ mod tests {
 
         // Wait until A has fast-synced two batches past its restart point:
         // enough for its voting storage to cover B's first overlapping fetch
-        // bound, yet reachable before A can stall on stopped B (batch fetching
-        // stops only within one batch of a head at least three batches ahead).
-        // Unlike a margin below the moving head, a fixed target cannot be
-        // outrun under load, and stopping short of convergence keeps A
-        // un-reinitialized, which serving from voting storage requires.
+        // bound. Unlike a margin below the moving head, a fixed target cannot
+        // be outrun under load, and with most of COMMITS_MISSED_BY_A still to
+        // close A is not yet reinitialized when B asks it for commits, which
+        // serving from voting storage requires.
         let a_target = last_processed_a + 2 * FAST_COMMIT_SYNC_BATCH_SIZE;
         let start_time = Instant::now();
         let mut a_fast_synced = false;
@@ -2405,9 +2557,7 @@ mod tests {
 
         authorities.insert(validator_b_index, authority);
 
-        // Wait for both restarted validators to catch up: A finishes its
-        // interrupted fast sync once B is reachable again. With all
-        // validators running, neither can stall on an unreachable peer.
+        // Wait for both restarted validators to catch up.
         let start_time = Instant::now();
         let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(90) {
@@ -2528,15 +2678,13 @@ mod tests {
     ///
     /// Test flow:
     /// - Phase 1: All validators run together, creating initial commits
-    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 +
-    ///   stop txn synchronizer + stop shard reconstructor
-    /// - Phase 3: Wait for commits with missing txs (creates pending subdags)
-    ///   and verify gap
+    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 + stop txn synchronizer +
+    ///   stop shard reconstructor
+    /// - Phase 3: Wait for commits with missing txs (creates pending subdags) and verify gap
     /// - Phase 4: Stop test validator
     /// - Phase 5: Other validators continue (creates fast sync gap > threshold)
-    /// - Phase 6: Restart test validator with full connectivity, but keep txn
-    ///   synchronizer + shard reconstructor stopped to prevent pending subdags
-    ///   from being solidified
+    /// - Phase 6: Restart test validator with full connectivity, but keep txn synchronizer + shard
+    ///   reconstructor stopped to prevent pending subdags from being solidified
     /// - Phase 7: Verify fast sync was used and validator caught up
     #[tokio::test(flavor = "current_thread")]
     #[serial_test::serial]

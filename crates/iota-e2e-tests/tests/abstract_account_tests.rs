@@ -56,6 +56,8 @@ const AA_ACCOUNT_NAME: &str = "AbstractAccount";
 const AA_DELAYED_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_ACCOUNT_NAME: &str = "DelayedAbstractAccount";
 const AA_CREATE_MODULE_NAME: &str = "abstract_account_keyed";
+const AA_CREATE_FN_NAME: &str = "create";
+const AA_CREATE_IMMUTABLE_FN_NAME: &str = "create_immutable";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "abstract_account_keyed";
 const AA_DELAYED_CREATE_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_AUTHENTICATE_MODULE_NAME: &str = "delayed_abstract_account_keyed";
@@ -352,14 +354,11 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
-/// 1) Create a TX certificate signed by the validators where the authentication
-///    is successful
-/// 2) Tamper with the AA shared object state by creating a second TX altering
-///    the state by changing the public key that allows the authentication to
-///    pass
-/// 3) Submit the original certificate which should now fail during
-///    post-consensus, even though validators originally run the authenticate
-///    and it passed
+/// 1) Create a TX certificate signed by the validators where the authentication is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering the state by changing
+///    the public key that allows the authentication to pass
+/// 3) Submit the original certificate which should now fail during post-consensus, even though
+///    validators originally run the authenticate and it passed
 ///
 /// With `report_move_authentication_error` enabled (the latest protocol config)
 /// the failure surfaces as a distinct `MoveAuthentication` error that wraps the
@@ -494,13 +493,11 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
-/// 1) Create a TX certificate signed by the validators where the authentication
-///    is successful
-/// 2) Tamper with the AA shared object state by creating a second TX altering
-///    the state by deleting the AA shared object
-/// 3) Submit the original certificate which should now fail during
-///    post-consensus, even though validators originally run the authenticate
-///    and it passed
+/// 1) Create a TX certificate signed by the validators where the authentication is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering the state by deleting
+///    the AA shared object
+/// 3) Submit the original certificate which should now fail during post-consensus, even though
+///    validators originally run the authenticate and it passed
 #[sim_test]
 async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -1095,14 +1092,13 @@ async fn test_pre_consensus_authentication_failure_without_report_flag() -> Resu
 }
 
 /// Test in 3 steps
-/// 1) Create a valid TX1 certificate signed by validators where sender is an AA
-///    account using a owned Coin as gas
-/// 2) Tamper with the AA shared object by creating a second TX2, with sender
-///    being a random Bob address, altering the state calling the “receive“
-///    function for the Coin used as gas in TX1
-/// 3) Submit the original certificate TX1 which should NOT fail during
-///    post-consensus, because validators originally run the authenticate and it
-///    passed. What fails is the execution of TX2 because of the conflict on the
+/// 1) Create a valid TX1 certificate signed by validators where sender is an AA account using a
+///    owned Coin as gas
+/// 2) Tamper with the AA shared object by creating a second TX2, with sender being a random Bob
+///    address, altering the state calling the “receive“ function for the Coin used as gas in TX1
+/// 3) Submit the original certificate TX1 which should NOT fail during post-consensus, because
+///    validators originally run the authenticate and it passed. What fails is the execution of TX2
+///    because of the conflict on the
 ///   receiving object
 #[sim_test]
 async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error> {
@@ -1208,8 +1204,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
 }
 
 /// Test in 4 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by an
-///    AA account.
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by an AA account.
 /// 2) Create TX2 where the AA sender tries to use the conflict coin as input.
 /// 3) Submit the original TX1 certificate. This fails with an execution abort.
 /// 4) Submit the original TX2 certificate. This should now succeed.
@@ -1329,9 +1324,9 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
 }
 
 /// Test in 5 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
-///    AA object (before the AA account is actually created). The AA object is
-///    NOT an account yet (just a shared object).
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the AA object (before
+///    the AA account is actually created). The AA object is NOT an account yet (just a shared
+///    object).
 /// 2) Make the AA become the actual account (delayed AA creation).
 /// 3) Create TX2 where the AA sender tries to use the conflict coin as input.
 /// 4) Submit the original TX1 certificate. This fails with an execution abort.
@@ -1460,14 +1455,13 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
 }
 
 /// Test in 4 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
-///    AA object (before the AA account is actually created). The AA object is
-///    NOT an account yet (just a shared object).
-/// 2) Submit the original TX1 certificate. This is successful because the AA is
-///    not yet an account.
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the AA object (before
+///    the AA account is actually created). The AA object is NOT an account yet (just a shared
+///    object).
+/// 2) Submit the original TX1 certificate. This is successful because the AA is not yet an account.
 /// 3) Make the AA become the actual account (delayed AA creation).
-/// 4) Create and submit a TX2 where the AA sender tries to use the conflict
-///    coin using the latest reference, this should now succeed.
+/// 4) Create and submit a TX2 where the AA sender tries to use the conflict coin using the latest
+///    reference, this should now succeed.
 #[sim_test]
 async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -1621,6 +1615,161 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
     let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must succeed with both AA sender and AA sponsor.
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// A TX whose sender is an abstract account held in an immutable object must be
+/// rejected.
+#[sim_test]
+async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    // Creating the immutable account under test is rejected since version 38.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+
+    // Create the immutable AA that acts as the sender.
+    let immutable_aa_ref = test_env
+        .create_extra_immutable_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let immutable_addr: Address = immutable_aa_ref.object_id.into();
+
+    // Fund the immutable AA so it can pay for the transaction.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), immutable_addr)
+        .await;
+
+    let pt = test_env.craft_split_and_transfer_ptb(immutable_addr);
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, gas, immutable_addr, None)
+        .await?;
+    let sender_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_immutable_ref(immutable_aa_ref)?;
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig]);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+            } if *object_id == immutable_aa_ref.object_id
+        ),
+        "Expected ImmutableAccountObjectNotSupported for the sender, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// A sponsored TX whose sponsor is an abstract account held in an immutable
+/// object must be rejected, even though its sender is a shared abstract
+/// account.
+#[sim_test]
+async fn test_immutable_account_sponsor_rejected() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    // Creating the immutable account under test is rejected since version 38.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    // Create the immutable AA that acts as the sponsor.
+    let immutable_aa_ref = test_env
+        .create_extra_immutable_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_addr: Address = immutable_aa_ref.object_id.into();
+
+    // Fund the immutable AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    let pt = test_env.craft_split_and_transfer_ptb(aa_sender);
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    let sender_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sender_aa_ref)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_immutable_ref(immutable_aa_ref)?;
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+            } if *object_id == immutable_aa_ref.object_id
+        ),
+        "Expected ImmutableAccountObjectNotSupported for the sponsor, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// An immutable abstract account still authenticates while
+/// `reject_immutable_account_objects` is off.
+#[sim_test]
+async fn test_immutable_account_sender_succeeded_without_reject_flag() -> Result<(), anyhow::Error>
+{
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_objects_for_testing(false);
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+
+    let immutable_aa_ref = test_env
+        .create_extra_immutable_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let immutable_addr: Address = immutable_aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), immutable_addr)
+        .await;
+
+    let pt = test_env.craft_split_and_transfer_ptb(immutable_addr);
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, gas, immutable_addr, None)
+        .await?;
+    let sender_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_immutable_ref(immutable_aa_ref)?;
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig]);
+
     test_env.execute_and_check_tx_correctness(tx).await
 }
 
@@ -2558,6 +2707,7 @@ impl TestEnvironment {
             .craft_create_abstract_account(
                 owner,
                 authenticate_fn_name,
+                AA_CREATE_FN_NAME,
                 aa_package_id,
                 aa_package_metadata_ref,
             )
@@ -2780,6 +2930,7 @@ impl TestEnvironment {
         &self,
         owner: Address,
         authenticate_fn_name: &str,
+        create_fn_name: &str,
         aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectReference,
     ) -> anyhow::Result<TransactionEnvelope> {
@@ -2815,7 +2966,7 @@ impl TestEnvironment {
                 builder.programmable_move_call(
                     aa_package_id,
                     Identifier::from_static(AA_CREATE_MODULE_NAME),
-                    Identifier::from_static("create"),
+                    Identifier::new(create_fn_name)?,
                     vec![],
                     arguments,
                 );
@@ -2882,6 +3033,38 @@ impl TestEnvironment {
         ))
     }
 
+    /// Creates an extra AA as an immutable object (not stored in `aa_ref`) and
+    /// returns its object ref.
+    async fn create_extra_immutable_abstract_account(
+        &self,
+        authenticate_fn_name: &str,
+    ) -> anyhow::Result<ObjectReference> {
+        let (Some(owner), Some(aa_package_id), Some(aa_package_metadata_ref)) =
+            (self.owner, self.aa_package_id, self.aa_package_metadata_ref)
+        else {
+            anyhow::bail!("Owner or package id not set");
+        };
+
+        let transaction = self
+            .craft_create_abstract_account(
+                owner,
+                authenticate_fn_name,
+                AA_CREATE_IMMUTABLE_FN_NAME,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?;
+
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(transaction)
+            .await?;
+
+        Ok(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ))
+    }
+
     /// Creates an extra AA with the specified parameters (not stored in
     /// `aa_ref`) and returns its object ref.
     /// This requires if it is necessary to create more AAs in a test.
@@ -2922,6 +3105,7 @@ impl TestEnvironment {
             self.craft_create_abstract_account(
                 owner,
                 authenticate_fn_name,
+                AA_CREATE_FN_NAME,
                 aa_package_id,
                 aa_package_metadata_ref,
             )
@@ -2950,6 +3134,25 @@ impl TestEnvironment {
             )
             .into(),
         ))
+    }
+
+    /// Create a free-access MoveAuthenticator for an immutable account object.
+    fn create_move_authenticator_for_free_access_for_immutable_ref(
+        &self,
+        aa_obj_ref: ObjectReference,
+    ) -> anyhow::Result<UserSignature> {
+        Ok(UserSignature::MoveAuthenticator(
+            MoveAuthenticatorV1::new_with_immutable_account_object(vec![], vec![], aa_obj_ref)
+                .into(),
+        ))
+    }
+
+    /// PTB that splits a coin off the gas and transfers it, so that the
+    /// transaction needs no object input besides the gas.
+    fn craft_split_and_transfer_ptb(&self, recipient: Address) -> ProgrammableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(recipient, Some(100));
+        builder.finish()
     }
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator for an
@@ -3090,15 +3293,17 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 fn abstract_account_from_all_changed_objects(
     all_changed_objects: &[(OwnedObjectReference, WriteKind)],
 ) -> ObjectReference {
-    // Extract the only created shared object which is the abstract account
+    // Extract the only created shared or immutable object which is the abstract
+    // account. The other object the creation transaction writes is the
+    // authenticator function ref, which is owned by the account object.
     *all_changed_objects
         .iter()
         .find_map(|(changed, kind)| {
             matches!(
                 (changed.owner(), kind),
-                (Owner::Shared(_), WriteKind::Create)
+                (Owner::Shared(_) | Owner::Immutable, WriteKind::Create)
             )
             .then_some(changed.reference())
         })
-        .expect("Expected a shared object in the transaction response")
+        .expect("Expected a shared or immutable object in the transaction response")
 }

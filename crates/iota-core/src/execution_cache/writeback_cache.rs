@@ -30,12 +30,10 @@
 //! cached queues are the most recent versions of the object, i.e. there can be
 //! no "gaps". This allows for the following:
 //!
-//!   - Negative cache hits: If the queried version is not in memory, but is
-//!     higher than the smallest version in the cached queue, it does not exist
-//!     in the db either.
-//!   - Bounded reads: When reading the most recent version that is <= some
-//!     version bound, we can correctly satisfy this query from the cache, or
-//!     determine that we must go to the db.
+//!   - Negative cache hits: If the queried version is not in memory, but is higher than the
+//!     smallest version in the cached queue, it does not exist in the db either.
+//!   - Bounded reads: When reading the most recent version that is <= some version bound, we can
+//!     correctly satisfy this query from the cache, or determine that we must go to the db.
 //!
 //! Note that at any time, either or both the dirty or the cached queue may be
 //! non-existent. There may be no dirty versions of the objects, in which case
@@ -537,26 +535,23 @@ impl WritebackCache {
         // We must hold the lock for the object entry while inserting to the
         // object_by_id_cache. Otherwise, a surprising bug can occur:
         //
-        // 1. A thread executing TX1 can write object (O,1) to the dirty set and then
-        //    pause.
-        // 2. TX2, which reads (O,1) can begin executing, because TransactionManager
-        //    immediately schedules transactions if their inputs are available. It does
-        //    not matter that TX1 hasn't finished executing yet.
+        // 1. A thread executing TX1 can write object (O,1) to the dirty set and then pause.
+        // 2. TX2, which reads (O,1) can begin executing, because TransactionManager immediately
+        //    schedules transactions if their inputs are available. It does not matter that TX1
+        //    hasn't finished executing yet.
         // 3. TX2 can write (O,2) to both the dirty set and the object_by_id_cache.
-        // 4. The thread executing TX1 can resume and write (O,1) to the
-        //    object_by_id_cache.
+        // 4. The thread executing TX1 can resume and write (O,1) to the object_by_id_cache.
         //
         // Now, any subsequent attempt to get the latest version of O will return (O,1)
         // instead of (O,2).
         //
         // This seems very unlikely, but it may be possible under the following
         // circumstances:
-        // - While a thread is unlikely to pause for so long, moka cache uses optimistic
-        //   lock-free algorithms that have retry loops. Possibly, under high
-        //   contention, this code might spin for a surprisingly long time.
-        // - Additionally, many concurrent re-executions of the same tx could happen due
-        //   to the tx finalizer, plus checkpoint executor, consensus, and RPCs from
-        //   fullnodes.
+        // - While a thread is unlikely to pause for so long, moka cache uses optimistic lock-free
+        //   algorithms that have retry loops. Possibly, under high contention, this code might spin
+        //   for a surprisingly long time.
+        // - Additionally, many concurrent re-executions of the same tx could happen due to the tx
+        //   finalizer, plus checkpoint executor, consensus, and RPCs from fullnodes.
         let mut entry = self.dirty.objects.entry(*object_id).or_default();
 
         self.object_by_id_cache
@@ -1629,18 +1624,18 @@ impl ObjectCacheRead for WritebackCache {
 
                 // Much of the time, the query will be for the very latest object version, so
                 // try that first. But we have to be careful:
-                // 1. We must load the tombstone if it is present, because its version may
-                //    exceed the version_bound, in which case we must do a scan.
-                // 2. You might think we could just call
-                //    `self.store.get_latest_object_or_tombstone` here. But we cannot, because
-                //    there may be a more recent version in the dirty set, which we skipped over
-                //    in check_cache_entry! because of the version bound. However, if we skipped
-                //    it above, we will skip it here as well, again due to the version bound.
+                // 1. We must load the tombstone if it is present, because its version may exceed
+                //    the version_bound, in which case we must do a scan.
+                // 2. You might think we could just call `self.store.get_latest_object_or_tombstone`
+                //    here. But we cannot, because there may be a more recent version in the dirty
+                //    set, which we skipped over in check_cache_entry! because of the version bound.
+                //    However, if we skipped it above, we will skip it here as well, again due to
+                //    the version bound.
                 // 3. Despite that, we really want to warm the cache here. Why? Because if the
-                //    object is cold (not being written to), then we will very soon be able to
-                //    start serving reads of it from the object_by_id cache, IF we can warm the
-                //    cache. If we don't warm the cache here, and no writes to the object occur,
-                //    then we will always have to go to the db for the object.
+                //    object is cold (not being written to), then we will very soon be able to start
+                //    serving reads of it from the object_by_id cache, IF we can warm the cache. If
+                //    we don't warm the cache here, and no writes to the object occur, then we will
+                //    always have to go to the db for the object.
                 //
                 // Lastly, it is important to understand the rationale for all this: If the
                 // object is write-hot, we will serve almost all reads to it
@@ -2264,10 +2259,6 @@ impl ExecutionCacheReconfigAPI for WritebackCache {
         self.store
             .expensive_check_iota_conservation(self, old_epoch_store, epoch_supply_change)
     }
-
-    fn try_checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
-        self.store.perpetual_tables.checkpoint_db(path)
-    }
 }
 
 impl TestingAPI for WritebackCache {
@@ -2333,8 +2324,8 @@ impl ChildObjectResolver for WritebackCache {
 
         // Check for:
         // * Invalid access -- treat as the object does not exist. Or;
-        // * If we've already received the object at the version -- then treat it as
-        //   though it doesn't exist.
+        // * If we've already received the object at the version -- then treat it as though it
+        //   doesn't exist.
         // These two cases must remain indisguishable to the caller otherwise we risk
         // forks in transaction replay due to possible reordering of
         // transactions during replay.

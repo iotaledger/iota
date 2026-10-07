@@ -15,12 +15,10 @@ use iota_metrics::{
     monitored_mpsc::{Receiver, Sender, channel},
     monitored_scope,
 };
-use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
-use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom, thread_rng};
+use rand::{SeedableRng, rng, rngs::StdRng, seq::SliceRandom};
 use starfish_config::AuthorityIndex;
 use tokio::{
-    runtime::Handle,
     sync::{Semaphore, mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
     time::{Instant, sleep_until, timeout},
@@ -28,6 +26,7 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
+    block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
     commit_syncer::verify_transactions_commitments,
     context::Context,
@@ -36,6 +35,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
+    task::spawn_blocking,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -63,7 +63,7 @@ const MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH: usize = 4;
 const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Timeout that is given to fetch transactions from a given peer.
-const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2000);
+pub(crate) const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2000);
 
 /// Maximum number of authorities that can concurrently fetch transactions for a
 /// given block ref.
@@ -373,18 +373,15 @@ impl TransactionsSynchronizerHandle {
 /// a node when transactions from the committed blocks is absent.
 /// `TransactionsSynchronizer` aims for swift catch-up employing two mechanisms:
 ///
-/// 1. Explicitly requesting missing transactions from authorities that have
-///    acknowledged them in their blocks that were committed. A locking
-///    mechanism allows concurrent requests for missing transactions from a
-///    limited number of authorities simultaneously, enhancing the chances of
+/// 1. Explicitly requesting missing transactions from authorities that have acknowledged them in
+///    their blocks that were committed. A locking mechanism allows concurrent requests for missing
+///    transactions from a limited number of authorities simultaneously, enhancing the chances of
 ///    timely retrieval.
 ///
-/// 2. Periodically requesting missing transactions via a scheduler. This
-///    primarily serves to retrieve missing transactions that were not fetched
-///    via the live synchronization. The scheduler operates on either a fixed
-///    periodic basis or is triggered immediately after explicit fetches
-///    described in (1), ensuring continued transaction retrieval if gaps
-///    persist.
+/// 2. Periodically requesting missing transactions via a scheduler. This primarily serves to
+///    retrieve missing transactions that were not fetched via the live synchronization. The
+///    scheduler operates on either a fixed periodic basis or is triggered immediately after
+///    explicit fetches described in (1), ensuring continued transaction retrieval if gaps persist.
 pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
     context: Arc<Context>,
     commands_receiver: Receiver<Command>,
@@ -744,22 +741,20 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // For each authority, try to lock up the
         // maximum possible amount of acknowledged transactions and fetch
         // those transactions. The logic is as follows:
-        // * Iterate in random order all authorities that have acknowledged missing
-        //   transactions.
-        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using
-        //   the inflight_transactions_map. Some transactions may already be locked by
-        //   other authorities, but continue with the transactions that were
-        //   successfully locked.
-        // * For each authority, if transactions were successfully locked, then send a
-        //   request to the network client to fetch the transactions from the authority.
-        // * If the transactions were successfully fetched, then process them and send
-        //   them to the core for processing.
+        // * Iterate in random order all authorities that have acknowledged missing transactions.
+        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using the
+        //   inflight_transactions_map. Some transactions may already be locked by other
+        //   authorities, but continue with the transactions that were successfully locked.
+        // * For each authority, if transactions were successfully locked, then send a request to
+        //   the network client to fetch the transactions from the authority.
+        // * If the transactions were successfully fetched, then process them and send them to the
+        //   core for processing.
         // Each request is performed individually to avoid blocking the
         // synchronizer for too long, as certain peers may take a while to respond.
         // The number of requests to each peer is limited by the parameters.
 
         // Randomness for ordering the authorities below.
-        let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+        let mut rng = StdRng::from_rng(&mut rng());
 
         // Create an iterator over authorities with their corresponding
         // transaction refs.
@@ -802,10 +797,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let mut assigned_authorities_for_transaction_fetch = 0;
 
         for (authority, authority_transaction_refs) in iter_authorities {
-            // * If transactions are successfully locked, and we didn't make too many to
-            //   this authority, then send a request to the network client to fetch the
-            //   transactions from the authority. If the fetch is successful, then process
-            //   the transactions and send them to the core for processing.
+            // * If transactions are successfully locked, and we didn't make too many to this
+            //   authority, then send a request to the network client to fetch the transactions from
+            //   the authority. If the fetch is successful, then process the transactions and send
+            //   them to the core for processing.
             if let Some((transactions_guard, active_request_guard)) = inflight_transactions_map
                 .lock_transactions_and_active_request(
                     authority_transaction_refs.clone(),
@@ -930,6 +925,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 FETCH_REQUEST_TIMEOUT,
                 context.clone(),
                 sync_method,
+                misbehavior_store.clone(),
             )
             .await?;
 
@@ -968,6 +964,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         request_timeout: Duration,
         context: Arc<Context>,
         sync_method: SyncMethod,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<(Vec<Bytes>, TransactionsGuard, AuthorityIndex)> {
         // Track concurrent inflight requests
         let inflight_metric = &context
@@ -1016,6 +1013,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         let resp = match result {
             Ok(Err(err)) => {
+                misbehavior_store.record_fetch_fault(peer, &err);
                 // Record failure
                 context
                     .metrics
@@ -1092,83 +1090,120 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let metrics = &context.metrics.node_metrics;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
 
-        // Deserialize and verify the transactions
-        // inside verify_transactions
-        let transactions = match Handle::current()
-            .spawn_blocking({
-                let mut serialized_transactions_map: BTreeMap<TransactionRef, Bytes> =
-                    BTreeMap::new();
-                for serialized_transaction_bytes in &serialized_transactions_vec {
-                    let serialized_transactions: SerializedTransactionsV2 =
-                        bcs::from_bytes(serialized_transaction_bytes)
-                            .inspect_err(|_| {
-                                misbehavior_store.record_faulty_transactions(
-                                    peer_index,
-                                    false,
-                                    [peer_index],
-                                )
-                            })
-                            .map_err(ConsensusError::MalformedTransactions)?;
-                    let committed_transaction_ref = serialized_transactions.transaction_ref;
-                    // The commitment check below only proves each payload matches
-                    // its own claimed ref; it does not tie the ref to anything we
-                    // asked for. Reject a ref outside the requested set so a peer
-                    // cannot serve correctly-committed transactions we never
-                    // requested (which need not correspond to any real header).
-                    if !requested_transactions_guard
-                        .transactions_refs
-                        .contains(&committed_transaction_ref)
-                    {
+        // Deserialization, commitment checks and the transaction batch
+        // verification run on the blocking pool.
+        let transactions = spawn_blocking({
+            let context = context.clone();
+            let block_verifier = block_verifier.clone();
+            let misbehavior_store = misbehavior_store.clone();
+            let requested_transactions_refs =
+                requested_transactions_guard.transactions_refs.clone();
+            move || {
+                Self::verify_fetched_transactions(
+                    serialized_transactions_vec,
+                    &requested_transactions_refs,
+                    peer_index,
+                    &context,
+                    block_verifier.as_ref(),
+                    &misbehavior_store,
+                )
+            }
+        })
+        .await??;
+
+        metrics
+            .transactions_synchronizer_fetched_transactions_by_peer
+            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
+            .inc_by(transactions.len() as u64);
+        for transactions in &transactions {
+            let block_hostname = &context.committee.authority(transactions.author()).hostname;
+            metrics
+                .transactions_synchronizer_fetched_transactions_by_authority
+                .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
+                .inc();
+        }
+
+        let matched_requested = transactions.len();
+
+        // Add the transactions to the core
+        core_dispatcher
+            .add_transactions(transactions, DataSource::TransactionSynchronizer)
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
+
+        // now release all the locked blocks as they have been fetched, verified &
+        // processed
+        drop(requested_transactions_guard);
+
+        Ok(matched_requested)
+    }
+
+    /// Deserializes the fetched payloads, checks each against the commitment
+    /// in its transaction reference and runs the same validity checks as the
+    /// block-bundle route. Records metrics and misbehavior for a failure.
+    fn verify_fetched_transactions(
+        serialized_transactions_vec: Vec<Bytes>,
+        requested_transactions_refs: &BTreeSet<TransactionRef>,
+        peer_index: AuthorityIndex,
+        context: &Arc<Context>,
+        block_verifier: &dyn BlockVerifier,
+        misbehavior_store: &MisbehaviorStore,
+    ) -> ConsensusResult<Vec<CommitmentVerifiedTransactions>> {
+        let metrics = &context.metrics.node_metrics;
+        let peer_hostname = &context.committee.authority(peer_index).hostname;
+
+        let mut serialized_transactions_map: BTreeMap<TransactionRef, Bytes> = BTreeMap::new();
+        for serialized_transaction_bytes in &serialized_transactions_vec {
+            let serialized_transactions: SerializedTransactionsV2 =
+                bcs::from_bytes(serialized_transaction_bytes)
+                    .inspect_err(|_| {
                         misbehavior_store.record_faulty_transactions(
                             peer_index,
                             false,
                             [peer_index],
-                        );
-                        return Err(ConsensusError::UnrequestedTransactionFetched {
-                            peer: peer_index,
-                            transaction_ref: serialized_transactions.transaction_ref,
-                        });
-                    }
-                    serialized_transactions_map.insert(
-                        committed_transaction_ref,
-                        serialized_transactions.serialized_transactions,
-                    );
-                }
-                let context_cloned = context.clone();
-
-                move || {
-                    verify_transactions_commitments(
-                        &context_cloned,
-                        peer_index,
-                        serialized_transactions_map,
-                    )
-                }
-            })
-            .await
-            .expect("Spawn blocking should not fail")
-        {
-            Ok(transactions) => transactions,
-            Err(err) => {
-                // The serving peer relayed a payload whose bytes don't match a
-                // committed payload; count it against that peer and charge it an
-                // unprovable fault. The mismatch can't be proven against the
-                // author, whose commitment the peer may have forged.
-                metrics
-                    .invalid_transactions
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "transaction_synchronizer",
-                        err.name(),
-                    ])
-                    .inc();
+                        )
+                    })
+                    .map_err(ConsensusError::MalformedTransactions)?;
+            let committed_transaction_ref = serialized_transactions.transaction_ref;
+            // The commitment check below only proves each payload matches
+            // its own claimed ref; it does not tie the ref to anything we
+            // asked for. Reject a ref outside the requested set so a peer
+            // cannot serve correctly-committed transactions we never
+            // requested (which need not correspond to any real header).
+            if !requested_transactions_refs.contains(&committed_transaction_ref) {
                 misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
-                return Err(err);
+                return Err(ConsensusError::UnrequestedTransactionFetched {
+                    peer: peer_index,
+                    transaction_ref: serialized_transactions.transaction_ref,
+                });
             }
+            serialized_transactions_map.insert(
+                committed_transaction_ref,
+                serialized_transactions.serialized_transactions,
+            );
         }
-        .iter()
-        .map(|x| x.1)
-        .cloned()
-        .collect::<Vec<_>>();
+
+        let transactions: Vec<_> =
+            match verify_transactions_commitments(context, peer_index, serialized_transactions_map)
+            {
+                Ok(transactions) => transactions.into_values().collect(),
+                Err(err) => {
+                    // The serving peer relayed a payload whose bytes don't match a
+                    // committed payload; count it against that peer and charge it an
+                    // unprovable fault. The mismatch can't be proven against the
+                    // author, whose commitment the peer may have forged.
+                    metrics
+                        .invalid_transactions
+                        .with_label_values(&[
+                            peer_hostname.as_str(),
+                            "transaction_synchronizer",
+                            err.name(),
+                        ])
+                        .inc();
+                    misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
+                    return Err(err);
+                }
+            };
 
         // The commitment check above only proves the fetched bytes match what
         // the author committed to; it does not enforce the per-transaction
@@ -1196,42 +1231,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 return Err(err);
             }
         }
-
-        metrics
-            .transactions_synchronizer_fetched_transactions_by_peer
-            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
-            .inc_by(transactions.len() as u64);
-        for transactions in &transactions {
-            let block_hostname = &context.committee.authority(transactions.author()).hostname;
-            metrics
-                .transactions_synchronizer_fetched_transactions_by_authority
-                .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
-                .inc();
-        }
-
-        info!(
-            "[{}] Synced and processed {} missing transactions from peer {peer_index} {peer_hostname}: {}",
-            sync_method.get_string(),
-            transactions.len(),
-            transactions
-                .iter()
-                .map(|b| b.transaction_ref().to_string())
-                .join(", "),
-        );
-
-        let matched_requested = transactions.len();
-
-        // Add the transactions to the core
-        core_dispatcher
-            .add_transactions(transactions, DataSource::TransactionSynchronizer)
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
-
-        // now release all the locked blocks as they have been fetched, verified &
-        // processed
-        drop(requested_transactions_guard);
-
-        Ok(matched_requested)
+        Ok(transactions)
     }
 }
 
@@ -1251,7 +1251,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use rand::{Rng, thread_rng};
+    use rand::{RngExt, rng};
     use tokio::{sync::Mutex, time::sleep};
 
     use super::*;
@@ -1299,13 +1299,13 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1581,12 +1581,12 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_authors.len());
         let mut verified_transactions = Vec::with_capacity(block_round_authors.len());
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions with high latency to ensure saturation
         for (round, author) in &block_round_authors {
             // Create a dummy transaction
-            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
             let serialized_vec = bcs::to_bytes(&transactions).unwrap();
             let serialized = Bytes::from(serialized_vec);
             let commitment = TransactionsCommitment::compute_transactions_commitment(
@@ -1705,14 +1705,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1833,14 +1833,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1950,14 +1950,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -2069,14 +2069,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -2193,14 +2193,14 @@ mod tests {
             Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // The refs we actually request, backed by accepted headers.
         let requested: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
         let mut block_headers = Vec::new();
         let mut missing_transactions = BTreeMap::new();
         for (round, author) in requested {
-            let txs = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let txs = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&txs).unwrap());
             let commitment = TransactionsCommitment::compute_transactions_commitment(
                 &serialized,
@@ -2224,7 +2224,7 @@ mod tests {
 
         // The peer instead returns a self-consistent payload for a ref we never
         // requested (round 9, author 3).
-        let unrequested_txs = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+        let unrequested_txs = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
         let unrequested_serialized = Bytes::from(bcs::to_bytes(&unrequested_txs).unwrap());
         let unrequested_commitment = TransactionsCommitment::compute_transactions_commitment(
             &unrequested_serialized,
@@ -2313,14 +2313,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let mut transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -2427,12 +2427,12 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         for (round, author) in &block_round_author {
             // Create a dummy transaction
-            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
             let commitment = TransactionsCommitment::compute_transactions_commitment(
                 &serialized,
@@ -2528,11 +2528,11 @@ mod tests {
         // Transactions acknowledged by peer 1 (errors) and peer 2 (succeeds).
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
         let mut block_headers = Vec::with_capacity(block_round_author.len());
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,

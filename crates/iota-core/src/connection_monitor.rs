@@ -496,9 +496,9 @@ mod tests {
     }
 
     fn random_private_key() -> [u8; 32] {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut bytes = [0u8; 32];
-        rand::RngCore::fill_bytes(&mut rng, &mut bytes[..]);
+        rand::Rng::fill_bytes(&mut rng, &mut bytes[..]);
 
         bytes
     }

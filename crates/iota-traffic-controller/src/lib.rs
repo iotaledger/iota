@@ -17,6 +17,7 @@ use std::{
     fmt::Debug,
     fs,
     net::{IpAddr, SocketAddr},
+    str,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -392,12 +393,17 @@ impl TrafficController {
         );
     }
 
-    /// Handle check with dry-run mode considered
+    /// Handle check with dry-run mode considered. A request whose client IP the
+    /// node could not resolve is refused in allowlist mode, and admitted in the
+    /// rate-limiting modes, where it is charged to no client.
     pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
         let dry_run = self.dry_run.load(Ordering::Relaxed);
+        if client.is_none() {
+            self.metrics.unresolved_client_requests.inc();
+        }
         let allowed = match &self.acl {
             Acl::Allowlist(allowlist) => {
-                client.is_none_or(|client| allowlist.binary_search(&client).is_ok())
+                client.is_some_and(|client| allowlist.binary_search(&client).is_ok())
             }
             Acl::Tally(state) => check_blocklists(&state.blocklists, client, proxied_client),
         };
@@ -783,19 +789,86 @@ pub enum ClientIpStatus {
     SocketAddrMissing,
     /// `XForwardedFor` source but no `x-forwarded-for` header on the request.
     XForwardedForHeaderMissing,
-    /// `XForwardedFor` source but the header value was not valid UTF-8.
+    /// `XForwardedFor` source but the entry this node selects was not valid
+    /// UTF-8. Bytes in the rest of the header do not reach this case.
     XForwardedForInvalidUtf8,
     /// `XForwardedFor` configured with `num_hops == 0` (operator misconfig).
-    XForwardedForZeroHops,
+    /// Carries the header entries, which the operator counts to get the hop
+    /// count.
+    XForwardedForZeroHops {
+        entries: Vec<String>,
+    },
     /// `XForwardedFor` configured with `expected` hops but the header
     /// only had `actual` entries.
     XForwardedForConfigMismatch {
         expected: usize,
         actual: usize,
     },
-    /// `XForwardedFor` header was present and well-formed but the chosen hop
-    /// position did not parse as an IP address.
+    /// `XForwardedFor` source but the entry this node selects did not parse as
+    /// an IP address. Entries the node does not select do not reach this case.
     XForwardedForUnparsable,
+}
+
+/// Reports what the node read, in the words an operator needs to act on it.
+/// The three servers share this text, and the hop-count procedure in the
+/// operator guide reads the entries out of the zero-hop line.
+impl std::fmt::Display for ClientIpStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ok(client) => write!(f, "The client IP is {client}."),
+            Self::SocketAddrMissing => write!(
+                f,
+                "The request carries no peer address. Check the transport, or use the \
+                `x-forwarded-for` client-id-source if a proxy serves this node."
+            ),
+            Self::XForwardedForHeaderMissing => write!(
+                f,
+                "The request carries no x-forwarded-for header, although this node reads the \
+                client IP from that header. The request reached the node without its proxy."
+            ),
+            Self::XForwardedForInvalidUtf8 => write!(
+                f,
+                "The x-forwarded-for entry this node selects is not valid UTF-8."
+            ),
+            Self::XForwardedForZeroHops { entries } => write!(
+                f,
+                "x-forwarded-for: 0 specified. x-forwarded-for contents: {entries:?}. Please \
+                assign a nonzero number of hops, or use the `socket-addr` client-id-source if \
+                requests do not reach this node through a proxy. Until then the node reads no \
+                client IP."
+            ),
+            Self::XForwardedForConfigMismatch { expected, actual } => write!(
+                f,
+                "The x-forwarded-for header holds {actual} entries, but {expected} hops are \
+                configured. Please set the `x-forwarded-for` value under `client-id-source` to \
+                the number of proxies in front of this node."
+            ),
+            Self::XForwardedForUnparsable => write!(
+                f,
+                "The x-forwarded-for entry this node selects is not an IP address."
+            ),
+        }
+    }
+}
+
+/// The entries of the `x-forwarded-for` header, over every field of it and in
+/// order. Empty when the request carries no such header.
+fn forwarded_entries(headers: &http::HeaderMap) -> Vec<&[u8]> {
+    headers
+        .get_all("x-forwarded-for")
+        .iter()
+        .flat_map(|field| field.as_bytes().split(|byte| *byte == b','))
+        .map(|entry| entry.trim_ascii())
+        .collect()
+}
+
+/// How many proxies the `x-forwarded-for` header of a request reports, or
+/// `None` when it carries no such header. Reported whatever the client-id
+/// source is, so that an operator can tell a misconfigured proxy from a
+/// correct one.
+pub fn forwarded_hop_depth(headers: &http::HeaderMap) -> Option<usize> {
+    let entries = forwarded_entries(headers);
+    (!entries.is_empty()).then(|| entries.len().saturating_sub(1))
 }
 
 /// Resolve the client IP for an incoming request.
@@ -810,28 +883,31 @@ pub fn get_client_ip(
             None => ClientIpStatus::SocketAddrMissing,
         },
         ClientIdSource::XForwardedFor(num_hops) => {
-            let header = match headers
-                .get("x-forwarded-for")
-                .or_else(|| headers.get("X-Forwarded-For"))
-            {
-                Some(h) => h,
-                None => return ClientIpStatus::XForwardedForHeaderMissing,
-            };
-            let value = match header.to_str() {
-                Ok(v) => v,
-                Err(_) => return ClientIpStatus::XForwardedForInvalidUtf8,
-            };
-            if *num_hops == 0 {
-                return ClientIpStatus::XForwardedForZeroHops;
+            // A proxy either appends to the value the client sent or adds a
+            // field of its own, so a client could otherwise hide the entry its
+            // proxy wrote.
+            let raw_entries = forwarded_entries(headers);
+            if raw_entries.is_empty() {
+                return ClientIpStatus::XForwardedForHeaderMissing;
             }
-            let contents: Vec<&str> = value.split(',').map(str::trim).collect();
-            if contents.len() < *num_hops {
-                return ClientIpStatus::XForwardedForConfigMismatch {
-                    expected: *num_hops,
-                    actual: contents.len(),
+            if *num_hops == 0 {
+                return ClientIpStatus::XForwardedForZeroHops {
+                    entries: raw_entries
+                        .iter()
+                        .map(|entry| String::from_utf8_lossy(entry).into_owned())
+                        .collect(),
                 };
             }
-            match parse_ip(contents[contents.len() - num_hops]) {
+            if raw_entries.len() < *num_hops {
+                return ClientIpStatus::XForwardedForConfigMismatch {
+                    expected: *num_hops,
+                    actual: raw_entries.len(),
+                };
+            }
+            let Ok(entry) = str::from_utf8(raw_entries[raw_entries.len() - num_hops]) else {
+                return ClientIpStatus::XForwardedForInvalidUtf8;
+            };
+            match parse_ip(entry) {
                 Some(ip) => ClientIpStatus::Ok(ip),
                 None => ClientIpStatus::XForwardedForUnparsable,
             }
@@ -1350,6 +1426,174 @@ mod tests {
         // The second client is no longer pending. A new breach queues a block.
         spam(&controller, overflow);
         assert_eq!(controller.metrics.firewall_delegation_overflow.get(), 2);
+    }
+
+    /// The headers of a request carrying `value` as its `x-forwarded-for`
+    /// header.
+    fn forwarded(value: &[u8]) -> http::HeaderMap {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            http::HeaderValue::from_bytes(value).expect("a valid header value"),
+        );
+        headers
+    }
+
+    fn one_hop() -> ClientIdSource {
+        ClientIdSource::XForwardedFor(1)
+    }
+
+    #[test]
+    fn a_byte_the_client_sent_does_not_hide_the_entry_the_proxy_wrote() {
+        // The client sent a byte that is not readable as text, and the proxy
+        // appended its own entry after it.
+        let headers = forwarded(b"\x80, 10.0.0.1");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn the_hop_depth_survives_a_byte_the_client_sent() {
+        assert_eq!(forwarded_hop_depth(&forwarded(b"\x80, 10.0.0.1")), Some(1));
+        assert_eq!(forwarded_hop_depth(&forwarded(b"10.0.0.1")), Some(0));
+        assert_eq!(forwarded_hop_depth(&http::HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn a_second_header_field_does_not_hide_the_entry_the_proxy_wrote() {
+        // A proxy that adds a field of its own rather than appending to the
+        // client's leaves the client's field first.
+        let mut headers = forwarded(b"10.0.0.9");
+        headers.append(
+            "x-forwarded-for",
+            http::HeaderValue::from_bytes(b"10.0.0.1").expect("a valid header value"),
+        );
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn a_client_cannot_move_the_selected_entry_by_adding_its_own() {
+        let headers = forwarded(b"1.2.3.4, 5.6.7.8, 10.0.0.1");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn an_unreadable_selected_entry_resolves_no_client() {
+        let headers = forwarded(b"10.0.0.1, \x80");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::XForwardedForInvalidUtf8
+        ));
+    }
+
+    #[test]
+    fn a_selected_entry_that_is_not_an_address_resolves_no_client() {
+        let headers = forwarded(b"10.0.0.1, not-an-address");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::XForwardedForUnparsable
+        ));
+    }
+
+    #[test]
+    fn the_first_entry_is_selected_when_the_hop_count_equals_the_entry_count() {
+        let headers = forwarded(b"10.0.0.1, 5.6.7.8");
+        assert!(matches!(
+            get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(2)),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn a_header_shorter_than_the_hop_count_reports_the_mismatch() {
+        let headers = forwarded(b"1.2.3.4, 10.0.0.1");
+        assert!(matches!(
+            get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(3)),
+            ClientIpStatus::XForwardedForConfigMismatch {
+                expected: 3,
+                actual: 2
+            }
+        ));
+    }
+
+    #[test]
+    fn zero_hops_reports_the_header_entries() {
+        let headers = forwarded(b"1.2.3.4, 10.0.0.1");
+        let ClientIpStatus::XForwardedForZeroHops { entries } =
+            get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(0))
+        else {
+            panic!("zero hops names no client");
+        };
+        // The operator counts the entries after their own address to get the
+        // hop count, so every entry has to be reported, in order.
+        assert_eq!(entries, vec!["1.2.3.4", "10.0.0.1"]);
+    }
+
+    #[test]
+    fn the_zero_hop_message_is_the_one_the_operator_script_reads() {
+        let headers = forwarded(b"1.2.3.4, 10.0.0.1");
+        let status = get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(0));
+        // The same pattern `setups/validator/config-traffic-control.sh` greps
+        // for. The script counts the entries after the operator's own address,
+        // so it needs them in order and inside one pair of brackets.
+        let message = status.to_string();
+        let start = message
+            .find("x-forwarded-for contents: [")
+            .expect("the script looks for this prefix");
+        let entries = message[start..]
+            .split_once("].")
+            .expect("the script looks for a closing bracket and a period")
+            .0;
+        assert!(entries.ends_with(r#"["1.2.3.4", "10.0.0.1""#), "{message}");
+    }
+
+    #[test]
+    fn an_allowlist_refuses_a_request_with_an_unresolved_client_ip() {
+        let allow_list = Some(vec![CLIENT.to_string()]);
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                allow_list: allow_list.clone(),
+                dry_run: false,
+                ..Default::default()
+            },
+            None,
+        );
+        assert!(!controller.check(&None, &None));
+        assert_eq!(controller.metrics.requests_blocked_at_protocol.get(), 1);
+        assert_eq!(controller.metrics.unresolved_client_requests.get(), 1);
+
+        // Dry run reports the refusal without applying it.
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                allow_list,
+                dry_run: true,
+                ..Default::default()
+            },
+            None,
+        );
+        assert!(controller.check(&None, &None));
+        assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn rate_limiting_admits_a_request_with_an_unresolved_client_ip() {
+        let controller =
+            TrafficController::init_for_test(policy_config(false, PolicyKind::Spam), None);
+        // The policy blocks every client it is charged, and a request with no
+        // resolved client IP is charged to none of them.
+        controller.tally(breach(PolicyKind::Spam));
+        assert!(!controller.check(&Some(CLIENT), &None));
+        assert!(controller.check(&None, &None));
+        // Only the request with no resolved client IP is counted.
+        assert_eq!(controller.metrics.unresolved_client_requests.get(), 1);
     }
 
     #[test]

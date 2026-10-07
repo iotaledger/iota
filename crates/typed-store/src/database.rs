@@ -14,7 +14,10 @@ use fastcrypto::hash::{Digest, HashFunction};
 use iota_common::debug_fatal;
 use iota_macros::{fail_point, nondeterministic};
 use prometheus_filtered::{Histogram, HistogramTimer};
-use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
+use rocksdb::{
+    DBPinnableSlice, DBWithThreadMode, Error, LiveFile, MultiThreaded, ReadOptions,
+    SnapshotWithThreadMode, WriteBatch,
+};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
 use tracing::{debug, error, instrument, warn};
@@ -67,6 +70,21 @@ pub(crate) enum Storage {
     Rocks(RocksDB),
     #[allow(dead_code)]
     InMemory(InMemoryDB),
+}
+
+/// A point-in-time RocksDB snapshot of a database.
+///
+/// Reads through it ignore every write made after it was taken. It pins a
+/// sequence number rather than copying data, and does not survive a restart.
+///
+/// While it is alive, RocksDB keeps on disk every older version it may still
+/// read, so take it as late as possible and drop it as soon as the read is
+/// done.
+///
+/// A `CompactionFilter` ignores snapshots and may drop rows one is still
+/// reading, so never install one on a column family read through a snapshot.
+pub struct DbSnapshot<'db> {
+    snapshot: SnapshotWithThreadMode<'db, DBWithThreadMode<MultiThreaded>>,
 }
 
 impl std::fmt::Debug for Storage {
@@ -424,16 +442,19 @@ impl Database {
         }
     }
 
-    pub fn checkpoint(&self, path: &Path) -> Result<(), TypedStoreError> {
-        // TODO: implement for other storage types
-        if let Storage::Rocks(rocks) = &self.storage {
-            let checkpoint =
-                Checkpoint::new(&rocks.underlying).map_err(typed_store_err_from_rocks_err)?;
-            checkpoint
-                .create_checkpoint(path)
-                .map_err(|e| TypedStoreError::RocksDB(e.to_string()))?;
+    /// A point-in-time snapshot of this database. See [`DbSnapshot`] for what
+    /// holding one costs.
+    ///
+    /// # Panics
+    ///
+    /// Panics on the in-memory backend, which has no point-in-time reads.
+    pub fn snapshot(&self) -> DbSnapshot<'_> {
+        match &self.storage {
+            Storage::Rocks(rocks) => DbSnapshot {
+                snapshot: rocks.underlying.snapshot(),
+            },
+            Storage::InMemory(_) => unimplemented!("method is only supported for rocksdb backend"),
         }
-        Ok(())
     }
 
     pub fn get_sampling_interval(&self) -> SamplingInterval {
@@ -684,10 +705,6 @@ impl<K, V> DBMap<K, V> {
         Ok(entries)
     }
 
-    pub fn checkpoint_db(&self, path: &Path) -> Result<(), TypedStoreError> {
-        self.db.checkpoint(path)
-    }
-
     pub fn table_summary(&self) -> eyre::Result<TableSummary>
     where
         K: Serialize + DeserializeOwned,
@@ -775,6 +792,31 @@ impl<K, V> DBMap<K, V> {
             keys_scanned,
             Some(self.db_metrics.clone()),
         )
+    }
+
+    /// Iterates the whole column family as of `db_snapshot` instead of the
+    /// current state of the database.
+    ///
+    /// The blocks it reads are not added to the block cache.
+    pub fn safe_iter_at_snapshot<'a>(
+        &'a self,
+        db_snapshot: &'a DbSnapshot<'a>,
+    ) -> DbIterator<'a, (K, V)>
+    where
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        match &self.db.storage {
+            Storage::Rocks(db) => {
+                let mut readopts = self.opts.readopts();
+                readopts.fill_cache(false);
+                readopts.set_snapshot(&db_snapshot.snapshot);
+                Box::new(self.rocks_safe_iter(db, readopts))
+            }
+            Storage::InMemory(_) => {
+                unreachable!("a DbSnapshot is only created over the rocksdb backend")
+            }
+        }
     }
 
     /// Forward iterator over the raw byte bounds `[lower_bound, upper_bound)`;

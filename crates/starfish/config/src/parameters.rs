@@ -12,6 +12,13 @@ use serde::{Deserialize, Serialize};
 /// caps allow it to keep. Both caps are validated against it at startup.
 pub const MAX_HEADERS_OR_SHARDS_PER_BUNDLE: usize = 1024;
 
+/// Ceiling on the headers a header-sync fetch response may carry. The server
+/// truncates its response to its own `max_headers_per_header_sync_fetch`,
+/// validated against this at startup, so a client can reject a response past
+/// it as misbehaviour while still accepting a peer configured above its own
+/// cap.
+pub const MAX_HEADERS_PER_HEADER_SYNC_FETCH: usize = 1024;
+
 /// Operational configurations of a consensus authority.
 ///
 /// All fields should tolerate inconsistencies among authorities, without
@@ -165,16 +172,21 @@ pub struct Parameters {
     /// solidified every commit in the range. Peers without an observed vote
     /// are ordered behind; each fetch round tries a bounded number of peers,
     /// so on a committee larger than that bound they can stay outside the
-    /// round until their votes are observed. Enabled by default; disabling it
-    /// restores a plain uniform order.
+    /// round until their votes are observed. The header fetch that
+    /// reinitializes the node at the end of fast sync likewise asks peers that
+    /// have voted for the last commit first. Enabled by default; disabling it
+    /// leaves peers in the order `enable_peer_responsiveness_ranking` gives
+    /// them.
     #[serde(default = "Parameters::default_enable_commit_sync_peer_selection_by_commit_votes")]
     pub enable_commit_sync_peer_selection_by_commit_votes: bool,
 
     /// Enable adaptive acknowledgment filtering for StarfishSpeed.
-    /// Local heuristic that drops acks for authorities persistently blamed
-    /// by recent strong-vote masks. Effective only when the protocol-level
-    /// `consensus_starfish_speed` flag is also on. Enabled by default;
-    /// operators can disable it locally without a protocol change.
+    /// Local heuristic that leaves out of leader blocks the acknowledgments
+    /// that the voters are not expected to hold at the next round, judged
+    /// from how soon they acknowledged recent blocks. Voters count by how
+    /// often this node's blocks reference them. Deferred acknowledgments go
+    /// into later blocks. Effective only when the
+    /// protocol-level `consensus_starfish_speed` flag is also on.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
@@ -220,6 +232,14 @@ pub struct Parameters {
     /// regardless of how far commits run ahead of solidification.
     #[serde(default = "Parameters::default_shard_budget_per_authority")]
     pub shard_budget_per_authority: u32,
+
+    /// Maximum transaction payload bytes one fast commit-sync response carries.
+    /// A fetch covering more commits than this is answered with the commits
+    /// whose payloads fit, and the requester asks for the rest in its next
+    /// fetch. When the range's first commit exceeds this on its own it is
+    /// still served whole, one such response at a time.
+    #[serde(default = "Parameters::default_max_fast_commit_sync_transaction_bytes")]
+    pub max_fast_commit_sync_transaction_bytes: usize,
 }
 
 impl Parameters {
@@ -336,6 +356,10 @@ impl Parameters {
                 self.fast_commit_sync_batch_size as u128,
             ),
             (
+                "max_fast_commit_sync_transaction_bytes",
+                self.max_fast_commit_sync_transaction_bytes as u128,
+            ),
+            (
                 "tonic.connection_buffer_size",
                 self.tonic.connection_buffer_size as u128,
             ),
@@ -371,6 +395,11 @@ impl Parameters {
                     "{name} must not exceed {MAX_HEADERS_OR_SHARDS_PER_BUNDLE}"
                 ));
             }
+        }
+        if self.max_headers_per_header_sync_fetch > MAX_HEADERS_PER_HEADER_SYNC_FETCH {
+            return Err(format!(
+                "max_headers_per_header_sync_fetch must not exceed {MAX_HEADERS_PER_HEADER_SYNC_FETCH}"
+            ));
         }
         Ok(())
     }
@@ -530,6 +559,10 @@ impl Parameters {
         500
     }
 
+    pub(crate) fn default_max_fast_commit_sync_transaction_bytes() -> usize {
+        64 * 1024 * 1024
+    }
+
     pub(crate) fn default_shard_budget_per_authority() -> u32 {
         // Honest need per authority is one shard per slot times a few rounds
         // until decode, well under the budget at any realistic committee size.
@@ -582,6 +615,8 @@ impl Default for Parameters {
             dag_visualizer_port: None,
             solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
             shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
+            max_fast_commit_sync_transaction_bytes:
+                Parameters::default_max_fast_commit_sync_transaction_bytes(),
         }
     }
 }
@@ -729,8 +764,8 @@ impl Default for TonicParameters {
 /// so they can be rolled out and tuned per node.
 ///
 /// The defaults are sized for ~100-validator committees and the local
-/// synchronizer fan-out toward one server. `0` disables admission for that
-/// group.
+/// synchronizer fan-out toward one server. `0` turns a cap off; each cap is
+/// checked on its own.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdmissionParameters {
     /// Max concurrent block-subscription streams per peer.
@@ -758,6 +793,15 @@ pub struct AdmissionParameters {
     /// If unspecified, this will default to 8.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
+
+    /// Max concurrent commit fetches across all peers, beyond which a peer is
+    /// still granted its first. A fast commit-sync response is held in memory
+    /// until it has been sent, so this caps what serving them can cost the node
+    /// at once, short of one response per peer.
+    ///
+    /// If unspecified, this will default to 16.
+    #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
+    pub max_commit_fetches_total: u32,
 }
 
 impl AdmissionParameters {
@@ -776,6 +820,10 @@ impl AdmissionParameters {
     fn default_max_commit_fetches_per_peer() -> u32 {
         Parameters::default_commit_sync_parallel_fetches() as u32
     }
+
+    fn default_max_commit_fetches_total() -> u32 {
+        2 * AdmissionParameters::default_max_commit_fetches_per_peer()
+    }
 }
 
 impl Default for AdmissionParameters {
@@ -786,6 +834,7 @@ impl Default for AdmissionParameters {
             max_transaction_fetches_per_peer:
                 AdmissionParameters::default_max_transaction_fetches_per_peer(),
             max_commit_fetches_per_peer: AdmissionParameters::default_max_commit_fetches_per_peer(),
+            max_commit_fetches_total: AdmissionParameters::default_max_commit_fetches_total(),
         }
     }
 }

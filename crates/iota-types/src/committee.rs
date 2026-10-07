@@ -10,14 +10,14 @@ use std::{
 };
 
 use fastcrypto::traits::KeyPair;
+use iota_common::portable_random;
 use iota_multiaddr::Multiaddr;
 pub use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{TransactionDigest, ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
 use rand::{
     Rng, SeedableRng,
-    rngs::{StdRng, ThreadRng},
-    seq::SliceRandom,
+    rngs::{ChaCha12Rng, ThreadRng},
 };
 use serde::{Deserialize, Serialize};
 
@@ -199,30 +199,28 @@ impl Committee {
             .unwrap()
     }
 
+    /// Draws `count` authorities without replacement, with probability
+    /// proportional to stake.
+    ///
+    /// `portable_random` rather than `rand`'s own sampler because
+    /// `shuffle_by_stake_from_tx_digest` feeds this a digest-seeded RNG and
+    /// every validator has to reach the same order; `rand` does not promise
+    /// the same draws across versions. Weights are validated in `new`.
     fn choose_multiple_weighted<'a>(
         slice: &'a [(AuthorityName, StakeUnit)],
         count: usize,
         rng: &mut impl Rng,
     ) -> impl Iterator<Item = &'a AuthorityName> {
-        // unwrap is safe because we validate the committee composition in `new` above.
-        // See https://docs.rs/rand/latest/rand/distributions/weighted/enum.WeightedError.html
-        // for possible errors.
-        slice
-            .choose_multiple_weighted(rng, count, |(_, weight)| *weight as f64)
-            .unwrap()
-            .map(|(a, _)| a)
+        portable_random::sample_weighted(rng, slice.len(), |i| slice[i].1 as f64, count)
+            .into_iter()
+            .map(|i| &slice[i].0)
     }
 
     pub fn choose_multiple_weighted_iter(
         &self,
         count: usize,
     ) -> impl Iterator<Item = &AuthorityName> {
-        self.voting_rights
-            .choose_multiple_weighted(&mut ThreadRng::default(), count, |(_, weight)| {
-                *weight as f64
-            })
-            .unwrap()
-            .map(|(a, _)| a)
+        Self::choose_multiple_weighted(&self.voting_rights, count, &mut ThreadRng::default())
     }
 
     pub fn total_votes(&self) -> StakeUnit {
@@ -299,11 +297,12 @@ impl Committee {
         &self,
         tx_digest: &TransactionDigest,
     ) -> Vec<AuthorityName> {
-        // the 32 is as requirement of the default StdRng::from_seed choice
         let digest_bytes = tx_digest.into_bytes();
 
-        // permute the validators deterministically, based on the digest
-        let mut rng = StdRng::from_seed(digest_bytes);
+        // Permute the validators deterministically from the digest. Named
+        // `ChaCha12Rng` rather than `StdRng`, whose algorithm `rand` is free to
+        // change between versions.
+        let mut rng = ChaCha12Rng::from_seed(digest_bytes);
         self.shuffle_by_stake_with_rng(None, None, &mut rng)
     }
 
@@ -642,7 +641,7 @@ mod test {
     /// committee, and one that is not a close of epoch.
     #[test]
     fn committee_chain_verifier_walks_and_rejects() {
-        let mut rng = StdRng::from_seed(RNG_SEED);
+        let mut rng = rand::rngs::StdRng::from_seed(RNG_SEED);
         let (keys, committee) = make_committee_key(&mut rng);
         let (other_keys, other_committee) = make_committee_key(&mut rng);
 

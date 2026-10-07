@@ -1163,8 +1163,7 @@ fn multisig_public_key(
 
 /// Converts legacy formatted private key to 33 bytes bech32 encoded private key
 /// or vice versa. It can handle:
-/// 1) Hex encoded 32 byte private key (assumes scheme is Ed25519), this is the
-///    legacy wallet format
+/// 1) Hex encoded 32 byte private key (assumes scheme is Ed25519), this is the legacy wallet format
 /// 2) Base64 encoded 32 bytes private key (assumes scheme is Ed25519)
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.

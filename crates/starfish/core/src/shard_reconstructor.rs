@@ -33,6 +33,7 @@ use crate::{
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorStore,
+    task::spawn_blocking,
     transaction_ref::TransactionRef,
 };
 
@@ -268,6 +269,59 @@ fn record_reconstruction_commitment_mismatch(
     misbehavior_store.record_faulty_transactions(tx_ref.author, false, relayers);
 }
 
+/// Decodes the collected shards, checks the result against the commitment in
+/// the transaction reference and runs the transaction validity checks,
+/// recording the misbehavior for a failure.
+fn reconstruct_and_verify(
+    shard_accumulator: ShardAccumulator,
+    codec: &mut Codec,
+    dag_state: &RwLock<DagState>,
+    block_verifier: &dyn BlockVerifier,
+    misbehavior_store: &MisbehaviorStore,
+) -> ReconstructionResult {
+    // Read what the failure paths attribute with before decoding consumes
+    // the accumulator.
+    let tx_ref = shard_accumulator.transaction_ref;
+    let relayers: Vec<_> = shard_accumulator
+        .collected_shard_indices()
+        .filter_map(|i| codec.context.committee.to_authority_index(i))
+        .collect();
+    match shard_accumulator.decode_and_verify_commitment(codec) {
+        // Validity-threshold relayer stake guarantees an honest relayer and
+        // thus a genuine commitment, so a decode failure indicates a codec bug
+        // or Byzantine stake beyond the fault model.
+        Err(err) => {
+            error!("Failed to reconstruct transactions for {tx_ref:?}: {err:?}");
+            // A commitment mismatch means the reconstructed bytes aren't the
+            // ones the author committed to; the shards, and thus the mismatch,
+            // come from peers, so charge only the peers that relayed shards,
+            // never the author.
+            if matches!(err, ConsensusError::TransactionCommitmentMismatch { .. }) {
+                record_reconstruction_commitment_mismatch(misbehavior_store, tx_ref, relayers);
+            }
+            Err(tx_ref)
+        }
+        Ok(verified_transactions) => {
+            match block_verifier.verify_transactions_validity(&verified_transactions) {
+                Ok(()) => {
+                    debug!("Successfully reconstructed transactions for {tx_ref:?}");
+                    Ok(verified_transactions)
+                }
+                Err(err) => {
+                    record_reconstruction_validity_failure(
+                        dag_state,
+                        misbehavior_store,
+                        tx_ref,
+                        relayers,
+                        &err,
+                    );
+                    Err(tx_ref)
+                }
+            }
+        }
+    }
+}
+
 /// Data structure containing both encoder and decoder
 pub struct Codec {
     pub encoder: Box<dyn ShardEncoder + Send + Sync>,
@@ -468,58 +522,38 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     rx.recv().await
                 } {
                     metrics.node_metrics.reconstruction_jobs_started.inc();
-                    // Read what the failure paths attribute with before decoding
-                    // consumes the accumulator.
-                    let tx_ref = shard_accumulator.transaction_ref;
-                    let relayers: Vec<_> = shard_accumulator
-                        .collected_shard_indices()
-                        .filter_map(|i| context.committee.to_authority_index(i))
-                        .collect();
-                    let result = match shard_accumulator.decode_and_verify_commitment(&mut codec) {
-                        // Validity-threshold relayer stake guarantees an honest
-                        // relayer and thus a genuine commitment, so a decode
-                        // failure indicates a codec bug or Byzantine stake
-                        // beyond the fault model.
-                        Err(err) => {
-                            error!("Failed to reconstruct transactions for {tx_ref:?}: {err:?}");
-                            // A commitment mismatch means the reconstructed bytes
-                            // aren't the ones the author committed to; the shards,
-                            // and thus the mismatch, come from peers, so charge
-                            // only the peers that relayed shards, never the author.
-                            if matches!(err, ConsensusError::TransactionCommitmentMismatch { .. }) {
-                                record_reconstruction_commitment_mismatch(
-                                    &misbehavior_store,
-                                    tx_ref,
-                                    relayers,
-                                );
-                            }
-                            Err(tx_ref)
+                    // The job runs on the blocking pool; the codec travels with it
+                    // and comes back with the result.
+                    let job = spawn_blocking({
+                        let dag_state = dag_state.clone();
+                        let block_verifier = block_verifier.clone();
+                        let misbehavior_store = misbehavior_store.clone();
+                        move || {
+                            let result = reconstruct_and_verify(
+                                shard_accumulator,
+                                &mut codec,
+                                &dag_state,
+                                block_verifier.as_ref(),
+                                &misbehavior_store,
+                            );
+                            (codec, result)
                         }
-                        Ok(verified_transactions) => match block_verifier
-                            .verify_transactions_validity(&verified_transactions)
-                        {
-                            Ok(()) => {
-                                debug!("Successfully reconstructed transactions for {tx_ref:?}");
-                                Ok(verified_transactions)
-                            }
-                            Err(err) => {
-                                record_reconstruction_validity_failure(
-                                    &dag_state,
-                                    &misbehavior_store,
-                                    tx_ref,
-                                    relayers,
-                                    &err,
-                                );
-                                Err(tx_ref)
-                            }
-                        },
+                    })
+                    .await;
+                    let result = match job {
+                        Ok((returned_codec, result)) => {
+                            codec = returned_codec;
+                            result
+                        }
+                        // Cancelled by runtime shutdown.
+                        Err(_) => break,
                     };
                     if let Err(err) = result_tx.send(result).await {
                         warn!("Failed to send the result to shard accumulator {err}");
                     }
                     metrics.node_metrics.reconstruction_jobs_finished.inc();
                 }
-                debug!("Ready to reconstruct channel closed, workers exiting");
+                debug!("Reconstruction worker exiting");
             });
         }
     }
@@ -966,7 +1000,7 @@ mod tests {
     };
 
     use parking_lot::RwLock;
-    use rand::{seq::SliceRandom, thread_rng};
+    use rand::{rng, seq::SliceRandom};
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::sync::{Mutex, mpsc::Sender};
 
@@ -1153,9 +1187,8 @@ mod tests {
 
     ///  Prepare a batch of messages simulating the case:
     /// - FullTransaction for round `i` from authority `j`
-    /// - The j-th shard of every authority's transaction data from round `i-1`
-    ///   This simulates the typical case where authority is streaming its block
-    ///   bundles
+    /// - The j-th shard of every authority's transaction data from round `i-1` This simulates the
+    ///   typical case where authority is streaming its block bundles
     fn prepare_bundle_messages(
         authority_j: u8,
         header_cur: VerifiedBlockHeader,
@@ -1219,7 +1252,7 @@ mod tests {
             .unwrap();
 
         // Shuffle shard indices
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut indices: Vec<usize> = (0..all_shards.len()).collect();
         indices.shuffle(&mut rng);
 
@@ -1401,7 +1434,7 @@ mod tests {
             .unwrap();
 
         // Shuffle shard indices so it's not always the same missing one
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut indices: Vec<usize> = (0..all_shards.len()).collect();
         indices.shuffle(&mut rng);
 

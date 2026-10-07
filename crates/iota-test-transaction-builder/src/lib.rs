@@ -30,7 +30,7 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use rand::Rng;
+use rand::RngExt;
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -60,7 +60,7 @@ impl TestTransactionBuilder {
     /// transactions (same sender, gas object and arguments) and must avoid
     /// colliding on an already-executed digest.
     pub fn ensure_unique(mut self) -> Self {
-        self.nonce = Some(rand::thread_rng().gen());
+        self.nonce = Some(rand::rng().random());
         self
     }
 
@@ -800,8 +800,8 @@ pub async fn delete_nft(
 /// Fetch one IOTA coin owned by `sender` to use as an explicit gas coin.
 ///
 /// Without an explicit gas coin,
-/// [`TransactionBuilder::finish`](iota_sdk_transaction_builder::TransactionBuilder::finish) auto-adds
-/// every IOTA coin the sender owns as gas inputs and merges the leftover into
+/// [`TransactionBuilder::finish`](iota_sdk_transaction_builder::TransactionBuilder::finish)
+/// auto-adds every IOTA coin the sender owns as gas inputs and merges the leftover into
 /// one output coin, breaking tests that observe the sender's coin count.
 pub async fn select_gas_coin(
     grpc_client: &iota_grpc_client::GrpcClient,

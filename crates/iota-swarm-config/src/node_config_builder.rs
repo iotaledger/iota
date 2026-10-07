@@ -276,7 +276,7 @@ impl ValidatorConfigBuilder {
         config
     }
 
-    pub fn build_new_validator<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_new_validator<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -313,11 +313,18 @@ pub struct FullnodeConfigBuilder {
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
+    state_snapshot_write_config: Option<StateSnapshotConfig>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Publishes formal state snapshots to the store the config names.
+    pub fn with_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.state_snapshot_write_config = Some(config);
+        self
     }
 
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
@@ -460,7 +467,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build_from_parts`] returns an error.
-    pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -474,7 +481,7 @@ impl FullnodeConfigBuilder {
     /// the fullnode freshly generated key pairs and addresses.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -648,7 +655,7 @@ impl FullnodeConfigBuilder {
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
-            state_snapshot_write_config: StateSnapshotConfig::default(),
+            state_snapshot_write_config: self.state_snapshot_write_config.unwrap_or_default(),
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
@@ -680,7 +687,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build`] returns an error.
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -692,7 +699,7 @@ impl FullnodeConfigBuilder {
     /// Build the fullnode config against the given network config.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -740,7 +747,7 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::{FullnodeConfigBuilder, Genesis, ValidatorGenesisConfigBuilder};
 
@@ -751,7 +758,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
         genesis_config.p2p_address = "/ip4/127.0.0.1/udp/9186/http".parse().unwrap();
@@ -793,7 +800,7 @@ mod tests {
     fn an_address_set_on_the_builder_wins_over_the_genesis_config() {
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
 

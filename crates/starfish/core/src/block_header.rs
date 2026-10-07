@@ -65,12 +65,12 @@ pub(crate) const fn uleb128_len(mut value: usize) -> usize {
 ///
 /// `BlockHeaderV2` is the largest header variant; its size is dominated by two
 /// committee-sized vectors. Layout:
-/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms`
-///   (8) + overlap indices (1 + 1) + `transactions_commitment` (32).
-/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each)
-///   plus the sequence-length prefix.
-/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each:
-///   index (4) + digest (32)) plus the sequence-length prefix.
+/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms` (8) + overlap
+///   indices (1 + 1) + `transactions_commitment` (32).
+/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each) plus the
+///   sequence-length prefix.
+/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each: index (4) + digest
+///   (32)) plus the sequence-length prefix.
 /// - 34 bytes for `Option<StrongVote>`: `Some` tag (1) + `leader_authority` (1)
 ///   + `AuthoritySet` bitmask (32).
 ///
@@ -132,10 +132,10 @@ impl Transaction {
     // Create one random transaction for testing
     #[cfg(test)]
     pub fn random_transaction(max_len: usize) -> Self {
-        use rand::{Rng, RngCore};
+        use rand::{Rng, RngExt};
 
-        let mut rng = rand::thread_rng();
-        let len = rng.gen_range(0..=max_len);
+        let mut rng = rand::rng();
+        let len = rng.random_range(0..=max_len);
         let mut buf = vec![0u8; len];
         rng.fill_bytes(&mut buf);
         Transaction {
@@ -694,7 +694,7 @@ impl BlockHeaderDigest {
 
 impl BlockHeaderDigest {
     #[cfg(test)]
-    pub fn random<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
+    pub fn random<R: rand::CryptoRng>(mut rng: R) -> Self {
         let mut bytes = [0; DIGEST_LENGTH];
         rng.fill_bytes(&mut bytes);
         Self(bytes)
@@ -1848,7 +1848,7 @@ mod tests {
     #[tokio::test]
     async fn test_compress_references() {
         use crate::block_header::BlockRef;
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
 
         let ref_a = BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng));
         let ref_b = BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng));
@@ -1937,7 +1937,7 @@ mod tests {
     #[test]
     fn test_verify_references_indices(#[values(false, true)] use_v2: bool) {
         use crate::block_header::{BlockHeader, BlockHeaderV1, BlockHeaderV2, BlockRef};
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
         let refs = vec![
             BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng)),
             BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng)),

@@ -3,9 +3,9 @@
 
 use std::fmt;
 
-use iota_sdk_move_types::iota_framework::linked_table::{LinkedTable, Node};
-pub use iota_sdk_move_types::iota_framework::transaction_deny_rules::{
-    TransactionDenyRules, TransactionDenyRulesInnerV1,
+use iota_sdk_move_types::iota_framework::{
+    linked_table::{LinkedTable, Node},
+    transaction_deny_rules::{TransactionDenyRules, TransactionDenyRulesInnerV1},
 };
 use iota_sdk_types::{DenyRuleSet, Identifier, Version};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};

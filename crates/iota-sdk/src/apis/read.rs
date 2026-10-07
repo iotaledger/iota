@@ -675,15 +675,12 @@ impl ReadApi {
     /// Unlike a dry run, this method will not validate whether the transaction
     /// block would succeed or fail under normal circumstances, e.g.:
     ///
-    /// - Transaction inputs are not checked for ownership (i.e. you can
-    ///   construct calls involving objects you do not own)
-    /// - Calls are not checked for visibility (you can call private functions
-    ///   on modules)
-    /// - Inputs of any type can be constructed and passed in, including coins
-    ///   and other objects that would usually need to be constructed with a
-    ///   move call
-    /// - Function returns do not need to be used, even if they do not have
-    ///   `drop`
+    /// - Transaction inputs are not checked for ownership (i.e. you can construct calls involving
+    ///   objects you do not own)
+    /// - Calls are not checked for visibility (you can call private functions on modules)
+    /// - Inputs of any type can be constructed and passed in, including coins and other objects
+    ///   that would usually need to be constructed with a move call
+    /// - Function returns do not need to be used, even if they do not have `drop`
     ///
     /// This method's output includes a breakdown of results returned by every
     /// transaction in the block, as well as the transaction's effects.

@@ -91,7 +91,7 @@ use move_transactional_test_runner::{
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use simulacrum::SimulatorStore;
 use tempfile::{NamedTempFile, tempdir};
 
@@ -2095,6 +2095,7 @@ impl IotaTestAdapter {
         &mut self,
         result: SimulateTransactionResult,
     ) -> anyhow::Result<TxnSummary> {
+        let output_objects = result.output_objects;
         let events = result.events.unwrap_or_default().0;
         let effects: IotaTransactionBlockEffects = result.effects.try_into()?;
         if let IotaExecutionStatus::Failure { error } = effects.status() {
@@ -2123,7 +2124,14 @@ impl IotaTestAdapter {
             .collect();
 
         // Use a stable sort before assigning fake ids, so test output remains stable.
-        might_need_fake_id.sort_by_key(|id| self.get_object_sorting_key(id));
+        // The simulation wrote nothing, so the objects it produced are only available
+        // from its own output.
+        might_need_fake_id.sort_by_key(|id| {
+            let object = output_objects.get(id).unwrap_or_else(|| {
+                panic!("object {id} is reported as written but missing from the simulation output")
+            });
+            self.object_sorting_key(object)
+        });
         for id in might_need_fake_id {
             self.enumerate_fake(id);
         }
@@ -2165,10 +2173,17 @@ impl IotaTestAdapter {
         }
     }
 
+    // Reads the object from storage, so it only works for a transaction that was
+    // executed. A simulated one writes nothing, and has to sort the objects it
+    // produced with `object_sorting_key`.
+    fn get_object_sorting_key(&self, id: &ObjectId) -> String {
+        self.object_sorting_key(&self.get_object(id, None).unwrap())
+    }
+
     // stable way of sorting objects by type. Does not however, produce a stable
     // sorting between objects of the same type
-    fn get_object_sorting_key(&self, id: &ObjectId) -> String {
-        match &self.get_object(id, None).unwrap().data {
+    fn object_sorting_key(&self, object: &Object) -> String {
+        match &object.data {
             ObjectData::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
             ObjectData::Package(pkg) => pkg
                 .serialized_module_map()
@@ -2743,7 +2758,7 @@ async fn init_val_fullnode_executor(
     let mut mk_account = || {
         let (address, key) = get_key_pair_from_rng(&mut rng);
         let obj = Object::with_id_owner_gas_for_testing(
-            ObjectId::new(rng.gen()),
+            ObjectId::new(rng.random()),
             address,
             GAS_FOR_TESTING,
         );

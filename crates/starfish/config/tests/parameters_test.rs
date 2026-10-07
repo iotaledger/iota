@@ -155,3 +155,20 @@ fn validate_rejects_bundle_caps_above_the_decoding_ceiling() {
     .validate()
     .unwrap();
 }
+
+#[test]
+fn validate_rejects_header_sync_cap_above_the_response_ceiling() {
+    let parameters = starfish_config::Parameters {
+        max_headers_per_header_sync_fetch: starfish_config::MAX_HEADERS_PER_HEADER_SYNC_FETCH + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_headers_per_header_sync_fetch"));
+
+    starfish_config::Parameters {
+        max_headers_per_header_sync_fetch: starfish_config::MAX_HEADERS_PER_HEADER_SYNC_FETCH,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}

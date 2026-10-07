@@ -48,20 +48,16 @@ fn first_simulated_transaction(response: &SimulateTransactionsResponse) -> &Simu
 
 /// Simulate a transaction and assert field presence at three levels:
 ///
-/// 1. **`expected_response_paths` / `ignored_response_paths`** — asserted on
-///    the [`SimulatedTransaction`].
-/// 2. **`expected_command_results_paths`** — when non-empty, `execution_result`
-///    is extracted as [`ExecutionResult::CommandResults`] and
-///    [`assert_field_presence`] is called on it.  Paths are relative to
-///    `CommandResults` (i.e. strip the leading
-///    `"execution_result.command_results."` prefix).  Panics if
-///    `execution_result` is not the `CommandResults` variant.
-/// 3. **`expected_execution_error_paths`** — when non-empty, `execution_result`
-///    is extracted as [`ExecutionResult::ExecutionError`] and
-///    [`assert_field_presence`] is called on it.  Paths are relative to
-///    `ExecutionError` (i.e. strip the leading
-///    `"execution_result.execution_error."` prefix).  Panics if
-///    `execution_result` is not the `ExecutionError` variant.
+/// 1. **`expected_response_paths` / `ignored_response_paths`** — asserted on the
+///    [`SimulatedTransaction`].
+/// 2. **`expected_command_results_paths`** — when non-empty, `execution_result` is extracted as
+///    [`ExecutionResult::CommandResults`] and [`assert_field_presence`] is called on it.  Paths are
+///    relative to `CommandResults` (i.e. strip the leading `"execution_result.command_results."`
+///    prefix).  Panics if `execution_result` is not the `CommandResults` variant.
+/// 3. **`expected_execution_error_paths`** — when non-empty, `execution_result` is extracted as
+///    [`ExecutionResult::ExecutionError`] and [`assert_field_presence`] is called on it.  Paths are
+///    relative to `ExecutionError` (i.e. strip the leading `"execution_result.execution_error."`
+///    prefix).  Panics if `execution_result` is not the `ExecutionError` variant.
 async fn assert_simulate_transaction_request(
     exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
     transaction: ProtoTransaction,

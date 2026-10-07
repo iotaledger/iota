@@ -14,7 +14,7 @@ use anyhow::{Context, Result};
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
-    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange, StateSnapshotConfig},
     p2p::DiscoveryConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
@@ -41,13 +41,13 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use tempfile::TempDir;
 use tracing::info;
 
 use super::Node;
 
-pub struct SwarmBuilder<R = OsRng> {
+pub struct SwarmBuilder<R = UnwrapErr<SysRng>> {
     rng: R,
     // template: NodeConfig,
     dir: Option<PathBuf>,
@@ -78,6 +78,7 @@ pub struct SwarmBuilder<R = OsRng> {
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
     fullnode_enable_grpc_api: bool,
+    fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
     deterministic_validator_port_base: Option<u16>,
@@ -89,7 +90,7 @@ impl SwarmBuilder {
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            rng: OsRng,
+            rng: UnwrapErr(SysRng),
             dir: None,
             committee: CommitteeConfig::Size(NonZeroUsize::new(1).unwrap()),
             genesis_config: None,
@@ -117,6 +118,7 @@ impl SwarmBuilder {
             disable_fullnode_pruning: false,
             iota_names_config: None,
             fullnode_enable_grpc_api: false,
+            fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
             deterministic_validator_port_base: None,
@@ -127,7 +129,7 @@ impl SwarmBuilder {
 }
 
 impl<R> SwarmBuilder<R> {
-    pub fn rng<N: rand::RngCore + rand::CryptoRng>(self, rng: N) -> SwarmBuilder<N> {
+    pub fn rng<N: rand::CryptoRng>(self, rng: N) -> SwarmBuilder<N> {
         SwarmBuilder {
             rng,
             dir: self.dir,
@@ -158,6 +160,7 @@ impl<R> SwarmBuilder<R> {
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
+            fullnode_state_snapshot_config: self.fullnode_state_snapshot_config,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
             deterministic_validator_port_base: self.deterministic_validator_port_base,
@@ -374,6 +377,13 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    /// Makes the fullnode publish formal state snapshots to the store the
+    /// config names.
+    pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.fullnode_state_snapshot_config = Some(config);
+        self
+    }
+
     pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
         self.fullnode_enable_grpc_api = enable;
         self
@@ -436,7 +446,7 @@ impl<R> SwarmBuilder<R> {
     }
 }
 
-impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
+impl<R: rand::CryptoRng> SwarmBuilder<R> {
     /// Create the configured Swarm.
     ///
     /// # Panics
@@ -450,11 +460,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     ///
     /// # Errors
     ///
-    /// - A `validator-<N>` override names a validator the network does not
-    ///   have.
+    /// - A `validator-<N>` override names a validator the network does not have.
     /// - An override fails to apply to a built config.
-    /// - The network has a fullnode and a validator config has no
-    ///   `p2p-config.external-address`.
+    /// - The network has a fullnode and a validator config has no `p2p-config.external-address`.
     ///
     /// # Panics
     ///
@@ -628,6 +636,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
         // Add gRPC config wiring
         fullnode_config_builder =
             fullnode_config_builder.with_enable_grpc_api(self.fullnode_enable_grpc_api);
+        if let Some(config) = self.fullnode_state_snapshot_config.clone() {
+            fullnode_config_builder = fullnode_config_builder.with_state_snapshot_config(config);
+        }
         if let Some(grpc_config) = &self.fullnode_grpc_api_config {
             fullnode_config_builder =
                 fullnode_config_builder.with_grpc_api_config(grpc_config.clone());
@@ -652,7 +663,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 Some(genesis_config) => {
                     builder.try_build_with_genesis_config(genesis_config, &network_config)
                 }
-                None => builder.try_build(&mut OsRng, &network_config),
+                None => builder.try_build(&mut UnwrapErr(SysRng), &network_config),
             }
             .context("failed to build the fullnode config")?;
             apply_node_config_overrides(
@@ -879,6 +890,7 @@ mod test {
         node_config_override::{NodeConfigOverride, apply_node_config_overrides},
     };
     use iota_types::traffic_control::PolicyConfig;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::Swarm;
 
@@ -964,7 +976,7 @@ mod test {
 
         let mut config = swarm
             .get_fullnode_config_builder()
-            .build(&mut rand::rngs::OsRng, swarm.config());
+            .build(&mut UnwrapErr(SysRng), swarm.config());
         assert_eq!(
             config.authority_store_pruning_config.num_epochs_to_retain,
             0
@@ -1246,7 +1258,7 @@ mod test {
     fn the_first_fullnode_takes_the_given_genesis_config() {
         let mut fullnode_genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut rand::rngs::OsRng);
+            .build(&mut UnwrapErr(SysRng));
         fullnode_genesis_config.metrics_address = ([127, 0, 0, 1], 19184).into();
         fullnode_genesis_config.admin_interface_address = ([127, 0, 0, 1], 19185).into();
         fullnode_genesis_config.p2p_address = "/ip4/127.0.0.1/udp/19186/http".parse().unwrap();

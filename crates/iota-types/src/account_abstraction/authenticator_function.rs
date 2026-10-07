@@ -1,17 +1,21 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
+};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TypeTag,
+    Address, Identifier, MoveAuthenticator, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    dynamic_field::{self, Field},
-    error::{IotaError, UserInputError, UserInputResult},
+    dynamic_field,
+    error::{ExecutionError, IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,
+    transaction::CheckedInputObjects,
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
@@ -111,6 +115,22 @@ impl AuthenticatorFunctionRefForExecution {
     }
 }
 
+/// A `MoveAuthenticator` with the inputs and account resolution it executes
+/// with. `FunctionRef` is `Option`al while resolution may still have failed.
+pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefForExecution> {
+    pub authenticator: MoveAuthenticator,
+    pub function_ref: FunctionRef,
+    pub input_objects: CheckedInputObjects,
+}
+
+/// The Move authenticators a transaction executes with: either every
+/// authenticator's function ref resolved, or resolution failed before
+/// execution and the failure is reported in the authentication's place.
+pub enum MoveAuthenticatorsForExecution {
+    Resolved(Vec<MoveAuthenticatorForExecution>),
+    ResolutionFailed(ExecutionError),
+}
+
 /// Derive the id of the dynamic field on the account object that holds its
 /// [`AuthenticatorFunctionRefV1`].
 pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
@@ -120,7 +140,8 @@ pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
     dynamic_field::derive_dynamic_field_id(
         account_object_id,
         &StructTag::new_authenticator_function_ref_v1_key().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        &bcs::to_bytes(&AuthenticatorFunctionRefV1Key::default())
+            .expect("BCS of a struct with one bool field cannot fail"),
     )
     .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId { account_object_id })
 }

@@ -11,7 +11,7 @@ use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
 use iota_metrics::monitored_mpsc::{self, Receiver, Sender};
 use parking_lot::RwLock;
-use rand::{Rng as _, SeedableRng, prelude::StdRng};
+use rand::{RngExt as _, SeedableRng, prelude::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Mutex, mpsc::error::TrySendError},
@@ -306,7 +306,7 @@ impl CordialKnowledge {
                 missing_authors: vec![None; num_authorities],
                 latest_own_block_round: Round::MIN,
                 has_useful_headers_from_peer: vec![false; num_authorities],
-                rng: StdRng::from_entropy(),
+                rng: StdRng::from_rng(&mut rand::rng()),
                 requested_shard_authors: vec![BTreeMap::new(); num_authorities],
             },
             connection_knowledges,
@@ -735,7 +735,7 @@ impl CordialKnowledge {
         if candidates.is_empty() {
             return;
         }
-        let peer = candidates[rng.gen_range(0..candidates.len())];
+        let peer = candidates[rng.random_range(0..candidates.len())];
         let selected_peers: Vec<_> = missing_author.selected_peers.iter().copied().collect();
         let Some((slowest_peer, _)) = context
             .peer_responsiveness
@@ -943,8 +943,7 @@ impl CordialKnowledge {
         let who_knows_this_block = AuthoritySet::new_with(block_ref.author, self.context.own_index);
         round_map.insert(block_digest, (ancestors, who_knows_this_block));
 
-        // 2) Notify all *other* authorities (except self and block_author) about new
-        //    header
+        // 2) Notify all *other* authorities (except self and block_author) about new header
         for (authority, msgs) in vec_knowledge_msgs.iter_mut().enumerate() {
             // don't send shard to self nor to the author of the block
             if authority == block_author || authority == own_index {
@@ -1310,16 +1309,16 @@ impl ConnectionKnowledge {
         for ancestor_block_ref in block.ancestors() {
             self.set_referenced_header(*ancestor_block_ref);
         }
-        // 1. Own headers and shards for round up to round_upper_bound_exclusive should
-        //    be marked as known
+        // 1. Own headers and shards for round up to round_upper_bound_exclusive should be marked as
+        //    known
         let own_index = self.context.own_index;
         let mut rounds = vec![Round::MIN; self.context.committee.size()];
         rounds[own_index] = block_round; // We are supposed to send own block of this round in a bundle when calling this function with this parameter
 
         self.evict_below(rounds);
 
-        // 2. Identify useful authorities for headers and take the corresponding headers
-        //    from the DAG state
+        // 2. Identify useful authorities for headers and take the corresponding headers from the
+        //    DAG state
         let useful_headers_authors_to_peer: Vec<usize> = self
             .last_useful_headers_to_peer_round
             .iter()
@@ -1346,8 +1345,8 @@ impl ConnectionKnowledge {
                 .collect()
         };
 
-        // 3. Identify useful authorities for shards and take the corresponding shards
-        //    from the DAG state
+        // 3. Identify useful authorities for shards and take the corresponding shards from the DAG
+        //    state
         let useful_shards_authors_to_peer: Vec<usize> = self
             .last_useful_shards_to_peer_round
             .iter()

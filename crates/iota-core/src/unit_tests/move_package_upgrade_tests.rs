@@ -111,10 +111,7 @@ fn pkg_path_of(pkg_name: &str) -> PathBuf {
 
 fn build_pkg_at_path(path: &Path) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectId>) {
     let with_unpublished_deps = false;
-    let package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
-        .build(path)
-        .unwrap();
+    let package = BuildConfig::new_for_testing().build(path).unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),
@@ -325,7 +322,7 @@ async fn test_upgrade_package_happy_path() {
         .get_package_object(&runner.package.object_id)
         .unwrap();
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
-    let binary_config = to_binary_config(&config);
+    let binary_config = to_binary_config(&config, None);
     let pool = &mut move_binary_format::normalized::RcPool::new();
     let normalized_modules = package
         .move_package()

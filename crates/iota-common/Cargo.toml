@@ -14,7 +14,7 @@ workspace = true
 futures.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["chacha"] }
 tracing.workspace = true
 
 # internal dependencies
@@ -31,9 +31,9 @@ tokio = { workspace = true, features = ["rt", "sync", "time"] }
 # internal dependencies
 iota-metrics.workspace = true
 
-# `rand::thread_rng()` (in `random.rs`) pulls `getrandom`, which on
-# `wasm32-unknown-unknown` needs the `js` feature for a randomness source; that
-# feature is enabled on the workspace `getrandom` dependency.
+# `rand::rng()` (in `random.rs`) pulls `getrandom`, which on
+# `wasm32-unknown-unknown` needs the `wasm_js` feature for a randomness source;
+# that feature is enabled on the workspace `getrandom` dependency.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom.workspace = true
 

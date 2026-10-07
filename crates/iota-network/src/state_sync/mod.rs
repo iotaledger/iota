@@ -13,25 +13,20 @@
 //! # High-level Overview of StateSync
 //!
 //! StateSync discovers new checkpoints via a few different sources:
-//! 1. If this node is a Validator, checkpoints will be produced via consensus
-//!    at which point consensus can notify state-sync of the new checkpoint via
-//!    [Handle::send_checkpoint].
-//! 2. A peer notifies us of the latest checkpoint which they have synchronized.
-//!    State-Sync will also periodically query its peers to discover what their
-//!    latest checkpoint is.
+//! 1. If this node is a Validator, checkpoints will be produced via consensus at which point
+//!    consensus can notify state-sync of the new checkpoint via [Handle::send_checkpoint].
+//! 2. A peer notifies us of the latest checkpoint which they have synchronized. State-Sync will
+//!    also periodically query its peers to discover what their latest checkpoint is.
 //!
 //! We keep track of two different watermarks:
-//! * highest_verified_checkpoint - This is the highest checkpoint header that
-//!   we've locally verified. This indicated that we have in our persistent
-//!   store (and have verified) all checkpoint headers up to and including this
-//!   value.
-//! * highest_synced_checkpoint - This is the highest checkpoint that we've
-//!   fully synchronized, meaning we've downloaded and have in our persistent
-//!   stores all of the transactions, and their effects (but not the objects),
-//!   for all checkpoints up to and including this point. This is the watermark
-//!   that is shared with other peers, either via notification or when they
-//!   query for our latest checkpoint, and is intended to be used as a guarantee
-//!   of data availability.
+//! * highest_verified_checkpoint - This is the highest checkpoint header that we've locally
+//!   verified. This indicated that we have in our persistent store (and have verified) all
+//!   checkpoint headers up to and including this value.
+//! * highest_synced_checkpoint - This is the highest checkpoint that we've fully synchronized,
+//!   meaning we've downloaded and have in our persistent stores all of the transactions, and their
+//!   effects (but not the objects), for all checkpoints up to and including this point. This is the
+//!   watermark that is shared with other peers, either via notification or when they query for our
+//!   latest checkpoint, and is intended to be used as a guarantee of data availability.
 //!
 //! The `PeerHeights` struct is used to track the highest_synced_checkpoint
 //! watermark for all of our peers.
@@ -82,12 +77,12 @@ use iota_types::{
     committee::Committee,
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, CheckpointSummaryExt,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        FullCheckpointContents, VerifiedCheckpoint,
     },
     storage::WriteStore,
 };
 use prometheus_filtered::Registry;
-use rand::Rng;
+use rand::RngExt;
 use tap::{Pipe, TapFallible, TapOptional};
 use tokio::{
     sync::{broadcast, mpsc, oneshot, watch},
@@ -401,8 +396,8 @@ impl Iterator for PeerBalancer {
 
     fn next(&mut self) -> Option<Self::Item> {
         while !self.peers.is_empty() {
-            let idx = rand::thread_rng()
-                .gen_range(0..std::cmp::min(PEER_BALANCER_SELECTION_WINDOW, self.peers.len()));
+            let idx = rand::rng()
+                .random_range(0..std::cmp::min(PEER_BALANCER_SELECTION_WINDOW, self.peers.len()));
 
             // Remove the selected peer
             let (peer, info) = self.peers.remove(idx).unwrap();
@@ -1873,12 +1868,11 @@ where
             .and_then(Response::into_inner)
             .tap_none(|| trace!("peer unable to help sync"))
         {
-            if contents.verify_digests(digest).is_ok() {
-                let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
+            if let Ok(verified_contents) = contents.verify(digest) {
                 store
-                    .try_insert_checkpoint_contents(checkpoint, verified_contents)
+                    .try_insert_checkpoint_contents(checkpoint, verified_contents.clone())
                     .expect("store operation should not fail");
-                return Some(contents);
+                return Some(verified_contents.into_inner());
             }
         }
     }

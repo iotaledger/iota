@@ -26,11 +26,11 @@ pub const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
 /// object store URL for historical checkpoint data, this function probes the
 /// URL to determine which type it is:
 ///
-/// 1. **gRPC health check**: attempts to connect and call `GetHealth`. If
-///    successful, the URL is treated as a fullnode gRPC endpoint.
-/// 2. **Historical manifest fetch**: if gRPC fails, attempts to fetch the
-///    MANIFEST file from the URL as an S3-compatible object store. If
-///    successful, the URL is treated as a historical checkpoint store.
+/// 1. **gRPC health check**: attempts to connect and call `GetHealth`. If successful, the URL is
+///    treated as a fullnode gRPC endpoint.
+/// 2. **Historical manifest fetch**: if gRPC fails, attempts to fetch the MANIFEST file from the
+///    URL as an S3-compatible object store. If successful, the URL is treated as a historical
+///    checkpoint store.
 ///
 /// Both probes are retried with exponential backoff within the given timeout.
 /// If neither succeeds, returns an error.

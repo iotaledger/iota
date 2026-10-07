@@ -6,11 +6,10 @@
 //!
 //! This module merges two formerly separate pipeline stages into a single pass:
 //!
-//! 1. **Semantic validation** — deduplication, already-executed check,
-//!    structural validity, and deny checks (deny lists, gas, ownership, coin
-//!    deny list, Move authenticator).
-//! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check
-//!    and lock acquisition.
+//! 1. **Semantic validation** — deduplication, already-executed check, structural validity, and
+//!    deny checks (deny lists, gas, ownership, coin deny list, Move authenticator).
+//! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check and lock
+//!    acquisition.
 //!
 //! Processing both in one loop avoids iterating over every transaction twice
 //! and skips expensive validation for transactions that can't acquire object
@@ -20,16 +19,14 @@
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. Already executed — **retained** as a committee-agreed winner (registers
-//!    the locks its own effects report, skips re-validation); not dropped. See
-//!    issue #11649.
+//! 3. Already executed — **retained** as a committee-agreed winner (registers the locks its own
+//!    effects report, skips re-validation); not dropped. See issue #11649.
 //! 4. `validity_check()` — drop with error.
-//! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
-//!    with error, except a lock held by the same transaction (a deferred tx's
-//!    own prior-round lock), which is exempt. Cheap; performed before expensive
-//!    checks.
-//! 6. `handle_transaction_validation_checks()` — drop with error. Only reached
-//!    when all locks are free.
+//! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
+//!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt.
+//!    Cheap; performed before expensive checks.
+//! 6. `handle_transaction_validation_checks()` — drop with error. Only reached when all locks are
+//!    free.
 //! 7. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
@@ -74,37 +71,31 @@ use crate::{
 /// conflicts in a single pass.
 ///
 /// For each `UserTransactionV1` in consensus order:
-/// - Runs deduplication, structural validity, lock conflict check, and deny
-///   checks (deny list, gas, ownership, coin deny list, Move authenticator).
-/// - If all checks pass, acquires owned-object locks in a local tracking map;
-///   with `pcool_skip_immutable_object_locks` set, immutable inputs are not
-///   locked (issue #12602).
+/// - Runs deduplication, structural validity, lock conflict check, and deny checks (deny list, gas,
+///   ownership, coin deny list, Move authenticator).
+/// - If all checks pass, acquires owned-object locks in a local tracking map; with
+///   `pcool_skip_immutable_object_locks` set, immutable inputs are not locked (issue #12602).
 /// - Drops the transaction (with an error) on any failure.
-/// - An already-executed transaction is **retained** (not dropped): it
-///   registers the locks its effects report (the raw input set without the
-///   flag) and skips re-validation. See issue #11649.
+/// - An already-executed transaction is **retained** (not dropped): it registers the locks its
+///   effects report (the raw input set without the flag) and skips re-validation. See issue #11649.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
 /// # Arguments
 ///
 /// * `authority_state` — Used for cache reads and deny checks.
-/// * `epoch_store` — Current epoch store (protocol config, lock storage,
-///   governance deny rules).
-/// * `transactions` — All sequenced transactions for this consensus commit;
-///   modified in-place.
+/// * `epoch_store` — Current epoch store (protocol config, lock storage, governance deny rules).
+/// * `transactions` — All sequenced transactions for this consensus commit; modified in-place.
 ///
 /// # Returns
 ///
 /// `Ok((dropped, locks, all_user_tx_digests))` where:
-/// - `dropped` — `(digest, error)` for every semantically-invalid or
-///   lock-conflicting transaction. Silent drops (duplicates) are **not**
-///   included.
-/// - `locks` — Owned-object locks acquired in this commit, to be stored in the
-///   consensus quarantine so subsequent commits can see them.
-/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup
-///   (both kept and dropped). Used by the caller to release pre-consensus soft
-///   locks.
+/// - `dropped` — `(digest, error)` for every semantically-invalid or lock-conflicting transaction.
+///   Silent drops (duplicates) are **not** included.
+/// - `locks` — Owned-object locks acquired in this commit, to be stored in the consensus quarantine
+///   so subsequent commits can see them.
+/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup (both kept and
+///   dropped). Used by the caller to release pre-consensus soft locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,

@@ -5,11 +5,10 @@
 //!
 //! The two main types are:
 //!
-//! - [`CheckpointReaderConfig`]: the base configuration for the checkpoint
-//!   reader. Suited for most default use cases.
-//! - [`CheckpointReaderConfigExt`]: extends [`CheckpointReaderConfig`] with
-//!   opt-in configuration toggles beyond the base, such as server-side
-//!   transaction filters for fullnode connections.
+//! - [`CheckpointReaderConfig`]: the base configuration for the checkpoint reader. Suited for most
+//!   default use cases.
+//! - [`CheckpointReaderConfigExt`]: extends [`CheckpointReaderConfig`] with opt-in configuration
+//!   toggles beyond the base, such as server-side transaction filters for fullnode connections.
 //!
 //! [`CheckpointReaderConfigExt`] wraps [`CheckpointReaderConfig`] and exposes
 //! a builder for the extra toggles. A `From<CheckpointReaderConfig>` impl is

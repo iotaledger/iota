@@ -18,7 +18,10 @@ use crate::{
     commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
     error::ConsensusResult,
-    network::{BlockBundleStream, NetworkService, SerializedBlockBundle, StreamPosition},
+    network::{
+        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
+        StreamPosition,
+    },
     transaction_ref::TransactionRef,
 };
 
@@ -36,6 +39,10 @@ pub(crate) struct TestService {
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
     pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
     pub(crate) block_bundle_handler_gate: Option<BundleHandlerGate>,
+    /// Keeps every subscription open, so a test can hold admission slots.
+    pub(crate) endless_subscriptions: bool,
+    /// Served as the transactions of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_payload: Vec<Bytes>,
 }
 
 impl TestService {
@@ -61,6 +68,8 @@ impl TestService {
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
             block_bundle_handler_gate: None,
+            endless_subscriptions: false,
+            fetch_commits_and_transactions_payload: Vec::new(),
         }
     }
 
@@ -104,6 +113,9 @@ impl NetworkService for Mutex<TestService> {
         state
             .handle_subscribed_block_bundle_requests
             .push((peer, last_received));
+        if state.endless_subscriptions {
+            return Ok(Box::pin(stream::pending()));
+        }
         let own_blocks = state
             .own_block_bundles
             .iter()
@@ -140,8 +152,13 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-        unimplemented!("Unimplemented")
+    ) -> ConsensusResult<FetchedCommitsAndTransactions> {
+        Ok(FetchedCommitsAndTransactions {
+            commits: vec![],
+            certifier_block_headers: vec![],
+            transactions: self.lock().fetch_commits_and_transactions_payload.clone(),
+            oversized_commit_permit: None,
+        })
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -156,7 +173,6 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _transaction_refs: Vec<TransactionRef>,
-        _fetch_mode: crate::network::TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         unimplemented!("Unimplemented")
     }

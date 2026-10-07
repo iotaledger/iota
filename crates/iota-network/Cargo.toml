@@ -21,6 +21,7 @@ futures.workspace = true
 governor.workspace = true
 prost.workspace = true
 rand.workspace = true
+rand08.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }

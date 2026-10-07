@@ -11,7 +11,7 @@ use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
 #[cfg(msim)]
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]
@@ -77,8 +77,8 @@ async fn run_randomness_using_transaction_reaches_finality(use_execution_schedul
     #[cfg(msim)]
     register_fail_point_async("randomness-delay", || async {
         let delay = {
-            let dist = rand::distributions::Uniform::new(10, 1000);
-            let mut rng = rand::thread_rng();
+            let dist = rand::distr::Uniform::new(10, 1000).unwrap();
+            let mut rng = rand::rng();
             dist.sample(&mut rng)
         };
         tokio::time::sleep(Duration::from_millis(delay)).await;

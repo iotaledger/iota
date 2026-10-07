@@ -51,12 +51,11 @@ pub(crate) trait Backfill: Send + Sync {
 pub enum BackfillKind {
     /// Run a SQL backfill.
     ///
-    /// - `sql`: the base SQL statement to execute (without any `WHERE` clause).
-    ///   For each chunk `[start, end]`, the tool will append: ```sql WHERE
-    ///   {key_column} BETWEEN {start} AND {end} ``` and automatically handle
-    ///   conflict resolution by adding `ON CONFLICT DO NOTHING`.
-    /// - `key_column`: the name of the column to filter on, typically a
-    ///   sequence number primary key.
+    /// - `sql`: the base SQL statement to execute (without any `WHERE` clause). For each chunk
+    ///   `[start, end]`, the tool will append: ```sql WHERE {key_column} BETWEEN {start} AND {end}
+    ///   ``` and automatically handle conflict resolution by adding `ON CONFLICT DO NOTHING`.
+    /// - `key_column`: the name of the column to filter on, typically a sequence number primary
+    ///   key.
     Sql { sql: String, key_column: String },
     /// Run a backfill driven by the ingestion engine.
     ///

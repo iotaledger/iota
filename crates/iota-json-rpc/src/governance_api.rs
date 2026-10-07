@@ -418,7 +418,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
                 .state
                 .get_system_state()?
                 .into_iota_system_state_summary()
-                .into())
+                .try_into()?)
         }
         .trace()
         .await
