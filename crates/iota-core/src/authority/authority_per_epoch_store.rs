@@ -1856,6 +1856,18 @@ impl AuthorityPerEpochStore {
             .get(&(index, digest))?)
     }
 
+    /// Whether a post-consensus validation decision for `digest` at commit
+    /// `index` is saved; see [`Self::post_consensus_verdict`]. For cluster
+    /// tests.
+    #[cfg(msim)]
+    pub fn has_post_consensus_verdict_for_testing(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<bool> {
+        Ok(self.post_consensus_verdict(index, digest)?.is_some())
+    }
+
     /// Saves the decisions of every candidate of commit `index`, in consensus
     /// order, together with the commit's candidate list, in one batch.
     pub(crate) fn persist_post_consensus_verdicts(
