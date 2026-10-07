@@ -1567,6 +1567,10 @@ const STORE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1
 const STORE_READ_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// The store read time a request has left; shared by its transactions.
+///
+/// Only time inside store reads counts. A deadline per request would also count the time the client
+/// takes to read the response, so a slow client would get `UNAVAILABLE` for its later transactions
+/// while the store is healthy.
 #[derive(Debug)]
 pub struct StoreReadBudget(std::sync::Mutex<std::time::Duration>);
 
