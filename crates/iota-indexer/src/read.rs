@@ -3166,10 +3166,7 @@ impl<'a> DBReader<'a> {
     ) -> IndexerResult<Vec<StoredTransaction>> {
         self.main_reader.ensure_data_not_pruned_for_checkpoint(
             checkpoint_seq,
-            &[
-                CommitterTables::Transactions,
-                CommitterTables::PrunerCpWatermark,
-            ],
+            IndexerReader::TRANSACTIONS_BY_CHECKPOINT_TABLES,
         )?;
 
         // After watermark checks, we can safely assume data is present in all tables
