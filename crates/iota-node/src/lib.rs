@@ -2852,33 +2852,6 @@ mod config_tests {
 
     use super::{IotaNode, remove_legacy_db_checkpoints};
 
-    /// `start_async` validates the config before it does anything else. That
-    /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
-    /// `start_state_snapshot` unreachable.
-    #[tokio::test]
-    async fn start_rejects_a_config_no_node_could_start_with() {
-        let mut config: NodeConfig = serde_yaml::from_str(
-            r#"
-db-path: /nonexistent/db
-network-address: /dns/localhost/tcp/8080/http
-metrics-address: "0.0.0.0:9184"
-json-rpc-address: "0.0.0.0:9000"
-genesis:
-  genesis-file-location: /nonexistent/genesis.blob
-"#,
-        )
-        .unwrap();
-        config.enable_grpc_api = true;
-        config.grpc_api_config = None;
-
-        let err = IotaNode::start(config, RegistryService::new(Registry::new()))
-            .await
-            .unwrap_err();
-
-        let err = format!("{err:#}");
-        assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
-    }
-
     /// A config whose `db-path` is `db_path`, with nothing else a node would
     /// need to start.
     fn config_with_db_path(db_path: &std::path::Path) -> NodeConfig {
@@ -2894,6 +2867,23 @@ genesis:
             db_path.display()
         ))
         .unwrap()
+    }
+
+    /// `start_async` validates the config before it does anything else. That
+    /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
+    /// `start_state_snapshot` unreachable.
+    #[tokio::test]
+    async fn start_rejects_a_config_no_node_could_start_with() {
+        let mut config = config_with_db_path(std::path::Path::new("/nonexistent/db"));
+        config.enable_grpc_api = true;
+        config.grpc_api_config = None;
+
+        let err = IotaNode::start(config, RegistryService::new(Registry::new()))
+            .await
+            .unwrap_err();
+
+        let err = format!("{err:#}");
+        assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
     }
 
     #[test]
