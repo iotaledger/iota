@@ -57,6 +57,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
+use typed_store::Map;
 
 use crate::{
     authority::{
@@ -168,6 +169,19 @@ pub async fn validate_and_resolve_conflicts(
         .protocol_config()
         .pcool_skip_immutable_object_locks();
 
+    // With deterministic validation, the decisions saved when this commit was
+    // first validated, present only when it is replayed after a restart. A
+    // saved candidate list means every candidate has a saved decision.
+    let saved_candidates = if deterministic_validation {
+        epoch_store
+            .tables()?
+            .post_consensus_verdict_candidates
+            .get(&commit_index)?
+    } else {
+        None
+    };
+    let mut saved_verdicts = HashMap::new();
+
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
     let reader = deterministic_validation.then(|| {
@@ -199,15 +213,37 @@ pub async fn validate_and_resolve_conflicts(
         let digest = *transaction.digest();
         all_user_tx_digests.push(digest);
 
+        let saved = match &saved_candidates {
+            Some(_) => match epoch_store.post_consensus_verdict(commit_index, digest)? {
+                Some(verdict) => Some(verdict),
+                None => fatal!(
+                    "commit {commit_index} has a saved candidate list but no saved \
+                     validation decision for {digest:?}"
+                ),
+            },
+            None => None,
+        };
+        if let Some(verdict) = &saved {
+            saved_verdicts.insert(digest, verdict.clone());
+        }
+        // A saved drop is replayed as is: the inputs it was decided on may
+        // have changed since.
+        if let Some(PostConsensusVerdict::Dropped(error)) = &saved {
+            dropped.push((digest, error.clone()));
+            keep[i] = false;
+            continue;
+        }
+
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
         // keep it in the sequence to flow into checkpoint roots like on every other
         // validator (dropping it forks — issue #11649). Register its owned-object
         // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
         // the active scheduler's enqueue filter suppresses the re-execution.
-        if authority_state
-            .get_transaction_cache_reader()
-            .try_is_tx_already_executed(&digest)?
+        if (!deterministic_validation || saved == Some(PostConsensusVerdict::Kept))
+            && authority_state
+                .get_transaction_cache_reader()
+                .try_is_tx_already_executed(&digest)?
         {
             // Byte-based, so safe even though the inputs are already consumed.
             let owned_inputs = extract_owned_input_objects(tx)?;
@@ -464,9 +500,30 @@ pub async fn validate_and_resolve_conflicts(
                 (*digest, verdict)
             })
             .collect();
-        epoch_store.persist_post_consensus_verdicts(commit_index, &verdicts)?;
-        if !verdicts.is_empty() {
-            fail_point!("crash-after-post-consensus-verdicts");
+        match &saved_candidates {
+            Some(candidates) => {
+                if *candidates != all_user_tx_digests {
+                    fatal!(
+                        "validation candidates of commit {commit_index} differ from the saved \
+                         ones: saved {candidates:?}, now {all_user_tx_digests:?}"
+                    );
+                }
+                for (digest, verdict) in &verdicts {
+                    let saved = saved_verdicts.get(digest);
+                    if saved != Some(verdict) {
+                        fatal!(
+                            "validation decision for {digest:?} at commit {commit_index} \
+                             differs from the saved one: saved {saved:?}, now {verdict:?}"
+                        );
+                    }
+                }
+            }
+            None => {
+                epoch_store.persist_post_consensus_verdicts(commit_index, &verdicts)?;
+                if !verdicts.is_empty() {
+                    fail_point!("crash-after-post-consensus-verdicts");
+                }
+            }
         }
     }
 
