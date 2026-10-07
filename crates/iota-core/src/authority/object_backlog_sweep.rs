@@ -99,11 +99,6 @@ pub enum ObjectBacklogSweepProgress {
 /// walked, which on a large live set is the difference between minutes and
 /// hours.
 ///
-/// `pruner_db_present` refuses the bounded route: a database whose pruner ran
-/// with the compaction filter enabled recorded object ids for the filter to
-/// remove later rather than deleting rows itself, so its watermark does not
-/// say the rows beneath it are gone.
-///
 /// Call this before starting anything that can expire a historic bucket, and
 /// before anything that scans the live table for its latest versions: until it
 /// returns, that table holds a retention window of rows no reader wants.
@@ -116,7 +111,6 @@ pub async fn sweep(
     store: Arc<AuthorityStore>,
     checkpoint_store: Arc<CheckpointStore>,
     epoch: EpochId,
-    pruner_db_present: bool,
 ) -> IotaResult<()> {
     // Each slice is a range scan and a write batch, both blocking.
     tokio::task::spawn_blocking(move || {
@@ -124,7 +118,7 @@ pub async fn sweep(
         if sweep.is_done()? {
             return IotaResult::Ok(());
         }
-        match sweep.bound(&checkpoint_store, pruner_db_present)? {
+        match sweep.bound(&checkpoint_store)? {
             Some(bound) => {
                 sweep.sweep_above_bound(&checkpoint_store, epoch, bound)?;
             }
@@ -182,15 +176,7 @@ impl ObjectBacklogSweep {
     fn bound(
         &self,
         checkpoint_store: &CheckpointStore,
-        pruner_db_present: bool,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        if pruner_db_present {
-            warn!(
-                "the objects pruner of this database ran with the compaction filter, whose \
-                 deletes its watermark does not account for; walking the whole live table"
-            );
-            return Ok(None);
-        }
         let Some(bound) = self.perpetual_tables.object_backlog_sweep_bound.get(&())? else {
             return Ok(None);
         };

@@ -339,14 +339,9 @@ async fn one_call_drives_the_walk_past_the_slice_boundary() {
         .multi_insert((1..=last_version).map(|version| value(live_id(), version)))
         .unwrap();
 
-    sweep(
-        store.clone(),
-        empty_checkpoint_store(&dir),
-        SWEEP_EPOCH,
-        false,
-    )
-    .await
-    .unwrap();
+    sweep(store.clone(), empty_checkpoint_store(&dir), SWEEP_EPOCH)
+        .await
+        .unwrap();
 
     assert_eq!(
         live_keys(&store),
@@ -461,7 +456,7 @@ async fn the_bounded_walk_relocates_what_the_checkpoints_above_the_watermark_sup
     seed_pruner_watermark(&store, 7);
     seed_checkpoint(&store, &checkpoint_store, 8, &[(live_id(), 1)], &[]);
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
         .await
         .unwrap();
 
@@ -508,7 +503,7 @@ async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
         )
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
         .await
         .unwrap();
 
@@ -521,41 +516,6 @@ async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
     }
 }
 
-/// A database whose pruner ran with the compaction filter left rows beneath
-/// its watermark, so the watermark must not be trusted and the whole table is
-/// walked instead.
-#[tokio::test]
-async fn a_pruner_database_refuses_the_bounded_walk() {
-    let dir = iota_common::tempdir();
-    let store = open_store(&dir);
-    let checkpoint_store = empty_checkpoint_store(&dir);
-
-    seed(&store);
-    seed_pruner_watermark(&store, u64::MAX);
-
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, true)
-        .await
-        .unwrap();
-
-    // The unbounded walk's outcome: every superseded version relocated,
-    // which the bounded walk would not have done at this watermark.
-    assert_eq!(
-        relocated_keys(&store, SWEEP_EPOCH),
-        vec![
-            ObjectKey(live_id(), 1.into()),
-            ObjectKey(live_id(), 2.into()),
-            ObjectKey(deleted_id(), 1.into()),
-            ObjectKey(deleted_id(), 2.into()),
-            ObjectKey(wrapped_id(), 1.into()),
-        ]
-    );
-}
-
-/// A watermark the checkpoint pruner has itself overtaken names checkpoints
-/// the store no longer holds, so it cannot be used to find the backlog and
-/// the whole table is walked instead. An earlier build could leave this by
-/// holding fewer epochs of checkpoints than of object versions, or by having
-/// object pruning turned off after it had once run.
 #[tokio::test]
 async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
     let dir = iota_common::tempdir();
@@ -569,7 +529,7 @@ async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
         .update_highest_pruned_checkpoint(&executed_checkpoint(0, 9))
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
         .await
         .unwrap();
 
@@ -612,7 +572,7 @@ async fn the_bounded_walk_resumes_at_the_checkpoint_it_recorded() {
         .insert(&(), &1)
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
         .await
         .unwrap();
 
@@ -632,7 +592,7 @@ async fn no_watermark_walks_the_whole_table() {
 
     seed(&store);
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
         .await
         .unwrap();
 
@@ -682,7 +642,7 @@ async fn the_walk_reaches_a_committed_checkpoint_above_the_executed_watermark() 
         .update_highest_synced_checkpoint(&nine)
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
         .await
         .unwrap();
 
