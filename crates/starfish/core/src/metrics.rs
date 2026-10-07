@@ -4,7 +4,10 @@
 
 use std::{sync::Arc, time::Instant};
 
-use iota_metrics::quantile_gauge::{PeakGauge, QuantileGauge, QuantileGaugeVec};
+use iota_metrics::{
+    peak::PeakGauge,
+    quantile_gauge::{QuantileGauge, QuantileGaugeVec},
+};
 use prometheus_filtered::{
     Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramVec, IntCounter, IntCounterVec,
     IntGauge, IntGaugeVec, MetricLevel, Registry, register_counter_vec_with_registry,
