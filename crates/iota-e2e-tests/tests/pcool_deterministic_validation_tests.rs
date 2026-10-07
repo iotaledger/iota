@@ -23,7 +23,11 @@ use std::{
 use iota_macros::{register_fail_point, sim_test};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::TransactionEffects;
-use iota_types::{base_types::dbg_addr, effects::TransactionEffectsExt, storage::ObjectKey};
+use iota_types::{
+    base_types::dbg_addr,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    storage::ObjectKey,
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Enables the P-COOL flow and the deterministic-validation bookkeeping. The
@@ -189,5 +193,135 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
                 rows(victim, key)
             )
         });
+    }
+}
+
+/// A validator killed right after it saved a commit's validation decisions,
+/// before the commit's output flushed, replays the commit on restart from the
+/// saved decisions. It keeps building the same checkpoints as its peers, and
+/// the saved decisions of every flushed commit are gone.
+#[sim_test]
+async fn test_crash_after_post_consensus_verdicts_recovers() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+
+    let names = test_cluster.get_validator_pubkeys();
+    let (victim, peer) = (names[0], names[1]);
+    let node_handle = |name| {
+        test_cluster
+            .swarm
+            .node(&name)
+            .unwrap()
+            .get_node_handle()
+            .unwrap()
+    };
+    // Read without keeping the handle: a held handle pins the killed node's
+    // store, and the restarted node could not open it.
+    let victim_sim_id = node_handle(victim).with(|_| iota_simulator::current_simnode_id());
+
+    let fired = Arc::new(AtomicBool::new(false));
+    {
+        let fired = fired.clone();
+        register_fail_point("crash-after-post-consensus-verdicts", move || {
+            if iota_simulator::current_simnode_id() == victim_sim_id
+                && !fired.swap(true, Ordering::SeqCst)
+            {
+                iota_simulator::task::kill_current_node(None);
+            }
+        });
+    }
+
+    // The victim dies in the first commit with a user transaction, and
+    // restarts on its own.
+    let mut transfers = vec![transfer(&test_cluster).await];
+    tokio::time::timeout(Duration::from_secs(60), async {
+        while !fired.load(Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("the victim must save a commit's validation decisions and crash");
+    for _ in 0..3 {
+        transfers.push(transfer(&test_cluster).await);
+    }
+
+    let target = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+        })
+        .unwrap()
+        .expect("the fullnode has executed the transfers' checkpoints");
+    let highest_executed = |name| {
+        node_handle(name).with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default()
+        })
+    };
+    tokio::time::timeout(Duration::from_secs(120), async {
+        while highest_executed(victim) < target {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("the restarted victim must keep executing checkpoints");
+
+    // Every checkpoint the victim built itself matches the certified one.
+    for sequence_number in 1..=target {
+        let certified = node_handle(peer).with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_checkpoint_by_sequence_number(sequence_number)
+                .unwrap()
+                .expect("the peer has every certified checkpoint up to the target")
+        });
+        let local = node_handle(victim).with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_locally_computed_checkpoint(sequence_number)
+                .unwrap()
+        });
+        if let Some(local) = local {
+            assert_eq!(
+                local.digest(),
+                *certified.digest(),
+                "the victim's checkpoint {sequence_number} must match the certified one"
+            );
+        }
+    }
+
+    // No saved decision of a transfer outlives the flush of its commit.
+    let resume_point = node_handle(victim).with(|node| {
+        node.state()
+            .epoch_store_for_testing()
+            .get_last_consensus_stats()
+            .unwrap()
+            .index
+            .sub_dag_index
+    });
+    for effects in &transfers {
+        let digest = *effects.transaction_digest();
+        for index in 0..=resume_point {
+            let saved = node_handle(victim).with(|node| {
+                node.state()
+                    .epoch_store_for_testing()
+                    .has_post_consensus_verdict_for_testing(index, digest)
+                    .unwrap()
+            });
+            assert!(
+                !saved,
+                "commit {index} flushed, so its decision for {digest:?} must be gone"
+            );
+        }
     }
 }
