@@ -2156,24 +2156,6 @@ mod handler_object_state_storage {
         })
     }
 
-    /// With the flag off nothing reads the effects store, so setting it again
-    /// is allowed.
-    #[tokio::test]
-    async fn effects_store_can_be_set_again_with_the_flag_off() {
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-        epoch_store.set_effects_store(authority.get_transaction_cache_reader().clone());
-    }
-
-    #[tokio::test]
-    #[should_panic(expected = "effects_store should only be set once")]
-    async fn effects_store_cannot_be_set_again_with_the_flag_on() {
-        let _guard = enable_deterministic_validation();
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-        epoch_store.set_effects_store(authority.get_transaction_cache_reader().clone());
-    }
-
     /// Stores `effects` as executed, so the quarantine flush finds them when
     /// it derives the rows of a commit rooting their transaction.
     fn store_executed_effects(authority: &AuthorityState, effects: &TransactionEffects) {

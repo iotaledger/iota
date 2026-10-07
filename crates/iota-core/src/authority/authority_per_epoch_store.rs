@@ -2470,15 +2470,13 @@ impl AuthorityPerEpochStore {
     }
 
     /// Wires the effects reader of the quarantine flush and the execution
-    /// watcher. With the P-COOL deterministic-validation flag off nothing reads
-    /// it, and a call after the first leaves the first reader in place.
+    /// watcher.
     ///
     /// # Panics
-    /// Panics if called more than once on the same instance with the flag on.
+    /// Panics if called more than once on the same instance.
     pub fn set_effects_store(&self, effects_store: Arc<dyn TransactionCacheRead>) {
-        let first_set = self.effects_store.set(effects_store).is_ok();
         assert!(
-            first_set || !self.protocol_config.pcool_deterministic_validation(),
+            self.effects_store.set(effects_store).is_ok(),
             "effects_store should only be set once"
         );
     }
