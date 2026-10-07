@@ -272,6 +272,10 @@ impl JsonRpcCompactionMetrics {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the JSON-RPC index tables are never read through a snapshot"
+)]
 fn compaction_filter_config<T: DeserializeOwned>(
     name: &str,
     metrics: Arc<JsonRpcCompactionMetrics>,
