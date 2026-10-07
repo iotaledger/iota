@@ -21,7 +21,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
-    error::{IotaError, UserInputError},
+    error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
@@ -39,7 +39,7 @@ use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
-            LockDetails,
+            ExecutionIndicesWithStats, LockDetails,
             authority_per_epoch_store_tests::reopen,
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
@@ -49,11 +49,13 @@ use crate::{
         },
         authority_tests::{init_state_with_objects_and_object_basics, publish_object_basics},
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
+        shared_object_version_manager::Schedulable,
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{
-        ExecutionWatcher, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
+        ConsensusCommitInfo, ExecutionWatcher, SequencedConsensusTransaction,
+        VerifiedSequencedConsensusTransaction,
     },
     post_consensus_input_reader::{
         DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
@@ -6356,4 +6358,150 @@ async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_di
     ));
     assert!(transactions.is_empty());
     assert!(locks.is_empty(), "dropped transaction must not take locks");
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation wait on the execution frontier
+// ---------------------------------------------------------------------------
+
+/// Runs one commit through the commit boundary as the handler would, at
+/// `index`, with `txs` as its user transactions. Owned arguments so the
+/// future can be spawned and observed while it waits.
+async fn process_commit_at(
+    authority: Arc<AuthorityState>,
+    epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
+    index: CommitIndex,
+    txs: Vec<VerifiedTransaction>,
+) -> IotaResult<Vec<Schedulable>> {
+    epoch_store
+        .process_consensus_transactions_and_commit_boundary(
+            txs.into_iter().map(make_user_tx_v1_verified).collect(),
+            &ExecutionIndicesWithStats::default(),
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            &ConsensusCommitInfo::new_for_test(index, index, 0, true),
+            &authority.metrics,
+            &authority,
+        )
+        .await
+        .map(|(schedulables, _)| schedulables)
+}
+
+/// The boundary must return promptly: a wait that blocks fails the test
+/// through the paused clock's timeout.
+async fn process_commit_without_waiting(s: &BookkeepingSetup, index: CommitIndex) {
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        process_commit_at(s.authority.clone(), s.epoch_store.clone(), index, vec![]),
+    )
+    .await
+    .unwrap_or_else(|_| panic!("commit {index} must not wait"))
+    .unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn validation_does_not_wait_when_the_frontier_is_at_the_horizon() {
+    let s = setup_bookkeeping(vec![], true).await;
+    assert_eq!(s.highest_fully_executed_commit(), 0);
+
+    // Horizon 0 with K = 2: the frontier is already there.
+    process_commit_without_waiting(&s, 2).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn validation_waits_until_the_horizon_is_fully_executed() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let _watcher = s.start_execution_watcher();
+
+    // Commit 1 is assigned and its root has not executed, so the frontier
+    // stays at 0.
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    s.epoch_store
+        .assign_commit_to_transactions(1, vec![TransactionKey::Digest(*tx.digest())]);
+
+    // Commit 3 has horizon 1 and must block on it.
+    let mut boundary = tokio::spawn(process_commit_at(
+        s.authority.clone(),
+        s.epoch_store.clone(),
+        3,
+        vec![],
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_millis(200), &mut boundary)
+            .await
+            .is_err(),
+        "commit 3 must wait for commit 1"
+    );
+
+    // The root executes, the watcher completes commit 1, the wait releases.
+    s.execute(tx);
+    tokio::time::timeout(Duration::from_secs(10), boundary)
+        .await
+        .expect("commit 3 must proceed once commit 1 is fully executed")
+        .unwrap()
+        .unwrap();
+    assert!(s.highest_fully_executed_commit() >= 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn validation_does_not_wait_after_the_final_round() {
+    let s = setup_bookkeeping(vec![], true).await;
+    assert_eq!(s.highest_fully_executed_commit(), 0);
+
+    // After the final round no commit makes a checkpoint, so the frontier
+    // never moves again and no commit may wait on it.
+    s.epoch_store
+        .get_reconfig_state_write_lock_guard()
+        .close_all_tx();
+    process_commit_without_waiting(&s, 5).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn validation_does_not_wait_with_the_flag_off() {
+    let s = setup_bookkeeping(vec![], false).await;
+    assert_eq!(s.highest_fully_executed_commit(), 0);
+
+    process_commit_without_waiting(&s, 5).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn epoch_end_releases_a_pending_wait() {
+    let s = setup_bookkeeping(vec![], true).await;
+    assert_eq!(s.highest_fully_executed_commit(), 0);
+
+    // Horizon 3 with the frontier at 0 and no watcher: the wait is pending.
+    let mut boundary = tokio::spawn(process_commit_at(
+        s.authority.clone(),
+        s.epoch_store.clone(),
+        5,
+        vec![],
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_millis(200), &mut boundary)
+            .await
+            .is_err(),
+        "commit 5 must wait for commit 3"
+    );
+
+    // Terminating the epoch cuts the wait short. The boundary reports it,
+    // and the handler stops on that error instead of panicking.
+    s.epoch_store.epoch_terminated().await;
+    let result = tokio::time::timeout(Duration::from_secs(10), boundary)
+        .await
+        .expect("the wait must end with the epoch")
+        .unwrap();
+    assert!(matches!(
+        result,
+        Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()
+    ));
 }
