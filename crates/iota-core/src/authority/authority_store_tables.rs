@@ -27,16 +27,20 @@ use typed_store::{
 };
 
 use super::*;
-use crate::authority::{
-    authority_store_types::{
-        StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
+use crate::{
+    authority::{
+        authority_store_types::{
+            StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object,
+            try_construct_object,
+        },
+        epoch_markers::EpochMarkers,
+        epoch_start_configuration::EpochStartConfiguration,
+        historic_ledger::HistoricLedger,
+        historic_objects::HistoricObjects,
+        ledger_backlog_migration::LedgerBacklogMigrationProgress,
+        object_backlog_sweep::ObjectBacklogSweepProgress,
     },
-    epoch_markers::EpochMarkers,
-    epoch_start_configuration::EpochStartConfiguration,
-    historic_ledger::HistoricLedger,
-    historic_objects::HistoricObjects,
-    ledger_backlog_migration::LedgerBacklogMigrationProgress,
-    object_backlog_sweep::ObjectBacklogSweepProgress,
+    epoch_buckets::historic_root,
 };
 
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
@@ -78,6 +82,12 @@ fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreE
 pub struct AuthorityPerpetualTablesOptions {
     /// Whether to enable write stalling on all column families.
     pub enable_write_stall: bool,
+    /// The root the historic object and ledger buckets keep their files
+    /// under. A node passes [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in its live
+    /// database directory, and so must anything else opening its database; unset, the
+    /// root is [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in the perpetual
+    /// database directory.
+    pub historic_db_path: Option<PathBuf>,
 }
 
 impl AuthorityPerpetualTablesOptions {
@@ -258,31 +268,56 @@ impl AuthorityPerpetualTables {
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
     ) -> Result<(Self, HistoricObjects, HistoricLedger, EpochMarkers), TypedStoreError> {
-        let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
+        let (tables, db_options, historic_root) =
+            Self::open_with_db_options(parent_path, db_options_override);
         let mut historic_objects = HistoricObjects::open(
             tables.objects.db.clone(),
             &db_options,
             tables.objects.clone(),
+            &historic_root,
         )?;
         historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
-        let historic_ledger = HistoricLedger::open(tables.objects.db.clone(), &db_options)?;
+        let historic_ledger =
+            HistoricLedger::open(tables.objects.db.clone(), &db_options, &historic_root)?;
         let epoch_markers = EpochMarkers::open(tables.objects.db.clone(), &db_options)?;
         Ok((tables, historic_objects, historic_ledger, epoch_markers))
     }
 
-    /// The perpetual tables and the base options their column families were
-    /// opened with. The historic buckets clone these, so they share the base
-    /// options' block cache with each other and with every column family that
-    /// takes those options unchanged; `objects`, `live_owned_object_markers`,
-    /// `transactions` and `effects` install caches of their own.
+    /// The perpetual tables, the base options their column families were
+    /// opened with, and the root of the historic buckets. The buckets clone
+    /// those options, so they share the base options' block cache with each
+    /// other and with every column family that takes those options unchanged;
+    /// `objects`, `live_owned_object_markers`, `transactions` and `effects`
+    /// install caches of their own.
     fn open_with_db_options(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
-    ) -> (Self, DBOptions) {
+    ) -> (Self, DBOptions, PathBuf) {
         let db_options_override = db_options_override.unwrap_or_default();
         let db_options =
             db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
         let path = Self::path(parent_path);
+        let historic_root = historic_root(&path, db_options_override.historic_db_path.as_deref());
+        let table_options = Self::table_options(&path, &db_options, &historic_root);
+        let tables = Self::open_tables_read_write(
+            path,
+            MetricConf::new("perpetual")
+                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
+            Some(db_options.options.clone()),
+            Some(table_options),
+        );
+        (tables, db_options, historic_root)
+    }
+
+    /// The options of the column families of the perpetual database at
+    /// `path` that do not take `db_options` unchanged, the historic buckets
+    /// under `historic_root` among them, for every open of it to pass the same
+    /// ones.
+    fn table_options(
+        path: &Path,
+        db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> DBMapTableConfigMap {
         let mut table_options = BTreeMap::from([
             (
                 "objects".to_string(),
@@ -305,34 +340,35 @@ impl AuthorityPerpetualTables {
         // database, so they are opened here together with the tables declared
         // above.
         table_options.extend(HistoricObjects::extra_column_family_options(
-            &path,
-            &db_options,
+            path,
+            db_options,
+            historic_root,
         ));
         table_options.extend(HistoricLedger::extra_column_family_options(
-            &path,
-            &db_options,
-        ));
-        table_options.extend(EpochMarkers::extra_column_family_options(
-            &path,
-            &db_options,
-        ));
-        let table_options = DBMapTableConfigMap::new(table_options);
-        let tables = Self::open_tables_read_write(
             path,
-            MetricConf::new("perpetual")
-                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            Some(db_options.options.clone()),
-            Some(table_options),
-        );
-        (tables, db_options)
+            db_options,
+            historic_root,
+        ));
+        table_options.extend(EpochMarkers::extra_column_family_options(path, db_options));
+        DBMapTableConfigMap::new(table_options)
     }
 
-    pub fn open_readonly(parent_path: &Path) -> AuthorityPerpetualTablesReadOnly {
-        Self::get_read_only_handle(
-            Self::path(parent_path),
+    /// Opens the tables read-only. `historic_db_path` is the root of the
+    /// historic buckets, as for [`AuthorityPerpetualTablesOptions`].
+    pub fn open_readonly(
+        parent_path: &Path,
+        historic_db_path: Option<&Path>,
+    ) -> AuthorityPerpetualTablesReadOnly {
+        let path = Self::path(parent_path);
+        let db_options = default_db_options().optimize_db_for_write_throughput(4);
+        let table_options =
+            Self::table_options(&path, &db_options, &historic_root(&path, historic_db_path));
+        Self::get_read_only_handle_with_table_options(
+            path,
             None,
             None,
             MetricConf::new("perpetual_readonly"),
+            table_options,
         )
     }
 
@@ -576,6 +612,11 @@ impl AuthorityPerpetualTables {
         let time_threshold =
             SystemTime::now() - Duration::from_secs(delay_days as u64 * 24 * 60 * 60);
         for sst_file in self.objects.db.live_files()? {
+            // Checked before the file is looked up: the historic buckets keep
+            // their files outside `db_path`, and are never compacted here.
+            if !compacted_tables.contains(sst_file.column_family_name.as_str()) {
+                continue;
+            }
             let file_path = db_path.join(sst_file.name.clone().trim_matches('/'));
             let last_modified = std::fs::metadata(file_path)?.modified()?;
             if sst_file.level < 1
@@ -584,11 +625,6 @@ impl AuthorityPerpetualTables {
                 || last_modified > time_threshold
                 || state.get(&sst_file.name).unwrap_or(&UNIX_EPOCH) > &time_threshold
             {
-                continue;
-            }
-            // Checked before the file is looked up: the historic buckets keep
-            // their files outside `db_path`, and are never compacted here.
-            if !compacted_tables.contains(sst_file.column_family_name.as_str()) {
                 continue;
             }
             if let Some(candidate) = &sst_file_for_compaction {
@@ -1274,7 +1310,6 @@ mod tests {
 
         more_asserts::assert_lt!(after_compaction_size, before_compaction_size);
     }
-}
 
     /// The periodic compaction walks every live file of the perpetual
     /// database, and the historic buckets keep theirs outside its directory:
@@ -1300,3 +1335,4 @@ mod tests {
             .compact_next_sst_file(0, &Mutex::new(HashMap::new()))
             .unwrap();
     }
+}

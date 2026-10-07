@@ -260,7 +260,8 @@ impl RpcIndexesRestorer {
     /// markers and the live state, so a database the node would wipe and
     /// rebuild — or one that carries no restored objects — fails the restore
     /// instead. `live_object_count` is the number of objects the restore
-    /// wrote.
+    /// wrote. `historic_db_path` is the root of the store's history
+    /// buckets, as for [`RpcIndexesStore::new`].
     ///
     /// Whichever groups the restore built, the `owner` table is the one every
     /// one of them fills, so it is what proves the object stream landed: the
@@ -268,10 +269,15 @@ impl RpcIndexesRestorer {
     /// carrying such objects at all.
     pub async fn verify_restored(
         path: &Path,
+        historic_db_path: Option<&Path>,
         restore_checkpoint: CheckpointSequenceNumber,
         live_object_count: u64,
     ) -> Result<(), StorageError> {
-        let reopened = RpcIndexesStore::open_index_db(path).map_err(|e| {
+        let reopened = RpcIndexesStore::open_index_db(
+            path,
+            &crate::epoch_buckets::historic_root(path, historic_db_path),
+        )
+        .map_err(|e| {
             StorageError::custom(format!(
                 "unable to reopen the restored RPC index database: {e}"
             ))

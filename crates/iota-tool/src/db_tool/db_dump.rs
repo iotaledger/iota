@@ -14,7 +14,7 @@ use comfy_table::{Cell, ContentArrangement, Row, Table};
 use iota_core::{
     authority::{
         authority_per_epoch_store::AuthorityEpochTables,
-        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         authority_store_types::{StoreData, StoreObject},
         epoch_markers::EpochMarkers,
         historic_ledger::HistoricLedger,
@@ -31,6 +31,8 @@ use typed_store::{
     rocksdb::MultiThreaded,
     traits::{Map, TableSummary},
 };
+
+use crate::db_tool::historic_db_path_of_store;
 
 #[derive(EnumString, Clone, Parser, Debug, ValueEnum)]
 pub enum StoreName {
@@ -77,11 +79,15 @@ pub fn table_summary(
                 let epoch = epoch.ok_or_else(|| anyhow!("--epoch is required"))?;
                 AuthorityEpochTables::open_readonly(epoch, &db_path).table_summary(table_name)
             } else {
-                AuthorityPerpetualTables::open_readonly(&db_path).table_summary(table_name)
+                AuthorityPerpetualTables::open_readonly(
+                    &db_path,
+                    Some(&historic_db_path_of_store(&db_path)),
+                )
+                .table_summary(table_name)
             }
         }
         StoreName::Index => {
-            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
+            IndexStoreTables::open_readonly(&db_path, Some(&historic_db_path_of_store(&db_path)))?
                 .table_summary(table_name)
         }
         StoreName::Epoch => {
@@ -107,11 +113,16 @@ pub fn print_table_metadata(
                     .next_shared_object_versions
                     .db
             } else {
-                AuthorityPerpetualTables::open_readonly(&db_path).objects.db
+                AuthorityPerpetualTables::open_readonly(
+                    &db_path,
+                    Some(&historic_db_path_of_store(&db_path)),
+                )
+                .objects
+                .db
             }
         }
         StoreName::Index => {
-            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
+            IndexStoreTables::open_readonly(&db_path, Some(&historic_db_path_of_store(&db_path)))?
                 .owner
                 .db
         }
@@ -160,7 +171,10 @@ pub fn print_table_metadata(
 }
 
 pub fn duplicate_objects_summary(db_path: PathBuf) -> anyhow::Result<(usize, usize, usize, usize)> {
-    let perpetual_tables = AuthorityPerpetualTables::open_readonly(&db_path);
+    let perpetual_tables = AuthorityPerpetualTables::open_readonly(
+        &db_path,
+        Some(&historic_db_path_of_store(&db_path)),
+    );
     let iter = perpetual_tables.objects.safe_iter();
     let mut total_count = 0;
     let mut duplicate_count = 0;
@@ -192,7 +206,13 @@ pub fn duplicate_objects_summary(db_path: PathBuf) -> anyhow::Result<(usize, usi
 }
 
 pub fn compact(db_path: PathBuf) -> anyhow::Result<()> {
-    let perpetual = AuthorityPerpetualTables::open(&db_path, None);
+    let perpetual = AuthorityPerpetualTables::open(
+        &db_path,
+        Some(AuthorityPerpetualTablesOptions {
+            historic_db_path: Some(historic_db_path_of_store(&db_path)),
+            ..Default::default()
+        }),
+    );
     perpetual.compact()?;
     Ok(())
 }
@@ -214,7 +234,10 @@ pub fn dump_table(
                     .dump(table_name, page_size, page_number)
                     .map_err(|err| anyhow!(err.to_string()));
             }
-            let perpetual_tables = AuthorityPerpetualTables::open_readonly(&db_path);
+            let perpetual_tables = AuthorityPerpetualTables::open_readonly(
+                &db_path,
+                Some(&historic_db_path_of_store(&db_path)),
+            );
             if AuthorityPerpetualTables::describe_tables().contains_key(table_name) {
                 return perpetual_tables
                     .dump(table_name, page_size, page_number)
@@ -252,7 +275,7 @@ pub fn dump_table(
             .ok_or_else(|| anyhow!("no such table in the validator store: {table_name}"))
         }
         StoreName::Index => {
-            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
+            IndexStoreTables::open_readonly(&db_path, Some(&historic_db_path_of_store(&db_path)))?
                 .dump(table_name, page_size, page_number)
                 .map_err(|err| anyhow!(err.to_string()))
         }

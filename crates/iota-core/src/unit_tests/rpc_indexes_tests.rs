@@ -41,6 +41,7 @@ fn prune_at_newest_epoch(store: &RpcIndexesStore) -> iota_types::error::IotaResu
 fn open_index_store(path: std::path::PathBuf) -> RpcIndexesStore {
     RpcIndexesStore::new_without_init(
         path,
+        None,
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
     )
 }
@@ -52,6 +53,7 @@ fn open_index_store_with_retention(
 ) -> RpcIndexesStore {
     RpcIndexesStore::new_without_init_with_retention(
         path.to_path_buf(),
+        None,
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         epochs_to_retain,
     )
@@ -472,6 +474,36 @@ async fn test_needs_to_do_initialization_cases() {
     );
 }
 
+/// A store opened with a historic root keeps its history buckets there,
+/// outside its own directory, also when the open rebuilds the store.
+#[tokio::test]
+async fn test_the_history_lives_under_the_root_the_store_is_opened_with() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let historic_dir = dir.path().join("historic");
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    mark_checkpoint_executed(&checkpoint_store, 5);
+    let authority_store = open_authority_store(&dir.path().join("store"));
+
+    let index_store = RpcIndexesStore::new(
+        index_dir.clone(),
+        Some(&historic_dir),
+        &Registry::default(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        Some(128),
+        None,
+        &authority_store,
+        &checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    index_store.ensure_history_bucket(3).unwrap();
+
+    assert!(historic_dir.join("epoch_3").join("indexes").exists());
+    assert!(!index_dir.join("historic").exists());
+}
+
 #[tokio::test]
 async fn test_a_cancelled_rebuild_fails_the_open() {
     let dir = iota_common::tempdir();
@@ -484,6 +516,7 @@ async fn test_a_cancelled_rebuild_fails_the_open() {
     let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
     let opened = RpcIndexesStore::new(
         index_dir.clone(),
+        None,
         &Registry::default(),
         groups.clone(),
         Some(128),
@@ -507,6 +540,7 @@ async fn test_a_cancelled_rebuild_fails_the_open() {
 
     let index_store = RpcIndexesStore::new(
         index_dir,
+        None,
         &Registry::default(),
         groups.clone(),
         Some(128),
@@ -538,6 +572,7 @@ async fn test_unopenable_database_is_wiped_and_rebuilt() {
 
     let index_store = RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
+        None,
         &Registry::default(),
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         Some(128),
@@ -657,6 +692,7 @@ async fn test_grpc_only_backfill_fills_digests_from_contents() {
     let tmp_dir = iota_common::tempdir();
     let store = RpcIndexesStore::new_without_init(
         tmp_dir.path().to_path_buf(),
+        None,
         BTreeSet::from([IndexGroup::Grpc]),
     );
     store.tables.history_watermark.insert(&(), &1).unwrap();
@@ -1674,6 +1710,7 @@ async fn test_grpc_reads_fail_when_the_group_is_disabled() {
 
     let index_store = RpcIndexesStore::new_without_init(
         iota_common::tempdir().path().to_path_buf(),
+        None,
         BTreeSet::from([IndexGroup::JsonRpc]),
     );
 
@@ -2026,7 +2063,7 @@ async fn test_restore_built_store_is_adopted_on_open() {
     partition.index_object(&field_object).unwrap();
     partition.finish().unwrap();
     restorer.finalize(5).await.unwrap();
-    RpcIndexesRestorer::verify_restored(&index_dir, 5, 2)
+    RpcIndexesRestorer::verify_restored(&index_dir, None, 5, 2)
         .await
         .unwrap();
 
@@ -2049,6 +2086,7 @@ async fn test_restore_built_store_is_adopted_on_open() {
     let authority_store = open_authority_store(&dir.path().join("store"));
     let index_store = RpcIndexesStore::new(
         index_dir,
+        None,
         &Registry::default(),
         groups,
         Some(128),
@@ -2104,7 +2142,7 @@ async fn test_verify_restored_rejects_an_unusable_store() {
 
     let restorer = RpcIndexesRestorer::open(index_dir.clone(), groups.clone()).unwrap();
     restorer.finalize(5).await.unwrap();
-    let error = RpcIndexesRestorer::verify_restored(&index_dir, 5, 1)
+    let error = RpcIndexesRestorer::verify_restored(&index_dir, None, 5, 1)
         .await
         .expect_err("an empty restore must not pass verification");
     assert!(
@@ -2112,7 +2150,7 @@ async fn test_verify_restored_rejects_an_unusable_store() {
         "unexpected error: {error}"
     );
 
-    let error = RpcIndexesRestorer::verify_restored(&index_dir, 6, 0)
+    let error = RpcIndexesRestorer::verify_restored(&index_dir, None, 6, 0)
         .await
         .expect_err("a watermark below the restore checkpoint must not pass verification");
     assert!(
@@ -2133,6 +2171,7 @@ async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
 
     let index_store = RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
+        None,
         &Registry::default(),
         groups.clone(),
         Some(128),
@@ -2169,6 +2208,7 @@ async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
     // A fresh registry: the rebuilt store registers the same metrics again.
     let index_store = RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
+        None,
         &Registry::default(),
         groups.clone(),
         Some(128),
@@ -2272,6 +2312,7 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
         .unwrap();
     let rebuilt = RpcIndexesStore::new(
         dir.path().join("rebuilt"),
+        None,
         &Registry::default(),
         groups,
         Some(128),
@@ -2335,7 +2376,7 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
     let owner = TestCheckpointDataBuilder::derive_address(1);
     let grpc_only = BTreeSet::from([IndexGroup::Grpc]);
-    let index_store = RpcIndexesStore::new_without_init(index_dir, grpc_only.clone());
+    let index_store = RpcIndexesStore::new_without_init(index_dir, None, grpc_only.clone());
     index_store.tables.seed_meta(&grpc_only).unwrap();
 
     // One coin for the owner, plus a created coin object turned into the
@@ -2388,6 +2429,7 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     // tables empty.
     let jsonrpc_store = RpcIndexesStore::new_without_init(
         dir.path().join("jsonrpc_only"),
+        None,
         BTreeSet::from([IndexGroup::JsonRpc]),
     );
     index_checkpoint_for_testing(&jsonrpc_store, &checkpoint);
@@ -2458,6 +2500,7 @@ async fn test_reopening_with_fewer_groups_makes_re_enabling_them_rebuild() {
         // A fresh registry: every open registers the same metrics again.
         let store = RpcIndexesStore::new(
             index_dir.path().to_path_buf(),
+            None,
             &Registry::default(),
             groups,
             Some(128),
@@ -2753,9 +2796,8 @@ async fn test_a_bucket_below_the_floor_is_dropped_at_open() {
 #[tokio::test]
 async fn test_a_failed_floor_read_fails_the_open() {
     let tmp_dir = iota_common::tempdir();
-    let opened =
-        RpcIndexesStore::open_index_db(&tmp_dir.path().join(super::schema::RPC_INDEXES_DIR))
-            .unwrap();
+    let index_dir = tmp_dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let opened = RpcIndexesStore::open_index_db(&index_dir, &index_dir.join("historic")).unwrap();
 
     // Makes the floor read fail: RocksDB unregisters the column family.
     opened.db.drop_cf("earliest_retained_epoch").unwrap();
@@ -2938,6 +2980,7 @@ async fn test_rebuild_with_nothing_executed_writes_no_watermark() {
     let authority_store = open_authority_store(&dir.path().join("store"));
     let index_store = RpcIndexesStore::new(
         index_dir,
+        None,
         &Registry::default(),
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         Some(128),
@@ -3036,6 +3079,7 @@ async fn test_history_backfill_after_rebuild() {
     let index_dir = iota_common::tempdir();
     let index_store = RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
+        None,
         &Registry::default(),
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         Some(128),
@@ -3132,6 +3176,7 @@ async fn test_a_watermark_without_its_checkpoint_rebuilds_the_index() {
     let authority_store = open_authority_store(&dir.path().join("store"));
     let index_store = RpcIndexesStore::new(
         index_dir,
+        None,
         &Registry::default(),
         groups,
         Some(128),

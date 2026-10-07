@@ -10,10 +10,16 @@
 //! instead of per-row deletes. The stores differ only in what one bucket
 //! holds; everything about creating, finding, and dropping buckets is
 //! shared here.
+//!
+//! The history stores keep their buckets' SST files outside the database
+//! directory, one directory per epoch under a root shared by all of them (see
+//! [`BucketPaths`]).
 
 use std::{
-    collections::BTreeMap,
-    path::Path,
+    collections::{BTreeMap, BTreeSet},
+    ffi::OsStr,
+    fs, io,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -27,9 +33,164 @@ use typed_store::{
     TypedStoreError,
     database::Database,
     rocks::{DBMap, DBOptions, list_tables, synced_write_options},
-    rocksdb,
+    rocksdb::{self, DBPath},
     traits::Map,
 };
+
+/// The directory in a node's live database directory that holds the
+/// per-epoch history of all its stores.
+pub const HISTORIC_DB_DIR: &str = "historic";
+
+/// The root a database's buckets live under: `historic_db_path` if its opener
+/// names one, which a node's stores and the tools working on them always do,
+/// otherwise [`HISTORIC_DB_DIR`] in the database directory itself.
+pub(crate) fn historic_root(db_path: &Path, historic_db_path: Option<&Path>) -> PathBuf {
+    historic_db_path.map_or_else(|| db_path.join(HISTORIC_DB_DIR), Path::to_path_buf)
+}
+
+/// Where one store keeps the SST files of its buckets: `epoch`'s column family
+/// keeps them in `<root>/epoch_<epoch>/<store_dir>`.
+///
+/// The directories are named after the column family's epoch, so the open
+/// that creates a bucket and every later open place its files the same way:
+/// RocksDB does not record where they are, and looks for them only where the
+/// options it is opened with say. Every open of a database must therefore
+/// pass the same root.
+#[derive(Clone, Debug)]
+pub(crate) struct BucketPaths {
+    root: PathBuf,
+    store_dir: &'static str,
+}
+
+impl BucketPaths {
+    /// The paths of the buckets that the store `store_dir` keeps under `root`.
+    pub(crate) fn new(root: &Path, store_dir: &'static str) -> Self {
+        Self {
+            root: root.to_path_buf(),
+            store_dir,
+        }
+    }
+
+    fn epoch_dir(&self, epoch: EpochId) -> PathBuf {
+        self.root.join(format!("epoch_{epoch}"))
+    }
+
+    fn bucket_dir(&self, epoch: EpochId) -> PathBuf {
+        self.epoch_dir(epoch).join(self.store_dir)
+    }
+
+    /// `options` with the SST files of `epoch`'s bucket placed in that
+    /// epoch's directory.
+    pub(crate) fn cf_options(
+        &self,
+        options: &rocksdb::Options,
+        epoch: EpochId,
+    ) -> rocksdb::Options {
+        let mut options = options.clone();
+        let path = DBPath::new(self.bucket_dir(epoch), u64::MAX)
+            .expect("RocksDB allocates a path for every valid directory");
+        options.set_cf_paths(&[path]);
+        options
+    }
+
+    /// [`Self::cf_options`] for a bucket already on disk. Its directory is
+    /// created if it is missing, which it is when the bucket never wrote a
+    /// file and a prune removed the empty directory although the bucket's
+    /// drop failed: the open would otherwise fail on it.
+    pub(crate) fn existing_cf_options(
+        &self,
+        options: &rocksdb::Options,
+        epoch: EpochId,
+    ) -> rocksdb::Options {
+        if let Err(e) = self.create_dir(epoch) {
+            warn!("{e}");
+        }
+        self.cf_options(options, epoch)
+    }
+
+    /// Creates the directory `epoch`'s bucket keeps its files in. RocksDB
+    /// creates only the last component of a column family's path, not the
+    /// directories above it.
+    fn create_dir(&self, epoch: EpochId) -> Result<(), TypedStoreError> {
+        let dir = self.bucket_dir(epoch);
+        fs::create_dir_all(&dir)
+            .map_err(|e| TypedStoreError::RocksDB(format!("cannot create {}: {e}", dir.display())))
+    }
+
+    /// The epochs that have a directory under the root, with that directory.
+    fn epoch_dirs(&self) -> io::Result<Vec<(EpochId, PathBuf)>> {
+        let entries = match fs::read_dir(&self.root) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        let mut dirs = Vec::new();
+        for entry in entries {
+            let entry = entry?;
+            if let Some(epoch) = epoch_of_dir(&entry.file_name()) {
+                dirs.push((epoch, entry.path()));
+            }
+        }
+        Ok(dirs)
+    }
+
+    /// Deletes this store's directory of every epoch `has_bucket` says has no
+    /// bucket, with whatever files are left in it.
+    ///
+    /// Only for a database opened read-write and before it creates a bucket:
+    /// then no bucket can be created behind this, and a directory without a
+    /// bucket holds files RocksDB no longer tracks. Those are left by a bucket
+    /// whose files were not yet deleted when the node stopped, and by a
+    /// database that has been deleted and created anew.
+    fn remove_dirs_without_bucket(&self, has_bucket: impl Fn(EpochId) -> bool) {
+        let dirs = match self.epoch_dirs() {
+            Ok(dirs) => dirs,
+            Err(e) => {
+                warn!(root = ?self.root, "cannot list the historic directory: {e}");
+                return;
+            }
+        };
+        for (epoch, epoch_dir) in dirs {
+            if has_bucket(epoch) {
+                continue;
+            }
+            let dir = epoch_dir.join(self.store_dir);
+            match fs::remove_dir_all(&dir) {
+                Ok(()) => info!(?dir, "removed the files of a bucket that no longer exists"),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => warn!(?dir, "cannot remove the files of a dropped bucket: {e}"),
+            }
+            // Other stores' directories of the same epoch keep it in use.
+            let _ = fs::remove_dir(&epoch_dir);
+        }
+    }
+
+    /// Removes this store's directories of the epochs below
+    /// `earliest_retained` that are empty, and the epoch directories they
+    /// leave empty.
+    ///
+    /// RocksDB deletes a dropped bucket's files only once nothing reads it,
+    /// so a directory that still holds files is left for a later prune, or
+    /// for [`Self::remove_dirs_without_bucket`] at the next open.
+    fn remove_empty_dirs_below(&self, earliest_retained: EpochId) {
+        let Ok(dirs) = self.epoch_dirs() else {
+            return;
+        };
+        for (_, epoch_dir) in dirs
+            .into_iter()
+            .filter(|(epoch, _)| *epoch < earliest_retained)
+        {
+            let _ = fs::remove_dir(epoch_dir.join(self.store_dir));
+            let _ = fs::remove_dir(&epoch_dir);
+        }
+    }
+}
+
+/// The epoch an `epoch_<N>` directory under a historic root holds, `None` for
+/// any other name.
+fn epoch_of_dir(name: &OsStr) -> Option<EpochId> {
+    name.to_str()?.strip_prefix("epoch_")?.parse().ok()
+}
 
 /// Options for the RPC index stores' history buckets. Each bucket is
 /// write-once (appended during its epoch or the backfill, then only read)
@@ -57,17 +218,20 @@ pub(crate) fn bucket_cf_options(db_options: &DBOptions) -> DBOptions {
 
 /// The `(name, options)` pairs a store's open path must list for its buckets
 /// and for `earliest_retained_cf`, the column family holding their retention
-/// floor.
+/// floor. A store that keeps its buckets' files outside the database directory
+/// passes their `paths`, which every bucket's options then carry.
 ///
 /// Every bucket column family already on disk under `db_path` is included,
-/// since one left for auto-discovery would be reopened with default options
-/// and a block cache of its own. If `db_path` has no database yet, or its
-/// column families cannot be listed, only `earliest_retained_cf` is returned.
+/// since one left for auto-discovery would be reopened with default options,
+/// a block cache of its own, and no `paths`, so that RocksDB would not find its
+/// files. If `db_path` has no database yet, or its column families cannot be
+/// listed, only `earliest_retained_cf` is returned.
 pub(crate) fn extra_column_family_options(
     db_path: &Path,
     db_options: &DBOptions,
     cf_prefix: &str,
     earliest_retained_cf: &str,
+    paths: Option<&BucketPaths>,
 ) -> Vec<(String, DBOptions)> {
     let cf_options = bucket_cf_options(db_options);
     let mut options = vec![(earliest_retained_cf.to_string(), cf_options.clone())];
@@ -86,12 +250,17 @@ pub(crate) fn extra_column_family_options(
             return options;
         }
     };
-    options.extend(
-        existing_cfs
-            .into_iter()
-            .filter(|name| bucket_cf_epoch(cf_prefix, name).is_some())
-            .map(|name| (name, cf_options.clone())),
-    );
+    options.extend(existing_cfs.into_iter().filter_map(|name| {
+        let epoch = bucket_cf_epoch(cf_prefix, &name)?;
+        let options = match paths {
+            Some(paths) => DBOptions {
+                options: paths.existing_cf_options(&cf_options.options, epoch),
+                rw_options: cf_options.rw_options.clone(),
+            },
+            None => cf_options.clone(),
+        };
+        Some((name, options))
+    }));
     options
 }
 
@@ -145,6 +314,9 @@ pub(crate) struct EpochBuckets<B> {
     /// Template options for the buckets' column families. All clones share
     /// one block cache through the cloned table factory.
     cf_options: rocksdb::Options,
+    /// Where the buckets keep their files, `None` for a store that keeps them
+    /// in the database directory.
+    paths: Option<BucketPaths>,
     buckets: RwLock<BTreeMap<EpochId, Arc<B>>>,
     /// The earliest retained epoch recorded by the last [`Self::prune`]
     /// call, mirroring the persisted row; never moves backwards.
@@ -167,15 +339,21 @@ impl<B: BucketReopen> EpochBuckets<B> {
     /// and a drop that fails again still leaves the epoch out of the
     /// history. A floor read error fails the open instead of passing for a
     /// store with no retention floor.
+    ///
+    /// `paths` must be the ones `db` was opened with, and `db` must be open
+    /// read-write: the directories of epochs without a bucket are deleted
+    /// here, before anything can create one.
     pub(crate) fn open(
         db: Arc<Database>,
         name: &'static str,
         cf_prefix: &'static str,
         cf_options: rocksdb::Options,
+        paths: Option<BucketPaths>,
         earliest_retained_table: DBMap<(), EpochId>,
         mut buckets: BTreeMap<EpochId, Arc<B>>,
     ) -> Result<Self, TypedStoreError> {
         let earliest_retained_epoch = earliest_retained_table.get(&())?.unwrap_or(0);
+        let on_disk: BTreeSet<EpochId> = buckets.keys().copied().collect();
         let pruned: Vec<EpochId> = buckets
             .range(..earliest_retained_epoch)
             .map(|(&epoch, _)| epoch)
@@ -190,12 +368,17 @@ impl<B: BucketReopen> EpochBuckets<B> {
                 warn!(epoch, "failed to drop a pruned bucket column family: {e}");
             }
         }
+        if let Some(paths) = &paths {
+            paths.remove_dirs_without_bucket(|epoch| on_disk.contains(&epoch));
+            paths.remove_empty_dirs_below(earliest_retained_epoch);
+        }
         let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
         Ok(Self {
             db,
             name,
             cf_prefix,
             cf_options,
+            paths,
             buckets: RwLock::new(buckets),
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
@@ -314,7 +497,14 @@ impl<B: BucketReopen> EpochBuckets<B> {
         // The column family may already exist if a previous run crashed
         // between `create_cf` and the first batch write.
         if self.db.cf_handle(&cf_name).is_none() {
-            self.db.create_cf(&cf_name, &self.cf_options)?;
+            match &self.paths {
+                Some(paths) => {
+                    paths.create_dir(epoch)?;
+                    self.db
+                        .create_cf(&cf_name, &paths.cf_options(&self.cf_options, epoch))?
+                }
+                None => self.db.create_cf(&cf_name, &self.cf_options)?,
+            }
         }
         let bucket = Arc::new(B::reopen(&self.db, &cf_name)?);
         buckets.insert(epoch, bucket.clone());
@@ -395,6 +585,9 @@ impl<B: BucketReopen> EpochBuckets<B> {
             // matching the map.
             self.publish_earliest_epoch(&buckets);
         }
+        if let Some(paths) = &self.paths {
+            paths.remove_empty_dirs_below(earliest_retained);
+        }
         Ok(Some(earliest_retained))
     }
 
@@ -422,13 +615,14 @@ impl<B: BucketReopen> EpochBuckets<B> {
 mod tests {
     use std::sync::Mutex;
 
-    use typed_store::rocks::{
-        DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts,
+    use typed_store::{
+        database::wait_for_database_close,
+        rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
     };
 
     use super::{
-        Arc, BTreeMap, BucketReopen, Database, EpochBuckets, EpochId, TypedStoreError,
-        bucket_cf_epoch, bucket_cf_name, rocksdb,
+        Arc, BTreeMap, BucketPaths, BucketReopen, Database, EpochBuckets, EpochId, Map, Path,
+        PathBuf, TypedStoreError, bucket_cf_epoch, bucket_cf_name, fs, rocksdb,
     };
 
     /// The name mapping must round-trip and reject other stores' prefixes:
@@ -486,11 +680,147 @@ mod tests {
             "test buckets",
             TEST_CF_PREFIX,
             db_options,
+            None,
             earliest_retained_table,
             buckets,
         )
         .unwrap();
         (buckets, dir)
+    }
+
+    /// The paths of a test store's buckets under `dir`, and the directory its
+    /// database lives in.
+    fn test_paths(dir: &Path) -> (BucketPaths, PathBuf) {
+        let paths = BucketPaths {
+            root: dir.join("historic"),
+            store_dir: "test",
+        };
+        (paths, dir.join("db"))
+    }
+
+    /// An `EpochBuckets` whose buckets keep their files under `paths`, over
+    /// the database at `db_path` holding a bucket for each of `epochs`, opened
+    /// the way a store opens one: every bucket on disk listed with its paths.
+    fn placed_buckets(
+        db_path: &Path,
+        paths: &BucketPaths,
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, Arc<Database>) {
+        let db_options = default_db_options().options;
+        let mut opt_cfs: Vec<(String, rocksdb::Options)> = epochs
+            .iter()
+            .map(|&epoch| {
+                (
+                    bucket_cf_name(TEST_CF_PREFIX, epoch),
+                    paths.existing_cf_options(&db_options, epoch),
+                )
+            })
+            .collect();
+        opt_cfs.push((RETENTION_CF.to_string(), db_options.clone()));
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = opt_cfs
+            .iter()
+            .map(|(name, options)| (name.as_str(), options.clone()))
+            .collect();
+        let db = open_cf_opts(db_path, None, MetricConf::new("test"), &opt_cfs).unwrap();
+        let earliest_retained_table: DBMap<(), EpochId> =
+            DBMap::reopen(&db, Some(RETENTION_CF), &ReadWriteOptions::default(), true).unwrap();
+        let buckets = EpochBuckets::open(
+            db.clone(),
+            "test buckets",
+            TEST_CF_PREFIX,
+            db_options,
+            Some(paths.clone()),
+            earliest_retained_table,
+            epochs
+                .iter()
+                .map(|&epoch| (epoch, Arc::new(TestBucket)))
+                .collect(),
+        )
+        .unwrap();
+        (buckets, db)
+    }
+
+    fn bucket_table(db: &Arc<Database>, epoch: EpochId) -> DBMap<u64, u64> {
+        DBMap::reopen(
+            db,
+            Some(&bucket_cf_name(TEST_CF_PREFIX, epoch)),
+            &ReadWriteOptions::default(),
+            false,
+        )
+        .unwrap()
+    }
+
+    /// A bucket writes its files into its epoch's directory rather than the
+    /// database directory, and a reopen that names the same directory finds
+    /// them there.
+    #[tokio::test]
+    async fn a_bucket_keeps_its_files_in_its_epoch_directory() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        {
+            let (buckets, db) = placed_buckets(&db_path, &paths, &[]);
+            buckets.ensure(3).unwrap();
+            let table = bucket_table(&db, 3);
+            table.insert(&1, &2).unwrap();
+            table.flush().unwrap();
+
+            let files: Vec<_> = fs::read_dir(paths.bucket_dir(3))
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect();
+            assert!(
+                files
+                    .iter()
+                    .any(|name| name.to_string_lossy().ends_with(".sst")),
+                "the bucket's table file belongs in its epoch directory: {files:?}"
+            );
+            let weak_db = Arc::downgrade(&db);
+            drop((buckets, table, db));
+            assert!(wait_for_database_close(weak_db).await);
+        }
+
+        let (_buckets, db) = placed_buckets(&db_path, &paths, &[3]);
+        assert_eq!(bucket_table(&db, 3).get(&1).unwrap(), Some(2));
+    }
+
+    /// A prune takes the directory of a bucket it drops along with the
+    /// bucket, and the epoch's directory with it once no store has anything
+    /// left there.
+    #[tokio::test]
+    async fn a_prune_removes_the_directories_of_the_buckets_it_drops() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        let (buckets, _db) = placed_buckets(&db_path, &paths, &[]);
+        buckets.ensure(1).unwrap();
+        buckets.ensure(2).unwrap();
+        assert!(paths.bucket_dir(1).exists());
+
+        buckets.prune(2, 0, |_, _| Ok(())).unwrap();
+
+        assert!(!paths.epoch_dir(1).exists());
+        assert!(paths.bucket_dir(2).exists());
+    }
+
+    /// An open deletes this store's directory of every epoch it has no bucket
+    /// for, files and all, and leaves another store's directory of the same
+    /// epoch alone.
+    #[tokio::test]
+    async fn an_open_removes_the_directories_of_buckets_that_no_longer_exist() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        fs::create_dir_all(paths.bucket_dir(9)).unwrap();
+        fs::write(
+            paths.bucket_dir(9).join("000012.sst"),
+            b"left by a wiped database",
+        )
+        .unwrap();
+        let other_store = paths.epoch_dir(9).join("other");
+        fs::create_dir_all(&other_store).unwrap();
+
+        let (_buckets, _db) = placed_buckets(&db_path, &paths, &[]);
+
+        assert!(!paths.bucket_dir(9).exists());
+        assert!(other_store.exists());
     }
 
     /// `before_drop` must see every expiring epoch, oldest first: a later
