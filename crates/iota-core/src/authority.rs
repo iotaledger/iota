@@ -60,6 +60,7 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
@@ -75,7 +76,7 @@ use iota_types::{
         SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         VerifiedSignedTransactionEffects,
     },
-    error::{ExecutionError, IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
@@ -208,6 +209,10 @@ mod batch_verification_tests;
 #[cfg(test)]
 #[path = "unit_tests/coin_deny_list_tests.rs"]
 mod coin_deny_list_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/pre_execution_failure_tests.rs"]
+mod pre_execution_failure_tests;
 
 #[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
@@ -2039,45 +2044,48 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            let per_authenticator_inputs = move_authenticators
-                .iter()
-                .zip(per_authenticator_inputs)
-                .map(
-                    |(move_authenticator, (authenticator_input_objects, account_object))| {
-                        // Check basic `object_to_authenticate` preconditions and get its
-                        // components.
-                        let (
-                            auth_account_object_id,
-                            auth_account_object_seq_number,
-                            auth_account_object_digest,
-                        ) = move_authenticator
-                            .object_to_authenticate_components()
-                            .expect("the object to authenticate is validated before consensus and cannot be invalid during execution");
+            // The first account that cannot be resolved fails the transaction before
+            // any authenticator runs. The remaining inputs are still collected, since
+            // for the failure effects, we have to charge gas for those inputs.
+            let mut pre_execution_error = None;
+            let mut per_authenticator_input_objects = Vec::with_capacity(move_authenticators.len());
+            let mut function_refs = Vec::with_capacity(move_authenticators.len());
+            for (move_authenticator, (authenticator_input_objects, account_object)) in
+                move_authenticators.iter().zip(per_authenticator_inputs)
+            {
+                // The shape of the object to authenticate is decided by the
+                // transaction bytes, and `validity_check` settles it in the
+                // consensus handler, so it cannot be wrong here.
+                let (account_object_id, account_object_version, account_object_digest) =
+                    move_authenticator
+                        .object_to_authenticate_components()
+                        .expect(
+                            "the object to authenticate is validated before consensus and cannot \
+                                be invalid during execution",
+                        );
 
-                        let signer = move_authenticator.address();
+                // Unlike the shape above, resolving the account depends on state,
+                // so post-consensus validation cannot keep this check. Here, an
+                // account that fails it produces failure effects instead of a
+                // panic.
+                match self.check_move_account_for_execution(
+                    account_object_id,
+                    account_object_version,
+                    account_object_digest,
+                    account_object,
+                    &move_authenticator.address(),
+                    protocol_config,
+                ) {
+                    Ok(function_ref) => function_refs.push(function_ref),
+                    Err(error) => {
+                        if pre_execution_error.is_none() {
+                            pre_execution_error = Some(error);
+                        }
+                    }
+                }
 
-                        let authenticator_function_ref_for_execution = self
-                            .check_move_account_for_execution(
-                                auth_account_object_id,
-                                auth_account_object_seq_number,
-                                auth_account_object_digest,
-                                account_object,
-                                &signer,
-                                protocol_config,
-                            );
-
-                        (
-                            authenticator_input_objects,
-                            authenticator_function_ref_for_execution,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            let per_authenticator_input_objects = per_authenticator_inputs
-                .iter()
-                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
-                .collect::<Vec<_>>();
+                per_authenticator_input_objects.push(authenticator_input_objects);
+            }
 
             // Serialize the Transaction for the auth context.
             let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
@@ -2103,41 +2111,49 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
 
-            debug_assert_eq!(
-                move_authenticators.len(),
-                per_authenticator_checked_input_objects.len(),
-                "Move authenticators amount must match the number of checked authenticator inputs"
-            );
-
-            let move_authenticators = move_authenticators
-                .into_iter()
-                .zip(per_authenticator_inputs)
-                .zip(per_authenticator_checked_input_objects)
-                .map(
-                    |(
-                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
-                        authenticator_checked_input_objects,
-                    )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
             let owned_object_refs = authenticator_and_tx_checked_input_objects
                 .inner()
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
+            // With a pre-execution failure, no authenticator runs, the gas owner's
+            // included, so the executor gets the failure in place of the list. That
+            // changes neither
+            // who pays nor the outcome: the gas owner is charged either way, as
+            // when the first authenticator fails.
+            let move_authenticators = if pre_execution_error.is_some() {
+                Vec::new()
+            } else {
+                debug_assert_eq!(
+                    move_authenticators.len(),
+                    per_authenticator_checked_input_objects.len(),
+                    "Move authenticators amount must match the number of checked authenticator inputs"
+                );
+                move_authenticators
+                    .into_iter()
+                    .zip(function_refs)
+                    .zip(per_authenticator_checked_input_objects)
+                    .map(
+                        |(
+                            (move_authenticator, function_ref),
+                            authenticator_checked_input_objects,
+                        )| {
+                            MoveAuthenticatorForExecution {
+                                authenticator: move_authenticator.to_owned(),
+                                function_ref,
+                                input_objects: authenticator_checked_input_objects,
+                            }
+                        },
+                    )
+                    .collect::<Vec<_>>()
+            };
+
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .map(|a| a.function_ref.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -2146,6 +2162,11 @@ impl AuthorityState {
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
                 sponsor_authenticator_function_ref,
+            };
+
+            let authenticators = match pre_execution_error {
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed(error),
+                None => MoveAuthenticatorsForExecution::Resolved(move_authenticators),
             };
 
             epoch_store
@@ -2162,7 +2183,7 @@ impl AuthorityState {
                     epoch_start_timestamp,
                     gas_data,
                     gas_status,
-                    move_authenticators,
+                    authenticators,
                     authenticator_and_tx_checked_input_objects,
                     kind,
                     signer,
@@ -5634,7 +5655,21 @@ impl AuthorityState {
     /// A deleted or cancelled account object is not an error here: its version
     /// is returned so execution can proceed and surface the proper effect
     /// (e.g. `InputObjectDeleted` or a shared-object congestion cancellation).
-    /// Any other failure is a broken invariant and panics.
+    ///
+    /// # Errors
+    ///
+    /// Any failure the check finds with the transaction, as the error the
+    /// transaction fails with, with the original error as the source:
+    /// [`ExecutionErrorKind::AuthenticatorFunctionNotFound`] when the account
+    /// has no authenticator function field or the field cannot be read, and
+    /// [`ExecutionErrorKind::AccountNotSharedObject`] when the account is not a
+    /// shared object.
+    ///
+    /// # Panics
+    ///
+    /// When the store cannot be read: that says nothing about the transaction,
+    /// so nobody can be charged for it, and effects written here would differ
+    /// from the other validators'.
     fn check_move_account_for_execution(
         &self,
         auth_account_object_id: ObjectId,
@@ -5643,8 +5678,8 @@ impl AuthorityState {
         account_object: ObjectReadResult,
         signer: &Address,
         protocol_config: &ProtocolConfig,
-    ) -> AuthenticatorFunctionRefForExecution {
-        self.check_move_account(
+    ) -> Result<AuthenticatorFunctionRefForExecution, ExecutionError> {
+        match self.check_move_account(
             auth_account_object_id,
             auth_account_object_seq_number,
             auth_account_object_digest,
@@ -5652,8 +5687,39 @@ impl AuthorityState {
             signer,
             true,
             protocol_config,
-        )
-        .expect("move account checks cannot fail during execution")
+        ) {
+            Ok(function_ref) => Ok(function_ref),
+            Err(MoveAccountCheckError::Input(input_error)) => {
+                let status = match &input_error {
+                    UserInputError::MoveAuthenticatorNotFound {
+                        account_object_id, ..
+                    }
+                    | UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id } => {
+                        ExecutionErrorKind::AuthenticatorFunctionNotFound {
+                            object_id: *account_object_id,
+                        }
+                    }
+                    // Since protocol version 36, only a shared account named with
+                    // an immutable or owned reference reaches the digest
+                    // comparison. The fix is the same as for the other two: name
+                    // the account as a shared object.
+                    UserInputError::AccountObjectNotSupported { object_id }
+                    | UserInputError::ImmutableAccountObjectNotSupported { object_id }
+                    | UserInputError::InvalidAccountObjectDigest { object_id, .. } => {
+                        ExecutionErrorKind::AccountNotSharedObject {
+                            object_id: *object_id,
+                        }
+                    }
+                    // The check produces nothing else today. A failure added to
+                    // it gets this status until it is given one of its own.
+                    _ => ExecutionErrorKind::FunctionNotFound,
+                };
+                Err(ExecutionError::new_with_source(status, input_error))
+            }
+            Err(MoveAccountCheckError::Storage(storage_error)) => {
+                panic!("failed to read the store while checking a Move account: {storage_error}")
+            }
+        }
     }
 
     /// Resolves the account's `AuthenticatorFunctionRef` on the validation
@@ -5677,6 +5743,7 @@ impl AuthorityState {
             false,
             protocol_config,
         )
+        .map_err(IotaError::from)
     }
 
     /// Checks whether `authenticator` unlocks a valid Move account and returns
@@ -5688,6 +5755,13 @@ impl AuthorityState {
     /// an error, so execution can proceed to the proper effect. Prefer the
     /// `check_move_account_for_execution` / `check_move_account_for_validation`
     /// wrappers over calling this directly.
+    ///
+    /// # Errors
+    ///
+    /// [`MoveAccountCheckError::Input`] when the account fails a check, and
+    /// [`MoveAccountCheckError::Storage`] when the store cannot be read. The
+    /// error type is what lets the execution path distinguish the two, so a
+    /// new kind of failure here has to be added to it.
     fn check_move_account(
         &self,
         auth_account_object_id: ObjectId,
@@ -5697,7 +5771,7 @@ impl AuthorityState {
         signer: &Address,
         is_execution: bool,
         protocol_config: &ProtocolConfig,
-    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
+    ) -> Result<AuthenticatorFunctionRefForExecution, MoveAccountCheckError> {
         let auth_account_object_seq_number = match (&account_object.object, is_execution) {
             // In any case, if the account object is loaded, we can check its version and digest.
             // Then we return the version of the account object to be used for reading the
@@ -5803,7 +5877,8 @@ impl AuthorityState {
             .try_find_object_lt_or_eq_version(
                 authenticator_function_ref_field_id,
                 auth_account_object_seq_number,
-            )?;
+            )
+            .map_err(MoveAccountCheckError::Storage)?;
 
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
             Ok(authenticator_function_ref_v1_from_dynamic_field_object(
@@ -6523,6 +6598,32 @@ impl NodeStateDump {
     pub fn read_from_file(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
+    }
+}
+
+/// The reason [`AuthorityState::check_move_account`] failed.
+/// Execution treats the two cases differently, because only
+/// the first one is about the transaction.
+enum MoveAccountCheckError {
+    /// The account fails a check.
+    Input(UserInputError),
+
+    /// This validator failed to read its store.
+    Storage(IotaError),
+}
+
+impl From<UserInputError> for MoveAccountCheckError {
+    fn from(error: UserInputError) -> Self {
+        Self::Input(error)
+    }
+}
+
+impl From<MoveAccountCheckError> for IotaError {
+    fn from(error: MoveAccountCheckError) -> Self {
+        match error {
+            MoveAccountCheckError::Input(error) => IotaError::UserInput { error },
+            MoveAccountCheckError::Storage(error) => error,
+        }
     }
 }
 
