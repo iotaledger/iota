@@ -2191,13 +2191,15 @@ async fn setup_bookkeeping(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
 ) -> BookkeepingSetup {
-    let config_guard = validation_enabled.then(|| {
-        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        if validation_enabled {
             config.enable_pcool_deterministic_validation_for_testing();
-            config
-        })
+        } else {
+            config.set_pcool_deterministic_validation_for_testing(false);
+        }
+        config
     });
-    setup_bookkeeping_with_config_guard(genesis_objects, config_guard).await
+    setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await
 }
 
 /// Like [`setup_bookkeeping`], under the protocol config override the caller
