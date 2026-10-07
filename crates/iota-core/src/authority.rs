@@ -238,7 +238,6 @@ pub mod transaction_deferral;
 pub(crate) mod authority_store;
 pub mod backpressure;
 pub(crate) mod dropped_tx_status_cache;
-pub(crate) mod pruner_db_migration;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 pub struct AuthorityMetrics {
