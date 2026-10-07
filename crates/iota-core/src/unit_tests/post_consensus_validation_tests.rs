@@ -5717,6 +5717,21 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         "{:?}",
         dropped[1].1
     );
+
+    // Every candidate's decision is saved at the commit, with the error the
+    // caller reports for a drop.
+    let saved: Vec<_> = all_digests
+        .iter()
+        .map(|digest| s.epoch_store.post_consensus_verdict(12, *digest).unwrap())
+        .collect();
+    assert_eq!(
+        saved,
+        vec![
+            Some(PostConsensusVerdict::Kept),
+            Some(PostConsensusVerdict::Dropped(dropped[0].1.clone())),
+            Some(PostConsensusVerdict::Dropped(dropped[1].1.clone())),
+        ]
+    );
 }
 
 /// The decisions of a commit and its candidate list read back as written,
@@ -5784,11 +5799,19 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
     )
     .await;
     let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
-    s.epoch_store
-        .persist_post_consensus_verdicts(1, &[(*tx.digest(), PostConsensusVerdict::Kept)])
-        .unwrap();
+    let mut transactions = vec![make_user_tx_v1_verified(tx.clone())];
+    let (_, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        1,
+        true,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
     let key = make_user_tx_v1_verified(tx.clone()).0.key();
     let mut output = ConsensusCommitOutput::new(1, 1);
+    output.set_owned_object_locks(locks);
     output.record_consensus_message_processed(key.clone());
     output.record_consensus_commit_stats(ExecutionIndicesWithStats {
         index: ExecutionIndices {
