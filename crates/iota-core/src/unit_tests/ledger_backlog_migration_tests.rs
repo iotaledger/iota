@@ -24,7 +24,10 @@ use super::{
 };
 use crate::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
-    checkpoints::{CheckpointStore, CheckpointWatermark, test_checkpoint_with_contents},
+    checkpoints::{
+        CheckpointStore, CheckpointWatermark, EMPTY_CHECKPOINT_CONTENTS_DIGEST,
+        test_checkpoint_with_contents,
+    },
 };
 
 /// The epoch the node is starting in while the migration runs, and so the
@@ -927,5 +930,41 @@ async fn an_expired_checkpoint_does_not_take_a_retained_one_s_contents() {
             .unwrap()
             .is_some(),
         "the retained checkpoint must keep the contents it shares with the expired one",
+    );
+}
+
+/// The checkpoint pruner of earlier releases deleted the contents row every
+/// empty checkpoint shares, even while a later empty checkpoint still named it.
+/// The migration must give a retained empty checkpoint its contents back
+/// rather than move its summary into a bucket without them.
+#[tokio::test]
+async fn a_retained_empty_checkpoint_gets_back_the_contents_row_a_pruner_deleted() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+
+    let empty = FullCheckpointContents::new_with_causally_ordered_transactions([]);
+    let checkpoint = test_checkpoint_with_contents(WATERMARK_EPOCH, 20, &empty);
+    assert_eq!(
+        checkpoint.contents_digest,
+        *EMPTY_CHECKPOINT_CONTENTS_DIGEST
+    );
+    // The summary is on disk; its contents row is not.
+    checkpoint_store
+        .tables
+        .checkpoint_by_digest
+        .insert(checkpoint.digest(), checkpoint.serializable_ref())
+        .unwrap();
+
+    migration(&store, checkpoint_store.clone(), None, 1)
+        .run()
+        .unwrap();
+
+    assert!(
+        checkpoint_store
+            .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+            .unwrap()
+            .is_some_and(|contents| contents.is_empty()),
+        "the retained empty checkpoint must have its contents after the migration"
     );
 }

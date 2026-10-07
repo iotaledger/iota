@@ -56,7 +56,7 @@ use crate::{
         authority_store_tables::AuthorityPerpetualTables,
         historic_ledger::{HistoricLedger, HistoricLedgerBucket},
     },
-    checkpoints::CheckpointStore,
+    checkpoints::{CheckpointStore, EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents},
     progress_logger::ProgressLogger,
 };
 
@@ -680,6 +680,13 @@ impl LedgerBacklogMigration {
                             .find_contents(&digest)?
                         {
                             found.push((digest, contents));
+                        } else if digest == *EMPTY_CHECKPOINT_CONTENTS_DIGEST {
+                            // The checkpoint pruner of earlier releases deleted
+                            // the row every empty checkpoint shares while later
+                            // empty checkpoints still named it. Its contents are
+                            // fixed, so the row is rebuilt rather than leaving
+                            // those checkpoints without contents.
+                            found.push((digest, empty_checkpoint_contents()));
                         }
                     }
                 }
