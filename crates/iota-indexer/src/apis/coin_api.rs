@@ -57,9 +57,8 @@ impl CoinReadApiServer for CoinReadApi {
         let coin_type =
             parse_to_type_tag(coin_type)?.to_canonical_string(/* with_prefix */ true);
 
-        // This store's owner index is ordered by object id, so that is all the
-        // cursor is read for. Without one, start from the beginning of the coin
-        // type, which is the minimal possible ObjectId.
+        // This store pages by object id alone. Without a cursor, start from
+        // the minimal possible ObjectId.
         let cursor = cursor.map_or(ObjectId::ZERO, |cursor| cursor.object_id());
         let mut results = self
             .inner
@@ -89,9 +88,8 @@ impl CoinReadApiServer for CoinReadApi {
             return Ok(CoinPage::empty());
         }
 
-        // This store's owner index is ordered by object id, so that is all the
-        // cursor is read for. Without one, start from the beginning of the coin
-        // type, which is the minimal possible ObjectId.
+        // This store pages by object id alone. Without a cursor, start from
+        // the minimal possible ObjectId.
         let cursor = cursor.map_or(ObjectId::ZERO, |cursor| cursor.object_id());
         let mut results = self
             .inner

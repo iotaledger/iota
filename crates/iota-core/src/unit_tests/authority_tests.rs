@@ -4154,10 +4154,8 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
     assert_eq!(owned[0].0.object_id, gas_object.id());
 }
 
-/// History replay is bounded by the lowest checkpoint whose contents the node
-/// still holds: below that watermark the transactions and effects are gone, so
-/// those checkpoints are skipped while the live-object scan still covers the
-/// live state.
+/// History replay skips checkpoints below the pruned watermark, while the
+/// live-object scan still covers the live state.
 #[tokio::test]
 async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
     let authority_state = TestAuthorityBuilder::new()

@@ -13,23 +13,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 /// The paging cursor of the owner-index queries — `getOwnedObjects`,
 /// `getCoins` and `getAllCoins`.
 ///
-/// Opaque on the wire: a caller passes back the `nextCursor` a page returned
-/// and reads nothing out of it. It names the position of the row it came from,
-/// which is what lets the next page resume after an object that has since been
-/// spent.
+/// Opaque on the wire: a caller passes back the `nextCursor` a page returned.
+/// It names the position of the row it came from, so the next page can resume
+/// after an object that has since been spent.
 ///
-/// Which position it takes depends on how the store answering the query orders
-/// its owner index, and the two stores serving this API order it differently:
-///
-/// - [`Self::ObjectId`] is a position in an index ordered by object id alone, which is what the
-///   indexer's is. It is written as the object id, so a cursor the indexer issues reads exactly as
-///   it did before this type existed.
-/// - [`Self::Position`] is a position in the index a node keeps for its own reads, ordered by
-///   object type and balance before the object id. Those fields cannot be recovered from an object
-///   id, so the cursor carries them, written as base64.
-///
-/// A caller hands a cursor back to the endpoint that issued it, so the form
-/// always matches the store reading it.
+/// - [`Self::ObjectId`] is used by the indexer, whose owner index is ordered by object id, and is
+///   written as the object id.
+/// - [`Self::Position`] is used by a node's own owner index, ordered by object type and balance
+///   before the object id, and is written as base64.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnedObjectCursor {
     /// A position in an index ordered by object id alone.
@@ -40,8 +31,7 @@ pub enum OwnedObjectCursor {
 }
 
 impl OwnedObjectCursor {
-    /// A cursor for a store whose owner index is ordered by object id, which
-    /// needs nothing else to resume.
+    /// A cursor for a store whose owner index is ordered by object id.
     pub fn from_object_id(object_id: ObjectId) -> Self {
         Self::ObjectId(object_id)
     }
@@ -51,8 +41,7 @@ impl OwnedObjectCursor {
         Self::Position(cursor)
     }
 
-    /// The object the cursor names, which is all a store ordering its owner
-    /// index by object id needs.
+    /// The object the cursor names.
     pub fn object_id(&self) -> ObjectId {
         match self {
             Self::ObjectId(object_id) => *object_id,
@@ -60,9 +49,7 @@ impl OwnedObjectCursor {
         }
     }
 
-    /// The full position, or `None` for a cursor that names only an object —
-    /// one issued by a store that orders its owner index by object id, and so
-    /// carries nothing that places a row in an index ordered by anything else.
+    /// The full position, or `None` for a cursor that names only an object.
     pub fn position(&self) -> Option<&IndexCursor> {
         match self {
             Self::ObjectId(_) => None,
@@ -74,8 +61,6 @@ impl OwnedObjectCursor {
 impl fmt::Display for OwnedObjectCursor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            // Unchanged from before this type: a cursor of an index ordered by
-            // object id is the object id.
             Self::ObjectId(object_id) => write!(f, "{object_id}"),
             Self::Position(cursor) => {
                 let bytes = bcs::to_bytes(cursor).map_err(|_| fmt::Error)?;
@@ -119,13 +104,10 @@ impl JsonSchema for OwnedObjectCursor {
     }
 
     fn json_schema(generator: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
-        // Described rather than left as a bare string: what a caller has to
-        // know is that the value is not to be read or built, only handed back.
         let mut schema = String::json_schema(generator).into_object();
         schema.metadata().description = Some(
             "An opaque paging cursor. Pass back the `nextCursor` a page returned to read the \
-             page after it. Its contents are not part of the API and an object id is not a \
-             valid cursor."
+             page after it; its contents are not part of the API."
                 .to_owned(),
         );
         schema.into()
@@ -136,8 +118,7 @@ impl JsonSchema for OwnedObjectCursor {
 mod tests {
     use super::*;
 
-    /// A caller only ever hands back what a page gave it, so both forms have
-    /// to survive that round trip exactly.
+    /// Both forms survive a JSON round trip unchanged.
     #[test]
     fn both_forms_survive_the_round_trip_through_the_wire() {
         let by_id = OwnedObjectCursor::from_object_id(ObjectId::random());
@@ -159,8 +140,8 @@ mod tests {
         }
     }
 
-    /// The object-id form is written as the object id, so a cursor the indexer
-    /// issues reads exactly as it did before this type existed.
+    /// The object-id form is written as the bare object id, keeping indexer
+    /// cursors in their existing wire format.
     #[test]
     fn the_object_id_form_is_written_as_the_object_id() {
         let object_id = ObjectId::random();
@@ -172,8 +153,7 @@ mod tests {
         );
     }
 
-    /// Both forms answer which object they name; only the one that carries a
-    /// position has one.
+    /// Both forms name an object; only the position form has a position.
     #[test]
     fn only_the_position_form_carries_one() {
         let object_id = ObjectId::random();

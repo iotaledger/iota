@@ -130,9 +130,7 @@ pub struct OwnerIndexKey {
 }
 
 impl OwnerIndexKey {
-    /// The key `cursor` names among `owner`'s rows. A cursor carries every
-    /// field of the key but the owner, which the caller supplies, so a
-    /// position needs no read of the object itself.
+    /// The key at `cursor`'s position among `owner`'s rows.
     pub(super) fn for_cursor(owner: Address, cursor: &OwnedObjectCursor) -> Self {
         Self {
             owner,
