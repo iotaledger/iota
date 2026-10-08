@@ -9,5 +9,6 @@ mod common;
 mod connections;
 mod harness;
 mod requested_max;
+mod requests;
 mod response_item_sizes;
 mod response_message_sizes;

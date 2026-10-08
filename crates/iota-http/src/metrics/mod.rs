@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Measures the connections of one listener.
+//! Measures the connections and the requests of one listener.
 //!
 //! The listener wraps each socket it accepts in a `TrackedIo` and uses it for
 //! the whole life of the connection.
@@ -14,17 +14,21 @@ use std::{
 
 use iota_metrics::peak::IntGaugeWithPeakGauge;
 use prometheus_filtered::{
-    Histogram, IntCounterVec, MetricLevel, Registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry,
+    Histogram, HistogramVec, IntCounterVec, MetricLevel, Registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
 
 mod connection;
 mod io;
+mod layer;
+mod requests;
 mod scope;
 mod tls;
 
-pub(crate) use connection::ConnectionGuard;
+use connection::Used;
+pub(crate) use connection::{ConnectionGuard, ConnectionHandle};
 pub(crate) use io::TrackedIo;
+pub(crate) use layer::{TrackRequestsLayer, TrackedResponseBody};
 use scope::Scope;
 pub(crate) use tls::HandshakeResult;
 
@@ -57,6 +61,7 @@ impl ListenerMetrics {
             registry: registry.clone(),
             level,
             metrics: Metrics::new(prefix, registry, level),
+            requests: requests::Metrics::new(prefix, registry, level),
             tls: OnceLock::new(),
         }))
     }
@@ -92,6 +97,7 @@ struct Inner {
     registry: Registry,
     level: MetricLevel,
     metrics: Metrics,
+    requests: requests::Metrics,
     /// Registered when the listener starts with TLS.
     tls: OnceLock<Arc<tls::Metrics>>,
 }
@@ -99,7 +105,7 @@ struct Inner {
 struct Metrics {
     inbound_connections_accepted: IntCounterVec,
     inbound_connections: IntGaugeWithPeakGauge,
-    connection_lifetime_seconds: Histogram,
+    connection_lifetime_seconds: HistogramVec,
 }
 
 impl Metrics {
@@ -129,15 +135,22 @@ impl Metrics {
                 registry,
                 level,
             ),
-            connection_lifetime_seconds: register_histogram_with_registry!(
+            connection_lifetime_seconds: register_histogram_vec_with_registry!(
                 format!("{prefix}_connection_lifetime_seconds"),
-                "Time from the TCP accept to the close, in seconds",
+                "Time from the TCP accept to the close, in seconds. Used is true when the \
+                 connection carried at least one request",
+                &["used"],
                 CONNECTION_LIFETIME_SEC_BUCKETS.to_vec(),
                 registry;
                 level
             )
             .expect("the metrics of a listener register without collision"),
         }
+    }
+
+    fn lifetime(&self, used: Used) -> Histogram {
+        let used: &str = used.into();
+        self.connection_lifetime_seconds.with_label_values(&[used])
     }
 }
 

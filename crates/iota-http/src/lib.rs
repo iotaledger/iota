@@ -9,7 +9,7 @@ pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
-use metrics::{HandshakeResult, TrackedIo};
+use metrics::{HandshakeResult, TrackRequestsLayer, TrackedIo, TrackedResponseBody};
 use tokio::task::JoinSet;
 use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
@@ -134,16 +134,20 @@ impl Builder {
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
         let peer_connection_counts =
             PeerConnectionCounts::new(self.config.on_peer_connection_event.clone());
+        let service = ServiceBuilder::new()
+            .layer(tower::util::BoxCloneService::layer())
+            .map_response(|response: Response<TrackedResponseBody<ResponseBody>>| {
+                response.map(body::boxed)
+            })
+            .map_err(Into::into)
+            .layer(TrackRequestsLayer::new())
+            .service(service);
         let server = Server {
             config: self.config,
             tls_config,
             listener,
             local_addr,
-            service: ServiceBuilder::new()
-                .layer(tower::util::BoxCloneService::layer())
-                .map_response(|response: Response<ResponseBody>| response.map(body::boxed))
-                .map_err(Into::into)
-                .service(service),
+            service,
             pending_connections: JoinSet::new(),
             connection_handlers: JoinSet::new(),
             connections: connections.clone(),
@@ -362,6 +366,7 @@ where
             remote_addr: *connection_info.remote_address(),
         };
         let peer_certificates = connection_info.peer_certificates().cloned();
+        let connection_handle = io.connection().map(|connection| connection.handle());
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
         let hyper_svc = TowerToHyperService::new(self.service.clone().map_request(
@@ -369,6 +374,9 @@ where
                 request.extensions_mut().insert(connect_info.clone());
                 if let Some(peer_certificates) = peer_certificates.clone() {
                     request.extensions_mut().insert(peer_certificates);
+                }
+                if let Some(connection) = connection_handle.clone() {
+                    request.extensions_mut().insert(connection);
                 }
 
                 request.map(body::boxed)
