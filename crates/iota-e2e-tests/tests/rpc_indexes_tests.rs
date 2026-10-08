@@ -194,8 +194,7 @@ async fn node_without_jsonrpc_api_mounts_no_http_server() {
 }
 
 /// A transaction still held by the ledger reports its checkpoint over gRPC
-/// even when the RPC index retains fewer epochs than the ledger does — the
-/// finality answer lives with the transaction, not with the query indexes.
+/// after the RPC index has pruned its epoch.
 #[sim_test]
 async fn transaction_checkpoint_survives_a_shorter_index_window() {
     let cluster = TestClusterBuilder::new()
@@ -214,8 +213,7 @@ async fn transaction_checkpoint_survives_a_shorter_index_window() {
         .iota_node
         .with(|node| node.state().rpc_indexes_store.clone().unwrap());
 
-    // Advance past the index retention so the transaction's epoch bucket is
-    // dropped, while the ledger still holds the transaction itself.
+    // Advance past the index retention.
     for _ in 0..=1 {
         cluster.force_new_epoch().await;
     }
@@ -240,8 +238,6 @@ async fn transaction_checkpoint_survives_a_shorter_index_window() {
         panic!("the ledger must still answer which checkpoint confirmed {digest}")
     });
 
-    // The query index is what the shorter window costs: the transaction can
-    // no longer be found by query, while remaining fetchable by digest.
     assert_eq!(
         indexes.lookup_digest(&digest).unwrap(),
         None,

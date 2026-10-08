@@ -1,10 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The gRPC read surface of the unified RPC index store. Every public read
-//! here fails with `StorageError::custom("the gRPC index group is not
-//! enabled")` when the store does not maintain the [`IndexGroup::Grpc`]
-//! group's tables.
+//! The gRPC reads of the RPC index store. Every public read here fails when
+//! the store does not maintain the [`IndexGroup::Grpc`] tables.
 
 use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::storage::{

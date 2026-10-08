@@ -199,12 +199,9 @@ pub struct CheckpointStoreTables {
 
     /// Certified checkpoint summaries, keyed by sequence number.
     ///
-    /// Intentionally not pruned, so this grows by one row per checkpoint
-    /// forever. The summary chain is the per-checkpoint verification
-    /// anchor: `epoch_info` carries one certified summary per epoch, enough
-    /// to follow committee handovers, but only these intermediate summaries
-    /// carry a certified `contents_digest` for a non-boundary checkpoint,
-    /// which is what an inclusion proof is checked against.
+    /// Intentionally never pruned: only these summaries carry a certified
+    /// `contents_digest` for a checkpoint that does not close an epoch, which
+    /// is what an inclusion proof is checked against.
     pub(crate) certified_checkpoints: DBMap<CheckpointSequenceNumber, TrustedCheckpoint>,
     /// Map from checkpoint digest to certified checkpoint.
     ///

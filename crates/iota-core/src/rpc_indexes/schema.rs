@@ -77,10 +77,6 @@ pub(super) const HISTORY_CF_PREFIX: &str = "hist_rpc_e";
 // Public so that the database inspection tooling can scan a bucket without
 // reopening the store.
 pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
-/// A transaction's position in the network order, which places a JSON-RPC
-/// query cursor. The checkpoint that confirmed the transaction is not here:
-/// it is kept with the ledger, so a finality answer cannot expire before
-/// the transaction it describes.
 pub const DB_PREFIX_HISTORIC_TXS_SEQ: u8 = 1;
 pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
 pub const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
@@ -452,31 +448,22 @@ pub(super) fn transaction_index_data(
     })
 }
 
-/// One epoch's history tables, sharing a single per-epoch column family of
-/// the index database, distinguished by a tag byte prefixed to every key.
-/// Transactions are numbered by network order and epochs partition that
-/// order contiguously, so each bucket is a disjoint, epoch-ordered segment
-/// of every history table: chaining per-bucket scans in epoch order
-/// preserves the global iteration order, and pruning an epoch is one
-/// constant-time column-family drop.
+/// One epoch's history tables, sharing a single per-epoch column family and
+/// told apart by a tag byte prefixed to every key. Epochs partition the
+/// network order contiguously, so chaining per-bucket scans in epoch order
+/// preserves the global iteration order.
 ///
-/// Every field below is query acceleration, pruned by the indexes retention
-/// knob: losing a bucket means this node cannot *find* a transaction or
-/// event through these tables, not that the transaction is gone. The
-/// indexes window must therefore never exceed the ledger's, or a query can
-/// return a digest whose transaction has already been pruned from the
-/// ledger.
+/// The indexes retention window must never exceed the ledger's, or a query
+/// can return a digest whose transaction has already been pruned.
 pub(super) struct HistoryBucket {
     /// Ordering of all indexed transactions. Filled only when the JSON-RPC
     /// group is enabled.
     pub(super) tx_order: TaggedDBMap<TxSequenceNumber, TransactionDigest>,
 
-    /// Index from transaction digest to its position in the network order,
-    /// which the JSON-RPC queries read to place a cursor. It is written
-    /// whatever the enabled groups are, because checkpoint ingest looks a
-    /// transaction up here to tell a replayed checkpoint from a new one.
-    /// The checkpoint that confirmed a transaction is kept with the ledger
-    /// instead, in
+    /// Index from transaction digest to its position in the network order.
+    /// Written whatever the enabled groups are, because checkpoint ingest
+    /// reads it to tell a replayed checkpoint from a new one. The confirming
+    /// checkpoint is kept with the ledger, in
     /// `AuthorityPerpetualTables::executed_transactions_to_checkpoint`.
     pub(super) txs_seq: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
 

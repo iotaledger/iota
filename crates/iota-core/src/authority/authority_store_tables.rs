@@ -66,8 +66,8 @@ pub struct AuthorityPerpetualTables {
     /// and which must be retried. But, they cannot be retried unless their
     /// input objects are still accessible!
     ///
-    /// Non-latest versions prune with their own knob rather than the
-    /// ledger's; see [`AuthorityStorePruner::prune_checkpoints`].
+    /// Superseded versions are moved into the [`HistoricObjects`] buckets
+    /// and expire with them; see [`HistoricObjects::prune`].
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
