@@ -707,3 +707,40 @@ async fn test_expiry_keeps_a_head_that_still_buries_a_live_version() {
         "the version beneath it is untouched, and still older than the head",
     );
 }
+
+/// An object wrapped and then unwrapped and deleted in one epoch leaves two
+/// tombstone heads in that epoch's bucket. Expiry deletes both: the older
+/// head is a tombstone, not a live version the newer one still buries.
+#[tokio::test]
+async fn test_expiry_deletes_every_head_an_object_left_in_the_epoch() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic, _historic_ledger) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let id = ObjectId::random();
+    let wrapped = ObjectKey(id, 3.into());
+    let deleted = ObjectKey(id, 4.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(wrapped, ()), (deleted, ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [
+                (wrapped, StoreObjectWrapper::from(StoreObject::Wrapped)),
+                (deleted, StoreObjectWrapper::from(StoreObject::Deleted)),
+            ],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+
+    assert!(perpetual.objects.get(&wrapped).unwrap().is_none());
+    assert!(perpetual.objects.get(&deleted).unwrap().is_none());
+}
