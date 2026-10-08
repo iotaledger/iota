@@ -82,9 +82,7 @@ pub fn search_index(
 }
 
 /// Searches one of the transaction/event history tables, which live in
-/// per-epoch column families sharing one table per tag byte. The buckets
-/// partition the sequence order by epoch, so chaining the per-bucket scans
-/// in epoch order yields globally ordered entries.
+/// per-epoch column families. Entries come back in global order.
 fn search_history_table(
     db_path: PathBuf,
     table_name: &str,

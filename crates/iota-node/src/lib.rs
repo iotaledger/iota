@@ -2221,8 +2221,7 @@ impl IotaNode {
         }
     }
 
-    /// Stops the node's background work — consensus, the JSON-RPC index
-    /// history backfill and the gRPC server — before its runtimes go away.
+    /// Stops consensus, the JSON-RPC index backfill and the gRPC server.
     /// Does nothing the second time it is called.
     pub async fn shutdown(&self) {
         if let Some(validator_components) = &*self.validator_components.lock().await {

@@ -1066,8 +1066,7 @@ impl DBBatch {
     /// With default options, an entry whose column family was dropped
     /// between staging and this write fails the whole write with a fatal
     /// RocksDB background error. Stores that drop column families at
-    /// runtime must pass [`drop_tolerant_write_options`], which discards such
-    /// entries instead.
+    /// runtime must pass [`drop_tolerant_write_options`].
     #[instrument(level = "trace", skip_all, err)]
     pub fn write_opt(self, write_options: &rocksdb::WriteOptions) -> Result<(), TypedStoreError> {
         let db_name = self.database.db_name();
@@ -1862,11 +1861,8 @@ pub(crate) fn error_iterator<'a, T: 'a>(error: TypedStoreError) -> DbIterator<'a
     Box::new(std::iter::once(Err(error)))
 }
 
-/// Write options for the batches of a store that drops column families at
-/// runtime: entries of a column family dropped after staging are discarded
-/// instead of failing the whole write with a fatal RocksDB background
-/// error, see [`DBBatch::write_opt`]. Other stores keep the default
-/// options, where a write to a missing column family fails.
+/// Write options that discard the batch entries of a column family dropped
+/// after staging, instead of failing the write; see [`DBBatch::write_opt`].
 pub fn drop_tolerant_write_options() -> rocksdb::WriteOptions {
     let mut options = rocksdb::WriteOptions::default();
     options.set_ignore_missing_column_families(true);
