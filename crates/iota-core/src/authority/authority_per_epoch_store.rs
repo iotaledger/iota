@@ -1833,10 +1833,8 @@ impl AuthorityPerEpochStore {
         )
     }
 
-    /// Marks commit `index` fully executed; see
-    /// [`HandlerObjectState::record_commit_fully_executed`].
-    ///
-    /// A no-op once the quarantine flush has completed the commit; see
+    /// Marks commit `index` fully executed, or does nothing once the quarantine
+    /// flush has completed the commit; see
     /// [`HandlerObjectState::record_commit_fully_executed`].
     pub fn record_commit_fully_executed(
         &self,
