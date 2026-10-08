@@ -2345,3 +2345,26 @@ mod handler_object_state_storage {
         assert_highest(&reopened, 4);
     }
 }
+
+/// A transaction in a checkpoint the indexes have not reached by the deadline
+/// is still returned, as it is final, and is reported as not indexed.
+#[tokio::test]
+async fn wait_for_checkpoint_inclusion_keeps_a_checkpointed_transaction_not_yet_indexed() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let digest = TransactionDigest::random();
+    let seq = 5;
+    let ts = 1_700_000_000_000;
+    authority_state
+        .epoch_store_for_testing()
+        .insert_finalized_transactions(&[digest], seq, ts)
+        .expect("insert_finalized_transactions should succeed");
+
+    let results = authority_state
+        .wait_for_checkpoint_inclusion(&[digest], Duration::from_millis(100))
+        .await
+        .expect("wait_for_checkpoint_inclusion returned error");
+
+    // Read back from the table, without a summary to take the timestamp from.
+    assert_eq!(results.get(&digest).map(|&(seq, _)| seq), Some(seq));
+    assert!(!authority_state.is_checkpoint_indexed(seq).unwrap());
+}
