@@ -11,7 +11,6 @@ use std::{
 
 use iota_sdk_types::{MovePackage, ObjectId, TypeOrigin, UpgradeInfo};
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES,
     error::{ExecutionError, IotaError, IotaResult},
     iota_sdk_types_conversions::identifier_core_to_sdk,
     move_package::MovePackageExt,
@@ -49,9 +48,9 @@ pub struct LinkageView<'state> {
     /// package is in this set, then we will not try to load its type origin
     /// table when setting it as a context (again).
     past_contexts: RefCell<HashSet<ObjectId>>,
-    /// Distinct non-system packages fetched through
-    /// `PackageStore::get_package` on this view, and their total serialized
-    /// bytes, for the read-I/O component of the resource profile.
+    /// Distinct non-system packages read for this transaction, through
+    /// `PackageStore::get_package` or reported by the adapter, and their total
+    /// serialized bytes, for the read-I/O component of the resource profile.
     counted_packages: RefCell<HashSet<ObjectId>>,
     packages_loaded: RefCell<u64>,
     package_bytes_loaded: RefCell<u64>,
@@ -83,13 +82,26 @@ impl<'state> LinkageView<'state> {
         }
     }
 
-    /// The distinct non-system packages fetched through this view and their
+    /// The distinct non-system packages read for this transaction and their
     /// total serialized bytes, for the resource profile.
     pub fn package_load_counters(&self) -> (u64, u64) {
         (
             *self.packages_loaded.borrow(),
             *self.package_bytes_loaded.borrow(),
         )
+    }
+
+    /// Count a package of `bytes` serialized size as read, once per package;
+    /// system packages are ignored. For packages the adapter reads outside
+    /// `PackageStore::get_package`, such as publish and upgrade dependencies.
+    pub fn record_package_load(&self, package_id: ObjectId, bytes: u64) {
+        if package_id.is_system_package() {
+            return;
+        }
+        if self.counted_packages.borrow_mut().insert(package_id) {
+            *self.packages_loaded.borrow_mut() += 1;
+            *self.package_bytes_loaded.borrow_mut() += bytes;
+        }
     }
 
     /// Reset the `LinkageInfo`.
@@ -396,13 +408,7 @@ impl PackageStore for LinkageView<'_> {
     fn get_package(&self, package_id: &ObjectId) -> IotaResult<Option<Rc<MovePackage>>> {
         let result = self.resolver.get_package(package_id)?;
         if let Some(package) = &result {
-            let is_system = SYSTEM_PACKAGE_ADDRESSES
-                .iter()
-                .any(|addr| addr.as_bytes() == package_id.as_bytes());
-            if !is_system && self.counted_packages.borrow_mut().insert(*package_id) {
-                *self.packages_loaded.borrow_mut() += 1;
-                *self.package_bytes_loaded.borrow_mut() += package.size() as u64;
-            }
+            self.record_package_load(*package_id, package.size() as u64);
         }
         Ok(result)
     }
@@ -473,5 +479,24 @@ mod tests {
 
         view.get_package(&user_b).unwrap();
         assert_eq!(view.package_load_counters(), (2, 2 * package_bytes));
+    }
+
+    #[test]
+    fn direct_package_loads_share_the_counters() {
+        let user = ObjectId::new([0xC; 32]);
+        let system = ObjectId::new(SYSTEM_PACKAGE_ADDRESSES[0].into_bytes());
+        let view = LinkageView::new(Box::new(StubPackages(BTreeMap::from([(
+            user,
+            stub_package(user),
+        )]))));
+
+        view.record_package_load(user, 100);
+        view.record_package_load(user, 100);
+        view.record_package_load(system, 100);
+        assert_eq!(view.package_load_counters(), (1, 100));
+
+        // The same package fetched through the store is not counted again.
+        view.get_package(&user).unwrap();
+        assert_eq!(view.package_load_counters(), (1, 100));
     }
 }

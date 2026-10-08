@@ -1017,7 +1017,15 @@ mod checked {
                     msg,
                 ))
             }
-            Ok(Ok(pkgs)) => Ok(pkgs),
+            Ok(Ok(pkgs)) => {
+                for package in &pkgs {
+                    context.linkage_view.record_package_load(
+                        package.object().id(),
+                        package.move_package().size() as u64,
+                    );
+                }
+                Ok(pkgs)
+            }
         }
     }
 

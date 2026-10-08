@@ -79,10 +79,10 @@ pub struct ResourceProfile {
     pub child_object_reads: u64,
     /// Serialized bytes of child objects fetched from the store.
     pub child_object_read_bytes: u64,
-    /// Number of distinct non-system packages the adapter fetched directly
-    /// (call targets, publish/upgrade dependencies, linkage contexts).
-    /// Module loads by the VM loader are not counted, since they depend on
-    /// the loader's per-epoch cache.
+    /// Number of distinct non-system packages the adapter fetched directly:
+    /// call targets, type-loading link contexts, publish/upgrade dependencies,
+    /// and the package being upgraded. Module loads by the VM loader are not
+    /// counted, since they depend on the loader's per-epoch cache.
     pub packages_loaded: u64,
     /// Serialized bytes of the packages counted by `packages_loaded`.
     pub package_bytes_loaded: u64,
