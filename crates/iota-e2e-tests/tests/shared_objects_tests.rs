@@ -403,9 +403,8 @@ async fn call_shared_object_contract() {
     // reference
     //
     // Both calls pay with the same coin, so the second transaction depends on the
-    // first through its gas object. Letting the wallet pick a coin per call is not
-    // stable: `getOwnedObjects` returns coins largest-balance first, and the
-    // balances shift as gas is spent.
+    // first through its gas object; the wallet's own coin choice shifts as gas
+    // is spent.
     let (gas_owner, gas_coin) = test_cluster
         .wallet
         .get_one_gas_object()
