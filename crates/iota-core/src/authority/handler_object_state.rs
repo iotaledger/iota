@@ -67,7 +67,7 @@ use std::{
 };
 
 use dashmap::DashMap;
-use iota_common::{debug_fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use iota_sdk_types::{
     ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionDigest, TransactionEffects,
@@ -188,8 +188,14 @@ pub fn handler_processed_upserts(
             // Shared-object mutations write nothing: no check consults shared
             // state beyond existence, creation, and deletion, and hot shared
             // objects (the Clock) would churn the row every commit.
-            (_, Owner::Shared(_)) => continue,
-            _ => None,
+            (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => continue,
+            (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => None,
+            // `WriteKind` is non-exhaustive; a kind this code does not know
+            // cannot be classified, so it is a bug here rather than a guess.
+            _ => fatal!(
+                "unknown write kind {write_kind:?} for {}",
+                owned_ref.reference().object_id
+            ),
         };
         rows.push((
             ObjectKey(
@@ -260,10 +266,7 @@ pub fn sync_ahead_writes(
             (WriteKind::Mutate, _) => old_versions.get(&id).copied(),
             // `WriteKind` is non-exhaustive; a kind this code does not know
             // cannot be classified, so it is a bug here rather than a guess.
-            _ => {
-                debug_fatal!("unknown write kind {write_kind:?} for {id}");
-                continue;
-            }
+            _ => fatal!("unknown write kind {write_kind:?} for {id}"),
         };
         writes.push(SyncAheadWrite {
             id,
