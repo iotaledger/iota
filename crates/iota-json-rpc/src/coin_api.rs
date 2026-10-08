@@ -56,13 +56,11 @@ pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcIn
     })))
 }
 
-/// The index position a cursor names, refusing one this store cannot place.
+/// The index position a cursor names.
 ///
-/// A cursor carrying only an object id came from a store that orders its owner
-/// index by object id — the indexer, or a release before this one. This node's
-/// index is ordered by object type and balance first, which an object id
-/// cannot describe, so such a cursor is refused rather than read as a position
-/// it is not: seeking to the wrong place would silently skip or repeat rows.
+/// A cursor carrying only an object id, as the indexer issues, is refused:
+/// this node's owner index is ordered by object type and balance first, so
+/// seeking by object id alone would skip or repeat rows.
 fn cursor_position(
     cursor: Option<OwnedObjectCursor>,
 ) -> Result<Option<IndexCursor>, IotaRpcInputError> {
@@ -142,9 +140,8 @@ impl CoinReadApiServer for CoinReadApi {
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         async move {
-            // The cursor carries its own index position, so a coin spent since
-            // the page that issued it still names where to resume from and
-            // needs no lookup of the object here.
+            // The cursor carries its index position, so a coin spent since
+            // needs no lookup here.
             let coins = self
                 .internal
                 .get_coins_iterator(owner, cursor_position(cursor)?, None, limit)
@@ -670,9 +667,8 @@ mod tests {
         Usdc,
     }
 
-    /// Pairs a coin with the cursor naming it, the way the store returns it.
-    /// The position a node's owner index gives a row. The type and balance
-    /// fields do not matter to these tests, only that a cursor carries one.
+    /// An owner index position; its type and balance fields do not matter to
+    /// these tests.
     fn position(object_id: ObjectId) -> IndexCursor {
         IndexCursor {
             object_type_identifier: 0,
@@ -1088,10 +1084,7 @@ mod tests {
             assert_eq!(response.data, coins[..limit].to_vec());
         }
 
-        /// A cursor names its own position, so a page resumes after an
-        /// object that has since been spent instead of failing. Before the
-        /// cursor carried that position it had to be looked up, and an object
-        /// that had gone — or was never a coin — failed the whole request.
+        /// A page resumes after a cursor whose object has since been spent.
         #[tokio::test]
         async fn test_cursor_of_a_spent_object_still_returns_a_page() {
             let owner = get_test_owner();
@@ -1099,8 +1092,7 @@ mod tests {
             let coin = get_test_coin(None, CoinType::Gas);
             let coin_clone = coin.clone();
             let mut mock_state = MockStateRead::new();
-            // The store is asked for the page, and never for the cursor's
-            // object: nothing reads it any more.
+            // The store is never asked for the cursor's object.
             mock_state
                 .expect_get_owned_coins()
                 .return_once(move |_, _, _, _| Ok(vec![with_cursor(coin_clone)]));
