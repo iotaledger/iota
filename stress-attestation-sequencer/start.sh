@@ -229,7 +229,7 @@ fi
 # starting ours clashes with them on the container name or the port.
 GRAFANA_DIR="${GRAFANA_DIR:-$REPO_ROOT/dev-tools/grafana-local}"
 read -r -a MON_SERVICES <<<"${MON_SERVICES:-prometheus grafana cadvisor node-exporter}"
-declare -A MON_PORT_OF=([prometheus]=9090 [grafana]=3000 [cadvisor]=8080 [node - exporter]=9100)
+declare -A MON_PORT_OF=([prometheus]=9090 [grafana]=3000 [cadvisor]=8080 ["node-exporter"]=9100)
 MON_PORTS=() # host ports the chosen services bind (no tempo ports)
 for _svc in "${MON_SERVICES[@]}"; do
   if [[ -z "${MON_PORT_OF[$_svc]:-}" ]]; then
