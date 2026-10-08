@@ -504,9 +504,15 @@ impl GasStatus {
         self.add_to_current_frame(size);
     }
 
-    /// Record a value moved out of a local.
+    /// Record a value moved out of a local. A value larger than the frame has
+    /// tracked was an entry-function argument or grew in place through `&mut`;
+    /// the excess is counted before release so the peak sees it.
     pub fn record_move_loc(&mut self, size: u64) {
         self.locals_peak_before_call = None;
+        let tracked = self.frame_locals_added.last().copied().unwrap_or(0);
+        if size > tracked {
+            self.increase_locals_size(size - tracked);
+        }
         self.decrease_locals_size(size);
         if let Some(top) = self.frame_locals_added.last_mut() {
             *top = top.saturating_sub(size);
@@ -514,7 +520,7 @@ impl GasStatus {
     }
 
     /// Record a frame drop, where `dropped_size` is the total abstract size of
-    /// the values still in the frame's locals.
+    /// the non-reference values still in the frame's locals.
     pub fn record_drop_frame(&mut self, dropped_size: u64) {
         self.locals_peak_before_call = None;
         let tracked = self.frame_locals_added.pop().unwrap_or(0);
@@ -523,7 +529,9 @@ impl GasStatus {
         if dropped_size > tracked {
             self.increase_locals_size(dropped_size - tracked);
         }
-        self.decrease_locals_size(dropped_size);
+        // References stored in locals were counted by the store hook but are
+        // not part of `dropped_size`, so release everything the frame tracked.
+        self.decrease_locals_size(dropped_size.max(tracked));
     }
 
     /// Undo the frame pushed by [`record_call_frame`](Self::record_call_frame)
@@ -877,6 +885,37 @@ mod tests {
         status.record_store_loc(5);
         status.record_move_loc(5);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 28);
+    }
+
+    #[test]
+    fn moving_an_untracked_local_counts_it_before_release() {
+        let mut status = GasStatus::new_unmetered();
+        status.record_call_frame(100);
+        status.record_call_frame(0);
+        // The callee moves out a value the store hook never saw: an entry
+        // argument, or one grown in place through `&mut`.
+        status.record_move_loc(64);
+        assert_eq!(status.resource_profile().locals_size_high_water_mark, 164);
+        // The outer frame's locals are still live.
+        assert_eq!(status.locals_size_current, 100);
+
+        status.record_drop_frame(0);
+        status.record_drop_frame(100);
+        assert_eq!(status.locals_size_current, 0);
+    }
+
+    #[test]
+    fn frame_drop_releases_stored_references() {
+        let mut status = GasStatus::new_unmetered();
+        for _ in 0..1000 {
+            status.record_call_frame(0);
+            // `StLoc` of a reference, counted at its reference size.
+            status.record_store_loc(8);
+            // The interpreter passes only non-reference locals to the drop.
+            status.record_drop_frame(0);
+        }
+        assert_eq!(status.locals_size_current, 0);
+        assert_eq!(status.resource_profile().locals_size_high_water_mark, 8);
     }
 
     #[test]
