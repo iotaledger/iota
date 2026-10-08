@@ -326,7 +326,23 @@ impl<B: BucketReopen> EpochBuckets<B> {
         mut buckets: BTreeMap<EpochId, Arc<B>>,
     ) -> Result<Self, TypedStoreError> {
         let earliest_retained_epoch = earliest_retained_table.get(&())?.unwrap_or(0);
-        let on_disk: BTreeSet<EpochId> = buckets.keys().copied().collect();
+        // Listed from the database rather than taken from `buckets`: a column
+        // family whose drop failed before this call is still there, and so
+        // are its files.
+        let on_disk: Option<BTreeSet<EpochId>> = match &paths {
+            Some(_) => match list_tables(db.path_for_pruning().to_path_buf()) {
+                Ok(cfs) => Some(
+                    cfs.iter()
+                        .filter_map(|cf_name| bucket_cf_epoch(cf_prefix, cf_name))
+                        .collect(),
+                ),
+                Err(e) => {
+                    warn!(store = name, "cannot list the bucket column families: {e}");
+                    None
+                }
+            },
+            None => None,
+        };
         let pruned: Vec<EpochId> = buckets
             .range(..earliest_retained_epoch)
             .map(|(&epoch, _)| epoch)
@@ -342,7 +358,9 @@ impl<B: BucketReopen> EpochBuckets<B> {
             }
         }
         if let Some(paths) = &paths {
-            paths.remove_dirs_without_bucket(|epoch| on_disk.contains(&epoch));
+            if let Some(on_disk) = on_disk {
+                paths.remove_dirs_without_bucket(|epoch| on_disk.contains(&epoch));
+            }
             paths.remove_empty_dirs_below(earliest_retained_epoch);
         }
         let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
@@ -678,9 +696,22 @@ mod tests {
         paths: &BucketPaths,
         epochs: &[EpochId],
     ) -> (EpochBuckets<TestBucket>, Arc<Database>) {
+        placed_buckets_without(db_path, paths, epochs, &[])
+    }
+
+    /// Like [`placed_buckets`], but with the column families of `left_out`
+    /// opened and kept out of the buckets, as a store does with one it failed
+    /// to drop before calling `EpochBuckets::open`.
+    fn placed_buckets_without(
+        db_path: &Path,
+        paths: &BucketPaths,
+        epochs: &[EpochId],
+        left_out: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, Arc<Database>) {
         let db_options = default_db_options().options;
         let mut opt_cfs: Vec<(String, rocksdb::Options)> = epochs
             .iter()
+            .chain(left_out)
             .map(|&epoch| {
                 (
                     bucket_cf_name(TEST_CF_PREFIX, epoch),
@@ -793,6 +824,35 @@ mod tests {
 
         assert!(!paths.bucket_dir(9).exists());
         assert!(other_store.exists());
+    }
+
+    /// A column family the store kept out of its buckets, as after a failed
+    /// drop, keeps its directory: the column family is still in the
+    /// database, and the next open needs its files.
+    #[tokio::test]
+    async fn an_open_keeps_the_directory_of_a_column_family_still_in_the_database() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        {
+            let (buckets, db) = placed_buckets(&db_path, &paths, &[]);
+            buckets.ensure(3).unwrap();
+            let table = bucket_table(&db, 3);
+            table.insert(&1, &2).unwrap();
+            table.flush().unwrap();
+            let weak_db = Arc::downgrade(&db);
+            drop((buckets, table, db));
+            assert!(wait_for_database_close(weak_db).await);
+        }
+        {
+            let (buckets, db) = placed_buckets_without(&db_path, &paths, &[], &[3]);
+            assert!(paths.bucket_dir(3).exists());
+            let weak_db = Arc::downgrade(&db);
+            drop((buckets, db));
+            assert!(wait_for_database_close(weak_db).await);
+        }
+
+        let (_buckets, db) = placed_buckets(&db_path, &paths, &[3]);
+        assert_eq!(bucket_table(&db, 3).get(&1).unwrap(), Some(2));
     }
 
     /// `before_drop` must see every expiring epoch, oldest first: a later
