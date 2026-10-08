@@ -7669,20 +7669,11 @@
             "description": "Parameters the claimed `SmartAccount` was created with.",
             "type": "object",
             "required": [
-              "build_kind",
               "public_key_raw_bytes",
               "public_key_scheme",
               "type"
             ],
             "properties": {
-              "build_kind": {
-                "description": "Whether the created account object is mutable or immutable.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/IotaSmartAccountBuildKind"
-                  }
-                ]
-              },
               "public_key_raw_bytes": {
                 "description": "Raw public key bytes of the claimed address, without the scheme flag prefix. For MultiSig this is a BCS-encoded multisig public key.",
                 "allOf": [
@@ -8773,14 +8764,6 @@
             }
           }
         }
-      },
-      "IotaSmartAccountBuildKind": {
-        "description": "Whether a claimed account object can be changed after the claim.",
-        "type": "string",
-        "enum": [
-          "Mutable",
-          "Immutable"
-        ]
       },
       "IotaSystemStateSummary": {
         "description": "This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent either V1 or V2 system state objects.",

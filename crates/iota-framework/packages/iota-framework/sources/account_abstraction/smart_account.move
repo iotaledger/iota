@@ -16,19 +16,12 @@
 /// Claiming an existing address through the `ClaimAccount` transaction kind does
 /// not go through that API: it drives the private `claim_account_v1` below.
 ///
-/// After optionally adding fields with `with_field`, finalize with
-/// `build_v1` (mutable) or `build_immutable_v1` (immutable).
+/// After optionally adding fields with `with_field`, finalize with `build_v1`.
 ///
 /// Once built, dynamic fields can only be managed by the account itself — the admin
 /// functions require the transaction sender to be the smart account's address.
-///
-/// `SmartAccount` kinds:
-///
-/// - **Mutable** accounts can have their authenticator rotated after creation
-///   and support adding, removing, and mutating dynamic fields via the admin
-///   functions in this module.
-/// - **Immutable** accounts are frozen at creation; neither the authenticator
-///   nor any dynamic fields can ever be changed.
+/// The authenticator can be rotated after creation, and dynamic fields can be
+/// added, removed and mutated, through the admin functions in this module.
 module iota::smart_account;
 
 use iota::account;
@@ -50,7 +43,7 @@ const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
 ///
 /// `SmartAccount`s can only be created via `SmartAccountBuilder` — use `builder_v1`
 /// or `builtin_auth_builder_v1` to obtain one, optionally add fields with
-/// `with_field`, then finalize with `build_v1` or `build_immutable_v1`.
+/// `with_field`, then finalize with `build_v1`.
 ///
 /// All data is stored as dynamic fields, keeping the struct stable across
 /// upgrades and allowing arbitrary extensions.
@@ -61,7 +54,7 @@ public struct SmartAccount has key {
 /// Temporary builder for constructing a `SmartAccount` before it is registered on-chain.
 ///
 /// The builder cannot be copied, stored, or dropped — it must be consumed by
-/// `build_v1` or `build_immutable_v1`.
+/// `build_v1`.
 ///
 /// Use `with_field` to add dynamic fields before finalizing. This is the only
 /// way to add fields at creation time, since post-creation the admin functions
@@ -127,20 +120,6 @@ public fun build_v1(self: SmartAccountBuilder): address {
     let account_address = account.account_address();
 
     account::create_account_v1(account, authenticator);
-
-    account_address
-}
-
-/// Finish building the account as an immutable object.
-///
-/// The authenticator and dynamic fields are frozen at this point and can never be changed.
-///
-/// Emits an `account::ImmutableAccountCreated` event on success.
-public fun build_immutable_v1(self: SmartAccountBuilder): address {
-    let SmartAccountBuilder { account, authenticator } = self;
-    let account_address = account.account_address();
-
-    account::create_immutable_account_v1(account, authenticator);
 
     account_address
 }
@@ -322,13 +301,13 @@ public fun rotate_auth_function_ref_v1(
 /// Claims the sender's address and creates a mutable `SmartAccount` at it,
 /// backed by the built-in authenticator with `public_key`.
 ///
-/// This is the whole `ClaimAccount` pipeline for a mutable account. It is
-/// **private on purpose**: the account object it creates has an ID equal to a
-/// signature-derivable address, so `ClaimAccount` must stay the one and only
-/// way such an object can come into existence. A private function is reachable
-/// from the node's own PTB, which runs in an execution mode that bypasses
-/// visibility, and from nowhere else — not from a user PTB, and not from
-/// another package, which could otherwise wrap a public entry point. See the
+/// This is the whole `ClaimAccount` pipeline. It is **private on purpose**: the
+/// account object it creates has an ID equal to a signature-derivable address,
+/// so `ClaimAccount` must stay the one and only way such an object can come
+/// into existence. A private function is reachable from the node's own PTB,
+/// which runs in an execution mode that bypasses visibility, and from nowhere
+/// else — not from a user PTB, and not from another package, which could
+/// otherwise wrap a public entry point. See the
 /// `iota::clock::consensus_commit_prologue` function for the same idiom.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
@@ -338,20 +317,6 @@ public fun rotate_auth_function_ref_v1(
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
     claim_builder(public_key, ctx).build_v1();
-}
-
-/// Claims the sender's address and creates an immutable `SmartAccount` at it,
-/// backed by the built-in authenticator with `public_key`.
-///
-/// Private on purpose, for the same reason as `claim_account_v1`.
-///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
-/// `account::ImmutableAccountCreated` event.
-///
-/// Aborts if `public_key` does not derive the sender's address.
-#[allow(unused_function)]
-fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    claim_builder(public_key, ctx).build_immutable_v1();
 }
 
 /// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
@@ -378,11 +343,4 @@ fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
 #[test_only]
 public fun claim_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
     claim_account_v1(public_key, ctx)
-}
-
-/// Test-only entry to `claim_immutable_account_v1`, which is private so that
-/// only the node's `ClaimAccount` pipeline can reach it.
-#[test_only]
-public fun claim_immutable_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
-    claim_immutable_account_v1(public_key, ctx)
 }
