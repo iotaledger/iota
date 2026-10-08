@@ -17,7 +17,6 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{CheckpointDigest, ObjectId};
 use iota_types::digests::ChainIdentifier;
 use itertools::Itertools;
-use strum::IntoEnumIterator;
 use tap::TapFallible;
 use tracing::info;
 
@@ -1491,12 +1490,13 @@ impl PgIndexerStore {
         })
     }
 
-    fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+    fn update_watermarks_upper_bound<Tables>(
         &self,
+        tables: Tables,
         watermark: CommitterWatermark,
     ) -> Result<(), IndexerError>
     where
-        E::Iterator: Iterator<Item: AsRef<str>>,
+        Tables: IntoIterator<Item: AsRef<str>> + Send + 'static,
     {
         use diesel::query_dsl::methods::FilterDsl;
 
@@ -1505,7 +1505,8 @@ impl PgIndexerStore {
             .checkpoint_db_commit_latency_watermarks
             .start_timer();
 
-        let upper_bound_updates = E::iter()
+        let upper_bound_updates = tables
+            .into_iter()
             .map(|table| StoredWatermark::from_upper_bound_update(table.as_ref(), watermark))
             .collect::<Vec<_>>();
 
@@ -2064,15 +2065,16 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+    async fn update_watermarks_upper_bound<Tables>(
         &self,
+        tables: Tables,
         watermark: CommitterWatermark,
     ) -> Result<(), IndexerError>
     where
-        E::Iterator: Iterator<Item: AsRef<str>>,
+        Tables: IntoIterator<Item: AsRef<str>> + Send + 'static,
     {
         self.execute_in_blocking_worker(move |this| {
-            this.update_watermarks_upper_bound::<E>(watermark)
+            this.update_watermarks_upper_bound(tables, watermark)
         })
         .await
     }
