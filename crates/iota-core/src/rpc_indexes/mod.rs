@@ -178,6 +178,40 @@ pub struct RpcIndexesStore {
     /// digests included, since they all live in the one bucket family.
     /// `None` when index pruning is off.
     epochs_to_retain: Option<u64>,
+    /// The index watermark when the store was opened. Checkpoints up to it
+    /// are in the store already, and executing them again stages nothing.
+    indexed_at_open: Option<CheckpointSequenceNumber>,
+}
+
+/// The highest checkpoint whose outputs are in the live object set:
+/// `executed`, or a later one if every checkpoint up to it has all of its
+/// transactions executed, which `all_executed` answers. A node can stop after
+/// committing a checkpoint's outputs but before recording it as executed, and
+/// the checkpoints it then executes again must not be applied a second time on
+/// top of a rebuild that scanned their outputs already.
+pub(crate) fn highest_checkpoint_with_committed_outputs(
+    checkpoint_store: &CheckpointStore,
+    executed: Option<CheckpointSequenceNumber>,
+    all_executed: impl Fn(&[TransactionDigest]) -> IotaResult<bool>,
+) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
+    let Some(mut highest) = executed else {
+        return Ok(None);
+    };
+    loop {
+        let next = highest + 1;
+        let Some(summary) = checkpoint_store.get_checkpoint_by_sequence_number(next)? else {
+            return Ok(Some(highest));
+        };
+        let Some(contents) = checkpoint_store.get_checkpoint_contents(&summary.contents_digest)?
+        else {
+            return Ok(Some(highest));
+        };
+        let digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
+        if !all_executed(&digests).map_err(StorageError::custom)? {
+            return Ok(Some(highest));
+        }
+        highest = next;
+    }
 }
 
 impl IndexStoreTables {
@@ -247,8 +281,13 @@ impl IndexStoreTables {
     }
 
     /// Whether the index watermark is behind `highest_executed_checkpoint`,
-    /// absent on a store that already holds data, or points at a checkpoint
-    /// the checkpoint store no longer holds.
+    /// or absent on a store that already holds data.
+    ///
+    /// A watermark ahead of what the checkpoint store holds is kept: after a
+    /// power loss the synced index commit can survive the unsynced write of
+    /// its certified checkpoint. State sync fetches that checkpoint again, the
+    /// executor executes it again with the same outputs, and the index skips
+    /// it as already indexed.
     fn is_indexed_watermark_out_of_date(
         &self,
         checkpoint_store: &CheckpointStore,
@@ -261,14 +300,6 @@ impl IndexStoreTables {
             let has_data = self.owner.safe_iter().next().transpose()?.is_some();
             return Ok(has_data || highest_executed_checkpoint.is_some());
         };
-        // The open reads the watermark's checkpoint, so a checkpoint store
-        // rolled back to an older backup must rebuild rather than fail.
-        if checkpoint_store
-            .get_checkpoint_by_sequence_number(watermark)?
-            .is_none()
-        {
-            return Ok(true);
-        }
         let Some(executed) = highest_executed_checkpoint else {
             return Ok(false);
         };
@@ -282,8 +313,8 @@ impl IndexStoreTables {
     /// live object set. The database must be empty.
     ///
     /// Writes only `meta`; the caller adopts the result with
-    /// [`Self::adopt_bulk_ingestion`] at the returned highest executed
-    /// checkpoint.
+    /// [`Self::adopt_bulk_ingestion`] at the returned checkpoint, the highest
+    /// one whose outputs the scanned live object set holds.
     #[tracing::instrument(skip_all)]
     fn init(
         &mut self,
@@ -303,8 +334,16 @@ impl IndexStoreTables {
             },
         )?;
 
-        let highest_executed_checkpoint =
-            checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
+        let indexed_through = highest_checkpoint_with_committed_outputs(
+            checkpoint_store,
+            checkpoint_store.get_highest_executed_checkpoint_seq_number()?,
+            |digests| {
+                Ok(authority_store
+                    .multi_get_executed_effects_digests(digests)?
+                    .iter()
+                    .all(Option::is_some))
+            },
+        )?;
 
         // The history tables are filled later, by `backfill_history`.
         let indexer = LiveObjectSetIndexer::new(self, groups, batch_size_limit);
@@ -313,7 +352,7 @@ impl IndexStoreTables {
 
         info!("Finished initializing RPC indexes");
 
-        Ok(highest_executed_checkpoint)
+        Ok(indexed_through)
     }
 
     /// Makes the bulk-ingested data durable and writes the watermarks that
@@ -576,8 +615,8 @@ impl RpcIndexesStore {
             .expect("RPC index initialization task failed");
 
             match initialized {
-                Ok(highest_executed_checkpoint) => init_tables
-                    .adopt_bulk_ingestion(highest_executed_checkpoint)
+                Ok(indexed_through) => init_tables
+                    .adopt_bulk_ingestion(indexed_through)
                     .expect("unable to adopt the rebuilt RPC index"),
                 // Keyed on the error, not on the flag: a real failure that
                 // races the shutdown must stay a failure.
@@ -646,25 +685,29 @@ impl RpcIndexesStore {
         }
 
         // A store rebuilt without local history has no rows to derive the
-        // transaction total from, so take it from the watermark's checkpoint.
+        // transaction total from, so take it from the watermark's checkpoint,
+        // or, when the checkpoint store lost it (see
+        // `is_indexed_watermark_out_of_date`), from the newest checkpoint it
+        // holds below it; replaying the checkpoints up to the watermark raises
+        // the total again before anything new is indexed.
         let anchor = opened
             .tables
             .watermark
             .get(&())
             .expect("failed to initialize RPC index tables")
             .map(|watermark| {
-                checkpoint_store
+                let at_watermark = checkpoint_store
                     .get_checkpoint_by_sequence_number(watermark)
-                    .expect("checkpoint store read cannot fail")
-                    // Certified checkpoints are never pruned, and a rebuild
-                    // would anchor to the same one.
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "the indexed watermark checkpoint {watermark} is missing from the \
-                             checkpoint store"
-                        )
-                    })
-                    .network_total_transactions
+                    .expect("checkpoint store read cannot fail");
+                let below = || {
+                    checkpoint_store
+                        .get_highest_verified_checkpoint()
+                        .expect("checkpoint store read cannot fail")
+                        .filter(|checkpoint| checkpoint.sequence_number < watermark)
+                };
+                at_watermark
+                    .or_else(below)
+                    .map_or(0, |checkpoint| checkpoint.network_total_transactions)
             })
             .unwrap_or(0);
 
@@ -757,6 +800,7 @@ impl RpcIndexesStore {
         )?;
         let metrics = RpcIndexesMetrics::new(registry);
         let jsonrpc_metrics = JsonRpcMetrics::new(registry);
+        let indexed_at_open = tables.watermark.get(&())?;
 
         Ok(Self {
             tables,
@@ -771,6 +815,7 @@ impl RpcIndexesStore {
             history_backfill_task: Mutex::new(None),
             cancelled,
             epochs_to_retain,
+            indexed_at_open,
         })
     }
 
@@ -898,8 +943,8 @@ impl RpcIndexesStore {
 
     /// Builds and stages the index update of one executed checkpoint. Nothing
     /// is written until [`Self::commit_update_for_checkpoint`] is called.
-    /// Transactions already indexed, by crash recovery or the history
-    /// backfill, are skipped.
+    /// Checkpoints up to the index watermark the store was opened at, and
+    /// transactions already indexed by the history backfill, are skipped.
     ///
     /// Must be called for each checkpoint in sequence order.
     #[tracing::instrument(
@@ -909,6 +954,26 @@ impl RpcIndexesStore {
     pub fn index_checkpoint(&self, checkpoint: &CheckpointData) -> IotaResult {
         let summary = &checkpoint.checkpoint_summary;
         let checkpoint_seq = summary.sequence_number;
+        // Its live-state rows are in the store already, from the commit that
+        // indexed it or from the scan a rebuild started at; its history rows
+        // likewise, or the history backfill writes them. Applying it again
+        // would apply its object and balance changes twice.
+        if self
+            .indexed_at_open
+            .is_some_and(|indexed| checkpoint_seq <= indexed)
+        {
+            // The anchor at open can be below it; see `new`.
+            self.next_sequence_number
+                .fetch_max(summary.network_total_transactions, Ordering::SeqCst);
+            self.stage_update(
+                checkpoint_seq,
+                PendingCheckpointUpdate {
+                    batch: self.tables.watermark.batch(),
+                    coin_changes: CoinBalanceChanges::default(),
+                },
+            );
+            return Ok(());
+        }
         let bucket = self.ensure_history_bucket(summary.epoch)?;
 
         let digests: Vec<_> = checkpoint
@@ -972,14 +1037,7 @@ impl RpcIndexesStore {
             .index_objects(&indexed, &self.groups, &mut batch, &mut coin_changes)?;
         batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
 
-        let mut pending_updates = self.pending_updates.lock();
-        assert!(
-            pending_updates
-                .last_key_value()
-                .is_none_or(|(seq, _)| *seq < checkpoint_seq),
-            "index_checkpoint must be called in order"
-        );
-        pending_updates.insert(
+        self.stage_update(
             checkpoint_seq,
             PendingCheckpointUpdate {
                 batch,
@@ -987,6 +1045,21 @@ impl RpcIndexesStore {
             },
         );
         Ok(())
+    }
+
+    fn stage_update(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+        update: PendingCheckpointUpdate,
+    ) {
+        let mut pending_updates = self.pending_updates.lock();
+        assert!(
+            pending_updates
+                .last_key_value()
+                .is_none_or(|(seq, _)| *seq < checkpoint_seq),
+            "index_checkpoint must be called in order"
+        );
+        pending_updates.insert(checkpoint_seq, update);
     }
 
     /// Commits the staged update of `checkpoint_seq` and updates the balance
