@@ -17,6 +17,7 @@ use iota_types::{
     effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
     transaction::TransactionEnvelope,
 };
+use strum::IntoEnumIterator;
 
 use crate::{
     errors::IndexerError,
@@ -150,12 +151,13 @@ impl OptimisticTransactionExecutor {
         optimistic_tx: Option<&OptimisticTransaction>,
     ) -> Result<(), IndexerError> {
         if let Some(tx) = optimistic_tx {
+            let watermark = CommitterWatermark {
+                current_epoch: epoch,
+                max_committed_cp: 0,
+                max_committed_tx: tx.optimistic_sequence_number as u64,
+            };
             self.store
-                .update_watermarks_upper_bound::<OptimisticIndexingTables>(CommitterWatermark {
-                    current_epoch: epoch,
-                    max_committed_cp: 0,
-                    max_committed_tx: tx.optimistic_sequence_number as u64,
-                })
+                .update_watermarks_upper_bound(OptimisticIndexingTables::iter(), watermark)
                 .await
         } else {
             Ok(())
