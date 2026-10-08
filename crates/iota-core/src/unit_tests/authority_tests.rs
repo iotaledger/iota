@@ -3615,11 +3615,9 @@ fn build_and_commit(
     cache_commit.commit_transaction_outputs(epoch, batch, txs);
 }
 
-/// A checkpoint commit relocates the versions its transactions superseded, so
-/// every read that assembles a response has to reach the historic buckets to
-/// still find them. The pre-images used here are genesis objects, which are
-/// written straight to the store, so no cached copy can answer in the buckets'
-/// place.
+/// Response-assembling reads find the versions a checkpoint commit moved into
+/// the historic buckets. The pre-images are genesis objects, so no cached copy
+/// can answer instead.
 #[tokio::test]
 async fn test_response_reads_resolve_relocated_versions() {
     use iota_types::storage::{ObjectKey, ObjectStore};

@@ -392,10 +392,8 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                                     (stringify!(#active_cf_names).to_owned(), overrides.get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
                                 )*
                             ];
-                            // Column families the caller manages outside this struct, such as
-                            // ones it creates per epoch: rocksdb has to be told about every
-                            // column family the database holds, and one left out here would
-                            // be opened with default options instead of the caller's.
+                            // Keep overrides for column families the caller manages outside
+                            // this struct, or rocksdb opens them with default options.
                             let declared: std::collections::HashSet<&str> = [
                                 #(
                                     stringify!(#active_cf_names),
@@ -473,7 +471,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Only one process is allowed to do this at a time
             /// `global_db_options_override` apply to the whole DB
             /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any.
-            /// An entry naming a column family that is not a field of this struct is opened with those options too, for column families the caller manages itself
+            /// Entries for column families that are not fields of this struct are applied too
             #[expect(unused_parens)]
             pub fn open_tables_read_write(
                 path: std::path::PathBuf,

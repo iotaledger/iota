@@ -294,10 +294,8 @@ pub struct AuthorityMetrics {
     pub(crate) prepare_cert_gas_latency_ratio: Histogram,
     pub(crate) execution_gas_latency_ratio: Histogram,
 
-    /// Count of modified object versions whose pre-image could not be found
-    /// in either the transaction's input objects or its tracked read
-    /// objects, and so were left uncaptured for relocation into the
-    /// historic store.
+    /// Modified objects whose pre-image was neither an input nor a read
+    /// object of the transaction, and so was not moved to the historic store.
     pub(crate) superseded_capture_misses: IntCounter,
 
     pub(crate) skipped_consensus_txns: IntCounter,
@@ -905,11 +903,9 @@ impl ExecutionEnv {
     }
 }
 
-/// `execute_transaction()`'s result: the temporary store of updates, the
-/// resulting effects, an execution error if one occurred and every object read
-/// during execution (by value) — where a mutated object's pre-image is found
-/// when it isn't among the transaction's declared inputs, as with a
-/// runtime-loaded dynamic field.
+/// `execute_transaction()`'s result. The last element holds every object read
+/// during execution, where the pre-image of a mutated object that is not a
+/// declared input, such as a dynamic field, is found.
 type TransactionExecutionResult = (
     InnerTemporaryStore,
     TransactionEffects,
@@ -2691,9 +2687,8 @@ impl AuthorityState {
             ObjectInfoRequestKind::PastObjectInfoDebug(seq) => seq,
         };
 
-        // Through the historic fallback: a `PastObjectInfoDebug` request names
-        // an older version by definition, and relocation moves exactly those
-        // out of the live table.
+        // A `PastObjectInfoDebug` request names an older version, which may
+        // have been moved out of the live table.
         let object = self
             .get_object_with_historic_fallback(&ObjectKey(request.object_id, requested_object_seq))?
             .ok_or_else(|| {
@@ -2895,8 +2890,7 @@ impl AuthorityState {
         &self.authority_per_epoch_pruner
     }
 
-    /// The object versions this authority's transactions superseded, bucketed
-    /// by the epoch that superseded them.
+    /// Superseded object versions, bucketed by epoch.
     pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
         &self.historic_objects
     }

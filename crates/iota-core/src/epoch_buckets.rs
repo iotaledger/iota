@@ -65,12 +65,9 @@ pub(crate) fn bucket_cf_epoch(cf_prefix: &str, cf_name: &str) -> Option<EpochId>
 /// On-disk column-family names are the ground truth for which buckets exist;
 /// the map here mirrors them for reads.
 pub(crate) struct EpochBuckets<B> {
-    /// The database holding the buckets' column families; used to create
-    /// and drop them at runtime.
     db: Arc<Database>,
-    /// What this store is called in a log line, e.g. `"JSON-RPC index
-    /// history"`. Several stores drop a bucket of the same epoch from one
-    /// reconfiguration, so the events below have to say which one.
+    /// What this store is called in log lines, which several stores write
+    /// for the same epoch.
     name: &'static str,
     cf_prefix: &'static str,
     /// Template options for the buckets' column families. All clones share

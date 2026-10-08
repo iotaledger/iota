@@ -1063,8 +1063,8 @@ pub async fn download_formal_snapshot(
     )?;
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
 
-    // Finalize the RPC index store so the node opens it in place instead of
-    // re-indexing. All RocksDB handles close before the rename below.
+    // Finalized so the node opens it in place instead of re-indexing; this
+    // also closes its RocksDB handles before the rename below.
     if let Some(rpc_indexes) = rpc_indexes {
         let rpc_indexes_path = path.join(RPC_INDEXES_DIR);
         Arc::into_inner(rpc_indexes)

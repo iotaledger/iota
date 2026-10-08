@@ -81,8 +81,6 @@ async fn test_relocated_version_survives_a_reopen() {
         .unwrap();
     batch.write().unwrap();
 
-    // Release every handle on the database before reopening the same path,
-    // as a restart does.
     let weak_db = Arc::downgrade(&perpetual.objects.db);
     drop(bucket);
     drop(historic);
