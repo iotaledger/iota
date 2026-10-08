@@ -724,29 +724,32 @@ impl HandlerObjectState {
     }
 
     /// The rows of `upserts` whose key has no handler-processed row yet, in
-    /// the overlay or the durable table. Unlike
+    /// the overlay, the read-through cache or the durable table. Unlike
     /// [`Self::handler_processed_object`], a table hit is not added to the
-    /// read-through cache; see [`Self::has_durable_handler_processed_object`].
+    /// cache: these rows are bookkeeping no validation is about to read.
     pub fn rows_not_yet_present(
         &self,
         tables: &AuthorityEpochTables,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
-        let not_in_overlay: Vec<_> = {
+        let not_in_memory: Vec<_> = {
             let overlay = self.handler_processed_overlay.read();
             upserts
                 .iter()
-                .filter(|(key, _)| !overlay.contains_key(key))
+                .filter(|(key, _)| {
+                    !overlay.contains_key(key) && !self.handler_processed_cache.contains_key(key)
+                })
                 .copied()
                 .collect()
         };
-        let mut absent = Vec::new();
-        for row in not_in_overlay {
-            if !self.has_durable_handler_processed_object(tables, &row.0)? {
-                absent.push(row);
-            }
-        }
-        Ok(absent)
+        let durable = tables
+            .handler_processed_objects
+            .multi_contains_keys(not_in_memory.iter().map(|(key, _)| key))?;
+        Ok(not_in_memory
+            .into_iter()
+            .zip(durable)
+            .filter_map(|(row, durable)| (!durable).then_some(row))
+            .collect())
     }
 
     /// Completes commit `index` from the quarantine flush, when the flush
@@ -831,22 +834,6 @@ impl HandlerObjectState {
             self.handler_processed_cache.insert(*key, row);
         }
         Ok(row)
-    }
-
-    /// Whether a handler-processed row at `key` is durable, from the
-    /// read-through cache or the table; the overlay is not consulted. Unlike
-    /// [`Self::handler_processed_object`], a table hit is not added to the
-    /// cache: use this for bookkeeping checks on rows no validation is about
-    /// to read, and [`Self::handler_processed_object`] for validation reads.
-    fn has_durable_handler_processed_object(
-        &self,
-        tables: &AuthorityEpochTables,
-        key: &ObjectKey,
-    ) -> IotaResult<bool> {
-        if self.handler_processed_cache.contains_key(key) {
-            return Ok(true);
-        }
-        Ok(tables.handler_processed_objects.contains_key(key)?)
     }
 
     /// The sync-ahead record for `id`, from the overlay or the durable table.
