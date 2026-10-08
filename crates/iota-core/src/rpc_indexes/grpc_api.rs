@@ -30,8 +30,7 @@ impl From<CoinIndexInfo> for iota_types::storage::CoinInfo {
 }
 
 impl RpcIndexesStore {
-    /// Fails fast when this store does not maintain the gRPC group's
-    /// tables.
+    /// Fails when this store does not maintain the gRPC group's tables.
     fn require_grpc(&self) -> Result<(), StorageError> {
         if self.serves(IndexGroup::Grpc) {
             Ok(())

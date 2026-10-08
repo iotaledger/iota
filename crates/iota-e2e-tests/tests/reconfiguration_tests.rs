@@ -1430,10 +1430,8 @@ async fn execute_add_validator_transactions(
 
     let address = new_validator.account_key_pair.public_key().derive_address();
     let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
-    // Pick both coins by balance rather than by the order `getOwnedObjects` pages
-    // them in: stake the smallest coin that covers the joining stake and pay with
-    // the largest one, so the coins a later join still needs to stake are neither
-    // staked early nor spent on gas.
+    // Pick coins by balance, not page order, so the coins a later join needs
+    // to stake are neither staked early nor spent on gas.
     let coins = test_cluster.wallet.gas_objects(address).await.unwrap();
     let stake_coin = coins
         .iter()
