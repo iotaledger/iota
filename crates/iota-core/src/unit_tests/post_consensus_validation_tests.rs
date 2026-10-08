@@ -1,8 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Unit tests for post-consensus transaction validation and owned-object
-//! conflict resolution.
+//! Unit tests for post-consensus transaction validation, owned-object
+//! conflict resolution, and the P-COOL bookkeeping written by executed
+//! transactions.
 
 use std::{path::PathBuf, sync::Arc};
 
