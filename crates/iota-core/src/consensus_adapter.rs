@@ -1561,7 +1561,7 @@ mod adapter_tests {
         let (position, positions_moved, _) =
             consensus_adapter.submission_position(&committee, &tx_digest);
         assert_eq!(position, 8);
-        assert!(!positions_moved > 0);
+        assert_eq!(positions_moved, 0);
 
         // Make sure that position is set to max value 0
         let (delay_step, position, positions_moved, _) =
@@ -1569,7 +1569,7 @@ mod adapter_tests {
 
         assert_eq!(position, 1);
         assert_eq!(delay_step, Duration::from_secs(2));
-        assert!(!positions_moved > 0);
+        assert_eq!(positions_moved, 0);
 
         // Without submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
@@ -1592,7 +1592,7 @@ mod adapter_tests {
 
         // delay_step * position * 2 = 1 * 8 * 2 = 16
         assert_eq!(delay_step, Duration::from_secs(16));
-        assert!(!positions_moved > 0);
+        assert_eq!(positions_moved, 0);
     }
 
     #[test]
