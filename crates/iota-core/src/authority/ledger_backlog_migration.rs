@@ -20,6 +20,7 @@ use iota_types::{
     committee::EpochId,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
+    messages_checkpoint::CheckpointContentsExt,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info};
@@ -611,13 +612,16 @@ impl LedgerBacklogMigration {
     }
 
     /// Moves one slice of the contents rows the summary pass left behind into
-    /// the bucket of the epoch the migration runs in, and records how far it
-    /// got.
+    /// the bucket of the epoch their transactions were executed in, and
+    /// records how far it got. Must run after the ledger has been drained,
+    /// which is where that epoch is read from.
     ///
-    /// Such rows are mostly contents of checkpoints this validator built but
-    /// has not yet certified, which belong to the running epoch; the
+    /// Such rows are the contents of expired summaries, which are deleted,
+    /// and of checkpoints this validator built but has not yet certified; the
     /// digest-keyed summary only arrives at
-    /// [`CheckpointStore::insert_certified_checkpoint`].
+    /// [`CheckpointStore::insert_certified_checkpoint`]. The row every empty
+    /// checkpoint shares names no transaction, and goes into the bucket of
+    /// the epoch the migration runs in.
     fn move_contents_without_summary(
         &self,
         from: Option<CheckpointContentsDigest>,
@@ -626,7 +630,16 @@ impl LedgerBacklogMigration {
 
         let tables = &self.checkpoint_store.tables;
         let flat = &tables.checkpoint_content;
-        let slice = self.read_slice(flat, from, |_, _| Ok(Some(self.epoch)))?;
+        let slice = self.read_slice(flat, from, |_, contents| {
+            let Some(first) = contents.iter().next() else {
+                return Ok(Some(self.epoch));
+            };
+            // A checkpoint holds the transactions of its own epoch only.
+            Ok(self
+                .historic_ledger
+                .find_epoch(&first.transaction)?
+                .map(|(epoch, _)| epoch))
+        })?;
         let progress = slice.progress(Progress::ContentsWithoutSummary, Progress::Done);
 
         let mut batch = flat.batch();
