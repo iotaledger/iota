@@ -15,10 +15,9 @@
 ///   authenticator is set. The built-in authenticator uses the scheme of the attached key, so it
 ///   stays as it is.
 ///
-/// `smart_account::builder_v1` and `smart_account::rotate_auth_function_ref_v1` accept any
-/// authenticator, so they can still set the built-in authenticator on an account without a key,
-/// which then can't send any transaction, or set a custom authenticator and leave the key
-/// attached.
+/// `smart_account::build_v1` and `smart_account::rotate_auth_function_ref_v1` check the same
+/// pairing, so no `SmartAccount` can have the built-in authenticator without the key, or the key
+/// without the built-in authenticator.
 ///
 /// Claiming an existing address through the `ClaimAccount` transaction kind drives the private
 /// `claim_account_v1` below.
@@ -88,9 +87,6 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
 /// Aborts if the transaction sender is not the account.
 /// Aborts if the built-in authenticator is already set; use `rotate_public_key` to replace its
 /// key.
-/// Aborts if a public key is already attached. Only `smart_account::rotate_auth_function_ref_v1`
-/// can leave a key on an account without the built-in authenticator; `rotate_to_custom_auth_v1`
-/// detaches it.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun rotate_to_builtin_auth_v1(
     account: &mut SmartAccount,
@@ -140,7 +136,6 @@ public fun rotate_to_custom_auth_v1(
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if the built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.
-/// Aborts if no public key is attached.
 public fun rotate_public_key(
     account: &mut SmartAccount,
     public_key: PublicKey,
