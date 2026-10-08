@@ -18,12 +18,12 @@ pub struct HistogramTotals {
 /// Reads series of a registry by name and labels. With a prefix, `name` means
 /// `{prefix}_{name}`.
 #[derive(Clone)]
-pub struct Reader {
+pub struct MetricsReader {
     registry: Registry,
     prefix: Option<String>,
 }
 
-impl Reader {
+impl MetricsReader {
     /// A reader of `registry`, with no prefix.
     pub fn new(registry: &Registry) -> Self {
         Self {

@@ -69,16 +69,16 @@ impl ListenerMetrics {
             .get_or_init(|| tls::Metrics::new(&self.0.prefix, &self.0.registry));
     }
 
-    /// Observes the connections in the set of pending handshakes.
-    pub(crate) fn observe_pending_handshakes(&self, pending: usize) {
+    /// Records the connections in the set of pending handshakes.
+    pub(crate) fn record_pending_handshakes(&self, pending: usize) {
         if let Some(tls) = self.0.tls.get() {
-            tls.observe_pending_handshakes(pending);
+            tls.record_pending_handshakes(pending);
         }
     }
 
     /// Counts a socket the listener has just accepted, before any TLS
     /// handshake.
-    fn connection_accepted(&self, remote: SocketAddr) -> TrackedConnection {
+    fn record_accept(&self, remote: SocketAddr) -> TrackedConnection {
         let metrics = &self.0.metrics;
         let scope: &str = Scope::of(remote.ip()).into();
         metrics
@@ -124,8 +124,8 @@ impl Metrics {
                 ),
                 (
                     &format!("{prefix}_inbound_connections_peak"),
-                    "The most open connections over the last 2 minutes. Observed at each \
-                     accept, and a scrape reports at least the current number",
+                    "The most open connections over the last 2 minutes. A scrape reports at \
+                     least the current number",
                 ),
                 module_path!(),
                 registry,

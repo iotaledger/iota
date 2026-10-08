@@ -7,7 +7,7 @@ use crate::metrics::{Inner, tls::HandshakeGuard};
 
 /// One accepted connection. Cloning is cheap.
 #[derive(Clone)]
-pub(crate) struct TrackedConnection(pub(super) Arc<ConnectionState>);
+pub(crate) struct TrackedConnection(Arc<ConnectionState>);
 
 impl TrackedConnection {
     pub(super) fn new(listener: Arc<Inner>) -> Self {
@@ -21,11 +21,11 @@ impl TrackedConnection {
     /// the listener has no TLS metrics.
     pub(crate) fn begin_handshake(&self) -> Option<HandshakeGuard> {
         let tls = self.0.listener.tls.get()?;
-        Some(tls.begin_handshake(self.clone()))
+        Some(tls.begin_handshake())
     }
 
-    /// Counts the close of the connection. Call it once.
-    pub(super) fn close(&self) {
+    /// Records the close of the connection. Call it once.
+    pub(super) fn record_close(&self) {
         let state = &*self.0;
         let metrics = &state.listener.metrics;
         let age = Instant::now().saturating_duration_since(state.accepted_at);
@@ -37,6 +37,6 @@ impl TrackedConnection {
 }
 
 pub(super) struct ConnectionState {
-    pub(super) listener: Arc<Inner>,
+    listener: Arc<Inner>,
     accepted_at: Instant,
 }

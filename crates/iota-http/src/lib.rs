@@ -340,12 +340,12 @@ where
                     ),
                 };
                 if let Some(guard) = &handshake_guard {
-                    guard.observe(outcome);
+                    guard.record_result(outcome);
                 }
                 result
             });
             if let Some(metrics) = &self.config.metrics {
-                metrics.observe_pending_handshakes(self.pending_connections.len());
+                metrics.record_pending_handshakes(self.pending_connections.len());
             }
         } else {
             self.handle_connection(ServerIo::new_io(io), remote_addr);

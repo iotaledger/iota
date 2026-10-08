@@ -2939,7 +2939,7 @@ genesis:
 mod listener_metrics_tests {
     use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
-    use iota_metrics::{MetricGroups, MetricLevel, testing::Reader};
+    use iota_metrics::{MetricGroups, MetricLevel, test_utils::MetricsReader};
     use iota_network_stack::config::Config;
     use iota_types::crypto::{KeypairTraits, NetworkKeyPair, get_key_pair};
     use prometheus_filtered::Registry;
@@ -3057,7 +3057,8 @@ mod listener_metrics_tests {
 
     #[tokio::test]
     async fn only_the_validator_accept_count_shows_by_default() {
-        let shown = Reader::new(&node_registry(&MetricGroups::default()).await).family_names();
+        let shown =
+            MetricsReader::new(&node_registry(&MetricGroups::default()).await).family_names();
         assert_eq!(
             shown,
             BTreeSet::from(["authority_grpc_inbound_connections_accepted".to_owned()])
@@ -3067,14 +3068,14 @@ mod listener_metrics_tests {
     #[tokio::test]
     async fn overrides_show_every_family() {
         let groups = overrides(&["authority_grpc", "iota_http"]);
-        let shown = Reader::new(&node_registry(&groups).await).family_names();
+        let shown = MetricsReader::new(&node_registry(&groups).await).family_names();
         assert_eq!(shown, all_families());
     }
 
     #[tokio::test]
     async fn an_override_of_the_validator_group_shows_no_other_listener() {
-        let shown =
-            Reader::new(&node_registry(&overrides(&["authority_grpc"])).await).family_names();
+        let shown = MetricsReader::new(&node_registry(&overrides(&["authority_grpc"])).await)
+            .family_names();
         let validator: BTreeSet<String> = names("authority_grpc", CONNECTION_FAMILIES)
             .chain(names("authority_grpc", TLS_FAMILIES))
             .collect();

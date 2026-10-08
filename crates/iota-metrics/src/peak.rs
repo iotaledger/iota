@@ -143,23 +143,12 @@ impl PeakGauge {
         registry: &Registry,
         level: MetricLevel,
     ) -> Self {
-        Self::register_over(name, help, module, registry, level, None)
+        Self::register_with_floor(name, help, module, registry, level, None)
     }
 
-    /// Like [`register`](Self::register), and the peak is never reported below
-    /// the current value of `floor`.
-    pub fn register_with_floor(
-        name: &str,
-        help: &str,
-        module: &str,
-        registry: &Registry,
-        level: MetricLevel,
-        floor: IntGauge,
-    ) -> Self {
-        Self::register_over(name, help, module, registry, level, Some(floor))
-    }
-
-    fn register_over(
+    /// Like [`register`](Self::register), and with a `floor` the peak is never
+    /// reported below the current value of `floor`.
+    fn register_with_floor(
         name: &str,
         help: &str,
         module: &str,
@@ -233,7 +222,7 @@ impl IntGaugeWithPeakGauge {
             module,
             registry,
             level,
-            gauge.clone(),
+            Some(gauge.clone()),
         );
         Self { gauge, peak }
     }
@@ -255,7 +244,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::testing::Reader;
+    use crate::test_utils::MetricsReader;
 
     #[test]
     fn peak_is_zero_before_any_observation() {
@@ -414,7 +403,7 @@ mod tests {
             &registry,
             MetricLevel::Warn,
         );
-        let reader = Reader::new(&registry);
+        let reader = MetricsReader::new(&registry);
         for _ in 0..3 {
             gauge.inc();
         }
@@ -436,7 +425,10 @@ mod tests {
         );
         // The window of the peak holds no observation of this value.
         gauge.gauge.set(5);
-        assert_eq!(Reader::new(&registry).value("test_gauge_peak", &[]), 5.0);
+        assert_eq!(
+            MetricsReader::new(&registry).value("test_gauge_peak", &[]),
+            5.0
+        );
     }
 
     #[test]
@@ -449,9 +441,9 @@ mod tests {
             module_path!(),
             &registry,
             MetricLevel::Warn,
-            gauge.clone(),
+            Some(gauge.clone()),
         );
-        let reader = Reader::new(&registry);
+        let reader = MetricsReader::new(&registry);
         for _ in 0..3 {
             gauge.inc();
             peak.observe(gauge.get() as u64);

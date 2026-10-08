@@ -24,7 +24,7 @@ impl<IO> TrackedIo<IO> {
     pub(crate) fn new(io: IO, metrics: Option<&ListenerMetrics>, remote: SocketAddr) -> Self {
         Self {
             io,
-            connection: metrics.map(|metrics| metrics.connection_accepted(remote)),
+            connection: metrics.map(|metrics| metrics.record_accept(remote)),
         }
     }
 
@@ -36,7 +36,7 @@ impl<IO> TrackedIo<IO> {
 impl<IO> Drop for TrackedIo<IO> {
     fn drop(&mut self) {
         if let Some(connection) = self.connection.take() {
-            connection.close();
+            connection.record_close();
         }
     }
 }

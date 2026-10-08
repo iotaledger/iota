@@ -10,8 +10,6 @@ use prometheus_filtered::{
     HistogramVec, MetricLevel, Registry, register_histogram_vec_with_registry,
 };
 
-use crate::metrics::TrackedConnection;
-
 /// Handshake durations in seconds.
 const HANDSHAKE_SECONDS_BUCKETS: &[f64] = &[0.1, 1.0, 5.0];
 
@@ -45,8 +43,8 @@ impl Metrics {
             pending_handshakes_peak: PeakGauge::register(
                 &format!("{prefix}_pending_handshakes_peak"),
                 "The most TLS handshakes pending at the same time over the last 2 minutes. \
-                 Observed when a handshake starts. At the configured maximum of pending \
-                 connections the accept loop stops accepting",
+                 At the configured maximum of pending connections the accept loop stops \
+                 accepting",
                 module_path!(),
                 registry,
                 MetricLevel::Info,
@@ -54,15 +52,15 @@ impl Metrics {
         }
     }
 
-    /// Observes the connections in the set of pending handshakes.
-    pub(super) fn observe_pending_handshakes(&self, pending: usize) {
+    /// Records the connections in the set of pending handshakes.
+    pub(super) fn record_pending_handshakes(&self, pending: usize) {
         self.pending_handshakes_peak.observe(pending as u64);
     }
 
-    /// Starts to time a TLS handshake of `connection`.
-    pub(super) fn begin_handshake(&self, connection: TrackedConnection) -> HandshakeGuard {
+    /// Starts to time a TLS handshake.
+    pub(super) fn begin_handshake(&self) -> HandshakeGuard {
         HandshakeGuard {
-            connection,
+            handshake_latency: self.handshake_latency.clone(),
             started_at: Instant::now(),
         }
     }
@@ -70,19 +68,17 @@ impl Metrics {
 
 /// A TLS handshake in progress.
 pub(crate) struct HandshakeGuard {
-    connection: TrackedConnection,
+    handshake_latency: HistogramVec,
     started_at: Instant,
 }
 
 impl HandshakeGuard {
-    pub(crate) fn observe(&self, result: HandshakeResult) {
-        if let Some(tls) = self.connection.0.listener.tls.get() {
-            let result: &str = result.into();
-            tls.handshake_latency.with_label_values(&[result]).observe(
-                Instant::now()
-                    .saturating_duration_since(self.started_at)
-                    .as_secs_f64(),
-            );
-        }
+    pub(crate) fn record_result(&self, result: HandshakeResult) {
+        let result: &str = result.into();
+        self.handshake_latency.with_label_values(&[result]).observe(
+            Instant::now()
+                .saturating_duration_since(self.started_at)
+                .as_secs_f64(),
+        );
     }
 }

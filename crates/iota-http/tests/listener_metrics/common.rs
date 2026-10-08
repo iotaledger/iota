@@ -12,7 +12,7 @@ use std::{
 use axum::{Router, routing::get};
 use fastcrypto::traits::KeyPair as _;
 use iota_http::{Builder, Config, metrics::ListenerMetrics};
-pub use iota_metrics::testing::Reader;
+pub use iota_metrics::test_utils::MetricsReader;
 use prometheus_filtered::{MetricLevel, Registry};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -29,10 +29,10 @@ pub async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
     }
 }
 
-pub fn setup() -> (Reader, ListenerMetrics) {
+pub fn setup() -> (MetricsReader, ListenerMetrics) {
     let registry = Registry::new();
     let metrics = ListenerMetrics::new(PREFIX, &registry, MetricLevel::Info);
-    (Reader::new(&registry).with_prefix(PREFIX), metrics)
+    (MetricsReader::new(&registry).with_prefix(PREFIX), metrics)
 }
 
 /// Starts a listener on a free port, with TLS if `tls_config` is given. The

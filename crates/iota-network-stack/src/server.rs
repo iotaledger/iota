@@ -255,7 +255,7 @@ mod test {
     };
 
     use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
-    use iota_metrics::testing::Reader;
+    use iota_metrics::test_utils::MetricsReader;
     use tonic::Code;
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
@@ -367,7 +367,7 @@ mod test {
             .await
             .unwrap();
 
-        let reader = Reader::new(&registry).with_prefix("test");
+        let reader = MetricsReader::new(&registry).with_prefix("test");
         assert_eq!(reader.value("inbound_connections_accepted", &[]), 1.0);
         assert!(
             !reader.has_family("pending_handshakes_peak"),
@@ -417,7 +417,7 @@ mod test {
             .await
             .unwrap();
 
-        let reader = Reader::new(&registry).with_prefix("test");
+        let reader = MetricsReader::new(&registry).with_prefix("test");
         assert_eq!(
             reader
                 .histogram_totals("handshake_latency", &[("result", "completed")])
