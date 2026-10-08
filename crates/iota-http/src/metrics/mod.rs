@@ -119,7 +119,8 @@ impl Metrics {
             inbound_connections: IntGaugeWithPeakGauge::register(
                 (
                     &format!("{prefix}_inbound_connections"),
-                    "Open connections, from the TCP accept to the close, TLS handshake included",
+                    "The number of connections open now. A connection counts from its TCP accept \
+                     to its close, TLS handshake included",
                 ),
                 (
                     &format!("{prefix}_inbound_connections_peak"),
