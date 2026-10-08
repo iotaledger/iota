@@ -3020,7 +3020,7 @@ mod listener_metrics_tests {
         registry
     }
 
-    fn names(prefix: &str, names: &[&str]) -> impl Iterator<Item = String> {
+    fn prefix_names(prefix: &str, names: &[&str]) -> impl Iterator<Item = String> {
         let prefix = prefix.to_owned();
         names
             .iter()
@@ -3039,9 +3039,9 @@ mod listener_metrics_tests {
 
     /// Every family the listeners register.
     fn all_families() -> BTreeSet<String> {
-        names("authority_grpc", CONNECTION_FAMILIES)
-            .chain(names("authority_grpc", TLS_FAMILIES))
-            .chain(names("json_rpc", CONNECTION_FAMILIES))
+        prefix_names("authority_grpc", CONNECTION_FAMILIES)
+            .chain(prefix_names("authority_grpc", TLS_FAMILIES))
+            .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
             .collect()
     }
 
@@ -3076,8 +3076,8 @@ mod listener_metrics_tests {
     async fn an_override_of_the_validator_group_shows_no_other_listener() {
         let shown = MetricsReader::new(&node_registry(&overrides(&["authority_grpc"])).await)
             .family_names();
-        let validator: BTreeSet<String> = names("authority_grpc", CONNECTION_FAMILIES)
-            .chain(names("authority_grpc", TLS_FAMILIES))
+        let validator: BTreeSet<String> = prefix_names("authority_grpc", CONNECTION_FAMILIES)
+            .chain(prefix_names("authority_grpc", TLS_FAMILIES))
             .collect();
         assert_eq!(shown, validator);
     }

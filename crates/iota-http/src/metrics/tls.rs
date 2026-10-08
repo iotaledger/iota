@@ -58,7 +58,7 @@ impl Metrics {
     }
 
     /// Starts to time a TLS handshake.
-    pub(super) fn begin_handshake(&self) -> HandshakeGuard {
+    pub(super) fn start_handshake(&self) -> HandshakeGuard {
         HandshakeGuard {
             handshake_latency: self.handshake_latency.clone(),
             started_at: Instant::now(),

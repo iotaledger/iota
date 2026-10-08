@@ -318,7 +318,7 @@ where
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
             let handshake_timeout = self.config.handshake_timeout;
-            let handshake_guard = io.connection().and_then(|c| c.begin_handshake());
+            let handshake_guard = io.connection().and_then(|c| c.start_handshake());
             self.pending_connections.spawn(async move {
                 let (result, outcome) = tokio::select! {
                     result = handshake(io, remote_addr, tls_acceptor) => {

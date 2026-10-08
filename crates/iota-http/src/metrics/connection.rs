@@ -19,9 +19,9 @@ impl TrackedConnection {
 
     /// Starts to time a TLS handshake of this connection. Returns `None` when
     /// the listener has no TLS metrics.
-    pub(crate) fn begin_handshake(&self) -> Option<HandshakeGuard> {
+    pub(crate) fn start_handshake(&self) -> Option<HandshakeGuard> {
         let tls = self.0.listener.tls.get()?;
-        Some(tls.begin_handshake())
+        Some(tls.start_handshake())
     }
 
     /// Records the close of the connection. Call it once.
