@@ -59,7 +59,7 @@
 //! lose its tail independently of the other.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -357,8 +357,10 @@ pub struct HandlerObjectState {
     sheltered_overlay: RwLock<BTreeMap<ObjectKey, Object>>,
 
     /// Sync-ahead records the handler has caught up past, pending deletion
-    /// from the durable table; drained into the next flush batch.
-    sync_ahead_record_deletions: Mutex<BTreeMap<CommitIndex, BTreeSet<ObjectId>>>,
+    /// from the durable table, each with the commit whose flush batch deletes
+    /// it. A record is queued under at most one commit: one still in the
+    /// overlay is never queued, and recreating a record cancels its deletion.
+    sync_ahead_record_deletions: Mutex<BTreeMap<ObjectId, CommitIndex>>,
     /// Sync-ahead records currently alive (created and not yet queued for
     /// deletion), so the per-commit cleanup can skip its table lookups
     /// entirely in normal operation, when no record exists. Increments and
@@ -685,12 +687,13 @@ impl HandlerObjectState {
         )?;
         // Only this commit's deletions are staged: a later commit's must not
         // become durable before that commit's rows.
-        let deletions = self
+        let deletions: Vec<ObjectId> = self
             .sync_ahead_record_deletions
             .lock()
-            .get(&commit_index)
-            .cloned()
-            .unwrap_or_default();
+            .iter()
+            .filter(|(_, index)| **index == commit_index)
+            .map(|(id, _)| *id)
+            .collect();
         batch.delete_batch(&tables.sync_ahead_records, deletions)?;
         Ok(())
     }
@@ -702,9 +705,9 @@ impl HandlerObjectState {
     /// This commit's queued deletions are dropped here too, now that the batch
     /// holding them is durable; until then they stay queued, so a sync-ahead
     /// write landing between staging and the durable delete still sees the
-    /// record as dead. Earlier commits' buckets are dropped with it, but are
-    /// already empty: flushes run in commit order, and nothing queues into a
-    /// commit's bucket once it has flushed. A deletion lost to a batch that
+    /// record as dead. Deletions queued for earlier commits are dropped with
+    /// it, but there are none: flushes run in commit order, and nothing is
+    /// queued for a commit once it has flushed. A deletion lost to a batch that
     /// never became durable is re-queued when the commit replays.
     ///
     /// A flushed commit's checkpoint has executed, so this also raises the
@@ -716,7 +719,7 @@ impl HandlerObjectState {
     ) {
         self.sync_ahead_record_deletions
             .lock()
-            .retain(|&index, _| index > commit_index);
+            .retain(|_, &mut index| index > commit_index);
         {
             let mut overlay = self.handler_processed_overlay.write();
             for (key, _) in handler_rows {
@@ -859,12 +862,7 @@ impl HandlerObjectState {
                 // until the queue drains into a commit flush; it must be
                 // invisible here, or a new chain would extend the dead record
                 // and inherit its stale `base_version`.
-                None if deletions
-                    .iter()
-                    .any(|(_, commit_deletion)| commit_deletion.contains(&write.id)) =>
-                {
-                    None
-                }
+                None if deletions.contains_key(&write.id) => None,
                 None => tables.sync_ahead_records.get(&write.id)?,
             };
             // Only an extension of the chain updates the record
@@ -874,9 +872,7 @@ impl HandlerObjectState {
                     // Cancel any queued deletion of the dead record: it
                     // drains into a later flush batch, which must not destroy
                     // the new record's durable row.
-                    deletions.iter_mut().for_each(|(_, commit_deletion)| {
-                        commit_deletion.remove(&write.id);
-                    });
+                    deletions.remove(&write.id);
 
                     self.live_sync_ahead_records_count
                         .fetch_add(1, Ordering::Relaxed);
@@ -970,7 +966,7 @@ impl HandlerObjectState {
             let record = match overlay.get(&key.0) {
                 Some(record) => Some(*record),
                 // The durable record can outlive its first queued deletion.
-                None if deletions.values().any(|ids| ids.contains(&key.0)) => continue,
+                None if deletions.contains_key(&key.0) => continue,
                 None => tables.sync_ahead_records.get(&key.0)?,
             };
             // The handler has caught up past the whole sync-ahead chain; the
@@ -985,7 +981,7 @@ impl HandlerObjectState {
                 // step (which derives rows from effects, not the overlay) can
                 // still write this record after the removal. Deleting a key
                 // that never became durable is a no-op.
-                if deletions.entry(index).or_default().insert(key.0) {
+                if deletions.insert(key.0, index).is_none() {
                     self.live_sync_ahead_records_count
                         .fetch_sub(1, Ordering::Relaxed);
                 }
