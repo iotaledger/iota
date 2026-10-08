@@ -130,8 +130,7 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
 /// so a client needs no capability probe before using it.
 #[sim_test]
 async fn jsonrpc_node_serves_every_index_backed_endpoint() {
-    // The JSON-RPC API is on by default; `TestClusterBuilder` has no knob to
-    // turn it off, so this exercises that default rather than setting it.
+    // Relies on the JSON-RPC API being on by default.
     let cluster = TestClusterBuilder::new().build().await;
     let address = cluster.get_address_0();
     let client = cluster.rpc_client();

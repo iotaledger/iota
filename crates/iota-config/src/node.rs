@@ -740,12 +740,8 @@ pub fn bool_true() -> bool {
 impl Config for NodeConfig {}
 
 impl NodeConfig {
-    /// Fails if the config file still carries a key that has been renamed.
-    ///
-    /// Call this before doing any work. A config file is loaded with unknown
-    /// keys ignored, so an old key left in place has no effect at all, and
-    /// the node runs on the new key's default instead — which is not
-    /// necessarily what the old key said.
+    /// Fails if the config file still sets a key that has been renamed, which
+    /// would otherwise be silently ignored. Call this before doing any work.
     pub fn check_renamed_keys(&self) -> Result<()> {
         if self.enable_index_processing.is_some() {
             anyhow::bail!(
@@ -1805,8 +1801,7 @@ mod tests {
         assert!(err.contains("enable-index-processing"), "{err}");
         assert!(err.contains("enable-jsonrpc-api"), "{err}");
 
-        // The field never reaches a serialized config, so a node that rewrites
-        // its config cannot reintroduce the key it just refused.
+        // Never serialized, so rewriting the config cannot bring the key back.
         config.enable_index_processing = Some(true);
         let serialized = serde_yaml::to_string(&config).unwrap();
         assert!(
