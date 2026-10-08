@@ -34,7 +34,7 @@ use typed_store::{
 };
 
 use crate::{
-    authority::authority_store_types::StoreObjectWrapper,
+    authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     epoch_buckets::{EpochBuckets, bucket_cf_epoch, bucket_cf_name},
 };
 
@@ -419,13 +419,16 @@ impl HistoricObjects {
         // A version left beneath a head in the live table would become the
         // newest again once the head is deleted, bringing the object back.
         // That only happens where the backlog sweep did not relocate it, so
-        // such a head is kept.
+        // such a head is kept. Tombstones beneath it don't count: an object
+        // wrapped and deleted in one epoch leaves two heads in this bucket.
         let buried_alive = |head: &ObjectKey| -> Result<bool, TypedStoreError> {
-            let Some(row) = objects.safe_range_iter_reversed(..*head).next() else {
-                return Ok(false);
-            };
-            let (below, _) = row?;
-            Ok(below.0 == head.0)
+            for row in objects.safe_range_iter_reversed(ObjectKey::min_for_id(&head.0)..*head) {
+                let (_, below) = row?;
+                if matches!(below.migrate().into_inner(), StoreObject::Value(_)) {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
         };
 
         let mut deleted = 0;
