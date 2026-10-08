@@ -126,18 +126,13 @@ pub(crate) fn bucket_cf_epoch(cf_prefix: &str, cf_name: &str) -> Option<EpochId>
         .and_then(|epoch| epoch.parse().ok())
 }
 
-/// A store's view of one per-epoch bucket, opened from the bucket's
-/// column-family name.
-///
-/// [`EpochBuckets`] creates and drops the column families and calls this to
-/// build the typed view of each one, so a store states how its bucket is
-/// read here and nowhere else.
+/// A store's view of one per-epoch bucket, which [`EpochBuckets`] opens from
+/// the bucket's column-family name.
 pub(crate) trait BucketReopen: Sized {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError>;
 }
 
-/// The per-epoch buckets of one store. `B` is that store's view of one
-/// bucket, opened by [`BucketReopen`] from the bucket's column-family name.
+/// The per-epoch buckets of one store, each viewed as a `B`.
 ///
 /// On-disk column-family names are the ground truth for which buckets exist;
 /// the map here mirrors them for reads.
@@ -271,20 +266,18 @@ impl<B: BucketReopen> EpochBuckets<B> {
         self.earliest_retained_epoch.load(Ordering::Relaxed)
     }
 
-    /// The bucket holding `epoch`'s rows, `None` when there is none — either
-    /// because nothing has been written for that epoch yet or because it has
-    /// been pruned.
-    ///
-    /// For a reader that knows which epoch it wants and must not create a
-    /// column family to find out that the answer is nothing.
+    /// The bucket holding `epoch`'s rows, `None` when nothing has been
+    /// written for that epoch yet or it has been pruned. Never creates one.
     pub(crate) fn get(&self, epoch: EpochId) -> Option<Arc<B>> {
         self.buckets.read().get(&epoch).cloned()
     }
 
-    /// The bucket holding `epoch`'s rows, created if absent. Pruned
-    /// epochs are refused: recreating a pruned epoch's column family would
-    /// resurrect it under the same name, and a reader holding the dropped
-    /// bucket would silently read the new, empty one.
+    /// The bucket holding `epoch`'s rows, created if absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TypedStoreError::Pruned`] if `epoch` is below the retention
+    /// floor.
     pub(crate) fn ensure(&self, epoch: EpochId) -> Result<Arc<B>, TypedStoreError> {
         self.ensure_retained(epoch)?.ok_or_else(|| {
             TypedStoreError::Pruned(format!(

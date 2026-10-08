@@ -194,21 +194,15 @@ pub struct AuthorityPerpetualTables {
     /// storage_fund_balance - sum(storage_rebate).
     pub(crate) expected_storage_fund_imbalance: DBMap<(), i64>,
 
-    /// Superseded by
-    /// [`EpochMarkers`](crate::authority::epoch_markers::EpochMarkers): the
-    /// objects received, deleted or wrapped during an epoch are written to
-    /// and read from that epoch's marker bucket. Rows written before the move
-    /// are still on disk here, and the one-time migration into the buckets is
-    /// their only reader.
-    // TODO: remove this table once every database has migrated its markers,
-    // <https://github.com/iotaledger/iota/issues/12712>
+    /// Superseded by [`EpochMarkers`]; the rows still here are read only by
+    /// the one-time migration into the buckets.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
 
-    /// How far the one-time sweep of the object versions superseded before
-    /// this build has got through `objects`, and whether it has reached the
-    /// end. Empty until the sweep first writes a slice.
-    /// TODO: remove this table once every database has swept the pre-bucket
-    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    /// How far the one-time sweep of superseded object versions has got
+    /// through `objects`, and whether it is done. Empty until the sweep first
+    /// writes a slice.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 
     /// The last checkpoint the objects pruner pruned, copied out of

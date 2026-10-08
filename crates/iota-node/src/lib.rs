@@ -629,28 +629,19 @@ impl IotaNode {
             checkpoint_store.mark_checkpoint_backlog_migrated()?;
         }
 
-        // Before any service starts, and before the marker reads on the
-        // execution path: a marker missed is a receive or a delete this node
-        // would let happen twice.
-        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
-        // call once every database has moved its markers into the buckets.
+        // Before any service starts: a missed marker would let a receive or a
+        // delete happen twice.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
         store
             .migrate_flat_markers(epoch_store.epoch())
             .map_err(|e| {
                 anyhow!("failed to migrate the object markers written before this build: {e}")
             })?;
 
-        // Before any service starts: the ledger and checkpoint history written
-        // before this build is in the flat tables until this returns, where
-        // nothing reads it, so a checkpoint written then cannot be resolved by
-        // digest and the checkpoint executor would panic on it.
-        //
-        // Before the sweep below, too: that pass resolves each checkpoint's
-        // contents through the historic buckets, so until this has filled them
-        // it would find nothing to relocate and record itself done.
-        // TODO(https://github.com/iotaledger/iota/issues/12763): remove
-        // this call once every database has migrated its pre-bucket ledger and
-        // checkpoint history.
+        // Before any service starts, since nothing reads the flat tables, and
+        // before the sweep below, which reads checkpoint contents through the
+        // buckets this fills.
+        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
         ledger_backlog_migration::migrate(
             store.clone(),
             checkpoint_store.clone(),

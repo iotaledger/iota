@@ -3,11 +3,9 @@
 
 //! Received-and-deleted object markers, bucketed by the epoch that wrote them.
 //!
-//! A marker guards a race inside the epoch that wrote it, so only the epoch
-//! the node is in needs its markers and every earlier epoch's can go. A column
-//! family per epoch is what makes that a `drop_cf`: the flat table this
-//! replaces was cleared with a range tombstone that the execution path then
-//! read across until compaction caught up.
+//! A marker guards a race inside the epoch that wrote it, so only the current
+//! epoch's markers are kept, and an earlier epoch's are removed with a
+//! `drop_cf` rather than a range delete the execution path would read across.
 
 use std::{collections::BTreeMap, fmt::Debug, ops::Bound, path::Path, sync::Arc};
 
@@ -42,16 +40,13 @@ const EARLIEST_RETAINED_CF: &str = "marker_earliest_retained";
 const KEYS_PER_SLICE: usize = 5_000;
 
 /// Historic epochs kept at a reconfiguration, on top of the epoch being
-/// entered: none. Not configurable — a marker outside the running epoch
-/// answers no question anyone asks.
+/// entered: none, as nothing reads a marker outside the running epoch.
 const HISTORIC_EPOCHS_TO_RETAIN: u64 = 0;
 
 /// One epoch's markers.
 pub struct EpochMarkersBucket {
     /// The objects received, deleted or wrapped during this epoch, at the
-    /// version it happened at. The bucket is this table's own column family,
-    /// so unlike the historic stores' buckets it needs no tag byte to tell
-    /// its rows from a neighbouring table's.
+    /// version it happened at.
     pub(crate) markers: DBMap<ObjectKey, MarkerValue>,
 }
 
@@ -69,22 +64,17 @@ pub struct EpochMarkers {
 }
 
 impl EpochMarkers {
-    /// Options for a marker bucket's column family.
-    ///
-    /// The base options unchanged, which is what the flat table this replaces
-    /// used: markers are read on the execution path, by exact key and by
-    /// reverse scan over one object id, so none of the write-heavy tuning the
-    /// historic buckets take applies. Built once and cloned per column family,
-    /// so the clones share the base options' block cache instead of each
-    /// allocating one.
+    /// Options for a marker bucket's column family: the base options, without
+    /// the write-heavy tuning of the historic buckets, as markers are read on
+    /// the execution path. Clone the result per column family so they share
+    /// one block cache.
     fn cf_options(db_options: &DBOptions) -> DBOptions {
         db_options.clone()
     }
 
-    /// The `(name, options)` pairs of the column families this store needs,
-    /// for the perpetual store's open path to list alongside its own tables: a
-    /// column family left for auto-discovery would be reopened with default
-    /// options and a block cache of its own.
+    /// The `(name, options)` pairs of this store's column families, for the
+    /// perpetual store to open alongside its own tables; one left out would be
+    /// reopened with default options.
     pub fn extra_column_family_options(
         perpetual_path: &Path,
         db_options: &DBOptions,
@@ -107,9 +97,8 @@ impl EpochMarkers {
     }
 
     /// Opens the marker buckets already present among `db`'s column families.
-    /// `db` is the perpetual database's own handle — the buckets are its
-    /// column families, not a database of their own — and `db_options` are the
-    /// options its tables were opened with.
+    /// `db` is the perpetual database's handle and `db_options` the options its
+    /// tables were opened with.
     pub fn open(db: Arc<Database>, db_options: &DBOptions) -> Result<Self, TypedStoreError> {
         let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
             .map_err(|e| TypedStoreError::RocksDB(format!("failed to list marker buckets: {e}")))?;
@@ -166,10 +155,6 @@ impl EpochMarkers {
 
     /// The newest version of `object_id` marked during `epoch`, with its
     /// marker.
-    ///
-    /// The bucket is the epoch, so unlike the flat table this replaces there
-    /// is no epoch left in the key for a reader to check against the one it
-    /// asked for.
     pub fn get_latest_marker(
         &self,
         object_id: &ObjectId,
@@ -192,11 +177,9 @@ impl EpochMarkers {
         Ok(Some((key.1, marker)))
     }
 
-    /// The rows of one of this store's column families, for `iota-tool dump`:
-    /// the buckets and their retention floor are column families of the
-    /// perpetual database that its table struct does not declare, so the dump
-    /// derived from that struct cannot reach them. `None` when `cf_name` is
-    /// not one of them.
+    /// The rows of one of this store's column families, for `iota-tool dump`,
+    /// which cannot reach them through the perpetual table struct. `None` when
+    /// `cf_name` is not one of them.
     pub fn dump_column_family(
         db: &Arc<Database>,
         cf_name: &str,
@@ -229,25 +212,13 @@ impl EpochMarkers {
     }
 
     /// Moves the markers left in the flat `object_per_epoch_marker_table` into
-    /// the bucket of the epoch that wrote them, dropping the ones an earlier
-    /// epoch wrote.
+    /// the bucket of `epoch`, and deletes the rows of earlier epochs, which
+    /// nothing reads. Safe to rerun after an interrupted run.
     ///
     /// Call this before starting any service: until it returns, a marker
-    /// written before the upgrade is unreachable, and a marker missed is a
-    /// receive or a delete this node would let happen twice.
-    ///
-    /// No watermark, unlike the ledger migration: every slice deletes exactly
-    /// the keys it read, so an interrupted run leaves the rest of the table
-    /// where the next one finds it, and moving the same row twice writes the
-    /// same value to the same key.
-    ///
-    /// The flat table is cleared at every reconfiguration, so what it holds at
-    /// upgrade is one epoch of markers at most. Rows below `epoch` are deleted
-    /// rather than moved: the old code had already stopped reading them, so
-    /// giving them a column family would create one only for the next
-    /// reconfiguration to drop.
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this once
-    // every database has moved its markers into the buckets.
+    /// written before the upgrade is unreachable, and a missed marker lets a
+    /// receive or a delete happen twice.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove once migrated.
     pub fn migrate_flat_markers(
         &self,
         flat: &DBMap<(EpochId, ObjectKey), MarkerValue>,
@@ -255,10 +226,8 @@ impl EpochMarkers {
     ) -> IotaResult<()> {
         let mut progress =
             ProgressLogger::new("epoch marker migration", "markers", flat.estimated_len()?);
-        // Every slice deletes the rows it read, and those deletions stay in
-        // the way as tombstones: a scan that restarts at the front walks all
-        // of them again, which is quadratic in the rows migrated. Resuming
-        // above the last key read steps over them once.
+        // Resume above the last key read: restarting at the front would walk
+        // the tombstones of every row deleted so far again.
         let mut resume_above = None;
         loop {
             let mut moved = Vec::new();
@@ -294,9 +263,8 @@ impl EpochMarkers {
     /// Drops every bucket below the epoch being entered, after making sure
     /// that epoch has one. Returns the earliest epoch still retained.
     ///
-    /// Called from reconfiguration, where execution is halted, so the write
-    /// lock the drops take is not contended with the reads on the execution
-    /// path.
+    /// Call only while execution is halted, as at reconfiguration: the drops
+    /// take a write lock the execution path's reads contend on.
     pub fn expire(&self, new_epoch: EpochId) -> IotaResult<Option<EpochId>> {
         self.ensure(new_epoch)?;
         self.buckets

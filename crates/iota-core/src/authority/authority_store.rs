@@ -138,9 +138,7 @@ pub struct AuthorityStore {
     /// the batch that commits the superseding transaction.
     historic_objects: Arc<HistoricObjects>,
 
-    /// The transactions, effects, events and checkpoint assignments this
-    /// store's transactions produced, bucketed by the epoch that executed
-    /// them.
+    /// Transaction history, bucketed by the epoch that executed it.
     historic_ledger: Arc<HistoricLedger>,
     epoch_markers: Arc<EpochMarkers>,
 
@@ -234,12 +232,8 @@ impl AuthorityStore {
     // NB: This must only be called at time of reconfiguration. We take the
     // execution lock write guard as an argument to ensure that this is the
     // case.
-    /// Drops the marker buckets of every epoch below `new_epoch`, opening that
-    /// epoch's before it does.
-    ///
-    /// A marker guards a race inside the epoch that wrote it, so once the node
-    /// is entering `new_epoch` no earlier epoch's markers answer anything. The
-    /// caller holds the execution lock, so no read is in flight.
+    /// Drops the marker buckets of every epoch below `new_epoch`, after
+    /// opening the bucket of `new_epoch`.
     pub fn expire_epoch_markers(
         &self,
         new_epoch: EpochId,
@@ -425,9 +419,8 @@ impl AuthorityStore {
     }
 
     /// Records the one-time passes over the pre-bucket tables as done, for a
-    /// database that cannot hold anything for them to find.
-    ///
-    /// See [`AuthorityPerpetualTables::mark_object_backlog_swept`] and
+    /// database that has nothing for them to find. See
+    /// [`AuthorityPerpetualTables::mark_object_backlog_swept`] and
     /// [`AuthorityPerpetualTables::mark_ledger_backlog_migrated`].
     // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the passes.
     pub fn mark_pre_bucket_passes_done(&self) -> IotaResult<()> {
@@ -435,10 +428,9 @@ impl AuthorityStore {
         self.perpetual_tables.mark_ledger_backlog_migrated()
     }
 
-    /// Moves the markers written before this build into their epoch's bucket.
+    /// Moves the markers in the flat marker table into their epoch's bucket.
     /// See [`EpochMarkers::migrate_flat_markers`].
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this once
-    // every database has moved its markers into the buckets.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove after the migration.
     pub fn migrate_flat_markers(&self, epoch: EpochId) -> IotaResult<()> {
         self.epoch_markers
             .migrate_flat_markers(&self.perpetual_tables.object_per_epoch_marker_table, epoch)
@@ -675,8 +667,6 @@ impl AuthorityStore {
     ) -> Result<bool, IotaError> {
         // Find the most recent version of the object that was deleted or wrapped.
         // Return true if the version is >= `version`. Otherwise return false.
-        // The bucket is the epoch, so the stale-epoch check the flat table
-        // needed is structural now.
         match self.epoch_markers.get_latest_marker(object_id, epoch_id)? {
             Some((marked_version, marker)) => {
                 Ok(marked_version >= version && marker == MarkerValue::OwnedDeleted)

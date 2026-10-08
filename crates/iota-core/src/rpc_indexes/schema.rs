@@ -39,10 +39,9 @@ use typed_store::{
 
 use crate::epoch_buckets::BucketReopen;
 
-/// The API groups whose read surface the unified store can serve. A store
-/// serves whichever of these its node needs; the enabled set is recorded in
-/// [`MetadataInfo`] so turning one on rebuilds the store instead of silently
-/// leaving its tables empty.
+/// The API groups whose read surface the unified store can serve. The
+/// enabled set is recorded in [`MetadataInfo`], so enabling a group rebuilds
+/// the store.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IndexGroup {
     JsonRpc,
@@ -503,10 +502,8 @@ pub(super) struct HistoryBucket {
 
 impl BucketReopen for HistoryBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
-        // The tags are each table's identity within the shared column
-        // family; never change or reuse them for existing data. Per-epoch
-        // column families skip the periodic metrics reporter task: with up
-        // to ~100 retained epochs, one task per column family adds up.
+        // Per-epoch column families skip the periodic metrics reporter task:
+        // with up to ~100 retained epochs, one task per family adds up.
         fn map<K, V>(
             db: &Arc<Database>,
             cf_name: &str,
@@ -541,11 +538,9 @@ impl BucketReopen for HistoryBucket {
 }
 
 impl HistoryBucket {
-    /// Appends one transaction's history-table rows, digest included, to a
-    /// checkpoint's batch. Only called for checkpoints replayed or indexed
-    /// while the JSON-RPC group is enabled; a gRPC-only store fills
-    /// `txs_seq` directly from the checkpoint's contents instead (see
-    /// `RpcIndexesStore::replay_checkpoint_history`).
+    /// Appends one transaction's history-table rows to a checkpoint's batch.
+    /// Only for the JSON-RPC group; a gRPC-only store fills `txs_seq` itself
+    /// (see `RpcIndexesStore::replay_checkpoint_history`).
     pub(super) fn index_tx(
         &self,
         batch: &mut DBBatch,

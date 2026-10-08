@@ -3242,11 +3242,8 @@ impl AuthorityState {
             }
         }
         *execution_lock = new_epoch;
-        // Only now, with the scheduler on the new epoch and the lock reading
-        // it: a transaction of an earlier epoch is refused before it executes,
-        // so no read of that epoch's markers follows this. Doing it earlier
-        // raced `try_execute_immediately`, which reads a receiving object's
-        // marker before it takes the execution lock.
+        // Not before the lock reads the new epoch: `try_execute_immediately`
+        // reads a receiving object's marker before it takes the lock.
         if let Err(err) = self
             .get_reconfig_api()
             .expire_epoch_markers(new_epoch, &execution_lock)
