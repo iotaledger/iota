@@ -61,7 +61,8 @@ authority-store-pruning-config:
   # Number of historic epochs of transactions, effects, events, and checkpoint
   # data to keep, on top of the epoch the node is in. Controls transaction
   # pruning. Counted the same way as num-epochs-to-retain above.
-  #   0        — keeps the epoch the node is in only.
+  #   0        — refused at startup: peers still sync the previous epoch's
+  #              checkpoints right after an epoch boundary.
   #   N        — keeps the epoch the node is in plus the N epochs before it,
   #              so N + 1 epochs in total.
   #   u64::MAX — disables transaction pruning entirely (18446744073709551615).
@@ -116,8 +117,8 @@ and checkpoint history therefore takes roughly 50% more disk at the commonly
 used value of `2` — size disks accordingly, or lower the value by one to keep
 the previous window.
 
-Two further changes in the same release: `0` now keeps only the epoch the node
-is in, where it used to be silently treated as `1`, and leaving
+Two further changes in the same release: `0` is now refused at startup, where
+it used to be silently treated as `1`, and leaving
 `num-epochs-to-retain-for-indexes` unset now follows the transaction retention
 instead of turning index pruning off. A node that prunes transactions and left
 the index setting unset therefore starts pruning its index history, which had

@@ -914,6 +914,19 @@ impl NodeConfig {
                  `firewall-config` or set a `policy-config`"
             );
         }
+        // Right after an epoch boundary, peers still sync the end of the
+        // previous epoch, and a validator still decides whether a transaction
+        // re-proposed from it was already executed, from its checkpoints.
+        if self
+            .authority_store_pruning_config
+            .num_epochs_to_retain_for_checkpoints()
+            == Some(0)
+        {
+            anyhow::bail!(
+                "`num-epochs-to-retain-for-checkpoints` is 0, but the previous epoch's \
+                 checkpoints are still needed after an epoch boundary; set it to 1 or more"
+            );
+        }
         Ok(())
     }
 }
@@ -1171,7 +1184,7 @@ pub struct AuthorityStorePruningConfig {
     /// checkpoint data to keep, on top of the epoch the node is in. Controls
     /// transaction pruning. Read through
     /// [`Self::num_epochs_to_retain_for_checkpoints`].
-    ///   0        — keep the epoch the node is in only.
+    ///   0        — refused by [`NodeConfig::validate`].
     ///   N        — keep the epoch the node is in plus the N epochs before it.
     ///   u64::MAX — keep every epoch's bucket; transaction pruning is off.
     ///   None     — the same as `u64::MAX`.
@@ -2030,6 +2043,24 @@ mod tests {
 
         let err = config.validate().unwrap_err().to_string();
         assert!(err.contains("storage backend"), "{err}");
+    }
+
+    #[test]
+    fn validate_rejects_a_zero_checkpoint_retention() {
+        let mut config = template_config();
+        config
+            .authority_store_pruning_config
+            .set_num_epochs_to_retain_for_checkpoints(Some(0));
+        let err = config.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("num-epochs-to-retain-for-checkpoints"),
+            "{err}"
+        );
+
+        config
+            .authority_store_pruning_config
+            .set_num_epochs_to_retain_for_checkpoints(Some(1));
+        config.validate().unwrap();
     }
 
     #[test]
