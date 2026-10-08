@@ -80,6 +80,9 @@ pub struct GasStatus {
     locals_size_high_water_mark: u64,
     // Abstract bytes added to each live frame's locals, innermost frame last.
     frame_locals_added: Vec<u64>,
+    // Locals high-water mark before the most recent `record_call_frame`, kept
+    // until the next locals event so a native callee can discard its frame.
+    locals_peak_before_call: Option<u64>,
     // Unlike the charged `stack_size_current`, this applies decreases too.
     profile_stack_size_current: u64,
     profile_stack_size_peak: u64,
@@ -145,6 +148,7 @@ impl GasStatus {
             locals_size_current: 0,
             locals_size_high_water_mark: 0,
             frame_locals_added: Vec::new(),
+            locals_peak_before_call: None,
             profile_stack_size_current: 0,
             profile_stack_size_peak: 0,
             native_gas_deducted: 0,
@@ -197,6 +201,7 @@ impl GasStatus {
             locals_size_current: 0,
             locals_size_high_water_mark: 0,
             frame_locals_added: Vec::new(),
+            locals_peak_before_call: None,
             profile_stack_size_current: 0,
             profile_stack_size_peak: 0,
             native_gas_deducted: 0,
@@ -482,8 +487,11 @@ impl GasStatus {
     }
 
     /// Record a function call whose arguments total `args_size` abstract
-    /// bytes.
+    /// bytes. The interpreter charges a call before it knows whether the
+    /// callee is native, so natives pass through here too; see
+    /// [`discard_native_call_frame`](Self::discard_native_call_frame).
     pub fn record_call_frame(&mut self, args_size: u64) {
+        self.locals_peak_before_call = Some(self.locals_size_high_water_mark);
         self.increase_locals_size(args_size);
         self.frame_locals_added.push(args_size);
     }
@@ -491,12 +499,14 @@ impl GasStatus {
     /// Record a value stored into a local. Storing over an occupied local
     /// over-counts, since the displaced value is not visible here.
     pub fn record_store_loc(&mut self, size: u64) {
+        self.locals_peak_before_call = None;
         self.increase_locals_size(size);
         self.add_to_current_frame(size);
     }
 
     /// Record a value moved out of a local.
     pub fn record_move_loc(&mut self, size: u64) {
+        self.locals_peak_before_call = None;
         self.decrease_locals_size(size);
         if let Some(top) = self.frame_locals_added.last_mut() {
             *top = top.saturating_sub(size);
@@ -506,6 +516,7 @@ impl GasStatus {
     /// Record a frame drop, where `dropped_size` is the total abstract size of
     /// the values still in the frame's locals.
     pub fn record_drop_frame(&mut self, dropped_size: u64) {
+        self.locals_peak_before_call = None;
         let tracked = self.frame_locals_added.pop().unwrap_or(0);
         // The excess is growth in place through `&mut` references (e.g.
         // `vector::push_back`), which the store/move hooks never saw.
@@ -513,6 +524,19 @@ impl GasStatus {
             self.increase_locals_size(dropped_size - tracked);
         }
         self.decrease_locals_size(dropped_size);
+    }
+
+    /// Undo the frame pushed by [`record_call_frame`](Self::record_call_frame)
+    /// for a native callee, which the interpreter never drops. A no-op unless
+    /// that push was the last locals event, so a native invoked without a
+    /// preceding call leaves the caller's frames alone.
+    pub fn discard_native_call_frame(&mut self) {
+        let Some(peak_before) = self.locals_peak_before_call.take() else {
+            return;
+        };
+        let args_size = self.frame_locals_added.pop().unwrap_or(0);
+        self.decrease_locals_size(args_size);
+        self.locals_size_high_water_mark = peak_before;
     }
 
     pub fn record_package_loads(&mut self, count: u64, bytes: u64) {
@@ -853,6 +877,40 @@ mod tests {
         status.record_store_loc(5);
         status.record_move_loc(5);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 28);
+    }
+
+    #[test]
+    fn native_call_leaves_no_frame_behind() {
+        let mut status = GasStatus::new_unmetered();
+        status.record_store_loc(100);
+        for _ in 0..10_000 {
+            status.record_call_frame(40);
+            status.discard_native_call_frame();
+        }
+        assert_eq!(status.resource_profile().locals_size_high_water_mark, 100);
+        assert_eq!(status.frame_locals_added, vec![100]);
+
+        // The caller's later stores and its own drop still land in its frame.
+        status.record_store_loc(10);
+        status.record_drop_frame(110);
+        assert_eq!(status.locals_size_current, 0);
+        assert!(status.frame_locals_added.is_empty());
+        assert_eq!(status.resource_profile().locals_size_high_water_mark, 110);
+    }
+
+    #[test]
+    fn discarding_without_a_pending_call_frame_is_a_no_op() {
+        let mut status = GasStatus::new_unmetered();
+        // A native invoked as the entry function has no preceding call.
+        status.discard_native_call_frame();
+        assert!(status.frame_locals_added.is_empty());
+
+        status.record_call_frame(8);
+        status.record_store_loc(4);
+        // A store in the callee means the frame belongs to a Move function.
+        status.discard_native_call_frame();
+        assert_eq!(status.frame_locals_added, vec![12]);
+        assert_eq!(status.locals_size_current, 12);
     }
 
     #[test]
