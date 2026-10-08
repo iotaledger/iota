@@ -10646,7 +10646,7 @@
         ]
       },
       "OwnedObjectCursor": {
-        "description": "An opaque paging cursor. Pass back the `nextCursor` a page returned to read the page after it. Its contents are not part of the API and an object id is not a valid cursor.",
+        "description": "An opaque paging cursor. Pass back the `nextCursor` a page returned to read the page after it; its contents are not part of the API.",
         "type": "string"
       },
       "OwnedObjectRef": {

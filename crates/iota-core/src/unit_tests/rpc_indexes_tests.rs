@@ -1417,11 +1417,8 @@ async fn test_filtered_owner_pages_match_the_unfiltered_scan() {
     }
 }
 
-/// A cursor carries the position of the row it came from, so a page resumes
-/// after an object that has since been spent. The position used to be rebuilt
-/// by reading the object, which made a spent cursor fail the whole page — and
-/// a page of a wallet's coins is exactly where an object goes missing between
-/// two reads.
+/// A page resumes after a cursor whose object has since been spent, since
+/// the cursor carries the position of its row.
 #[tokio::test]
 async fn test_owner_cursor_of_a_deleted_object_still_resumes() {
     let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
@@ -1437,7 +1434,6 @@ async fn test_owner_cursor_of_a_deleted_object_still_resumes() {
         .unwrap();
     let cursor = page_1.last().unwrap().1;
 
-    // The cursor's object goes away between the two pages.
     object_store.remove(&cursor.object_id);
 
     let page_2 = index_store
@@ -1488,8 +1484,6 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
         "the coin type must be the inner T, found {:?}",
         one_type.iter().map(|(t, _, _, _)| t).collect::<Vec<_>>()
     );
-    // Across every coin type, the reported types agree with the ones
-    // `get_all_balance` groups by.
     let all_balance_types: BTreeSet<TypeTag> = index_store
         .get_all_balance(owner)
         .unwrap()
@@ -3238,8 +3232,7 @@ async fn test_bulk_ingestion_open_clears_leftover_files() {
 }
 
 /// An owner page starts after the cursor's object, even when the cursor's
-/// own row is gone: the cursor carries the position, so the object it named
-/// need not be there any more.
+/// own row is gone.
 #[tokio::test]
 async fn test_owner_objects_page_excludes_only_the_cursor() {
     let tmp_dir = iota_common::tempdir();
@@ -3263,8 +3256,6 @@ async fn test_owner_objects_page_excludes_only_the_cursor() {
     let first_cursor = all_rows[0].1;
     assert_eq!(ids(&rows(Some(first_cursor))), all[1..]);
 
-    // The cursor's object can be transferred away between two pages: its
-    // owner row is gone while the object itself still resolves.
     let cursor_object = object_store.get(&all[0]).unwrap();
     let (cursor_key, _) = OwnerIndexKey::for_object(owner, cursor_object).unwrap();
     let table = &index_store.tables.owner;

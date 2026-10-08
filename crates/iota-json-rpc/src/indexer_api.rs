@@ -102,13 +102,11 @@ pub fn spawn_subscription<S, T>(
 }
 const DEFAULT_MAX_SUBSCRIPTIONS: usize = 100;
 
-/// The index position a cursor names, refusing one this store cannot place.
+/// The index position a cursor names.
 ///
-/// A cursor carrying only an object id came from a store that orders its owner
-/// index by object id — the indexer, or a release before this one. This node's
-/// index is ordered by object type and balance first, which an object id
-/// cannot describe, so such a cursor is refused rather than read as a position
-/// it is not: seeking to the wrong place would silently skip or repeat rows.
+/// A cursor carrying only an object id, as the indexer issues, is refused:
+/// this node's owner index is ordered by object type and balance first, so
+/// seeking by object id alone would skip or repeat rows.
 fn cursor_position(
     cursor: Option<OwnedObjectCursor>,
 ) -> Result<Option<IndexCursor>, IotaRpcInputError> {

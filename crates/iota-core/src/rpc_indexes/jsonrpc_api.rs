@@ -721,16 +721,13 @@ impl RpcIndexesStore {
             .contains_key(&DynamicFieldKey::new(object, field_id))?)
     }
 
-    /// Objects owned by `owner` in the unified key order (grouped by type,
-    /// coins balance-descending, id-ascending), resolving the response fields
-    /// the index does not store from the object store. `cursor` names the
-    /// last row of the previous page and carries its whole position, so the
-    /// scan resumes strictly after it whether or not the object it named is
-    /// still there.
+    /// Objects owned by `owner` in owner-index order (grouped by type, coins
+    /// by descending balance, then by id), resolving the fields the index does
+    /// not store from the object store. The page resumes strictly after
+    /// `cursor`, whether or not the object it names is still there.
     ///
     /// A `filter` that pins the object type narrows the scan to that type's
-    /// rows, so the page resolves only objects that can match; every other
-    /// filter still walks everything `owner` holds.
+    /// rows; any other filter walks everything `owner` holds.
     pub fn get_owner_objects(
         &self,
         owner: Address,
@@ -749,18 +746,12 @@ impl RpcIndexesStore {
         for item in self.owner_iter(owner, cursor_key.as_ref(), type_filter)? {
             let (key, info) = item?;
             if Some(key.object_id) == cursor.map(|cursor| cursor.object_id) {
-                // The scan already starts after the cursor's key, so this
-                // only fires when the cursor's object has moved to a later
-                // key (its balance changed). It was returned on the previous
-                // page, and an object holds one row at a time, so dropping it
-                // here cannot hide another object.
+                // The cursor's object moved to a later key because its
+                // balance changed; it was returned on the previous page.
                 continue;
             }
-            // The row's own version, not the latest: until the index catches
-            // up with an object transferred away or spent, its row describes
-            // the version this owner held, and reading the latest would answer
-            // with an object this owner no longer holds. A row whose version
-            // the node no longer has is skipped, the way the gRPC listing does.
+            // Read the row's version, not the latest: the latest may belong to
+            // an object this owner has since transferred away or spent.
             let Some(object) = object_store.try_get_object_by_key(&key.object_id, info.version)?
             else {
                 continue;
@@ -809,21 +800,12 @@ impl RpcIndexesStore {
             }))
     }
 
-    /// Owned coins of `owner`, in the unified key's order (balance-descending
-    /// within a type). `coin_type` narrows the scan to that coin's `Coin<T>`;
-    /// `None` scans every coin type, the way [`Self::get_all_balances_from_db`]
-    /// does. `cursor` names the last coin of the previous page and carries
-    /// its whole position, the same way [`Self::get_owner_objects`]'s cursor
-    /// does.
+    /// Coins owned by `owner`, in owner-index order (balance-descending within
+    /// a type). `coin_type` narrows the scan to `Coin<coin_type>`; `None` scans
+    /// every coin type. `cursor` works as in [`Self::get_owner_objects`].
     ///
-    /// Each row carries the coin's own `T`, the same tag
-    /// [`Self::get_all_balance`] keys on and the one the JSON-RPC `coinType`
-    /// field reports — not the `Coin<T>` the object itself is.
-    ///
-    /// Because the cursor carries the balance its row sorted on, the next
-    /// page resumes at that exact position even when the coin has since been
-    /// spent. A cursor coin whose balance changed has moved in the order: it
-    /// was already returned, and is not returned again.
+    /// Each row carries the coin's `T`, which the JSON-RPC `coinType` field
+    /// reports, not the object's `Coin<T>` type.
     pub fn get_owned_coins(
         &self,
         owner: Address,

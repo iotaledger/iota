@@ -9,7 +9,7 @@ use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
+    Balance, Coin, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
     IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, OwnedObjectCursor, TransactionBlockBytes,
 };
@@ -102,7 +102,12 @@ fn get_coins_basic_scenario() {
             get_coins_fullnode_indexer(cluster, client, *owner, None, None, None).await;
 
         assert!(!result_indexer.data.is_empty());
-        assert_same_coin_page(&result_fullnode, &result_indexer);
+        assert_eq!(result_fullnode.has_next_page, result_indexer.has_next_page);
+        assert_eq!(
+            sorted_by_object_id(&result_fullnode),
+            sorted_by_object_id(&result_indexer),
+            "both stores must list the same coins"
+        );
     });
 }
 
@@ -116,27 +121,35 @@ fn get_coins_with_cursor() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        // Taken from a full node page rather than built from an object id. The
-        // full node's cursor names a position in an index ordered by type and
-        // balance, and the indexer reads the object id out of it, which is all
-        // its own index needs — so one cursor serves both. A cursor the indexer
-        // issues names only an object, which the full node cannot place.
-        let first_page = cluster
-            .rpc_client()
-            .get_coins(*owner, None, None, Some(3))
-            .await
-            .unwrap();
-        assert!(
-            first_page.next_cursor.is_some(),
-            "the page must name where it stopped"
+
+        // Each store orders its coins its own way and only resumes from its
+        // own cursors, so each is paged on its own.
+        let fullnode = cluster.rpc_client();
+        let mut listings = Vec::new();
+        for store in [fullnode, client] {
+            let all_coins = store.get_coins(*owner, None, None, None).await.unwrap();
+            assert!(!all_coins.has_next_page);
+            let first_page = store.get_coins(*owner, None, None, Some(3)).await.unwrap();
+            assert!(first_page.has_next_page);
+            let second_page = store
+                .get_coins(*owner, None, first_page.next_cursor, None)
+                .await
+                .unwrap();
+            assert!(!second_page.has_next_page);
+
+            let merged: Vec<_> = first_page
+                .data
+                .into_iter()
+                .chain(second_page.data)
+                .collect();
+            assert_eq!(all_coins.data, merged, "the pages must cover the listing");
+            listings.push(all_coins);
+        }
+        assert_eq!(
+            sorted_by_object_id(&listings[0]),
+            sorted_by_object_id(&listings[1]),
+            "both stores must list the same coins"
         );
-
-        let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, first_page.next_cursor, None)
-                .await;
-
-        assert!(!result_indexer.data.is_empty());
-        assert_same_coin_page(&result_fullnode, &result_indexer);
     });
 }
 
@@ -151,11 +164,20 @@ fn get_coins_with_limit() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, None, Some(2)).await;
-
-        assert!(!result_indexer.data.is_empty());
-        assert_same_coin_page(&result_fullnode, &result_indexer);
+        let tested_limit = 2;
+        for store in [cluster.rpc_client(), client] {
+            let all_coins = store.get_coins(*owner, None, None, None).await.unwrap();
+            let limited = store
+                .get_coins(*owner, None, None, Some(tested_limit))
+                .await
+                .unwrap();
+            assert_eq!(limited.data.len(), tested_limit);
+            assert_eq!(
+                limited.data,
+                all_coins.data[..tested_limit],
+                "a limited page must be the start of the store's listing"
+            );
+        }
     });
 }
 
@@ -659,9 +681,17 @@ fn get_total_supply_with_nonexistent_coin() {
     });
 }
 
-/// Both services page the same coins, but they name their cursors
-/// differently: the full node's carries a position in its owner index, the
-/// indexer's is the object id alone. Compare everything both can express.
+/// The coins of `page` in object-id order, for comparing two stores that order
+/// their coins differently.
+fn sorted_by_object_id(page: &CoinPage) -> Vec<&Coin> {
+    page.data
+        .iter()
+        .sorted_by_key(|coin| coin.coin_object_id)
+        .collect()
+}
+
+/// Compares two pages of the same coins; of the cursors, only the object id is
+/// compared, as the full node's also carries a position in its owner index.
 fn assert_same_coin_page(fullnode: &CoinPage, indexer: &CoinPage) {
     assert_eq!(fullnode.data, indexer.data);
     assert_eq!(fullnode.has_next_page, indexer.has_next_page);
