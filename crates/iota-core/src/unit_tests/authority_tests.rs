@@ -3806,9 +3806,8 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_tag)
 }
 
-/// Owned objects indexed through the per-checkpoint path must be queryable
-/// through `AuthorityState::get_owner_objects`, the JSON-RPC read path:
-/// exactly the sender's address-owned objects, not the object-owned field.
+/// `AuthorityState::get_owner_objects` returns exactly the sender's
+/// address-owned objects, not the object-owned field.
 #[tokio::test]
 async fn test_owner_objects_queryable_through_authority_state() {
     let (authority_state, outer_id, gas_object_id, sender, fields) =
@@ -3833,9 +3832,8 @@ async fn test_owner_objects_queryable_through_authority_state() {
     );
 }
 
-/// `AuthorityState::get_dynamic_fields` must return one entry per index
-/// row: a field that no longer resolves comes back as a `None` marker
-/// instead of vanishing, so page sizes and cursors stay truthful.
+/// `AuthorityState::get_dynamic_fields` returns one entry per index row, with
+/// `None` for a field that no longer resolves, so page sizes and cursors hold.
 #[tokio::test]
 async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
     use typed_store::Map;
@@ -4004,7 +4002,6 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
     .await
     .unwrap();
 
-    // The genesis transaction is replayed despite the object pruning.
     index_store.wait_for_history_backfill_for_testing().await;
     let genesis_tx_digest = genesis_digests.transaction;
     assert_eq!(
@@ -4059,7 +4056,6 @@ async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
     .await
     .unwrap();
 
-    // The genesis transaction is below the contents watermark — not replayed.
     index_store.wait_for_history_backfill_for_testing().await;
     let genesis_contents = checkpoint_store
         .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
@@ -4229,10 +4225,9 @@ async fn create_and_retrieve_df(
     )
 }
 
-/// `get_dynamic_field_object_id` must resolve to the value object's id even
-/// when the caller passes the already-wrapped name type under which the
-/// index stores a dynamic object field, not the wrapper `Field` object's id
-/// — while a plain dynamic field resolves to the `Field` object itself.
+/// `get_dynamic_field_object_id` resolves a dynamic object field to the value
+/// object's id, also when given the wrapped name type, and a plain dynamic
+/// field to the `Field` object's id.
 #[tokio::test]
 async fn test_dynamic_object_field_lookup_with_wrapped_name_type() {
     let (authority_state, parent, _, _, fields) =

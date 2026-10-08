@@ -3704,11 +3704,9 @@ impl AuthorityState {
         Ok(move_objects)
     }
 
-    /// Returns one entry per index row, in index order, consuming at most
-    /// `limit` rows: a `None` info marks a field that no longer resolves
-    /// (deleted since the index read, or an unresolvable layout). One row
-    /// per entry lets callers derive pagination cursors from the returned
-    /// ids alone.
+    /// Returns one entry per index row, in index order, for at most `limit`
+    /// rows. A `None` info marks a field that no longer resolves, so callers
+    /// can derive pagination cursors from the returned ids alone.
     #[instrument(level = "trace", skip_all)]
     pub fn get_dynamic_fields(
         &self,
@@ -3780,10 +3778,8 @@ impl AuthorityState {
             if !wrapped_name {
                 return Ok(Some(dynamic_field_id));
             }
-            // The caller passed an already-wrapped name type, addressing a
-            // dynamic object field directly: resolve through the `Field`
-            // wrapper to the value object's id, as the wrapper path below
-            // does for unwrapped names.
+            // An already-wrapped name type addresses a dynamic object field
+            // directly.
             return self.dynamic_field_value_id(dynamic_field_id);
         }
 
@@ -3801,8 +3797,7 @@ impl AuthorityState {
 
     /// The id a dynamic-field lookup resolves `field_id` to: the value
     /// object's for a dynamic object field, the `Field` object's own
-    /// otherwise, or `None` when the field no longer resolves, which callers
-    /// report in the response body rather than as a request error.
+    /// otherwise, or `None` when the field no longer resolves.
     fn dynamic_field_value_id(&self, field_id: ObjectId) -> IotaResult<Option<ObjectId>> {
         let Some(field_object) = self.get_object_store().try_get_object(&field_id)? else {
             return Ok(None);
