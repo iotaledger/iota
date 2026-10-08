@@ -2382,9 +2382,9 @@ impl AuthorityState {
         // Checks enabled -> DRY-RUN, it means we are simulating a real TX
         // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
         let input_checks = if checks.enabled() {
-            InputCheckRules::EXECUTION
+            InputCheckRules::STRICT
         } else {
-            InputCheckRules::SIMULATION
+            InputCheckRules::RELAXED_UNSAFE
         };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             protocol_config,
@@ -5952,7 +5952,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 verifier_limits_source,
                 authenticator_gas_budget,
-                InputCheckRules::EXECUTION,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((

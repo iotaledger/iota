@@ -163,7 +163,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
-            InputCheckRules::EXECUTION,
+            InputCheckRules::STRICT,
         )?;
 
         let transaction = transaction.data().transaction();
@@ -254,9 +254,9 @@ impl EpochState {
         // Checks enabled -> DRY-RUN (simulating a real TX)
         // Checks disabled -> DEV-INSPECT (more relaxed Move VM checks)
         let input_checks = if checks.enabled() {
-            InputCheckRules::EXECUTION
+            InputCheckRules::STRICT
         } else {
-            InputCheckRules::SIMULATION
+            InputCheckRules::RELAXED_UNSAFE
         };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &self.protocol_config,

@@ -184,13 +184,9 @@ mod checked {
             &[gas_object_ref],
             0,
             true,
-            InputCheckRules::EXECUTION,
+            InputCheckRules::STRICT,
         )?;
-        check_receiving_objects(
-            &input_objects,
-            &receiving_objects,
-            InputCheckRules::EXECUTION,
-        )?;
+        check_receiving_objects(&input_objects, &receiving_objects, InputCheckRules::STRICT)?;
         // Runs verifier, which could be expensive.
         check_non_system_packages_to_be_published(
             transaction,
@@ -223,7 +219,7 @@ mod checked {
             &[],
             0,
             true,
-            InputCheckRules::EXECUTION,
+            InputCheckRules::STRICT,
         )?;
         // NB: We do not check receiving objects when executing. Only at signing
         // time do we check. NB: move verifier is only checked at
@@ -300,7 +296,7 @@ mod checked {
             &[],
             authenticator_gas_budget,
             true,
-            InputCheckRules::EXECUTION,
+            InputCheckRules::STRICT,
         )?;
 
         let per_authenticator_checked_input_objects = per_authenticator_input_objects
