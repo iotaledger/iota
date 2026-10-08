@@ -366,7 +366,12 @@ def fig_machines():
     )
     for i, (mix, mix_title) in enumerate(MIXES):
         limits = sorted(
-            {r["limit_b"] for _, by, *_ in machines for r in by.values() if r["point"] == mix}
+            {
+                r["limit_b"]
+                for _, by, *_ in machines
+                for r in by.values()
+                if r["point"] == mix
+            }
         )
         expensive = next(
             h2.expensive_level(r)
