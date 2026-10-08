@@ -86,9 +86,8 @@ const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
 /// [`schema::RPC_INDEXES_DIR`].
 const LEGACY_INDEX_DIRS: [&str; 3] = ["indexes", "jsonrpc_indexes", "grpc_indexes"];
 
-/// Removes the index databases of earlier releases from the node's database
-/// path. None of them can be adopted by the unified store, and left in place
-/// they hold on to potentially hundreds of gigabytes.
+/// Removes the index databases of earlier releases from `db_path`; this store
+/// cannot reuse them.
 pub fn remove_legacy_index_dirs(db_path: &Path) -> std::io::Result<()> {
     for dir in LEGACY_INDEX_DIRS {
         let legacy_dir = db_path.join(dir);
@@ -109,10 +108,8 @@ struct PendingCheckpointUpdate {
 }
 
 struct RpcIndexesMetrics {
-    /// Lowest checkpoint the history backfill has replayed so far. The
-    /// value reflects only the backfill's own progress: it keeps its final
-    /// value after the backfill stops and is not raised when pruning later
-    /// drops replayed epochs.
+    /// Lowest checkpoint the history backfill has replayed so far. Keeps its
+    /// final value after the backfill stops, whatever pruning drops later.
     history_backfill_lowest_replayed_checkpoint: IntGauge,
     /// 1 while the background history backfill is running, 0 otherwise.
     history_backfill_running: IntGauge,
@@ -156,15 +153,14 @@ struct OpenedIndexDb {
 /// [module docs][self].
 pub struct RpcIndexesStore {
     tables: IndexStoreTables,
-    /// The API groups this store maintains; a group not in this set never
-    /// has its tables filled.
+    /// The API groups whose tables this store fills.
     groups: BTreeSet<IndexGroup>,
     /// The retained history buckets.
     history: EpochBuckets<HistoryBucket>,
     next_sequence_number: AtomicU64,
     metrics: RpcIndexesMetrics,
-    /// Balance caches backing the JSON-RPC coin reads; unused, but harmless,
-    /// on a store that does not serve [`IndexGroup::JsonRpc`].
+    /// Balance caches backing the JSON-RPC coin reads; unused unless the
+    /// store serves [`IndexGroup::JsonRpc`].
     caches: BalanceCaches,
     jsonrpc_metrics: JsonRpcMetrics,
     max_type_length: u64,
@@ -192,10 +188,8 @@ impl IndexStoreTables {
     /// Anything left under `path` is deleted first, so the caller does not
     /// have to clear the directory.
     fn open_for_bulk_ingestion(path: PathBuf) -> Self {
-        // A column family of an existing database not named here would
-        // silently be opened with default options, and `safe_drop_db` can
-        // leave files RocksDB does not recognize, so clear the directory
-        // rather than fail the recovery.
+        // Leftover column families would be opened with default options, and
+        // `safe_drop_db` can leave files RocksDB does not recognize.
         if path.exists() && path.read_dir().is_ok_and(|mut dir| dir.next().is_some()) {
             warn!("clearing leftover files under {path:?} before the index rebuild");
             std::fs::remove_dir_all(&path)
@@ -214,11 +208,8 @@ impl IndexStoreTables {
     /// Seeds the `meta` row on the first open of an empty database, so a
     /// fresh store on a node with no executed checkpoints needs no rebuild.
     ///
-    /// A database written before per-checkpoint indexing has data but no
-    /// `meta` row and is deliberately left unseeded, so
-    /// `needs_to_do_initialization` wipes and rebuilds it. Its content cannot
-    /// be trusted: nodes restored from a formal snapshot wrote a corrupted
-    /// owner index and non-canonical transaction numbering into it.
+    /// A database with data but no `meta` row is of an older schema whose
+    /// content cannot be trusted, so it is left unseeded and gets rebuilt.
     fn seed_meta(&self, groups: &BTreeSet<IndexGroup>) -> IotaResult {
         if self.meta.get(&())?.is_some() {
             return Ok(());
@@ -236,10 +227,9 @@ impl IndexStoreTables {
     }
 
     /// Whether the store must be wiped and rebuilt: a schema mismatch, an
-    /// enabled group missing from what `meta` last recorded, or the index
-    /// watermark falling behind `highest_executed_checkpoint`. Read errors
-    /// propagate: a transient error must fail the open rather than silently
-    /// wipe a healthy store or adopt a stale one.
+    /// enabled group `meta` does not record, or an out-of-date watermark.
+    /// Read errors propagate rather than wipe a healthy store or adopt a
+    /// stale one.
     fn needs_to_do_initialization(
         &self,
         checkpoint_store: &CheckpointStore,
@@ -265,17 +255,13 @@ impl IndexStoreTables {
         let highest_executed_checkpoint =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
         let Some(watermark) = self.watermark.get(&())? else {
-            // A rebuild writes the watermark only once its data is durable,
-            // so data without one comes from a build that was cut short.
-            // Scanned rather than `is_empty`, which reads an unreadable
-            // index as non-empty and would wipe a healthy store on a
-            // transient read error.
+            // Data without a watermark is from an interrupted rebuild. Not
+            // `is_empty`, which reads an unreadable table as non-empty.
             let has_data = self.owner.safe_iter().next().transpose()?.is_some();
             return Ok(has_data || highest_executed_checkpoint.is_some());
         };
-        // The open reads the watermark's checkpoint to seed the reported
-        // transaction total, so a checkpoint store rolled back to an older
-        // backup must rebuild rather than fail every open.
+        // The open reads the watermark's checkpoint, so a checkpoint store
+        // rolled back to an older backup must rebuild rather than fail.
         if checkpoint_store
             .get_checkpoint_by_sequence_number(watermark)?
             .is_none()
@@ -291,15 +277,12 @@ impl IndexStoreTables {
         Ok(watermark < executed)
     }
 
-    /// Rebuilds the live-state tables of whichever `groups` are enabled from
-    /// a parallel scan of the live object set, for the cases
-    /// `needs_to_do_initialization` covers. The on-disk DB needs to be
-    /// wiped before this is called, so `init` always starts from an empty
-    /// store.
+    /// Rebuilds the live-state tables of `groups` from a parallel scan of the
+    /// live object set. The database must be empty.
     ///
-    /// Writes only `meta`: the caller adopts the rebuild by writing the
-    /// watermarks once the WAL-less bulk writes are flushed. Returns the
-    /// highest executed checkpoint to anchor them to.
+    /// Writes only `meta`; the caller adopts the result with
+    /// [`Self::adopt_bulk_ingestion`] at the returned highest executed
+    /// checkpoint.
     #[tracing::instrument(skip_all)]
     fn init(
         &mut self,
@@ -311,9 +294,6 @@ impl IndexStoreTables {
     ) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
         info!("Initializing RPC indexes");
 
-        // Written before the flush, the watermarks would be WAL-durable over
-        // unflushed data, and a crash before the flush would leave a store
-        // the next open adopts as complete.
         self.meta.insert(
             &(),
             &MetadataInfo {
@@ -325,9 +305,7 @@ impl IndexStoreTables {
         let highest_executed_checkpoint =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
 
-        // Live-state tables from the current live object set. The history
-        // tables are not built here: `backfill_history` fills them in the
-        // background once the node is up, resuming from `history_watermark`.
+        // The history tables are filled later, by `backfill_history`.
         let indexer = LiveObjectSetIndexer::new(self, groups, batch_size_limit);
         par_index_live_object_set(authority_store, &indexer, cancelled)?;
         indexer.finish()?;
@@ -339,12 +317,8 @@ impl IndexStoreTables {
 
     /// Makes the bulk-ingested data durable and writes the watermarks that
     /// let a node open the store in place instead of rebuilding it.
-    /// `highest_executed` is the highest checkpoint the build covers.
-    ///
-    /// With nothing executed no watermark is written: an absent watermark
-    /// already means "nothing indexed", while writing 0 would claim
-    /// checkpoint 0 was indexed and report the genesis transaction as
-    /// already counted.
+    /// `highest_executed` is the highest checkpoint the build covers; with
+    /// `None`, no index watermark is written, meaning nothing is indexed.
     fn adopt_bulk_ingestion(
         &self,
         highest_executed: Option<CheckpointSequenceNumber>,
@@ -361,15 +335,13 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Appends the live-state deltas of a checkpoint's `transactions` to its
-    /// batch: the owner and dynamic-field rows both API groups share, and the
-    /// gRPC group's coin metadata and package versions. `coin_changes`
-    /// collects what the JSON-RPC balance caches are updated from and stays
-    /// empty when that group is off.
+    /// Appends the live-state changes of a checkpoint's `transactions` for
+    /// `groups` to `batch`, and collects the JSON-RPC balance cache updates in
+    /// `coin_changes`.
     ///
-    /// The rows a change replaces are recomputed from the object as it was
-    /// before it: an owner key carries the object's type and, for a coin, its
-    /// balance, so the row to delete cannot be derived from the new state.
+    /// The rows a change replaces are derived from the object's previous
+    /// version, since an owner key carries the object's type and, for a coin,
+    /// its balance.
     fn index_objects(
         &self,
         transactions: &[&CheckpointTransaction],
@@ -463,10 +435,8 @@ impl IndexStoreTables {
             }
 
             if index_grpc {
-                // Packages, coin metadata, treasury caps and regulated coin
-                // metadata are always created, never mutated in place, so the
-                // changed objects would only add noise from unrelated
-                // mutations.
+                // These rows hold only object ids and package versions, which
+                // are fixed when the object is created.
                 for object in tx.created_objects() {
                     if let Some((key, info)) = try_create_coin_index_info(object) {
                         merge_coin_into(&mut coin_metadata, key, info);
@@ -489,13 +459,9 @@ impl IndexStoreTables {
         }
 
         batch.insert_batch(&self.package_version, package_versions)?;
-        // A coin type's metadata, treasury cap and regulated metadata are
-        // separate objects, so each row is merged onto what the table already
-        // holds rather than replacing it. The read sees committed rows only,
-        // which is enough: those objects are created together, in one
-        // transaction, so no earlier checkpoint can still have a row of the
-        // same coin type staged. Coin types are created rarely, so these
-        // reads are rare too.
+        // A coin type's metadata objects are separate, so each row is merged
+        // onto the committed one. No earlier checkpoint can have a row of the
+        // same coin type staged: those objects are created in one transaction.
         for (key, info) in coin_metadata {
             let mut entry = self.coin.get(&key)?.unwrap_or_default();
             entry.merge(info);
@@ -508,9 +474,7 @@ impl IndexStoreTables {
 
 impl RpcIndexesStore {
     /// Opens the store, wiping it and rebuilding the live-state tables first
-    /// when the indexes are missing or stale (schema mismatch, a newly
-    /// enabled group, or the watermark falling behind
-    /// `highest_executed_checkpoint`).
+    /// when the indexes are missing or stale.
     ///
     /// The history tables are filled by a background replay after this
     /// returns; until it finishes, history-backed queries cover a growing
@@ -556,10 +520,8 @@ impl RpcIndexesStore {
                 .expect("failed to initialize RPC index tables");
         }
 
-        // Node startup blocks on a rebuild before any RPC surface exists;
-        // the gauge tells operators (and their probes) that the node is
-        // rebuilding, not hung. Registered unconditionally, so "not
-        // rebuilding" reads as 0 rather than a missing series.
+        // Tells operators the node is rebuilding, not hung. Registered even
+        // without a rebuild, so that reads as 0 rather than a missing series.
         let rebuild_gauge = register_int_gauge_with_registry!(
             "rpc_index_rebuild_in_progress",
             "1 while the RPC index store is being rebuilt at startup",
@@ -578,19 +540,14 @@ impl RpcIndexesStore {
             rebuild_gauge.set(1);
             let init_tables = {
                 drop(opened);
-                // `DB::destroy` fails on a database it cannot parse — the
-                // very state the rebuild recovers from — so fall back to
-                // deleting the directory. The database was already closed
-                // above, so a short wait covers its background threads.
+                // `DB::destroy` fails on a database it cannot parse, the very
+                // state a rebuild recovers from.
                 if let Err(e) = safe_drop_db(path.clone(), Duration::from_secs(30)).await {
                     warn!("unable to destroy the old RPC index database ({e}), deleting it");
                     std::fs::remove_dir_all(&path)
                         .expect("unable to delete the old RPC index database");
                 }
 
-                // Open the empty DB with tuned bulk ingestion options to
-                // speed up the initial indexing. The DB is reopened with
-                // default options afterwards.
                 IndexStoreTables::open_for_bulk_ingestion(path.clone())
             };
             let batch_size_limit = bulk_ingestion_options().batch_size_limit;
@@ -618,15 +575,9 @@ impl RpcIndexesStore {
             .expect("RPC index initialization task failed");
 
             match initialized {
-                // A crash before this point re-detects the rebuild on the
-                // next open (no watermark), never adopts a half-flushed
-                // store.
                 Ok(highest_executed_checkpoint) => init_tables
                     .adopt_bulk_ingestion(highest_executed_checkpoint)
                     .expect("unable to adopt the rebuilt RPC index"),
-                // Unadopted, so the next open rebuilds it, as after a crash.
-                // The open fails so the truncated store is never served and
-                // never stamped with a watermark.
                 // Keyed on the error, not on the flag: a real failure that
                 // races the shutdown must stay a failure.
                 Err(e) if is_cancelled(&e) => {
@@ -671,14 +622,9 @@ impl RpcIndexesStore {
         }
         let opened = opened.expect("the index database is open on both paths above");
 
-        // Record the groups this open actually maintains. A group left out
-        // stops being maintained at the next indexed checkpoint, so its
-        // tables are correct only up to here; recording the narrowed set is
-        // what makes a later re-enable rebuild instead of adopting an index
-        // frozen at this point. The write happens before the store exists,
-        // so nothing can be indexed in between: a crash here leaves the
-        // tables complete at the watermark and the next open repeats the
-        // check.
+        // Record the groups this open maintains, so re-enabling a group left
+        // out here rebuilds instead of adopting tables frozen at this point.
+        // Written before the store exists, so nothing is indexed in between.
         let recorded = opened
             .tables
             .meta
@@ -698,10 +644,8 @@ impl RpcIndexesStore {
                 .expect("failed to record the RPC index groups");
         }
 
-        // The reported transaction total is one past the last indexed
-        // transaction's sequence number, which a store rebuilt without local
-        // history has no rows to derive; seed it from the network
-        // transaction total at the indexed watermark instead.
+        // A store rebuilt without local history has no rows to derive the
+        // transaction total from, so take it from the watermark's checkpoint.
         let anchor = opened
             .tables
             .watermark
@@ -768,12 +712,9 @@ impl RpcIndexesStore {
         self.groups.contains(&group)
     }
 
-    /// One past the last indexed transaction's sequence number. Sequence
-    /// numbers equal network position and genesis is indexed through
-    /// checkpoint 0, so this is the total number of transactions.
-    ///
-    /// The count covers checkpoints staged but not yet committed; a crash
-    /// re-derives it from the watermark's checkpoint on the next open.
+    /// One past the last indexed transaction's sequence number, which is the
+    /// total number of transactions. Covers checkpoints staged but not yet
+    /// committed.
     pub fn next_sequence_number(&self) -> TxSequenceNumber {
         self.next_sequence_number.load(Ordering::SeqCst)
     }
@@ -783,9 +724,8 @@ impl RpcIndexesStore {
         self.max_type_length
     }
 
-    /// The live-state and marker tables, for the crate-internal callers that
-    /// read or seed them directly: the expensive secondary-index
-    /// verification and the tests.
+    /// The live-state and marker tables, for crate-internal callers that read
+    /// or seed them directly.
     pub(crate) fn tables(&self) -> &IndexStoreTables {
         &self.tables
     }
@@ -858,10 +798,8 @@ impl RpcIndexesStore {
         for name in static_tables.keys() {
             opt_cfs.push((name.clone(), db_options.options.clone()));
         }
-        // Tables of another schema version need no entry here: `open_cf_opts`
-        // appends any remaining on-disk column family with default options so
-        // RocksDB can open the database at all, and the version mismatch
-        // wipes the whole database afterwards.
+        // Column families of another schema version are opened with default
+        // options by `open_cf_opts`; the version mismatch then wipes them.
         for cf_name in &existing_cfs {
             if let Some(epoch) = history_cf_epoch(cf_name) {
                 epochs.insert(epoch);
@@ -957,16 +895,12 @@ impl RpcIndexesStore {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// Builds and stages the index update of one executed checkpoint, for
-    /// every group this store maintains. Nothing is written to the database
-    /// until [`Self::commit_update_for_checkpoint`] is called.
+    /// Builds and stages the index update of one executed checkpoint. Nothing
+    /// is written until [`Self::commit_update_for_checkpoint`] is called.
+    /// Transactions already indexed, by crash recovery or the history
+    /// backfill, are skipped.
     ///
-    /// Transactions already present in the index — from a checkpoint replayed
-    /// during crash recovery, or one the history backfill got to first — are
-    /// skipped, so nothing is counted twice.
-    ///
-    /// Must be called for each checkpoint in sequence order, so that
-    /// transaction sequence numbers follow checkpoint order.
+    /// Must be called for each checkpoint in sequence order.
     #[tracing::instrument(
         skip_all,
         fields(checkpoint = checkpoint.checkpoint_summary.sequence_number)
@@ -998,16 +932,9 @@ impl RpcIndexesStore {
             .collect();
 
         let index_jsonrpc = self.serves(IndexGroup::JsonRpc);
-        // A sequence number is the transaction's position in the network's
-        // order, which the summary states: `network_total_transactions`
-        // counts every transaction through this checkpoint, so the first of
-        // this checkpoint sits that many minus its own count from the start.
-        //
-        // Derived per checkpoint rather than counted, so that it is a pure
-        // function of the checkpoint. A replay after an unclean stop can find
-        // some of these digests already indexed and others not; a running
-        // counter would then hand the ones it re-indexes different numbers
-        // from the ones they were given, and the two runs would disagree.
+        // Derived from the summary rather than counted, so a replay that
+        // finds only some of these digests indexed numbers the rest the same
+        // way the first run did.
         let first_sequence = summary
             .network_total_transactions
             .saturating_sub(checkpoint.transactions.len() as u64);
@@ -1061,13 +988,13 @@ impl RpcIndexesStore {
         Ok(())
     }
 
-    /// Commits the staged update of `checkpoint_seq` and applies the
-    /// resulting balance cache maintenance.
+    /// Commits the staged update of `checkpoint_seq` and updates the balance
+    /// caches to match.
     ///
-    /// Invariants:
-    /// - [`Self::index_checkpoint`] must have been called for the checkpoint.
-    /// - Callers must commit each checkpoint in sequence order. This panics if `checkpoint_seq` is
-    ///   not the next checkpoint to commit.
+    /// # Panics
+    ///
+    /// If [`Self::index_checkpoint`] has not staged `checkpoint_seq`, or it is
+    /// not the next checkpoint to commit.
     #[tracing::instrument(skip(self))]
     pub fn commit_update_for_checkpoint(
         &self,
@@ -1278,16 +1205,10 @@ impl RpcIndexesStore {
         Ok(())
     }
 
-    /// The lowest epoch the backfill may replay when index pruning is
-    /// configured: the horizon [`Self::prune`] enforces, computed against
-    /// the newest bucket. The `earliest_retained_epoch` floor alone is not
-    /// enough — it is written by the first pruning pass, and until then a
-    /// rebuilt store's backfill would replay epochs that pass drops again.
-    /// `None` when index pruning is off.
-    ///
-    /// `current_epoch` stands in for the newest epoch while no bucket
-    /// exists yet, on a rebuilt store whose backfill has not committed its
-    /// first checkpoint.
+    /// The lowest epoch the backfill may replay, matching the horizon
+    /// [`Self::prune`] enforces even before its first pass. `None` when index
+    /// pruning is off. `current_epoch` stands in for the newest epoch while
+    /// no bucket exists yet.
     fn backfill_retention_horizon(&self, current_epoch: EpochId) -> Option<EpochId> {
         let epochs_to_retain = self.epochs_to_retain?;
         let newest = self.history.newest_epoch().unwrap_or(current_epoch);
@@ -1328,15 +1249,7 @@ impl RpcIndexesStore {
     }
 
     /// Replays one checkpoint into its epoch's history bucket and lowers
-    /// `history_watermark` to it, in one atomic batch. The digest rows are
-    /// always written, either way: from the transactions, effects and
-    /// events when the JSON-RPC group is enabled, which also fills the
-    /// other history tables, or straight from the checkpoint's contents
-    /// otherwise — a gRPC-only store needs nothing beyond that.
-    ///
-    /// Transactions are numbered by their position in the network
-    /// transaction order, derived from the checkpoint's transaction total,
-    /// so numbering stays canonical whatever range is locally available.
+    /// `history_watermark` to it, in one atomic batch.
     fn replay_checkpoint_history(
         &self,
         authority_store: &AuthorityStore,
@@ -1424,11 +1337,8 @@ impl RpcIndexesStore {
         }
 
         batch.insert_batch(&self.tables.history_watermark, [((), checkpoint_seq)])?;
-        // A plain WAL-enabled write, not a bulk-ingestion one: the database
-        // is serving queries, and the marker must land atomically with the
-        // rows. `drop_tolerant_write_options` discards the bucket's rows if
-        // `prune` dropped its column family mid-replay; the next loop
-        // iteration then stops at the pruned epoch.
+        // If `prune` dropped the bucket mid-replay, its rows are discarded and
+        // the next iteration stops at the pruned epoch.
         batch
             .write_opt(&drop_tolerant_write_options())
             .map_err(StorageError::from)?;

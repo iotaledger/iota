@@ -727,14 +727,10 @@ impl CheckpointExecutor {
             return None;
         }
 
-        // Index the checkpoint. The RPC indexes accumulate non-idempotent
-        // state (owner indexes, live-object sets), so each update must land
-        // exactly once. The checkpoint's transaction outputs are not durable
-        // yet at this stage, so the writes are only staged now and committed
-        // later, after `FinalizeCheckpoint`, via `commit_index_updates` —
-        // keeping the indexes consistent with the executed checkpoint and
-        // crash-safe. Stages run in checkpoint order, which the index store
-        // asserts on.
+        // The RPC indexes accumulate non-idempotent state, so each update must
+        // land exactly once. The transaction outputs are not durable yet, so
+        // the writes are only staged here and committed, in checkpoint order,
+        // after `FinalizeCheckpoint` via `commit_index_updates`.
         if let Some(rpc_indexes_store) = &self.state.rpc_indexes_store {
             rpc_indexes_store
                 .index_checkpoint(&checkpoint_data)

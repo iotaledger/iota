@@ -53,8 +53,7 @@ pub(super) struct MetadataInfo {
     /// Version of the database.
     pub(super) version: u64,
     /// The API groups whose tables this store maintains. An enabled group
-    /// missing here means its tables were never filled — the store is
-    /// wiped and rebuilt, exactly like a stale watermark.
+    /// missing here triggers a full re-index.
     pub(super) groups: BTreeSet<IndexGroup>,
 }
 
@@ -64,9 +63,7 @@ pub const RPC_INDEXES_DIR: &str = "rpc_indexes";
 
 /// Bump this when changing the serialization format or layout of an
 /// existing table. A version mismatch triggers a full re-index via
-/// `needs_to_do_initialization`. Starts over at 1: the unified store lives
-/// under its own database directory, so it carries none of the history of
-/// either store it replaces.
+/// `needs_to_do_initialization`.
 pub(super) const CURRENT_DB_VERSION: u64 = 1;
 
 /// Prefix of the per-epoch history column families; a bucket's family is
@@ -207,13 +204,9 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 /// Compute the lower and upper `OwnerIndexKey` bounds of a range scan,
 /// narrowed by `type_filter`. The upper bound is exclusive.
 ///
-/// When `cursor` is `Some` the lower bound excludes the cursor's own
-/// position, so a page resumes strictly after it whether or not that row
-/// still exists — the contract
-/// [`iota_node_storage::GrpcIndexes::account_owned_objects_info_iter`]
-/// states. `cursor`'s own `owner` is ignored in favor of the explicit
-/// `owner` argument: callers resume a scan for `owner` from a key they
-/// already know belongs to it.
+/// With a `cursor`, the lower bound excludes the cursor's own position, so a
+/// page resumes strictly after it whether or not that row still exists.
+/// `cursor`'s own `owner` is ignored in favor of `owner`.
 pub(super) fn owner_bounds(
     owner: Address,
     cursor: Option<&OwnerIndexKey>,
@@ -268,10 +261,8 @@ pub(super) fn owner_bounds(
 }
 
 impl OwnerIndexKey {
-    /// Builds the key and value an address-owned `object` occupies in the
-    /// owner index — shared by the live indexer, the cursor rebuild, and the
-    /// deletion path, so all three agree on where an object sorts. `None`
-    /// when `object` has no Move type (e.g. a package).
+    /// The key and value an address-owned `object` occupies in the owner
+    /// index, or `None` when `object` has no Move type (e.g. a package).
     pub(crate) fn for_object(
         owner: Address,
         object: &Object,
@@ -322,9 +313,7 @@ pub(crate) struct CoinIndexInfo {
 }
 
 impl CoinIndexInfo {
-    /// Fills in the object ids `self` does not have yet from `other`. A coin
-    /// type's metadata, treasury and regulated metadata are separate objects,
-    /// so each contributes one field of the same row.
+    /// Fills in the object ids `self` does not have yet from `other`.
     pub(super) fn merge(&mut self, other: Self) {
         self.coin_metadata_object_id = self
             .coin_metadata_object_id
@@ -424,9 +413,7 @@ pub(super) fn try_create_package_version_info(
 pub(super) type EventId = (TxSequenceNumber, usize);
 pub(super) type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
 
-/// Per-transaction inputs for the history tables of the index batch. Unlike
-/// the live-state tables (owner, coin, dynamic field), these need only the
-/// transaction, its effects, and its events — no object contents.
+/// Per-transaction inputs for the history tables of the index batch.
 pub(super) struct TransactionIndexData {
     digest: TransactionDigest,
     sender: Address,
@@ -690,16 +677,13 @@ impl HistoryBucket {
     }
 }
 
-/// The live-state and marker tables of the unified RPC index — everything
-/// that is bounded by the live object set or is a singleton. The history
+/// The live-state and singleton tables of the unified RPC index. The history
 /// tables live in per-epoch column families of the same database
-/// ([`HistoryBucket`]) so that pruning drops whole epochs instead of
-/// deleting rows.
+/// ([`HistoryBucket`]).
 ///
 /// `owner` and `dynamic_field` are shared by both API groups; `coin` and
-/// `package_version` are gRPC-only for now. There is no JSON-RPC coin table:
-/// coin balances are read from `owner` (see the design notes on
-/// [`super::RpcIndexesStore`]).
+/// `package_version` are gRPC-only. JSON-RPC reads coin balances from
+/// `owner`.
 #[derive(DBMapUtils)]
 pub struct IndexStoreTables {
     /// A singleton that stores metadata information on the DB.

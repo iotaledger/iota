@@ -600,9 +600,7 @@ impl IotaNode {
         // Database has everything from genesis, set corrupted key to 0
         unmark_db_corruption(db_corrupted_path)?;
 
-        // Ahead of the one-time migration passes, which need the most disk of
-        // anything a node does: an index database of an earlier release can
-        // no longer be adopted, and holds on to that space until it is gone.
+        // Frees disk space ahead of the one-time migration passes below.
         if is_full_node {
             if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
                 warn!("failed to remove a legacy index database: {e}");

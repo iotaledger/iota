@@ -1,16 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The JSON-RPC read surface of the unified RPC index store. Every public
-//! read here fails with [`IotaError::IndexStoreNotAvailable`] when the store
-//! does not maintain the [`IndexGroup::JsonRpc`] group's tables.
+//! The JSON-RPC read surface of the RPC index store. Every public read here
+//! fails with [`IotaError::IndexStoreNotAvailable`] when the store does not
+//! maintain the [`IndexGroup::JsonRpc`] group's tables.
 //!
-//! Coin balances and pages come from the shared `owner` table rather than a
-//! coin table of their own: a coin's balance is embedded in its owner-index
-//! key (`inverted_balance = Some(!balance)`), so both are prefix scans of
-//! `owner`, narrowed to `0x2::coin::Coin` (every coin type) or `Coin<T>`
-//! (one coin type) the same way [`Self::owner_iter`] narrows any other type
-//! filter.
+//! Coin balances and pages are scans of the `owner` table, whose key embeds a
+//! coin's balance (`inverted_balance = Some(!balance)`).
 
 use std::{
     cmp::{max, min},
@@ -68,9 +64,8 @@ pub(super) fn invalidate_balance_caches_instead_of_updating() -> bool {
 }
 
 /// What one checkpoint does to the coin holdings the balance caches track,
-/// per owner and coin object. There is no coin table to compare against, so
-/// the balances an owner held before the checkpoint are collected here while
-/// the checkpoint's object changes are staged.
+/// per owner and coin object. Collected while the checkpoint's object changes
+/// are staged, as no table holds the balances from before the checkpoint.
 #[derive(Default)]
 pub(super) struct CoinBalanceChanges(HashMap<(Address, ObjectId), CoinBalanceChange>);
 
@@ -78,9 +73,8 @@ pub(super) struct CoinBalanceChanges(HashMap<(Address, ObjectId), CoinBalanceCha
 struct CoinBalanceChange {
     coin_type: TypeTag,
     /// The balance the owner held in this coin before the checkpoint, `None`
-    /// when the owner did not hold it. Taken from the first change touching
-    /// the pair: only that change sees the state the checkpoint started from,
-    /// which is the state the committed owner rows are still in.
+    /// when the owner did not hold it. Set by the first change touching the
+    /// pair, the only one that sees the state the checkpoint started from.
     prior: Option<u64>,
     /// The balance the owner holds after the checkpoint, `None` when the coin
     /// is gone or has moved on to another owner.
@@ -114,12 +108,8 @@ impl CoinBalanceChanges {
         match self.0.entry((owner, object.id())) {
             Entry::Occupied(mut occupied) => occupied.get_mut().current = Some(balance),
             Entry::Vacant(vacant) => {
-                // Nothing has claimed the pair yet, so the owner did not hold
-                // this coin before the checkpoint: had it held it, the row
-                // would have been deleted first — the deletion path
-                // recomputes the row from the object's state before the
-                // change, through `record_removed`, for every address-owned
-                // input.
+                // The owner did not hold this coin before the checkpoint: had
+                // it, `record_removed` would have claimed the pair first.
                 vacant.insert(CoinBalanceChange {
                     coin_type,
                     prior: None,
@@ -207,8 +197,7 @@ impl JsonRpcMetrics {
 }
 
 /// Coin details the owner index does not store, resolved from the object
-/// store per returned row: mirrors the object store's own view of the coin
-/// rather than a value cached alongside the index.
+/// store per returned row.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoinInfo {
     pub version: Version,
@@ -234,26 +223,20 @@ impl CoinInfo {
     }
 }
 
-/// The base `0x2::coin::Coin` struct tag, with no type parameter: matches
-/// every `Coin<T>` under [`OwnerTypeFilter::BaseType`], the way `get_balance`
-/// and `get_owned_coins` scan "every coin type".
+/// The `0x2::coin::Coin` struct tag without a type parameter, which matches
+/// every `Coin<T>` under [`OwnerTypeFilter::BaseType`].
 fn coin_base_type() -> StructTag {
     let mut coin = StructTag::new_gas_coin();
     coin.type_params_mut().clear();
     coin
 }
 
-/// The owner-index scan an object filter can be narrowed to, so a filtered
-/// page reads only the objects that can match instead of every object the
-/// owner holds. Returns [`OwnerTypeFilter::None`] for a filter that does not
-/// pin the object type; the caller applies the filter itself either way.
+/// The owner-index scan an object filter can be narrowed to, or
+/// [`OwnerTypeFilter::None`] when the filter does not pin the object type. The
+/// caller still applies the filter itself.
 ///
-/// A [`IotaObjectDataFilter::StructType`] without type parameters matches
-/// every instantiation of the type, which is what
-/// [`OwnerTypeFilter::BaseType`] scans; one with type parameters matches only
-/// that exact tag, which is [`OwnerTypeFilter::ExactType`]. Every element of
-/// a `MatchAll` has to match, so narrowing to any one of them keeps the same
-/// rows.
+/// A `MatchAll` narrows to any element that pins a type, as every element has
+/// to match.
 fn owner_scan_filter(filter: Option<&IotaObjectDataFilter>) -> OwnerTypeFilter {
     match filter {
         Some(IotaObjectDataFilter::StructType(tag)) => OwnerTypeFilter::from_struct_tag(Some(tag)),
@@ -358,10 +341,8 @@ impl RpcIndexesStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        // The cursor is exclusive. Applying it through the scan bounds (rather
-        // than by skipping the first row) makes it compose across buckets:
-        // every bucket gets the same bounds, and only the bucket containing
-        // the cursor's sequence range yields adjacent rows.
+        // Applying the exclusive cursor through the scan bounds, rather than by
+        // skipping the first row, lets every bucket get the same bounds.
         let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
             return Ok(vec![]);
         };
@@ -489,9 +470,8 @@ impl RpcIndexesStore {
     }
 
     /// The retained history buckets in scan order: ascending epochs for
-    /// forward scans, descending for reverse scans. Buckets are disjoint,
-    /// epoch-ordered segments of the global sequence order, so chaining
-    /// per-bucket scans in this order preserves it.
+    /// forward scans, descending for reverse scans. Chaining per-bucket scans
+    /// in this order preserves the global sequence order.
     fn history_buckets(&self, reverse: bool) -> Vec<Arc<HistoryBucket>> {
         self.history.iter(reverse)
     }
@@ -817,12 +797,9 @@ impl RpcIndexesStore {
         Ok(key)
     }
 
-    /// Owned entries of the owner index for `owner`, narrowed by
-    /// `type_filter` and, when given, resuming right after `cursor`. Shared
-    /// by every owner and coin read: hash collisions of `type_filter`'s
-    /// truncated hash are post-filtered here using the full `StructTag`
-    /// carried by each row's value, so callers never see a row of an
-    /// unrelated type.
+    /// Owner-index rows of `owner`, narrowed by `type_filter` (excluding rows
+    /// whose type only collides with it by hash) and, when given, resuming
+    /// right after `cursor`.
     pub(crate) fn owner_iter(
         &self,
         owner: Address,
@@ -932,12 +909,9 @@ impl RpcIndexesStore {
         {
             return balance;
         }
-        // Repopulating a missed entry must not interleave with a commit for
-        // this owner: a value read between the commit's batch write and its
-        // cache merge would get the checkpoint's delta applied twice. The
-        // committer holds this lock across both, so the repopulation runs
-        // either fully before it (the delta then merges on top) or fully
-        // after (the merge skipped the absent key).
+        // The committer holds the owner's lock across its batch write and
+        // cache merge; a value read between the two would get the
+        // checkpoint's delta applied twice.
         let _lock = self.caches.locks.acquire_lock(owner);
         // A reader ahead of this one may have filled the entry while it
         // waited.
@@ -954,9 +928,8 @@ impl RpcIndexesStore {
                 return Ok(*balance);
             }
         }
-        // The database read runs before the cache insert, so the cache
-        // shard's write lock is not held across the scan and owners of other
-        // shard entries stay unblocked.
+        // Read before inserting, so the cache shard's write lock is not held
+        // across the scan.
         let balance = self.get_balance_from_db(owner, &coin_type);
         self.caches
             .per_coin_type_balance
@@ -990,9 +963,7 @@ impl RpcIndexesStore {
             .get_with(owner, move || all_balance)
     }
 
-    /// Sums the owner index's coin rows for `Coin<coin_type>`: `owner_iter`'s
-    /// `ExactType` filter already excludes every other coin type, hash
-    /// collisions included, so no post-filtering is needed here.
+    /// Sums the owner index's coin rows of `owner` for `Coin<coin_type>`.
     pub(super) fn get_balance_from_db(
         &self,
         owner: Address,
@@ -1011,10 +982,8 @@ impl RpcIndexesStore {
         Ok(TotalBalance { balance, num_coins })
     }
 
-    /// Sums the owner index's coin rows of every type for `owner`, grouped by
-    /// the exact `Coin<T>` each row's value carries: `owner_iter`'s
-    /// `BaseType` filter matches every coin type but leaves the collision
-    /// check (a `T` that hashes the same as an unrelated one) to the value.
+    /// Sums the owner index's coin rows of `owner`, grouped by the coin type
+    /// each row's value carries.
     pub(super) fn get_all_balances_from_db(&self, owner: Address) -> IotaResult<Arc<AllBalance>> {
         self.jsonrpc_metrics.all_balance_lookup_from_db.inc();
         let filter = OwnerTypeFilter::from_struct_tag(Some(&coin_base_type()));
@@ -1033,9 +1002,7 @@ impl RpcIndexesStore {
 
     /// Turns a committed checkpoint's coin changes into the balance cache
     /// deltas, holding the affected owners' locks for as long as the returned
-    /// value lives. Runs entirely off the checkpoint: the balances each owner
-    /// held before it were collected while its object changes were staged, so
-    /// no table has to be read here.
+    /// value lives.
     pub(super) fn balance_cache_updates(
         &self,
         coin_changes: CoinBalanceChanges,
@@ -1196,9 +1163,8 @@ impl RpcIndexesStore {
     }
 }
 
-/// The balance a coin's owner-index key carries: `inverted_balance` is
-/// `Some` for every row `owner_iter`'s coin filters yield, since only coins
-/// set it.
+/// The balance a coin's owner-index key carries. Panics on a row that is not
+/// a coin's.
 fn coin_balance(key: &OwnerIndexKey) -> u64 {
     !key.inverted_balance
         .expect("a coin owner-index row always carries a balance")

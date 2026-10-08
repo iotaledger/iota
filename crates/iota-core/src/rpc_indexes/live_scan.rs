@@ -1,17 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Filling the unified store's live-state tables from a stream of live
-//! objects: the parallel scan of the local live object set a rebuild runs
-//! ([`LiveObjectSetIndexer`]), and the formal-snapshot restore that tees the
-//! downloaded object partitions into the same tables
-//! ([`RpcIndexesRestorer`]).
-//!
-//! Both feed one indexer per partition of the stream, and both write the
-//! tables of whichever [`IndexGroup`]s the store maintains: the `owner` and
-//! `dynamic_field` tables always — a coin's balance is part of its owner key,
-//! so the JSON-RPC coin reads need nothing else — plus the gRPC group's coin
-//! metadata and package versions.
+//! Fills the RPC index store's live-state tables from a stream of live
+//! objects: during a rebuild from the local live object set
+//! ([`LiveObjectSetIndexer`]) and during a formal-snapshot restore
+//! ([`RpcIndexesRestorer`]). Both use one indexer per partition of the stream.
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -43,9 +36,8 @@ use super::{
 };
 
 /// The coin metadata of the objects seen so far. A coin type's metadata,
-/// treasury and regulated metadata are separate objects that may land in
-/// different partitions, so the rows are gathered in memory and written once
-/// every partition has been indexed.
+/// treasury and regulated metadata objects may land in different partitions,
+/// so the rows are written once every partition has been indexed.
 type CoinMetadata = Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>;
 
 /// Indexes the live object set into the tables of `groups`, one indexer per
@@ -93,8 +85,7 @@ impl crate::par_index_live_object_set::ParMakeLiveObjectIndexer for LiveObjectSe
     }
 }
 
-/// One partition's indexer: it stages the rows of the objects it is fed and
-/// writes them out whenever the batch grows past the limit.
+/// Indexes one partition, writing its rows out in batches of bounded size.
 pub struct RpcIndexesPartitionIndexer<'a> {
     tables: &'a IndexStoreTables,
     groups: &'a BTreeSet<IndexGroup>,
@@ -159,8 +150,6 @@ impl<'a> RpcIndexesPartitionIndexer<'a> {
             }
         }
 
-        // Write the batch out once it grows past the limit, so the data held
-        // in memory does not grow unbounded.
         if self.batch.size_in_bytes() >= self.batch_size_limit {
             std::mem::replace(&mut self.batch, self.tables.owner.batch())
                 .write_opt(&bulk_ingestion_write_options())?;
@@ -187,8 +176,8 @@ impl crate::par_index_live_object_set::LiveObjectIndexer for RpcIndexesPartition
 }
 
 /// Writes the coin metadata gathered across a stream's partitions. Must run
-/// before the markers are stamped, so the rows are covered by the flush that
-/// makes the build durable.
+/// before the markers are written, so the flush that makes the build durable
+/// covers these rows.
 fn write_coin_metadata(
     tables: &IndexStoreTables,
     coin_metadata: CoinMetadata,
@@ -196,14 +185,11 @@ fn write_coin_metadata(
     tables.coin.multi_insert(coin_metadata.into_inner())
 }
 
-/// The unified index tables opened for a formal-snapshot restore.
+/// The RPC index tables opened for a formal-snapshot restore.
 ///
-/// Hands out per-partition indexers that tee the restore's live objects into
-/// the live-state tables of every enabled group, and a finalize step that
-/// seeds the markers so a node opens the store in place instead of
-/// rebuilding it. The dynamic-field index stores only field keys, so the tee
-/// needs no layout resolution and no ordering guarantee within the object
-/// stream.
+/// Feed the live objects, in any order, through [`Self::partition_indexer`],
+/// then call [`Self::finalize`] so a node opens the store in place instead of
+/// rebuilding it.
 pub struct RpcIndexesRestorer {
     tables: IndexStoreTables,
     groups: BTreeSet<IndexGroup>,
@@ -212,10 +198,9 @@ pub struct RpcIndexesRestorer {
 }
 
 impl RpcIndexesRestorer {
-    /// Opens the store with bulk-ingestion options and stamps it with this
-    /// schema version and `groups`. `meta` is written now and `watermark`
-    /// only in [`Self::finalize`], so a node opening a store from a restore
-    /// that crashed in between wipes and rebuilds it.
+    /// Opens the store for bulk ingestion and records this schema version and
+    /// `groups`. The watermark is written only by [`Self::finalize`], so a
+    /// node opening the store of an interrupted restore rebuilds it.
     pub fn open(path: PathBuf, groups: BTreeSet<IndexGroup>) -> Result<Self, TypedStoreError> {
         let tables = IndexStoreTables::open_for_bulk_ingestion(path);
         tables.meta.insert(
@@ -243,11 +228,9 @@ impl RpcIndexesRestorer {
         )
     }
 
-    /// Writes the coin metadata gathered across the partitions, seeds the
-    /// markers so a node opens the store in place, flushes the WAL-less bulk
-    /// writes, and closes the database. `restore_checkpoint` is the restore's
-    /// highest executed checkpoint; no history below it exists locally, so
-    /// there is nothing for the background replay to backfill.
+    /// Writes the markers at `restore_checkpoint`, the restore's highest
+    /// executed checkpoint, flushes the bulk writes and closes the database,
+    /// so the caller can move its directory once this returns.
     ///
     /// Callers must have restored the complete live object set first, through
     /// [`Self::partition_indexer`].
@@ -263,8 +246,6 @@ impl RpcIndexesRestorer {
         write_coin_metadata(&tables, coin_metadata)?;
         tables.adopt_bulk_ingestion(Some(restore_checkpoint))?;
 
-        // Release every RocksDB handle before returning, so the caller can
-        // move the database directory.
         let weak_db = Arc::downgrade(&tables.meta.db);
         drop(tables);
         if !wait_for_database_close(weak_db).await {
@@ -316,10 +297,7 @@ impl RpcIndexesRestorer {
                  {restore_checkpoint}"
             )));
         }
-        // The version and the watermark are written by the finalize itself;
-        // only the live state proves the object stream landed. `is_empty`
-        // has no error channel and reads an unreadable index as non-empty,
-        // so the scan is run here and its failure fails the restore.
+        // Not `is_empty`, which reads an unreadable table as non-empty.
         let owner_is_empty = reopened
             .tables
             .owner

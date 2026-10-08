@@ -130,12 +130,9 @@ impl BulkIngestionOptions {
     }
 }
 
-/// Memtable budget for a bulk-ingestion store. Returns
-/// `(db_write_buffer_size, cf_memory_budget)`: the upper bound on memtable
-/// memory across all column families of the database (80% of system RAM;
-/// large memtables give the flushing threads enough buffer to keep up with
-/// the writers), and the memtable budget of a single column family within it
-/// (25% of system RAM, still capped by the whole-database bound).
+/// Memtable budget for a bulk-ingestion store, as `(db_write_buffer_size,
+/// cf_memory_budget)`: 80% of system RAM across the whole database and 25%
+/// for a single column family.
 fn write_buffer_budget(total_memory_bytes: u64) -> (usize, usize) {
     // A failed memory probe reports 0, and RocksDB reads a whole-database cap
     // of 0 as unlimited; a measured limit is used as is, however small.
@@ -588,8 +585,8 @@ mod tests {
         assert_eq!(write_buffer_budget(4 << 30), (db_unknown, cf_unknown));
         assert!(db_unknown > 0 && cf_unknown > 0);
 
-        // A measured limit below that stand-in is a real cgroup limit, and
-        // budgeting above it would get the process killed.
+        // A measured limit below the fallback is used as is: budgeting above
+        // a cgroup limit would get the process killed.
         const SMALL: u64 = 2 << 30;
         let (db_small, cf_small) = write_buffer_budget(SMALL);
         assert_eq!(db_small, (SMALL as f64 * 0.8) as usize);

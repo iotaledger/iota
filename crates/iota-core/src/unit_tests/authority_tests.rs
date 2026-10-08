@@ -3871,11 +3871,8 @@ async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
     assert_eq!(rows.iter().map(|(id, _)| *id).collect::<Vec<_>>(), ids[2..]);
 }
 
-/// A node that starts with executed checkpoints but no index database — the
-/// state after a formal-snapshot restore — must rebuild the RPC indexes
-/// on open: the live-object scan covers objects outside any local checkpoint
-/// before the open returns, and the background history replay covers the
-/// genesis transaction.
+/// A node with executed checkpoints but no index database, as after a
+/// formal-snapshot restore, rebuilds the RPC indexes on open.
 #[tokio::test]
 async fn test_rpc_index_rebuild_on_open() {
     let authority_state = TestAuthorityBuilder::new()
@@ -3896,8 +3893,6 @@ async fn test_rpc_index_rebuild_on_open() {
         .update_highest_executed_checkpoint(&genesis_checkpoint)
         .unwrap();
 
-    // An empty index database on a node with executed checkpoints triggers
-    // the rebuild.
     let index_dir = iota_common::tempdir();
     let index_store = crate::rpc_indexes::RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
@@ -4026,7 +4021,6 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         Some(0)
     );
 
-    // The live-object scan populates the live-state tables.
     let owned: Vec<_> = index_store
         .get_owner_objects(
             owner,
@@ -4088,7 +4082,6 @@ async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
     let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
     assert_eq!(index_store.lookup_digest(&genesis_tx_digest).unwrap(), None);
 
-    // The live-object scan still populates the live-state tables.
     let owned: Vec<_> = index_store
         .get_owner_objects(
             owner,

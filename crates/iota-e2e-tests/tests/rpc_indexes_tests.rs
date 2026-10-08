@@ -110,7 +110,6 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     }
     assert!(pruned, "epoch 0's history must be pruned");
 
-    // Recent history and the queries stay up.
     assert!(
         indexes.lookup_digest(&recent_digest).unwrap().is_some(),
         "recent history must survive the pruning"
