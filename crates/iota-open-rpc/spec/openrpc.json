@@ -5157,7 +5157,8 @@
                 }
               ],
               "nextCursor": "EBzDydzw7LpM9r3UFh8JTDQcXt2U4bvW8ZD1qTrPZyqo",
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
