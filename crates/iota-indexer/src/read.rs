@@ -2309,13 +2309,21 @@ impl IndexerReader {
             return fallback.all_events(digest).await;
         }
 
-        Err(IndexerError::DataPruned {
-            message: "requested events not available".into(),
-            oldest_available_checkpoint: self.oldest_available_cp(
-                Self::EVENTS_BY_DIGEST_TABLES,
-                false, // reached only when no fallback is configured
-            ),
-        })
+        let oldest_available_checkpoint = self.oldest_available_cp(
+            Self::EVENTS_BY_DIGEST_TABLES,
+            false, // reached only when no fallback is configured
+        );
+        // If nothing has been pruned yet then the transaction does not exist.
+        // Otherwise it may have been pruned.
+        if oldest_available_checkpoint > 0 {
+            return Err(IndexerError::DataPruned {
+                message: "requested events not available".into(),
+                oldest_available_checkpoint,
+            });
+        }
+        Err(IndexerError::InvalidArgument(format!(
+            "Transaction {digest} not found"
+        )))
     }
 
     /// Converts [`StoredTransactionEvents`] into

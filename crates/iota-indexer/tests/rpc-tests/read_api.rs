@@ -1128,7 +1128,7 @@ fn get_events_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Missing data due to pruning: `requested events not available`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Transaction 11111111111111111111111111111111 not found`"}"#,
         ))
     });
 }
