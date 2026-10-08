@@ -1626,9 +1626,9 @@ async fn test_dev_inspect_accepts_a_shared_object_used_as_owned() {
                 .effects
                 .mutated()
                 .into_iter()
-                .find(|mutated| mutated.reference.object_id == shared.id())
+                .find(|mutated| mutated.reference().object_id == shared.id())
                 .expect("the shared object should be mutated");
-            assert_eq!(mutated.owner, Owner::Shared(OBJECT_START_VERSION));
+            assert_eq!(mutated.owner(), &Owner::Shared(OBJECT_START_VERSION));
         }
     }
 }
