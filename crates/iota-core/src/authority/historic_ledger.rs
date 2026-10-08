@@ -139,12 +139,9 @@ impl HistoricLedger {
         )
     }
 
-    /// Opens the historic-ledger buckets already present among `db`'s
-    /// column families. `db` is the perpetual database's own handle: the
-    /// buckets are its column families, not a database of their own, and
-    /// `db_options` are the options its tables were opened with, and
-    /// `historic_root` the root their files are under, the one `db` was opened
-    /// with.
+    /// Opens the historic-ledger buckets among the column families of `db`,
+    /// the perpetual database. `db_options` and `historic_root` must be the
+    /// ones `db` was opened with.
     pub fn open(
         db: Arc<Database>,
         db_options: &DBOptions,

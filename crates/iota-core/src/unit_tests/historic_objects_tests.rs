@@ -197,8 +197,7 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
         .insert_batch_tagged(&bucket.expiring, [((), ())])
         .unwrap();
     batch.write().unwrap();
-    // The dump reads through a secondary handle, which only sees what the
-    // primary has written out.
+    // The dump reads through a secondary handle, which only sees flushed data.
     perpetual.objects.db.flush_all().unwrap();
 
     let read_only = AuthorityPerpetualTables::open_readonly(dir.path(), None);

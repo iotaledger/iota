@@ -29,8 +29,7 @@ const HISTORIC_CHECKPOINTS_CF_PREFIX: &str = "hist_ckpt_e";
 const BUCKET_DIR: &str = "checkpoints";
 
 /// Tags of the tables inside a bucket's column family. Do not reuse a tag
-/// for a different table: mark it retired in a comment instead, so an older
-/// bucket's rows can never be read as the wrong type.
+/// for a different table: mark it retired in a comment instead.
 const DB_PREFIX_HISTORIC_CHECKPOINT_CONTENT: u8 = 0;
 const DB_PREFIX_HISTORIC_CHECKPOINT_BY_DIGEST: u8 = 1;
 
@@ -97,11 +96,8 @@ impl HistoricCheckpoints {
     }
 
     /// Opens the historic-checkpoint buckets already present among `db`'s
-    /// column families. `db` is the checkpoint store's own handle: the
-    /// buckets are its column families, not a database of their own, and
-    /// `db_options` are the options its tables were opened with, and
-    /// `historic_root` the root their files are under, the one `db` was opened
-    /// with.
+    /// column families. `db` is the checkpoint store's own handle, and
+    /// `db_options` and `historic_root` must be the ones it was opened with.
     pub fn open(
         db: Arc<Database>,
         db_options: &DBOptions,
