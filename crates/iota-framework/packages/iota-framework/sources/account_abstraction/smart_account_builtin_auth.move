@@ -15,10 +15,22 @@
 ///   authenticator is set. The built-in authenticator uses the scheme of the attached key, so it
 ///   stays as it is.
 ///
-/// `smart_account::builder_v1` and `smart_account::rotate_auth_function_ref_v1` accept any
-/// authenticator, so they can still set the built-in authenticator on an account without a key,
-/// which then can't send any transaction, or set a custom authenticator and leave the key
-/// attached.
+/// `builder_v1`, `ClaimAccount` and `rotate_to_builtin_auth_v1` also attach this module's rotation
+/// rule `BuiltinAuthRule` (see `iota::smart_account_rotation_rules`). From then on
+/// `smart_account::rotate_auth_function_ref_v1` aborts, and every rotation needs this rule's
+/// receipt (`approve_auth_rotation`), which it refuses for a rotation that would separate the key
+/// from the built-in authenticator: to the built-in authenticator while no key is attached, or to
+/// a custom one while the key is attached. So the account always has both or neither.
+///
+/// The rotation functions approve and rotate in one call when `BuiltinAuthRule` is the only rule.
+/// With other rules attached, make the request with
+/// `smart_account_rotation_rules::request_auth_function_ref_rotation_v1`, add the other rules'
+/// receipts, and pass it to `rotate_to_builtin_auth_with_request_v1` or
+/// `rotate_to_custom_auth_with_request_v1`.
+///
+/// `smart_account::builder_v1` accepts any authenticator, so an account built with it that never
+/// used this module can still get the built-in authenticator without a key, which then can't
+/// send any transaction.
 ///
 /// Claiming an existing address through the `ClaimAccount` transaction kind drives the private
 /// `claim_account_v1` below.
@@ -28,6 +40,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions::{Self, builtin_authenticator_function_ref_v1};
 use iota::public_key::PublicKey;
 use iota::smart_account::{Self, SmartAccount, SmartAccountBuilder};
+use iota::smart_account_rotation_rules::{Self, AuthRotationRequest};
 
 // === Errors ===
 
@@ -40,20 +53,66 @@ const EBuiltinAuthNotSet: vector<u8> =
 #[error(code = 2)]
 const EAuthenticatorIsBuiltin: vector<u8> =
     b"Rotate to the built-in authenticator with `rotate_to_builtin_auth_v1`.";
+#[error(code = 3)]
+const EAuthenticatorIsNotBuiltin: vector<u8> =
+    b"Rotate to a custom authenticator with `rotate_to_custom_auth_v1`.";
+#[error(code = 4)]
+const EAuthRotationRequestForAnotherAccount: vector<u8> =
+    b"The rotation request was made for another account.";
+#[error(code = 5)]
+const EPublicKeyMissing: vector<u8> =
+    b"The built-in authenticator needs a public key attached to the account.";
+#[error(code = 6)]
+const EPublicKeyAttached: vector<u8> =
+    b"A custom authenticator can't be set while the public key is attached.";
+
+// === Structs ===
+
+/// The rotation rule this module attaches to the accounts it manages.
+public struct BuiltinAuthRule has drop {}
+
+/// The configuration stored with `BuiltinAuthRule`. The rule needs none.
+public struct BuiltinAuthRuleConfig has drop, store {}
 
 // === Public Functions ===
 
 /// Creates a `SmartAccountBuilder` for a new account backed by the built-in authenticator, with
-/// `public_key` attached.
+/// `public_key` attached and `BuiltinAuthRule` attached.
 ///
 /// Finish it with `smart_account::build_v1`.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and a
+/// `smart_account_rotation_rules::AuthRotationRuleAdded` event on success.
 ///
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
     let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
-    with_public_key(builder, public_key)
+    with_builtin_auth_rule(with_public_key(builder, public_key))
+}
+
+/// Adds the receipt of `BuiltinAuthRule` to a rotation request on `account`.
+///
+/// Called by `rotate_to_builtin_auth_with_request_v1` and `rotate_to_custom_auth_with_request_v1`
+/// after they attach or detach the key; call it directly to rotate between custom authenticators.
+///
+/// Aborts if `request` was made for another account.
+/// Aborts if the request rotates to the built-in authenticator and no public key is attached.
+/// Aborts if the request rotates to a custom authenticator and a public key is attached.
+public fun approve_auth_rotation(account: &SmartAccount, request: &mut AuthRotationRequest) {
+    assert!(
+        request.request_account_id() == object::id(account),
+        EAuthRotationRequestForAnotherAccount,
+    );
+    let to_builtin_auth = builtin_authenticator_functions::is_builtin_authenticator(
+        request.request_authenticator(),
+    );
+    if (to_builtin_auth) {
+        assert!(has_public_key(account), EPublicKeyMissing);
+    } else {
+        assert!(!has_public_key(account), EPublicKeyAttached);
+    };
+
+    request.add_auth_rotation_receipt(BuiltinAuthRule {});
 }
 
 // === View Functions ===
@@ -82,44 +141,105 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
 /// Attaches `public_key` to the account and rotates its authenticator to the built-in one, which
 /// checks signatures against that key. Returns the previous authenticator.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
-/// `account::AuthenticatorFunctionRefV1Rotated` event on success.
+/// For an account whose only rotation rule, if any, is `BuiltinAuthRule`; with other rules, use
+/// `rotate_to_builtin_auth_with_request_v1`.
 ///
-/// Aborts if the transaction sender is not the account.
-/// Aborts if the built-in authenticator is already set; use `rotate_public_key` to replace its
-/// key.
-/// Aborts if a public key is already attached. Only `smart_account::rotate_auth_function_ref_v1`
-/// can leave a key on an account without the built-in authenticator; `rotate_to_custom_auth_v1`
-/// detaches it.
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
+/// See `rotate_to_builtin_auth_with_request_v1` for the events and aborts.
 public fun rotate_to_builtin_auth_v1(
     account: &mut SmartAccount,
     public_key: PublicKey,
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
+    let request = smart_account_rotation_rules::request_auth_function_ref_rotation_v1(
+        account,
+        builtin_authenticator_function_ref_v1(),
+        ctx,
+    );
+    rotate_to_builtin_auth_with_request_v1(account, request, public_key, ctx)
+}
+
+/// Attaches `public_key` to the account and rotates its authenticator to the built-in one with
+/// `request`, which must already carry the receipts of every other rule attached to the account.
+/// Attaches `BuiltinAuthRule` first if it is not attached yet. Returns the previous
+/// authenticator.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// `account::AuthenticatorFunctionRefV1Rotated` event on success, and a
+/// `smart_account_rotation_rules::AuthRotationRuleAdded` event if it attaches `BuiltinAuthRule`.
+///
+/// Aborts if the transaction sender is not the account.
+/// Aborts if `request` does not rotate to the built-in authenticator.
+/// Aborts if the built-in authenticator is already set; use `rotate_public_key` to replace its
+/// key.
+/// Aborts if a public key is already attached.
+/// Aborts if `request` is not approved by every rule attached to the account (see
+/// `smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1`).
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
+public fun rotate_to_builtin_auth_with_request_v1(
+    account: &mut SmartAccount,
+    mut request: AuthRotationRequest,
+    public_key: PublicKey,
+    ctx: &TxContext,
+): AuthenticatorFunctionRefV1<SmartAccount> {
     account.ensure_tx_sender_is_smart_account(ctx);
+    assert!(
+        builtin_authenticator_functions::is_builtin_authenticator(request.request_authenticator()),
+        EAuthenticatorIsNotBuiltin,
+    );
     assert!(!has_builtin_auth(account), EBuiltinAuthAlreadySet);
 
+    if (!smart_account_rotation_rules::has_auth_rotation_rule<BuiltinAuthRule>(account)) {
+        smart_account_rotation_rules::add_auth_rotation_rule(
+            account,
+            BuiltinAuthRule {},
+            BuiltinAuthRuleConfig {},
+            ctx,
+        );
+    };
     builtin_authenticator_functions::attach_public_key(account.uid_mut(), public_key);
-    account.rotate_auth_function_ref_v1(builtin_authenticator_function_ref_v1(), ctx)
+    approve_auth_rotation(account, &mut request);
+    smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1(account, request, ctx)
 }
 
 /// Rotates the account's authenticator to the custom `authenticator`, detaching the public key if
 /// one is attached, and returns that key.
 ///
-/// Emits an `account::AuthenticatorFunctionRefV1Rotated` event, and a
-/// `builtin_authenticator_functions::PublicKeyDetached` event if a key was attached, on success.
+/// For an account whose only rotation rule, if any, is `BuiltinAuthRule`; with other rules, use
+/// `rotate_to_custom_auth_with_request_v1`.
 ///
-/// Aborts if the transaction sender is not the account.
-/// Aborts if `authenticator` is the built-in one; use `rotate_to_builtin_auth_v1`.
+/// See `rotate_to_custom_auth_with_request_v1` for the events and aborts.
 public fun rotate_to_custom_auth_v1(
     account: &mut SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
 ): Option<PublicKey> {
+    let request = smart_account_rotation_rules::request_auth_function_ref_rotation_v1(
+        account,
+        authenticator,
+        ctx,
+    );
+    rotate_to_custom_auth_with_request_v1(account, request, ctx)
+}
+
+/// Rotates the account's authenticator to the custom authenticator of `request`, which must
+/// already carry the receipts of every other rule attached to the account, detaching the public
+/// key if one is attached. Returns that key.
+///
+/// Emits an `account::AuthenticatorFunctionRefV1Rotated` event, and a
+/// `builtin_authenticator_functions::PublicKeyDetached` event if a key was attached, on success.
+///
+/// Aborts if the transaction sender is not the account.
+/// Aborts if `request` rotates to the built-in authenticator; use `rotate_to_builtin_auth_v1`.
+/// Aborts if `request` is not approved by every rule attached to the account (see
+/// `smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1`).
+public fun rotate_to_custom_auth_with_request_v1(
+    account: &mut SmartAccount,
+    mut request: AuthRotationRequest,
+    ctx: &TxContext,
+): Option<PublicKey> {
     account.ensure_tx_sender_is_smart_account(ctx);
     assert!(
-        !builtin_authenticator_functions::is_builtin_authenticator(&authenticator),
+        !builtin_authenticator_functions::is_builtin_authenticator(request.request_authenticator()),
         EAuthenticatorIsBuiltin,
     );
 
@@ -128,7 +248,10 @@ public fun rotate_to_custom_auth_v1(
     } else {
         option::none()
     };
-    account.rotate_auth_function_ref_v1(authenticator, ctx);
+    if (smart_account_rotation_rules::has_auth_rotation_rule<BuiltinAuthRule>(account)) {
+        approve_auth_rotation(account, &mut request);
+    };
+    smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1(account, request, ctx);
     public_key
 }
 
@@ -155,7 +278,7 @@ public fun rotate_public_key(
 // === Private Functions ===
 
 /// Claims the sender's address and creates a `SmartAccount` at it, backed by the built-in
-/// authenticator with `public_key` attached.
+/// authenticator with `public_key` attached, and with `BuiltinAuthRule` attached.
 ///
 /// This is the whole `ClaimAccount` pipeline. It is **private on purpose**: the account object
 /// it creates has an ID equal to a signature-derivable address, so `ClaimAccount` must stay the
@@ -164,7 +287,8 @@ public fun rotate_public_key(
 /// else — not from a user PTB, and not from another package, which could otherwise wrap a public
 /// entry point. See the `iota::clock::consensus_commit_prologue` function for the same idiom.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event, a
+/// `smart_account_rotation_rules::AuthRotationRuleAdded` event and an
 /// `account::MutableAccountCreated` event.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
@@ -175,13 +299,22 @@ fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
         builtin_authenticator_function_ref_v1(),
         ctx,
     );
-    with_public_key(builder, public_key).build_v1();
+    with_builtin_auth_rule(with_public_key(builder, public_key)).build_v1();
 }
 
 /// Attaches `public_key` to the account being built.
 fun with_public_key(mut builder: SmartAccountBuilder, public_key: PublicKey): SmartAccountBuilder {
     builtin_authenticator_functions::attach_public_key(builder.borrow_uid_mut(), public_key);
     builder
+}
+
+/// Attaches `BuiltinAuthRule` to the account being built.
+fun with_builtin_auth_rule(builder: SmartAccountBuilder): SmartAccountBuilder {
+    smart_account_rotation_rules::with_auth_rotation_rule(
+        builder,
+        BuiltinAuthRule {},
+        BuiltinAuthRuleConfig {},
+    )
 }
 
 // === Test Functions ===
