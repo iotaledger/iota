@@ -1925,7 +1925,6 @@ async fn test_index_checkpoint_skips_already_indexed() {
     assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some(0));
     assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(0));
 
-    // Replay the same checkpoint.
     index_checkpoint_for_testing(&index_store, &checkpoint);
 
     assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some(0));
@@ -2378,7 +2377,6 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     let digest = *checkpoint.transactions[0].effects.transaction_digest();
     index_checkpoint_for_testing(&index_store, &checkpoint);
 
-    // The digest row and the shared live state are always written.
     assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some(0));
     let coin_object = checkpoint.transactions[0]
         .output_objects
@@ -2686,8 +2684,6 @@ async fn test_prune_racing_a_reader_reports_an_error() {
     );
     assert!(snapshot[0].txs_seq.get(&Default::default()).is_err());
 
-    // The retained bucket keeps serving, and a retry no longer sees the
-    // dropped one.
     assert!(
         snapshot[1]
             .tx_order
@@ -3215,8 +3211,8 @@ async fn test_history_tables_do_not_bleed_across_tags() {
     assert_eq!(rows, vec![(digest, 7)]);
 }
 
-/// A read error in the rebuild predicate propagates instead of silently
-/// deciding to wipe or to adopt.
+/// A read error in the rebuild check propagates instead of deciding to wipe
+/// or to adopt.
 #[tokio::test]
 async fn test_rebuild_predicate_propagates_read_errors() {
     let dir = iota_common::tempdir();

@@ -1,17 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The RPC index store: the on-disk indexes both the JSON-RPC and gRPC APIs
-//! read from. A store is configured with the [`IndexGroup`]s its node needs;
-//! tables of a disabled group stay empty, except for the digest row (see
-//! [`schema::HistoryBucket`]), which is written whatever the enabled groups
-//! are because checkpoint ingest reads it to tell a replayed checkpoint
-//! from a new one.
+//! The RPC index store: the on-disk indexes the JSON-RPC and gRPC APIs read
+//! from. A store fills only the tables of its configured [`IndexGroup`]s,
+//! plus the digest rows (see [`schema::HistoryBucket`]) that checkpoint
+//! ingest reads to skip already-indexed transactions.
 //!
-//! This module is schema, open, rebuild, backfill, prune, and the
-//! per-checkpoint ingest; [`jsonrpc_api`] and [`grpc_api`] add the two read
-//! surfaces, and [`live_scan`] fills the live-state tables from a rebuild's
-//! object scan or a formal-snapshot restore.
+//! [`jsonrpc_api`] and [`grpc_api`] add the read APIs, and [`live_scan`]
+//! fills the live-state tables from a live object scan or a formal-snapshot
+//! restore.
 
 pub mod grpc_api;
 pub mod jsonrpc_api;
@@ -979,14 +976,10 @@ impl RpcIndexesStore {
             .iter()
             .map(|tx| *tx.effects.transaction_digest())
             .collect();
-        // A transaction's digest row is written whatever the enabled groups
-        // are, and always into the bucket of its own epoch, so this one
-        // lookup decides for every table whether the transaction is new.
+        // Digest rows are written whatever the groups, into the bucket of the
+        // transaction's own epoch, so this one lookup decides for every table.
         let already_indexed = bucket.txs_seq.multi_get(&digests)?;
-        // The zip below pairs each transaction with its own lookup.
         debug_assert_eq!(digests.len(), already_indexed.len());
-        // Each transaction keeps the position it has in the checkpoint, which
-        // is what its sequence number is derived from below.
         let transactions: Vec<(usize, &CheckpointTransaction)> = checkpoint
             .transactions
             .iter()
@@ -1011,8 +1004,7 @@ impl RpcIndexesStore {
                     transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())?;
                 bucket.index_tx(&mut batch, sequence, summary.timestamp_ms, data)?;
             } else {
-                // A gRPC-only store needs nothing beyond the digest row that
-                // `index_tx` would write alongside the JSON-RPC history.
+                // A gRPC-only store needs only the digest row.
                 batch.insert_batch_tagged(
                     &bucket.txs_seq,
                     [(*tx.effects.transaction_digest(), sequence)],
@@ -1384,10 +1376,8 @@ impl RpcIndexesStore {
                     .map_err(|e| StorageError::custom(e.to_string()))?;
             }
         } else {
-            // A gRPC-only store needs nothing beyond the checkpoint's
-            // contents, already local to every node: `index_tx` above would
-            // write the same digest rows, but only after fetching
-            // transactions, effects and events it has no other use for.
+            // A gRPC-only store needs only the digest rows, which the
+            // checkpoint contents provide without reading the transactions.
             batch.insert_batch_tagged(
                 &bucket.txs_seq,
                 (first_sequence_number..)
