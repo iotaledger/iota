@@ -157,9 +157,9 @@ pub(super) fn prepare_transaction(
     // node's dev-inspect entry point, and drops the input checks a simulation
     // does not need. Every other mode runs what a validator runs.
     let (input_checks, check_name) = if matches!(mode, ExecutionMode::DevInspect) {
-        (InputCheckRules::SIMULATION, "simulation input check")
+        (InputCheckRules::RELAXED_UNSAFE, "simulation input check")
     } else {
-        (InputCheckRules::EXECUTION, "transaction input check")
+        (InputCheckRules::STRICT, "transaction input check")
     };
     // Offline default: the verifier-signing limits may differ from those a
     // live validator enforces, so this check will not match a real chain.

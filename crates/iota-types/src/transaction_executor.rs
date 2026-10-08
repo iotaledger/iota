@@ -216,7 +216,7 @@ pub struct InputCheckRules {
 
 impl InputCheckRules {
     /// No relaxations: exactly what a validator applies.
-    pub const EXECUTION: Self = Self {
+    pub const STRICT: Self = Self {
         unbounded_gas_budget: false,
         any_object_owner: false,
         any_object_digest: false,
@@ -227,7 +227,7 @@ impl InputCheckRules {
     };
 
     /// What a simulation with [`VmChecks::Disabled`] drops.
-    pub const SIMULATION: Self = Self {
+    pub const RELAXED_UNSAFE: Self = Self {
         unbounded_gas_budget: true,
         any_object_owner: true,
         any_object_digest: true,
