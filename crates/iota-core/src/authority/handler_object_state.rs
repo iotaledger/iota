@@ -1048,12 +1048,11 @@ impl HandlerObjectState {
         // nothing, such as an unwrap, where the first check has nothing to
         // look up.
         //
-        // Missing both rows only means the record is extended, as it was
-        // before these checks. Both rows are read before the locks. The head
-        // row is looked up on the record read here, so under the lock it
-        // counts only if the record found there still ends at that head. A
-        // row that lands after these reads leaves the record extended; that
-        // row takes precedence over the record on every read.
+        // Missing both rows extends the record. Both rows are read before the
+        // locks. The head row is looked up on the record read here, so under
+        // the lock it counts only if the record found there still ends at
+        // that head. A row that lands after these reads leaves the record
+        // extended; that row takes precedence over the record on every read.
         let handler_known = writes
             .iter()
             .map(|write| self.handler_known_versions(tables, write))
