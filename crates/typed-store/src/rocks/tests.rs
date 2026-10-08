@@ -2033,10 +2033,9 @@ async fn operations_on_a_dropped_column_family_report_an_error() {
         .expect("a flush of a dropped column family is a no-op");
 }
 
-/// A batch staged while its column family existed must write cleanly after
-/// the column family is dropped (`ignore_missing_column_families`): the
-/// dropped entries are discarded, the sibling column family's entries land,
-/// and the sibling keeps serving reads and writes.
+/// With `ignore_missing_column_families`, a batch staged before its column
+/// family is dropped still writes: the dropped entries are discarded and the
+/// other column family's entries land.
 #[tokio::test]
 async fn a_batch_staged_before_a_drop_still_writes() {
     let tmp_dir = iota_common::tempdir();
@@ -2062,18 +2061,14 @@ async fn a_batch_staged_before_a_drop_still_writes() {
         .expect("the batch should write");
     assert_eq!(kept.get(&1).unwrap(), Some("one".to_string()));
 
-    // The database was not stopped by the dropped entries, and the write did
-    // not resurrect the dropped column family.
     kept.insert(&2, &"two".to_string())
         .expect("the kept column family should still accept writes");
     assert_eq!(kept.safe_iter().count(), 2);
     assert!(db.cf_handle("doomed").is_none());
 }
 
-/// Write options that do not ask for the drop tolerance fail the write when
-/// an entry's column family was dropped after staging, rather than dropping
-/// the entry silently. Only the stores that drop column families at runtime
-/// opt into the tolerance.
+/// Without `ignore_missing_column_families`, a write fails when an entry's
+/// column family was dropped after staging.
 #[tokio::test]
 async fn a_dropped_column_family_fails_a_batch_write_by_default() {
     // A failed write leaves the database in an error state, so each set of

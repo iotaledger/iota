@@ -171,9 +171,8 @@ fn main() {
     // path reaches it.
     let index_rebuild_cancelled = Arc::new(AtomicBool::new(false));
 
-    // A startup that ends without a node reports the process exit code here
-    // instead of exiting itself, which would skip the log flush in main's
-    // teardown.
+    // A failed startup reports its exit code here rather than exiting, so
+    // main's teardown still flushes the logs.
     let startup_failure = Arc::new(AsyncOnceCell::<i32>::new());
     let startup_failure_clone = startup_failure.clone();
 
@@ -210,9 +209,8 @@ fn main() {
                 startup_failure_clone
                     .set(exit_code)
                     .expect("a startup failure is reported once");
-                // Returning drops the shutdown sender too, which releases a
-                // main still waiting for the termination signal that a
-                // startup failure of its own never produces.
+                // Returning drops the shutdown sender, which releases main
+                // from waiting for a termination signal.
                 return;
             }
         }
@@ -248,9 +246,8 @@ fn main() {
 
     index_rebuild_cancelled.store(true, Ordering::Relaxed);
 
-    // Stop the node's background work before its runtimes go away. It runs
-    // on the node runtime, and `AsyncOnceCell::get` waits for a node that a
-    // failed or cancelled startup never produces, so both are bounded here.
+    // Stop the node's background work before its runtimes go away. A failed
+    // or cancelled startup never sets the node, so the waits are bounded.
     let exit_code = runtimes.iota_node.block_on(async {
         tokio::select! {
             // A reported startup failure decides the exit code even if the
@@ -277,8 +274,7 @@ fn main() {
     // Drop and wait all runtimes on main thread
     drop(runtimes);
 
-    // Dropping the guard flushes the buffered log lines, so the exit code is
-    // reported only once the last of them is out.
+    // Dropping the guard flushes the buffered log lines.
     drop(telemetry_guard);
     std::process::exit(exit_code);
 }

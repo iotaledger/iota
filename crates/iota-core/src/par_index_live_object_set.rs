@@ -48,9 +48,8 @@ pub trait LiveObjectIndexer {
 /// will be used to make N `LiveObjectIndexer`s which will then process one of
 /// the disjoint parts of the live object set.
 ///
-/// Setting `cancelled` fails the scan early, so a caller that must not wait
-/// for a full pass — a shutting-down node, which these threads hold open — can
-/// abandon it; the partial work is the caller's to discard.
+/// Setting `cancelled` makes the scan fail early with a cancellation error;
+/// the partial work is the caller's to discard.
 #[tracing::instrument(skip_all)]
 pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     authority_store: &AuthorityStore,
@@ -178,10 +177,8 @@ fn scan_cancelled() -> StorageError {
 /// The error to report out of the scan, given the one kept so far and the one
 /// a further task returned. The discarded error is logged.
 ///
-/// A real failure outranks a cancellation, which every task returns once a
-/// shutdown sets the flag: the tasks are joined in a fixed order, so keeping
-/// the first error would let a cancellation hide a failure the caller must
-/// act on.
+/// A real failure outranks a cancellation, which every task returns once the
+/// flag is set, so a cancellation cannot hide a failure.
 fn keep_task_error(
     kept: Result<(), StorageError>,
     error: StorageError,
@@ -230,8 +227,7 @@ fn report_scan_progress_until_done(
 }
 
 /// The fraction of the object id space the scan tasks have covered so far,
-/// capped just below 1 because the estimate is only as exact as the id
-/// distribution is uniform.
+/// capped just below 1 since it is only an estimate.
 fn scan_fraction(bits: u8, positions: &[AtomicU64]) -> f64 {
     let span = task_range_span(bits) as f64;
     let sum: f64 = positions
@@ -331,9 +327,8 @@ mod tests {
             .collect()
     }
 
-    /// A shutdown cancels every task, so whichever task hit a real failure
-    /// must still be the error the scan reports, whatever its position in the
-    /// join order.
+    /// A real failure is reported over the cancellations of the other tasks,
+    /// whatever the join order.
     #[test]
     fn a_real_failure_outranks_a_cancellation_in_any_join_order() {
         let failure = || StorageError::custom("object 0x3 is corrupt");
