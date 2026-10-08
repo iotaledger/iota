@@ -542,9 +542,8 @@ fn another_custom_fn_name() -> typed_store::rocks::DBOptions {
     typed_store::rocks::DBOptions::default()
 }
 
-/// A column family the caller manages itself, named in the options override
-/// but not a field of the struct, is opened together with the struct's own
-/// tables instead of being left to rocksdb's defaults.
+/// A column family named in the options override but not a field of the
+/// struct is opened together with the struct's own tables.
 #[tokio::test]
 async fn open_tables_read_write_opens_column_families_outside_the_struct() {
     let tmp_dir = iota_common::tempdir();

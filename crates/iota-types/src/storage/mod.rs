@@ -566,13 +566,9 @@ where
 
 /// A [`BackingStore`] that records every object read through it.
 ///
-/// The versions a transaction supersedes are relocated by value, and the
-/// transaction's declared inputs do not cover all of them: dynamic fields,
-/// received objects and system packages are fetched from the store
-/// mid-execution, and execution reports only their metadata afterwards.
-/// Reading through this wrapper is what keeps their contents available.
-///
-/// Wrap the store for the duration of a single execution, then take the
+/// Captures the objects execution loads beyond the declared inputs (dynamic
+/// fields, received objects, system packages), whose superseded versions must
+/// be relocated by value. Wrap the store for a single execution, then take the
 /// recorded objects with [`into_read_objects`](Self::into_read_objects).
 pub struct TrackingBackingStore<'a> {
     inner: &'a dyn BackingStore,
