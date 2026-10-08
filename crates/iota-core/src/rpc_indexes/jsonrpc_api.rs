@@ -752,11 +752,11 @@ impl RpcIndexesStore {
                 // already returned on the previous page.
                 continue;
             }
-            // The row's own version, not the latest: an object transferred
-            // away or spent after the row was written is still at the version
-            // the row describes, and reading the latest would answer with an
-            // object this owner no longer holds. Reading the row's version
-            // omits it instead, the way the gRPC listing does.
+            // The row's own version, not the latest: until the index catches
+            // up with an object transferred away or spent, its row describes
+            // the version this owner held, and reading the latest would answer
+            // with an object this owner no longer holds. A row whose version
+            // the node no longer has is skipped, the way the gRPC listing does.
             let Some(object) = object_store.try_get_object_by_key(&key.object_id, info.version)?
             else {
                 continue;

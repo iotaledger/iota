@@ -3709,6 +3709,21 @@ async fn test_response_reads_resolve_relocated_versions() {
             "the gRPC read store must serve the relocated version"
         );
     }
+
+    // Serves the JSON-RPC owner, coin and stake reads, which resolve an index
+    // row by the version it names, and a commit moves that version before
+    // the index update for its checkpoint is written.
+    let object_store = authority_state.object_store_with_historic_fallback();
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert_eq!(
+            object_store
+                .try_get_object_by_key(&pre_image.id(), pre_image.version())
+                .unwrap()
+                .as_ref(),
+            Some(pre_image),
+            "the owner reads must serve the relocated version"
+        );
+    }
 }
 
 #[tokio::test]
