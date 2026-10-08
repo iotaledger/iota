@@ -1,14 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Real-node coverage of the RPC index store: epoch-boundary history
-//! buckets, index pruning, and the promise that a transaction reported as
-//! final, or delivered to a subscriber, is indexed. Unit tests cannot
-//! exercise these through the real lifecycle of a node. Restarting the fullnode
-//! under the simulator is not covered: a stopped fullnode's database locks are
-//! not released (the restarted instance fails on the RocksDB `LOCK` files),
-//! which needs a harness fix first; reopen semantics are pinned by the
-//! `rpc_indexes` unit tests instead.
+//! Tests of the RPC index store on a running node: history buckets across
+//! epoch boundaries, index pruning, and indexing of transactions reported as
+//! final or delivered to a subscriber.
+//!
+//! Restarting a fullnode under the simulator is not covered, since its RocksDB
+//! `LOCK` files are not released; the `rpc_indexes` unit tests cover reopening.
 
 use std::{collections::BTreeMap, num::NonZeroUsize, time::Duration};
 
@@ -137,15 +135,14 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     );
 }
 
-/// A transaction that is reported under `WaitForLocalExecution` is visible
-/// to the index-backed reads. A client can query its outputs immediately. It
-/// does not need to poll.
+/// A transaction reported under `WaitForLocalExecution` is already visible to
+/// the index-backed reads.
 #[sim_test]
 async fn index_backed_reads_see_a_transaction_reported_as_executed_locally() {
     let cluster = TestClusterBuilder::new().build().await;
     let client = cluster.rpc_client();
 
-    // Repeated, so that the check covers more than one checkpoint.
+    // Repeated to cover more than one checkpoint.
     for _ in 0..5 {
         let recipient = Address::random();
         let txn = make_transfer_iota_transaction(&cluster.wallet, Some(recipient), Some(9)).await;
@@ -163,16 +160,15 @@ async fn index_backed_reads_see_a_transaction_reported_as_executed_locally() {
     }
 }
 
-/// The same promise holds on the certificate-based flow, which mainnet and
-/// testnet use. There, `WaitForLocalExecution` is served by the quorum driver
-/// and waits for the checkpoint separately.
+/// The same holds on the certificate-based flow, where the quorum driver
+/// serves `WaitForLocalExecution`.
 #[sim_test]
 async fn index_backed_reads_see_a_transaction_reported_by_the_quorum_driver() {
     let _pcool_guard = override_pcool_flow(false);
     let cluster = TestClusterBuilder::new().build().await;
     let client = cluster.rpc_client();
 
-    // Repeated, so that the check covers more than one checkpoint.
+    // Repeated to cover more than one checkpoint.
     for _ in 0..5 {
         let recipient = Address::random();
         let txn = make_transfer_iota_transaction(&cluster.wallet, Some(recipient), Some(9)).await;
@@ -196,8 +192,7 @@ async fn index_backed_reads_see_a_transaction_reported_by_the_quorum_driver() {
 }
 
 /// A transaction subscription delivers a transaction only after its
-/// checkpoint is indexed. The subscriber can then query the index-backed
-/// reads immediately. Transactions arrive in checkpoint order.
+/// checkpoint is indexed, in checkpoint order.
 #[sim_test]
 async fn subscribers_are_notified_after_indexing_in_checkpoint_order() {
     let cluster = TestClusterBuilder::new().build().await;
@@ -309,8 +304,7 @@ async fn event_subscribers_receive_parsed_events_after_indexing() {
     );
 }
 
-/// A node serving the JSON-RPC API answers every index-backed endpoint,
-/// so a client needs no capability probe before using it.
+/// A node serving the JSON-RPC API answers every index-backed endpoint.
 #[sim_test]
 async fn jsonrpc_node_serves_every_index_backed_endpoint() {
     // Relies on the JSON-RPC API being on by default.
