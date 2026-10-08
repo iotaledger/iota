@@ -3787,6 +3787,12 @@ SmartAccount
 SmartAccountBuilder
 	public struct
 	0x2::smart_account
+AuthRotationRulesAttachedKey
+	public struct
+	0x2::smart_account
+FieldRotationRulesAttachedKey
+	public struct
+	0x2::smart_account
 builder_v1
 	public fun
 	0x2::smart_account
@@ -3806,6 +3812,12 @@ borrow_field
 	public fun
 	0x2::smart_account
 borrow_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+has_auth_rotation_rules
+	public fun
+	0x2::smart_account
+has_field_rotation_rules
 	public fun
 	0x2::smart_account
 ensure_tx_sender_is_smart_account
@@ -3838,7 +3850,160 @@ uid
 uid_mut
 	public(package) fun
 	0x2::smart_account
+set_has_auth_rotation_rules
+	public(package) fun
+	0x2::smart_account
+set_has_field_rotation_rules
+	public(package) fun
+	0x2::smart_account
+rotate_auth_function_ref_v1_unchecked
+	public(package) fun
+	0x2::smart_account
+AuthRotationRequest
+	public struct
+	0x2::smart_account_rotation_rules
+AuthRotationRulesKey
+	public struct
+	0x2::smart_account_rotation_rules
+AuthRotationRuleKey
+	public struct
+	0x2::smart_account_rotation_rules
+FieldChangeRequest
+	public struct
+	0x2::smart_account_rotation_rules
+FieldRotationRulesKey
+	public struct
+	0x2::smart_account_rotation_rules
+AuthRotationRuleFieldsKey
+	public struct
+	0x2::smart_account_rotation_rules
+ChangeCountKey
+	public struct
+	0x2::smart_account_rotation_rules
+AuthRotationRuleAdded
+	public struct
+	0x2::smart_account_rotation_rules
+AuthRotationRuleRemoved
+	public struct
+	0x2::smart_account_rotation_rules
+FieldRotationRuleAdded
+	public struct
+	0x2::smart_account_rotation_rules
+FieldRotationRuleRemoved
+	public struct
+	0x2::smart_account_rotation_rules
+with_auth_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+with_field_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+add_auth_rotation_receipt
+	public fun
+	0x2::smart_account_rotation_rules
+request_account_id
+	public fun
+	0x2::smart_account_rotation_rules
+request_authenticator
+	public fun
+	0x2::smart_account_rotation_rules
+field_add
+	public fun
+	0x2::smart_account_rotation_rules
+field_remove
+	public fun
+	0x2::smart_account_rotation_rules
+field_rotate
+	public fun
+	0x2::smart_account_rotation_rules
+field_borrow_mut
+	public fun
+	0x2::smart_account_rotation_rules
+add_field_change_receipt
+	public fun
+	0x2::smart_account_rotation_rules
+field_request_account_id
+	public fun
+	0x2::smart_account_rotation_rules
+field_request_operation
+	public fun
+	0x2::smart_account_rotation_rules
+has_auth_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+borrow_auth_rotation_rule_config
+	public fun
+	0x2::smart_account_rotation_rules
+auth_rotation_rules
+	public fun
+	0x2::smart_account_rotation_rules
+has_field_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+field_rotation_rules
+	public fun
+	0x2::smart_account_rotation_rules
+add_auth_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+remove_auth_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+borrow_auth_rotation_rule_config_mut
+	public fun
+	0x2::smart_account_rotation_rules
+request_auth_function_ref_rotation_v1
+	public fun
+	0x2::smart_account_rotation_rules
+confirm_auth_function_ref_rotation_v1
+	public fun
+	0x2::smart_account_rotation_rules
+add_field_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+remove_field_rotation_rule
+	public fun
+	0x2::smart_account_rotation_rules
+request_field_change_v1
+	public fun
+	0x2::smart_account_rotation_rules
+add_field
+	public fun
+	0x2::smart_account_rotation_rules
+remove_field
+	public fun
+	0x2::smart_account_rotation_rules
+rotate_field
+	public fun
+	0x2::smart_account_rotation_rules
+borrow_field_mut
+	public fun
+	0x2::smart_account_rotation_rules
+confirm_field_change
+	fun
+	0x2::smart_account_rotation_rules
+change_count
+	fun
+	0x2::smart_account_rotation_rules
+count_change
+	fun
+	0x2::smart_account_rotation_rules
+insert_auth_rotation_rule
+	fun
+	0x2::smart_account_rotation_rules
+insert_field_rotation_rule
+	fun
+	0x2::smart_account_rotation_rules
+BuiltinAuthRule
+	public struct
+	0x2::smart_account_builtin_auth
+BuiltinAuthRuleConfig
+	public struct
+	0x2::smart_account_builtin_auth
 builder_v1
+	public fun
+	0x2::smart_account_builtin_auth
+approve_auth_rotation
 	public fun
 	0x2::smart_account_builtin_auth
 has_builtin_auth
@@ -3853,7 +4018,13 @@ borrow_public_key
 rotate_to_builtin_auth_v1
 	public fun
 	0x2::smart_account_builtin_auth
+rotate_to_builtin_auth_with_request_v1
+	public fun
+	0x2::smart_account_builtin_auth
 rotate_to_custom_auth_v1
+	public fun
+	0x2::smart_account_builtin_auth
+rotate_to_custom_auth_with_request_v1
 	public fun
 	0x2::smart_account_builtin_auth
 rotate_public_key
@@ -3863,6 +4034,9 @@ claim_account_v1
 	fun
 	0x2::smart_account_builtin_auth
 with_public_key
+	fun
+	0x2::smart_account_builtin_auth
+with_builtin_auth_rule
 	fun
 	0x2::smart_account_builtin_auth
 IotaSystemAdminCap

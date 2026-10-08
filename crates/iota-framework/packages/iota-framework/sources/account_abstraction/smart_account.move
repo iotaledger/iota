@@ -11,6 +11,12 @@
 /// for IOTA's standard signature schemes together with the public key it checks signatures
 /// against.
 ///
+/// `iota::smart_account_rotation_rules` lets other modules limit how the authenticator and the
+/// account's fields are changed. While an account has rotation rules attached,
+/// `rotate_auth_function_ref_v1` aborts, and the authenticator can only be rotated through that
+/// module. While rules guard a field type `Name`, `add_field`, `remove_field`, `borrow_field_mut`
+/// and `rotate_field` abort for `Name`, and the field can only be changed through that module.
+///
 /// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
 /// object ID for the supplied authenticator. After optionally adding fields with `with_field`,
 /// finalize with `build_v1`.
@@ -30,6 +36,12 @@ use iota::public_key::PublicKey;
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
+#[error(code = 1)]
+const EAuthRotationRulesAttached: vector<u8> =
+    b"The account has rotation rules attached; rotate through smart_account_rotation_rules.";
+#[error(code = 2)]
+const EFieldRotationRulesAttached: vector<u8> =
+    b"The field has rotation rules attached; change it through smart_account_rotation_rules.";
 
 // === Structs ===
 
@@ -54,6 +66,12 @@ public struct SmartAccountBuilder {
     account: SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
 }
+
+/// Dynamic field key present while the account has rotation rules attached.
+public struct AuthRotationRulesAttachedKey has copy, drop, store {}
+
+/// Dynamic field key present while rotation rules guard the field type `Name`.
+public struct FieldRotationRulesAttachedKey<phantom Name> has copy, drop, store {}
 
 // === SmartAccountBuilder Public Functions ===
 
@@ -126,6 +144,18 @@ public fun borrow_auth_function_ref_v1(
     account::borrow_auth_function_ref_v1(&self.id)
 }
 
+/// Returns `true` if and only if the account has rotation rules attached, in which case its
+/// authenticator can only be rotated through `smart_account_rotation_rules`.
+public fun has_auth_rotation_rules(self: &SmartAccount): bool {
+    dynamic_field::exists_(&self.id, AuthRotationRulesAttachedKey {})
+}
+
+/// Returns `true` if and only if rotation rules guard the field type `Name`, in which case
+/// fields of that type can only be changed through `smart_account_rotation_rules`.
+public fun has_field_rotation_rules<Name: copy + drop + store>(self: &SmartAccount): bool {
+    dynamic_field::exists_(&self.id, FieldRotationRulesAttachedKey<Name> {})
+}
+
 /// Aborts if the sender of this transaction is not the account itself.
 public fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
     assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
@@ -136,6 +166,7 @@ public fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContex
 /// Adds a dynamic field to the account.
 ///
 /// Aborts if the transaction sender is not the account.
+/// Aborts if rotation rules guard the field type `Name`; use `smart_account_rotation_rules` then.
 /// Aborts if a field with the same `name` already exists.
 public fun add_field<Name: copy + drop + store, Value: store>(
     self: &mut SmartAccount,
@@ -144,6 +175,7 @@ public fun add_field<Name: copy + drop + store, Value: store>(
     ctx: &TxContext,
 ) {
     ensure_tx_sender_is_smart_account(self, ctx);
+    assert!(!self.has_field_rotation_rules<Name>(), EFieldRotationRulesAttached);
 
     dynamic_field::add(&mut self.id, name, value);
 }
@@ -151,6 +183,7 @@ public fun add_field<Name: copy + drop + store, Value: store>(
 /// Removes a dynamic field from the account.
 ///
 /// Aborts if the transaction sender is not the account.
+/// Aborts if rotation rules guard the field type `Name`; use `smart_account_rotation_rules` then.
 /// Aborts if no field with the specified `name` exists.
 public fun remove_field<Name: copy + drop + store, Value: store>(
     self: &mut SmartAccount,
@@ -158,6 +191,7 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     ctx: &TxContext,
 ): Value {
     ensure_tx_sender_is_smart_account(self, ctx);
+    assert!(!self.has_field_rotation_rules<Name>(), EFieldRotationRulesAttached);
 
     dynamic_field::remove(&mut self.id, name)
 }
@@ -165,6 +199,7 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
 /// Borrows a mutable reference to a dynamic field from the account.
 ///
 /// Aborts if the transaction sender is not the account.
+/// Aborts if rotation rules guard the field type `Name`; use `smart_account_rotation_rules` then.
 /// Aborts if no field with the specified `name` exists.
 public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     self: &mut SmartAccount,
@@ -172,6 +207,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     ctx: &TxContext,
 ): &mut Value {
     ensure_tx_sender_is_smart_account(self, ctx);
+    assert!(!self.has_field_rotation_rules<Name>(), EFieldRotationRulesAttached);
 
     dynamic_field::borrow_mut(&mut self.id, name)
 }
@@ -179,6 +215,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
 /// Replaces a dynamic field with a new value and returns the previous one.
 ///
 /// Aborts if the transaction sender is not the account.
+/// Aborts if rotation rules guard the field type `Name`; use `smart_account_rotation_rules` then.
 /// Aborts if no field with the specified `name` exists.
 public fun rotate_field<Name: copy + drop + store, Value: store>(
     self: &mut SmartAccount,
@@ -187,6 +224,7 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
     ctx: &TxContext,
 ): Value {
     ensure_tx_sender_is_smart_account(self, ctx);
+    assert!(!self.has_field_rotation_rules<Name>(), EFieldRotationRulesAttached);
 
     let account_id = &mut self.id;
     let previous_value = dynamic_field::remove<_, Value>(account_id, name);
@@ -206,12 +244,14 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Emits an `account::AuthenticatorFunctionRefV1Rotated` event upon success.
 ///
 /// Aborts if the transaction sender is not the account.
+/// Aborts if the account has rotation rules attached; use `smart_account_rotation_rules` then.
 public fun rotate_auth_function_ref_v1(
     self: &mut SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
     ensure_tx_sender_is_smart_account(self, ctx);
+    assert!(!self.has_auth_rotation_rules(), EAuthRotationRulesAttached);
 
     account::rotate_auth_function_ref_v1(self, authenticator)
 }
@@ -245,4 +285,37 @@ public(package) fun uid(self: &SmartAccount): &UID {
 /// Borrows the account's `UID` mutably.
 public(package) fun uid_mut(self: &mut SmartAccount): &mut UID {
     &mut self.id
+}
+
+/// Records whether the account with `account_id` has rotation rules attached.
+public(package) fun set_has_auth_rotation_rules(account_id: &mut UID, has_rules: bool) {
+    let attached = dynamic_field::exists_(account_id, AuthRotationRulesAttachedKey {});
+    if (has_rules && !attached) {
+        dynamic_field::add(account_id, AuthRotationRulesAttachedKey {}, true);
+    } else if (!has_rules && attached) {
+        dynamic_field::remove<_, bool>(account_id, AuthRotationRulesAttachedKey {});
+    }
+}
+
+/// Records whether rotation rules guard the field type `Name` on the account with `account_id`.
+public(package) fun set_has_field_rotation_rules<Name: copy + drop + store>(
+    account_id: &mut UID,
+    has_rules: bool,
+) {
+    let attached = dynamic_field::exists_(account_id, FieldRotationRulesAttachedKey<Name> {});
+    if (has_rules && !attached) {
+        dynamic_field::add(account_id, FieldRotationRulesAttachedKey<Name> {}, true);
+    } else if (!has_rules && attached) {
+        dynamic_field::remove<_, bool>(account_id, FieldRotationRulesAttachedKey<Name> {});
+    }
+}
+
+/// Rotates the attached authenticator without checking the sender or the rotation rules.
+///
+/// The caller must have checked both.
+public(package) fun rotate_auth_function_ref_v1_unchecked(
+    self: &mut SmartAccount,
+    authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
+): AuthenticatorFunctionRefV1<SmartAccount> {
+    account::rotate_auth_function_ref_v1(self, authenticator)
 }
