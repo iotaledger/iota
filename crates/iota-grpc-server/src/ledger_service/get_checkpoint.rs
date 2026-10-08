@@ -74,20 +74,22 @@
 
 use futures::Stream;
 use iota_grpc_types::{
-    field::{FieldMaskTree, MessageField, MessageFields},
+    field::{FieldMaskTree, FieldMaskUtil},
+    google::rpc::bad_request::FieldViolation,
     read_masks::GET_CHECKPOINT_READ_MASK,
     v1::{
-        checkpoint::Checkpoint, event::Event, ledger_service as grpc_ledger_service,
-        transaction::ExecutedTransaction,
+        checkpoint::Checkpoint, error_reason::ErrorReason, event::Event,
+        ledger_service as grpc_ledger_service, transaction::ExecutedTransaction,
     },
 };
+use prost_types::FieldMask;
 use tonic::{Request, Status};
 use tracing::debug;
 
 use super::LedgerGrpcService;
 use crate::{
     error::RpcError, event_filter::EventFilter, transaction_filter::TransactionFilter,
-    types::CheckpointStreamResult, validation::validate_read_mask,
+    types::CheckpointStreamResult,
 };
 
 /// Helper function to convert proto filters to internal filters and validate
@@ -122,55 +124,40 @@ fn convert_and_validate_filters(
     Ok((transaction_filter, event_filter))
 }
 
-/// Represents the structure of checkpoint data response for read_mask
-/// validation. This is not a proto type but a helper struct to define valid
-/// read_mask paths.
-pub struct CheckpointDataResponse;
-
-impl CheckpointDataResponse {
-    pub const CHECKPOINT_FIELD: &'static MessageField = &MessageField {
-        name: "checkpoint",
-        json_name: "checkpoint",
-        number: 1i32,
-        is_optional: true,
-        is_map: false,
-        message_fields: Some(Checkpoint::FIELDS),
+fn is_valid_checkpoint_data_path(path: &str) -> bool {
+    let (head, rest) = match path.split_once('.') {
+        Some((head, rest)) if !rest.is_empty() => (head, Some(rest)),
+        Some((head, _)) => (head, None),
+        None => (path, None),
     };
-
-    pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
-        name: "transactions",
-        json_name: "transactions",
-        number: 2i32,
-        is_optional: true,
-        is_map: false,
-        message_fields: Some(ExecutedTransaction::FIELDS),
+    let Some(rest) = rest else {
+        return matches!(head, "checkpoint" | "transactions" | "events");
     };
-
-    pub const EVENTS_FIELD: &'static MessageField = &MessageField {
-        name: "events",
-        json_name: "events",
-        number: 3i32,
-        is_optional: true,
-        is_map: false,
-        message_fields: Some(Event::FIELDS),
-    };
-}
-
-impl MessageFields for CheckpointDataResponse {
-    const FIELDS: &'static [&'static MessageField] = &[
-        Self::CHECKPOINT_FIELD,
-        Self::TRANSACTIONS_FIELD,
-        Self::EVENTS_FIELD,
-    ];
+    let rest = FieldMask::from_paths([rest]);
+    match head {
+        "checkpoint" => rest.validate::<Checkpoint>().is_ok(),
+        "transactions" => rest.validate::<ExecutedTransaction>().is_ok(),
+        "events" => rest.validate::<Event>().is_ok(),
+        _ => false,
+    }
 }
 
 /// Parse read_mask from request and extract component masks for checkpoint,
 /// transactions, and events.
 fn parse_checkpoint_read_mask(
-    read_mask: Option<prost_types::FieldMask>,
+    read_mask: Option<FieldMask>,
 ) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), RpcError> {
-    let read_mask =
-        validate_read_mask::<CheckpointDataResponse>(read_mask, GET_CHECKPOINT_READ_MASK)?;
+    let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(GET_CHECKPOINT_READ_MASK));
+    if let Some(path) = read_mask
+        .paths
+        .iter()
+        .find(|path| !is_valid_checkpoint_data_path(path))
+    {
+        Err(FieldViolation::new("read_mask")
+            .with_description(format!("invalid read_mask path: {path}"))
+            .with_reason(ErrorReason::FieldInvalid))?;
+    }
+    let read_mask = FieldMaskTree::from(read_mask);
 
     // Extract checkpoint-related fields mask
     let checkpoint_mask = read_mask.subtree("checkpoint").unwrap_or_default();
@@ -407,4 +394,37 @@ pub(crate) fn stream_checkpoints(
         progress_interval,
     ));
     Ok(stream)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_read_mask_paths_are_valid() {
+        for path in FieldMask::from_str(GET_CHECKPOINT_READ_MASK).paths {
+            assert!(is_valid_checkpoint_data_path(&path), "{path}");
+        }
+    }
+
+    #[test]
+    fn checkpoint_data_paths() {
+        for path in [
+            "checkpoint",
+            "transactions",
+            "events",
+            "transactions.effects",
+            "transactions.transaction",
+        ] {
+            assert!(is_valid_checkpoint_data_path(path), "{path}");
+        }
+        for path in [
+            "",
+            "transaction",
+            "executed_transactions",
+            "transactions.no_such_field",
+        ] {
+            assert!(!is_valid_checkpoint_data_path(path), "{path}");
+        }
+    }
 }
