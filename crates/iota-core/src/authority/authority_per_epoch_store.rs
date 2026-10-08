@@ -4470,7 +4470,7 @@ impl AuthorityPerEpochStore {
 
             // With deterministic validation, rows become visible before the
             // fully executed commit advances, so after the wait every row
-            // with `produced_at <= C - K` is readable before validation of
+            // produced at or below the horizon is readable before validation of
             // `C` starts and does not change during it. Churn is confined to
             // rows above the horizon, which answer missing. Validating before
             // that wait would make verdicts depend on execution timing.
