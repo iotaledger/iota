@@ -3838,6 +3838,9 @@ uid
 uid_mut
 	public(package) fun
 	0x2::smart_account
+ensure_builtin_auth_and_public_key_together
+	fun
+	0x2::smart_account
 builder_v1
 	public fun
 	0x2::smart_account_builtin_auth
