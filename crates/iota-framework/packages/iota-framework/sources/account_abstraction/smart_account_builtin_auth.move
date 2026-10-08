@@ -5,15 +5,20 @@
 /// standard signature schemes (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey), checking
 /// signatures against the account's public key.
 ///
-/// The public key is managed with `iota::smart_account_public_key`, as for any other
-/// authenticator. The built-in authenticator uses the scheme of the attached key, so the key can
-/// be rotated to any supported scheme without touching the authenticator.
+/// This is the only module that attaches, rotates or detaches a `SmartAccount`'s public key, and
+/// it keeps the key and the built-in authenticator together: an account has both or neither.
 ///
-/// `builder_v1` and `rotate_to_builtin_auth_v1` only set the built-in authenticator together with
-/// a public key. `smart_account::builder_v1` and `smart_account::rotate_auth_function_ref_v1`
-/// accept any authenticator, and `smart_account_public_key::detach_public_key` does not look at
-/// the authenticator, so they can still leave an account with the built-in authenticator and no
-/// key, which then can't send any transaction.
+/// - `builder_v1` and the `ClaimAccount` pipeline create an account with both;
+/// - `rotate_to_builtin_auth_v1` attaches a key and sets the built-in authenticator in one call;
+/// - `rotate_to_custom_auth_v1` sets a custom authenticator and detaches the key in one call;
+/// - `rotate_public_key` replaces the key, with one of any supported scheme, while the built-in
+///   authenticator is set. The built-in authenticator uses the scheme of the attached key, so it
+///   stays as it is.
+///
+/// `smart_account::builder_v1` and `smart_account::rotate_auth_function_ref_v1` accept any
+/// authenticator, so they can still set the built-in authenticator on an account without a key,
+/// which then can't send any transaction, or set a custom authenticator and leave the key
+/// attached.
 ///
 /// Claiming an existing address through the `ClaimAccount` transaction kind drives the private
 /// `claim_account_v1` below.
@@ -23,13 +28,18 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions::{Self, builtin_authenticator_function_ref_v1};
 use iota::public_key::PublicKey;
 use iota::smart_account::{Self, SmartAccount, SmartAccountBuilder};
-use iota::smart_account_public_key;
 
 // === Errors ===
 
 #[error(code = 0)]
-const EPublicKeyMissing: vector<u8> =
-    b"The built-in authenticator needs a public key attached to the account.";
+const EBuiltinAuthAlreadySet: vector<u8> =
+    b"The built-in authenticator is already set; use `rotate_public_key` to replace its key.";
+#[error(code = 1)]
+const EBuiltinAuthNotSet: vector<u8> =
+    b"The built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.";
+#[error(code = 2)]
+const EAuthenticatorIsBuiltin: vector<u8> =
+    b"Rotate to the built-in authenticator with `rotate_to_builtin_auth_v1`.";
 
 // === Public Functions ===
 
@@ -38,12 +48,12 @@ const EPublicKeyMissing: vector<u8> =
 ///
 /// Finish it with `smart_account::build_v1`.
 ///
-/// Emits a `public_key_authentication::PublicKeyAttached` event on success.
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
 ///
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
     let builder = smart_account::builder_v1(builtin_authenticator_function_ref_v1(), ctx);
-    smart_account_public_key::with_public_key(builder, public_key)
+    with_public_key(builder, public_key)
 }
 
 // === View Functions ===
@@ -55,26 +65,91 @@ public fun has_builtin_auth(account: &SmartAccount): bool {
     )
 }
 
+/// Returns `true` if and only if the account has a public key attached.
+public fun has_public_key(account: &SmartAccount): bool {
+    builtin_authenticator_functions::has_public_key(account.uid())
+}
+
+/// Borrows the public key attached to the account.
+///
+/// Aborts if no public key is attached.
+public fun borrow_public_key(account: &SmartAccount): &PublicKey {
+    builtin_authenticator_functions::borrow_public_key(account.uid())
+}
+
 // === Admin Functions ===
 
-/// Rotates the account's authenticator to the built-in one, which checks signatures against the
-/// attached public key, and returns the previous authenticator.
+/// Attaches `public_key` to the account and rotates its authenticator to the built-in one, which
+/// checks signatures against that key. Returns the previous authenticator.
 ///
-/// Attach a key first with `smart_account_public_key::attach_public_key` if none is attached.
-///
-/// Emits an `account::AuthenticatorFunctionRefV1Rotated` event on success.
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// `account::AuthenticatorFunctionRefV1Rotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
-/// Aborts if no public key is attached.
+/// Aborts if the built-in authenticator is already set; use `rotate_public_key` to replace its
+/// key.
+/// Aborts if a public key is already attached. Only `smart_account::rotate_auth_function_ref_v1`
+/// can leave a key on an account without the built-in authenticator; `rotate_to_custom_auth_v1`
+/// detaches it.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun rotate_to_builtin_auth_v1(
     account: &mut SmartAccount,
+    public_key: PublicKey,
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
     account.ensure_tx_sender_is_smart_account(ctx);
-    assert!(smart_account_public_key::has_public_key(account), EPublicKeyMissing);
+    assert!(!has_builtin_auth(account), EBuiltinAuthAlreadySet);
 
+    builtin_authenticator_functions::attach_public_key(account.uid_mut(), public_key);
     account.rotate_auth_function_ref_v1(builtin_authenticator_function_ref_v1(), ctx)
+}
+
+/// Rotates the account's authenticator to the custom `authenticator`, detaching the public key if
+/// one is attached, and returns that key.
+///
+/// Emits an `account::AuthenticatorFunctionRefV1Rotated` event, and a
+/// `builtin_authenticator_functions::PublicKeyDetached` event if a key was attached, on success.
+///
+/// Aborts if the transaction sender is not the account.
+/// Aborts if `authenticator` is the built-in one; use `rotate_to_builtin_auth_v1`.
+public fun rotate_to_custom_auth_v1(
+    account: &mut SmartAccount,
+    authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
+    ctx: &TxContext,
+): Option<PublicKey> {
+    account.ensure_tx_sender_is_smart_account(ctx);
+    assert!(
+        !builtin_authenticator_functions::is_builtin_authenticator(&authenticator),
+        EAuthenticatorIsBuiltin,
+    );
+
+    let public_key = if (has_public_key(account)) {
+        option::some(builtin_authenticator_functions::detach_public_key(account.uid_mut()))
+    } else {
+        option::none()
+    };
+    account.rotate_auth_function_ref_v1(authenticator, ctx);
+    public_key
+}
+
+/// Replaces the account's public key with `public_key`, of any supported scheme, and returns the
+/// previous key. The built-in authenticator stays as it is and checks signatures against the new
+/// key.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
+///
+/// Aborts if the transaction sender is not the account.
+/// Aborts if the built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.
+/// Aborts if no public key is attached.
+public fun rotate_public_key(
+    account: &mut SmartAccount,
+    public_key: PublicKey,
+    ctx: &TxContext,
+): PublicKey {
+    account.ensure_tx_sender_is_smart_account(ctx);
+    assert!(has_builtin_auth(account), EBuiltinAuthNotSet);
+
+    builtin_authenticator_functions::rotate_public_key(account.uid_mut(), public_key)
 }
 
 // === Private Functions ===
@@ -89,7 +164,7 @@ public fun rotate_to_builtin_auth_v1(
 /// else — not from a user PTB, and not from another package, which could otherwise wrap a public
 /// entry point. See the `iota::clock::consensus_commit_prologue` function for the same idiom.
 ///
-/// Emits a `public_key_authentication::PublicKeyAttached` event and an
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
 /// `account::MutableAccountCreated` event.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
@@ -100,7 +175,13 @@ fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
         builtin_authenticator_function_ref_v1(),
         ctx,
     );
-    smart_account_public_key::with_public_key(builder, public_key).build_v1();
+    with_public_key(builder, public_key).build_v1();
+}
+
+/// Attaches `public_key` to the account being built.
+fun with_public_key(mut builder: SmartAccountBuilder, public_key: PublicKey): SmartAccountBuilder {
+    builtin_authenticator_functions::attach_public_key(builder.borrow_uid_mut(), public_key);
+    builder
 }
 
 // === Test Functions ===
