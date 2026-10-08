@@ -11,16 +11,14 @@ use iota_types::{
 
 use super::{build_superseded, build_superseded_counting};
 
-/// A version superseded by a mutation of a runtime-loaded object — a
-/// dynamic field — is captured from the tracked read objects. Such an
-/// object never appears in `input_objects`, which is why sourcing the
-/// pre-images from inputs alone silently dropped it.
+/// A version superseded by a mutation of a runtime-loaded object, such as a
+/// dynamic field, is captured from the read objects, as it is never in
+/// `input_objects`.
 #[test]
 fn test_superseded_captures_runtime_loaded_objects() {
     let child = Object::immutable_with_id_for_testing(ObjectId::random());
     let child_key = ObjectKey(child.id(), child.version());
 
-    // The tracked set holds it; the declared inputs do not.
     let input_objects = BTreeMap::new();
     let mut read_objects = ObjectSet::default();
     read_objects.insert(child.clone());
@@ -32,9 +30,7 @@ fn test_superseded_captures_runtime_loaded_objects() {
 }
 
 /// When a key is present in both sources, the pre-image comes from
-/// `input_objects` rather than `read_objects` — the declared input is
-/// checked first, and the tracked read objects are only a fallback for
-/// what the inputs don't cover.
+/// `input_objects`; `read_objects` is only a fallback.
 #[test]
 fn test_superseded_prefers_input_objects_over_read_objects() {
     let id = ObjectId::random();
