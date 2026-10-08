@@ -137,8 +137,17 @@ pub enum DropKind {
     HandlerRowTombstone,
     /// A `Live` handler-processed row at `(id, V)` with another digest.
     HandlerRowDigestMismatch,
+    /// A `Live` handler-processed row at `(id, V)` created shared, named as
+    /// an owned input.
+    HandlerRowNotOwned,
+    /// A handler-processed row above `V` produced at or below the horizon:
+    /// `V` was consumed by a commit every validator has executed.
+    HandlerRowSuperseded,
     /// A sync-ahead record whose `base_version` is above `V`.
     SyncAheadBaseAboveVersion,
+    /// A sync-ahead record with `base_version == V` whose base was shared,
+    /// named as an owned input.
+    SyncAheadNotOwned,
     /// The store's latest reference is a newer version or a tombstone.
     StoreSuperseded,
     /// The store's latest reference is `V` with another digest.

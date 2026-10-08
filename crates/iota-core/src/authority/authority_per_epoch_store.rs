@@ -2132,6 +2132,19 @@ impl AuthorityPerEpochStore {
             .highest_handler_processed_object(&tables, id)
     }
 
+    /// The handler-processed row of `id` with the lowest version above
+    /// `version`; see
+    /// [`HandlerObjectState::lowest_handler_processed_object_above`].
+    pub fn lowest_handler_processed_object_above(
+        &self,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let tables = self.tables()?;
+        self.handler_object_state
+            .lowest_handler_processed_object_above(&tables, id, version)
+    }
+
     /// The sync-ahead record for `id`.
     pub fn sync_ahead_record(&self, id: &ObjectId) -> IotaResult<Option<SyncAheadRecord>> {
         let tables = self.tables()?;

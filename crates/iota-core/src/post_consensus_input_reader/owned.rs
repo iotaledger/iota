@@ -59,11 +59,30 @@ impl<S: OwnedState> OwnedReader<S> {
 
     /// Rule 1 against the current tables, `None` when no row exists at
     /// `(id, V)`. Shared by the first pass and the re-read.
+    ///
+    /// A row that keeps is checked against the id's lowest row above `V`
+    /// before it decides. A consumer that holds no lock on `V`, through a
+    /// parent or a receiving argument, leaves the row at `V` `Live` and
+    /// writes its own above it. At or below the horizon that row is on every
+    /// validator, so `V` is superseded everywhere. Above the horizon a slower
+    /// validator still keeps, so this one must too. The read is part of this
+    /// transition rather than a state of its own: a consumer landing during
+    /// validation belongs to a commit above the horizon, whose row keeps.
     fn row_classification(&self, ctx: &CommitIndexedReader) -> IotaResult<Option<Classification>> {
-        Ok(ctx
+        let Some(row) = ctx.epoch_store.handler_processed_object(&self.key())? else {
+            return Ok(None);
+        };
+        let classification = classify_row(&row, &self.input, self.horizon);
+        if classification != Classification::Keep {
+            return Ok(Some(classification));
+        }
+        let successor = ctx
             .epoch_store
-            .handler_processed_object(&self.key())?
-            .map(|row| classify_row(&row, &self.input, self.horizon)))
+            .lowest_handler_processed_object_above(&self.input.object_id, self.input.version)?;
+        Ok(Some(classify_successor(
+            successor.as_ref().map(|(_, row)| row),
+            self.horizon,
+        )))
     }
 
     /// Rule 2 against the current tables, `None` when no record exists for
@@ -257,6 +276,10 @@ fn classify_row(
     input: &ObjectReference,
     horizon: CommitIndex,
 ) -> Classification {
+    // A row created shared names no owned version, at any horizon.
+    if row.initial_shared_version.is_some() {
+        return Classification::Drop(DropReason(DropKind::HandlerRowNotOwned));
+    }
     if row.produced_at > horizon {
         return Classification::Missing(MissingReason(MissingKind::HandlerRowAboveHorizon));
     }
@@ -271,12 +294,31 @@ fn classify_row(
     }
 }
 
-/// Rule 2 on a record for `id`: `base_version` against `V`.
+/// The id's lowest row above a version rule 1 kept. None, or one above the
+/// horizon, leaves the keep. One at or below the horizon means every
+/// validator executed the consumption of `V`.
+fn classify_successor(
+    successor: Option<&HandlerProcessedObject>,
+    horizon: CommitIndex,
+) -> Classification {
+    match successor {
+        Some(row) if row.produced_at <= horizon => {
+            Classification::Drop(DropReason(DropKind::HandlerRowSuperseded))
+        }
+        _ => Classification::Keep,
+    }
+}
+
+/// Rule 2 on a record for `id`: `base_version` against `V`. A base that was
+/// shared names no owned version.
 fn classify_record(record: &SyncAheadRecord, version: Version) -> Classification {
     let Some(base) = record.base_version else {
         return Classification::Missing(MissingReason(MissingKind::SyncAheadCreatedId));
     };
     match base.cmp(&version) {
+        Ordering::Equal if record.initial_shared_version.is_some() => {
+            Classification::Drop(DropReason(DropKind::SyncAheadNotOwned))
+        }
         Ordering::Equal => Classification::Keep,
         Ordering::Less => {
             Classification::Missing(MissingReason(MissingKind::SyncAheadCreatedVersion))
@@ -738,6 +780,75 @@ mod tests {
         assert_eq!(
             classify_row(&other_digest, &input, HORIZON),
             missing(MissingKind::HandlerRowAboveHorizon)
+        );
+    }
+
+    /// A shared creation row names no owned version, before the horizon is
+    /// looked at, as the deletion row's field does in the shared machine.
+    #[test]
+    fn created_shared_row_named_as_owned_drops_at_every_horizon() {
+        let input = named(5);
+        for produced_at in [HORIZON, HORIZON + 1] {
+            let created_shared = HandlerProcessedObject {
+                initial_shared_version: Some(input.version),
+                ..row(HandlerProcessedObjectKind::Live, input.digest, produced_at)
+            };
+            assert_eq!(
+                classify_row(&created_shared, &input, HORIZON),
+                drop(DropKind::HandlerRowNotOwned),
+                "produced_at {produced_at}"
+            );
+        }
+    }
+
+    /// The lowest row above a kept version: none or above the horizon leaves
+    /// the keep, at or below the horizon the version is superseded.
+    #[test]
+    fn successor_row_at_or_below_the_horizon_supersedes_the_kept_version() {
+        let successor = |produced_at| {
+            row(
+                HandlerProcessedObjectKind::Live,
+                ObjectDigest::random(),
+                produced_at,
+            )
+        };
+        assert_eq!(classify_successor(None, HORIZON), Classification::Keep);
+        assert_eq!(
+            classify_successor(Some(&successor(HORIZON + 1)), HORIZON),
+            Classification::Keep
+        );
+        assert_eq!(
+            classify_successor(Some(&successor(HORIZON)), HORIZON),
+            drop(DropKind::HandlerRowSuperseded)
+        );
+        // A tombstone above `V` is a consumption too.
+        assert_eq!(
+            classify_successor(
+                Some(&row(
+                    HandlerProcessedObjectKind::Deleted,
+                    ObjectDigest::OBJECT_DELETED,
+                    HORIZON
+                )),
+                HORIZON
+            ),
+            drop(DropKind::HandlerRowSuperseded)
+        );
+    }
+
+    /// A record whose base was shared names no owned version at that base.
+    #[test]
+    fn record_of_a_shared_base_named_as_owned_drops() {
+        let shared_base = SyncAheadRecord {
+            initial_shared_version: Some(Version::from_u64(5)),
+            ..record(Some(5))
+        };
+        assert_eq!(
+            classify_record(&shared_base, Version::from_u64(5)),
+            drop(DropKind::SyncAheadNotOwned)
+        );
+        assert_eq!(
+            classify_record(&record(Some(5)), Version::from_u64(5)),
+            Classification::Keep
         );
     }
 

@@ -873,6 +873,43 @@ impl HandlerObjectState {
         })
     }
 
+    /// The handler-processed row of `id` with the lowest version above
+    /// `version`, from the overlay or the durable table, with its key. For a
+    /// version the handler produced, this is its consumer's output when the
+    /// handler processed the consumption.
+    pub fn lowest_handler_processed_object_above(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let Ok(from) = version.next() else {
+            return Ok(None);
+        };
+        let range = ObjectKey(*id, from)..ObjectKey::max_for_id(id);
+        let in_overlay = self
+            .handler_processed_overlay
+            .read()
+            .range(range.clone())
+            .next()
+            .map(|(key, row)| (*key, *row));
+        let in_table = match tables
+            .handler_processed_objects
+            .safe_range_iter(range)
+            .next()
+        {
+            Some(Ok(entry)) => Some(entry),
+            Some(Err(e)) => return Err(e.into()),
+            None => None,
+        };
+        Ok(match (in_overlay, in_table) {
+            (Some(overlay), Some(table)) => {
+                Some(if overlay.0 <= table.0 { overlay } else { table })
+            }
+            (overlay, table) => overlay.or(table),
+        })
+    }
+
     /// The sync-ahead record for `id`, from the overlay or the durable table.
     pub fn sync_ahead_record(
         &self,

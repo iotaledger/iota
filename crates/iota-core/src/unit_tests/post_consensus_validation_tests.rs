@@ -6564,6 +6564,176 @@ fn assert_owned_drops(verdict: OwnedVerdict, kind: DropKind) {
     }
 }
 
+/// The reference of `id` in `effects`' mutated list.
+fn mutated_ref(effects: &TransactionEffects, id: &ObjectId) -> ObjectReference {
+    *effects
+        .mutated()
+        .iter()
+        .find(|mutated| mutated.reference().object_id() == id)
+        .expect("the object is in the mutated list")
+        .reference()
+}
+
+/// RD-8, step 1. A dynamic object field is consumed through its parent,
+/// which declares no lock on it, so Check #4 never drops a transaction that
+/// names the child's old version. The reader must see the consumer's row
+/// above that version and drop once it is at or below the horizon, without
+/// loading bytes the pruner may have removed.
+#[tokio::test]
+async fn lock_free_consumed_version_drops_once_the_consumer_is_at_or_below_the_horizon() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let parent_effects = s.handler_known_object_basics_call(
+        "create",
+        create_object_args(sender),
+        &gas_id,
+        sender,
+        &sender_key,
+        4,
+    );
+    let parent_id = *parent_effects.created()[0].reference().object_id();
+    let child_effects = s.handler_known_object_basics_call(
+        "create",
+        create_object_args(sender),
+        &gas_id,
+        sender,
+        &sender_key,
+        5,
+    );
+    let child_id = *child_effects.created()[0].reference().object_id();
+
+    // Commit 6 hangs the child off the parent. The child is a declared input
+    // here, locked and consumed; its new version is object-owned.
+    let add_effects = s.handler_known_object_basics_call(
+        "add_ofield",
+        vec![
+            CallArg::ImmutableOrOwned(s.latest_ref(&parent_id)),
+            CallArg::ImmutableOrOwned(s.latest_ref(&child_id)),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    let child_under_parent = mutated_ref(&add_effects, &child_id);
+    assert_eq!(
+        s.handler_processed_object(&child_id, child_under_parent.version)
+            .kind,
+        HandlerProcessedObjectKind::Live
+    );
+
+    // Commit 8 removes it through the parent alone. The child is loaded at
+    // runtime, consumed without a lock, and handed back to the sender.
+    let remove_effects = s.handler_known_object_basics_call(
+        "remove_ofield",
+        vec![CallArg::ImmutableOrOwned(s.latest_ref(&parent_id))],
+        &gas_id,
+        sender,
+        &sender_key,
+        8,
+    );
+    let child_after = mutated_ref(&remove_effects, &child_id);
+    assert!(child_after.version > child_under_parent.version);
+    assert_eq!(
+        s.handler_processed_object(&child_id, child_after.version)
+            .produced_at,
+        8
+    );
+
+    // Commit 9, horizon 7: the consumption is above the horizon and invisible
+    // on a slower validator, so the old version keeps everywhere.
+    assert_keeps(s.read_owned(9, child_under_parent), child_under_parent);
+
+    // Commit 12, horizon 10: every validator has executed the consumption.
+    // The old version is superseded everywhere, whether or not its bytes
+    // are still here.
+    assert_owned_drops(
+        s.read_owned(12, child_under_parent),
+        DropKind::HandlerRowSuperseded,
+    );
+}
+
+/// RD-8, step 1. No owned lock ever covers a shared object, so a shared
+/// creation row named as an owned input reaches the reader. It must drop
+/// from the row's created-shared flag at every horizon, as the deletion row
+/// does, without loading bytes.
+#[tokio::test]
+async fn shared_creation_row_named_as_an_owned_input_drops() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_ref = *share_effects.created()[0].reference();
+
+    // Commit 6, horizon 4: the row is above the horizon. Commit 12, horizon
+    // 10: at or below. The flag decides first either way.
+    assert_owned_drops(s.read_owned(6, shared_ref), DropKind::HandlerRowNotOwned);
+    assert_owned_drops(s.read_owned(12, shared_ref), DropKind::HandlerRowNotOwned);
+}
+
+/// RD-8, step 1, the record side. State sync deleted a shared object ahead
+/// of the handler; the record restores its base version with the initial
+/// shared version the owner carried. Named as an owned input at that base,
+/// it must drop from the record's field, not keep on `base_version == V`.
+#[tokio::test]
+async fn sync_ahead_record_of_a_shared_object_named_as_an_owned_input_drops() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_id = *share_effects.created()[0].reference().object_id();
+    // A later version than the creation row's, so rule 1 finds no row and
+    // the record decides.
+    s.handler_known_shared_object_basics_call(
+        "set_value",
+        vec![
+            s.shared_arg(&shared_id),
+            CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    let shared_before_delete = s.latest_ref(&shared_id);
+    s.assert_no_handler_row(&shared_id, shared_before_delete.version);
+    s.shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(&shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    assert_eq!(
+        s.epoch_store
+            .sync_ahead_record(&shared_id)
+            .unwrap()
+            .unwrap()
+            .base_version,
+        Some(shared_before_delete.version)
+    );
+
+    assert_owned_drops(
+        s.read_owned(12, shared_before_delete),
+        DropKind::SyncAheadNotOwned,
+    );
+}
+
 /// A row produced at the horizon decides. One commit later it is above the
 /// horizon and answers missing.
 #[tokio::test]
