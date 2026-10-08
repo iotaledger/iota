@@ -914,6 +914,29 @@ type TransactionExecutionResult = (
     ObjectSet,
 );
 
+/// Reads latest versions from the live object set, and exact versions from it
+/// or, after a miss there, from the historic buckets.
+struct ObjectStoreWithHistoricFallback<'a>(&'a AuthorityState);
+
+impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.0.get_object_store().try_get_object(object_id)
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.0
+            .get_object_with_historic_fallback(&ObjectKey(*object_id, version))
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+}
+
 pub struct AuthorityState {
     // Fixed size, static, identity of the authority
     /// The name of this authority.
@@ -3677,6 +3700,13 @@ impl AuthorityState {
         }
     }
 
+    /// The object store for reads that resolve index rows: the row's version
+    /// leaves the live table when its checkpoint's outputs commit, which is
+    /// before the index update that replaces the row.
+    fn object_store_with_historic_fallback(&self) -> ObjectStoreWithHistoricFallback<'_> {
+        ObjectStoreWithHistoricFallback(self)
+    }
+
     fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
         let layout = object
             .data
@@ -3709,7 +3739,7 @@ impl AuthorityState {
             cursor,
             limit,
             filter,
-            self.get_object_store().as_ref(),
+            &self.object_store_with_historic_fallback(),
         )
     }
 
@@ -3731,7 +3761,7 @@ impl AuthorityState {
             cursor,
             coin_type,
             limit,
-            self.get_object_store().as_ref(),
+            &self.object_store_with_historic_fallback(),
         )
     }
 
@@ -3751,7 +3781,7 @@ impl AuthorityState {
         let mut move_objects = vec![];
 
         let objects = self
-            .get_object_store()
+            .object_store_with_historic_fallback()
             .try_multi_get_objects_by_key(&object_ids)?;
 
         for (o, id) in objects.into_iter().zip(object_ids) {
