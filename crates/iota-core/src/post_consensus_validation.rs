@@ -19,8 +19,12 @@
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. Already executed — **retained** as a committee-agreed winner (registers the locks its own
-//!    effects report, skips re-validation); not dropped. See issue #11649.
+//! 3. With deterministic validation, a commit replayed after a restart repeats the decisions saved
+//!    on its first run: a saved drop is dropped again without checks, and a saved keep that has
+//!    executed is retained as below. Otherwise, an already-executed transaction is **retained** as
+//!    a committee-agreed winner (registers the locks its own effects report, skips re-validation);
+//!    not dropped. See issue #11649. With deterministic validation, a transaction with no saved
+//!    decision goes through the checks below even if it has executed.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt.
@@ -46,6 +50,7 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_macros::fail_point;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
@@ -54,7 +59,9 @@ use iota_types::{
     error::{IotaError, IotaResult},
     transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
 };
+use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
+use typed_store::Map;
 
 use crate::{
     authority::{
@@ -70,6 +77,17 @@ use crate::{
     post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
 };
 
+/// The post-consensus validation decision for one transaction at one
+/// consensus commit, saved so a replay of the commit after a restart reaches
+/// the same decision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PostConsensusVerdict {
+    /// The transaction stayed in the commit.
+    Kept,
+    /// The transaction was dropped with this error.
+    Dropped(IotaError),
+}
+
 /// Validates `UserTransactionV1` transactions and resolves owned-object
 /// conflicts in a single pass.
 ///
@@ -81,6 +99,14 @@ use crate::{
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it registers the locks its
 ///   effects report (the raw input set without the flag) and skips re-validation. See issue #11649.
+///   With deterministic validation, this holds only for a transaction whose keep at this commit was
+///   saved; one with no saved decision is validated like any other.
+///
+/// With deterministic validation, the decision for every candidate is saved before returning,
+/// including keeps that the caller then defers. When the commit is replayed after a restart, a
+/// saved drop is repeated without checks, and a saved keep is validated again unless it has
+/// executed. Panics if the saved decisions are incomplete, the candidates differ from the saved
+/// ones, or a saved keep is now dropped.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -155,6 +181,19 @@ pub async fn validate_and_resolve_conflicts(
         .protocol_config()
         .pcool_skip_immutable_object_locks();
 
+    // With deterministic validation, the decisions saved when this commit was
+    // first validated, present only when it is replayed after a restart. A
+    // saved candidate list means every candidate has a saved decision.
+    let saved_candidates = if deterministic_validation {
+        epoch_store
+            .tables()?
+            .post_consensus_verdict_candidates
+            .get(&commit_index)?
+    } else {
+        None
+    };
+    let mut saved_verdicts = HashMap::new();
+
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
     let reader = deterministic_validation.then(|| {
@@ -186,15 +225,42 @@ pub async fn validate_and_resolve_conflicts(
         let digest = *transaction.digest();
         all_user_tx_digests.push(digest);
 
+        let saved = match &saved_candidates {
+            Some(_) => match epoch_store.post_consensus_verdict(commit_index, digest)? {
+                Some(verdict) => Some(verdict),
+                None => fatal!(
+                    "commit {commit_index} has a saved candidate list but no saved \
+                     validation decision for {digest:?}"
+                ),
+            },
+            None => None,
+        };
+        if let Some(verdict) = &saved {
+            saved_verdicts.insert(digest, verdict.clone());
+        }
+        // A saved drop is replayed as is: the inputs it was decided on may
+        // have changed since.
+        if let Some(PostConsensusVerdict::Dropped(error)) = &saved {
+            dropped.push((digest, error.clone()));
+            keep[i] = false;
+            continue;
+        }
+
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
         // keep it in the sequence to flow into checkpoint roots like on every other
         // validator (dropping it forks — issue #11649). Register its owned-object
         // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
         // the active scheduler's enqueue filter suppresses the re-execution.
-        if authority_state
-            .get_transaction_cache_reader()
-            .try_is_tx_already_executed(&digest)?
+        //
+        // With deterministic validation, effects alone do not show at which
+        // commit the transaction was kept, so only a saved keep at this commit
+        // skips validation; its consumed inputs may be pruned by now. Without
+        // one, the commit-indexed reader decides, as on every other validator.
+        if (!deterministic_validation || saved == Some(PostConsensusVerdict::Kept))
+            && authority_state
+                .get_transaction_cache_reader()
+                .try_is_tx_already_executed(&digest)?
         {
             // Byte-based, so safe even though the inputs are already consumed.
             let owned_inputs = extract_owned_input_objects(tx)?;
@@ -437,6 +503,45 @@ pub async fn validate_and_resolve_conflicts(
             owned_inputs = ?locked_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
+    }
+
+    if deterministic_validation {
+        let errors: HashMap<_, _> = dropped.iter().cloned().collect();
+        let verdicts: Vec<_> = all_user_tx_digests
+            .iter()
+            .map(|digest| {
+                let verdict = match errors.get(digest) {
+                    Some(error) => PostConsensusVerdict::Dropped(error.clone()),
+                    None => PostConsensusVerdict::Kept,
+                };
+                (*digest, verdict)
+            })
+            .collect();
+        match &saved_candidates {
+            Some(candidates) => {
+                if *candidates != all_user_tx_digests {
+                    fatal!(
+                        "validation candidates of commit {commit_index} differ from the saved \
+                         ones: saved {candidates:?}, now {all_user_tx_digests:?}"
+                    );
+                }
+                for (digest, verdict) in &verdicts {
+                    let saved = saved_verdicts.get(digest);
+                    if saved != Some(verdict) {
+                        fatal!(
+                            "validation decision for {digest:?} at commit {commit_index} \
+                             differs from the saved one: saved {saved:?}, now {verdict:?}"
+                        );
+                    }
+                }
+            }
+            None => {
+                epoch_store.persist_post_consensus_verdicts(commit_index, &verdicts)?;
+                if !verdicts.is_empty() {
+                    fail_point!("crash-after-post-consensus-verdicts");
+                }
+            }
+        }
     }
 
     if !dropped.is_empty() {
