@@ -740,8 +740,7 @@ where
     ) -> Poll<Option<Self::Item>> {
         let this = unsafe { self.get_unchecked_mut() };
         // A `while`, not an `if`: a page can be empty while more pages
-        // exist (e.g. every entry of it was filtered out server-side), and
-        // ending the stream on it would silently truncate the results.
+        // exist (e.g. every entry of it was filtered out server-side).
         while this.next.is_empty() && this.has_next_page {
             match this.fut.as_mut().poll(cx) {
                 Poll::Ready(res) => match res {
@@ -750,10 +749,8 @@ where
                         // would be requested again forever.
                         let stuck = page.data.is_empty() && page.next_cursor == this.cursor;
                         this.next.extend(page.data);
-                        // A page announcing a successor without handing out
-                        // a cursor would re-issue the request that produced
-                        // it, restarting the stream from the first page; end
-                        // it instead.
+                        // Without a cursor the next request would restart
+                        // the stream from the first page.
                         this.has_next_page =
                             page.has_next_page && page.next_cursor.is_some() && !stuck;
                         if this.has_next_page {

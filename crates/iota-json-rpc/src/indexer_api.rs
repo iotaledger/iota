@@ -433,12 +433,10 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         async move {
             let limit = cap_page_limit(limit);
             self.metrics.get_dynamic_fields_limit.observe(limit as f64);
-            // Pagination follows the index rows: an unresolvable field
-            // (`None` info) still advances the cursor, it is only omitted
-            // from the returned page. A page whose rows all fail to resolve
-            // is retried with the advanced cursor — bounded, so one call's
-            // work stays bounded — because clients may treat an empty page
-            // as the end even when more pages exist.
+            // An unresolvable field (`None` info) advances the cursor but is
+            // omitted from the page. A page with none resolved is retried a
+            // bounded number of times, since clients may treat an empty page
+            // as the end.
             const MAX_EMPTY_PAGE_RETRIES: usize = 3;
             let mut next_cursor = cursor;
             let mut has_next_page;
