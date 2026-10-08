@@ -840,6 +840,39 @@ impl HandlerObjectState {
         Ok(row)
     }
 
+    /// The handler-processed row of `id` with the highest version, from the
+    /// overlay or the durable table, with its key. A smear of a deleted
+    /// shared object's marker writes no row, so for a shared object this is
+    /// the real deletion whenever the handler processed one.
+    pub fn highest_handler_processed_object(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let range = ObjectKey::min_for_id(id)..ObjectKey::max_for_id(id);
+        let in_overlay = self
+            .handler_processed_overlay
+            .read()
+            .range(range.clone())
+            .next_back()
+            .map(|(key, row)| (*key, *row));
+        let in_table = match tables
+            .handler_processed_objects
+            .safe_range_iter_reversed(range)
+            .next()
+        {
+            Some(Ok(entry)) => Some(entry),
+            Some(Err(e)) => return Err(e.into()),
+            None => None,
+        };
+        Ok(match (in_overlay, in_table) {
+            (Some(overlay), Some(table)) => {
+                Some(if overlay.0 >= table.0 { overlay } else { table })
+            }
+            (overlay, table) => overlay.or(table),
+        })
+    }
+
     /// The sync-ahead record for `id`, from the overlay or the durable table.
     pub fn sync_ahead_record(
         &self,

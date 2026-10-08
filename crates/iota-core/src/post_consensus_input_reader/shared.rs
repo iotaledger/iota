@@ -10,9 +10,19 @@
 //! let the row decide, for the reasons the owned machine's module doc gives:
 //! the completion inserts the row before it removes the record, and the hook
 //! writes the row before the object a sync-ahead deletion consumes.
+//!
+//! A deletion is decided from the id's highest handler row, never from the
+//! latest marker's version. Execution smears a deleted shared object's marker
+//! onto every later transaction that names it mutably, at that transaction's
+//! version, and no row exists there. The marker proves the deletion happened
+//! this epoch and names the deleting transaction.
 
 use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
-use iota_types::{error::IotaResult, object::Object, storage::ObjectKey};
+use iota_types::{
+    error::{IotaError, IotaResult},
+    object::Object,
+    storage::{MarkerValue, ObjectKey},
+};
 
 use super::{DropKind, DropReason, MissingKind, MissingReason, reader::CommitIndexedReader};
 use crate::authority::authority_per_epoch_store::handler_object_state::{
@@ -353,13 +363,14 @@ pub enum DeletionInfoLookup {
     /// No deletion this epoch: the id never existed or was deleted before
     /// this epoch.
     Drop(DropReason),
-    /// Deleted this epoch. Next: the row at the deleted version.
+    /// Deleted this epoch. Next: the id's highest handler row.
     Found(SharedReader<DeletionInfoFound>),
 }
 
 impl SharedReader<ObjectAbsent> {
-    /// This epoch's deletion marker for `id`. A deletion in an earlier epoch
-    /// leaves no marker and reads as not found.
+    /// This epoch's latest deletion marker for `id`. A deletion in an earlier
+    /// epoch leaves no marker and reads as not found. The marker's version
+    /// may be a smear's, so it proves the deletion and does not place it.
     pub fn read_deletion_info(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionInfoLookup> {
         let epoch = ctx.epoch_store.epoch();
         Ok(
@@ -376,15 +387,16 @@ impl SharedReader<ObjectAbsent> {
     }
 }
 
-/// The store recorded a deletion of `id` this epoch, at `version` by
-/// `digest`. Its commit is not known yet.
+/// The store recorded a deletion of `id` this epoch. The latest marker's
+/// `version` and `digest` are held; they name the deletion only when the
+/// handler knows no row for it.
 pub struct DeletionInfoFound {
     version: Version,
     digest: TransactionDigest,
 }
 impl SharedState for DeletionInfoFound {}
 
-/// Outcome of the row lookup at `(id, deleted version)`.
+/// Outcome of the highest-row lookup for `id`.
 #[must_use]
 pub enum DeletionRowLookup {
     /// Deleted above the horizon, or by execution the handler has not
@@ -396,19 +408,49 @@ pub enum DeletionRowLookup {
 }
 
 impl SharedReader<DeletionInfoFound> {
-    /// The handler-processed row at the deleted version, which carries the
-    /// deleting commit and the deleted object's initial shared version.
+    /// The id's highest handler-processed row. A smear writes no row, so a
+    /// `Deleted` row there is the real deletion, with its commit and the
+    /// deleted object's initial shared version. The verdict then names the
+    /// row's version and the marker at that version, since the latest marker
+    /// may be a smear. With no `Deleted` row the latest marker is the only
+    /// account of the deletion and names it.
     pub fn read_deletion_row(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionRowLookup> {
-        let DeletionInfoFound { version, digest } = self.state;
-        let row = ctx
-            .epoch_store
-            .handler_processed_object(&ObjectKey(self.id, version))?;
-        Ok(
-            match classify_deletion_row(row.as_ref(), self.initial_shared_version, self.horizon) {
-                DeletionClass::Deleted => DeletionRowLookup::Deleted(version, digest),
-                DeletionClass::Drop(reason) => DeletionRowLookup::Drop(reason),
-            },
-        )
+        let DeletionInfoFound {
+            version: marker_version,
+            digest: marker_digest,
+        } = self.state;
+        let highest = ctx.epoch_store.highest_handler_processed_object(&self.id)?;
+        let class = classify_deletion_row(
+            highest.as_ref().map(|(_, row)| row),
+            self.initial_shared_version,
+            self.horizon,
+        );
+        Ok(match class {
+            DeletionClass::DeletedByHandler => {
+                let ObjectKey(_, version) = highest.expect("classified from a row").0;
+                // Written by the deleting transaction after its tombstone,
+                // and any later marker for the id was written later still, so
+                // a marker at any version implies this one.
+                let digest = match ctx.cache.try_get_marker_value(
+                    &self.id,
+                    version,
+                    ctx.epoch_store.epoch(),
+                )? {
+                    Some(MarkerValue::SharedDeleted(digest)) => digest,
+                    other => {
+                        return Err(IotaError::Storage(format!(
+                            "deletion row of {:?} at {version} has no shared-deletion marker: {other:?}",
+                            self.id
+                        )));
+                    }
+                };
+                DeletionRowLookup::Deleted(version, digest)
+            }
+            DeletionClass::DeletedAhead => {
+                DeletionRowLookup::Deleted(marker_version, marker_digest)
+            }
+            DeletionClass::Drop(reason) => DeletionRowLookup::Drop(reason),
+        })
     }
 }
 
@@ -489,36 +531,44 @@ fn classify_object(object: &Object, declared: Version) -> ObjectClass {
     }
 }
 
-/// What the row at the deleted version decided.
+/// What the id's highest handler row decided about a deletion the marker
+/// table recorded.
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
 enum DeletionClass {
-    /// Deleted above the horizon, or by execution the handler has not
-    /// reached. The deletion is not visible at this commit.
-    Deleted,
+    /// The handler processed the deletion above the horizon. Not visible at
+    /// this commit. The row names the deletion.
+    DeletedByHandler,
+    /// The handler knows no deletion, so it came from execution the handler
+    /// has not reached. Only the marker names it.
+    DeletedAhead,
     /// Deleted at or below the horizon, or not shared at the declared
     /// initial version.
     Drop(DropReason),
 }
 
-/// The row at `(id, deleted version)`. The row's initial shared version is
-/// checked first: a wrong declared version drops at every horizon. Then a row
-/// at or below the horizon means the handler passed the deletion. No row
-/// means sync ran ahead, and row before object rules out any other reading.
+/// The id's highest handler row. A `Deleted` row is the deletion the handler
+/// processed: its initial shared version is checked first, so a wrong
+/// declared version drops at every horizon, then a row at or below the
+/// horizon means the handler passed the deletion. A `Live` row, or none,
+/// means the handler knows no deletion. A smear writes no row, so it is never
+/// the highest.
 fn classify_deletion_row(
-    row: Option<&HandlerProcessedObject>,
+    highest: Option<&HandlerProcessedObject>,
     declared: Version,
     horizon: CommitIndex,
 ) -> DeletionClass {
-    let Some(row) = row else {
-        return DeletionClass::Deleted;
-    };
-    match classify_recorded_initial_version(row.initial_shared_version, declared) {
-        RecordedOwnerClass::Drop(reason) => DeletionClass::Drop(reason),
-        RecordedOwnerClass::Matches if row.produced_at <= horizon => {
-            DeletionClass::Drop(DropReason(DropKind::SharedDeletedAtOrBelowHorizon))
+    match highest {
+        Some(row) if row.kind == HandlerProcessedObjectKind::Deleted => {
+            match classify_recorded_initial_version(row.initial_shared_version, declared) {
+                RecordedOwnerClass::Drop(reason) => DeletionClass::Drop(reason),
+                RecordedOwnerClass::Matches if row.produced_at <= horizon => {
+                    DeletionClass::Drop(DropReason(DropKind::SharedDeletedAtOrBelowHorizon))
+                }
+                RecordedOwnerClass::Matches => DeletionClass::DeletedByHandler,
+            }
         }
-        RecordedOwnerClass::Matches => DeletionClass::Deleted,
+        _ => DeletionClass::DeletedAhead,
     }
 }
 
@@ -970,11 +1020,30 @@ mod tests {
                 declared(),
                 HORIZON
             ),
-            DeletionClass::Deleted
+            DeletionClass::DeletedByHandler
         );
+    }
+
+    /// Without a `Deleted` row the handler knows no deletion, whatever the
+    /// highest row is: a `Live` creation row the handler processed, or no
+    /// row for an object from before the epoch.
+    #[test]
+    fn deletion_without_a_deleted_row_is_ahead_of_the_handler() {
         assert_eq!(
             classify_deletion_row(None, declared(), HORIZON),
-            DeletionClass::Deleted
+            DeletionClass::DeletedAhead
+        );
+        assert_eq!(
+            classify_deletion_row(
+                Some(&creation_row(
+                    HandlerProcessedObjectKind::Live,
+                    Some(DECLARED),
+                    HORIZON
+                )),
+                declared(),
+                HORIZON
+            ),
+            DeletionClass::DeletedAhead
         );
     }
 

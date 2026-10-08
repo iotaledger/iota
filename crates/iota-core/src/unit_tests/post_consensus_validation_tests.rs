@@ -2514,6 +2514,18 @@ impl BookkeepingSetup {
     /// Executes `tx` with its shared input versions assigned directly rather
     /// than through consensus.
     fn execute_with_assigned_shared_versions(&self, tx: VerifiedTransaction) -> TransactionEffects {
+        let effects = self.execute_with_assigned_shared_versions_unchecked(tx);
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        effects
+    }
+
+    /// [`Self::execute_with_assigned_shared_versions`] without the success
+    /// check, for a transaction expected to fail, such as one naming a
+    /// deleted shared object.
+    fn execute_with_assigned_shared_versions_unchecked(
+        &self,
+        tx: VerifiedTransaction,
+    ) -> TransactionEffects {
         let executable = self.executable(tx);
         let assigned_versions = self
             .epoch_store
@@ -2525,12 +2537,10 @@ impl BookkeepingSetup {
             .into_map()
             .remove(&executable.key())
             .expect("version assignment must cover the transaction it was given");
-        let effects = self.execute_executable(
+        self.execute_executable(
             &executable,
             ExecutionEnv::new().with_assigned_versions(assigned_versions),
-        );
-        assert!(effects.status().is_success(), "{:?}", effects.status());
-        effects
+        )
     }
 
     /// The commit-indexed reader as of `commit_index`.
@@ -5379,6 +5389,84 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
         s.read_shared(18, shared_id, initial),
         DropKind::SharedDeletedAtOrBelowHorizon,
     );
+}
+
+/// RD-7. Execution smears a deleted shared object's marker onto every later
+/// transaction that names it mutably, at that transaction's version, where
+/// no handler row exists. The deletion must be decided from the rows, not
+/// from the latest marker, or validators split by whether they executed the
+/// smearing transaction.
+#[tokio::test]
+async fn smeared_deletion_marker_does_not_hide_a_deletion_at_or_below_the_horizon() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference().object_id();
+    let initial = initial_shared_version(shared.owner());
+    // Captured while the object is live: the argument of every later
+    // transaction that names it.
+    let shared_arg = s.shared_arg(shared_id);
+
+    // Commit 10 deletes the object.
+    let delete_effects = s.handler_known_shared_object_basics_call(
+        "delete",
+        vec![shared_arg.clone()],
+        &gas_id,
+        sender,
+        &sender_key,
+        10,
+    );
+
+    // Commit 12, horizon 10: the deletion is visible everywhere. This is the
+    // answer of a validator that has not executed commit 11 yet.
+    assert_drops_with(
+        s.read_shared(12, shared_id, initial),
+        DropKind::SharedDeletedAtOrBelowHorizon,
+    );
+
+    // Commit 11, horizon 9: the deletion is above the horizon, so a
+    // transaction naming the object keeps as deleted, executes against the
+    // deletion, fails, and smears the marker onto its own version.
+    assert_deleted_by(s.read_shared(11, shared_id, initial), &delete_effects);
+    let smear_tx = s.build_move_call(
+        "object_basics",
+        "set_value",
+        vec![shared_arg, CallArg::Pure(bcs::to_bytes(&1u64).unwrap())],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    s.epoch_store
+        .assign_commit_to_transactions(11, vec![TransactionKey::Digest(*smear_tx.digest())]);
+    let smear_effects = s.execute_with_assigned_shared_versions_unchecked(smear_tx);
+    assert!(!smear_effects.status().is_success());
+    let (marker_version, marker_digest) = s
+        .authority
+        .get_object_cache_reader()
+        .try_get_last_shared_object_deletion_info(shared_id, s.epoch_store.epoch())
+        .unwrap()
+        .expect("the deletion marker is there");
+    assert_eq!(marker_version, smear_effects.lamport_version());
+    assert_eq!(marker_digest, *smear_effects.transaction_digest());
+    s.assert_no_handler_row(shared_id, marker_version);
+
+    // Same commit 12, on the validator that executed commit 11: the latest
+    // marker is the smear. The answer must not change.
+    assert_drops_with(
+        s.read_shared(12, shared_id, initial),
+        DropKind::SharedDeletedAtOrBelowHorizon,
+    );
+    // And a keep above the horizon still names the deleting transaction, not
+    // the smearing one.
+    assert_deleted_by(s.read_shared(11, shared_id, initial), &delete_effects);
 }
 
 // ---------------------------------------------------------------------------

@@ -2121,6 +2121,17 @@ impl AuthorityPerEpochStore {
             .handler_processed_object(&tables, key)
     }
 
+    /// The handler-processed row of `id` with the highest version; see
+    /// [`HandlerObjectState::highest_handler_processed_object`].
+    pub fn highest_handler_processed_object(
+        &self,
+        id: &ObjectId,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let tables = self.tables()?;
+        self.handler_object_state
+            .highest_handler_processed_object(&tables, id)
+    }
+
     /// The sync-ahead record for `id`.
     pub fn sync_ahead_record(&self, id: &ObjectId) -> IotaResult<Option<SyncAheadRecord>> {
         let tables = self.tables()?;
