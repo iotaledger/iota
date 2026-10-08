@@ -250,6 +250,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             rather than the limit that applies to user packages.
 //             Abort `iota::account::create_immutable_account_v1`, so no new
 //             immutable account object can be created.
+//             Validate PTB indices at signing time.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -732,6 +733,10 @@ struct FeatureFlags {
     // If true, deprecate global storage ops during Move module deserialization
     #[serde(skip_serializing_if = "is_false")]
     deprecate_global_storage_ops_during_deserialization: bool,
+
+    // Validate PTB input and result indices before signing.
+    #[serde(skip_serializing_if = "is_false")]
+    validate_ptb_argument_indices: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2239,6 +2244,10 @@ impl ProtocolConfig {
         self.feature_flags
             .deprecate_global_storage_ops_during_deserialization
     }
+
+    pub fn validate_ptb_argument_indices(&self) -> bool {
+        self.feature_flags.validate_ptb_argument_indices
+    }
 }
 
 #[cfg(not(msim))]
@@ -3642,6 +3651,8 @@ impl ProtocolConfig {
                     // An immutable account object cannot authenticate anything
                     // since version 36, so stop creating new ones.
                     cfg.feature_flags.reject_immutable_account_creation = true;
+
+                    cfg.feature_flags.validate_ptb_argument_indices = true;
                 }
                 // Use this template when making changes:
                 //
