@@ -4,16 +4,18 @@
 use std::{path::Path, sync::Arc};
 
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, TransactionDigest, TransactionEffectsDigest,
-    TransactionEvents,
+    Address, CheckpointContents, CheckpointContentsDigest, TransactionDigest,
+    TransactionEffectsDigest, TransactionEvents,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::random_object_ref,
+    base_types::{ExecutionDigests, random_object_ref},
     committee::EpochId,
     crypto::{AccountPrivateKey, deterministic_random_account_private_key},
     effects::TestEffectsBuilder,
-    messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint},
+    messages_checkpoint::{
+        CheckpointContentsExt, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+    },
     transaction::VerifiedTransaction,
 };
 use prometheus_filtered::Registry;
@@ -66,9 +68,9 @@ struct SeededTransaction {
 struct Seeded {
     transactions: Vec<SeededTransaction>,
     checkpoints: Vec<VerifiedCheckpoint>,
-    /// A contents row left without a summary, as after a crash between the
-    /// two writes.
-    contents_without_summary: CheckpointContentsDigest,
+    /// Contents rows left without a summary, as after a crash between the two
+    /// writes, each with the epoch whose bucket it belongs in.
+    contents_without_summary: Vec<(CheckpointContentsDigest, EpochId)>,
 }
 
 fn open(store_dir: &Path, checkpoint_dir: &Path) -> (Arc<AuthorityStore>, Arc<CheckpointStore>) {
@@ -193,13 +195,34 @@ fn seed(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> Seeded {
         seed_checkpoint(checkpoint_store, RUNNING_EPOCH, 30),
     ];
 
-    let stray = FullCheckpointContents::random_for_testing();
-    let contents_without_summary = stray.checkpoint_contents().digest();
-    checkpoint_store
-        .tables
-        .checkpoint_content
-        .insert(&contents_without_summary, &stray.checkpoint_contents())
-        .unwrap();
+    // One row per epoch the seed executed transactions in, and the row every
+    // empty checkpoint shares, which names no transaction.
+    let mut strays = vec![(
+        CheckpointContents::new_with_digests_only_for_tests([]),
+        RUNNING_EPOCH,
+    )];
+    for transaction in &transactions[..2] {
+        let digests = ExecutionDigests::new(
+            transaction.digest,
+            transaction
+                .effects_digest
+                .expect("the first two seeded transactions are executed"),
+        );
+        strays.push((
+            CheckpointContents::new_with_digests_only_for_tests([digests]),
+            transaction.epoch,
+        ));
+    }
+    let mut contents_without_summary = Vec::new();
+    for (contents, epoch) in strays {
+        let digest = contents.digest();
+        checkpoint_store
+            .tables
+            .checkpoint_content
+            .insert(&digest, &contents)
+            .unwrap();
+        contents_without_summary.push((digest, epoch));
+    }
 
     let watermarked = checkpoints
         .iter()
@@ -351,18 +374,12 @@ fn assert_migrated(
                     .is_none(),
                 "a summary below the floor must be gone"
             );
-            // A retained checkpoint may share the contents row, so it is
-            // filed in the running epoch's bucket instead of deleted.
             assert!(
-                checkpoint_store
-                    .historic_checkpoints
-                    .ensure(RUNNING_EPOCH)
+                historic_checkpoints
+                    .find_contents(&checkpoint.contents_digest)
                     .unwrap()
-                    .checkpoint_content
-                    .get(&checkpoint.contents_digest)
-                    .unwrap()
-                    .is_some(),
-                "the contents of a summary below the floor are kept one window, not dropped"
+                    .is_none(),
+                "the contents of a summary below the floor must be gone"
             );
             continue;
         }
@@ -387,16 +404,28 @@ fn assert_migrated(
         );
     }
 
-    // A contents row no summary names is kept under the running epoch.
-    assert!(
-        historic_checkpoints
-            .ensure(RUNNING_EPOCH)
-            .unwrap()
-            .checkpoint_content
-            .get(&seeded.contents_without_summary)
-            .unwrap()
-            .is_some()
-    );
+    for (digest, epoch) in &seeded.contents_without_summary {
+        if *epoch < floor {
+            assert!(
+                historic_checkpoints
+                    .find_contents(digest)
+                    .unwrap()
+                    .is_none(),
+                "contents naming transactions below the floor must be gone"
+            );
+            continue;
+        }
+        assert!(
+            historic_checkpoints
+                .ensure(*epoch)
+                .unwrap()
+                .checkpoint_content
+                .get(digest)
+                .unwrap()
+                .is_some(),
+            "contents no summary names belong in epoch {epoch}'s bucket"
+        );
+    }
 
     // The checkpoint executor panics on start if the executed watermark does
     // not resolve.
