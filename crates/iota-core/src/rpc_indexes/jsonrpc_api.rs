@@ -58,6 +58,7 @@ use super::{
         OwnerTypeFilter, TotalBalance, owner_bounds,
     },
 };
+use crate::epoch_buckets::absent_if_dropped;
 
 const ENV_VAR_DISABLE_INDEX_CACHE: &str = "DISABLE_INDEX_CACHE";
 const ENV_VAR_INVALIDATE_INSTEAD_OF_UPDATE: &str = "INVALIDATE_INSTEAD_OF_UPDATE";
@@ -531,7 +532,8 @@ impl RpcIndexesStore {
     }
 
     /// Chains one range scan per retained history bucket, in
-    /// global sequence order, collecting up to `limit` mapped rows.
+    /// global sequence order, collecting up to `limit` mapped rows. A bucket
+    /// dropped while the scan runs contributes no rows.
     fn scan_history_buckets<K, V, R>(
         &self,
         select: impl Fn(&HistoryBucket) -> &TaggedDBMap<K, V>,
@@ -557,7 +559,11 @@ impl RpcIndexesStore {
                 Either::Right(index.safe_range_iter(range.clone()))
             };
             for result in iter.take(remaining) {
-                results.push(row(result?));
+                // A scan of a dropped bucket yields one error and nothing else.
+                let Some(entry) = absent_if_dropped(result.map(Some))? else {
+                    break;
+                };
+                results.push(row(entry));
             }
         }
         Ok(results)
@@ -757,7 +763,7 @@ impl RpcIndexesStore {
     /// holds it.
     pub fn event_timestamp(&self, event: EventId) -> IotaResult<Option<u64>> {
         for bucket in self.history.iter(true) {
-            if let Some((_, _, time)) = bucket.event_order.get(&event)? {
+            if let Some((_, _, time)) = absent_if_dropped(bucket.event_order.get(&event))? {
                 return Ok(Some(time));
             }
         }

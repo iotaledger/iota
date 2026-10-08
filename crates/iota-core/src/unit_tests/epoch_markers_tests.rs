@@ -146,3 +146,27 @@ async fn the_migration_is_idempotent() {
         Some(MarkerValue::OwnedDeleted)
     );
 }
+
+/// A read that races the expiry of its epoch's bucket answers as if the
+/// bucket were already gone.
+#[tokio::test]
+async fn a_read_of_a_dropped_bucket_finds_no_marker() {
+    let (perpetual, markers, _dir) = test_markers();
+    let id = ObjectId::random();
+    write_marker(&markers, 4, id, 1);
+
+    perpetual
+        .objects
+        .db
+        .drop_cf(&crate::epoch_buckets::bucket_cf_name(
+            super::MARKERS_CF_PREFIX,
+            4,
+        ))
+        .unwrap();
+
+    assert_eq!(
+        markers.get_marker_value(&id, &1u64.into(), 4).unwrap(),
+        None
+    );
+    assert_eq!(markers.get_latest_marker(&id, 4).unwrap(), None);
+}
