@@ -2340,7 +2340,7 @@ fn make_move_authenticator(
     extra_args: Vec<CallArg>,
 ) -> anyhow::Result<UserSignature> {
     Ok(UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             extra_args,
             vec![],
             SharedObjectReference::new(account_ref.object_id, account_ref.version, false),

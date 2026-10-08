@@ -808,13 +808,10 @@ pub async fn select_gas_coin(
     sender: Address,
 ) -> ObjectId {
     let gas_coin = grpc_client
-        .owned_objects(
-            sender,
-            Some(StructTag::new_gas_coin()),
-            Some(1),
-            None,
-            OwnedObjectReadMask::default(),
-        )
+        .owned_objects(sender)
+        .object_type(StructTag::new_gas_coin())
+        .page_size(1)
+        .read_mask(OwnedObjectReadMask::default())
         .collect(Some(1))
         .await
         .expect("failed to fetch gas coin")
@@ -873,7 +870,8 @@ pub async fn split_coin_equal_tx(
     gas_budget: u64,
 ) -> Transaction {
     let coin_object = grpc_client
-        .objects([coin_to_split], ObjectReadMask::default())
+        .objects([coin_to_split])
+        .read_mask(ObjectReadMask::default())
         .await
         .expect("failed to fetch coin")
         .into_inner()

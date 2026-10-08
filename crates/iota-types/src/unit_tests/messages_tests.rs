@@ -1038,7 +1038,7 @@ fn validity_check_rejects_authenticated_object_version_in_or_below_canceled_rang
         vec![],
         ObjectReference::new(sender.into(), version, ObjectDigest::new([0; 32])),
     );
-    let shared = MoveAuthenticatorV1::new_with_shared_account_object(
+    let shared = MoveAuthenticatorV1::new(
         vec![],
         vec![],
         SharedObjectReference::new(sender.into(), version, false),
@@ -1115,13 +1115,8 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
     let random = SharedObjectReference::new(ObjectId::RANDOMNESS_STATE, Version::from(1), false);
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
 
-    let as_call_arg = MoveAuthenticatorV1::new_with_shared_account_object(
-        vec![CallArg::Shared(random)],
-        vec![],
-        account,
-    );
-    let as_account_object =
-        MoveAuthenticatorV1::new_with_shared_account_object(vec![], vec![], random);
+    let as_call_arg = MoveAuthenticatorV1::new(vec![CallArg::Shared(random)], vec![], account);
+    let as_account_object = MoveAuthenticatorV1::new(vec![], vec![], random);
 
     for authenticator in [as_call_arg, as_account_object] {
         let tx = with_move_authenticator(make_transaction_data(sender), authenticator);
@@ -1155,7 +1150,7 @@ fn validity_check_accepts_randomness_state_in_programmable_transaction() {
     assert!(config.disallow_randomness_in_move_authenticator());
 
     let sender = Address::random();
-    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+    let authenticator = MoveAuthenticatorV1::new(
         vec![],
         vec![],
         SharedObjectReference::new(sender.into(), Version::from(1), false),
@@ -1177,7 +1172,7 @@ fn validity_check_rejects_randomness_state_in_both_transaction_and_move_authenti
     assert!(config.disallow_randomness_in_move_authenticator());
 
     let sender = Address::random();
-    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+    let authenticator = MoveAuthenticatorV1::new(
         vec![CallArg::Shared(SharedObjectReference::new(
             ObjectId::RANDOMNESS_STATE,
             Version::from(1),

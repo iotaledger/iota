@@ -75,7 +75,7 @@ pub async fn resolve_remote_url(
         async move {
             let grpc_result = async {
                 let client = GrpcClient::new(url.clone())?;
-                client.health(None).await
+                client.health().await
             }
             .await
             .inspect_err(|e| debug!("gRPC health check failed: {e}"));

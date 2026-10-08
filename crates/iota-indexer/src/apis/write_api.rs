@@ -157,7 +157,9 @@ impl WriteApi {
 
         let response = self
             .fullnode_grpc_client
-            .simulate_transaction(tx, skip_checks, read_mask)
+            .simulate_transaction(tx)
+            .skip_checks(skip_checks)
+            .read_mask(read_mask)
             .await?
             .into_inner();
         let executed_transaction = response.executed_transaction()?;

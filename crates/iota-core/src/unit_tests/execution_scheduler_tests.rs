@@ -174,7 +174,7 @@ fn make_shared_authenticator_transaction(
     let tx_data = TestTransactionBuilder::new(sender, gas_object.object_ref(), 100)
         .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", vec![])
         .build();
-    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+    let authenticator = MoveAuthenticatorV1::new(
         vec![],
         vec![],
         SharedObjectReference::new(shared_object.id(), 0.into(), false),

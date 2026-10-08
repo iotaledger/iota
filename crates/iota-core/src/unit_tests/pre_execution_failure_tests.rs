@@ -94,7 +94,7 @@ impl UnresolvedAccountSetup {
         );
         // The authenticator names the account the way its owner requires.
         let authenticator = if account_is_shared {
-            MoveAuthenticatorV1::new_with_shared_account_object(
+            MoveAuthenticatorV1::new(
                 vec![],
                 vec![],
                 SharedObjectReference::new(account_id, OBJECT_START_VERSION, false),

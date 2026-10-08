@@ -225,7 +225,8 @@ impl PTB {
         let grpc_client = context.get_grpc_client().await?;
         let env = context.active_env()?;
         grpc_client
-            .service_info(ServiceInfoReadMask::default())
+            .service_info()
+            .read_mask(ServiceInfoReadMask::default())
             .await
             .map_err(|e| {
                 anyhow!(

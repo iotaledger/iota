@@ -1646,7 +1646,9 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 // Two coins are enough to tell a lone coin from several
                 let iota_coins = client
-                    .coins(signer, StructTag::new_gas(), Some(2), None)
+                    .coins(signer)
+                    .coin_type(StructTag::new_gas())
+                    .page_size(2)
                     .await?
                     .into_inner();
 
@@ -3924,7 +3926,7 @@ async fn create_move_authenticator_signature(
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
     Ok(UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             call_args,
             type_args,
             SharedObjectReference::new(address.into(), initial_shared_version, false),

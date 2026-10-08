@@ -20,11 +20,13 @@ pub async fn epoch_info(
     client: &GrpcClient,
     epoch_id: Option<EpochId>,
 ) -> anyhow::Result<(EpochId, CheckpointSequenceNumber)> {
-    let epoch = client
-        .epoch(epoch_id, [EpochField::EPOCH, EpochField::FIRST_CHECKPOINT])
-        .await
-        .map_err(anyhow::Error::new)?
-        .into_inner();
+    let mut query = client
+        .epoch()
+        .read_mask([EpochField::EPOCH, EpochField::FIRST_CHECKPOINT]);
+    if let Some(epoch_id) = epoch_id {
+        query = query.epoch_number(epoch_id);
+    }
+    let epoch = query.await.map_err(anyhow::Error::new)?.into_inner();
 
     epoch
         .epoch_id()
@@ -43,7 +45,8 @@ pub async fn checkpoint_sequence_number_range_to_watermark(
     watermark: CheckpointSequenceNumber,
 ) -> anyhow::Result<Range<CheckpointSequenceNumber>> {
     let chk = client
-        .checkpoint_by_sequence_number(watermark, None, None, CheckpointResponseReadMask::default())
+        .checkpoint_by_sequence_number(watermark)
+        .read_mask(CheckpointResponseReadMask::default())
         .await?
         .into_inner();
 

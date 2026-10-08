@@ -1277,7 +1277,7 @@ mod tests {
         let epoch_store = authority.epoch_store_for_testing();
 
         let authenticate_shared_object = || {
-            MoveAuthenticatorV1::new_with_shared_account_object(
+            MoveAuthenticatorV1::new(
                 vec![],
                 vec![],
                 SharedObjectReference::new(authenticated_id, authenticated_init_version, false),

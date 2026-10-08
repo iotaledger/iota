@@ -71,8 +71,10 @@ impl GrpcStore {
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let client = &self.cache.fetcher().client;
         let (epoch_response, service_info_response) = tokio::join!(
-            client.epoch(None, EpochReadMask::default()),
-            client.service_info(ServiceInfoReadMask::default())
+            client.epoch().read_mask(EpochReadMask::default()),
+            client
+                .service_info()
+                .read_mask(ServiceInfoReadMask::default())
         );
         let epoch = epoch_response
             .map_err(|e| StoreError::new("fetch epoch", e))?
@@ -149,7 +151,8 @@ impl ObjectFetcher for GrpcFetcher {
     ) -> Result<Vec<Object>, StoreError> {
         let results = self
             .client
-            .objects_with_versions(refs.iter().copied(), ObjectReadMask::default())
+            .objects_with_versions(refs.iter().copied())
+            .read_mask(ObjectReadMask::default())
             .await
             .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
             .into_inner();
@@ -196,11 +199,9 @@ mod tests {
     use super::skip_not_found;
 
     fn server_error(code: tonic::Code) -> GrpcError {
-        GrpcError::Server(RpcStatus {
-            code: code.into(),
-            message: String::new(),
-            details: Vec::new(),
-        })
+        let mut status = RpcStatus::default();
+        status.code = code.into();
+        GrpcError::Server(status)
     }
 
     #[test]
