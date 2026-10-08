@@ -301,8 +301,7 @@ mod checked {
 
         // Check whether gas arguments are legit:
         // 1. Gas object has an address owner.
-        // 2. Gas budget is between min and max budget allowed, when `bounded_budget` is
-        //    set.
+        // 2. Gas budget is between min and max budget allowed, when `bounded_budget` is set.
         // 3. Gas balance (all gas coins together) is bigger or equal to budget
         //
         // Keep the three checks together: it is only sound because step 1 has already
