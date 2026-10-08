@@ -842,10 +842,11 @@ pub struct AuthorityEpochTables {
 
     /// Latest object state as of the handler frontier, for P-COOL
     /// deterministic post-consensus validation (see [`handler_object_state`]
-    /// for the three-view design). Flushed through each commit's quarantined
-    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
-    /// access profile as the lock table: one write per touched object per
-    /// commit, one point lookup per validated input.
+    /// for how it relates to the sync-ahead records and sheltered objects).
+    /// Flushed through each commit's quarantined `ConsensusCommitOutput`,
+    /// atomically with `last_consensus_stats`. Same access profile as the
+    /// lock table: one write per touched object per commit, one point lookup
+    /// per validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     handler_latest_objects: DBMap<ObjectId, HandlerLatestObject>,
 
