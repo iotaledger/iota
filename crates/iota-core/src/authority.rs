@@ -3787,8 +3787,10 @@ impl AuthorityState {
     /// already checkpointed.
     ///
     /// If the timeout runs out before the indexes include a checkpointed
-    /// transaction, the transaction is returned all the same, and the wait is
-    /// counted in `checkpoint_inclusion_index_wait_timeouts`.
+    /// transaction, the transaction is returned all the same, as it is final,
+    /// and the wait is counted in `checkpoint_inclusion_index_wait_timeouts`.
+    /// A caller that promises a read right after to see the transaction checks
+    /// [`Self::is_checkpoint_indexed`] for it.
     ///
     /// The wait survives epoch boundaries: a transaction in flight at a
     /// boundary may only be checkpointed in the next epoch, and still resolves
@@ -3821,6 +3823,15 @@ impl AuthorityState {
         }
 
         Ok(results)
+    }
+
+    /// Whether the RPC indexes include checkpoint `seq`, so that a read sent
+    /// now sees its transactions.
+    pub fn is_checkpoint_indexed(&self, seq: CheckpointSequenceNumber) -> IotaResult<bool> {
+        Ok(self
+            .checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()?
+            .is_some_and(|indexed| seq <= indexed))
     }
 
     /// Wait until each of `digests` is in a checkpoint, or until `deadline`
