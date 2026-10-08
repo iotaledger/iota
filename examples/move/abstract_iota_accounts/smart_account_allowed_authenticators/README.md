@@ -11,27 +11,26 @@ The list can only shrink (`disallow_authenticator`) and the rule can't be remove
 
 The package also holds two authenticators for `SmartAccount` to fill the list, adapted from the other examples in this directory:
 
-- `ed25519_authenticator`, from `public_key_authentication`: checks an Ed25519 signature of the transaction digest against the public key attached with `0x2::smart_account_public_key`, the same key the built-in authenticator reads;
+- `ed25519_authenticator`, from `public_key_authentication`: checks an Ed25519 signature of the transaction digest against an Ed25519 public key the account keeps in its own field (`set_public_key`);
 - `time_locked_authenticator`, from `time_locked`: the same check, once the epoch timestamp reaches an unlock time stored on the account.
 
-Those examples' helpers take the account's `UID`, which only the framework can reach for a `SmartAccount`, so these two read the account through the `SmartAccount` functions instead.
+Those examples' helpers take the account's `UID`, which only the framework can reach for a `SmartAccount`, so these two read the account through the `SmartAccount` field functions instead. They can't use the built-in authenticator's key: `0x2::smart_account_builtin_auth` detaches it whenever the account rotates to a custom authenticator.
 
 ## Rotating the authenticator
 
-With the list attached, `0x2::smart_account::rotate_auth_function_ref_v1` aborts and a rotation needs a receipt from every rule attached to the account. For an account built with `smart_account_builtin_auth`, that is `BuiltinAuthRule` and `AllowedAuthenticatorsRule`:
+With the list attached, `0x2::smart_account::rotate_auth_function_ref_v1` aborts and a rotation needs a receipt from every rule attached to the account. For an account built with `smart_account_builtin_auth`, that is `BuiltinAuthRule` and `AllowedAuthenticatorsRule`. `smart_account_builtin_auth` attaches or detaches the public key together with the rotation and adds its own receipt, so the request goes through it:
 
 ```move
 let mut request = smart_account_rotation_rules::request_auth_function_ref_rotation_v1(
     &account,
-    new_authenticator,
+    new_custom_authenticator,
     ctx,
 );
-smart_account_builtin_auth::approve_auth_rotation(&account, &mut request);
 allowed_authenticators::approve_auth_rotation(&account, &mut request);
-smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1(&mut account, request, ctx);
+smart_account_builtin_auth::rotate_to_custom_auth_with_request_v1(&mut account, request, ctx);
 ```
 
-`allowed_authenticators::rotate_auth_function_ref_v1` does this in one call when the only other rule, if any, is `BuiltinAuthRule`.
+`allowed_authenticators::rotate_to_custom_auth_v1` and `allowed_authenticators::rotate_to_builtin_auth_v1` do this in one call when the only other rule, if any, is `BuiltinAuthRule`.
 
 ## How to run the tests
 

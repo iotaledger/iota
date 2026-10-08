@@ -58,17 +58,9 @@ fun attach_to_an_existing_builtin_auth_account() {
     let mut account = scenario.take_shared<SmartAccount>();
     allowed_authenticators::attach_allowed_authenticators(&mut account, allowed(), scenario.ctx());
 
-    allowed_authenticators::rotate_auth_function_ref_v1(
-        &mut account,
-        ed25519_ref(),
-        scenario.ctx(),
-    );
+    allowed_authenticators::rotate_to_custom_auth_v1(&mut account, ed25519_ref(), scenario.ctx());
     assert_ref_eq(account.borrow_auth_function_ref_v1(), &ed25519_ref());
-    allowed_authenticators::rotate_auth_function_ref_v1(
-        &mut account,
-        builtin_authenticator_function_ref_v1(),
-        scenario.ctx(),
-    );
+    allowed_authenticators::rotate_to_builtin_auth_v1(&mut account, public_key(), scenario.ctx());
     assert_eq(smart_account_builtin_auth::has_builtin_auth(&account), true);
 
     test_scenario::return_shared(account);
@@ -93,11 +85,12 @@ fun attach_to_an_existing_custom_auth_account() {
         false,
     );
 
-    allowed_authenticators::rotate_auth_function_ref_v1(
+    let detached = allowed_authenticators::rotate_to_custom_auth_v1(
         &mut account,
         time_locked_ref(),
         scenario.ctx(),
     );
+    assert_eq(detached, option::none());
     assert_ref_eq(account.borrow_auth_function_ref_v1(), &time_locked_ref());
 
     test_scenario::return_shared(account);
@@ -133,26 +126,26 @@ fun attach_aborts_for_another_sender() {
 #[test]
 fun rotates_to_allowed_authenticators_and_back() {
     account_test!(|account, scenario| {
-        allowed_authenticators::rotate_auth_function_ref_v1(
+        let detached = allowed_authenticators::rotate_to_custom_auth_v1(
             account,
             ed25519_ref(),
             scenario.ctx(),
         );
+        assert_eq(detached, option::some(public_key()));
+        assert_eq(smart_account_builtin_auth::has_public_key(account), false);
         assert_ref_eq(account.borrow_auth_function_ref_v1(), &ed25519_ref());
 
-        allowed_authenticators::rotate_auth_function_ref_v1(
+        let detached = allowed_authenticators::rotate_to_custom_auth_v1(
             account,
             time_locked_ref(),
             scenario.ctx(),
         );
+        assert_eq(detached, option::none());
         assert_ref_eq(account.borrow_auth_function_ref_v1(), &time_locked_ref());
 
-        allowed_authenticators::rotate_auth_function_ref_v1(
-            account,
-            builtin_authenticator_function_ref_v1(),
-            scenario.ctx(),
-        );
+        allowed_authenticators::rotate_to_builtin_auth_v1(account, public_key(), scenario.ctx());
         assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
+        assert_ref_eq(smart_account_builtin_auth::borrow_public_key(account), &public_key());
     });
 }
 
@@ -160,28 +153,43 @@ fun rotates_to_allowed_authenticators_and_back() {
 #[expected_failure(abort_code = allowed_authenticators::EAuthenticatorNotAllowed)]
 fun rotation_to_an_unlisted_authenticator_aborts() {
     account_test!(|account, scenario| {
-        allowed_authenticators::rotate_auth_function_ref_v1(
-            account,
-            unlisted_ref(),
-            scenario.ctx(),
-        );
+        allowed_authenticators::rotate_to_custom_auth_v1(account, unlisted_ref(), scenario.ctx());
     });
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account_builtin_auth::EPublicKeyMissing)]
-fun builtin_rule_still_refuses_the_builtin_authenticator_without_a_key() {
+#[expected_failure(abort_code = allowed_authenticators::EAuthenticatorNotAllowed)]
+fun rotation_to_an_unlisted_builtin_authenticator_aborts() {
+    let mut scenario = test_scenario::begin(@0x0);
+
+    let builder = smart_account_builtin_auth::builder_v1(public_key(), scenario.ctx());
+    let account_address = allowed_authenticators::with_allowed_authenticators(
+        builder,
+        vector[ed25519_ref()],
+    ).build_v1();
+
+    scenario.next_tx(account_address);
+    let mut account = scenario.take_shared<SmartAccount>();
+    allowed_authenticators::rotate_to_custom_auth_v1(&mut account, ed25519_ref(), scenario.ctx());
+    allowed_authenticators::rotate_to_builtin_auth_v1(&mut account, public_key(), scenario.ctx());
+
+    abort
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EPublicKeyAttached)]
+fun builtin_rule_refuses_a_custom_authenticator_while_the_key_is_attached() {
     account_test!(|account, scenario| {
-        allowed_authenticators::rotate_auth_function_ref_v1(
+        let mut request = smart_account_rotation_rules::request_auth_function_ref_rotation_v1(
             account,
             ed25519_ref(),
             scenario.ctx(),
         );
-        smart_account_builtin_auth::detach_public_key(account, scenario.ctx());
-
-        allowed_authenticators::rotate_auth_function_ref_v1(
+        allowed_authenticators::approve_auth_rotation(account, &mut request);
+        smart_account_builtin_auth::approve_auth_rotation(account, &mut request);
+        smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1(
             account,
-            builtin_authenticator_function_ref_v1(),
+            request,
             scenario.ctx(),
         );
     });
@@ -191,7 +199,7 @@ fun builtin_rule_still_refuses_the_builtin_authenticator_without_a_key() {
 #[expected_failure(abort_code = iota::smart_account_rotation_rules::EAuthRotationRulesNotSatisfied)]
 fun rotation_without_the_list_receipt_aborts() {
     account_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_auth_function_ref_v1(
+        smart_account_builtin_auth::rotate_to_custom_auth_v1(
             account,
             ed25519_ref(),
             scenario.ctx(),
@@ -238,11 +246,7 @@ fun rotation_to_a_disallowed_authenticator_aborts() {
         allowed_authenticators::disallow_authenticator(account, &ed25519_ref(), scenario.ctx());
         assert_eq(allowed_authenticators::is_allowed(account, &ed25519_ref()), false);
 
-        allowed_authenticators::rotate_auth_function_ref_v1(
-            account,
-            ed25519_ref(),
-            scenario.ctx(),
-        );
+        allowed_authenticators::rotate_to_custom_auth_v1(account, ed25519_ref(), scenario.ctx());
     });
 }
 
@@ -264,7 +268,10 @@ fun disallow_authenticator_aborts_for_another_sender() {
 
 #[test]
 fun ed25519_authenticator_accepts_the_key_signature() {
-    account_view_test!(|account| {
+    account_test!(|account, scenario| {
+        ed25519_authenticator::set_public_key(account, PUBLIC_KEY, scenario.ctx());
+        assert_eq(ed25519_authenticator::public_key(account), option::some(PUBLIC_KEY));
+
         let ctx = tx_context::new(account.account_address(), DIGEST, 0, 0, 0);
         ed25519_authenticator::authenticate(account, SIGNATURE, &auth_context(), &ctx);
     });
@@ -273,7 +280,9 @@ fun ed25519_authenticator_accepts_the_key_signature() {
 #[test]
 #[expected_failure(abort_code = ed25519_authenticator::EEd25519VerificationFailed)]
 fun ed25519_authenticator_rejects_another_digest() {
-    account_view_test!(|account| {
+    account_test!(|account, scenario| {
+        ed25519_authenticator::set_public_key(account, PUBLIC_KEY, scenario.ctx());
+
         let mut digest = DIGEST;
         *digest.borrow_mut(0) = 0;
         let ctx = tx_context::new(account.account_address(), digest, 0, 0, 0);
@@ -282,8 +291,18 @@ fun ed25519_authenticator_rejects_another_digest() {
 }
 
 #[test]
+#[expected_failure(abort_code = ed25519_authenticator::EPublicKeyMissing)]
+fun ed25519_authenticator_rejects_without_its_key() {
+    account_view_test!(|account| {
+        let ctx = tx_context::new(account.account_address(), DIGEST, 0, 0, 0);
+        ed25519_authenticator::authenticate(account, SIGNATURE, &auth_context(), &ctx);
+    });
+}
+
+#[test]
 fun time_locked_authenticator_accepts_after_the_unlock_time() {
     account_test!(|account, scenario| {
+        ed25519_authenticator::set_public_key(account, PUBLIC_KEY, scenario.ctx());
         time_locked_authenticator::set_unlock_time(account, 1000, scenario.ctx());
         time_locked_authenticator::set_unlock_time(account, 2000, scenario.ctx());
         assert_eq(time_locked_authenticator::unlock_time(account), option::some(2000));
@@ -297,6 +316,7 @@ fun time_locked_authenticator_accepts_after_the_unlock_time() {
 #[expected_failure(abort_code = time_locked_authenticator::EAccountStillLocked)]
 fun time_locked_authenticator_rejects_before_the_unlock_time() {
     account_test!(|account, scenario| {
+        ed25519_authenticator::set_public_key(account, PUBLIC_KEY, scenario.ctx());
         time_locked_authenticator::set_unlock_time(account, 2000, scenario.ctx());
 
         let ctx = tx_context::new(account.account_address(), DIGEST, 0, 1999, 0);

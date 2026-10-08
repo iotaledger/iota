@@ -5,7 +5,8 @@
 /// `time_locked_iotaccount::unlock_time_epoch_ed25519_authenticator` in the `time_locked` example.
 ///
 /// The unlock time is stored on the account with `smart_account::add_field`, under a field key
-/// type only this module can build.
+/// type only this module can build. The signature is checked against the key set with
+/// `ed25519_authenticator::set_public_key`.
 module smart_account_allowed_authenticators::time_locked_authenticator;
 
 use iota::smart_account::SmartAccount;

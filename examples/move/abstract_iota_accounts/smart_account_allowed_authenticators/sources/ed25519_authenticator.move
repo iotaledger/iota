@@ -4,26 +4,25 @@
 /// An Ed25519 authenticator for `SmartAccount`, adapted from
 /// `public_key_iotaccount::ed25519_authenticator` in the `public_key_authentication` example.
 ///
-/// That example's helpers take the account's `UID`, which only the framework can reach for a
-/// `SmartAccount`. This module reads the public key attached with `smart_account_public_key`
-/// instead: the same key the built-in authenticator reads, so an account can rotate between the
-/// two without touching the key.
-///
-/// `BuiltinAuthRule` refuses detaching the key only while the built-in authenticator is set:
-/// detaching it while this authenticator is set leaves the account unable to authenticate.
+/// The account keeps the Ed25519 public key for this authenticator in its own field, set with
+/// `set_public_key`. It can't use the built-in authenticator's key: `smart_account_builtin_auth`
+/// detaches that key whenever the account rotates to a custom authenticator.
 module smart_account_allowed_authenticators::ed25519_authenticator;
 
 use iota::ed25519;
-use iota::signature_scheme;
 use iota::smart_account::SmartAccount;
-use iota::smart_account_public_key;
 
 // === Errors ===
 
 #[error(code = 0)]
-const ENotAnEd25519Key: vector<u8> = b"The account's public key is not an Ed25519 key.";
+const EPublicKeyMissing: vector<u8> = b"No Ed25519 public key set for this authenticator.";
 #[error(code = 1)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 signature verification failed.";
+
+// === Structs ===
+
+/// Field key of the account's Ed25519 public key for this authenticator.
+public struct Ed25519PublicKeyFieldName has copy, drop, store {}
 
 // === Authenticators ===
 
@@ -41,12 +40,36 @@ public fun authenticate(
 // === Public Functions ===
 
 /// Aborts unless `signature` is a valid Ed25519 signature of the transaction digest by the
-/// account's public key.
+/// account's Ed25519 public key.
 public fun verify_signature(account: &SmartAccount, signature: &vector<u8>, ctx: &TxContext) {
-    let public_key = smart_account_public_key::borrow_public_key(account);
-    assert!(public_key.scheme() == signature_scheme::ed25519(), ENotAnEd25519Key);
+    assert!(account.has_field(Ed25519PublicKeyFieldName {}), EPublicKeyMissing);
+    let public_key: &vector<u8> = account.borrow_field(Ed25519PublicKeyFieldName {});
     assert!(
-        ed25519::ed25519_verify(signature, public_key.raw_bytes(), ctx.digest()),
+        ed25519::ed25519_verify(signature, public_key, ctx.digest()),
         EEd25519VerificationFailed,
     );
+}
+
+// === Admin Functions ===
+
+/// Sets the account's Ed25519 public key for this authenticator, replacing any previous one.
+///
+/// Aborts if the transaction sender is not the account.
+public fun set_public_key(account: &mut SmartAccount, public_key: vector<u8>, ctx: &TxContext) {
+    if (account.has_field(Ed25519PublicKeyFieldName {})) {
+        account.rotate_field<_, vector<u8>>(Ed25519PublicKeyFieldName {}, public_key, ctx);
+    } else {
+        account.add_field(Ed25519PublicKeyFieldName {}, public_key, ctx);
+    }
+}
+
+// === View Functions ===
+
+/// Returns the account's Ed25519 public key for this authenticator, if one is set.
+public fun public_key(account: &SmartAccount): Option<vector<u8>> {
+    if (account.has_field(Ed25519PublicKeyFieldName {})) {
+        option::some(*account.borrow_field(Ed25519PublicKeyFieldName {}))
+    } else {
+        option::none()
+    }
 }

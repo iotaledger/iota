@@ -5,23 +5,23 @@
 ///
 /// It attaches a rotation rule, `AllowedAuthenticatorsRule`, whose config is the list of allowed
 /// authenticators: with `with_allowed_authenticators` while building an account, or with
-/// `attach_allowed_authenticators` on an account that already exists. It works next to other
-/// rules, such as `smart_account_builtin_auth::BuiltinAuthRule`; every rotation then needs a
-/// receipt from each of them:
+/// `attach_allowed_authenticators` on an account that already exists. It works next to
+/// `smart_account_builtin_auth::BuiltinAuthRule`, which keeps the built-in authenticator and its
+/// public key together: a rotation carries this rule's receipt and goes through
+/// `smart_account_builtin_auth`, which attaches or detaches the key and adds its own receipt.
 ///
 /// ```move
 /// let mut request = smart_account_rotation_rules::request_auth_function_ref_rotation_v1(
 ///     &account,
-///     new_authenticator,
+///     new_custom_authenticator,
 ///     ctx,
 /// );
-/// smart_account_builtin_auth::approve_auth_rotation(&account, &mut request);
 /// allowed_authenticators::approve_auth_rotation(&account, &mut request);
-/// smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1(&mut account, request, ctx);
+/// smart_account_builtin_auth::rotate_to_custom_auth_with_request_v1(&mut account, request, ctx);
 /// ```
 ///
-/// `rotate_auth_function_ref_v1` does this in one call when the only other rule, if any, is
-/// `BuiltinAuthRule`.
+/// `rotate_to_custom_auth_v1` and `rotate_to_builtin_auth_v1` do this in one call when the only
+/// other rule, if any, is `BuiltinAuthRule`.
 ///
 /// The list can only shrink (`disallow_authenticator`) and the rule can't be removed, so whoever
 /// controls the account's current authenticator can't widen it. Include the built-in authenticator
@@ -29,8 +29,10 @@
 module smart_account_allowed_authenticators::allowed_authenticators;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
+use iota::builtin_authenticator_functions::builtin_authenticator_function_ref_v1;
+use iota::public_key::PublicKey;
 use iota::smart_account::{SmartAccount, SmartAccountBuilder};
-use iota::smart_account_builtin_auth::{Self, BuiltinAuthRule};
+use iota::smart_account_builtin_auth;
 use iota::smart_account_rotation_rules::{Self, AuthRotationRequest};
 use iota::vec_set::{Self, VecSet};
 
@@ -123,33 +125,54 @@ public fun attach_allowed_authenticators(
     );
 }
 
-/// Rotates the account's authenticator to `authenticator`, approving the rotation for
-/// `AllowedAuthenticatorsRule` and, if attached, `BuiltinAuthRule`, and returns the previous
-/// authenticator.
+/// Rotates the account's authenticator to the custom `authenticator`, approving the rotation for
+/// `AllowedAuthenticatorsRule`, and returns the built-in authenticator's public key if
+/// `smart_account_builtin_auth` detached it.
 ///
-/// For an account with no other rotation rules. With others attached, use
-/// `smart_account_rotation_rules::request_auth_function_ref_rotation_v1`, each rule's approval,
-/// then `smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1`.
+/// For an account whose only other rotation rule, if any, is `BuiltinAuthRule`.
 ///
 /// Aborts if the transaction sender is not the account.
-/// Aborts if `authenticator` is not in the list.
-/// Aborts if `BuiltinAuthRule` refuses the rotation.
+/// Aborts if `authenticator` is not in the list, or is the built-in authenticator.
 /// Aborts if another rotation rule is attached.
-public fun rotate_auth_function_ref_v1(
+public fun rotate_to_custom_auth_v1(
     account: &mut SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
-): AuthenticatorFunctionRefV1<SmartAccount> {
+): Option<PublicKey> {
     let mut request = smart_account_rotation_rules::request_auth_function_ref_rotation_v1(
         account,
         authenticator,
         ctx,
     );
-    if (smart_account_rotation_rules::has_auth_rotation_rule<BuiltinAuthRule>(account)) {
-        smart_account_builtin_auth::approve_auth_rotation(account, &mut request);
-    };
     approve_auth_rotation(account, &mut request);
-    smart_account_rotation_rules::confirm_auth_function_ref_rotation_v1(account, request, ctx)
+    smart_account_builtin_auth::rotate_to_custom_auth_with_request_v1(account, request, ctx)
+}
+
+/// Attaches `public_key` and rotates the account's authenticator to the built-in one, approving
+/// the rotation for `AllowedAuthenticatorsRule`, and returns the previous authenticator.
+///
+/// For an account whose only other rotation rule, if any, is `BuiltinAuthRule`.
+///
+/// Aborts if the transaction sender is not the account.
+/// Aborts if the built-in authenticator is not in the list, or is already set.
+/// Aborts if another rotation rule is attached.
+public fun rotate_to_builtin_auth_v1(
+    account: &mut SmartAccount,
+    public_key: PublicKey,
+    ctx: &TxContext,
+): AuthenticatorFunctionRefV1<SmartAccount> {
+    let mut request = smart_account_rotation_rules::request_auth_function_ref_rotation_v1(
+        account,
+        builtin_authenticator_function_ref_v1(),
+        ctx,
+    );
+    approve_auth_rotation(account, &mut request);
+    smart_account_builtin_auth::rotate_to_builtin_auth_with_request_v1(
+        account,
+        request,
+        public_key,
+        ctx,
+    )
 }
 
 /// Removes `authenticator` from the list. The account's current authenticator keeps working
