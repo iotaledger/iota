@@ -504,10 +504,9 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 #secondary_db_map_struct_name::open_tables_read_only(primary_path, with_secondary_path, metric_conf, global_db_options_override, None)
             }
 
-            /// Like `get_read_only_handle`, with the options of each column family. For a
-            /// database whose column families cannot be read with default options, such as
-            /// ones that keep their files outside the database directory: RocksDB does not
-            /// record that, so a read-only open has to be told it as well.
+            /// Like `get_read_only_handle`, with per-column-family options. Needed for column
+            /// families that cannot be opened with default options, such as ones that keep
+            /// their files outside the database directory.
             pub fn get_read_only_handle_with_table_options(
                 primary_path: std::path::PathBuf,
                 with_secondary_path: Option<std::path::PathBuf>,

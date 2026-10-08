@@ -822,8 +822,6 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     )
     .await?;
 
-    // Every address-owned object comes back owner-indexed, through the read
-    // the JSON-RPC API serves.
     let reopened =
         RpcIndexesStore::new_without_init(tmp_dir.join(RPC_INDEXES_DIR), None, index_groups);
     let restored_owned_ids: HashSet<ObjectId> = reopened
