@@ -150,7 +150,7 @@ pub enum DropKind {
     SharedNotCreatedShared,
     /// Shared at another initial version than declared.
     SharedInitialVersionMismatch,
-    /// A shared object deleted at or below `C - K`.
+    /// A shared object deleted at or below the horizon.
     SharedDeletedAtOrBelowHorizon,
     /// No live shared object and no deletion this epoch.
     SharedNotFound,
@@ -159,7 +159,7 @@ pub enum DropKind {
 /// Which source decided a missing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MissingKind {
-    /// A handler-processed row at `(id, V)` produced above `C - K`.
+    /// A handler-processed row at `(id, V)` produced above the horizon.
     HandlerRowAboveHorizon,
     /// A sync-ahead record with `base_version` `None`: the id was created
     /// ahead of the handler.
@@ -170,14 +170,14 @@ pub enum MissingKind {
     /// The store's latest reference is below `V`: the version is not produced
     /// on this validator yet.
     StoreBelowVersion,
-    /// A shared creation row produced above `C - K`.
+    /// A shared creation row produced above the horizon.
     SharedCreationAboveHorizon,
     /// A sync-ahead record with `base_version` `None`: the shared object was
     /// created ahead of the handler.
     SharedSyncCreated,
     /// The package is not in the store.
     PackageNotFound,
-    /// The package's row was produced above `C - K`.
+    /// The package's row was produced above the horizon.
     PackageAboveHorizon,
     /// The package has a sync-ahead record: published by execution the
     /// handler has not reached.

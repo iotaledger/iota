@@ -34,7 +34,8 @@ pub struct SharedReader<S: SharedState> {
     /// The initial shared version the transaction declares. The creation row
     /// sits at this version.
     initial_shared_version: Version,
-    /// `C - K`. A row produced above it answers missing.
+    /// The commit being validated minus the protocol config's horizon
+    /// distance. A row produced above it answers missing.
     horizon: CommitIndex,
     state: S,
 }
@@ -84,7 +85,7 @@ impl SharedState for Start {}
 
 impl SharedReader<Start> {
     /// Begins the read of shared input `id` declared at
-    /// `initial_shared_version`, at horizon `C - K`. The only constructor of a
+    /// `initial_shared_version`, at `horizon`. The only constructor of a
     /// reader in any state.
     pub fn start(
         id: ObjectId,
@@ -120,10 +121,10 @@ impl SharedState for RecordRead {}
 /// the record does.
 #[must_use]
 pub enum SharedTablesLookup {
-    /// A `Live` row with the created-shared flag, at or below `C - K`. Next:
-    /// the store object, for deletion.
+    /// A `Live` row with the created-shared flag, at or below the horizon.
+    /// Next: the store object, for deletion.
     Created(SharedReader<CreatedShared>),
-    /// A row above `C - K`, never skipped. Or no row and a record with
+    /// A row above the horizon, never skipped. Or no row and a record with
     /// `base_version` `None`: the id was created ahead of the handler.
     Missing(MissingReason),
     /// A row without the flag, or a tombstone at that key: not created

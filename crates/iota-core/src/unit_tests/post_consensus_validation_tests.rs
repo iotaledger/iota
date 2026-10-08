@@ -5634,7 +5634,7 @@ fn assert_owned_drops(verdict: OwnedVerdict, kind: DropKind) {
     }
 }
 
-/// A row at `produced_at = C - K` decides. One commit later it is above the
+/// A row produced at the horizon decides. One commit later it is above the
 /// horizon and answers missing.
 #[tokio::test]
 async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {

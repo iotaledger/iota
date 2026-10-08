@@ -121,8 +121,9 @@ pub enum HandlerProcessedObjectKind {
 pub struct HandlerProcessedObject {
     pub digest: ObjectDigest,
     pub kind: HandlerProcessedObjectKind,
-    /// Index of the commit whose execution produced this row; reads at commit
-    /// C treat rows above the horizon (C − K) as missing
+    /// Index of the commit whose execution produced this row; reads at a
+    /// commit treat rows above its horizon (the commit minus the protocol
+    /// config's horizon distance) as missing.
     pub produced_at: CommitIndex,
     /// The initial shared version on a shared object's creation row and on
     /// its `Deleted` row. `None` on every other row. The shared-input checks
