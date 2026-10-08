@@ -444,11 +444,9 @@ impl IndexStoreTables {
         &self,
         highest_executed: Option<CheckpointSequenceNumber>,
     ) -> Result<(), TypedStoreError> {
-        // The watermarks are WAL-durable while the bulk writes are not, so
-        // flushing first keeps them from landing over unflushed data, where
-        // a crash would leave a store the next open adopts as complete.
-        // Flushing any table flushes every column family of the shared
-        // database, so one call covers all tables.
+        // Flush before writing the WAL-durable watermarks, or a crash could
+        // leave them over unflushed data. Flushing one table flushes every
+        // column family.
         self.meta.flush_all()?;
         self.history_watermark
             .insert(&(), &highest_executed.map_or(0, |c| c.saturating_add(1)))?;
@@ -858,7 +856,6 @@ impl IndexStore {
                 // Keyed on the error, not on the flag: a real failure that
                 // races the shutdown must stay a failure.
                 Err(e) if is_cancelled(&e) => {
-                    // Release the database so the next open can rebuild it.
                     let weak_db = Arc::downgrade(&init_tables.meta.db);
                     drop(init_tables);
                     if !wait_for_database_close(weak_db).await {
@@ -1325,10 +1322,8 @@ impl IndexStore {
         );
 
         let static_tables = IndexStoreTables::describe_tables();
-        // A listing failure on an existing database must not pass for "no
-        // history": the history buckets would silently be lost to queries
-        // and to retention until the next reopen. `CURRENT` marks a
-        // directory holding a database rather than a fresh path.
+        // A listing failure must not pass for "no history", which would hide
+        // the buckets until the next reopen. `CURRENT` marks a database.
         let existing_cfs = if path.join("CURRENT").exists() {
             list_tables(path.to_path_buf()).map_err(|e| IotaError::Storage(e.to_string()))?
         } else {

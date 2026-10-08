@@ -649,9 +649,7 @@ impl IndexStore {
         if let Some(all_balance) = self.caches.all_balances.get(&owner) {
             return all_balance;
         }
-        // See `get_balance`: repopulation takes the owner's lock so it
-        // cannot interleave with a commit's write-then-merge, and the
-        // database read runs before the cache insert.
+        // Locked and read the same way as in `get_balance`.
         let _lock = self.caches.locks.acquire_lock(owner);
         if let Some(all_balance) = self.caches.all_balances.get(&owner) {
             return all_balance;
@@ -885,9 +883,8 @@ impl LayoutResolver for CachingLayoutResolver<'_> {
 }
 
 /// Resolves a `Field` object into the [`DynamicFieldInfo`] served by the
-/// JSON-RPC API. Runs at query time — the index stores only the field keys.
-/// Returns `None` when `o` is not a `Field` object, its layout cannot be
-/// resolved, or a dynamic object field's value object no longer exists.
+/// JSON-RPC API. Returns `None` when `o` is not a `Field` object, its layout
+/// cannot be resolved, or a dynamic object field's value object is gone.
 pub(crate) fn try_create_dynamic_field_info(
     o: &Object,
     object_store: &dyn ObjectStore,
