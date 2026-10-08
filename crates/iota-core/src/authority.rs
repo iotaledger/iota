@@ -2466,7 +2466,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
-                InputCheckRules::EXECUTION,
+                InputCheckRules::STRICT,
             )?;
 
             let owned_object_refs = authenticator_and_tx_checked_input_objects
@@ -2886,9 +2886,9 @@ impl AuthorityState {
         // Checks enabled -> DRY-RUN, it means we are simulating a real TX
         // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
         let input_checks = if checks.enabled() {
-            InputCheckRules::EXECUTION
+            InputCheckRules::STRICT
         } else {
-            InputCheckRules::SIMULATION
+            InputCheckRules::RELAXED_UNSAFE
         };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             protocol_config,
@@ -6822,7 +6822,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 is_execute_transaction_to_effects,
-                InputCheckRules::EXECUTION,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((
@@ -6890,7 +6890,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 false,
-                InputCheckRules::EXECUTION,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))

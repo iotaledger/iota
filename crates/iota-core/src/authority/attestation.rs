@@ -330,7 +330,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
-                InputCheckRules::EXECUTION,
+                InputCheckRules::STRICT,
             )?;
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
     }
