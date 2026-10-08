@@ -399,15 +399,12 @@ pub fn print_all_entries(
     Ok(())
 }
 
-/// Records the one-time sweep of the object versions superseded before the
-/// bucketed build as done, without running it.
+/// Records the one-time object backlog sweep as done without running it, for
+/// a node that cannot start because the sweep fails on a row it cannot decode.
 ///
-/// The escape hatch for a node the sweep cannot get past — a row it cannot
-/// decode fails the walk, and the walk runs before anything else at startup,
-/// so the node never comes up and never records progress. Marking it done
-/// leaves those versions in the live `objects` table, where no retention
-/// reclaims them: the node runs, and the rows stay until someone rebuilds it
-/// from a snapshot.
+/// The versions the sweep had not reached stay in the live `objects` table,
+/// where no retention reclaims them, until the node is rebuilt from a
+/// snapshot.
 ///
 /// Run with (for example):
 /// cargo run --package iota-tool -- db-tool --db-path

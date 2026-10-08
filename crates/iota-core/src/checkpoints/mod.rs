@@ -1023,16 +1023,9 @@ impl CheckpointStore {
     }
 
     /// The lowest checkpoint whose superseded object versions this node still
-    /// holds, given the epoch of the oldest historic-object bucket it holds
-    /// (`None` when it holds no bucket at all).
-    ///
-    /// Those versions are retained per epoch, so the answer is that epoch's
-    /// first checkpoint — one past the last checkpoint of the epoch before it.
-    ///
-    /// When that cannot be placed — there is no bucket at all, or the epoch
-    /// before the oldest one has no recorded last checkpoint — the answer is
-    /// one past the highest executed checkpoint, claiming nothing rather than
-    /// the full history.
+    /// holds, given the epoch of its oldest historic-object bucket: that
+    /// epoch's first checkpoint. When there is no bucket, or that checkpoint
+    /// is unknown, returns one past the highest executed checkpoint.
     pub fn lowest_checkpoint_with_retained_objects(
         &self,
         earliest_bucket_epoch: Option<EpochId>,

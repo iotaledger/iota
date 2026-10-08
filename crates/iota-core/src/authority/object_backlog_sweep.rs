@@ -1,10 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// TODO(https://github.com/iotaledger/iota/issues/12712): remove this module
-// once every database has swept the pre-bucket backlog.
+// TODO(https://github.com/iotaledger/iota/issues/12712): remove once swept.
 
-//! The one-time sweep of the object versions superseded before this build.
+//! One-time sweep of the superseded object versions left in the live
+//! `objects` table of a database without historic buckets. They are moved
+//! into the bucket of the epoch the sweep runs in, which keeps them for the
+//! whole retention window.
 //!
 //! A superseded version now leaves the live `objects` table in the batch
 //! that supersedes it, and arrives in the epoch's historic bucket. A
@@ -80,14 +82,14 @@ pub enum ObjectBacklogSweepProgress {
     /// Every key up to and including this one has been swept; the next slice
     /// resumes above it.
     SweptThrough(ObjectKey),
-    /// The whole table has been swept, and later node starts do nothing.
+    /// The sweep has finished, by either route, and later node starts do
+    /// nothing.
     Done,
 }
 
-/// Relocates the object versions superseded before this build into `epoch`'s
-/// bucket and records the tombstones alongside them. Returns once nothing of
-/// that backlog is left, at once on a database an earlier run already
-/// finished.
+/// Moves the superseded object versions left in the live `objects` table into
+/// `epoch`'s bucket, and records the tombstones alongside them. Returns at once
+/// if an earlier run finished.
 ///
 /// Takes one of two routes. Where the objects pruner of an earlier build left
 /// its watermark, only the checkpoints above it can still hold a superseded
@@ -105,9 +107,10 @@ pub enum ObjectBacklogSweepProgress {
 /// before anything that scans the live table for its latest versions: until it
 /// returns, that table holds a retention window of rows no reader wants.
 ///
-/// A failure is returned rather than retried, since nothing that comes after
-/// may run until the walk is finished. The watermarks it records are durable,
-/// so the next start resumes where this one stopped.
+/// # Errors
+///
+/// A failure is returned rather than retried. Progress is durable, so the next
+/// start resumes where this one stopped.
 pub async fn sweep(
     store: Arc<AuthorityStore>,
     checkpoint_store: Arc<CheckpointStore>,
@@ -144,8 +147,7 @@ pub async fn sweep(
     .map_err(|e| IotaError::Storage(format!("the object backlog sweep task failed: {e}")))?
 }
 
-/// One walk over the live `objects` table, relocating every row that is
-/// neither the newest version of its object id nor a tombstone into the
+/// Moves every superseded version out of the live `objects` table into the
 /// epoch's bucket.
 struct ObjectBacklogSweep {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
@@ -189,13 +191,9 @@ impl ObjectBacklogSweep {
         let Some(bound) = self.perpetual_tables.object_backlog_sweep_bound.get(&())? else {
             return Ok(None);
         };
-        // The checkpoints above the bound are what names the backlog, so they
-        // all have to still be here. The checkpoint pruner runs to its own
-        // retention, which an earlier build let outpace the objects pruner —
-        // by holding fewer epochs of checkpoints than of object versions, or
-        // by having object pruning turned off after it had once run. Either
-        // leaves summaries missing from the range, and a version no summary
-        // names is one this walk would silently leave behind.
+        // The checkpoints above the bound name the backlog, so all of them must
+        // still be here. The checkpoint pruner may have outpaced the objects
+        // pruner, and a version no remaining checkpoint names would be missed.
         let pruned = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
             .unwrap_or(0);
@@ -212,36 +210,21 @@ impl ObjectBacklogSweep {
     }
 
     /// Relocates the versions the checkpoints above `bound` superseded, and
-    /// records the tombstones they wrote.
+    /// records the tombstones they wrote. Every version superseded at or below
+    /// `bound` is already gone.
     ///
-    /// Every version superseded at or below `bound` is already gone, so the
-    /// effects of the checkpoints above it name what is left: a transaction's
-    /// `modified_at_versions` are the versions it superseded, and its
-    /// tombstones are the heads written over them. Reading those is bounded
-    /// by how far the earlier build's pruner lagged execution, where walking
-    /// `objects` is bounded by the size of the live set.
-    ///
-    /// A pre-image the live table no longer holds is skipped rather than
-    /// treated as a fault: a checkpoint may be replayed across the watermark,
-    /// and a version relocated by an earlier slice of this walk is gone from
-    /// the live table by design.
+    /// A pre-image the live table no longer holds is skipped: a checkpoint may
+    /// be replayed across the watermark, or an earlier slice relocated it.
     fn sweep_above_bound(
         &self,
         checkpoint_store: &CheckpointStore,
         epoch: EpochId,
         bound: CheckpointSequenceNumber,
     ) -> IotaResult<()> {
-        // Walked through the synced watermark, not the executed one. An
-        // earlier build commits a checkpoint's effects before it bumps
-        // `HighestExecuted`, so a crash in between leaves a checkpoint above
-        // that watermark whose superseded versions are already in the live
-        // table. Stopping at the executed watermark would leave them there
-        // for good, since this pass records itself done either way.
-        //
-        // Reading past execution costs nothing: a checkpoint whose effects
-        // are not committed yet contributes no superseded version, because
-        // `sweep_checkpoint_slice` relocates only what a committed effect
-        // names.
+        // Walk up to the synced watermark, not the executed one: a crash
+        // between committing a checkpoint's effects and bumping
+        // `HighestExecuted` leaves superseded versions above the executed
+        // watermark. A checkpoint not executed yet has no effects to read.
         let executed = checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
         let synced = checkpoint_store.get_highest_synced_checkpoint_seq_number()?;
         let Some(highest) = synced.max(executed) else {
@@ -268,9 +251,8 @@ impl ObjectBacklogSweep {
     }
 
     /// Relocates the versions superseded by the checkpoints in `first..=last`,
-    /// recording how far the walk got in the same batch, so an interrupted run
-    /// resumes at the checkpoint after the last one it wrote. Returns that
-    /// checkpoint, which is `last` unless the rows came faster than the cap.
+    /// recording progress in the same batch. Returns the last checkpoint
+    /// swept, which is below `last` if the slice reached the row cap.
     fn sweep_checkpoint_slice(
         &self,
         checkpoint_store: &CheckpointStore,
@@ -281,12 +263,8 @@ impl ObjectBacklogSweep {
         let objects = &self.perpetual_tables.objects;
         let mut superseded = Vec::new();
         let mut tombstones = Vec::new();
-        // A checkpoint count alone does not bound what a slice holds: one
-        // checkpoint can supersede any number of versions. Stop at the first
-        // checkpoint boundary past the row cap, so memory is bounded by how
-        // fat a single checkpoint is rather than by how fat `last - first`
-        // checkpoints are. The boundary keeps the resume granularity the
-        // progress row can express.
+        // One checkpoint can supersede any number of versions, so also stop
+        // at the first checkpoint boundary past the row cap.
         let mut ended_at = last;
         for sequence_number in first..=last {
             if superseded.len() + tombstones.len() >= self.keys_per_slice {
@@ -296,9 +274,8 @@ impl ObjectBacklogSweep {
             let Some(summary) =
                 checkpoint_store.get_checkpoint_by_sequence_number(sequence_number)?
             else {
-                // `bound` guarantees the range is retained, so a gap is a
-                // checkpoint the node never had rather than one it dropped —
-                // a sequence number skipped by a reverted transaction.
+                // `bound` guarantees the range was not pruned, so a missing
+                // checkpoint is one the node never had.
                 continue;
             };
             let Some(contents) =
@@ -374,10 +351,8 @@ impl ObjectBacklogSweep {
 
         let mut superseded = Vec::new();
         let mut tombstones = Vec::new();
-        // The row the scan has read but not yet decided on. One row of
-        // lookahead is all a decision needs: a row is superseded exactly when
-        // the next row belongs to the same object id, since `ObjectKey` orders
-        // by id and then by version.
+        // `ObjectKey` orders by id and then version, so a row is superseded
+        // exactly when the next row has the same object id.
         let mut undecided: Option<(ObjectKey, StoreObjectWrapper)> = None;
         let mut swept_through = None;
         let mut decided = 0;
@@ -419,12 +394,9 @@ impl ObjectBacklogSweep {
             let keys: Vec<ObjectKey> = superseded.iter().map(|(key, _)| *key).collect();
             batch.insert_batch_tagged(&bucket.objects, superseded)?;
             batch.delete_batch(objects, keys)?;
-            // Recording a tombstone this far above where it was written is
-            // safe: the versions beneath it go into the same bucket, in this
-            // batch or an earlier slice's, so they are out of reach as soon
-            // as the head is. Its own epoch may have recorded it as well, in
-            // an older bucket; neither bucket can expire before this walk is
-            // over, and deleting the same head twice is a no-op.
+            // Recording a tombstone in a later bucket than its own epoch's is
+            // safe: the versions beneath it go into this same bucket, so they
+            // expire together.
             batch
                 .insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
         }
@@ -444,12 +416,11 @@ impl ObjectBacklogSweep {
     }
 
     /// Sorts one row into the versions to relocate and the tombstones to
-    /// record, given whether a higher version of the same object id follows
-    /// it.
+    /// record.
     ///
-    /// A tombstone is kept wherever it sits: an object wrapped and later
-    /// unwrapped has one below its newest version, and a bounded read must
-    /// still be able to tell that the object was gone at that version.
+    /// A tombstone stays in the live table even below an object's newest
+    /// version: an object wrapped and later unwrapped has one there, and a
+    /// bounded read must still see that the object was gone at that version.
     fn decide(
         key: ObjectKey,
         row: StoreObjectWrapper,

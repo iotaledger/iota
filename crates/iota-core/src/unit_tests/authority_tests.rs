@@ -4067,9 +4067,8 @@ async fn test_rpc_index_rebuild_on_open() {
     );
 }
 
-/// History replay only writes the history tables, so it needs no input or
-/// output objects: it must cover checkpoints whose object versions have been
-/// expired, even when the objects themselves are gone from the store.
+/// History replay needs no objects, so it covers checkpoints whose object
+/// versions have expired.
 #[tokio::test]
 async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
     use typed_store::Map;
@@ -4092,8 +4091,7 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         .update_highest_executed_checkpoint(&genesis_checkpoint)
         .unwrap();
 
-    // Delete one of the genesis transaction's output objects, as an expired
-    // bucket would: replay must succeed without it.
+    // Delete a genesis output object, as an expired bucket would.
     let genesis_contents = checkpoint_store
         .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
         .unwrap()
@@ -9279,9 +9277,8 @@ async fn simulate_rejects_a_transaction_above_the_size_limit() {
     );
 }
 
-/// The epoch boundary expires the historic-object buckets that have fallen
-/// outside the configured retention, which counts the epochs kept beyond the
-/// current one.
+/// The epoch boundary expires the historic-object buckets outside the
+/// retention, which counts the epochs kept beyond the current one.
 #[tokio::test]
 async fn reconfiguration_expires_buckets_beyond_the_retention() {
     use iota_types::storage::ObjectKey;
@@ -9292,8 +9289,6 @@ async fn reconfiguration_expires_buckets_beyond_the_retention() {
         .await;
     let historic = authority.get_historic_objects();
 
-    // One relocated version per epoch, so an expired bucket is observable by
-    // the version it no longer serves.
     let relocated: Vec<ObjectKey> = (0..=3)
         .map(|epoch| {
             let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -9318,8 +9313,7 @@ async fn reconfiguration_expires_buckets_beyond_the_retention() {
     assert!(historic.get(&relocated[3]).unwrap().is_some());
 }
 
-/// A retention of `u64::MAX` turns object expiry off: the epoch boundary opens
-/// the new epoch's bucket and leaves every older one in place.
+/// A retention of `u64::MAX` turns object expiry off.
 #[tokio::test]
 async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
     use iota_types::storage::ObjectKey;
@@ -9386,7 +9380,6 @@ async fn object_availability_follows_the_oldest_bucket_held() {
         "the fixture must start with no bucket for this to model a restore"
     );
 
-    // No bucket at all: nothing below the executed watermark is available.
     assert_eq!(
         grpc_read_store
             .get_lowest_available_checkpoint_objects()
@@ -9394,9 +9387,7 @@ async fn object_availability_follows_the_oldest_bucket_held() {
         1
     );
 
-    // A bucket whose epoch cannot be placed: nothing records where epoch 7
-    // started. The answer must stay at the watermark rather than fall back to
-    // claiming the whole history.
+    // Nothing records where epoch 7 started.
     historic.ensure(7).unwrap();
     assert_eq!(
         grpc_read_store
@@ -9405,8 +9396,7 @@ async fn object_availability_follows_the_oldest_bucket_held() {
         1
     );
 
-    // A bucket for epoch 0 is the one case where the full history really is
-    // available, and it needs no recorded boundary.
+    // Epoch 0 needs no recorded start.
     historic.ensure(0).unwrap();
     assert_eq!(
         grpc_read_store
@@ -9416,11 +9406,9 @@ async fn object_availability_follows_the_oldest_bucket_held() {
     );
 }
 
-/// A bucket that cannot be expired must not fail the reconfiguration. The node
-/// would halt at that epoch boundary and fail again on every retry, while the
-/// bucket already carries its durable expiring marker — so its versions are
-/// unreadable, its tombstones stay in the live table, and the next open
-/// finishes the job.
+/// A bucket that cannot be expired does not fail the reconfiguration; its
+/// durable expiring marker keeps its versions unreadable and the next open
+/// finishes the expiry.
 #[tokio::test]
 async fn a_failed_expiry_does_not_fail_reconfiguration() {
     use typed_store::Map;
@@ -9446,8 +9434,6 @@ async fn a_failed_expiry_does_not_fail_reconfiguration() {
         .await
         .expect("a failed expiry must not fail the epoch boundary");
 
-    // The expiry did run and did fail: the bucket it could not finish carries
-    // the durable marker that keeps its versions unreadable until the next
-    // open finishes the job.
+    // The expiry did run and fail.
     assert!(oldest.expiring.get(&()).unwrap().is_some());
 }
