@@ -16,7 +16,8 @@ use typed_store::{
 };
 
 use crate::epoch_buckets::{
-    BucketReopen, EpochBuckets, bucket_cf_epoch, bucket_cf_options, extra_column_family_options,
+    BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
+    extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
@@ -180,13 +181,13 @@ impl HistoricCheckpoints {
     }
 
     /// The contents stored under `digest`, newest bucket first, `None` if no
-    /// bucket holds them.
+    /// bucket holds them (or their bucket has since been dropped).
     pub fn find_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>, TypedStoreError> {
         for bucket in self.buckets.iter(true) {
-            if let Some(contents) = bucket.checkpoint_content.get(digest)? {
+            if let Some(contents) = absent_if_dropped(bucket.checkpoint_content.get(digest))? {
                 return Ok(Some(contents));
             }
         }
@@ -194,7 +195,7 @@ impl HistoricCheckpoints {
     }
 
     /// The certified summary stored under `digest`, newest bucket first,
-    /// `None` if no bucket holds it.
+    /// `None` if no bucket holds it (or its bucket has since been dropped).
     ///
     /// A caller that has the sequence number should read
     /// `certified_checkpoints` instead, which is never pruned.
@@ -203,7 +204,7 @@ impl HistoricCheckpoints {
         digest: &CheckpointDigest,
     ) -> Result<Option<TrustedCheckpoint>, TypedStoreError> {
         for bucket in self.buckets.iter(true) {
-            if let Some(checkpoint) = bucket.checkpoint_by_digest.get(digest)? {
+            if let Some(checkpoint) = absent_if_dropped(bucket.checkpoint_by_digest.get(digest))? {
                 return Ok(Some(checkpoint));
             }
         }

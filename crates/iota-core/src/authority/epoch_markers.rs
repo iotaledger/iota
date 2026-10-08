@@ -24,7 +24,7 @@ use typed_store::{
 };
 
 use crate::{
-    epoch_buckets::{BucketReopen, EpochBuckets, bucket_cf_epoch},
+    epoch_buckets::{BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch},
     progress_logger::ProgressLogger,
 };
 
@@ -140,7 +140,8 @@ impl EpochMarkers {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// The marker written for `object_id` at exactly `version` during `epoch`.
+    /// The marker written for `object_id` at exactly `version` during `epoch`,
+    /// `None` also once that epoch's bucket has been dropped.
     pub fn get_marker_value(
         &self,
         object_id: &ObjectId,
@@ -150,11 +151,13 @@ impl EpochMarkers {
         let Some(bucket) = self.buckets.get(epoch) else {
             return Ok(None);
         };
-        Ok(bucket.markers.get(&ObjectKey(*object_id, *version))?)
+        Ok(absent_if_dropped(
+            bucket.markers.get(&ObjectKey(*object_id, *version)),
+        )?)
     }
 
     /// The newest version of `object_id` marked during `epoch`, with its
-    /// marker.
+    /// marker, `None` also once that epoch's bucket has been dropped.
     pub fn get_latest_marker(
         &self,
         object_id: &ObjectId,
@@ -163,11 +166,13 @@ impl EpochMarkers {
         let Some(bucket) = self.buckets.get(epoch) else {
             return Ok(None);
         };
-        let Some(row) = bucket
-            .markers
-            .safe_iter_with_prefix_reversed(object_id)
-            .next()
-            .transpose()?
+        let Some(row) = absent_if_dropped(
+            bucket
+                .markers
+                .safe_iter_with_prefix_reversed(object_id)
+                .next()
+                .transpose(),
+        )?
         else {
             return Ok(None);
         };

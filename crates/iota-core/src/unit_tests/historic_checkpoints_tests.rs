@@ -188,3 +188,42 @@ async fn a_watermark_survives_the_expiry_of_its_own_epoch() {
         );
     }
 }
+
+/// A read that races the expiry of a bucket answers as if the bucket were
+/// already gone.
+#[tokio::test]
+async fn a_read_of_a_dropped_bucket_finds_nothing() {
+    let store = CheckpointStore::new_for_tests();
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let checkpoint =
+        test_checkpoint_with_contents(CHECKPOINT_EPOCH, CHECKPOINT_SEQUENCE, &full_contents);
+    store
+        .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+        .unwrap();
+    store.insert_certified_checkpoint(&checkpoint).unwrap();
+
+    store
+        .tables
+        .certified_checkpoints
+        .db
+        .drop_cf(&crate::epoch_buckets::bucket_cf_name(
+            super::HISTORIC_CHECKPOINTS_CF_PREFIX,
+            CHECKPOINT_EPOCH,
+        ))
+        .unwrap();
+
+    assert!(
+        store
+            .historic_checkpoints
+            .find_contents(&checkpoint.contents_digest)
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        store
+            .historic_checkpoints
+            .find_by_digest(checkpoint.digest())
+            .unwrap()
+            .is_none()
+    );
+}

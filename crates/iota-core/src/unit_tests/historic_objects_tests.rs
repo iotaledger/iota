@@ -755,3 +755,26 @@ async fn test_expiry_deletes_every_head_an_object_left_in_the_epoch() {
     assert!(perpetual.objects.get(&wrapped).unwrap().is_none());
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
 }
+
+/// A read that races the expiry of a bucket answers as if the bucket were
+/// already gone.
+#[tokio::test]
+async fn test_a_read_of_a_dropped_bucket_finds_nothing() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic, _historic_ledger, _epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let key = ObjectKey(ObjectId::random(), 3.into());
+    historic.ensure(1).unwrap();
+
+    perpetual
+        .objects
+        .db
+        .drop_cf(&crate::epoch_buckets::bucket_cf_name(
+            super::HISTORIC_OBJECTS_CF_PREFIX,
+            1,
+        ))
+        .unwrap();
+
+    assert_eq!(historic.get(&key).unwrap(), None);
+    assert_eq!(historic.find_lt_or_eq_version(key.0, key.1).unwrap(), None);
+}

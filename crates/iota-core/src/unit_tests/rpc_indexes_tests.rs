@@ -3546,3 +3546,35 @@ async fn test_pruning_keeps_the_newest_bucket_whatever_the_retention() {
     index_checkpoint_for_testing(&store, &checkpoint);
     assert!(store.lookup_digest(&digest).unwrap().is_some());
 }
+
+/// A query that races the expiry of a history bucket answers without that
+/// bucket's rows instead of failing.
+#[tokio::test]
+async fn test_a_query_of_a_dropped_bucket_skips_its_rows() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    seed_history_buckets(&index_store, 2);
+    let dropped_digest = TransactionDigest::random();
+    let bucket = index_store.ensure_history_bucket(0).unwrap();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&bucket.txs_seq, [(dropped_digest, 0)])
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    index_store
+        .tables
+        .meta
+        .db
+        .drop_cf(&super::history_cf_name(0))
+        .unwrap();
+
+    assert_eq!(index_store.lookup_digest(&dropped_digest).unwrap(), None);
+    assert_eq!(
+        index_store
+            .get_transactions(None, None, None, false)
+            .unwrap()
+            .len(),
+        1
+    );
+}

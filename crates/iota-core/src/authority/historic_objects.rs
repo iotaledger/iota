@@ -37,8 +37,8 @@ use typed_store::{
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     epoch_buckets::{
-        BucketReopen, EpochBuckets, bucket_cf_epoch, bucket_cf_name, bucket_cf_options,
-        extra_column_family_options,
+        BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_name,
+        bucket_cf_options, extra_column_family_options,
     },
 };
 
@@ -302,9 +302,7 @@ impl HistoricObjects {
     /// its bucket has since been dropped).
     pub fn get(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
         for bucket in self.readable_buckets(true) {
-            if let Some(object) = bucket
-                .objects
-                .get(key)
+            if let Some(object) = absent_if_dropped(bucket.objects.get(key))
                 .map_err(|e| IotaError::Storage(e.to_string()))?
             {
                 return Ok(Some(object));
@@ -347,12 +345,14 @@ impl HistoricObjects {
         // Versions are relocated in increasing order, so the newest bucket
         // with a match holds the newest version.
         for bucket in self.readable_buckets(true) {
-            let newest = bucket
-                .objects
-                .safe_range_iter_reversed(ObjectKey::min_for_id(&id)..=ObjectKey(id, version))
-                .next()
-                .transpose()
-                .map_err(|e| IotaError::Storage(e.to_string()))?;
+            let newest = absent_if_dropped(
+                bucket
+                    .objects
+                    .safe_range_iter_reversed(ObjectKey::min_for_id(&id)..=ObjectKey(id, version))
+                    .next()
+                    .transpose(),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
             if let Some((_, object)) = newest {
                 return Ok(Some(object));
             }
