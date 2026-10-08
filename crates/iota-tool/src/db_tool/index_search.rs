@@ -81,10 +81,8 @@ pub fn search_index(
                 termination
             )
         }
-        // Names from the pre-unification JSON-RPC-only index store, kept
-        // around only to point callers at the table's new name rather than
-        // falling through to `search_history_table`'s generic "unsupported
-        // table" error.
+        // Old table names point callers at the new name rather than at the
+        // generic "unsupported table" error.
         "owner_index" => bail!("no such table \"owner_index\"; it was renamed to \"owner\""),
         "dynamic_field_index" => {
             bail!("no such table \"dynamic_field_index\"; it was renamed to \"dynamic_field\"")
@@ -401,8 +399,7 @@ fn from_id_module_function_txseq(
 }
 
 /// The owner index's lowest key for an address, so a scan can be bounded by
-/// the address alone. The rest of the key (type hashes, inverted balance,
-/// object id) is derived from the object, which the caller does not have.
+/// the address alone.
 fn from_addr_owner_key(s: &str) -> Result<OwnerIndexKey, anyhow::Error> {
     let owner = Address::from_str(s.trim())?;
     Ok(OwnerIndexKey {

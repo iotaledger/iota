@@ -3680,9 +3680,7 @@ impl AuthorityState {
         T: DeserializeOwned,
     {
         let indexes = self.require_jsonrpc_indexes()?;
-        // The index groups a type's objects together, so the scan is narrowed
-        // to `tag` rather than walking everything the owner holds. The filter
-        // matches on the type's identifier only, so the exact type is still
+        // The filter matches the type's identifier only, so the exact type is
         // checked per row.
         let object_ids = indexes
             .owner_iter(owner, None, OwnerTypeFilter::from_struct_tag(Some(&tag)))?

@@ -47,14 +47,11 @@ impl Restore for AuthorityPerpetualTables {
     }
 }
 
-/// Restore target that builds the RPC index store alongside the live-object
-/// restore: each partition's objects are teed into the indexer while they
-/// stream into the perpetual tables, so the index store is complete without a
-/// second pass over the restored state.
+/// Restore target that, given an [`RpcIndexesRestorer`], also indexes each
+/// partition's objects as they stream into the perpetual tables.
 ///
 /// After the read finishes, the caller must still call
-/// [`RpcIndexesRestorer::finalize`], which writes the coin metadata gathered
-/// across the partitions and stamps the markers.
+/// [`RpcIndexesRestorer::finalize`].
 pub struct RestoreWithIndexes<'a> {
     perpetual_tables: &'a AuthorityPerpetualTables,
     rpc_indexes_restorer: Option<&'a RpcIndexesRestorer>,
@@ -83,9 +80,7 @@ impl Restore for RestoreWithIndexes<'_> {
             .rpc_indexes_restorer
             .map(|restorer| restorer.partition_indexer());
         // An index error must not cut the stream short: `bulk_insert_live_objects`
-        // has to consume every object either way to verify the partition's
-        // checksum. Remember the first error, skip the indexer for the rest
-        // of the stream, and fail the partition after the insert.
+        // has to consume every object to verify the partition's checksum.
         let mut index_error: Option<StorageError> = None;
         let live_objects = LiveObjectIter::new(&file_metadata, bytes)?.inspect(|live_object| {
             if index_error.is_some() {
