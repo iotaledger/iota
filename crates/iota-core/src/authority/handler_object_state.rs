@@ -202,21 +202,14 @@ pub fn handler_processed_upserts(
 
     let mut rows = Vec::with_capacity(changed.len());
     for (owned_ref, write_kind) in changed {
-        let initial_shared_version = match (write_kind, *owned_ref.owner()) {
-            // A shared object's creation row carries its initial shared
-            // version - the created-shared flag the shared-input checks read.
-            (WriteKind::Create, Owner::Shared(initial)) => Some(initial),
-            // Shared-object mutations write nothing: no check consults shared
-            // state beyond existence, creation, and deletion, and hot shared
-            // objects (the Clock) would churn the row every commit.
-            (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => continue,
-            (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => None,
-            // `WriteKind` is non-exhaustive; a kind this code does not know
-            // cannot be classified, so it is a bug here rather than a guess.
-            _ => fatal!(
-                "unknown write kind {write_kind:?} for {}",
-                owned_ref.reference().object_id
-            ),
+        if !needs_handler_row(write_kind, &owned_ref) {
+            continue;
+        }
+        // A shared object's creation row carries its initial shared version -
+        // the created-shared flag the shared-input checks read.
+        let initial_shared_version = match *owned_ref.owner() {
+            Owner::Shared(initial) => Some(initial),
+            _ => None,
         };
         rows.push((
             ObjectKey(
@@ -253,6 +246,46 @@ pub fn handler_processed_upserts(
         ));
     }
     rows
+}
+
+/// The keys of the rows [`handler_processed_upserts`] derives for `effects`,
+/// in the same order, without building the rows.
+pub fn handler_processed_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
+    let live = effects
+        .all_changed_objects()
+        .into_iter()
+        .filter(|(owned_ref, write_kind)| needs_handler_row(*write_kind, owned_ref))
+        .map(|(owned_ref, _)| {
+            ObjectKey(
+                owned_ref.reference().object_id,
+                owned_ref.reference().version,
+            )
+        });
+    let tombstones = chain!(
+        effects.deleted(),
+        effects.unwrapped_then_deleted(),
+        effects.wrapped()
+    )
+    .map(|reference| ObjectKey(reference.object_id, reference.version));
+    live.chain(tombstones).collect()
+}
+
+/// Whether a created, mutated or unwrapped object needs a handler-processed
+/// row; if so, the row is `Live`.
+fn needs_handler_row(write_kind: WriteKind, owned_ref: &OwnedObjectReference) -> bool {
+    match (write_kind, owned_ref.owner()) {
+        // Shared-object mutations write nothing: no check consults shared
+        // state beyond existence, creation, and deletion, and hot shared
+        // objects (the Clock) would churn the row every commit.
+        (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => false,
+        (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => true,
+        // `WriteKind` is non-exhaustive; a kind this code does not know
+        // cannot be classified, so it is a bug here rather than a guess.
+        _ => fatal!(
+            "unknown write kind {write_kind:?} for {}",
+            owned_ref.reference().object_id
+        ),
+    }
 }
 
 /// Derives the sync-ahead record writes for one sync-executed transaction:
@@ -855,13 +888,9 @@ impl HandlerObjectState {
         let mut handler_keys = Vec::new();
         let mut shelter_keys = Vec::new();
         for effects in effects {
-            // Only the keys are used; the rows' commit index comes from the
+            // The rows themselves, with their commit index, come from the
             // overlay.
-            handler_keys.extend(
-                handler_processed_upserts(effects, 0)
-                    .into_iter()
-                    .map(|(key, _)| key),
-            );
+            handler_keys.extend(handler_processed_keys(effects));
             if find_shelter_rows {
                 shelter_keys.extend(consumed_input_keys_to_shelter(
                     &effects.old_object_metadata(),
@@ -1368,6 +1397,13 @@ mod tests {
         let fixture = effects_fixture();
         let lamport = fixture.effects.lamport_version();
         let index: CommitIndex = 9;
+        assert_eq!(
+            handler_processed_keys(&fixture.effects),
+            handler_processed_upserts(&fixture.effects, index)
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect::<Vec<_>>()
+        );
         // Every id in the fixture is written once, so keying by id is exact.
         let rows: BTreeMap<ObjectId, (Version, HandlerProcessedObject)> =
             handler_processed_upserts(&fixture.effects, index)
