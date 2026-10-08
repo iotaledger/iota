@@ -613,11 +613,7 @@ async fn get_all_coins_with_cursor_boundaries() {
 }
 
 /// A cursor carries its own position, so a page resumes after it even when the
-/// coin it named no longer exists. Before that, the position was rebuilt by
-/// reading the object, so a coin destroyed between two pages failed the second
-/// one outright — which is why the cursor coin here is merged away rather than
-/// transferred: a transferred coin is still readable, and the old code coped
-/// with that.
+/// coin it named has been destroyed, not merely transferred away.
 #[sim_test]
 async fn get_all_coins_with_a_cursor_whose_object_is_gone() {
     let cluster = TestClusterBuilder::new().build().await;
@@ -641,8 +637,6 @@ async fn get_all_coins_with_a_cursor_whose_object_is_gone() {
         .unwrap();
     let cursor = first.next_cursor.expect("a page follows the first coin");
 
-    // The cursor's coin is destroyed between the two pages: its balance moves
-    // into another coin and the object itself stops existing.
     let merge = http_client
         .merge_coin(
             address,
