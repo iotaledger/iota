@@ -14673,6 +14673,7 @@ dependencies = [
  "rand 0.10.3",
  "tokio",
  "tracing",
+ "typed-store",
 ]
 
 [[package]]

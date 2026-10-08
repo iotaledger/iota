@@ -81,6 +81,7 @@ use tokio::{
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
+use typed_store::rocks::disable_fallocate;
 
 const NUM_VALIDATOR: usize = 4;
 
@@ -1449,6 +1450,10 @@ impl TestClusterBuilder {
 
     /// Start a Swarm and set up WalletConfig
     async fn start_swarm(&mut self) -> Result<Swarm, anyhow::Error> {
+        // Each node opens several databases, and each write-ahead log would
+        // otherwise take hundreds of MiB on disk.
+        disable_fallocate();
+
         let mut builder: SwarmBuilder = Swarm::builder()
             .committee_size(
                 NonZeroUsize::new(self.num_validators.unwrap_or(NUM_VALIDATOR)).unwrap(),
