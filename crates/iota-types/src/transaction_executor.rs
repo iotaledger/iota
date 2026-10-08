@@ -137,80 +137,34 @@ impl VmChecks {
 /// to a simulation too until someone names it here and says why.
 #[derive(Default, Debug, Copy, Clone)]
 pub struct InputCheckRules {
-    /// Skip the bounds on the gas budget itself, so a caller whose gas is not
-    /// settled runs out of gas rather than being rejected. The gas coins are
-    /// still required to be address-owned and to cover whatever budget is set.
+    /// Skip the bounds on the gas budget, so a caller whose gas is not settled
+    /// runs out of gas rather than being rejected.
     pub unbounded_gas_budget: bool,
-    /// Skip the requirement that an address-owned input object be owned by the
-    /// sender, so a caller can ask what a transaction would do over objects it
-    /// does not own.
-    ///
-    /// This relaxes only whose object it is. A child object named as an owned
-    /// input is still rejected: execution treats the input checks as having
-    /// ruled it out, and a child object reaching it trips an invariant. A
-    /// shared object named as an owned input is covered by
-    /// [`Self::shared_object_as_owned_input`] instead.
-    ///
-    /// It also drops the check that the gas payment is owned by the
-    /// transaction's gas owner, since gas coins go through the same arm. The
-    /// weaker requirement that they be address-owned survives, in the gas
-    /// balance check.
+    /// Skip the match between an address-owned input's owner and the sender, so
+    /// a caller can ask what a transaction would do over objects it does not
+    /// own. Gas coins go through the same check, so the gas owner is not
+    /// matched either.
     pub any_object_owner: bool,
     /// Skip the match between an input object's declared digest and the loaded
-    /// object. The digest is an optimistic-concurrency token for submission,
-    /// which a simulation does not do, and nothing in execution reads it: the
-    /// object is loaded by id and version, and every value is built from what
-    /// was loaded. An object that does not exist still fails in the loader.
+    /// object. Execution reads the object by id and version, but the effects
+    /// report the declared digest as the object's input digest, so a wrong one
+    /// is echoed back there.
     pub any_object_digest: bool,
-    /// Accept a shared object named as an owned input, instead of rejecting it
-    /// with `NotSharedObject`.
-    ///
-    /// Whether an input is owned or shared decides how validators order the
-    /// transaction: owned inputs are locked at signing, shared ones get their
-    /// versions from consensus. A simulation does neither, and execution takes
-    /// an input's mutability from the object's real owner rather than from how
-    /// the transaction names it, so the object runs as the shared object it is.
-    ///
-    /// The reverse — an owned or immutable object named as a shared input — is
-    /// still rejected. Named as a read-only shared input, such an object trips
-    /// an invariant in execution.
+    /// Accept a shared object named as an owned input. Owned versus shared only
+    /// decides how validators order a transaction, which a simulation does not
+    /// do, and execution takes an input's mutability from the object itself.
     pub shared_object_as_owned_input: bool,
     /// Skip the match between a shared input's declared initial shared version
-    /// and the object's real one, instead of rejecting it with
-    /// `SharedObjectStartingVersionMismatch`.
-    ///
-    /// Consensus uses the declared initial shared version to assign the
-    /// object's version, which a simulation does not do: it reads the
-    /// object's latest version, and execution never reads the declared one.
-    /// System objects that only a system transaction may take mutably are
-    /// still rejected whatever initial shared version is declared.
+    /// and the object's own. Only consensus reads the declared one.
     pub any_initial_shared_version: bool,
     /// Skip the match between a receiving reference's declared version and the
-    /// current version of the object it names, so a simulation can run over a
-    /// reference the caller has not refreshed.
-    ///
-    /// This changes the outcome, not only where a failure is reported. A stale
-    /// reference that the transaction never receives no longer fails at all. A
-    /// received one is looked up at the declared version, and the result
-    /// depends on the store: a store that serves only the current version
-    /// fails the receive with `E_UNABLE_TO_RECEIVE_OBJECT`, but a node still
-    /// holds older versions and refuses one only if it was received in the
-    /// current epoch. So on a node, a simulation can receive an object at a
-    /// version it was already received at in an earlier epoch, and report
-    /// effects that execution would reject.
-    ///
-    /// Neither this nor [`Self::any_receiving_object_digest`] relaxes what the
-    /// object is, or the rejection of a reference that duplicates another or
-    /// collides with an input object — that last one is the only rejection
-    /// standing between a duplicated receiving ticket and an invariant
-    /// violation in the object runtime.
+    /// object's current version, so a simulation can run over a reference the
+    /// caller has not refreshed. Receiving at that version then fails unless
+    /// the store still serves it, as a node does for older versions.
     pub any_receiving_object_version: bool,
     /// Skip the match between a receiving reference's declared digest and the
-    /// object it names, for the same reason as [`Self::any_object_digest`]: the
-    /// digest is an optimistic-concurrency token for submission, which a
-    /// simulation does not do.
-    ///
-    /// See [`Self::any_receiving_object_version`] for what stays checked.
+    /// object it names. Receiving does not read the digest; the effects leave
+    /// the received object out of their dependencies when it does not match.
     pub any_receiving_object_digest: bool,
 }
 

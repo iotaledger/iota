@@ -120,14 +120,13 @@ mod checked {
     /// Checks whether a transaction may run, for signing, for a certificate, or
     /// for a simulation.
     ///
-    /// `input_checks` names the checks a caller drops. A simulation with
+    /// `input_checks` names the checks the caller drops: a simulation with
     /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled)
-    /// passes [`InputCheckRules::SIMULATION`]; everything bound for
-    /// execution passes [`InputCheckRules::EXECUTION`]. A caller that
-    /// needs a check relaxed must name it in `InputCheckRules`, with the
-    /// reason on the field, rather than validating its inputs somewhere else:
-    /// the point of routing every caller through here is that a check added
-    /// below applies to all of them until someone says otherwise.
+    /// passes [`InputCheckRules::RELAXED_UNSAFE`], everything bound for
+    /// execution [`InputCheckRules::STRICT`]. A caller that needs a check
+    /// relaxed must name it in [`InputCheckRules`] rather than validate its
+    /// inputs elsewhere, so that a check added here applies to every caller
+    /// until someone says otherwise.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
