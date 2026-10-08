@@ -20,10 +20,8 @@ pub enum TypedStoreError {
     MetricsReporting,
     #[error("Transaction should be retried")]
     RetryableTransaction,
-    /// The store declined the operation because the data it names has been
-    /// pruned and will not come back. Nothing failed; carries its own
-    /// message, since what was pruned and what is still retained is the
-    /// store's to explain.
+    /// The data the operation names has been pruned and will not come back.
+    /// The message says what the store still retains.
     #[error("{0}")]
     Pruned(String),
 }
