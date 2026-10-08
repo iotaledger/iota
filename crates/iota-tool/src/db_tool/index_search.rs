@@ -475,9 +475,8 @@ mod tests {
 
     use super::*;
 
-    /// A history table's value type is spelled out again above instead of
-    /// coming from the index schema, so only a scan of a store the node
-    /// wrote catches one that no longer matches what is on disk.
+    /// The history value types spelled out above still decode what the node
+    /// writes.
     #[tokio::test(flavor = "multi_thread")]
     async fn digests_search_decodes_what_the_index_wrote() {
         let dir = tempfile::tempdir().unwrap();
