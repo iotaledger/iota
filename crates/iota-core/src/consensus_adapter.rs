@@ -1563,7 +1563,7 @@ mod adapter_tests {
         assert_eq!(position, 8);
         assert_eq!(positions_moved, 0);
 
-        // Make sure that position is set to max value 0
+        // Make sure that position is set to max value 1
         let (delay_step, position, positions_moved, _) =
             consensus_adapter.await_submit_delay_user_transaction(&committee, &tx_digest);
 
