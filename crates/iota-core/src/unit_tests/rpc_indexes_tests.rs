@@ -232,6 +232,101 @@ async fn test_rebuild_is_not_adopted_before_the_flush() {
     );
 }
 
+/// Executing again a checkpoint the store held when it was opened changes
+/// nothing, even when the store has no history rows for it, as after a
+/// rebuild.
+#[tokio::test]
+async fn test_checkpoints_held_at_open_are_not_applied_again() {
+    let dir = iota_common::tempdir();
+    let path = dir.path().to_path_buf();
+    let index_store = open_index_store(path.clone());
+    let owner = TestCheckpointDataBuilder::derive_address(1);
+    let gas = TypeTag::from(StructTag::new_gas());
+
+    let mut builder = TestCheckpointDataBuilder::new(0);
+    let mut checkpoints = Vec::new();
+    for object_idx in 0..3 {
+        builder = builder
+            .start_transaction(0)
+            .create_coin_object(object_idx, 1, 100, gas.clone())
+            .finish_transaction();
+        let checkpoint = builder.build_checkpoint();
+        index_checkpoint_for_testing(&index_store, &checkpoint);
+        checkpoints.push(checkpoint);
+    }
+    // A rebuild writes the live-state rows but leaves the history to the
+    // backfill, so the replayed transactions are not found as indexed.
+    let bucket = index_store.ensure_history_bucket(0).unwrap();
+    let digests: Vec<_> = bucket
+        .digests
+        .safe_iter()
+        .map(|row| row.unwrap().0)
+        .collect();
+    let mut batch = index_store.tables.meta.batch();
+    batch.delete_batch_tagged(&bucket.digests, digests).unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    let index_store = reopen_index_store(index_store, path).await;
+    // Fills the balance cache, which a replayed commit would add to.
+    assert_eq!(
+        index_store.get_balance(owner, gas.clone()).unwrap().balance,
+        300
+    );
+
+    for checkpoint in &checkpoints[1..] {
+        index_checkpoint_for_testing(&index_store, checkpoint);
+    }
+
+    assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(2));
+    let balance = index_store.get_balance(owner, gas.clone()).unwrap();
+    assert_eq!(balance.balance, 300);
+    assert_eq!(balance.num_coins, 3);
+    assert_eq!(
+        index_store.get_balance_from_db(owner, &gas).unwrap(),
+        balance
+    );
+}
+
+/// A rebuild covers the executed checkpoint and every later one whose
+/// transactions all have their outputs committed.
+#[tokio::test]
+async fn test_highest_checkpoint_with_committed_outputs() {
+    let dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    let mut builder = TestCheckpointDataBuilder::new(0);
+    let mut digests = Vec::new();
+    for object_idx in 0..6 {
+        builder = builder
+            .start_transaction(0)
+            .create_owned_object(object_idx)
+            .finish_transaction();
+        let checkpoint = builder.build_checkpoint();
+        checkpoint_store
+            .insert_verified_checkpoint(
+                &iota_types::messages_checkpoint::VerifiedCheckpoint::new_unchecked(
+                    checkpoint.checkpoint_summary.clone(),
+                ),
+            )
+            .unwrap();
+        checkpoint_store
+            .insert_checkpoint_contents(checkpoint.checkpoint_contents.clone())
+            .unwrap();
+        digests.push(*checkpoint.transactions[0].effects.transaction_digest());
+    }
+    let highest = |executed, committed: &[TransactionDigest]| {
+        super::highest_checkpoint_with_committed_outputs(&checkpoint_store, executed, |batch| {
+            Ok(batch.iter().all(|digest| committed.contains(digest)))
+        })
+        .unwrap()
+    };
+
+    assert_eq!(highest(Some(3), &digests), Some(5));
+    assert_eq!(highest(Some(3), &digests[..5]), Some(4));
+    assert_eq!(highest(Some(3), &digests[..4]), Some(3));
+    assert_eq!(highest(None, &digests), None);
+}
+
 /// When a store must be wiped and rebuilt.
 #[tokio::test]
 async fn test_needs_to_do_initialization_cases() {
