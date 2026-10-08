@@ -46,9 +46,7 @@ mod sim_only_tests {
 
         fullnode
             .with_async(|node| async {
-                // Wait until the wrapping transaction's checkpoint has executed: that
-                // is when relocation moves the versions it superseded out of the
-                // live table and into the epoch's historic bucket.
+                // Relocation runs when the wrapping transaction's checkpoint executes.
                 timeout(
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &wrap_child_txn_digest),
@@ -58,9 +56,7 @@ mod sim_only_tests {
 
                 let state = node.state();
 
-                // The child's pre-wrap version has left the live table and moved into
-                // the historic bucket; the live table keeps only the wrap's tombstone
-                // head, so `child_id` still has exactly one version there.
+                // The live table keeps only the wrap's tombstone.
                 assert_relocated(&state, child_id, child_pre_wrap_version);
                 assert_eq!(
                     state.database_for_testing().count_object_versions(child_id),
@@ -109,9 +105,6 @@ mod sim_only_tests {
 
                 let state = node.state();
 
-                // The root's version from just before unwrapping, and again its
-                // version from just before the final delete, both moved into the
-                // historic bucket as each transaction's checkpoint executed.
                 assert_relocated(&state, object_id, object_pre_unwrap_version);
                 assert_relocated(&state, object_id, object_pre_delete_version);
 

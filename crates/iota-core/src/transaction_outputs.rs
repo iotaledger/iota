@@ -26,9 +26,8 @@ pub struct TransactionOutputs {
     pub transaction: Arc<VerifiedTransaction>,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
-    /// Pre-images of the versions this transaction superseded, carried in
-    /// memory so checkpoint commit can relocate them into the historic
-    /// bucket in the same atomic batch, without reading them back.
+    /// Pre-images of the versions this transaction superseded, which
+    /// checkpoint commit moves into the historic bucket.
     pub superseded: Vec<(ObjectKey, Object)>,
 
     pub markers: Vec<(ObjectKey, MarkerValue)>,
@@ -154,10 +153,8 @@ impl TransactionOutputs {
             metrics
                 .superseded_capture_misses
                 .inc_by(capture_misses as u64);
-            // A miss loses no data — the same set drives both the bucket
-            // insert and the live delete, so the version simply stays in the
-            // live table — but relocation then stops for that shape of
-            // object, which only a crash in a test build makes visible.
+            // A miss loses no data: the version just stays in the live table.
+            // Crash test builds so that the gap does not go unnoticed.
             debug_fatal!(
                 "{capture_misses} of the versions {tx_digest} superseded have no pre-image among \
                  its input objects or the objects it read"
@@ -179,10 +176,9 @@ impl TransactionOutputs {
     }
 }
 
-/// Pre-images of the object versions a transaction superseded, keyed by
-/// the version each pre-image belonged to. Every modified version whose
-/// pre-image is in neither source is counted into `capture_misses` and left
-/// out, so the gap is visible instead of silently dropped.
+/// Pre-images of the object versions a transaction superseded. A version
+/// whose pre-image is in neither source is left out and counted into
+/// `capture_misses`.
 fn build_superseded_counting(
     modified_at: &[ObjectVersion],
     input_objects: &BTreeMap<ObjectId, Object>,
@@ -208,9 +204,7 @@ fn build_superseded_counting(
         .collect()
 }
 
-/// [`build_superseded_counting`] with the miss count discarded, so a test
-/// that only cares about the captured set doesn't have to thread a counter
-/// through it.
+/// [`build_superseded_counting`] with the miss count discarded.
 #[cfg(test)]
 fn build_superseded(
     modified_at: &[ObjectVersion],
