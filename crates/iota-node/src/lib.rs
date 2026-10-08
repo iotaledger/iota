@@ -2632,8 +2632,7 @@ pub async fn build_http_server(
     config: &NodeConfig,
     prometheus_registry: &Registry,
 ) -> Result<Option<iota_http::ServerHandle>> {
-    // Validators do not expose these APIs, and neither does a node with the
-    // JSON-RPC API turned off.
+    // Validators do not expose these APIs
     if config.is_validator() || !config.enable_jsonrpc_api {
         return Ok(None);
     }

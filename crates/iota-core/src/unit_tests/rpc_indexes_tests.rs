@@ -37,8 +37,7 @@ fn open_index_store(path: std::path::PathBuf) -> RpcIndexesStore {
     )
 }
 
-/// Opens an `RpcIndexesStore` at `path` without running the rebuild path,
-/// serving every group, with an explicit epoch retention.
+/// [`open_index_store`] with an explicit epoch retention.
 fn open_index_store_with_retention(
     path: &std::path::Path,
     epochs_to_retain: Option<u64>,
@@ -588,11 +587,9 @@ async fn test_the_earliest_retained_epoch_never_moves_backwards() {
     assert!(index_store.ensure_history_bucket(1).is_ok());
 }
 
-/// With index pruning configured, the backfill must stop at the
-/// retention horizon even before the first pruning pass persists the
-/// `earliest_retained_epoch` floor: replaying below it would index
-/// epochs that pass drops again. The genesis checkpoint here is fully
-/// replayable, so only the stop keeps the marker in place.
+/// With index pruning configured, the backfill stops at the retention
+/// horizon even before the first pruning pass has persisted the
+/// `earliest_retained_epoch` floor.
 #[tokio::test]
 async fn test_backfill_stops_at_the_retention_horizon() {
     let (authority_state, _) = genesis_authority_state().await;
@@ -601,8 +598,7 @@ async fn test_backfill_stops_at_the_retention_horizon() {
     let index_dir = iota_common::tempdir();
     let mut index_store = open_index_store(index_dir.path().to_path_buf());
     index_store.epochs_to_retain = Some(6);
-    // Buckets for epochs 0..=7: genesis' epoch 0 lies below the
-    // retention horizon (epoch 1), while no pruning has run yet.
+    // Genesis' epoch 0 lies below the retention horizon, epoch 1.
     seed_history_buckets(&index_store, 8);
     assert_eq!(index_store.history.earliest_retained(), 0);
     index_store
@@ -2725,7 +2721,6 @@ async fn test_prune_racing_a_reader_reports_an_error() {
     index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
 
-    // Every digest probe and range scan reads through such a snapshot.
     let snapshot = index_store.history.iter(false);
     assert_eq!(snapshot.len(), 2);
 
@@ -2778,7 +2773,7 @@ async fn test_a_failed_drop_still_removes_the_bucket() {
     index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
 
-    // Makes the pruner's own drop fail: the column family is already gone.
+    // Makes the pruner's own drop fail.
     index_store
         .tables
         .meta
@@ -3586,9 +3581,8 @@ async fn test_retention_keeps_the_configured_historic_epochs() {
     }
 }
 
-/// Pruning never drops the newest epoch's bucket, whatever a caller asks
-/// for: checkpoint ingest reads its digests to tell an already-indexed
-/// transaction from a new one.
+/// Pruning never drops the newest epoch's bucket, which checkpoint ingest
+/// reads to skip already-indexed transactions.
 #[tokio::test]
 async fn test_pruning_keeps_the_newest_bucket_whatever_the_retention() {
     let path = iota_common::tempdir();

@@ -458,8 +458,8 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    /// A `FullNodeHandle` cannot be built against `false`: it needs a
-    /// JSON-RPC client, and nothing is mounted on the JSON-RPC address.
+    /// A `FullNodeHandle` cannot be built with `false`, as it needs a JSON-RPC
+    /// client.
     pub fn with_enable_jsonrpc_api(mut self, enable_jsonrpc_api: bool) -> Self {
         self.enable_jsonrpc_api = enable_jsonrpc_api;
         self

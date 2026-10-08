@@ -918,16 +918,13 @@ impl RpcIndexesStore {
         Ok(None)
     }
 
-    /// Drops the history of expired epochs — the one pruning entry point,
-    /// covering every history table, digests included, since they all live
-    /// in the one bucket family. Returns the earliest epoch to retain,
-    /// `None` when index pruning is off or there is no history at all.
+    /// Drops the history of expired epochs, in every history table. Returns
+    /// the earliest epoch to retain, `None` when index pruning is off or
+    /// there is no history at all.
     ///
-    /// `epochs_to_retain` counts historic epochs on top of the current one:
-    /// `0` keeps the current epoch only, `N` also keeps the `N` epochs
-    /// before it. The newest epoch's bucket is always kept, whatever the
-    /// configured retention: [`Self::index_checkpoint`] reads its digests to
-    /// skip an already-indexed transaction.
+    /// The retention counts historic epochs on top of the current one: `0`
+    /// keeps the current epoch only. The newest epoch's bucket is always
+    /// kept, since [`Self::index_checkpoint`] reads its digests.
     ///
     /// A query racing a drop may report an error for the dropped epoch's
     /// rows; a retry no longer sees the bucket. Queries block for the
@@ -1289,8 +1286,6 @@ impl RpcIndexesStore {
     fn backfill_retention_horizon(&self, current_epoch: EpochId) -> Option<EpochId> {
         let epochs_to_retain = self.epochs_to_retain?;
         let newest = self.history.newest_epoch().unwrap_or(current_epoch);
-        // Mirrors `Self::prune`: the horizon is the current epoch minus the
-        // configured number of historic epochs, never below zero.
         Some(newest.saturating_sub(epochs_to_retain))
     }
 
