@@ -11,9 +11,8 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, CommandArgumentError, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId,
-    ObjectReference, SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature,
-    Version,
+    Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference,
+    SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature, Version,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
         PasskeyAuthenticator,
@@ -27,14 +26,13 @@ use crate::{
         authenticator_function::AuthenticatorFunctionRefV1,
         builtin_authenticator_functions::{
             BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
-            builtin_authenticator_function_ref_v1, extract_signature_bytes,
-            is_builtin_authenticator_function_ref, verify_builtin_signature,
+            builtin_authenticator_function_ref_v1, is_builtin_authenticator_function_ref,
+            verify_builtin_signature,
         },
         public_key::MovePublicKey,
     },
     crypto::PublicKey,
-    error::{ExecutionErrorKind, IotaError},
-    signature::VerifyParams,
+    error::IotaError,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 
@@ -88,80 +86,6 @@ fn builtin_ref_has_correct_fields() {
         BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
     );
     assert_eq!(reference.function, BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME);
-}
-
-// === extract_signature_bytes() ===
-
-#[test]
-fn extract_signature_bytes_ok() {
-    let signature = vec![1u8, 2, 3];
-    let authenticator = make_authenticator(vec![CallArg::pure(&signature)], vec![]);
-    assert_eq!(extract_signature_bytes(&authenticator).unwrap(), signature);
-}
-
-#[test]
-fn extract_signature_bytes_error_type_args() {
-    let authenticator = make_authenticator(vec![CallArg::pure(&vec![1u8])], vec![TypeTag::U8]);
-
-    assert_eq!(
-        extract_signature_bytes(&authenticator).unwrap_err().kind(),
-        &ExecutionErrorKind::TypeArityMismatch
-    );
-}
-
-#[test]
-fn extract_signature_bytes_error_no_call_args() {
-    let authenticator = make_authenticator(vec![], vec![]);
-
-    assert_eq!(
-        extract_signature_bytes(&authenticator).unwrap_err().kind(),
-        &ExecutionErrorKind::ArityMismatch
-    );
-}
-
-#[test]
-fn extract_signature_bytes_error_too_many_call_args() {
-    let authenticator = make_authenticator(
-        vec![CallArg::pure(&vec![1u8]), CallArg::pure(&vec![2u8])],
-        vec![],
-    );
-
-    assert_eq!(
-        extract_signature_bytes(&authenticator).unwrap_err().kind(),
-        &ExecutionErrorKind::ArityMismatch
-    );
-}
-
-#[test]
-fn extract_signature_bytes_error_non_pure_arg() {
-    let object_arg = CallArg::ImmutableOrOwned(ObjectReference::new(
-        ObjectId::ZERO,
-        Version::default(),
-        ObjectDigest::MIN,
-    ));
-    let authenticator = make_authenticator(vec![object_arg], vec![]);
-
-    assert_eq!(
-        extract_signature_bytes(&authenticator).unwrap_err().kind(),
-        &ExecutionErrorKind::CommandArgumentError {
-            argument: 1,
-            kind: CommandArgumentError::TypeMismatch,
-        }
-    );
-}
-
-#[test]
-fn extract_signature_bytes_error_invalid_bcs_in_pure_arg() {
-    // Empty bytes cannot be decoded as BCS Vec<u8> (needs at least a length byte).
-    let authenticator = make_authenticator(vec![CallArg::Pure(vec![])], vec![]);
-
-    assert_eq!(
-        extract_signature_bytes(&authenticator).unwrap_err().kind(),
-        &ExecutionErrorKind::CommandArgumentError {
-            argument: 1,
-            kind: CommandArgumentError::InvalidBcsBytes,
-        }
-    );
 }
 
 // === verify_builtin_signature() happy path ===
@@ -370,13 +294,8 @@ struct BuiltinSignatureVerifier {
 
 impl BuiltinSignatureVerifier {
     fn verify(&self) -> Result<(), IotaError> {
-        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        let verify_params = VerifyParams::new(
-            protocol_config.accept_passkey_in_multisig(),
-            protocol_config.additional_multisig_checks(),
-        );
         verify_builtin_signature(
-            &verify_params,
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
             &self.public_key,
             &self.signature,
             &self.tx_data_bytes,

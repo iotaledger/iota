@@ -42,6 +42,10 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
+    account_abstraction::builtin_authenticator_functions::{
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    },
     base_types::AuthorityName,
     crypto::PublicKey,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -98,9 +102,6 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 // builtin_keyed_aa Move module).
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
 const AA_BUILTIN_CREATE_FN: &str = "create";
-const BUILTIN_AUTHENTICATOR_MODULE_NAME: &str = "builtin_authenticator_functions";
-/// `builtin_authenticator_functions::EInvalidSignature`.
-const BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE: u64 = 20;
 
 // ------------------------------
 // --- Abstract Account tests ---
@@ -2721,9 +2722,9 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
     };
     assert_move_authentication_abort(
         error,
-        BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "builtin_authenticator_v1",
-        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -2774,9 +2775,9 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
     };
     assert_move_authentication_abort(
         error,
-        BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "builtin_authenticator_v1",
-        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -2827,9 +2828,9 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
     };
     assert_move_authentication_abort(
         error,
-        BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "builtin_authenticator_v1",
-        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -2899,9 +2900,9 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
     };
     assert_move_authentication_abort(
         error,
-        BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "builtin_authenticator_v1",
-        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -3060,9 +3061,9 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     };
     assert_move_authentication_abort(
         error,
-        BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "builtin_authenticator_v1",
-        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -3122,9 +3123,9 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
     };
     assert_move_authentication_abort(
         error,
-        BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "builtin_authenticator_v1",
-        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -3187,6 +3188,80 @@ async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(
     Ok(())
 }
 
+/// Test that the built-in authenticator rejects a `MoveAuthenticator` that
+/// carries a type argument, even with a valid signature: the built-in function
+/// takes the account type as its only type argument.
+#[sim_test]
+async fn test_builtin_authenticator_rejects_type_argument() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let (test_env, kp, tx_data, aa_ref) = setup_builtin_ed25519_tx([70u8; 32]).await?;
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let signature = builtin_signature_arg(&kp, &tx_data)?;
+
+    let err = test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature.clone()], vec![TypeTag::U8]),
+        )
+        .await
+        .unwrap_err();
+    assert_move_authentication_failure(&err, "NUMBER_OF_TYPE_ARGUMENTS_MISMATCH");
+
+    // The same authenticator without the type argument is accepted.
+    test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Test that the built-in authenticator rejects malformed signature arguments:
+/// none, one too many, bytes that are not a BCS `vector<u8>`, and an object in
+/// place of the signature bytes.
+#[sim_test]
+async fn test_builtin_authenticator_rejects_malformed_signature_argument()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let (test_env, kp, tx_data, aa_ref) = setup_builtin_ed25519_tx([71u8; 32]).await?;
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let signature = builtin_signature_arg(&kp, &tx_data)?;
+
+    for (call_args, expected) in [
+        (vec![], "Arity mismatch"),
+        (vec![signature.clone(), signature.clone()], "Arity mismatch"),
+        (
+            vec![CallArg::Pure(vec![])],
+            "FAILED_TO_DESERIALIZE_ARGUMENT",
+        ),
+        (
+            vec![CallArg::CLOCK_IMMUTABLE],
+            "Invalid command argument at 1",
+        ),
+    ] {
+        let err = test_env
+            .handle_tx_in_process(
+                &validator,
+                builtin_authenticated_tx(&tx_data, aa_ref, call_args, vec![]),
+            )
+            .await
+            .unwrap_err();
+        assert_move_authentication_failure(&err, expected);
+    }
+
+    // The same transaction with a well-formed signature argument is accepted.
+    test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
+        )
+        .await?;
+    Ok(())
+}
+
 /// Test that a built-in account cannot be created when
 /// `enable_builtin_move_authenticators` is disabled in the protocol config.
 /// Ed25519 is used as a representative scheme.
@@ -3239,7 +3314,7 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
         matches!(
             status.unwrap_err().0,
             ExecutionError::MoveAbort{location: MoveLocation { module, .. }, code: abort_code}
-            if module.as_str() == "builtin_authenticator_functions"
+            if module.as_str() == BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
                 && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected MoveAbort in builtin_authenticator_functions with code 0 \
@@ -4347,6 +4422,79 @@ fn builtin_sig_for_keypair(
             object_arg,
         )
         .into(),
+    ))
+}
+
+/// Asserts that `err` is a `MoveAuthentication` failure whose message contains
+/// `expected`.
+fn assert_move_authentication_failure(err: &IotaError, expected: &str) {
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
+    };
+    assert!(
+        error.starts_with("MoveAuthentication: Move authentication failed: ")
+            && error.contains(expected),
+        "Expected a MoveAuthentication error containing `{expected}`, got: {error}"
+    );
+}
+
+/// Creates a built-in Ed25519 account for a key drawn from `seed` and a funded
+/// transaction sent by it.
+async fn setup_builtin_ed25519_tx(
+    seed: [u8; 32],
+) -> anyhow::Result<(TestEnvironment, SimpleKeypair, Transaction, ObjectReference)> {
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(seed)));
+    test_env
+        .setup_builtin_account(kp.public_key().scheme(), kp.public_key().as_ref().to_vec())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    Ok((test_env, kp, tx_data, aa_ref))
+}
+
+/// Returns the signature call argument of a built-in authenticator: the
+/// BCS-encoded `UserSignature` wire bytes of `kp`'s signature of `tx_data`.
+fn builtin_signature_arg(kp: &SimpleKeypair, tx_data: &Transaction) -> anyhow::Result<CallArg> {
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let sig: SimpleSignature = kp.sign(&intent_msg.signing_digest());
+    Ok(CallArg::Pure(bcs::to_bytes(
+        &UserSignature::Simple(sig).to_bytes(),
+    )?))
+}
+
+/// Returns `tx_data` authenticated by a `MoveAuthenticator` for the shared
+/// account `aa_ref` with the given call and type arguments.
+fn builtin_authenticated_tx(
+    tx_data: &Transaction,
+    aa_ref: ObjectReference,
+    call_args: Vec<CallArg>,
+    type_args: Vec<TypeTag>,
+) -> TransactionEnvelope {
+    let authenticator = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            call_args,
+            type_args,
+            SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false),
+        )
+        .into(),
+    );
+    TransactionEnvelope::new(SenderSignedTransaction::new(
+        tx_data.clone(),
+        vec![authenticator],
     ))
 }
 

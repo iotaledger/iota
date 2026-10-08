@@ -3,10 +3,7 @@
 
 use std::collections::VecDeque;
 
-use iota_types::{
-    account_abstraction::{builtin_authenticator_functions, public_key::MovePublicKey},
-    signature::VerifyParams,
-};
+use iota_types::account_abstraction::{builtin_authenticator_functions, public_key::MovePublicKey};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -61,17 +58,13 @@ pub fn verify_builtin_signature(
     )?;
 
     let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
-    let verify_params = VerifyParams::new(
-        protocol_config.accept_passkey_in_multisig(),
-        protocol_config.additional_multisig_checks(),
-    );
 
     let auth_context = get_extension!(context, AuthenticationContext)?
         .auth_context
         .borrow();
 
     let is_valid = builtin_authenticator_functions::verify_builtin_signature(
-        &verify_params,
+        protocol_config,
         &public_key,
         &signature.as_bytes_ref(),
         auth_context.tx_data_bytes(),

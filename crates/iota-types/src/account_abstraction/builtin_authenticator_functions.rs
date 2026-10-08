@@ -1,9 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, CommandArgumentError, Identifier, MoveAuthenticator, SignatureScheme, StructTag,
-    Transaction, UserSignature,
+    Address, Identifier, SignatureScheme, StructTag, Transaction, UserSignature,
     crypto::{Intent, IntentMessage},
 };
 use serde::{Deserialize, Serialize};
@@ -13,10 +13,8 @@ use crate::{
     account_abstraction::{
         authenticator_function::AuthenticatorFunctionRefV1, public_key::MovePublicKey,
     },
-    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    move_authenticator::MoveAuthenticatorExt,
+    error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::CallArg,
 };
 
 pub const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME: Identifier =
@@ -26,6 +24,10 @@ pub const PUBLIC_KEY_FIELD_NAME_STRUCT_NAME: Identifier =
     Identifier::from_static("PublicKeyFieldName");
 
 pub const BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME: &str = "builtin_authenticator_v1";
+
+/// The `#[error]` code of `builtin_authenticator_functions::EInvalidSignature`,
+/// the abort raised when the built-in authenticator rejects a signature.
+pub const INVALID_SIGNATURE_ERROR_CODE: u64 = 20;
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct PublicKeyFieldName {
@@ -76,8 +78,11 @@ pub fn is_builtin_authenticator_function_ref(
 ///
 /// `tx_data_bytes` is the BCS-encoded `Transaction` used to reconstruct
 /// the signing message as `IntentMessage(Intent::iota_transaction(), tx_data)`.
+///
+/// The multisig and passkey verification rules are taken from
+/// `protocol_config`.
 pub fn verify_builtin_signature(
-    verify_params: &VerifyParams,
+    protocol_config: &ProtocolConfig,
     public_key: &MovePublicKey,
     signature_bytes: &[u8],
     tx_data_bytes: &[u8],
@@ -122,50 +127,12 @@ pub fn verify_builtin_signature(
         })?;
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
-    signature.verify_claims(&intent_msg, address, verify_params)
-}
+    let verify_params = VerifyParams::new(
+        protocol_config.accept_passkey_in_multisig(),
+        protocol_config.additional_multisig_checks(),
+    );
 
-/// Extracts the `UserSignature` wire bytes from `call_args[0]`.
-///
-/// `call_args[0]` must be a `Pure` argument whose BCS payload decodes to a
-/// `Vec<u8>` containing the flag-prefixed signature bytes, and `authenticator`
-/// must carry no type arguments.
-///
-/// Returns the error a Move call to a built-in authenticator function reports
-/// for the same mistake; the signature is that function's second argument,
-/// after the account.
-pub fn extract_signature_bytes(
-    authenticator: &MoveAuthenticator,
-) -> Result<Vec<u8>, ExecutionError> {
-    if !authenticator.type_args().is_empty() {
-        return Err(ExecutionError::new_with_source(
-            ExecutionErrorKind::TypeArityMismatch,
-            "Built-in authenticator expects no type arguments",
-        ));
-    }
-    let call_args = authenticator.call_args();
-    if call_args.len() != 1 {
-        return Err(ExecutionError::new_with_source(
-            ExecutionErrorKind::ArityMismatch,
-            "Built-in authenticator expects exactly one call argument (signature: vector<u8>)",
-        ));
-    }
-    let CallArg::Pure(arg_bytes) = &call_args[0] else {
-        return Err(signature_argument_error(
-            CommandArgumentError::TypeMismatch,
-            "Built-in authenticator argument must be a pure vector<u8>".to_string(),
-        ));
-    };
-    bcs::from_bytes::<Vec<u8>>(arg_bytes).map_err(|e| {
-        signature_argument_error(
-            CommandArgumentError::InvalidBcsBytes,
-            format!("Built-in authenticator signature argument BCS decode failed: {e}"),
-        )
-    })
-}
-
-fn signature_argument_error(kind: CommandArgumentError, message: String) -> ExecutionError {
-    ExecutionError::new_with_source(ExecutionErrorKind::command_argument_error(kind, 1), message)
+    signature.verify_claims(&intent_msg, address, &verify_params)
 }
 
 #[cfg(test)]

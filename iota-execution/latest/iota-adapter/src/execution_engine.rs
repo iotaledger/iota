@@ -2351,18 +2351,15 @@ mod checked {
 
     /// Construct a PTB with a single call to the built-in authenticator
     /// function found in `AuthenticatorFunctionRef`, instantiated with the
-    /// type of `MoveAuthenticator::object_to_authenticate`. The arguments are
-    /// the account object followed by the signature bytes taken from
-    /// `MoveAuthenticator::call_args`.
+    /// type of `MoveAuthenticator::object_to_authenticate` followed by
+    /// `MoveAuthenticator::type_args`. As in `setup_authenticator_move_call`,
+    /// `MoveAuthenticator::object_to_authenticate` is the first argument,
+    /// followed by all arguments in `MoveAuthenticator::call_args`.
     fn setup_builtin_authenticator_call(
         temporary_store: &TemporaryStore<'_>,
         authenticator: MoveAuthenticator,
         authenticator_function_ref: AuthenticatorFunctionRefV1,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
-        // The call runs in the `System` mode, which does not type check pure
-        // arguments, so the signature is decoded here.
-        let signature = builtin_authenticator_functions::extract_signature_bytes(&authenticator)?;
-
         let account_type = authenticator
             .object_to_authenticate_components()
             .ok()
@@ -2375,6 +2372,13 @@ mod checked {
         };
 
         let mut builder = ProgrammableTransactionBuilder::new();
+
+        let mut type_args = vec![TypeTag::Struct(Box::new(account_type))];
+        type_args.extend(authenticator.type_args().to_owned());
+
+        let mut args = vec![authenticator.object_to_authenticate().to_owned()];
+        args.extend(authenticator.call_args().to_owned());
+
         let res = builder.move_call(
             authenticator_function_ref.package,
             Identifier::new(authenticator_function_ref.module).expect(
@@ -2383,12 +2387,10 @@ mod checked {
             Identifier::new(authenticator_function_ref.function).expect(
                 "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
             ),
-            vec![TypeTag::Struct(Box::new(account_type))],
-            vec![
-                authenticator.object_to_authenticate().to_owned(),
-                CallArg::pure(&signature),
-            ],
+            type_args,
+            args,
         );
+
         assert_invariant!(
             res.is_ok(),
             "Unable to generate a built-in authenticator call transaction!"
