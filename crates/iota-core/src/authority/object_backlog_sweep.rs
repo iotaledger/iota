@@ -33,6 +33,7 @@ use crate::{
         AuthorityStore,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreObject, StoreObjectWrapper, try_construct_object},
+        historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
     },
     checkpoints::CheckpointStore,
@@ -66,8 +67,10 @@ pub enum ObjectBacklogSweepProgress {
 /// Where the objects pruner left its watermark, only the effects of the
 /// checkpoints above it are read; otherwise the whole live table is walked.
 ///
-/// Call this before starting anything that scans the live table for its latest
-/// versions or can expire a historic bucket: an expiry could otherwise leave a
+/// Call this after [`crate::authority::ledger_backlog_migration::migrate`],
+/// which moves the effects this reads into the historic buckets. Call it
+/// before starting anything that scans the live table for its latest versions
+/// or can expire a historic bucket: an expiry could otherwise leave a
 /// superseded version as the newest row of a deleted object.
 ///
 /// # Errors
@@ -116,6 +119,7 @@ pub async fn sweep(
 struct ObjectBacklogSweep {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     historic_objects: Arc<HistoricObjects>,
+    historic_ledger: Arc<HistoricLedger>,
     keys_per_slice: usize,
 }
 
@@ -124,6 +128,7 @@ impl ObjectBacklogSweep {
         Self {
             perpetual_tables: store.perpetual_tables.clone(),
             historic_objects: store.get_historic_objects().clone(),
+            historic_ledger: store.get_historic_ledger().clone(),
             keys_per_slice: KEYS_PER_SLICE,
         }
     }
@@ -177,14 +182,18 @@ impl ObjectBacklogSweep {
         epoch: EpochId,
         bound: CheckpointSequenceNumber,
     ) -> IotaResult<()> {
-        // Walk up to the synced watermark, not the executed one: a crash
-        // between committing a checkpoint's effects and bumping
+        // Walk up to the newest certified checkpoint, not the executed one: a
+        // crash between committing a checkpoint's effects and bumping
         // `HighestExecuted` leaves superseded versions above the executed
-        // watermark. A checkpoint not executed yet has no effects to read.
+        // watermark, and the ledger migration has by now brought the synced
+        // watermark back to the executed one. A checkpoint not executed yet
+        // has no effects to read.
         let executed = checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
-        let synced = checkpoint_store.get_highest_synced_checkpoint_seq_number()?;
-        let Some(highest) = synced.max(executed) else {
-            // Nothing has been executed or synced, so nothing can have been
+        let certified = checkpoint_store
+            .get_latest_certified_checkpoint()?
+            .map(|checkpoint| checkpoint.sequence_number);
+        let Some(highest) = certified.max(executed) else {
+            // Nothing has been executed or certified, so nothing can have been
             // superseded.
             return self.mark_done();
         };
@@ -242,7 +251,10 @@ impl ObjectBacklogSweep {
                 continue;
             };
             for digests in contents.iter() {
-                let Some(effects) = self.perpetual_tables.effects.get(&digests.effects)? else {
+                let Some(effects) = self
+                    .historic_ledger
+                    .get_executed_effects(&digests.transaction)?
+                else {
                     continue;
                 };
                 for modified in effects.modified_at_versions() {

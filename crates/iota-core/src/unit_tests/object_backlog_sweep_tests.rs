@@ -31,6 +31,7 @@ use crate::{
         AuthorityStore,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+        ledger_backlog_migration::migrate,
     },
     checkpoints::CheckpointStore,
     test_utils::executed_checkpoint,
@@ -111,6 +112,7 @@ fn sweeper(store: &AuthorityStore, keys_per_slice: usize) -> ObjectBacklogSweep 
     ObjectBacklogSweep {
         perpetual_tables: store.perpetual_tables.clone(),
         historic_objects: store.get_historic_objects().clone(),
+        historic_ledger: store.get_historic_ledger().clone(),
         keys_per_slice,
     }
 }
@@ -162,7 +164,8 @@ fn progress(store: &AuthorityStore) -> Option<ObjectBacklogSweepProgress> {
 }
 
 /// Writes a checkpoint whose single transaction superseded `mutated` and
-/// deleted `deleted`, with its effects in the flat perpetual table.
+/// deleted `deleted`, with its execution record in the flat perpetual tables
+/// a database without historic buckets holds it in.
 fn seed_checkpoint(
     store: &AuthorityStore,
     checkpoint_store: &CheckpointStore,
@@ -190,6 +193,11 @@ fn seed_checkpoint(
         .perpetual_tables
         .effects
         .insert(&effects_digest, &effects)
+        .unwrap();
+    store
+        .perpetual_tables
+        .executed_effects
+        .insert(transaction.digest(), &effects_digest)
         .unwrap();
 
     let contents = CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::new(
@@ -228,6 +236,17 @@ fn seed_checkpoint(
         .update_highest_executed_checkpoint(&checkpoint)
         .unwrap();
     effects
+}
+
+/// Runs the ledger migration and then the sweep, in the order a node start
+/// runs them.
+async fn migrate_and_sweep(store: &Arc<AuthorityStore>, checkpoint_store: Arc<CheckpointStore>) {
+    migrate(store.clone(), checkpoint_store.clone(), SWEEP_EPOCH, None)
+        .await
+        .unwrap();
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
+        .await
+        .unwrap();
 }
 
 /// Records the objects pruner's watermark the bounded walk starts from.
@@ -454,9 +473,7 @@ async fn the_bounded_walk_relocates_what_the_checkpoints_above_the_watermark_sup
     seed_pruner_watermark(&store, 7);
     seed_checkpoint(&store, &checkpoint_store, 8, &[(live_id(), 1)], &[]);
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
-        .await
-        .unwrap();
+    migrate_and_sweep(&store, checkpoint_store).await;
 
     assert_eq!(
         relocated_keys(&store, SWEEP_EPOCH),
@@ -501,9 +518,7 @@ async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
         )
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
-        .await
-        .unwrap();
+    migrate_and_sweep(&store, checkpoint_store).await;
 
     assert_eq!(recorded_tombstones(&store, SWEEP_EPOCH), heads);
     for key in &heads {
@@ -527,9 +542,7 @@ async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
         .update_highest_pruned_checkpoint(&executed_checkpoint(0, 9))
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
-        .await
-        .unwrap();
+    migrate_and_sweep(&store, checkpoint_store).await;
 
     // The unbounded walk's outcome.
     assert_eq!(
@@ -570,9 +583,7 @@ async fn the_bounded_walk_resumes_at_the_checkpoint_it_recorded() {
         .insert(&(), &1)
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
-        .await
-        .unwrap();
+    migrate_and_sweep(&store, checkpoint_store).await;
 
     assert_eq!(
         relocated_keys(&store, SWEEP_EPOCH),
@@ -590,9 +601,7 @@ async fn no_watermark_walks_the_whole_table() {
 
     seed(&store);
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
-        .await
-        .unwrap();
+    migrate_and_sweep(&store, checkpoint_store).await;
 
     assert_eq!(
         relocated_keys(&store, SWEEP_EPOCH),
@@ -621,9 +630,8 @@ async fn the_walk_reaches_a_committed_checkpoint_above_the_executed_watermark() 
         .multi_insert([value(live_id(), 1), value(live_id(), 2)])
         .unwrap();
     seed_pruner_watermark(&store, 7);
-    let executed = seed_checkpoint(&store, &checkpoint_store, 8, &[], &[]);
+    seed_checkpoint(&store, &checkpoint_store, 8, &[], &[]);
     seed_checkpoint(&store, &checkpoint_store, 9, &[(live_id(), 1)], &[]);
-    let _ = executed;
 
     let eight = checkpoint_store
         .get_checkpoint_by_sequence_number(8)
@@ -640,9 +648,7 @@ async fn the_walk_reaches_a_committed_checkpoint_above_the_executed_watermark() 
         .update_highest_synced_checkpoint(&nine)
         .unwrap();
 
-    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
-        .await
-        .unwrap();
+    migrate_and_sweep(&store, checkpoint_store).await;
 
     assert_eq!(
         relocated_keys(&store, SWEEP_EPOCH),
