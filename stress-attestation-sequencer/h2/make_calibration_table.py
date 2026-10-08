@@ -2,10 +2,10 @@
 """make_calibration_table.py — render the calibration CSVs as markdown tables.
 
 Writes results/probe/calibration-tables.md: one per-machine table for each
-calibration CSV that exists, plus a cross-machine comparison table when both
-are present, and for each groth16-<machine>.csv one table per curve and
-function, plus a cross-machine groth16 comparison when both are present.
-These are the tables folded into probe-test.md. Pure stdlib; no venv.
+calibration CSV that exists, plus a cross-machine comparison table when more
+than one is present, and for each groth16-<machine>.csv one table per curve
+and function, plus a cross-machine groth16 comparison when more than one is
+present. These are the tables folded into probe-test.md. Pure stdlib; no venv.
 """
 
 import csv
@@ -45,10 +45,14 @@ def order(rows):
 
 
 # Discover every machine's sweep: results/probe/calibration-<cpu-slug>.csv.
-# Nothing hardcoded — probe.sh names each file from the CPU it ran on.
-paths = sorted(glob.glob(os.path.join(RES, "calibration-*.csv")))
+# Nothing hardcoded — probe.sh names each file from the CPU it ran on. Sorted
+# by machine label, so a machine's plain run comes before its "-turbo" run.
+paths = sorted(glob.glob(os.path.join(RES, "calibration-*.csv")), key=label_from)
 present = [(label_from(p), load(p)) for p in paths]
-g16_paths = sorted(glob.glob(os.path.join(RES, "groth16-*.csv")))
+g16_paths = sorted(
+    glob.glob(os.path.join(RES, "groth16-*.csv")),
+    key=lambda p: label_from(p, "groth16-"),
+)
 if not present and not g16_paths:
     raise SystemExit("no calibration-*.csv or groth16-*.csv found in results/probe/")
 
@@ -66,25 +70,41 @@ for name, rows in present:
             f"{float(r['exec_sem_ms']):.3f} | {r['n_samples']} |"
         )
 
-# Cross-machine comparison, only if exactly two machines are present.
-if len(present) == 2:
-    (na, ra), (nb, rb) = present
-    A = {(int(r["slow_n"]), int(r["slow_size"])): r for r in ra}
-    B = {(int(r["slow_n"]), int(r["slow_size"])): r for r in rb}
-    keys = sorted(set(A) & set(B), key=lambda k: (int(A[k]["product"]), k[0]))
-    lines.append(f"\n## {na} vs {nb} ({len(keys)} shared points)\n")
-    lines.append(f"| product | n×size | CU | {na} exec (ms) | {nb} exec (ms) | ratio |")
-    lines.append("| --- | --- | --- | --- | --- | --- |")
+# Cross-machine comparison, when more than one machine is present: one
+# execution-time column per machine, then each later machine's time divided by
+# the first machine's.
+if len(present) >= 2:
+    keyed = [
+        (name, {(int(r["slow_n"]), int(r["slow_size"])): r for r in rows})
+        for name, rows in present
+    ]
+    first_name, first = keyed[0]
+    keys = sorted(
+        set.intersection(*(set(d) for _, d in keyed)),
+        key=lambda k: (int(first[k]["product"]), k[0]),
+    )
+    lines.append(f"\n## Across machines ({len(keys)} shared points)\n")
+    lines.append(
+        "| product | n×size | CU | "
+        + " | ".join(f"{name} exec (ms)" for name, _ in keyed)
+        + " | "
+        + " | ".join(f"{name} / {first_name}" for name, _ in keyed[1:])
+        + " |"
+    )
+    lines.append("| " + " | ".join(["---"] * (2 * len(keyed) + 2)) + " |")
     for k in keys:
-        a, b = A[k], B[k]
-        ea, eb = float(a["exec_mean_ms"]), float(b["exec_mean_ms"])
-        # CU is machine-independent and measured exactly per transaction, so both
-        # machines report the same value; max() is just defensive against a stale
-        # CSV.
-        true_cu = max(float(a["actual_cu"]), float(b["actual_cu"]))
+        rows_k = [d[k] for _, d in keyed]
+        execs = [float(r["exec_mean_ms"]) for r in rows_k]
+        # CU is machine-independent and measured exactly per transaction, so
+        # every machine reports the same value; max() is just defensive
+        # against a stale CSV.
+        true_cu = max(float(r["actual_cu"]) for r in rows_k)
         lines.append(
-            f"| {int(a['product']):,} | {k[0]}×{k[1]} | {cu(true_cu)} | "
-            f"{ea:.3f} | {eb:.3f} | {eb / ea:.2f} |"
+            f"| {int(rows_k[0]['product']):,} | {k[0]}×{k[1]} | {cu(true_cu)} | "
+            + " | ".join(f"{e:.3f}" for e in execs)
+            + " | "
+            + " | ".join(f"{e / execs[0]:.2f}" for e in execs[1:])
+            + " |"
         )
 
 # TotalTxCount -> TotalComputationUnits limit mapping (machine-independent: CU
@@ -132,38 +152,50 @@ for name, rows in g16_present:
                 f"{r['n_samples']} |"
             )
 
-# groth16 cross-machine comparison, only if exactly two machines are present:
-# one table per workload, over the calls both machines measured.
-if len(g16_present) == 2:
-    (na, ra), (nb, rb) = g16_present
-    for curve, function in g16_workloads(ra + rb):
-        A = {
-            int(r["calls"]): r
-            for r in ra
-            if (r["curve"], r["function"]) == (curve, function)
-        }
-        B = {
-            int(r["calls"]): r
-            for r in rb
-            if (r["curve"], r["function"]) == (curve, function)
-        }
-        calls = sorted(set(A) & set(B))
+# groth16 cross-machine comparison, when more than one machine is present: one
+# table per workload, over the calls every machine measured, laid out like the
+# slow comparison above.
+if len(g16_present) >= 2:
+    first_name = g16_present[0][0]
+    for curve, function in g16_workloads([r for _, rows in g16_present for r in rows]):
+        keyed = [
+            (
+                name,
+                {
+                    int(r["calls"]): r
+                    for r in rows
+                    if (r["curve"], r["function"]) == (curve, function)
+                },
+            )
+            for name, rows in g16_present
+        ]
+        calls = sorted(set.intersection(*(set(d) for _, d in keyed)))
         if not calls:
             continue
         lines.append(
-            f"\n## {na} vs {nb}: groth16 {curve} {function} "
+            f"\n## Across machines: groth16 {curve} {function} "
             f"({len(calls)} shared points)\n"
         )
-        lines.append(f"| calls | CU | {na} exec (ms) | {nb} exec (ms) | ratio |")
-        lines.append("| --- | --- | --- | --- | --- |")
+        lines.append(
+            "| calls | CU | "
+            + " | ".join(f"{name} exec (ms)" for name, _ in keyed)
+            + " | "
+            + " | ".join(f"{name} / {first_name}" for name, _ in keyed[1:])
+            + " |"
+        )
+        lines.append("| " + " | ".join(["---"] * (2 * len(keyed) + 1)) + " |")
         for k in calls:
-            a, b = A[k], B[k]
-            ea, eb = float(a["exec_mean_ms"]), float(b["exec_mean_ms"])
-            # As for slow: CU is protocol-defined, so both machines report the
+            rows_k = [d[k] for _, d in keyed]
+            execs = [float(r["exec_mean_ms"]) for r in rows_k]
+            # As for slow: CU is protocol-defined, so every machine reports the
             # same value; max() is only defensive.
-            true_cu = max(float(a["actual_cu"]), float(b["actual_cu"]))
+            true_cu = max(float(r["actual_cu"]) for r in rows_k)
             lines.append(
-                f"| {k} | {cu(true_cu)} | {ea:.3f} | {eb:.3f} | {eb / ea:.2f} |"
+                f"| {k} | {cu(true_cu)} | "
+                + " | ".join(f"{e:.3f}" for e in execs)
+                + " | "
+                + " | ".join(f"{e / execs[0]:.2f}" for e in execs[1:])
+                + " |"
             )
 
 with open(OUT, "w") as f:

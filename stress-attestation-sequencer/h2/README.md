@@ -278,9 +278,10 @@ results/matrix/<LABEL>/
   cancellations, checkpoint lag and the expensive transactions executed per
   second against `LIMIT_B`, with Run A as the reference and error bars from the
   iterations. `modes_lag_over_time.png` draws the checkpoint lag per slice of
-  any run longer than the usual 60 s. With a second results directory as the
-  second argument (`plot.py results/matrix results/matrix-ws`) it also draws the
-  ladders both machines ran, in `modes_two_machines.png`. Needs matplotlib, so
+  any run longer than the usual 60 s. With the other machines' results
+  directories as further arguments (`plot.py results/matrix results/matrix-ws
+  results/matrix-ref`) it also draws the ladders they ran, in
+  `modes_machines.png`. Needs matplotlib, so
   run it from a `venv` such as `../h1/.venv`.
 
   The figures cover one set of configurations at a time: one target rate, one

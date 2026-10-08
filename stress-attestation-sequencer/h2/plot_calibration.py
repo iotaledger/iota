@@ -59,10 +59,14 @@ def col(rows, key, f=float):
 
 # Discover every machine's sweep: results/probe/calibration-<cpu-slug>.csv,
 # one per machine (probe.sh names it from the CPU it ran on). Nothing
-# hardcoded.
+# hardcoded. Sorted by machine label, so a machine's plain run comes before its
+# "-turbo" run.
 data = []
 for i, path in enumerate(
-    sorted(glob.glob(os.path.join(HERE, "results", "probe", "calibration-*.csv")))
+    sorted(
+        glob.glob(os.path.join(HERE, "results", "probe", "calibration-*.csv")),
+        key=label_from,
+    )
 ):
     rows = load(path)
     data.append((label_from(path), COLORS[i % len(COLORS)], ladder(rows), split(rows)))

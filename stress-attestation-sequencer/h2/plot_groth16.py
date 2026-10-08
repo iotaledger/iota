@@ -47,10 +47,12 @@ def slug_of(path, prefix):
     return os.path.basename(path)[len(prefix) : -len(".csv")]
 
 
-# How probe-test.md names the two machines; any other slug is shown as is.
+# How probe-test.md names the machines; any other slug is shown as is.
 MACHINE_NAME = {
     "ryzen-9-9950x3d": "the WS (Ryzen 9 9950X3D)",
     "epyc-9454p": "the EPYC (EPYC 9454P)",
+    "xeon-gold-5412u": "the reference machine (Xeon Gold 5412U, turbo boost off)",
+    "xeon-gold-5412u-turbo": "the reference machine (Xeon Gold 5412U, turbo boost on)",
 }
 
 

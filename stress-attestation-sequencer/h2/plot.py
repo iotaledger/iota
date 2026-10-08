@@ -35,16 +35,16 @@ written by aggregate.py, which owns the pooling arithmetic) and renders into
                       Reads admits_hist.csv.
   modes_mix_ladders.png
                       the mixes run at several limits: success, cancellations,
-                      lag and the expensive level's execution rate against
-                      LIMIT_B, Run A as the reference, error bars = one
-                      standard deviation across iterations, shaded band = the
-                      expensive cost to twice it.
+                      lag, the expensive level's execution rate and the
+                      computation units executed per second against LIMIT_B,
+                      Run A as the reference, error bars = one standard
+                      deviation across iterations, shaded band = the expensive
+                      cost to twice it.
   modes_lag_over_time.png
                       checkpoint lag per 10 s slice of the 300 s runs, Run A
                       against Run B. Reads lag_over_time.csv.
-  modes_two_machines.png
-                      only with a second results directory: the mix ladders
-                      both machines ran, one colour per machine.
+  modes_machines.png  only with further results directories: the mix ladders
+                      the machines ran, one colour per machine.
 
 The x-axis collapse works because tx/commit = LIMIT_B / units-per-tx: the
 grid's two axes only act through their ratio, so cost points become curves
@@ -70,11 +70,11 @@ last part must name the rate (`qps1000`), so a variant suffix such as
 `-burst` or `-dur300` is dropped even from an older CSV without those
 columns.
 
-Usage: plot.py [results_dir] [second_results_dir]
-  results_dir: expects summary.csv inside (default .). The optional second
-  directory holds the same grid run on another machine; the labels it shares
-  with the first, minus a trailing machine suffix such as "-ws", are drawn
-  together in modes_two_machines.png. MACHINES="EPYC,WS" names the two.
+Usage: plot.py [results_dir] [other_results_dir ...]
+  results_dir: expects summary.csv inside (default .). Each further directory
+  holds the same grid run on another machine; their labels, minus a trailing
+  machine suffix such as "-ws", are drawn together in modes_machines.png.
+  MACHINES="EPYC,the WS,the reference machine" names them, in order.
 Env: QPS (default 1000) picks the target rate to draw; figures for any other
   rate get a "-qps<rate>" suffix so they never overwrite the default ones.
   RUN_DURATION (default 60s) picks the run length.
@@ -106,8 +106,13 @@ RAMP5 = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#0d366b"]
 # reference palette (blue, orange), validated as a pair on this surface.
 A_COLOR = RAMP5[2]
 B_COLOR = "#eb6834"
-# The second machine in modes_two_machines.png (categorical slot 3).
-SECOND_COLOR = "#1f8a70"
+# The machines after the first in modes_machines.png (categorical slots 3 and
+# 4: green, purple), with their markers.
+OTHER_COLORS = ("#1f8a70", "#8257c9")
+OTHER_MARKERS = ("s", "^")
+# The rings and shaded quadrants marking a better configuration in the
+# pareto figures share the first of those greens.
+WIN_COLOR = OTHER_COLORS[0]
 
 plt.rcParams.update(
     {
@@ -496,7 +501,9 @@ def plot_heatmaps(points, outdir):
                 x + 0.5, top_y, lbl, ha="center", va="bottom", fontsize=7.5, color=INK
             )
         ax.text(-1.0, -0.25, "Run A", ha="center", va="top", fontsize=7.5, color=INK)
-        ax.text(ncol / 2, -0.25, "Run B", ha="center", va="top", fontsize=7.5, color=INK)
+        ax.text(
+            ncol / 2, -0.25, "Run B", ha="center", va="top", fontsize=7.5, color=INK
+        )
         ax.set_xlim(-1.6, ncol)
         ax.set_ylim(-0.75, nrow + 0.8)
         ax.set_xticks([])
@@ -683,13 +690,17 @@ def plot_matched(points, outdir):
                 )
         ax.set_yscale("log")
         ax.set_xticks(xs)
-        ax.set_xticklabels([p.name for p, _ in pairs], rotation=45, ha="right", fontsize=7.5)
+        ax.set_xticklabels(
+            [p.name for p, _ in pairs], rotation=45, ha="right", fontsize=7.5
+        )
         ax.set_title(title, loc="left")
         style_axes(ax)
         ax.grid(False, axis="x")
     fig.legend(
         [
-            plt.Line2D([], [], color=A_COLOR, marker="*", ls="", ms=11, markeredgecolor=INK),
+            plt.Line2D(
+                [], [], color=A_COLOR, marker="*", ls="", ms=11, markeredgecolor=INK
+            ),
             plt.Line2D([], [], color=B_COLOR, marker="o", ls="", ms=6),
         ],
         [A_NAME, "Run B — TotalComputationUnits, limit 10 × cost"],
@@ -875,11 +886,13 @@ def plot_mix(configs, hist, outdir):
     plt.close(fig)
 
 
+# (summary.csv column, panel title, label format, divisor for the axis).
 LADDER_PANELS = (
-    ("succ_tps", "success tps", "{:.0f}"),
-    ("cancelled_per_s", "cancelled / s", "{:.0f}"),
-    ("lag_mean_s", "checkpoint lag mean (s)", "{:.1f}"),
-    ("expensive_per_s", "expensive executed / s", "{:.0f}"),
+    ("succ_tps", "success tps", "{:.0f}", 1),
+    ("cancelled_per_s", "cancelled / s", "{:.0f}", 1),
+    ("lag_mean_s", "checkpoint lag mean (s)", "{:.1f}", 1),
+    ("expensive_per_s", "expensive executed / s", "{:.0f}", 1),
+    ("units_per_s", "M units executed / s", "{:.1f}", 1e6),
 )
 
 
@@ -898,24 +911,28 @@ def plot_mix_ladders(ladders, outdir):
     horizontal reference. `ladders` maps the mix name to its configs."""
     names = sorted(ladders, key=lambda k: ladders[k][0]["units_per_tx"] or 0)
     fig, axes = plt.subplots(
-        len(LADDER_PANELS), len(names), figsize=(3.4 * len(names), 10.4), squeeze=False
+        len(LADDER_PANELS),
+        len(names),
+        figsize=(3.4 * len(names), 2.6 * len(LADDER_PANELS)),
+        squeeze=False,
     )
     for j, name in enumerate(names):
         cfgs = sorted(ladders[name], key=lambda c: c["limit_b"])
         mean, weight, _ = mix_meta(cfgs[0])
         expensive = expensive_level(cfgs[0])
         xs = [c["limit_b"] for c in cfgs]
-        for i, (key, title, valfmt) in enumerate(LADDER_PANELS):
+        for i, (key, title, valfmt, scale) in enumerate(LADDER_PANELS):
             ax = axes[i][j]
             b = [c.get(f"b_{key}") for c in cfgs]
             a_vals = [c.get(f"a_{key}") for c in cfgs if c.get(f"a_{key}") is not None]
             if any(v is None for v in b) or not a_vals:
                 ax.set_visible(False)
                 continue
-            bsd = [c.get(f"b_{key}_sd") or 0.0 for c in cfgs]
-            a = sum(a_vals) / len(a_vals)
+            b = [v / scale for v in b]
+            bsd = [(c.get(f"b_{key}_sd") or 0.0) / scale for c in cfgs]
+            a = sum(a_vals) / len(a_vals) / scale
             a_sds = [c.get(f"a_{key}_sd") for c in cfgs if c.get(f"a_{key}_sd")]
-            a_sd = sum(a_sds) / len(a_sds) if a_sds else 0.0
+            a_sd = sum(a_sds) / len(a_sds) / scale if a_sds else 0.0
             # The band from the expensive cost to twice it: the rungs that
             # admit one expensive transaction per commit.
             ax.axvspan(expensive, 2 * expensive, color=GRID, alpha=0.7, lw=0)
@@ -967,11 +984,10 @@ def plot_mix_ladders(ladders, outdir):
         bbox_to_anchor=(0.01, 0.95),
     )
     fig.suptitle(
-        "Success tps, cancellations, checkpoint lag and expensive transactions"
-        " executed per second against the unit limit, for the four mixes run at"
-        " several limits.\n"
-        "Error bars and the band around Run A \u2014 one standard deviation across"
-        " iterations.",
+        "Success tps, cancellations, checkpoint lag, expensive transactions and"
+        " M units executed per second against the unit limit,\nfor the four mixes"
+        " run at several limits. Error bars and the band around Run A \u2014 one"
+        " standard deviation across iterations.",
         fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.925))
@@ -1098,7 +1114,7 @@ def plot_pareto_mix(mix_rows, outdir):
                         ys[-1],
                         "o",
                         mfc="none",
-                        mec=SECOND_COLOR,
+                        mec=WIN_COLOR,
                         ms=13,
                         mew=1.6,
                         zorder=6,
@@ -1154,7 +1170,7 @@ def plot_pareto_mix(mix_rows, outdir):
                 (1, y0 if low_is_better else 1),
                 max(x1, 1.01) - 1,
                 (1 - y0) if low_is_better else (y1 - 1),
-                color=SECOND_COLOR,
+                color=WIN_COLOR,
                 alpha=0.09,
                 lw=0,
                 zorder=0,
@@ -1257,7 +1273,9 @@ def plot_lag_over_time(fine, coarse, outdir):
     slices as a thin line, the 60 s slices as steps."""
     # A 60 s run leaves about six 10 s slices; anything with many more is a
     # longer run, which is what this figure is for.
-    labels = sorted(l for l, by_run in fine.items() if max(map(len, by_run.values())) > 8)
+    labels = sorted(
+        l for l, by_run in fine.items() if max(map(len, by_run.values())) > 8
+    )
     if not labels:
         return
     ncols = 2
@@ -1320,18 +1338,32 @@ def strip_machine(label):
     return re.sub(r"-[a-z]+$", "", label)
 
 
-def plot_two_machines(rows1, rows2, names, outdir):
-    """The ladders both machines ran, one colour per machine: Run B as the
-    line with markers, that machine's Run A as the dashed reference."""
-    by1 = {r["label"]: r for r in rows1}
-    by2 = {strip_machine(r["label"]): r for r in rows2}
-    common = sorted(set(by1) & set(by2), key=lambda l: by1[l]["limit_b"])
+def plot_machines(machines, outdir):
+    """The ladders the machines ran, one colour per machine: Run B as the line
+    with markers, that machine's Run A as the dashed reference. `machines` is
+    a list of (name, rows); a label's trailing machine suffix is dropped, so
+    the same configuration lines up across machines. Every rung any machine
+    ran is on the axis; each machine is drawn over the rungs it ran."""
+    by = [
+        (name, {strip_machine(r["label"]): r for r in rows}) for name, rows in machines
+    ]
+    rows_of = {}
+    for _, d in by:
+        for label, r in d.items():
+            rows_of.setdefault(label, r)
+    # A mix is drawn when at least two machines ran it at two or more limits.
     mixes = {}
-    for l in common:
-        mixes.setdefault(by1[l]["point"], []).append(l)
-    mixes = {k: v for k, v in mixes.items() if len(v) >= 2}
+    for label, r in rows_of.items():
+        if r["point"].startswith("mix"):
+            mixes.setdefault(r["point"], []).append(label)
+    mixes = {
+        mix: labels
+        for mix, labels in mixes.items()
+        if sum(1 for _, d in by if sum(1 for l in labels if l in d) >= 2) >= 2
+    }
     if not mixes:
         return
+    styles = [(B_COLOR, "o")] + list(zip(OTHER_COLORS, OTHER_MARKERS))
     fig, axes = plt.subplots(
         len(mixes),
         len(LADDER_PANELS),
@@ -1339,69 +1371,80 @@ def plot_two_machines(rows1, rows2, names, outdir):
         squeeze=False,
     )
     for i, (mix, labels) in enumerate(sorted(mixes.items())):
-        labels = sorted(labels, key=lambda l: by1[l]["limit_b"])
-        xs = [by1[l]["limit_b"] for l in labels]
-        expensive = expensive_level(by1[labels[0]])
-        for j, (key, title, valfmt) in enumerate(LADDER_PANELS):
+        labels = sorted(labels, key=lambda l: rows_of[l]["limit_b"])
+        xs_all = [rows_of[l]["limit_b"] for l in labels]
+        expensive = expensive_level(rows_of[labels[0]])
+        for j, (key, title, valfmt, scale) in enumerate(LADDER_PANELS):
             ax = axes[i][j]
             ax.axvspan(expensive, 2 * expensive, color=GRID, alpha=0.7, lw=0)
-            for by, color, marker, mname in (
-                (by1, B_COLOR, "o", names[0]),
-                (by2, SECOND_COLOR, "s", names[1]),
-            ):
-                b = [by[l].get(f"b_{key}") for l in labels]
-                if any(v is None for v in b):
+            for (_, d), (color, marker) in zip(by, styles):
+                have = [
+                    l for l in labels if l in d and d[l].get(f"b_{key}") is not None
+                ]
+                if len(have) < 2:
                     continue
-                bsd = [by[l].get(f"b_{key}_sd") or 0.0 for l in labels]
+                xs = [d[l]["limit_b"] for l in have]
+                b = [d[l][f"b_{key}"] / scale for l in have]
+                bsd = [(d[l].get(f"b_{key}_sd") or 0.0) / scale for l in have]
                 ax.errorbar(
-                    xs, b, yerr=bsd, fmt=f"-{marker}", color=color, lw=2, ms=5, capsize=2
+                    xs,
+                    b,
+                    yerr=bsd,
+                    fmt=f"-{marker}",
+                    color=color,
+                    lw=2,
+                    ms=5,
+                    capsize=2,
                 )
-                a_vals = [by[l].get(f"a_{key}") for l in labels if by[l].get(f"a_{key}") is not None]
+                a_vals = [
+                    d[l][f"a_{key}"] / scale
+                    for l in have
+                    if d[l].get(f"a_{key}") is not None
+                ]
                 if a_vals:
                     ax.axhline(sum(a_vals) / len(a_vals), color=color, lw=1.4, ls="--")
-            ladder_axis(ax, xs)
+            ladder_axis(ax, xs_all)
             if i == 0:
                 ax.set_title(title, loc="left", fontsize=9)
             if j == 0:
                 ax.set_ylabel(f"{mix}\n1K / {kfmt(expensive)} units")
             if i == len(mixes) - 1:
                 ax.set_xlabel("LIMIT_B (units per object per commit)", fontsize=8)
+    handles, texts = [], []
+    for (name, _), (color, marker) in zip(by, styles):
+        handles += [
+            plt.Line2D([], [], color=color, lw=2, marker=marker),
+            plt.Line2D([], [], color=color, lw=1.4, ls="--"),
+        ]
+        texts += [f"Run B on {name}", f"Run A on {name}"]
+    handles.append(Patch(facecolor=GRID, alpha=0.7))
+    texts.append("limits that fit one expensive transaction per commit, not two")
     fig.legend(
-        [
-            plt.Line2D([], [], color=B_COLOR, lw=2, marker="o"),
-            plt.Line2D([], [], color=B_COLOR, lw=1.4, ls="--"),
-            plt.Line2D([], [], color=SECOND_COLOR, lw=2, marker="s"),
-            plt.Line2D([], [], color=SECOND_COLOR, lw=1.4, ls="--"),
-            Patch(facecolor=GRID, alpha=0.7),
-        ],
-        [
-            f"Run B on {names[0]}",
-            f"Run A on {names[0]}",
-            f"Run B on {names[1]}",
-            f"Run A on {names[1]}",
-            "limits that fit one expensive transaction per commit, not two",
-        ],
+        handles,
+        texts,
         loc="upper center",
         frameon=False,
         fontsize=8,
-        ncol=5,
+        ncol=len(handles),
         bbox_to_anchor=(0.5, 0.925),
     )
+    names = [name for name, _ in by]
+    listed = ", ".join(names[:-1]) + " and " + names[-1]
     fig.suptitle(
-        f"The three mix ladders run on both machines, {names[0]} and {names[1]}:"
-        " success tps, cancellations, checkpoint lag\nand expensive transactions"
-        " executed per second against the unit limit. Error bars \u2014 one"
-        " standard deviation across iterations.",
+        f"The three mix ladders run on {listed}: success tps, cancellations,"
+        " checkpoint lag,\nexpensive transactions and computation units executed"
+        " per second against the unit limit. Error bars \u2014 one standard"
+        " deviation across iterations.",
         fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.885))
-    fig.savefig(os.path.join(outdir, f"modes_two_machines{FILE_SUFFIX}.png"), dpi=150)
+    fig.savefig(os.path.join(outdir, f"modes_machines{FILE_SUFFIX}.png"), dpi=150)
     plt.close(fig)
 
 
 def main():
     results = sys.argv[1] if len(sys.argv) > 1 else "."
-    second = sys.argv[2] if len(sys.argv) > 2 else None
+    others = sys.argv[2:]
     path = os.path.join(results, "summary.csv")
     if not os.path.exists(path):
         print(f"{path} not found — run aggregate.py first", file=sys.stderr)
@@ -1459,21 +1502,34 @@ def main():
             plot_mix_ladders(ladders, outdir)
         plot_pareto_mix(mix, outdir)
     lag_path = os.path.join(results, "lag_over_time.csv")
-    plot_lag_over_time(load_lag_slices(lag_path, 10), load_lag_slices(lag_path, 60), outdir)
-    if second:
-        names = os.environ.get("MACHINES", "EPYC,WS").split(",")
-        every_row2 = load_rows(os.path.join(second, "summary.csv"))
-        rows2 = baseline(every_row2, machine_suffix(every_row2))
-        plot_two_machines(all_rows, rows2, names, outdir)
+    plot_lag_over_time(
+        load_lag_slices(lag_path, 10), load_lag_slices(lag_path, 60), outdir
+    )
+    if others:
+        default_names = ["EPYC", "the WS", "the reference machine"]
+        names = os.environ.get("MACHINES", ",".join(default_names)).split(",")
+        if len(names) < 1 + len(others):
+            print(
+                f"MACHINES names {len(names)} machine(s) for {1 + len(others)}"
+                " results directories",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        machines = [(names[0], all_rows)]
+        for name, other in zip(names[1:], others):
+            every_other = load_rows(os.path.join(other, "summary.csv"))
+            machines.append((name, baseline(every_other, machine_suffix(every_other))))
+        plot_machines(machines, outdir)
     else:
-        # Every other figure has just been redrawn; this one needs the second
-        # results directory, so without it the file on disk is left behind at
-        # whatever it was.
-        kept = os.path.join(outdir, f"modes_two_machines{FILE_SUFFIX}.png")
+        # Every other figure has just been redrawn; this one needs the other
+        # machines' results directories, so without them the file on disk is
+        # left behind at whatever it was.
+        kept = os.path.join(outdir, f"modes_machines{FILE_SUFFIX}.png")
         if os.path.exists(kept):
             print(
-                f"NOTE: {os.path.basename(kept)} not redrawn — it needs a second"
-                " results directory, e.g. plot.py results/matrix results/matrix-ws",
+                f"NOTE: {os.path.basename(kept)} not redrawn — it needs the other"
+                " machines' results directories, e.g. plot.py results/matrix"
+                " results/matrix-ws results/matrix-ref",
                 file=sys.stderr,
             )
     print(
