@@ -331,10 +331,8 @@ impl<K, V> DBMap<K, V> {
     /// RocksDB's estimate of how many keys the column family holds, `0` on a
     /// backend that keeps no such estimate.
     ///
-    /// Approximate by nature: it is derived from the SST metadata, so keys
-    /// that were overwritten or deleted but not yet compacted away are still
-    /// counted. Suitable for sizing a progress report, not for anything that
-    /// must agree with a scan.
+    /// Counts keys overwritten or deleted but not yet compacted away, so it
+    /// suits a progress report, not anything that must agree with a scan.
     pub fn estimated_len(&self) -> Result<u64, TypedStoreError> {
         let Storage::Rocks(rocksdb) = &self.db.storage else {
             return Ok(0);

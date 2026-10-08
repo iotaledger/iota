@@ -984,12 +984,10 @@ pub struct AuthorityState {
     /// The RPC index store, absent when this node maintains no index group.
     pub rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
 
-    /// The object versions superseded by executed transactions, bucketed by
-    /// the epoch that superseded them.
+    /// Superseded object versions, bucketed by epoch.
     historic_objects: Arc<HistoricObjects>,
 
-    /// The checkpoint-keyed transaction history, bucketed by the epoch that
-    /// executed it.
+    /// Executed transactions keyed by checkpoint, bucketed by epoch.
     historic_ledger: Arc<HistoricLedger>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
@@ -2949,8 +2947,7 @@ impl AuthorityState {
         &self.historic_objects
     }
 
-    /// The transactions this authority executed, bucketed by the epoch that
-    /// executed them.
+    /// Executed transactions keyed by checkpoint, bucketed by epoch.
     pub fn get_historic_ledger(&self) -> &Arc<HistoricLedger> {
         &self.historic_ledger
     }
@@ -3250,50 +3247,35 @@ impl AuthorityState {
         Ok(new_epoch_store)
     }
 
-    /// Opens `new_epoch`'s bucket in each of the three per-epoch histories —
-    /// the superseded object versions, the checkpoint-keyed ledger and the
-    /// checkpoint summaries and contents — and expires the buckets that have
-    /// fallen outside the retention configured for each, the RPC index
-    /// history included.
+    /// Opens `new_epoch`'s bucket in each per-epoch history, while execution
+    /// is stopped, and expires the buckets that fell outside their configured
+    /// retention, the RPC index history included.
     ///
-    /// Creating the buckets is done here, while execution is stopped, because
-    /// creating a column family is a blocking RocksDB operation the epoch's
-    /// first checkpoint commit would otherwise wait for. It is fatal: without
-    /// its bucket the epoch has nowhere to write its history to.
+    /// # Errors
     ///
-    /// Expiry is the same retention pass the epoch boundary is the natural
-    /// place for — a bucket can only fall out of a window counted in epochs
-    /// here — and it is not fatal. An object bucket it fails to finish keeps
-    /// its durable expiring marker, so its versions stay unreadable and its
-    /// tombstones stay in the live table, and the next open finishes the job;
-    /// a ledger, checkpoint or index bucket it fails to drop is served for
-    /// another epoch. Failing the reconfiguration instead would halt the node
-    /// at a boundary it would then fail again on every retry.
+    /// Fails only if a history cannot create its bucket for `new_epoch`.
+    /// Expiry errors are logged, since failing the reconfiguration would fail
+    /// it again on every retry; an unfinished expiry is retried later.
     async fn advance_historic_buckets(&self, new_epoch: EpochId) -> IotaResult<()> {
         self.historic_objects.ensure(new_epoch)?;
         self.historic_ledger.ensure(new_epoch)?;
         self.checkpoint_store
             .historic_checkpoints
             .ensure(new_epoch)?;
-        // Unlike the three above, this bucket has a second creator —
-        // checkpoint ingest makes it on demand — so a failure here costs this
-        // boundary's retention accuracy rather than the epoch's history.
+        // Not fatal: checkpoint ingest also creates this bucket on demand.
         if let Some(indexes) = &self.rpc_indexes_store {
             if let Err(err) = indexes.ensure_history_bucket_exists(new_epoch) {
                 error!("Failed to open the RPC index history bucket of {new_epoch}: {err:?}");
             }
         }
 
-        // All three count the historic epochs kept on top of the epoch being
-        // entered, and `prune` counts the same way, so each value is passed
-        // through as configured. `None` is retention off.
+        // Both count the epochs kept below the one being entered, as `prune`
+        // does. `None` turns retention off.
         let pruning_config = &self.config.authority_store_pruning_config;
         let objects_to_retain = pruning_config.num_epochs_to_retain();
         let checkpoints_to_retain = pruning_config.num_epochs_to_retain_for_checkpoints();
 
-        // Expiry deletes the object buckets' tombstone heads and drops the
-        // expiring column families, blocking for as long as that takes; it
-        // must not run on an async worker.
+        // Expiry blocks for as long as the deletes and drops take.
         let historic_objects = self.historic_objects.clone();
         let historic_ledger = self.historic_ledger.clone();
         let checkpoint_store = self.checkpoint_store.clone();
@@ -3313,10 +3295,8 @@ impl AuthorityState {
                     .historic_checkpoints
                     .prune(new_epoch, epochs_to_retain)
                 {
-                    // What the node still holds is what it may advertise:
-                    // dropping an epoch's contents makes every checkpoint
-                    // below the oldest retained bucket unavailable to
-                    // state-sync peers and RPC clients.
+                    // Checkpoints below the oldest retained bucket can no
+                    // longer be served to state-sync peers or RPC clients.
                     Ok(Some(earliest_retained_epoch)) => {
                         if let Err(err) = checkpoint_store
                             .advance_highest_pruned_checkpoint(earliest_retained_epoch)
@@ -3328,7 +3308,6 @@ impl AuthorityState {
                     Err(err) => error!("Failed to expire historic checkpoint buckets: {err:?}"),
                 }
             }
-            // Dropping an index bucket blocks the queries reading it.
             if let Some(indexes) = rpc_indexes_store {
                 match indexes.prune(new_epoch) {
                     Ok(Some(earliest_retained_epoch)) => metrics

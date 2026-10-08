@@ -620,13 +620,9 @@ impl IotaNode {
             }
         }
 
-        // A database this build created from genesis holds nothing an earlier
-        // build wrote, so the one-time passes below have nothing to find.
-        // Recording them done keeps a fresh node from walking its own genesis
-        // objects, and every later start from walking them again — the same
-        // reason a formal-snapshot restore records them.
-        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
-        // together with the passes it skips.
+        // A database created from genesis has nothing for the one-time passes
+        // below to find.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this.
         if is_genesis {
             store.mark_pre_bucket_passes_done()?;
             checkpoint_store.mark_checkpoint_backlog_migrated()?;
@@ -659,10 +655,8 @@ impl IotaNode {
         })?;
 
         // Before any service that could expire a historic bucket starts, and
-        // before the index rebuild below scans the live `objects` table for
-        // its latest versions.
-        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
-        // call once every database has swept the pre-bucket backlog.
+        // before the index rebuild below scans the live `objects` table.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
         object_backlog_sweep::sweep(store.clone(), checkpoint_store.clone(), epoch_store.epoch())
             .await
             .map_err(|e| {
@@ -3003,9 +2997,8 @@ genesis:
         );
     }
 
-    /// `start_async` must refuse a config whose index retention outlives its
-    /// ledger retention before it opens a database or reads genesis, the way
-    /// it already refuses a config carrying a renamed key.
+    /// `start_async` refuses a config whose index retention outlives its
+    /// ledger retention before it opens a database.
     #[tokio::test]
     async fn index_retention_beyond_ledger_retention_refuses_to_start() {
         const TEMPLATE: &str = include_str!("../../iota-config/data/fullnode-template.yaml");

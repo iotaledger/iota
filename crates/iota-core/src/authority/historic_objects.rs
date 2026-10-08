@@ -168,8 +168,7 @@ impl HistoricObjects {
     /// `db_options` are the perpetual database's base options; build this
     /// once and clone it per column family.
     /// The `(name, options)` pairs of the column families this store needs,
-    /// for the perpetual store's open path to list alongside its own tables.
-    /// See
+    /// for the perpetual store to open alongside its own tables. See
     /// [`extra_column_family_options`](crate::epoch_buckets::extra_column_family_options).
     pub fn extra_column_family_options(
         perpetual_path: &Path,

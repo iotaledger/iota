@@ -119,10 +119,8 @@ pub struct AuthorityPerpetualTables {
     /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
     ///
-    /// Superseded by [`HistoricLedger`]: a transaction body is written to and
-    /// read from the bucket of the epoch that executes it. Rows written before
-    /// the move are still on disk here, and the one-time migration into the
-    /// buckets is their only reader.
+    /// Superseded by [`HistoricLedger`]; the rows still here are read only by
+    /// the one-time migration into the buckets.
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
     /// A map between the transaction digest of a certificate to the effects of
@@ -138,8 +136,7 @@ pub struct AuthorityPerpetualTables {
     /// It's also possible for the effects to be reverted if the transaction
     /// didn't make it into the epoch.
     ///
-    /// Superseded by [`HistoricLedger`] the same way `transactions` is, and
-    /// with the same one reader left for the rows written before the move.
+    /// Superseded by [`HistoricLedger`], like `transactions`.
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
     /// Transactions that have been executed locally on this node. We need this
@@ -148,29 +145,22 @@ pub struct AuthorityPerpetualTables {
     /// transactions to be executed, we wait for them to appear in this
     /// table. When we revert transactions, we remove them from both tables.
     ///
-    /// Superseded by [`HistoricLedger`] the same way `transactions` is, and
-    /// with the same one reader left for the rows written before the move.
+    /// Superseded by [`HistoricLedger`], like `transactions`.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
     /// Events produced by each transaction, keyed by the transaction's
     /// digest.
     ///
-    /// Superseded by [`HistoricLedger`] the same way `transactions` is, and
-    /// with the same one reader left for the rows written before the move.
+    /// Superseded by [`HistoricLedger`], like `transactions`.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
     /// executor.
     ///
-    /// Superseded by [`HistoricLedger`]. Rows written before this build are
-    /// still here, and the one-time migration into the buckets reads them to
-    /// learn which epoch each transaction's other rows belong to.
-    ///
-    /// The value keeps the epoch rather than collapsing to just the sequence
-    /// number: every row here predates this build, `bcs` rejects the trailing
-    /// bytes a shorter value would leave unread, and the migration is the only
-    /// remaining reader, so there is no way to reshape the value without
-    /// making its own reads of a still-unmigrated database fail.
+    /// Superseded by [`HistoricLedger`]; the one-time migration into the
+    /// buckets reads the rows still here to learn which epoch each
+    /// transaction belongs to. The value type must stay as it is, or `bcs`
+    /// fails to decode those rows.
     ///
     /// Note, there is a table with the same name in
     /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
@@ -227,19 +217,15 @@ pub struct AuthorityPerpetualTables {
     pub(crate) object_backlog_sweep_bound: DBMap<(), CheckpointSequenceNumber>,
 
     /// The last checkpoint whose superseded versions the bounded sweep has
-    /// relocated. Empty until that sweep first writes a slice, and unused by
-    /// the unbounded walk, which records its place in
-    /// `object_backlog_sweep_progress` instead.
-    /// TODO: remove this table once every database has swept the pre-bucket
-    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    /// relocated. Unused by the unbounded walk, which records its place in
+    /// `object_backlog_sweep_progress`.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_backlog_sweep_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 
     /// Which of the flat ledger tables the one-time migration into the
     /// per-epoch buckets is draining, and how far through it. Empty until the
     /// migration first writes a slice.
-    /// TODO: remove this table once every database has migrated its
-    /// pre-bucket ledger history,
-    /// <https://github.com/iotaledger/iota/issues/12763>
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove this table.
     pub(crate) ledger_backlog_migration_progress: DBMap<(), LedgerBacklogMigrationProgress>,
 }
 
@@ -264,10 +250,9 @@ impl AuthorityPerpetualTables {
         Self::open_with_db_options(parent_path, db_options_override).0
     }
 
-    /// The perpetual tables together with the historic object and ledger
-    /// buckets. Both bucket sets are column families of this same database,
-    /// so they are opened from its handle, with options cloned from the ones
-    /// its own tables use.
+    /// Opens the perpetual tables together with the historic object, ledger
+    /// and epoch marker buckets, which are column families of the same
+    /// database.
     pub fn open_with_historic_objects(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
@@ -550,10 +535,7 @@ impl AuthorityPerpetualTables {
 
     /// The column families whose aged SST files
     /// [`Self::spawn_periodic_compaction`] rewrites: the ones rows are
-    /// deleted from. The live `objects` table loses the tombstone heads of a
-    /// historic object bucket when that bucket expires; the rest hold the
-    /// pre-bucket ledger history, which the one-time migration into the
-    /// per-epoch buckets drains.
+    /// deleted from.
     fn periodically_compacted_tables(&self) -> BTreeSet<&str> {
         [
             self.objects.cf_name(),
@@ -567,14 +549,13 @@ impl AuthorityPerpetualTables {
         .collect()
     }
 
-    /// Compacts the largest SST file that has gone untouched for `delay_days`
-    /// and belongs to one of [`Self::periodically_compacted_tables`], and
-    /// returns it. `None` when no file qualifies.
+    /// Compacts and returns the largest SST file of
+    /// [`Self::periodically_compacted_tables`] untouched for `delay_days`, or
+    /// `None` when no file qualifies. `last_processed` must be carried from one
+    /// call to the next so that a file is not picked again within the delay.
     ///
-    /// Blocks for as long as the compaction takes, so a caller on an async
-    /// runtime must use `spawn_blocking`. `last_processed` carries the files
-    /// already compacted from one call to the next, so that the same file is
-    /// not picked again within the delay.
+    /// Blocks until the compaction finishes, so an async caller must use
+    /// `spawn_blocking`.
     fn compact_next_sst_file(
         &self,
         delay_days: usize,
@@ -624,14 +605,11 @@ impl AuthorityPerpetualTables {
     }
 
     /// Spawns a task that keeps compacting SST files older than `delay_days`,
-    /// one at a time, until these tables are dropped.
-    ///
-    /// RocksDB's own background compaction leaves files that stop being
-    /// written to alone, so rows deleted from them are never reclaimed
-    /// without this.
+    /// one at a time, until these tables are dropped. RocksDB does not compact
+    /// files that are no longer written to, so their deleted rows are not
+    /// reclaimed otherwise.
     pub fn spawn_periodic_compaction(self: &Arc<Self>, delay_days: usize) {
-        // The task holds the tables weakly so that it cannot keep a dropped
-        // node's database open, and exits once they are gone.
+        // Held weakly so the task cannot keep a dropped node's database open.
         let perpetual_tables = Arc::downgrade(self);
         spawn_monitored_task!(async move {
             let last_processed = Arc::new(Mutex::new(HashMap::new()));
@@ -688,16 +666,11 @@ impl AuthorityPerpetualTables {
     }
 
     /// Marks the one-time migration of the flat ledger tables into the
-    /// per-epoch buckets as already done, so that a later node start does not
-    /// walk them for nothing.
+    /// per-epoch buckets as done, so that a later node start skips it.
     ///
-    /// Call this only on a database that cannot hold pre-bucket ledger rows to
-    /// begin with, such as one just populated by a formal-snapshot restore: a
-    /// restore writes no ledger row at all, since a snapshot carries the live
-    /// object set and the epochs' closing summaries and no transaction
-    /// history.
-    /// TODO: remove this together with the migration,
-    /// <https://github.com/iotaledger/iota/issues/12763>
+    /// Call this only on a database with no rows in the flat ledger tables,
+    /// such as one just restored from a formal snapshot.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
     pub fn mark_ledger_backlog_migrated(&self) -> IotaResult {
         self.ledger_backlog_migration_progress
             .insert(&(), &LedgerBacklogMigrationProgress::Done)?;
@@ -1240,9 +1213,8 @@ mod tests {
         );
     }
 
-    /// [`AuthorityPerpetualTables::compact`] must let RocksDB reclaim the
-    /// space of deleted object versions, so that a caller that has just
-    /// removed rows can shrink the database on demand.
+    /// [`AuthorityPerpetualTables::compact`] reclaims the space of deleted
+    /// object versions.
     #[cfg(not(target_env = "msvc"))]
     #[tokio::test]
     async fn compact_reclaims_the_space_of_deleted_object_versions() {

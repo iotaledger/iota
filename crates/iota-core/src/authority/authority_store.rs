@@ -57,9 +57,7 @@ use crate::{
 
 const NUM_SHARDS: usize = 4096;
 
-/// The epoch a database initialized from genesis starts in, and so the epoch
-/// whose ledger bucket holds the genesis transaction and the migration
-/// transactions that come with it.
+/// The epoch a database initialized from genesis starts in.
 const GENESIS_EPOCH: EpochId = 0;
 
 struct AuthorityStoreMetrics {
@@ -135,9 +133,8 @@ pub struct AuthorityStore {
 
     pub(crate) perpetual_tables: Arc<AuthorityPerpetualTables>,
 
-    /// Object versions superseded by executed transactions, relocated out of
-    /// the live `objects` table in the same batch that commits those
-    /// transactions.
+    /// Superseded object versions, moved out of the live `objects` table in
+    /// the batch that commits the superseding transaction.
     historic_objects: Arc<HistoricObjects>,
 
     /// The transactions, effects, events and checkpoint assignments this
@@ -301,8 +298,6 @@ impl AuthorityStore {
                 .bulk_insert_genesis_objects(genesis.objects())
                 .expect("cannot bulk insert genesis objects");
 
-            // Genesis and the migration transactions belong to epoch 0, which is
-            // the epoch a genesis database starts in.
             let bucket = store
                 .historic_ledger
                 .ensure(GENESIS_EPOCH)
@@ -409,8 +404,7 @@ impl AuthorityStore {
         &self.historic_objects
     }
 
-    /// The transaction history this store's transactions produced, bucketed
-    /// by the epoch that executed them.
+    /// Transaction history, bucketed by the epoch that executed it.
     pub fn get_historic_ledger(&self) -> &Arc<HistoricLedger> {
         &self.historic_ledger
     }
@@ -420,8 +414,7 @@ impl AuthorityStore {
     ///
     /// See [`AuthorityPerpetualTables::mark_object_backlog_swept`] and
     /// [`AuthorityPerpetualTables::mark_ledger_backlog_migrated`].
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
-    // together with the passes it skips.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the passes.
     pub fn mark_pre_bucket_passes_done(&self) -> IotaResult<()> {
         self.perpetual_tables.mark_object_backlog_swept()?;
         self.perpetual_tables.mark_ledger_backlog_migrated()
@@ -575,8 +568,7 @@ impl AuthorityStore {
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult {
         // A transaction is finalized by a checkpoint of the epoch that
-        // executed it, so this row lands in the same bucket as the
-        // transaction's effects.
+        // executed it, so this row lands in the bucket holding its effects.
         let bucket = self.historic_ledger.ensure(epoch)?;
         let mut batch = bucket.tx_to_checkpoint.batch();
         batch.insert_batch_tagged(
@@ -828,14 +820,10 @@ impl AuthorityStore {
     /// `checkpoint_sequence_number` is stamped onto each newly written object's
     /// `StoreObjectValueV2.previous_transaction_checkpoint` field.
     ///
-    /// The versions these transactions superseded leave the live `objects`
-    /// table in this same batch and arrive in `epoch_id`'s historic bucket, so
-    /// a reader always finds them in one of the two.
-    ///
-    /// Each transaction's own record (its body, effects, execution record
-    /// and events) goes into `epoch_id`'s ledger
-    /// bucket, all of it in this same batch, so a reader that has resolved the
-    /// epoch for a digest finds every part of it there.
+    /// In the same batch, the versions these transactions superseded move from
+    /// the live `objects` table into `epoch_id`'s historic bucket, and each
+    /// transaction's body, effects, execution record and events go into
+    /// `epoch_id`'s ledger bucket.
     ///
     /// **Invariant** Every `TransactionOutputs` in `tx_outputs` must belong to
     /// the checkpoint identified by `checkpoint_sequence_number`.
@@ -989,9 +977,8 @@ impl AuthorityStore {
     /// Commits transactions only (not effects or other transaction outputs) to
     /// the db. See ExecutionCache::persist_transaction for more info
     ///
-    /// The body goes into the bucket of the epoch the transaction is to
-    /// execute in, which is the same bucket its outputs reach when it does
-    /// execute.
+    /// The body goes into the ledger bucket of `tx.epoch()`, where its outputs
+    /// land when it executes.
     pub(crate) fn persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
         let bucket = self.historic_ledger.ensure(tx.epoch())?;
         let mut batch = bucket.transactions.batch();
@@ -1236,8 +1223,7 @@ impl AuthorityStore {
     /// sync, we are able to execute the checkpoint.
     /// TODO: implement GC for transactions that are no longer needed.
     pub fn revert_state_update(&self, tx_digest: &TransactionDigest) -> IotaResult {
-        // The bucket is resolved once here, both to read the effects and to
-        // delete the execution record out of the same one.
+        // Reads and deletes the execution record in the same bucket.
         let effects = match self.historic_ledger.find_epoch(tx_digest)? {
             Some((_, bucket)) => {
                 let effects = bucket
@@ -1424,13 +1410,11 @@ impl AuthorityStore {
     }
 
     /// Records a transaction and its effects ahead of executing them, in the
-    /// bucket of the epoch the effects were produced in — the epoch that
-    /// executed the transaction, and the one whose commit will write the rest
-    /// of its record into the same bucket.
+    /// ledger bucket of the effects' epoch. Does nothing if that epoch has been
+    /// expired.
     ///
-    /// This can be the first row of an epoch this node has not begun
-    /// executing, since state sync runs ahead of execution; see
-    /// [`HistoricLedger`] for what that means for retention.
+    /// The epoch may be one this node has not begun executing; see
+    /// [`HistoricLedger`].
     pub fn insert_transaction_and_effects(
         &self,
         transaction: &VerifiedTransaction,
@@ -1461,21 +1445,15 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Records transactions and their effects ahead of executing them, each in
-    /// the bucket of the epoch its own effects were produced in, as
-    /// [`Self::insert_transaction_and_effects`] does.
-    ///
-    /// These can be the first rows of an epoch this node has not begun
-    /// executing, since state sync runs ahead of execution; see
-    /// [`HistoricLedger`] for what that means for retention.
+    /// Like [`Self::insert_transaction_and_effects`], for each of
+    /// `transactions`.
     pub fn multi_insert_transaction_and_effects<'a>(
         &self,
         transactions: impl Iterator<Item = &'a VerifiedExecutionData>,
     ) -> IotaResult {
         let mut write_batch = self.perpetual_tables.objects.batch();
         // A checkpoint's transactions all executed in its epoch, so the bucket
-        // is looked up once for the run and again only if another epoch does
-        // turn up.
+        // rarely changes.
         let mut current: Option<(EpochId, Option<Arc<HistoricLedgerBucket>>)> = None;
         for tx in transactions {
             let epoch = tx.effects.epoch();
@@ -1487,9 +1465,8 @@ impl AuthorityStore {
                     bucket
                 }
             };
-            // State sync can still be carrying a checkpoint whose epoch a
-            // reconfiguration has since dropped; its rows are not retained, so
-            // there is nothing left to file them in.
+            // State sync can still carry a checkpoint whose epoch has since
+            // been expired.
             let Some(bucket) = bucket else {
                 debug!(
                     epoch,
@@ -1759,9 +1736,6 @@ impl AuthorityStore {
 
     /// Expires every historic bucket but the newest, deleting the tombstone
     /// heads those epochs recorded, and compacts the live `objects` table.
-    /// This is what a node reaches on its own once its object retention has
-    /// caught up; a test that wants the versions of a given epoch gone has to
-    /// have started a later epoch first.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn expire_historic_objects_and_compact_for_testing(&self) {
         let current_epoch = self

@@ -1,37 +1,15 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// TODO(https://github.com/iotaledger/iota/issues/12763): remove this
-// module once every database has migrated its pre-bucket ledger and checkpoint
-// history.
+// TODO(https://github.com/iotaledger/iota/issues/12763): remove this module.
 
-//! The one-time move of the ledger and checkpoint history written before this
-//! build into the per-epoch buckets.
+//! One-time move of the ledger and checkpoint rows in the flat tables of the
+//! perpetual and checkpoint stores into the per-epoch buckets.
 //!
-//! A transaction's body, effects, events and finalizing checkpoint now go
-//! into the bucket of the epoch that executed it,
-//! and a checkpoint's contents and digest-keyed summary into the bucket of the
-//! epoch that closed it. A database written by an earlier build still holds
-//! all of that in the flat tables of the perpetual and checkpoint stores,
-//! where nothing reads it and no retention reclaims it, so it is walked once
-//! and moved here.
-//!
-//! Every row goes to the epoch it belongs to rather than to the epoch the walk
-//! runs in, because the epoch is what decides when the row expires: a node
-//! switching from unlimited to a finite retention must drop the epochs that
-//! are already outside its window, and a row filed under the wrong epoch would
-//! either outlive the rest of its transaction's record or disappear ahead of
-//! it. Where the node's retention has already left an epoch behind, its rows
-//! are deleted instead of moved, so the walk does not create buckets the next
-//! reconfiguration would only drop again.
-//!
-//! The walk runs at node startup, before any service starts, and it is not
-//! optional: nothing else reads the flat rows it moves, so until it finishes a
-//! node cannot resolve a checkpoint written before the upgrade by digest, and
-//! the checkpoint executor turns that into a panic on any node past epoch 0. A
-//! failure is returned rather than retried, and the watermarks it records are
-//! durable, so the next start resumes where this one stopped instead of
-//! beginning again.
+//! A transaction's rows go to the bucket of the epoch that executed it, and a
+//! checkpoint's contents and digest-keyed summary to the bucket of the epoch
+//! that closed it, since that epoch decides when the row expires. Rows of
+//! epochs the node's retention has already left behind are deleted instead.
 
 use std::{collections::BTreeMap, ops::Bound, sync::Arc};
 
@@ -60,23 +38,19 @@ use crate::{
     progress_logger::ProgressLogger,
 };
 
-/// Rows one slice moves before it writes its batch. A slice stops at this many
-/// wherever it is, so it bounds how much of a flat table the slice holds in
-/// memory and how much of it an interrupted run has to read again.
+/// Rows read per write batch; bounds memory use and the work an interrupted
+/// run repeats.
 const KEYS_PER_SLICE: usize = 5_000;
 
-/// Names the two halves of the migration in its progress lines.
 const LEDGER_PASS: &str = "ledger backlog migration";
 const CHECKPOINT_PASS: &str = "checkpoint backlog migration";
 
 /// How far the migration has got through the flat perpetual ledger tables.
 ///
-/// The variants are the order the tables are drained in, and that order is not
-/// free: `executed_effects`, `effects` and
-/// `executed_transactions_to_checkpoint` are where the tables above them take
-/// their epoch from, so they are drained after their readers. The digest a
-/// variant carries is the last key moved out of that table, and `None` means
-/// the table has not been touched yet.
+/// The variants are in drain order: `executed_effects`, `effects` and
+/// `executed_transactions_to_checkpoint` give the earlier tables their epoch,
+/// so they are drained last. The digest is the last key moved out of that
+/// table, `None` if none has been yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LedgerBacklogMigrationProgress {
     Transactions(Option<TransactionDigest>),
@@ -84,46 +58,35 @@ pub enum LedgerBacklogMigrationProgress {
     ExecutedEffects(Option<TransactionDigest>),
     Effects(Option<TransactionEffectsDigest>),
     TransactionCheckpoints(Option<TransactionDigest>),
-    /// Every flat perpetual ledger table is drained, and later node starts do
-    /// nothing.
     Done,
 }
 
 /// How far the migration has got through the checkpoint store's flat tables.
 ///
-/// The digest-keyed summaries are drained first, since each one names the
-/// contents row that belongs with it; whatever contents rows are left
-/// afterwards belong to no summary this table holds.
+/// Summaries are drained first and take the contents row they name with them;
+/// the contents rows left afterwards belong to no flat summary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointBacklogMigrationProgress {
     Summaries(Option<CheckpointDigest>),
     ContentsWithoutSummary(Option<CheckpointContentsDigest>),
-    /// Both flat checkpoint tables are drained, and later node starts do
-    /// nothing.
     Done,
 }
 
-/// Moves the ledger and checkpoint history written before this build into the
-/// bucket of the epoch each row belongs to, deleting the rows of the epochs
-/// `epochs_to_retain_for_checkpoints` has already left behind. Returns once
-/// both stores' flat tables are empty, at once on a database an earlier run
-/// already drained.
+/// Moves the rows of the flat ledger and checkpoint tables into the bucket of
+/// the epoch each belongs to, deleting those of epochs outside
+/// `epochs_to_retain_for_checkpoints`. `epoch` is the epoch the node is
+/// starting in.
 ///
-/// Call this before starting any service: until it returns, a checkpoint
-/// written before the upgrade cannot be resolved by digest and a transaction
-/// executed before it cannot be read at all.
-///
-/// `epoch` is the epoch the node is starting in. A failure is returned rather
-/// than retried, since nothing that comes after may run until the move is
-/// finished; the watermarks it records are durable, so the next start resumes
-/// where this one stopped.
+/// Call this before starting any service: until it returns, rows still in the
+/// flat tables cannot be read, and the checkpoint executor panics on a
+/// checkpoint it cannot resolve. Progress is durable, so after a failure the
+/// next start resumes where this one stopped.
 pub async fn migrate(
     store: Arc<AuthorityStore>,
     checkpoint_store: Arc<CheckpointStore>,
     epoch: EpochId,
     epochs_to_retain_for_checkpoints: Option<u64>,
 ) -> IotaResult<()> {
-    // Each slice is a range scan and a write batch, both blocking.
     tokio::task::spawn_blocking(move || {
         LedgerBacklogMigration::new(
             &store,
@@ -137,23 +100,18 @@ pub async fn migrate(
     .map_err(|e| IotaError::Storage(format!("the ledger backlog migration task failed: {e}")))?
 }
 
-/// One walk over the flat ledger and checkpoint tables, moving every row into
-/// the bucket of the epoch it belongs to.
 struct LedgerBacklogMigration {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     historic_ledger: Arc<HistoricLedger>,
     checkpoint_store: Arc<CheckpointStore>,
     /// The epoch the node is starting in.
     epoch: EpochId,
-    /// The oldest epoch this node's retention still keeps. Rows below it are
-    /// deleted rather than moved, since the next reconfiguration would drop
-    /// their bucket anyway.
+    /// The oldest epoch this node's retention still keeps; rows below it are
+    /// deleted rather than moved.
     floor: EpochId,
     keys_per_slice: usize,
 }
 
-/// How many rows a slice, a table or the whole walk moved into a bucket, and
-/// how many it deleted because their epoch was already below the floor.
 #[derive(Default)]
 struct MigrationCounts {
     moved: usize,
@@ -167,17 +125,13 @@ impl MigrationCounts {
     }
 }
 
-/// One slice's worth of rows read from a flat table, sorted by what is to
-/// become of them.
+/// Rows read from a flat table in one batch.
 struct Slice<K, V> {
     /// The rows to move, grouped by the epoch whose bucket they belong in.
     by_epoch: BTreeMap<EpochId, Vec<(K, V)>>,
-    /// The rows whose epoch is below the retention floor. Kept rather than
-    /// counted, because a caller may still have to follow what such a row
-    /// names.
+    /// The rows to delete: below the floor, or with no epoch.
     expired: Vec<(K, V)>,
-    /// Every key read, whether moved or expired; all are deleted from the flat
-    /// table.
+    /// Every key read; all are deleted from the flat table.
     keys: Vec<K>,
     /// The last key read, `None` when nothing was left above the resume point.
     watermark: Option<K>,
@@ -196,8 +150,8 @@ impl<K, V> Slice<K, V> {
         }
     }
 
-    /// The progress this slice leaves behind: its watermark while rows are
-    /// left in the table it read, and `finished` once that table is drained.
+    /// `at(watermark)` while rows are left in the table, `finished` once it is
+    /// drained.
     fn progress<P>(&self, at: impl Fn(Option<K>) -> P, finished: P) -> P
     where
         K: Copy,
@@ -231,25 +185,16 @@ impl LedgerBacklogMigration {
         }
     }
 
-    /// Drains both stores' flat tables, then records how much of the
-    /// checkpoint range the node no longer holds.
     fn run(&self) -> IotaResult<()> {
-        // Rewound before the drains rather than after them, and only while
-        // they still have work recorded. The drains delete rows the checkpoint
-        // executor reads by digest, so no start may ever observe the watermark
-        // naming a checkpoint above them — which a run interrupted between the
-        // drains and a rewind that came after them would leave behind. Gating
-        // on the drains' recorded progress rather than on what this run moved
-        // covers that, and keeps the rewind off every later start: a migrated
-        // node deletes nothing, and rewinding it would throw away the
-        // checkpoints state sync legitimately holds ahead of execution.
+        // Before the drains, so a run interrupted mid-drain never leaves the
+        // synced watermark above rows the drains deleted. Skipped once the
+        // drains are done, so later starts keep what state sync fetched ahead
+        // of execution.
         if self.migration_pending()? {
             self.rewind_synced_watermark()?;
         }
         let mut counts = self.drain_ledger()?;
         counts.add(&self.drain_checkpoints()?);
-        // Silent on a database with nothing to move: this stays in the startup
-        // path long after every database has been migrated.
         if counts.moved > 0 || counts.expired > 0 {
             info!(
                 moved = counts.moved,
@@ -259,16 +204,10 @@ impl LedgerBacklogMigration {
             );
         }
 
-        // What the node still holds is what it may advertise: below the floor
-        // the whole history is gone, and a state-sync peer told those
-        // checkpoints are available would ask for contents that are gone.
-        // Asked of the floor rather than of what this run deleted, since a run
-        // that resumed past the last expired slice deleted nothing itself and
-        // would otherwise leave the claim standing until the next
-        // reconfiguration. The call is monotonic, so repeating it on every
-        // start costs nothing. Reported rather than returned — the history
-        // itself has moved, and failing the start over a watermark would leave
-        // the node unable to come up at all.
+        // Stops state sync from advertising checkpoints below the floor. Based
+        // on the floor rather than on what this run deleted, since a resumed
+        // run may have deleted nothing itself. Logged rather than returned, so
+        // a watermark write cannot keep the node from starting.
         if self.floor > 0 {
             if let Err(e) = self
                 .checkpoint_store
@@ -280,16 +219,14 @@ impl LedgerBacklogMigration {
         Ok(())
     }
 
-    /// Moves every row of the five flat perpetual ledger tables into its
-    /// epoch's bucket.
     fn drain_ledger(&self) -> IotaResult<MigrationCounts> {
         use LedgerBacklogMigrationProgress as Progress;
 
         let mut counts = MigrationCounts::default();
         let mut logger = None;
         loop {
-            // Read back from disk rather than carried in memory, so a resumed
-            // run and an uninterrupted one take the same path.
+            // Read from disk so a resumed run takes the same path as an
+            // uninterrupted one.
             let progress = self
                 .perpetual_tables
                 .ledger_backlog_migration_progress
@@ -328,8 +265,6 @@ impl LedgerBacklogMigration {
         }
     }
 
-    /// Moves every row of the checkpoint store's two flat tables into its
-    /// epoch's bucket.
     fn drain_checkpoints(&self) -> IotaResult<MigrationCounts> {
         use CheckpointBacklogMigrationProgress as Progress;
 
@@ -368,8 +303,8 @@ impl LedgerBacklogMigration {
         }
     }
 
-    /// The reporter for `step`, opening one when the walk reaches a new table
-    /// and closing the one it is leaving.
+    /// Returns the logger for `step`, finishing the previous step's logger
+    /// when the step changes.
     fn open_step<'a>(
         logger: &'a mut Option<ProgressLogger>,
         pass: &'static str,
@@ -383,15 +318,13 @@ impl LedgerBacklogMigration {
         logger.as_mut().expect("open for this step")
     }
 
-    /// Closes the step being reported, if any.
     fn close_step(logger: &mut Option<ProgressLogger>) {
         if let Some(open) = logger.take() {
             open.finish();
         }
     }
 
-    /// Whether either drain still has rows to move, read from the progress
-    /// rows the drains themselves write.
+    /// Whether either drain's recorded progress is short of `Done`.
     fn migration_pending(&self) -> IotaResult<bool> {
         let ledger = self
             .perpetual_tables
@@ -411,19 +344,10 @@ impl LedgerBacklogMigration {
     /// Brings the synced watermark back to the executed one, so state sync
     /// fetches again whatever the migration dropped.
     ///
-    /// The migration keeps only rows it can attribute to an epoch, which means
-    /// only rows this node has executed. A node whose state sync has run ahead
-    /// of execution loses the transactions staged for the checkpoints in
-    /// between, and the checkpoint executor reads those by digest and panics
-    /// when one is missing. Leaving the synced watermark where it was would
-    /// walk straight into that: the executor takes its work from
-    /// `notify_read_synced_checkpoint`, so moving the watermark back to the
-    /// executed checkpoint makes it wait for state sync rather than read what
-    /// is no longer there.
-    ///
-    /// Nothing is lost by it. The checkpoints between the two watermarks are
-    /// fetched from peers again and land in the bucket of the epoch that
-    /// executes them, which is where they belonged in the first place.
+    /// The migration drops the rows of transactions synced but not yet
+    /// executed, since it cannot tell their epoch. The checkpoint executor
+    /// would panic reading them by digest; with the watermark rewound it waits
+    /// for state sync to fetch them again instead.
     fn rewind_synced_watermark(&self) -> IotaResult<()> {
         let before = self
             .checkpoint_store
@@ -441,14 +365,8 @@ impl LedgerBacklogMigration {
     }
 
     /// The epoch that executed `digest`, or `None` when this node has no
-    /// record of executing it.
-    ///
-    /// Both lookups are execution records, so a transaction state sync staged
-    /// but execution has not reached yet answers `None`. Such a row cannot be
-    /// filed: it belongs to the epoch of the checkpoint that will execute it,
-    /// which is ahead of this node and which nothing on disk here names. It is
-    /// dropped instead, and [`Self::rewind_synced_watermark`] has state sync
-    /// fetch it again.
+    /// record of executing it, as for a transaction state sync fetched but
+    /// execution has not reached (see [`Self::rewind_synced_watermark`]).
     fn transaction_epoch(&self, digest: &TransactionDigest) -> IotaResult<Option<EpochId>> {
         let tables = &self.perpetual_tables;
         if let Some((epoch, _)) = tables.executed_transactions_to_checkpoint.get(digest)? {
@@ -463,8 +381,7 @@ impl LedgerBacklogMigration {
     }
 
     /// Reads up to [`Self::keys_per_slice`] rows of `flat` above
-    /// `resume_above`, sorting each into the bucket it belongs in or into the
-    /// expired rows by the epoch `epoch_of` gives it.
+    /// `resume_above`, grouped by the epoch `epoch_of` gives them.
     fn read_slice<K, V>(
         &self,
         flat: &DBMap<K, V>,
@@ -482,8 +399,7 @@ impl LedgerBacklogMigration {
             .enumerate()
         {
             if read == self.keys_per_slice {
-                // One row past the slice, read but left undecided: it is what
-                // says rows are left, and the next slice reads it again.
+                // This row is left for the next slice to read again.
                 slice.sliced = true;
                 break;
             }
@@ -491,8 +407,6 @@ impl LedgerBacklogMigration {
             let epoch = epoch_of(&key, &value)?;
             slice.keys.push(key);
             slice.watermark = Some(key);
-            // No epoch means no execution record, so the row is above what this
-            // node has executed and is dropped rather than guessed at.
             match epoch {
                 Some(epoch) if epoch >= self.floor => {
                     slice.by_epoch.entry(epoch).or_default().push((key, value));
@@ -504,11 +418,7 @@ impl LedgerBacklogMigration {
     }
 
     /// Moves one slice of a flat perpetual ledger table into the buckets and
-    /// records how far it got.
-    ///
-    /// The bucket inserts, the flat deletes and the progress row are one
-    /// batch, so a row is always in exactly one of the two places and the
-    /// watermark cannot advance without the move landing.
+    /// records `progress`, all in one write batch.
     fn move_ledger_slice<K, V, W>(
         &self,
         flat: &DBMap<K, V>,
@@ -593,10 +503,6 @@ impl LedgerBacklogMigration {
         use LedgerBacklogMigrationProgress as Progress;
 
         let flat = &self.perpetual_tables.effects;
-        // Keyed by effects digest, so the epoch comes from the effects
-        // themselves. It is the epoch the execution record keyed by
-        // transaction digest resolves to as well, which is what keeps a
-        // transaction's effects in the bucket that record names.
         let slice = self.read_slice(flat, from, |_, effects| Ok(Some(effects.epoch())))?;
         let progress = slice.progress(Progress::Effects, Progress::TransactionCheckpoints(None));
         self.move_ledger_slice(flat, slice, |bucket| &bucket.effects, |row| row, progress)
@@ -611,8 +517,8 @@ impl LedgerBacklogMigration {
         let flat = &self.perpetual_tables.executed_transactions_to_checkpoint;
         let slice = self.read_slice(flat, from, |_, (epoch, _)| Ok(Some(*epoch)))?;
         let progress = slice.progress(Progress::TransactionCheckpoints, Progress::Done);
-        // The bucket's epoch is the epoch of the finalizing checkpoint, so the
-        // row there holds only the sequence number.
+        // The bucket's epoch is the checkpoint's epoch, so only the sequence
+        // number is kept.
         self.move_ledger_slice(
             flat,
             slice,
@@ -626,17 +532,9 @@ impl LedgerBacklogMigration {
     /// buckets, each with the contents row it names, and records how far it
     /// got.
     ///
-    /// A summary carries the epoch that closed it, so nothing else has to be
-    /// consulted to place it, and taking its contents with it keeps a
-    /// checkpoint's two rows in one bucket — they expire together, as the
-    /// per-row pruner they replace deleted them together.
-    ///
-    /// Two checkpoints in different epochs can name one contents row: every
-    /// checkpoint that carries no transaction has the same contents digest,
-    /// and the flat table holds one row for the pair. Each epoch's bucket gets
-    /// a copy of its own, read back out of the bucket the first of them was
-    /// filed in once the flat row is gone, so that expiring the older epoch
-    /// does not leave a retained checkpoint with a summary and no contents.
+    /// Checkpoints in different epochs can share one contents row (every empty
+    /// checkpoint does), so each epoch's bucket gets its own copy; expiring one
+    /// epoch then cannot leave another's checkpoint without contents.
     fn move_checkpoint_summaries(
         &self,
         from: Option<CheckpointDigest>,
@@ -650,8 +548,6 @@ impl LedgerBacklogMigration {
 
         let mut batch = flat.batch();
         let mut moved = 0;
-        // The contents rows this slice took into a bucket, deleted from the
-        // flat table because the bucket now holds them.
         let mut contents_keys = Vec::new();
         for (epoch, summaries) in &slice.by_epoch {
             let bucket = self.checkpoint_store.historic_checkpoints.ensure(*epoch)?;
@@ -670,9 +566,8 @@ impl LedgerBacklogMigration {
                         contents_keys.push(digest);
                         found.push((digest, contents));
                     }
-                    // An earlier slice took the row for a checkpoint of
-                    // another epoch that names the same contents, so this
-                    // epoch's copy comes back out of that epoch's bucket.
+                    // Already moved for another epoch's checkpoint with the
+                    // same contents.
                     None => {
                         if let Some(contents) = self
                             .checkpoint_store
@@ -681,11 +576,9 @@ impl LedgerBacklogMigration {
                         {
                             found.push((digest, contents));
                         } else if digest == *EMPTY_CHECKPOINT_CONTENTS_DIGEST {
-                            // The checkpoint pruner of earlier releases deleted
-                            // the row every empty checkpoint shares while later
-                            // empty checkpoints still named it. Its contents are
-                            // fixed, so the row is rebuilt rather than leaving
-                            // those checkpoints without contents.
+                            // The checkpoint pruner may have deleted the row
+                            // all empty checkpoints share; its contents are
+                            // fixed, so it is rebuilt.
                             found.push((digest, empty_checkpoint_contents()));
                         }
                     }
@@ -698,12 +591,9 @@ impl LedgerBacklogMigration {
             )?;
             batch.insert_batch_tagged(&bucket.checkpoint_content, found)?;
         }
-        // An expired summary's contents are left where they are rather than
-        // deleted with it: a contents row is keyed by digest, so checkpoints
-        // with the same transactions share one — every empty checkpoint does
-        // — and a retained summary in a later slice would find nothing to
-        // move. What no retained summary claims by the end of this pass is
-        // left to `move_contents_without_summary`.
+        // An expired summary's contents stay in the flat table, since a
+        // retained summary in a later slice may share them; the rest go to
+        // `move_contents_without_summary`.
         batch.delete_batch(&tables.checkpoint_content, &contents_keys)?;
         batch.delete_batch(flat, &slice.keys)?;
         batch.insert_batch(
@@ -724,27 +614,10 @@ impl LedgerBacklogMigration {
     /// the bucket of the epoch the migration runs in, and records how far it
     /// got.
     ///
-    /// A contents row carries neither an epoch nor a sequence number, and the
-    /// digest-keyed summary that names it is what places it — so a row still
-    /// here once every flat summary has moved cannot be placed at all. State
-    /// sync, which writes almost all of this history, writes the summary first
-    /// and the contents after, so its rows always have a summary to be placed
-    /// by. Two writers go the other way round:
-    /// [`CheckpointStore::insert_genesis_checkpoint`] writes the contents
-    /// first, leaving a row unplaceable if the node stopped between the two,
-    /// and on a validator
-    /// [`CheckpointBuilder::write_checkpoints`](crate::checkpoints::CheckpointBuilder)
-    /// writes the contents of every checkpoint it builds while only the
-    /// sequence-keyed `locally_computed_checkpoints` row goes with them — the
-    /// digest-keyed summary arrives at
-    /// [`CheckpointStore::insert_certified_checkpoint`], so every built but
-    /// not yet certified checkpoint leaves one behind.
-    ///
-    /// The running epoch is where such a row belongs: a checkpoint this node
-    /// built and has not yet certified is one of the running epoch's, and the
-    /// genesis case is a single row that is cheaper to keep than to reason
-    /// about. Filing them keeps contents that a summary already in a bucket
-    /// may still name.
+    /// Such rows are mostly contents of checkpoints this validator built but
+    /// has not yet certified, which belong to the running epoch; the
+    /// digest-keyed summary only arrives at
+    /// [`CheckpointStore::insert_certified_checkpoint`].
     fn move_contents_without_summary(
         &self,
         from: Option<CheckpointContentsDigest>,

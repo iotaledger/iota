@@ -2093,17 +2093,13 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
-    /// Overrides the default, which resolves the effects digest and then the
-    /// effects under it: both stages reach the store as their own walk over the
-    /// ledger buckets, whereas the store resolves both from the one bucket a
-    /// single walk finds.
+    /// Overrides the default so that a transaction whose effects digest is not
+    /// in memory is resolved by the store in one walk over the ledger buckets
+    /// instead of two.
     ///
-    /// Only a transaction whose effects digest the memory layers do not have
-    /// takes that combined read. One whose digest they do have goes through
-    /// [`Self::try_multi_get_effects`] as before, which is one walk too, and
-    /// which caches an absent result under the effects digest — the key it
-    /// belongs to. Caching it under the transaction digest instead would
-    /// overwrite a live `Some` entry there with `None`, which
+    /// A transaction whose effects digest is in memory still goes through
+    /// [`Self::try_multi_get_effects`]: caching its absent effects under the
+    /// transaction digest would overwrite a `Some` entry with `None`, which
     /// [`crate::execution_cache::cache_types::MonotonicCache::insert`] reports
     /// as an invariant violation.
     #[instrument(level = "trace", skip_all)]
@@ -2156,15 +2152,12 @@ impl TransactionCacheRead for WritebackCache {
         Ok(results)
     }
 
-    /// Overrides the default, which waits for every digest's effects digest
-    /// and then reads the effects under it, for the same reason
-    /// [`Self::try_multi_get_executed_effects`] does: both stages reach the
-    /// store as a separate walk over the ledger buckets.
+    /// Overrides the default for the same reason as
+    /// [`Self::try_multi_get_executed_effects`]: effects already in the store
+    /// are read in one walk, and only unexecuted transactions are waited for.
     ///
-    /// Effects already in the store are read in one walk, and only a
-    /// transaction that has not executed yet is waited for. Reading before
-    /// registering loses no wakeup, because the wait itself registers its
-    /// waiters before reading again.
+    /// Reading before registering loses no wakeup, because the wait registers
+    /// its waiters before reading again.
     fn try_notify_read_executed_effects<'a>(
         &'a self,
         task_name: &'static str,
@@ -2412,9 +2405,8 @@ impl ObjectStore for WritebackCache {
             .map_err(StorageError::custom)
     }
 
-    /// Forwarded rather than left to the trait's default, which reads one key
-    /// at a time: [`ObjectCacheRead`] answers what the cache holds and then
-    /// takes the rest in a single batched read of the database.
+    /// Forwarded so that cache misses are read from the database in one batch,
+    /// not one key at a time as the trait's default does.
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],

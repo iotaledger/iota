@@ -8,39 +8,11 @@
 //! into the bucket of the epoch the sweep runs in, which keeps them for the
 //! whole retention window.
 //!
-//! A superseded version now leaves the live `objects` table in the batch
-//! that supersedes it, and arrives in the epoch's historic bucket. A
-//! database written by an earlier build still holds roughly one retention
-//! window of superseded versions in the live table, and nothing drains them
-//! any more, so they are walked once and relocated here, into the bucket of
-//! the epoch the walk runs in.
-//!
-//! They go into that bucket even though they are older than the versions an
-//! earlier epoch's bucket holds. [`HistoricObjects::find_lt_or_eq_version`]
-//! searches buckets newest first and takes the first hit, so what would give
-//! a wrong answer is a newer bucket holding a lower version of the same
-//! object. This walk cannot produce one: it finishes before the node executes
-//! anything, so no bucket holds a version a commit relocated, and every
-//! version the walk itself relocates lands in that one bucket, where order
-//! does not matter, since a bucket is searched by a reverse range scan that
-//! takes the newest version under the bound.
-//!
-//! The epoch the walk runs in rather than an older one, because with a
-//! retention of `N` epochs at epoch `E` the oldest bucket kept after the next
-//! boundary is `E - N + 1`: an older bucket would be dropped one boundary
-//! later and take history with it that the node could otherwise still serve.
-//! The current epoch's bucket gives these versions the whole retention
-//! window, and retaining them for up to one window too long is the harmless
-//! direction.
-//!
-//! The walk runs at node startup, before any service that could expire a
-//! historic bucket has started. A bucket's tombstone heads may only be
-//! deleted once every version beneath them is out of reach; the heads this
-//! walk records land in the same bucket as the versions it relocates, so the
-//! two expire together, but a version superseded before this build sits in
-//! the live table until the walk reaches it, and finishing the walk first is
-//! what keeps an expiry from leaving such a version as the newest row of a
-//! deleted object.
+//! Putting older versions in the newest bucket is safe:
+//! [`HistoricObjects::find_lt_or_eq_version`] searches buckets newest first,
+//! which goes wrong only if a newer bucket holds a lower version of an object.
+//! The sweep finishes before the node executes anything, so no other bucket
+//! holds a version relocated by a commit yet.
 
 use std::{ops::Bound, sync::Arc};
 
@@ -67,10 +39,9 @@ use crate::{
     progress_logger::ProgressLogger,
 };
 
-/// Keys one slice decides before it writes its batch. A slice stops at this
-/// many wherever it is, including in the middle of an object id's versions, so
-/// it bounds how many versions the slice holds in memory whatever the table
-/// looks like, and bounds what an interrupted run has to walk again.
+/// Keys one slice decides before it writes its batch, even in the middle of an
+/// object id's versions, bounding its memory and what an interrupted run walks
+/// again.
 const KEYS_PER_SLICE: usize = 5_000;
 
 /// Checkpoints one slice of the bounded walk resolves before it writes its
@@ -92,16 +63,12 @@ pub enum ObjectBacklogSweepProgress {
 /// `epoch`'s bucket, and records the tombstones alongside them. Returns at once
 /// if an earlier run finished.
 ///
-/// Takes one of two routes. Where the objects pruner of an earlier build left
-/// its watermark, only the checkpoints above it can still hold a superseded
-/// version, so their effects name the backlog outright and the walk reads
-/// them instead of the live table. Otherwise every row of `objects` is
-/// walked, which on a large live set is the difference between minutes and
-/// hours.
+/// Where the objects pruner left its watermark, only the effects of the
+/// checkpoints above it are read; otherwise the whole live table is walked.
 ///
-/// Call this before starting anything that can expire a historic bucket, and
-/// before anything that scans the live table for its latest versions: until it
-/// returns, that table holds a retention window of rows no reader wants.
+/// Call this before starting anything that scans the live table for its latest
+/// versions or can expire a historic bucket: an expiry could otherwise leave a
+/// superseded version as the newest row of a deleted object.
 ///
 /// # Errors
 ///
@@ -323,15 +290,9 @@ impl ObjectBacklogSweep {
         self.perpetual_tables.mark_object_backlog_swept()
     }
 
-    /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key and
-    /// records how far it got. Returns how many rows it resolved and whether
-    /// any are left to sweep.
-    ///
-    /// Each relocated version's insert into `epoch`'s bucket and its delete
-    /// from the live table are one batch, together with the tombstones
-    /// recorded in that bucket and the progress row: a crash leaves every
-    /// version in one of the two tables, and an interrupted run resumes at
-    /// the key it last wrote and never skips a row.
+    /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key, in
+    /// one batch with the progress row. Returns how many rows it decided and
+    /// whether any are left to sweep.
     fn sweep_slice(&self, epoch: EpochId) -> IotaResult<(usize, bool)> {
         let objects = &self.perpetual_tables.objects;
         let progress = &self.perpetual_tables.object_backlog_sweep_progress;

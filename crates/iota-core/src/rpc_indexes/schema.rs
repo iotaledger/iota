@@ -694,14 +694,10 @@ pub struct IndexStoreTables {
 
     /// Lowest checkpoint whose transactions are in the history tables.
     ///
-    /// A rebuild seeds this to one past the watermark (no history yet); the
-    /// background replay then works downwards, committing the marker inside
-    /// each checkpoint's batch, until it reaches the lowest checkpoint
-    /// whose contents the node still holds. Absent on databases that were
-    /// never rebuilt: their history
-    /// has been indexed continuously and is complete. Backfill, digests
-    /// included, lives entirely in the one history bucket family, so this
-    /// is the only history marker the store needs.
+    /// A rebuild seeds this to one past the watermark; the background replay
+    /// then lowers it inside each checkpoint's batch, down to the lowest
+    /// checkpoint whose contents the node still holds. Absent on databases
+    /// that were never rebuilt, whose history is complete.
     pub(super) history_watermark: DBMap<(), CheckpointSequenceNumber>,
 
     /// Earliest epoch retained by the last index pruning pass. History

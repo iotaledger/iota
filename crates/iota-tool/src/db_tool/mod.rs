@@ -148,10 +148,9 @@ pub struct RemoveObjectLockOptions {
     confirm: bool,
 }
 
-/// Checkpoint history is kept per epoch and dropped a whole epoch at a time,
-/// and every watermark below resolves its checkpoint by digest through that
-/// history. A watermark pointed at a checkpoint of an epoch the node has
-/// already dropped cannot be resolved, and the node then fails to start.
+/// Checkpoint contents are kept per epoch and dropped a whole epoch at a
+/// time, so a watermark pointed at a checkpoint of a dropped epoch leaves the
+/// node without the contents it needs to run from there.
 const WATERMARK_RETENTION_CAUTION: &str = "CAUTION: the sequence number must be within an epoch \
                                            the node still retains — see \
                                            num-epochs-to-retain-for-checkpoints. Pointing a \

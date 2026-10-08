@@ -28,8 +28,8 @@ use super::{
 };
 use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
-/// Prunes anchored on the store's newest history bucket, which is the epoch
-/// the node is entering when it prunes at a reconfiguration.
+/// Prunes anchored on the store's newest history bucket, as reconfiguration
+/// does.
 fn prune_at_newest_epoch(store: &RpcIndexesStore) -> iota_types::error::IotaResult<Option<u64>> {
     let newest = store.retained_history_epochs().last().copied().unwrap_or(0);
     store.prune(newest)
@@ -840,8 +840,6 @@ async fn test_history_epoch_buckets_chain_and_prune() {
         vec![tx_0, tx_1]
     );
 
-    // Pruning with no historic epochs retained keeps the current epoch
-    // only, dropping epoch 0's bucket wholesale; pruning again is a no-op.
     index_store.epochs_to_retain = Some(0);
     assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
     assert_eq!(index_store.lookup_digest(&tx_0).unwrap(), None);
@@ -853,8 +851,6 @@ async fn test_history_epoch_buckets_chain_and_prune() {
     );
     assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
 
-    // A cursor pointing into the pruned epoch reports the transaction as
-    // gone instead of silently re-serving the first page.
     assert!(matches!(
         index_store.get_transactions(None, Some(tx_0), None, false),
         Err(IotaError::TransactionNotFound { .. })
@@ -2751,8 +2747,6 @@ async fn test_a_bucket_below_the_floor_is_dropped_at_open() {
     seed_history_buckets(&index_store, 2);
     assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
 
-    // Stands in for a drop that failed: the column family is on disk
-    // below the persisted floor.
     index_store
         .tables
         .meta
@@ -2883,9 +2877,8 @@ async fn test_concurrent_prune_and_queries_never_panic() {
     );
 }
 
-/// Expiry drops a checkpoint's transactions before it advances the watermark
-/// the backfill checks, so a replay can find them already gone. That must end
-/// the backfill instead of failing the task for the rest of the process.
+/// A backfill that finds a checkpoint's transactions already expired stops
+/// instead of failing.
 #[tokio::test]
 async fn test_backfill_stops_at_deleted_checkpoint_data() {
     let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
@@ -3543,7 +3536,6 @@ async fn test_pruning_keeps_the_newest_bucket_whatever_the_retention() {
     assert_eq!(prune_at_newest_epoch(&store).unwrap(), Some(2));
     assert_eq!(store.history.newest_epoch(), Some(2));
 
-    // The bucket ingest depends on is still usable after the prune.
     let mut builder = TestCheckpointDataBuilder::new(0)
         .with_epoch(2)
         .start_transaction(0)

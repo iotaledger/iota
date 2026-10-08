@@ -212,9 +212,7 @@ fn report_scan_progress_until_done(
 
         let fraction = scan_fraction(bits, positions);
         let scanned = objects_scanned.load(Ordering::Relaxed);
-        // The scan measures its position in the object id space, not against a
-        // row count, so the total is what that position implies rather than
-        // something read from the table.
+        // Extrapolated from the covered fraction of the object id space.
         let total = if fraction > 0.0 {
             (scanned as f64 / fraction) as u64
         } else {

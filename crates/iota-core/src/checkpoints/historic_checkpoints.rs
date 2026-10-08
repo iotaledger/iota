@@ -2,13 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Checkpoint history in the checkpoint store's database, bucketed by the
-//! epoch that closed the checkpoint.
-//!
-//! The buckets are extra column families of the checkpoint store's database
-//! rather than a store of their own (see [`crate::epoch_buckets`]), the same
-//! way [`crate::authority::historic_ledger`] holds the perpetual database's
-//! transaction history: written once, in the epoch the checkpoint belongs
-//! to, and read back by digest.
+//! epoch that closed the checkpoint (see [`crate::epoch_buckets`]).
 
 use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
 
@@ -36,12 +30,10 @@ const DB_PREFIX_HISTORIC_CHECKPOINT_CONTENT: u8 = 0;
 const DB_PREFIX_HISTORIC_CHECKPOINT_BY_DIGEST: u8 = 1;
 
 /// Column family holding the earliest-retained-epoch marker
-/// [`EpochBuckets`] persists on a prune. It is empty until the first prune,
-/// which is the same as retaining every bucket.
+/// [`EpochBuckets`] persists on a prune; empty until the first prune.
 ///
-/// The name must not begin with [`HISTORIC_CHECKPOINTS_CF_PREFIX`], since
-/// that is how a bucket's column family is told from every other one in this
-/// database.
+/// The name must not begin with [`HISTORIC_CHECKPOINTS_CF_PREFIX`], which
+/// marks a bucket's column family.
 const EARLIEST_RETAINED_CF: &str = "hist_ckpt_retention";
 
 /// One epoch's checkpoint history.
@@ -73,22 +65,11 @@ impl HistoricCheckpointsBucket {
 
 /// Checkpoint history, bucketed by the epoch that closed the checkpoint.
 ///
-/// The buckets are column families of the checkpoint store's database
-/// rather than a store of their own, so a checkpoint's rows can be committed
-/// alongside the rest of that commit's batch.
-///
-/// A bucket's existence does **not** mean its epoch has been executed. State
-/// sync inserts a certified checkpoint and its contents before this node
-/// executes them, in the bucket of the checkpoint's epoch, and it runs ahead
-/// of execution and across epoch boundaries — so the newest bucket here can
-/// belong to an epoch whose first checkpoint this node has yet to execute.
-/// [`crate::authority::historic_ledger::HistoricLedger`] has the same
-/// property, for the same reason.
-///
-/// Anything that decides how much history to keep must therefore count from
-/// the epoch being executed rather than from the newest bucket, which may be
-/// one state sync has run ahead into. [`Self::prune`] is where that counting
-/// lives.
+/// A bucket's existence does **not** mean its epoch has been executed: state
+/// sync inserts checkpoints ahead of execution and across epoch boundaries,
+/// so the newest bucket can belong to an epoch this node has yet to execute.
+/// Retention must therefore count from the epoch being executed, as
+/// [`Self::prune`] does.
 pub struct HistoricCheckpoints {
     buckets: EpochBuckets<HistoricCheckpointsBucket>,
 }
@@ -104,9 +85,7 @@ impl HistoricCheckpoints {
     /// does: the clones share the base options' block cache instead of each
     /// allocating one of their own.
     /// The `(name, options)` pairs of the column families this store needs,
-    /// for the checkpoint store's open path to list alongside its own tables.
-    /// See
-    /// [`extra_column_family_options`](crate::epoch_buckets::extra_column_family_options).
+    /// to be opened alongside the checkpoint store's own tables.
     pub fn extra_column_family_options(
         checkpoint_db_path: &Path,
         db_options: &DBOptions,
@@ -161,12 +140,8 @@ impl HistoricCheckpoints {
     }
 
     /// The oldest epoch this store still holds a bucket for, `None` when it
-    /// holds none at all. No checkpoint closed before this epoch is readable
-    /// any more.
-    ///
-    /// This is what the store holds, not what its retention would keep: a node
-    /// restored from a formal snapshot starts with no bucket at all, whatever
-    /// the retention says.
+    /// holds none. This is what the store holds, not what its retention would
+    /// keep: a node restored from a formal snapshot starts with no bucket.
     pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
         self.buckets.earliest_epoch()
     }
@@ -193,26 +168,20 @@ impl HistoricCheckpoints {
     /// `epochs_to_retain`, counted back from `current_epoch` and including
     /// it, and returns the earliest epoch retained.
     ///
-    /// `current_epoch` must be the epoch this node is executing rather than
-    /// the newest bucket, for the reason given on [`HistoricCheckpoints`];
-    /// the buckets above it are left alone. Blocks for as long as the drops
-    /// take, so a caller on an async runtime must use `spawn_blocking`.
+    /// `current_epoch` must be the epoch this node is executing (see
+    /// [`HistoricCheckpoints`]); buckets above it are left alone. Blocks while
+    /// the drops run, so async callers must use `spawn_blocking`.
     pub fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
     ) -> Result<Option<EpochId>, TypedStoreError> {
-        // Nothing here lives in a live table, so a drop has no side effect to
-        // prepare.
         self.buckets
             .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
     }
 
     /// The contents stored under `digest`, newest bucket first, `None` if no
     /// bucket holds them.
-    ///
-    /// A digest no bucket holds belongs to a checkpoint this node never had,
-    /// or to one whose epoch has been dropped, and both answer `None`.
     pub fn find_contents(
         &self,
         digest: &CheckpointContentsDigest,
@@ -228,9 +197,8 @@ impl HistoricCheckpoints {
     /// The certified summary stored under `digest`, newest bucket first,
     /// `None` if no bucket holds it.
     ///
-    /// Keyed by checkpoint digest. A caller that has the sequence number
-    /// reads `certified_checkpoints` instead, which holds the same summaries
-    /// and is never pruned.
+    /// A caller that has the sequence number should read
+    /// `certified_checkpoints` instead, which is never pruned.
     pub fn find_by_digest(
         &self,
         digest: &CheckpointDigest,
@@ -244,15 +212,8 @@ impl HistoricCheckpoints {
     }
 
     /// One page of the rows `cf_name` holds, if it is one of this store's
-    /// column families: a bucket of checkpoint history, or the
-    /// retention-floor family. `None` for any other name, leaving the caller
-    /// to report it as unknown.
-    ///
-    /// For the table dump of `iota-tool`, which walks the checkpoint store's
-    /// column families by name: these are not fields of
-    /// `CheckpointStoreTables`, so the dump derived from it cannot read
-    /// them. `db` may be a read-only or secondary handle — nothing here
-    /// writes, and no column family is created.
+    /// column families, for the table dump of `iota-tool`. `None` for any
+    /// other name. `db` may be a read-only or secondary handle.
     pub fn dump_column_family(
         db: &Arc<Database>,
         cf_name: &str,

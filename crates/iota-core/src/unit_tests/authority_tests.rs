@@ -3180,8 +3180,7 @@ async fn test_authority_persist() {
 
     // Close the authority
     drop(authority);
-    // The ledger buckets are not part of `AuthorityStore`, so they hold their
-    // own reference to the database and must be released before reopening it.
+    // The ledger buckets hold their own reference to the database.
     drop(historic_ledger);
 
     // TODO: The right fix is to invoke some function on DBMap and release the
@@ -9348,11 +9347,9 @@ async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
     assert!(historic.get(&relocated).unwrap().is_some());
 }
 
-/// The epoch boundary expires the ledger and checkpoint buckets that have
-/// fallen outside the configured retention, which is counted back from the
-/// epoch just executed. A bucket above that epoch — state sync writes both
-/// histories ahead of execution and across epoch boundaries — must neither be
-/// dropped nor spend part of the retention.
+/// The epoch boundary expires the ledger and checkpoint buckets outside the
+/// retention, counted back from the epoch just executed. A bucket state sync
+/// wrote for a later epoch is neither dropped nor counted.
 #[tokio::test]
 async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
     use iota_sdk_types::TransactionEffectsDigest;
@@ -9370,8 +9367,6 @@ async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
     let checkpoint_store = &authority.checkpoint_store;
     let historic_checkpoints = &checkpoint_store.historic_checkpoints;
 
-    // One transaction and one certified checkpoint per epoch, so an expired
-    // bucket is observable by the record it no longer serves.
     let epochs = [0, 1, 2, 3, SYNCED_AHEAD_EPOCH];
     let seeded: Vec<(TransactionDigest, VerifiedCheckpoint)> = epochs
         .iter()
@@ -9436,11 +9431,8 @@ async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
     }
 }
 
-/// The index history must retain exactly the configured number of epochs,
-/// counting the epoch being entered. It is counted back from the newest
-/// bucket, so the boundary has to open the incoming epoch's bucket before it
-/// prunes — otherwise the count starts one epoch low and the node keeps one
-/// epoch more than configured, for good.
+/// The index history retains exactly the configured number of epochs,
+/// counting the epoch being entered.
 #[tokio::test]
 async fn the_index_history_retains_exactly_the_configured_epochs() {
     const EPOCHS_TO_RETAIN: u64 = 2;
@@ -9451,7 +9443,6 @@ async fn the_index_history_retains_exactly_the_configured_epochs() {
         .await;
     let indexes = authority.rpc_indexes_store.clone().unwrap();
 
-    // The history of every epoch up to the one about to be left.
     for epoch in 0..=3 {
         indexes.ensure_history_bucket_exists(epoch).unwrap();
     }
@@ -9459,18 +9450,14 @@ async fn the_index_history_retains_exactly_the_configured_epochs() {
 
     authority.advance_historic_buckets(4).await.unwrap();
 
-    // Epoch 4 is the one being entered, so the window is that epoch plus the
-    // two before it; everything below is gone.
     assert_eq!(indexes.retained_history_epochs(), vec![2, 3, 4]);
-    // And gone durably: a dropped epoch's bucket cannot be reopened.
+    // A dropped epoch's bucket cannot be reopened.
     assert!(indexes.ensure_history_bucket_exists(1).is_err());
     assert!(indexes.ensure_history_bucket_exists(2).is_ok());
 }
 
-/// Expiring the checkpoint buckets must move `HighestPruned` up to the last
-/// checkpoint of the epoch below the oldest bucket retained, so that
-/// `try_get_lowest_available_checkpoint` stops offering state-sync peers and
-/// RPC clients a range whose contents have been dropped.
+/// Expiring the checkpoint buckets moves `HighestPruned` up to the last
+/// checkpoint of the newest expired epoch, and never back down.
 #[tokio::test]
 async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
     use iota_types::messages_checkpoint::FullCheckpointContents;
@@ -9483,8 +9470,7 @@ async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
         .await;
     let checkpoint_store = &authority.checkpoint_store;
 
-    // Two checkpoints per epoch, so that the watermark lands on the epoch's
-    // last one rather than on whichever of its checkpoints comes to hand.
+    // Two checkpoints per epoch, so landing on the epoch's last one is checked.
     for epoch in 0..=3 {
         for sequence in [epoch * 2, epoch * 2 + 1] {
             let full_contents = FullCheckpointContents::random_for_testing();
@@ -9509,8 +9495,7 @@ async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
         None,
     );
 
-    // Entering epoch 4 leaves epoch 3, and retaining two epochs from there
-    // keeps 2 and 3, so everything up to epoch 1's last checkpoint is gone.
+    // Keeps epochs 2 and 3, so up to epoch 1's last checkpoint is gone.
     authority.advance_historic_buckets(4).await.unwrap();
     assert_eq!(
         checkpoint_store
@@ -9519,8 +9504,7 @@ async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
         Some(3),
     );
 
-    // A watermark already standing higher — where a formal-snapshot restore
-    // leaves it — must not be walked back by a later expiry pass.
+    // A higher watermark, as a formal-snapshot restore leaves, stays.
     let restored = checkpoint_store
         .get_checkpoint_by_sequence_number(5)
         .unwrap()
@@ -9537,14 +9521,8 @@ async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
     );
 }
 
-/// On a database written before the checkpoint history was bucketed, the
-/// genesis checkpoint is in the flat table alone, which no read reaches, so it
-/// is not readable by digest either. A restart must still recognise that the
-/// database holds it — the guard asks `certified_checkpoints`, which is never
-/// bucketed — because `update_highest_synced_checkpoint` has no monotonic
-/// guard of its own: a guard that missed would drag the synced watermark back
-/// to zero, and the node would re-request the whole chain and advertise
-/// highest-synced 0 to its peers.
+/// A restart does not write the genesis checkpoint again when only the flat
+/// table holds it, which would drag the synced watermark back to zero.
 #[tokio::test]
 async fn a_restart_leaves_the_genesis_checkpoint_alone_when_only_a_flat_row_holds_it() {
     use iota_types::messages_checkpoint::FullCheckpointContents;
@@ -9565,8 +9543,7 @@ async fn a_restart_leaves_the_genesis_checkpoint_alone_when_only_a_flat_row_hold
         .unwrap()
         .unwrap();
 
-    // Move epoch 0's history back where the binary before the buckets kept
-    // it: the flat tables hold it and no bucket does.
+    // Move epoch 0's checkpoint out of its bucket into the flat tables.
     let bucket = checkpoint_store.historic_checkpoints.ensure(0).unwrap();
     let mut batch = checkpoint_store.tables.checkpoint_by_digest.batch();
     batch
@@ -9620,10 +9597,8 @@ async fn a_restart_leaves_the_genesis_checkpoint_alone_when_only_a_flat_row_hold
     );
 }
 
-/// Once epoch 0's checkpoint bucket has been expired, the genesis checkpoint
-/// is no longer readable by digest. A restart must still recognise that the
-/// database holds it: writing it again would refuse to reopen the expired
-/// epoch and would drag the synced watermark back to zero.
+/// A restart does not write the genesis checkpoint again once epoch 0's
+/// checkpoint bucket has expired.
 #[tokio::test]
 async fn a_restart_leaves_the_genesis_checkpoint_alone_once_its_epoch_expired() {
     use iota_types::messages_checkpoint::FullCheckpointContents;
@@ -9681,9 +9656,8 @@ async fn a_restart_leaves_the_genesis_checkpoint_alone_once_its_epoch_expired() 
 }
 
 /// The gRPC read store advertises object availability from the oldest bucket
-/// it actually holds, not from the retention floor, which says nothing about
-/// what a node was given. Where that bucket's epoch cannot be placed, it must
-/// claim nothing rather than the full history.
+/// it holds, and claims nothing below the executed watermark when that
+/// bucket's epoch has no recorded start.
 #[tokio::test]
 async fn object_availability_follows_the_oldest_bucket_held() {
     use iota_node_storage::GrpcStateReader;

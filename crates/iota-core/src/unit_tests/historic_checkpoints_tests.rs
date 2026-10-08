@@ -29,7 +29,6 @@ async fn a_checkpoint_and_its_contents_are_read_from_their_epoch_bucket() {
         .unwrap();
     store.insert_certified_checkpoint(&checkpoint).unwrap();
 
-    // The sequence-keyed summary is in the flat table, which is never bucketed.
     assert_eq!(
         store
             .tables
@@ -40,8 +39,7 @@ async fn a_checkpoint_and_its_contents_are_read_from_their_epoch_bucket() {
         Some(*checkpoint.digest())
     );
 
-    // Both writes went to the bucket of the checkpoint's own epoch, and to no
-    // other: this is the only bucket the store holds.
+    // The checkpoint's own epoch is the only bucket.
     assert_eq!(
         store.historic_checkpoints.earliest_bucket_epoch(),
         Some(CHECKPOINT_EPOCH)
@@ -108,21 +106,16 @@ async fn a_checkpoint_and_its_contents_are_read_from_their_epoch_bucket() {
     );
 }
 
-/// A checkpoint whose epoch has already been expired is still filed in the
-/// sequence-keyed table that is never pruned, while the digest-keyed copy and
-/// the contents are skipped rather than refused.
-///
-/// State sync carries checkpoints of its own across a reconfiguration, so it
-/// can still be inserting an epoch that the boundary has just dropped. Before
-/// this it reopened the expired bucket and panicked the node.
+/// A checkpoint whose epoch has already been expired is still filed by
+/// sequence number, while the digest-keyed copy and the contents are skipped
+/// rather than refused. State sync can still be inserting an epoch that the
+/// epoch boundary has just dropped.
 #[tokio::test]
 async fn a_checkpoint_of_an_expired_epoch_is_filed_without_its_bucket() {
     const EXPIRED_EPOCH: EpochId = 1;
     const RETAINED_EPOCH: EpochId = 3;
 
     let store = CheckpointStore::new_for_tests();
-    // Give the store a bucket to count retention from, then expire everything
-    // below the retained epoch.
     store.historic_checkpoints.ensure(RETAINED_EPOCH).unwrap();
     store.historic_checkpoints.prune(RETAINED_EPOCH, 1).unwrap();
 
@@ -139,8 +132,7 @@ async fn a_checkpoint_of_an_expired_epoch_is_filed_without_its_bucket() {
         Some(RETAINED_EPOCH)
     );
 
-    // The summary is still reachable by sequence number, which is what state
-    // sync's chain of trust reads.
+    // State sync's chain of trust reads by sequence number.
     assert_eq!(
         store
             .get_checkpoint_by_sequence_number(5)
@@ -148,7 +140,6 @@ async fn a_checkpoint_of_an_expired_epoch_is_filed_without_its_bucket() {
             .map(|summary| *summary.digest()),
         Some(*checkpoint.digest())
     );
-    // And not by digest, since the epoch that would hold it is gone.
     assert!(
         store
             .get_checkpoint_by_digest(checkpoint.digest())
@@ -157,10 +148,9 @@ async fn a_checkpoint_of_an_expired_epoch_is_filed_without_its_bucket() {
     );
 }
 
-/// A watermark keeps resolving after the epoch that closed the checkpoint it
-/// names has been expired. At a retention of 0 that is the epoch the node has
-/// just left, so resolving through the digest-keyed index — which lives in the
-/// buckets — would lose the watermark the node runs from.
+/// A watermark keeps resolving after the epoch of the checkpoint it names has
+/// been expired, which at a retention of 0 happens to the epoch the node has
+/// just left.
 #[tokio::test]
 async fn a_watermark_survives_the_expiry_of_its_own_epoch() {
     const EXPIRED_EPOCH: EpochId = 1;
@@ -178,7 +168,6 @@ async fn a_watermark_survives_the_expiry_of_its_own_epoch() {
         .unwrap();
     store.update_highest_synced_checkpoint(&checkpoint).unwrap();
 
-    // Retention 0: entering the next epoch keeps only its own bucket.
     store.historic_checkpoints.ensure(CURRENT_EPOCH).unwrap();
     store.historic_checkpoints.prune(CURRENT_EPOCH, 0).unwrap();
     assert!(
