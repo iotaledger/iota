@@ -3238,3 +3238,123 @@ async fn resource_profile_replay_is_deterministic() {
         "resource profiles must be byte-identical across re-execution"
     );
 }
+
+/// Reads a counter out of the `Debug` rendering of a `ResourceProfile`.
+fn profile_counter(trace_line: &str, name: &str) -> u64 {
+    let field = format!("{name}: ");
+    let start = trace_line
+        .find(&field)
+        .unwrap_or_else(|| panic!("{name} missing from {trace_line}"))
+        + field.len();
+    trace_line[start..]
+        .split(|c: char| !c.is_ascii_digit())
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap()
+}
+
+/// A transaction that fails part-way must still report the reads, events, and
+/// package loads of the commands that ran.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn resource_profile_keeps_counters_of_failed_transaction() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let authority = init_state_with_ids(vec![(sender, gas)]).await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let package = build_and_publish_test_package(
+        &authority,
+        &sender,
+        &sender_key,
+        &gas,
+        "object_basics",
+        false,
+    )
+    .await;
+
+    let mut created = vec![];
+    for _ in 0..2 {
+        let effects = call_move(
+            &authority,
+            &gas,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "create",
+            vec![],
+            vec![
+                TestCallArg::Pure(bcs::to_bytes(&(16_u64)).unwrap()),
+                TestCallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+        )
+        .await
+        .unwrap();
+        created.push(effects.created()[0].reference().object_id);
+    }
+
+    let buffer = SharedTraceBuffer::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_env_filter("resource_profile=trace")
+        .with_writer(buffer.clone())
+        .with_ansi(false)
+        .without_time()
+        .finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+
+    // `update` emits an event; `remove_field` then looks up a dynamic field
+    // that was never added and aborts.
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let first = TestCallArg::Object(created[0])
+            .to_call_arg(&mut builder, &authority)
+            .await;
+        let second = TestCallArg::Object(created[1])
+            .to_call_arg(&mut builder, &authority)
+            .await;
+        builder.programmable_move_call(
+            package.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("update"),
+            vec![],
+            vec![first, second],
+        );
+        builder.programmable_move_call(
+            package.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("remove_field"),
+            vec![],
+            vec![first],
+        );
+        builder.finish()
+    };
+    let effects = execute_programmable_transaction(
+        &authority,
+        &gas,
+        &sender,
+        &sender_key,
+        pt,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+    )
+    .await
+    .unwrap();
+    drop(guard);
+    assert!(
+        !matches!(effects.status(), ExecutionStatus::Success),
+        "expected the transaction to fail, got {:?}",
+        effects.status()
+    );
+
+    let captured = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
+    let lines: Vec<_> = captured
+        .lines()
+        .filter(|line| line.contains("Per-transaction resource profile"))
+        .collect();
+    assert_eq!(lines.len(), 1, "expected one profile, got {captured}");
+    let line = lines[0];
+    assert_eq!(profile_counter(line, "event_count"), 1);
+    assert!(profile_counter(line, "child_object_reads") >= 1);
+    assert_eq!(profile_counter(line, "packages_loaded"), 1);
+}

@@ -15,10 +15,10 @@ use serde::{Deserialize, Serialize};
 /// validator.
 ///
 /// For a failed transaction the profile is partial: the interpreter, native,
-/// and working-memory counters cover execution up to the failure, the
-/// read-I/O, event, and package-load counters are zero, and the write
-/// counters cover every mutable input, since a failed transaction still
-/// mutates them all, plus any extra gas coins smashed into the primary one.
+/// working-memory, read-I/O, event, and package-load counters cover execution
+/// up to the failure, and the write counters cover every mutable input, since
+/// a failed transaction still mutates them all, plus any extra gas coins
+/// smashed into the primary one.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceProfile {
     // CPU time.
