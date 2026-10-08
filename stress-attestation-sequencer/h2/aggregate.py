@@ -100,7 +100,7 @@ LAG_COARSE_EDGE = 30.0
 CRASH_RUN_DIRS = (("run-a-node-logs", "A"), ("run-b-node-logs", "B"))
 
 # Attested computation units per `slow_n` at SLOW_SIZE=100, from the
-# calibration in probe-test.md (the same on both machines). Used to find the
+# calibration in PROBE.md (the same on both machines). Used to find the
 # most expensive level of a SLOW_MIX config in the actual-units histogram.
 N_TO_UNITS = {
     1: 1000,

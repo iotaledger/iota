@@ -123,7 +123,7 @@ depends on what they cost, where `TotalTxCount` always admits 10.
 The top of the range is fixed by the protocol. A transaction is metered against
 `min(gas_budget, max_gas_computation_bucket × gas_price)`, so no transaction can
 be charged more than 5,000,000 computation units, whatever budget it declares
-(see `probe-test.md`). Ten of those is 50,000,000 units, so that is the widest
+(see `PROBE.md`). Ten of those is 50,000,000 units, so that is the widest
 per-object limit a 10-transaction commit could ever need, and it is the grid's
 top limit.
 
@@ -304,7 +304,7 @@ results/matrix/<LABEL>/
   `results/probe/`. Needs matplotlib, so run it from a `venv` such as
   `../h1/.venv`.
 
-The calibration is written up in `probe-test.md`; the mode comparison in
+The calibration is written up in `PROBE.md`; the mode comparison in
 `RESULTS.md`.
 
 ## Next steps

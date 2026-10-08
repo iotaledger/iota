@@ -5,7 +5,7 @@ Writes results/probe/calibration-tables.md: one per-machine table for each
 calibration CSV that exists, plus a cross-machine comparison table when more
 than one is present, and for each groth16-<machine>.csv one table per curve
 and function, plus a cross-machine groth16 comparison when more than one is
-present. These are the tables folded into probe-test.md. Pure stdlib; no venv.
+present. These are the tables folded into PROBE.md. Pure stdlib; no venv.
 """
 
 import csv

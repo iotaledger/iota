@@ -112,7 +112,7 @@ SLOW_SHARED="${SLOW_SHARED:-true}"                 # WORKLOAD=slow: true attache
 #
 # With the burst off the base limit must fit ONE transaction: the scheduler needs
 # start_time + cost <= limit with start_time >= 0, so a smaller limit defers the
-# transaction every commit until MAX_DEFERRAL_ROUNDS cancels it. probe-test.md
+# transaction every commit until MAX_DEFERRAL_ROUNDS cancels it. PROBE.md
 # lists what each slow point costs.
 MODE_A="${MODE_A:-TotalTxCount}"
 LIMIT_A="${LIMIT_A:-10}" # transactions per object per commit (production's value)
@@ -231,7 +231,7 @@ shared)
   ;;
 slow)
   # slow::slow(n, size) per transaction; bigger n/size costs more computation units
-  # (probe-test.md lists the points). With both knobs explicitly emptied
+  # (PROBE.md lists the points). With both knobs explicitly emptied
   # (SLOW_N= SLOW_SIZE=) the workload runs slow::bimodal instead, alternating
   # heavy and light every 10s.
   # The workload publishes ONE slow::Obj and every payload takes it as a mutable

@@ -25,7 +25,7 @@
 # which the most expensive points reach first) and starts one rung below its
 # floor, where such a rung exists.
 #
-# Cost points from the h2 calibration (probe-test.md; size fixed at 100).
+# Cost points from the h2 calibration (PROBE.md; size fixed at 100).
 # units/tx is the attested cost, the value the scheduler charges. It is a
 # property of the workload: the probe measures the same figure on both
 # machines, to the digit.
@@ -58,7 +58,7 @@
 # one object at 1,000 units a transaction, at any rung of its ladder. cu5m
 # sits at the metering ceiling — 5,000,000 is the gas budget in computation
 # units, so those transactions fail with InsufficientGas and are charged the
-# whole budget (see probe-test.md). Its work is truncated, which is worth
+# whole budget (see PROBE.md). Its work is truncated, which is worth
 # remembering when reading its throughput.
 #
 # Transactions per commit each limit admits is the limit divided by the cost
