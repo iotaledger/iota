@@ -99,8 +99,10 @@ impl<'state> LinkageView<'state> {
             return;
         }
         if self.counted_packages.borrow_mut().insert(package_id) {
-            *self.packages_loaded.borrow_mut() += 1;
-            *self.package_bytes_loaded.borrow_mut() += bytes;
+            let mut count = self.packages_loaded.borrow_mut();
+            *count = count.saturating_add(1);
+            let mut total = self.package_bytes_loaded.borrow_mut();
+            *total = total.saturating_add(bytes);
         }
     }
 
