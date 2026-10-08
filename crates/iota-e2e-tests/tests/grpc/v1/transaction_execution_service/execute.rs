@@ -444,9 +444,9 @@ async fn execute_transaction_batch_size_exceeded() {
     );
 }
 
-/// A transaction that is returned with its checkpoint under
-/// `checkpoint_inclusion_timeout_ms` is visible to the index-backed reads.
-/// A client can query its outputs immediately. It does not need to poll.
+/// A transaction returned with its checkpoint under
+/// `checkpoint_inclusion_timeout_ms` is immediately visible to the
+/// index-backed reads.
 #[sim_test]
 async fn index_backed_reads_see_a_transaction_returned_with_its_checkpoint() {
     let (test_cluster, client) = setup_grpc_test(None, None).await;

@@ -451,9 +451,8 @@ where
             .await
             .is_ok();
             add_server_timing("local_execution");
-            // Local execution does not index the transaction. Its checkpoint
-            // does. Wait for that too, so that an index-backed read that
-            // starts after the response sees the transaction.
+            // Only the checkpoint indexes the transaction, so wait for it too
+            // for an index-backed read after the response to see it.
             executed
                 && self
                     .validator_state

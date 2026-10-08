@@ -1083,8 +1083,10 @@ impl CheckpointExecutor {
         let checkpoint_data = match checkpoint_data {
             Some(data) => data,
             None => {
-                // `checkpoint_data_enabled` includes each consumer. Thus this
-                // path is not expected. It is a fallback, not a panic.
+                // Not expected: subscribers are served by the JSON-RPC API,
+                // which comes with the RPC index store, so
+                // `checkpoint_data_enabled` covers every consumer. A fallback
+                // rather than a panic.
                 let (_, tx_data) =
                     self.load_checkpoint_transactions(checkpoint_exec_data.checkpoint.clone());
                 loaded = load_checkpoint_data(

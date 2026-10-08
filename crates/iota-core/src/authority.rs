@@ -316,8 +316,8 @@ pub struct AuthorityMetrics {
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
-    /// Checkpoint-inclusion waits that returned before the RPC indexes were
-    /// up to date. The caller's timeout ran out first.
+    /// Checkpoint-inclusion waits that timed out before the RPC indexes
+    /// caught up.
     pub(crate) checkpoint_inclusion_index_wait_timeouts: IntCounter,
 
     // Post processing metrics
@@ -3562,18 +3562,15 @@ impl AuthorityState {
         let deadline = tokio::time::Instant::now() + timeout;
         let results = self.wait_for_checkpoint_mapping(digests, deadline).await?;
 
-        // The index commit of a checkpoint comes before its
-        // `highest_executed_checkpoint` bump, and the stages run in checkpoint
-        // order. Thus the bump means "indexed through this checkpoint". The
-        // bump also happens on a node without indexes, so the wait cannot hang.
+        // The index commit precedes the `highest_executed_checkpoint` bump,
+        // in checkpoint order, so the bump means "indexed through this
+        // checkpoint". Nodes without indexes bump too, so this cannot hang.
         if let Some(max_seq) = results.values().map(|(seq, _)| *seq).max() {
             let indexed = self
                 .checkpoint_store
                 .notify_read_executed_checkpoint(max_seq);
             let all_checkpointed = digests.iter().all(|digest| results.contains_key(digest));
-            // A partial result means that the deadline passed during the
-            // inclusion wait. The caller sees that as a timeout. Report only
-            // a wait that got past inclusion.
+            // A partial result already reports a timeout to the caller.
             if tokio::time::timeout_at(deadline, indexed).await.is_err() && all_checkpointed {
                 self.metrics.checkpoint_inclusion_index_wait_timeouts.inc();
                 warn!(
