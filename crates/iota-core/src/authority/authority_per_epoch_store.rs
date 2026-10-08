@@ -4239,8 +4239,6 @@ impl AuthorityPerEpochStore {
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
-        // Read once per commit: validation and the roots registration below
-        // decide on the same value.
         let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
 
         // Split transactions into different types for processing.
