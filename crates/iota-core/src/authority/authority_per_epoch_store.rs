@@ -1895,6 +1895,10 @@ impl AuthorityPerEpochStore {
 
     /// The handler rows of commit `index`, derived from the effects of the
     /// transactions its pending checkpoints hold.
+    ///
+    /// Every root of a flushing commit is in a checkpoint that has been built
+    /// and executed, so it has a digest and effects. A root missing either is
+    /// an error, so the flush batch is never written without its rows.
     fn handler_rows_from_effects(
         &self,
         tables: &AuthorityEpochTables,
@@ -1906,29 +1910,26 @@ impl AuthorityPerEpochStore {
             .iter()
             .flat_map(|checkpoint| checkpoint.roots())
         {
-            match key {
-                TransactionKey::Digest(digest) => digests.push(*digest),
-                // Every root of a flushing commit is in a checkpoint that has
-                // been built and executed, so it has a digest and effects.
-                key => match tables.transaction_key_to_digest.get(key)? {
-                    Some(digest) => digests.push(digest),
-                    None => debug_fatal!("no digest for root {key:?} of flushing commit {index}"),
-                },
-            }
+            let digest = match key {
+                TransactionKey::Digest(digest) => *digest,
+                key => tables.transaction_key_to_digest.get(key)?.ok_or_else(|| {
+                    IotaError::GenericAuthority {
+                        error: format!("no digest for root {key:?} of flushing commit {index}"),
+                    }
+                })?,
+            };
+            digests.push(digest);
         }
 
-        let effects: Vec<_> = self
+        let effects = self
             .effects_store()
             .multi_get_executed_effects(&digests)
             .into_iter()
             .zip(&digests)
-            .filter_map(|(effects, digest)| {
-                if effects.is_none() {
-                    debug_fatal!("no effects for {digest} of flushing commit {index}");
-                }
-                effects
+            .map(|(effects, digest)| {
+                effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
             })
-            .collect();
+            .collect::<IotaResult<Vec<_>>>()?;
         Ok(handler_rows_for_commit(&effects, index))
     }
 
