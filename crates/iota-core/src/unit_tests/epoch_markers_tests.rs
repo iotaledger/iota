@@ -32,8 +32,7 @@ fn write_marker(markers: &EpochMarkers, epoch: EpochId, id: ObjectId, version: u
         .unwrap();
 }
 
-/// A marker is read back from the epoch that wrote it, and is invisible to
-/// every other epoch: the bucket is the epoch, so no key carries one.
+/// A marker is read back from the epoch that wrote it and from no other.
 #[tokio::test]
 async fn a_marker_is_read_back_from_the_epoch_that_wrote_it() {
     let (_perpetual, markers, _dir) = test_markers();
@@ -98,9 +97,8 @@ async fn entering_an_epoch_drops_every_earlier_bucket() {
     );
 }
 
-/// The migration files the running epoch's flat rows in its bucket, deletes
-/// the rows of epochs that are already over, and empties the flat table either
-/// way.
+/// The migration moves the running epoch's flat rows into its bucket, deletes
+/// the rows of earlier epochs, and empties the flat table.
 #[tokio::test]
 async fn the_migration_files_the_running_epoch_and_drops_the_rest() {
     let (perpetual, markers, _dir) = test_markers();
@@ -131,8 +129,7 @@ async fn the_migration_files_the_running_epoch_and_drops_the_rest() {
     assert!(flat.safe_iter().next().is_none());
 }
 
-/// Running the migration again on a drained table is a no-op, so a start that
-/// follows a finished one costs nothing.
+/// Running the migration again on a drained table is a no-op.
 #[tokio::test]
 async fn the_migration_is_idempotent() {
     let (perpetual, markers, _dir) = test_markers();
