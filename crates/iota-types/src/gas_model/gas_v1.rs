@@ -485,6 +485,7 @@ mod checked {
 
         fn reset_storage_cost_and_rebate(&mut self) {
             self.per_object_storage = Vec::new();
+            self.profile_write_sizes = Vec::new();
             self.unmetered_storage_rebate = 0;
         }
 
@@ -596,6 +597,23 @@ mod checked {
             assert_eq!(profile.written_bytes, 512);
             assert_eq!(profile.deleted_object_count, 1);
             assert!(status.per_object_storage().is_empty());
+        }
+
+        #[test]
+        fn storage_reset_discards_recorded_writes() {
+            let mut status = IotaGasStatus::new_unmetered();
+            status.track_storage_mutation(ObjectId::ZERO, 512, 0);
+            status.track_storage_mutation(ObjectId::ZERO, 0, 100);
+
+            // Out of gas while charging storage: the charger resets and
+            // collects the mutations again.
+            status.reset_storage_cost_and_rebate();
+            status.track_storage_mutation(ObjectId::ZERO, 256, 0);
+
+            let profile = status.resource_profile();
+            assert_eq!(profile.written_object_count, 1);
+            assert_eq!(profile.written_bytes, 256);
+            assert_eq!(profile.deleted_object_count, 0);
         }
     }
 }
