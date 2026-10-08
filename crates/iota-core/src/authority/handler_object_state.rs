@@ -578,9 +578,12 @@ impl HandlerObjectState {
     /// sync running ahead of the checkpoint builder. Does nothing once the
     /// watcher has completed it.
     ///
-    /// `rows` go to the flush batch rather than the overlay, so unlike the
-    /// watcher path this only queues the sync-record deletions and drops the
-    /// map entries; the completion signal moves once the batch is durable, in
+    /// Unlike [`Self::record_commit_fully_executed`], this does not put `rows`
+    /// in the overlay; the caller writes them with
+    /// [`Self::write_commit_rows_to_batch`] right after. This removes from the
+    /// overlay the sync-ahead records that `rows` catch up past, queues their
+    /// durable deletions for that batch, and drops the commit's map entries.
+    /// The completion signal moves once the batch is durable, in
     /// [`Self::evict_flushed_commit_rows`].
     pub fn complete_commit_at_flush(
         &self,
@@ -968,8 +971,9 @@ impl HandlerObjectState {
                 None => tables.sync_ahead_records.get(&key.0)?,
             };
             // The handler has caught up past the whole sync-ahead chain; the
-            // handler-processed row (already visible) now answers every read the
-            // record used to.
+            // handler-processed row answers every read the record used to. On
+            // the watcher path that row is already readable; on the flush path
+            // it becomes readable when the flush batch is written.
             if record.is_some_and(|record| record.latest_created <= key.1) {
                 overlay.remove(&key.0);
                 // Queue the durable deletion even when the record was found
