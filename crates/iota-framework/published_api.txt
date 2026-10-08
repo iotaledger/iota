@@ -2497,46 +2497,49 @@ validate_public_key
 to_iota_address_impl
 	fun
 	0x2::public_key
-PublicKeyFieldName
-	public struct
-	0x2::public_key_authentication
-PublicKeyAttached
-	public struct
-	0x2::public_key_authentication
-PublicKeyDetached
-	public struct
-	0x2::public_key_authentication
-PublicKeyRotated
-	public struct
-	0x2::public_key_authentication
-attach_public_key
-	public fun
-	0x2::public_key_authentication
-detach_public_key
-	public fun
-	0x2::public_key_authentication
-rotate_public_key
-	public fun
-	0x2::public_key_authentication
-has_public_key
-	public fun
-	0x2::public_key_authentication
-borrow_public_key
-	public fun
-	0x2::public_key_authentication
 is_feature_enabled
 	public(package) fun
 	0x2::protocol_config
 get_attr
 	public(package) fun
 	0x2::protocol_config
+PublicKeyAttached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyDetached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyRotated
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyFieldName
+	public struct
+	0x2::builtin_authenticator_functions
 builtin_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+attach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+detach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+rotate_public_key
 	public fun
 	0x2::builtin_authenticator_functions
 is_builtin_authenticator
 	public fun
 	0x2::builtin_authenticator_functions
+has_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+borrow_public_key
+	public fun
+	0x2::builtin_authenticator_functions
 builtin_authenticator_v1
+	fun
+	0x2::builtin_authenticator_functions
+public_key_field_name
 	fun
 	0x2::builtin_authenticator_functions
 check_builtin_authenticators_enabled
@@ -3835,34 +3838,31 @@ uid
 uid_mut
 	public(package) fun
 	0x2::smart_account
-with_public_key
-	public fun
-	0x2::smart_account_public_key
-has_public_key
-	public fun
-	0x2::smart_account_public_key
-borrow_public_key
-	public fun
-	0x2::smart_account_public_key
-attach_public_key
-	public fun
-	0x2::smart_account_public_key
-detach_public_key
-	public fun
-	0x2::smart_account_public_key
-rotate_public_key
-	public fun
-	0x2::smart_account_public_key
 builder_v1
 	public fun
 	0x2::smart_account_builtin_auth
 has_builtin_auth
 	public fun
 	0x2::smart_account_builtin_auth
+has_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+borrow_public_key
+	public fun
+	0x2::smart_account_builtin_auth
 rotate_to_builtin_auth_v1
 	public fun
 	0x2::smart_account_builtin_auth
+rotate_to_custom_auth_v1
+	public fun
+	0x2::smart_account_builtin_auth
+rotate_public_key
+	public fun
+	0x2::smart_account_builtin_auth
 claim_account_v1
+	fun
+	0x2::smart_account_builtin_auth
+with_public_key
 	fun
 	0x2::smart_account_builtin_auth
 IotaSystemAdminCap

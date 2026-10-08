@@ -9,7 +9,6 @@ use iota::public_key::{Self, PublicKey};
 use iota::signature_scheme;
 use iota::smart_account::{Self, SmartAccount};
 use iota::smart_account_builtin_auth;
-use iota::smart_account_public_key;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use std::ascii;
@@ -20,7 +19,7 @@ use std::ascii;
 fun builder_v1_attaches_public_key_and_builtin_auth() {
     builtin_account_view_test!(|account| {
         assert_ref_eq(
-            smart_account_public_key::borrow_public_key(account),
+            smart_account_builtin_auth::borrow_public_key(account),
             &ed25519_public_key(),
         );
         assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
@@ -40,7 +39,7 @@ fun builder_v1_accepts_extra_fields() {
     let account = scenario.take_shared<SmartAccount>();
 
     assert_ref_eq(account.borrow_field<_, u64>(b"answer"), &42u64);
-    assert_eq(smart_account_public_key::has_public_key(&account), true);
+    assert_eq(smart_account_builtin_auth::has_public_key(&account), true);
 
     test_scenario::return_shared(account);
     scenario.end();
@@ -59,7 +58,7 @@ fun claim_account_v1_creates_shared_account_at_sender_address() {
     scenario.next_tx(sender);
     let account = scenario.take_shared<SmartAccount>();
     assert_eq(account.account_address(), sender);
-    assert_ref_eq(smart_account_public_key::borrow_public_key(&account), &public_key);
+    assert_ref_eq(smart_account_builtin_auth::borrow_public_key(&account), &public_key);
     assert_eq(smart_account_builtin_auth::has_builtin_auth(&account), true);
     test_scenario::return_shared(account);
 
@@ -81,40 +80,62 @@ fun claim_account_v1_aborts_on_address_mismatch() {
 #[test]
 fun custom_account_has_no_public_key_or_builtin_auth() {
     custom_account_view_test!(|account| {
-        assert_eq(smart_account_public_key::has_public_key(account), false);
+        assert_eq(smart_account_builtin_auth::has_public_key(account), false);
         assert_eq(smart_account_builtin_auth::has_builtin_auth(account), false);
     });
 }
 
-// === Authenticator rotation ===
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+fun borrow_public_key_aborts_without_a_key() {
+    custom_account_view_test!(|account| {
+        smart_account_builtin_auth::borrow_public_key(account);
+    });
+}
+
+// === rotate_to_builtin_auth_v1 ===
 
 #[test]
-fun rotate_to_builtin_auth_v1_switches_from_custom_authenticator() {
+fun rotate_to_builtin_auth_v1_attaches_key_and_sets_builtin_auth() {
     custom_account_test!(|account, scenario| {
-        smart_account_public_key::attach_public_key(
+        let previous = smart_account_builtin_auth::rotate_to_builtin_auth_v1(
             account,
             multisig_public_key(),
             scenario.ctx(),
         );
 
-        let previous = smart_account_builtin_auth::rotate_to_builtin_auth_v1(
-            account,
-            scenario.ctx(),
-        );
-
         assert_eq(previous, custom_authenticator());
         assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
+        assert_ref_eq(
+            smart_account_builtin_auth::borrow_public_key(account),
+            &multisig_public_key(),
+        );
     });
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account_builtin_auth::EPublicKeyMissing)]
-fun rotate_to_builtin_auth_v1_aborts_after_the_key_was_detached() {
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EBuiltinAuthAlreadySet)]
+fun rotate_to_builtin_auth_v1_aborts_if_builtin_auth_already_set() {
+    builtin_account_test!(|account, scenario| {
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
+            account,
+            multisig_public_key(),
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyAlreadyAttached)]
+fun rotate_to_builtin_auth_v1_aborts_if_core_rotation_left_a_key() {
     builtin_account_test!(|account, scenario| {
         account.rotate_auth_function_ref_v1(custom_authenticator(), scenario.ctx());
-        smart_account_public_key::detach_public_key(account, scenario.ctx());
 
-        smart_account_builtin_auth::rotate_to_builtin_auth_v1(account, scenario.ctx());
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
+            account,
+            multisig_public_key(),
+            scenario.ctx(),
+        );
     });
 }
 
@@ -122,9 +143,154 @@ fun rotate_to_builtin_auth_v1_aborts_after_the_key_was_detached() {
 #[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun rotate_to_builtin_auth_v1_aborts_if_sender_not_account() {
     custom_account_wrong_sender_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_to_builtin_auth_v1(account, scenario.ctx());
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
+            account,
+            ed25519_public_key(),
+            scenario.ctx(),
+        );
     });
 }
+
+// === rotate_to_custom_auth_v1 ===
+
+#[test]
+fun rotate_to_custom_auth_v1_detaches_the_key() {
+    builtin_account_test!(|account, scenario| {
+        let detached = smart_account_builtin_auth::rotate_to_custom_auth_v1(
+            account,
+            custom_authenticator(),
+            scenario.ctx(),
+        );
+
+        assert_eq(detached, option::some(ed25519_public_key()));
+        assert_eq(smart_account_builtin_auth::has_public_key(account), false);
+        assert_ref_eq(account.borrow_auth_function_ref_v1(), &custom_authenticator());
+    });
+}
+
+#[test]
+fun rotate_to_custom_auth_v1_without_a_key_returns_none() {
+    custom_account_test!(|account, scenario| {
+        let detached = smart_account_builtin_auth::rotate_to_custom_auth_v1(
+            account,
+            other_custom_authenticator(),
+            scenario.ctx(),
+        );
+
+        assert_eq(detached, option::none());
+        assert_ref_eq(account.borrow_auth_function_ref_v1(), &other_custom_authenticator());
+    });
+}
+
+#[test]
+fun rotate_to_custom_auth_v1_detaches_a_key_left_by_core_rotation() {
+    builtin_account_test!(|account, scenario| {
+        account.rotate_auth_function_ref_v1(custom_authenticator(), scenario.ctx());
+
+        let detached = smart_account_builtin_auth::rotate_to_custom_auth_v1(
+            account,
+            custom_authenticator(),
+            scenario.ctx(),
+        );
+
+        assert_eq(detached, option::some(ed25519_public_key()));
+        assert_eq(smart_account_builtin_auth::has_public_key(account), false);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EAuthenticatorIsBuiltin)]
+fun rotate_to_custom_auth_v1_aborts_for_the_builtin_authenticator() {
+    custom_account_test!(|account, scenario| {
+        smart_account_builtin_auth::rotate_to_custom_auth_v1(
+            account,
+            builtin_authenticator(),
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
+fun rotate_to_custom_auth_v1_aborts_if_sender_not_account() {
+    builtin_account_wrong_sender_test!(|account, scenario| {
+        smart_account_builtin_auth::rotate_to_custom_auth_v1(
+            account,
+            custom_authenticator(),
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
+fun rotating_to_custom_and_back_to_builtin_auth_takes_a_new_key() {
+    builtin_account_test!(|account, scenario| {
+        smart_account_builtin_auth::rotate_to_custom_auth_v1(
+            account,
+            custom_authenticator(),
+            scenario.ctx(),
+        );
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
+            account,
+            multisig_public_key(),
+            scenario.ctx(),
+        );
+
+        assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
+        assert_ref_eq(
+            smart_account_builtin_auth::borrow_public_key(account),
+            &multisig_public_key(),
+        );
+    });
+}
+
+// === rotate_public_key ===
+
+#[test]
+fun rotate_public_key_replaces_the_key_with_another_scheme() {
+    builtin_account_test!(|account, scenario| {
+        let previous = smart_account_builtin_auth::rotate_public_key(
+            account,
+            multisig_public_key(),
+            scenario.ctx(),
+        );
+
+        assert_eq(previous, ed25519_public_key());
+        assert_ref_eq(
+            smart_account_builtin_auth::borrow_public_key(account),
+            &multisig_public_key(),
+        );
+        assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EBuiltinAuthNotSet)]
+fun rotate_public_key_aborts_without_builtin_auth() {
+    builtin_account_test!(|account, scenario| {
+        account.rotate_auth_function_ref_v1(custom_authenticator(), scenario.ctx());
+
+        smart_account_builtin_auth::rotate_public_key(
+            account,
+            multisig_public_key(),
+            scenario.ctx(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
+fun rotate_public_key_aborts_if_sender_not_account() {
+    builtin_account_wrong_sender_test!(|account, scenario| {
+        smart_account_builtin_auth::rotate_public_key(
+            account,
+            multisig_public_key(),
+            scenario.ctx(),
+        );
+    });
+}
+
+// === Core rotation ===
 
 #[test]
 fun core_rotation_sets_builtin_auth_without_public_key() {
@@ -132,7 +298,17 @@ fun core_rotation_sets_builtin_auth_without_public_key() {
         account.rotate_auth_function_ref_v1(builtin_authenticator(), scenario.ctx());
 
         assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
-        assert_eq(smart_account_public_key::has_public_key(account), false);
+        assert_eq(smart_account_builtin_auth::has_public_key(account), false);
+    });
+}
+
+#[test]
+fun core_rotation_leaves_the_key_with_a_custom_authenticator() {
+    builtin_account_test!(|account, scenario| {
+        account.rotate_auth_function_ref_v1(custom_authenticator(), scenario.ctx());
+
+        assert_eq(smart_account_builtin_auth::has_builtin_auth(account), false);
+        assert_eq(smart_account_builtin_auth::has_public_key(account), true);
     });
 }
 
@@ -161,6 +337,14 @@ fun custom_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
     )
 }
 
+fun other_custom_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
+    authenticator_function::create_auth_function_ref_v1_for_testing(
+        @0xDEF,
+        ascii::string(b"module"),
+        ascii::string(b"function"),
+    )
+}
+
 /// The built-in authenticator ref, as `smart_account_builtin_auth::builder_v1` attaches it.
 fun builtin_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
     authenticator_function::create_auth_function_ref_v1_for_testing(
@@ -179,6 +363,22 @@ macro fun builtin_account_test($f: |&mut SmartAccount, &mut Scenario|) {
         .build_v1();
 
     scenario.next_tx(addr);
+    let mut account = scenario.take_shared<SmartAccount>();
+
+    $f(&mut account, &mut scenario);
+
+    test_scenario::return_shared(account);
+    scenario.end();
+}
+
+/// Runs `$f` on a shared `SmartAccount` built by `smart_account_builtin_auth::builder_v1` with an
+/// Ed25519 key, where the sender is `@0x1` — not the account.
+macro fun builtin_account_wrong_sender_test($f: |&mut SmartAccount, &mut Scenario|) {
+    let mut scenario = test_scenario::begin(@0x0);
+
+    smart_account_builtin_auth::builder_v1(ed25519_public_key(), scenario.ctx()).build_v1();
+
+    scenario.next_tx(@0x1);
     let mut account = scenario.take_shared<SmartAccount>();
 
     $f(&mut account, &mut scenario);

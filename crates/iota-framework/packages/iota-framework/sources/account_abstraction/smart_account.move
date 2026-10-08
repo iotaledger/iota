@@ -7,9 +7,9 @@
 /// This module holds only what every `SmartAccount` needs: creating the account, managing its
 /// dynamic fields, and rotating its authenticator. It knows nothing about any particular
 /// authenticator. Other modules extend an account by adding dynamic fields under their own key
-/// types. `iota::smart_account_public_key` is such a module: it adds a public key that any
-/// authenticator can read. `iota::smart_account_builtin_auth` adds the built-in authenticator for
-/// IOTA's standard signature schemes, which checks signatures against that key.
+/// types. `iota::smart_account_builtin_auth` is such a module: it adds the built-in authenticator
+/// for IOTA's standard signature schemes together with the public key it checks signatures
+/// against.
 ///
 /// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
 /// object ID for the supplied authenticator. After optionally adding fields with `with_field`,
@@ -198,9 +198,10 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 ///
 /// Accepts any authenticator and does not check that the account can still be authenticated
 /// afterwards: rotating to the built-in authenticator while no public key is attached leaves the
-/// account unable to send any transaction. To switch to the built-in authenticator, use
-/// `smart_account_builtin_auth::rotate_to_builtin_auth_v1`, which checks that a public key is
-/// attached.
+/// account unable to send any transaction. To switch to or from the built-in authenticator, use
+/// `smart_account_builtin_auth::rotate_to_builtin_auth_v1` and
+/// `smart_account_builtin_auth::rotate_to_custom_auth_v1`, which attach and detach the public key
+/// together with the rotation.
 ///
 /// Emits an `account::AuthenticatorFunctionRefV1Rotated` event upon success.
 ///
