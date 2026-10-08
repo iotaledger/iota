@@ -598,6 +598,286 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     Ok(())
 }
 
+/// Under P-COOL with deterministic validation, a valid Abstract Account
+/// transaction executes successfully. Post-consensus validation checks the
+/// authenticator's input objects, which include the account, and keeps the
+/// transaction. Resolving the account and running the authenticator are left
+/// to execution.
+///
+/// Simulator only: the protocol config override that turns the flag on is
+/// thread-local, and only the simulator runs every node on the test's thread.
+#[cfg(msim)]
+#[sim_test]
+async fn test_valid_abstract_account_tx_executes_under_deterministic_validation()
+-> Result<(), anyhow::Error> {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await
+}
+
+/// Under P-COOL with deterministic validation, a transaction whose
+/// authenticator fails at execution produces failure effects on every
+/// validator. Such a transaction reaches consensus through an honest validator
+/// whose view is behind: before submitting, it runs the authenticator against
+/// its own older state, where it passes. Post-consensus validation keeps the
+/// transaction without running the authenticator, so validators at different
+/// points cannot disagree on it, and execution runs the authenticator at the
+/// version consensus assigned, where it fails.
+///
+/// Staging: execution on one validator is paused before the owner key rotation
+/// executes there, so that validator still admits a transaction signed with
+/// the old key. Consensus orders it after the rotation, and every validator
+/// fails it at execution.
+///
+/// Simulator only, for the reason given on the test above and because the
+/// pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_validation()
+-> Result<(), anyhow::Error> {
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::Duration,
+    };
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_macros::{clear_fail_point, register_fail_point_async};
+    use iota_sdk_types::ExecutionStatus;
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    let mut test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_epoch_duration_ms(600_000)
+            .build()
+            .await,
+    );
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // Both gas coins exist on every validator before any execution is paused.
+    let stale_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let rotate_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // The new owner key the rotation installs.
+    let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+    let new_owner = keystore
+        .generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)
+        .expect("ED25519 key generation should not fail")
+        .0;
+    let new_owner_pk = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&new_owner)?
+        .public();
+
+    // Pause execution on one validator until the stale transaction has been
+    // admitted and executed by the others.
+    let paused_validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let paused_sim_id = test_env
+        .test_cluster
+        .swarm
+        .node(&paused_validator)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|_| iota_simulator::current_simnode_id());
+    let paused = Arc::new(AtomicBool::new(true));
+    {
+        let paused = paused.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let paused = paused.clone();
+            async move {
+                if iota_simulator::current_simnode_id() == paused_sim_id {
+                    while paused.load(Ordering::SeqCst) {
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
+                }
+            }
+        });
+    }
+
+    // The rotation executes on every validator but the paused one.
+    let pt = test_env.craft_aa_rotate_owner_key_ptb(&new_owner_pk)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, rotate_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
+
+    // A transaction signed with the old key, submitted to the paused validator.
+    // Its view still has that key, so the authenticator it runs before
+    // submitting passes, and it proposes the transaction.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, stale_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let stale_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+    let stale_digest = *stale_tx.digest();
+    let paused_client = test_env
+        .test_cluster
+        .authority_aggregator()
+        .authority_clients[&paused_validator]
+        .clone();
+    let submission = tokio::spawn(async move {
+        paused_client
+            .authority_client()
+            .submit_tx(vec![stale_tx], Some(client_ip))
+            .await
+    });
+
+    // Post-consensus validation keeps it on every validator, since none runs
+    // the authenticator there. The others execute it and certify its
+    // checkpoint, which the fullnode then executes.
+    let effects = tokio::time::timeout(
+        Duration::from_secs(60),
+        test_env
+            .test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &[stale_digest])
+                    .await
+            }),
+    )
+    .await
+    .expect("the stale transaction must execute within 60s")?
+    .remove(0);
+
+    // Resume the paused validator and let the submission finish, so the fail
+    // point is cleared even if an assertion below fails.
+    paused.store(false, Ordering::SeqCst);
+    tokio::time::timeout(Duration::from_secs(60), submission)
+        .await
+        .expect("the paused validator must finish the submission within 60s")??;
+    clear_fail_point("transaction_execution_delay");
+
+    // Kept by every validator and failed at execution: an authentication
+    // failure charged to the account, not a drop.
+    let ExecutionStatus::Failure { error, command } = effects.status() else {
+        panic!(
+            "expected the stale transaction to fail, got {:?}",
+            effects.status()
+        );
+    };
+    assert!(
+        command.is_none(),
+        "the authentication failure must carry no command index"
+    );
+    let ExecutionError::MoveAuthentication { error } = error else {
+        panic!("expected a MoveAuthentication failure, got {error:?}");
+    };
+    assert!(
+        matches!(
+            &**error,
+            ExecutionError::MoveAbort { location: MoveLocation { module, function_name, .. }, .. }
+            if module.as_str() == "basic_keyed_aa"
+            && function_name.as_ref().is_some_and(|f| f.as_str() == "authenticate_ed25519")
+        ),
+        "expected the abort of basic_keyed_aa::authenticate_ed25519, got {error:?}"
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
+    );
+
+    // The paused validator kept the transaction too: the checkpoint it builds
+    // from its own consensus output matches the certified one. Its effects
+    // alone would not show that, since a validator that dropped the
+    // transaction still executes it from the certified checkpoint.
+    let paused_node = test_env
+        .test_cluster
+        .swarm
+        .node(&paused_validator)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    let (local, certified) = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            let built = paused_node.with(|node| {
+                let state = node.state();
+                let seq = state
+                    .epoch_store_for_testing()
+                    .get_transaction_checkpoint(&stale_digest)
+                    .unwrap()?;
+                let store = state.get_checkpoint_store();
+                Some((
+                    store.get_locally_computed_checkpoint(seq).unwrap()?,
+                    store.get_checkpoint_by_sequence_number(seq).unwrap()?,
+                ))
+            });
+            if let Some(built) = built {
+                break built;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("the paused validator must build the stale transaction's checkpoint within 60s");
+    assert_eq!(
+        &local,
+        certified.data(),
+        "the paused validator's own checkpoint must match the certified one"
+    );
+
+    Ok(())
+}
+
 /// Test that a certified Abstract Account transaction is cancelled
 /// post-consensus when the (shared) AA object it touches is congested.
 ///
