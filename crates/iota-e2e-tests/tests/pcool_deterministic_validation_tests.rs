@@ -60,8 +60,8 @@ fn written_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
         .collect()
 }
 
-/// A validator killed after a checkpoint's bookkeeping batch is durable but
-/// before the checkpoint's outputs are re-executes the checkpoint on restart,
+/// A validator killed after a checkpoint's bookkeeping batch is durable, but
+/// before the checkpoint's outputs are, re-executes the checkpoint on restart,
 /// keeps executing checkpoints, and ends up with the same handler rows as its
 /// peers.
 #[sim_test]
