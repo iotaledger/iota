@@ -33,6 +33,22 @@ module move_benchmark::benchmark {
         }
     }
 
+    /// Create `n` vectors of `size` bytes. The body matches `slow::slow` in the
+    /// network-benchmark repository, so both charge the same computation units.
+    public fun slow(mut n: u64, size: u64) {
+        let mut top_level = vector[];
+        while (n > 0) {
+            let mut contents = vector[];
+            let mut i = size;
+            while (i > 0) {
+                vector::push_back(&mut contents, 0u8);
+                i = i - 1;
+            };
+            vector::push_back(&mut top_level, contents);
+            n = n - 1;
+        };
+    }
+
     // === dynamic field workload ===
 
     public struct RootObject has key {

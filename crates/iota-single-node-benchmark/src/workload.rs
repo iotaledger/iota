@@ -48,6 +48,11 @@ impl Workload {
                 num_mints,
                 nft_size,
                 use_batch_mint,
+                slow_n,
+                slow_size,
+                groth16_calls,
+                groth16_curve,
+                groth16_function,
             } => {
                 let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
                 path.extend(["move_package"]);
@@ -68,6 +73,11 @@ impl Workload {
                     *num_mints,
                     *nft_size,
                     *use_batch_mint,
+                    *slow_n,
+                    *slow_size,
+                    *groth16_calls,
+                    *groth16_curve,
+                    *groth16_function,
                 ))
             }
             WorkloadKind::Publish {

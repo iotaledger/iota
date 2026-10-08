@@ -7751,6 +7751,7 @@ version = "1.32.0-alpha"
 dependencies = [
  "async-trait",
  "clap",
+ "fastcrypto",
  "futures",
  "iota-config",
  "iota-core",

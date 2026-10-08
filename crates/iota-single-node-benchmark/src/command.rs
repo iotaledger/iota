@@ -136,6 +136,41 @@ pub enum WorkloadKind {
             Otherwise, batch via a PTB with multiple commands"
         )]
         use_batch_mint: bool,
+        #[arg(
+            long,
+            default_value_t = 0,
+            help = "If not 0, each transaction calls slow(n, size), which creates `n` vectors of \
+            `--slow-size` bytes. The transaction must succeed, so keep it below the 5M \
+            computation unit limit (at size 100, n = 8,000 already reaches it)."
+        )]
+        slow_n: u64,
+        #[arg(
+            long,
+            default_value_t = 100,
+            help = "Size in bytes of each vector that slow(n, size) creates"
+        )]
+        slow_size: u64,
+        #[arg(
+            long,
+            default_value_t = 0,
+            help = "Number of calls to a groth16 native function of the IOTA framework per \
+            transaction. If 0, no groth16 calls are made."
+        )]
+        groth16_calls: u32,
+        #[arg(
+            long,
+            value_enum,
+            default_value = "bn254",
+            help = "Curve the groth16 calls use"
+        )]
+        groth16_curve: Groth16Curve,
+        #[arg(
+            long,
+            value_enum,
+            default_value = "verify",
+            help = "groth16 native function to call"
+        )]
+        groth16_function: Groth16Function,
     },
     Publish {
         #[arg(
@@ -149,6 +184,23 @@ pub enum WorkloadKind {
         )]
         manifest_file: PathBuf,
     },
+}
+
+/// Curve of the `0x2::groth16` calls.
+#[derive(Copy, Clone, ValueEnum)]
+pub enum Groth16Curve {
+    Bn254,
+    Bls12381,
+}
+
+/// Native function of `0x2::groth16` to call.
+#[derive(Copy, Clone, ValueEnum)]
+pub enum Groth16Function {
+    /// `verify_groth16_proof`, with a verifying key prepared once per
+    /// transaction.
+    Verify,
+    /// `prepare_verifying_key`.
+    Prepare,
 }
 
 impl WorkloadKind {

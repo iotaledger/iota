@@ -10,6 +10,7 @@ pub use shared_object_create_tx_generator::SharedObjectCreateTxGenerator;
 
 use crate::mock_account::Account;
 
+mod groth16;
 mod move_tx_generator;
 mod package_publish_tx_generator;
 mod root_object_create_tx_generator;

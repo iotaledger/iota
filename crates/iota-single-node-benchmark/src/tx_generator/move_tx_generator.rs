@@ -13,7 +13,11 @@ use iota_types::{
     transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TransactionEnvelope},
 };
 
-use crate::{mock_account::Account, tx_generator::TxGenerator};
+use crate::{
+    command::{Groth16Curve, Groth16Function},
+    mock_account::Account,
+    tx_generator::{TxGenerator, groth16::add_groth16_calls},
+};
 
 pub struct MoveTxGenerator {
     move_package: ObjectId,
@@ -25,6 +29,11 @@ pub struct MoveTxGenerator {
     num_mints: u16,
     nft_size: u16,
     use_batch_mint: bool,
+    slow_n: u64,
+    slow_size: u64,
+    groth16_calls: u32,
+    groth16_curve: Groth16Curve,
+    groth16_function: Groth16Function,
 }
 
 impl MoveTxGenerator {
@@ -38,6 +47,11 @@ impl MoveTxGenerator {
         num_mints: u16,
         nft_size: u16,
         use_batch_mint: bool,
+        slow_n: u64,
+        slow_size: u64,
+        groth16_calls: u32,
+        groth16_curve: Groth16Curve,
+        groth16_function: Groth16Function,
     ) -> Self {
         Self {
             move_package,
@@ -49,6 +63,11 @@ impl MoveTxGenerator {
             num_mints,
             nft_size,
             use_batch_mint,
+            slow_n,
+            slow_size,
+            groth16_calls,
+            groth16_curve,
+            groth16_function,
         }
     }
 }
@@ -158,6 +177,29 @@ impl TxGenerator for MoveTxGenerator {
                         );
                     }
                 }
+            }
+            if self.slow_n > 0 {
+                // Step 5: Create `slow_n` vectors of `slow_size` bytes.
+                let args = vec![
+                    builder.pure(self.slow_n).unwrap(),
+                    builder.pure(self.slow_size).unwrap(),
+                ];
+                builder.programmable_move_call(
+                    self.move_package,
+                    Identifier::from_static("benchmark"),
+                    Identifier::from_static("slow"),
+                    vec![],
+                    args,
+                );
+            }
+            if self.groth16_calls > 0 {
+                // Step 6: Call a groth16 native function.
+                add_groth16_calls(
+                    &mut builder,
+                    self.groth16_curve,
+                    self.groth16_function,
+                    self.groth16_calls,
+                );
             }
             builder.finish()
         };

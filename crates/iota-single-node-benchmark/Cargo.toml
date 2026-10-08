@@ -9,6 +9,7 @@ publish = false
 # external dependencies
 async-trait.workspace = true
 clap.workspace = true
+fastcrypto.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 serde.workspace = true

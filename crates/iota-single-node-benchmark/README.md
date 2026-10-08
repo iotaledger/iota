@@ -24,6 +24,10 @@ of the execution engine:
 - `--use-native-transfer`: this is false by default, which means we use Move call to transfer objects. When specified, we will use the native TransferObject command without invoking Move to transfer objects.
 - `--num-dynamic-fields`: this specifies number of dynamic fields read by each transaction. Default to 0.
 - `--computation`: this specifies computation intensity. An increase by 1 means 100 more loop iterations in Fibonacci computation. Default to 0.
+- `--slow-n` and `--slow-size`: when `--slow-n` is not 0, each transaction calls `slow(n, size)`, which creates `n` vectors of `size` bytes. `--slow-size` defaults to 100. The transaction must succeed, so keep it below the 5M computation unit limit.
+- `--groth16-calls`: this specifies the number of calls to a groth16 native function of the IOTA framework per transaction. Default to 0. `--groth16-curve` picks `bn254` (default) or `bls12381`, and `--groth16-function` picks `verify` (default) or `prepare`.
+
+After execution, the benchmark logs the computation units (computation cost divided by the gas price) and the execution time per transaction. With a shared object (`--num-shared-objects 1`) the transactions run one after another; without one they run in parallel, so each transaction's time is measured while all cores are busy.
 
 ### Publish benchmark workloads
 

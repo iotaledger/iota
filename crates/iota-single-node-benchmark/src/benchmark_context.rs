@@ -6,6 +6,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     ops::Deref,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use futures::{StreamExt, stream::FuturesUnordered};
@@ -19,8 +20,8 @@ use iota_types::{
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
     transaction::{
-        CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction, TransactionEnvelope,
-        VerifiedTransaction,
+        CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction, TransactionAPI,
+        TransactionEnvelope, VerifiedTransaction,
     },
 };
 use tracing::info;
@@ -289,34 +290,42 @@ impl BenchmarkContext {
         }
 
         let tx_count = transactions.len();
-        let start_time = std::time::Instant::now();
+        let gas_price = transactions[0].transaction().gas_price();
+        let start_time = Instant::now();
         info!(
             "Started executing {} transactions. You can now attach a profiler",
             transactions.len()
         );
 
         let has_shared_object = transactions.iter().any(|tx| tx.contains_shared_object());
-        if has_shared_object {
+        let results = if has_shared_object {
             // With shared objects, we must execute each transaction in order.
+            let mut results = Vec::with_capacity(tx_count);
             for transaction in transactions {
-                self.validator
+                let tx_start = Instant::now();
+                let effects = self
+                    .validator
                     .execute_certificate(transaction, self.benchmark_component)
                     .await;
+                results.push((effects, tx_start.elapsed()));
             }
+            results
         } else {
             let tasks: FuturesUnordered<_> = transactions
                 .into_iter()
                 .map(|tx| {
                     let validator = self.validator();
                     let component = self.benchmark_component;
-                    tokio::spawn(async move { validator.execute_certificate(tx, component).await })
+                    tokio::spawn(async move {
+                        let tx_start = Instant::now();
+                        let effects = validator.execute_certificate(tx, component).await;
+                        (effects, tx_start.elapsed())
+                    })
                 })
                 .collect();
             let results: Vec<_> = tasks.collect().await;
-            results.into_iter().for_each(|r| {
-                r.unwrap();
-            });
-        }
+            results.into_iter().map(|r| r.unwrap()).collect()
+        };
 
         let elapsed = start_time.elapsed().as_millis() as f64 / 1000f64;
         info!(
@@ -324,6 +333,7 @@ impl BenchmarkContext {
             elapsed,
             tx_count as f64 / elapsed
         );
+        log_per_transaction_stats(&results, gas_price);
     }
 
     pub(crate) async fn benchmark_transaction_execution_in_memory(
@@ -337,14 +347,16 @@ impl BenchmarkContext {
         }
 
         let tx_count = transactions.len();
+        let gas_price = transactions[0].transaction().gas_price();
         let in_memory_store = self.validator.create_in_memory_store();
-        let start_time = std::time::Instant::now();
+        let start_time = Instant::now();
         info!(
             "Started executing {} transactions. You can now attach a profiler",
             transactions.len()
         );
 
-        self.execute_transactions_in_memory(in_memory_store.clone(), transactions)
+        let results = self
+            .execute_transactions_in_memory(in_memory_store.clone(), transactions)
             .await;
 
         let elapsed = start_time.elapsed().as_millis() as f64 / 1000f64;
@@ -354,6 +366,7 @@ impl BenchmarkContext {
             tx_count as f64 / elapsed,
             in_memory_store.get_num_object_reads() as f64 / tx_count as f64
         );
+        log_per_transaction_stats(&results, gas_price);
     }
 
     /// Print out a sample transaction and its effects so that we can get a
@@ -409,7 +422,7 @@ impl BenchmarkContext {
             .execute_transactions_in_memory(in_memory_store.clone(), transactions.clone())
             .await
             .into_iter()
-            .map(|e| (*e.transaction_digest(), e))
+            .map(|(e, _)| (*e.transaction_digest(), e))
             .collect();
 
         info!("Building checkpoints");
@@ -466,32 +479,36 @@ impl BenchmarkContext {
         results.into_iter().map(|r| r.unwrap()).collect()
     }
 
+    /// Returns each transaction's effects and the time it took to execute.
     async fn execute_transactions_in_memory(
         &self,
         store: InMemoryObjectStore,
         transactions: Vec<CertifiedTransaction>,
-    ) -> Vec<TransactionEffects> {
+    ) -> Vec<(TransactionEffects, Duration)> {
         let has_shared_object = transactions.iter().any(|tx| tx.contains_shared_object());
         if has_shared_object {
             // With shared objects, we must execute each transaction in order.
-            let mut effects = Vec::new();
+            let mut results = Vec::new();
             for transaction in transactions {
-                effects.push(
-                    self.validator
-                        .execute_transaction_in_memory(store.clone(), transaction)
-                        .await,
-                );
+                let tx_start = Instant::now();
+                let effects = self
+                    .validator
+                    .execute_transaction_in_memory(store.clone(), transaction)
+                    .await;
+                results.push((effects, tx_start.elapsed()));
             }
-            effects
+            results
         } else {
             let tasks: FuturesUnordered<_> = transactions
                 .into_iter()
                 .map(|tx| {
                     let store = store.clone();
                     let validator = self.validator();
-                    tokio::spawn(
-                        async move { validator.execute_transaction_in_memory(store, tx).await },
-                    )
+                    tokio::spawn(async move {
+                        let tx_start = Instant::now();
+                        let effects = validator.execute_transaction_in_memory(store, tx).await;
+                        (effects, tx_start.elapsed())
+                    })
                 })
                 .collect();
             let results: Vec<_> = tasks.collect().await;
@@ -534,4 +551,38 @@ impl BenchmarkContext {
         let results: Vec<_> = tasks.collect().await;
         results.into_iter().map(|r| r.unwrap()).collect()
     }
+}
+
+/// Logs the computation units and the execution time per transaction. The
+/// computation units are the computation cost divided by the gas price, as the
+/// node reports them in its `actual_computation_units` metric.
+fn log_per_transaction_stats(results: &[(TransactionEffects, Duration)], gas_price: u64) {
+    if results.is_empty() {
+        return;
+    }
+    let units: Vec<u64> = results
+        .iter()
+        .map(|(effects, _)| effects.gas_cost_summary().computation_cost / gas_price)
+        .collect();
+    let mut times_ms: Vec<f64> = results
+        .iter()
+        .map(|(_, time)| time.as_secs_f64() * 1000.0)
+        .collect();
+    times_ms.sort_by(f64::total_cmp);
+    let percentile = |p: f64| times_ms[((times_ms.len() - 1) as f64 * p).round() as usize];
+    info!(
+        "Computation units per transaction: min={} mean={:.0} max={}",
+        units.iter().min().unwrap(),
+        units.iter().sum::<u64>() as f64 / units.len() as f64,
+        units.iter().max().unwrap(),
+    );
+    info!(
+        "Execution time per transaction: mean={:.3}ms p50={:.3}ms p95={:.3}ms p99={:.3}ms \
+        max={:.3}ms",
+        times_ms.iter().sum::<f64>() / times_ms.len() as f64,
+        percentile(0.5),
+        percentile(0.95),
+        percentile(0.99),
+        times_ms[times_ms.len() - 1],
+    );
 }

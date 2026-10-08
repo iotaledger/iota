@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use iota_macros::sim_test;
 use iota_single_node_benchmark::{
-    command::{Component, WorkloadKind},
+    command::{Component, Groth16Curve, Groth16Function, WorkloadKind},
     run_benchmark,
     workload::Workload,
 };
@@ -28,6 +28,11 @@ async fn benchmark_non_move_transactions_smoke_test() {
                         num_mints: 0,
                         nft_size: 528,
                         use_batch_mint: false,
+                        slow_n: 0,
+                        slow_size: 100,
+                        groth16_calls: 0,
+                        groth16_curve: Groth16Curve::Bn254,
+                        groth16_function: Groth16Function::Verify,
                     },
                 ),
                 component,
@@ -56,6 +61,11 @@ async fn benchmark_move_transactions_smoke_test() {
                         num_mints: 2,
                         nft_size: 528,
                         use_batch_mint: false,
+                        slow_n: 0,
+                        slow_size: 100,
+                        groth16_calls: 0,
+                        groth16_curve: Groth16Curve::Bn254,
+                        groth16_function: Groth16Function::Verify,
                     },
                 ),
                 component,
@@ -84,12 +94,50 @@ async fn benchmark_batch_mint_smoke_test() {
                         num_mints: 10,
                         nft_size: 256,
                         use_batch_mint: true,
+                        slow_n: 0,
+                        slow_size: 100,
+                        groth16_calls: 0,
+                        groth16_curve: Groth16Curve::Bn254,
+                        groth16_function: Groth16Function::Verify,
                     },
                 ),
                 component,
                 1000,
                 false,
                 skip_signing,
+            )
+            .await;
+        }
+    }
+}
+
+#[sim_test]
+async fn benchmark_slow_and_groth16_smoke_test() {
+    for groth16_function in [Groth16Function::Verify, Groth16Function::Prepare] {
+        for component in Component::iter() {
+            run_benchmark(
+                Workload::new(
+                    10,
+                    WorkloadKind::PTB {
+                        num_transfers: 0,
+                        use_native_transfer: false,
+                        num_dynamic_fields: 0,
+                        computation: 0,
+                        num_shared_objects: 1,
+                        num_mints: 0,
+                        nft_size: 32,
+                        use_batch_mint: false,
+                        slow_n: 10,
+                        slow_size: 100,
+                        groth16_calls: 2,
+                        groth16_curve: Groth16Curve::Bls12381,
+                        groth16_function,
+                    },
+                ),
+                component,
+                1000,
+                false,
+                true,
             )
             .await;
         }
