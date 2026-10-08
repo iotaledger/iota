@@ -2192,25 +2192,6 @@ async fn setup_bookkeeping(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
 ) -> BookkeepingSetup {
-    setup_bookkeeping_with_keypair(genesis_objects, validation_enabled, None).await
-}
-
-/// Like [`setup_bookkeeping`] with the flags on, but for a node whose authority
-/// key is not in the committee, as on a full node.
-async fn setup_bookkeeping_outside_committee(genesis_objects: Vec<Object>) -> BookkeepingSetup {
-    // The builder's genesis committee holds its own generated validator keys,
-    // so a node signing with a fresh key is outside it.
-    let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
-    setup_bookkeeping_with_keypair(genesis_objects, true, Some(&keypair)).await
-}
-
-/// [`setup_bookkeeping`] for the node holding `keypair`; `None` takes the
-/// committee member's key.
-async fn setup_bookkeeping_with_keypair(
-    genesis_objects: Vec<Object>,
-    validation_enabled: bool,
-    keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
-) -> BookkeepingSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         if validation_enabled {
             config.enable_pcool_deterministic_validation_for_testing();
@@ -2219,7 +2200,20 @@ async fn setup_bookkeeping_with_keypair(
         }
         config
     });
-    build_bookkeeping_setup(genesis_objects, Some(config_guard), keypair).await
+    setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await
+}
+
+/// Like [`setup_bookkeeping`] with the flags on, but for a node whose authority
+/// key is not in the committee, as on a full node.
+async fn setup_bookkeeping_outside_committee(genesis_objects: Vec<Object>) -> BookkeepingSetup {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    // The builder's genesis committee holds its own generated validator keys,
+    // so a node signing with a fresh key is outside it.
+    let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
+    build_bookkeeping_setup(genesis_objects, Some(config_guard), Some(&keypair)).await
 }
 
 /// Like [`setup_bookkeeping`], under the protocol config override the caller
