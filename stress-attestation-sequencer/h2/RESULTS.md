@@ -1415,6 +1415,33 @@ says when that is.
 > limit. A limit set in CUs can only approximate it, and needs the expensive
 > transaction's execution time on the machine in question to be set well.
 
+> [!WARNING]
+> **Every run puts the whole network on one machine**: 4 validators, a
+> fullnode, the stress client and Prometheus. On mainnet, each validator runs
+> alone on its own machine, and the validators are spread across data centers.
+> That changes the numbers in two ways, in opposite directions:
+>
+> - **The machine is shared.** The probe ran at 1–5 transactions a second, so
+>   each validator executed on an otherwise idle machine, close to a validator
+>   on its own. Under the ladders' load, all nodes compete for the same CPU and
+>   disks: on EPYC, the mix ladders kept 12–26 of its 96 threads busy (the
+>   reference machine's CPU was not recorded). A validator on its own machine
+>   executes at least as fast, so the best limits above are on the safe side,
+>   and checkpoint lag may be higher here than on a validator of its own.
+> - **Commits most likely come faster than on mainnet.** Over the local
+>   network the validators talk with almost no delay, and consensus commits
+>   every ≈50 ms, 20 times a second, on all three machines. With more
+>   validators, farther apart, mainnet most likely commits less often; this was
+>   not measured. The rule ties the limit to that interval, so the best limit
+>   grows with it: at 100 ms between commits, a commit can admit twice the
+>   work. At 1K/100K on the reference machine, that is about four 100K
+>   transactions instead of two, roughly 400K instead of 208K.
+>
+> So the rule carries over to mainnet as it is, but the numbers do not: they
+> assume a commit every ≈50 ms. A limit for mainnet needs mainnet's commit
+> interval, which a production validator's metrics give:
+> `rate(consensus_committed_subdags[5m])`.
+
 Five things to keep in mind when applying the rule:
 
 - On a machine that fits only one expensive transaction per commit, the unit
@@ -1490,6 +1517,10 @@ The takeaway is the TL;DR at the top of this document. Everything behind it:
 
 ## Potential next steps
 
+- **Measure the commit interval on mainnet.** Every limit above assumes a
+  commit every ≈50 ms, the interval of a local 4-validator network. Read
+  `rate(consensus_committed_subdags[5m])` on a production validator; if mainnet
+  commits less often, the best limits scale up with the interval.
 - **Rerun the `mix20800` ladder on the reference machine with turbo boost on.**
   The probe and the three ladders ran on it with turbo boost off, which is how
   the validators run today: the default was never changed. The probe also ran
