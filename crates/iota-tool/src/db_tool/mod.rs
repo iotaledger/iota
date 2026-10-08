@@ -233,22 +233,21 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
     }
 }
 
-/// The root a node keeps the per-epoch history of its stores under, for the
-/// node whose live database directory is `live_db_path`. Every open of the
-/// node's stores must name it, as the node does.
+/// The directory holding the per-epoch history of the node whose live
+/// database directory is `live_db_path`. Every open of the node's stores must
+/// be given it.
 pub(crate) fn historic_db_path(live_db_path: &Path) -> PathBuf {
     live_db_path.join(HISTORIC_DB_DIR)
 }
 
-/// [`historic_db_path`] for a store whose own directory, `store_path`, is one
-/// of those in a node's live database directory: the path the table dumps are
-/// given.
+/// [`historic_db_path`] for a store whose directory, `store_path`, is inside
+/// a node's live database directory.
 pub(crate) fn historic_db_path_of_store(store_path: &Path) -> PathBuf {
     historic_db_path(store_path.parent().unwrap_or(store_path))
 }
 
 /// The options to open the perpetual store of the node whose live database
-/// directory is `live_db_path` with.
+/// directory is `live_db_path`.
 pub(crate) fn perpetual_options(live_db_path: &Path) -> Option<AuthorityPerpetualTablesOptions> {
     Some(AuthorityPerpetualTablesOptions {
         historic_db_path: Some(historic_db_path(live_db_path)),
@@ -472,11 +471,9 @@ pub fn mark_object_backlog_swept(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Prints the checkpoint watermarks as they are stored.
-///
-/// Read straight from the watermark rows rather than resolved to checkpoints:
-/// a watermark whose epoch has been expired is no longer reachable through the
-/// bucketed `checkpoint_by_digest`, and that is the case worth looking at.
+/// Prints the checkpoint watermark rows as stored, without resolving them to
+/// checkpoints, so a watermark naming a checkpoint the store no longer holds
+/// still shows.
 pub fn print_checkpoint_watermarks(path: &Path) -> anyhow::Result<()> {
     let checkpoint_db = CheckpointStore::new_with_historic_db_path(
         &path.join("checkpoints"),

@@ -213,9 +213,7 @@ pub(crate) fn highest_checkpoint_with_committed_outputs(
 
 impl IndexStoreTables {
     /// Opens the tables read-only, for inspecting a store another process
-    /// may hold open. The history buckets are opened with the directories
-    /// their files are in under `historic_db_path`, as for
-    /// [`RpcIndexesStore::new`].
+    /// may hold open. `historic_db_path` is as for [`RpcIndexesStore::new`].
     pub fn open_readonly(
         path: &Path,
         historic_db_path: Option<&Path>,
@@ -247,13 +245,10 @@ impl IndexStoreTables {
         ))
     }
 
-    /// Opens the tables with tuned bulk-ingestion options (WAL disabled,
-    /// unordered writes) for a full rebuild. Writes must be flushed before
-    /// the database closes, and serving queries requires a reopen with
-    /// default options.
-    ///
-    /// Anything left under `path` is deleted first, so the caller does not
-    /// have to clear the directory.
+    /// Opens the tables with bulk-ingestion options (WAL disabled, unordered
+    /// writes) for a full rebuild, deleting anything left under `path` first.
+    /// Writes must be flushed before the database closes, and serving queries
+    /// requires a reopen with default options.
     fn open_for_bulk_ingestion(path: PathBuf) -> Self {
         // Leftover column families would be opened with default options, and
         // `safe_drop_db` can leave files RocksDB does not recognize.
@@ -555,13 +550,11 @@ impl RpcIndexesStore {
     /// returns; until it finishes, history-backed queries cover a growing
     /// range of recent checkpoints. `epochs_to_retain` also bounds the replay.
     ///
-    /// Setting `cancelled` abandons a rebuild running here and the
-    /// background replay, and fails the open: the store is left unadopted
-    /// for the next open to rebuild, and must not serve reads in the
-    /// meantime.
+    /// Setting `cancelled` abandons a rebuild running here, failing the open,
+    /// and stops the background replay. The next open rebuilds the store.
     ///
     /// `historic_db_path` is the root the history buckets keep their files
-    /// under. Every open of a database must name the same one: a node names
+    /// under, and must be the same on every open of a database; a node names
     /// [`epoch_buckets::HISTORIC_DB_DIR`] in its live database directory.
     /// Unset, the root is that directory in `path` itself.
     pub async fn new(
@@ -576,9 +569,8 @@ impl RpcIndexesStore {
         cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<Self>, StorageError> {
         let historic_root = historic_root(&path, historic_db_path);
-        // An unopenable database would crash-loop the node with no way to
-        // self-heal; wipe and rebuild it like a stale one — but only after
-        // one retry, so a transient error does not destroy a healthy store.
+        // An unopenable database is rebuilt rather than crash-looping the
+        // node, but only after one retry, so a transient error keeps it.
         let mut opened = match Self::open_index_db(&path, &historic_root) {
             Ok(opened) => Some(opened),
             Err(first) => {
@@ -679,13 +671,9 @@ impl RpcIndexesStore {
                 panic!("unable to reopen DB after indexing");
             }
 
-            // Reopen the DB with default options (e.g. without
-            // `unordered_write`s enabled).
             let reopened = Self::open_index_db(&path, &historic_root)
                 .expect("unable to reopen the RPC index database after the rebuild");
 
-            // Smoke test: the reopened database is readable and carries the
-            // schema version the rebuild wrote.
             let stored_version = reopened
                 .tables
                 .meta
@@ -860,10 +848,8 @@ impl RpcIndexesStore {
         })
     }
 
-    /// Opens the index database, passing every existing per-epoch history
-    /// column family at open with its tuned options: a column family left
-    /// for auto-discovery would silently get default options (and its own
-    /// block cache).
+    /// Opens the index database, with every existing per-epoch history
+    /// column family under its tuned options.
     fn open_index_db(path: &Path, historic_root: &Path) -> IotaResult<OpenedIndexDb> {
         let db_options = default_db_options().disable_write_throttling();
         let history_cf_options = epoch_buckets::history_cf_options(

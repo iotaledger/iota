@@ -257,11 +257,10 @@ pub struct CheckpointStoreTables {
 }
 
 impl CheckpointStoreTables {
-    /// The checkpoint store's tables together with the historic checkpoint
-    /// buckets. The buckets are column families of this same database, so
-    /// they are opened from its handle, with options cloned from the ones its
-    /// own tables use. `historic_db_path` is the root the buckets keep their
-    /// files under, as for [`CheckpointStore::new_with_historic_db_path`].
+    /// Opens the checkpoint store's tables together with the historic
+    /// checkpoint buckets, which are column families of the same database.
+    /// `historic_db_path` is as for
+    /// [`CheckpointStore::new_with_historic_db_path`].
     fn open_with_historic_checkpoints(
         path: &Path,
         historic_db_path: Option<&Path>,
@@ -286,11 +285,9 @@ impl CheckpointStoreTables {
     }
 
     /// The options of the historic checkpoint buckets of the database at
-    /// `path`, kept under `historic_root`, for every open of it to pass the
-    /// same ones. The buckets are column families of this database, so they
-    /// are listed together with the declared tables; one left out would be
-    /// reopened with default options, a block cache of its own, and without
-    /// the directory its files are in.
+    /// `path`. Every open of the database must pass these, or a bucket is
+    /// reopened with default options and without the directory its files
+    /// are in.
     fn table_options(
         path: &Path,
         db_options: &DBOptions,
@@ -333,16 +330,15 @@ pub struct CheckpointStore {
 
 impl CheckpointStore {
     /// A checkpoint store at `path` that keeps its per-epoch history in
-    /// [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in its own directory. A node's
-    /// checkpoint store is opened with [`Self::new_with_historic_db_path`] instead.
+    /// [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in its own
+    /// directory. A node opens its store with
+    /// [`Self::new_with_historic_db_path`] instead.
     pub fn new(path: &Path) -> Arc<Self> {
         Self::new_with_contents_cache(path, None, FullCheckpointContentsCache::default())
     }
 
     /// A checkpoint store at `path` that keeps its per-epoch history under
-    /// `historic_db_path`. Every open of a database must name the same one: a
-    /// node names [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in its live database
-    /// directory.
+    /// `historic_db_path`. Every open of a database must pass the same path.
     pub fn new_with_historic_db_path(path: &Path, historic_db_path: &Path) -> Arc<Self> {
         Self::new_with_contents_cache(
             path,

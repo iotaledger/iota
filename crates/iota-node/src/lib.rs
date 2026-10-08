@@ -479,7 +479,6 @@ impl IotaNode {
             None,
         ));
 
-        // The per-epoch history of every store is kept in one directory.
         let historic_db_path = config.db_path().join(HISTORIC_DB_DIR);
 
         // By default, only enable write stall on validators for perpetual db.

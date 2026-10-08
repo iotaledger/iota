@@ -183,19 +183,12 @@ impl HistoricObjects {
         )
     }
 
-    /// Opens the historic-object buckets already present among `db`'s
-    /// column families. `db` is the perpetual database's own handle: the
-    /// buckets are its column families, not a database of their own, and
-    /// `db_options` are the options its tables were opened with, and
-    /// `historic_root` the root their files are under, the one `db` was opened
-    /// with. `objects` is that database's live objects table, which holds the
-    /// tombstones the buckets' heads point at.
+    /// Opens the historic-object buckets among the column families of `db`,
+    /// the perpetual database. `db_options` and `historic_root` must be the
+    /// ones `db` was opened with, and `objects` its live objects table.
     ///
-    /// A bucket an interrupted prune left behind is finished here, oldest
-    /// first, before any query can reach it: one marked expiring, and one
-    /// below the persisted retention floor, whose marker the same crash may
-    /// have cost it. Such a bucket's heads are already partly deleted, so
-    /// finishing is the only way to a consistent table.
+    /// Before any query can reach them, finishes the expiry of the buckets an
+    /// interrupted prune left behind, oldest first, and fails if it cannot.
     pub fn open(
         db: Arc<Database>,
         db_options: &DBOptions,

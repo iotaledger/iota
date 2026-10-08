@@ -1,19 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-epoch column families, shared by the stores that retain their rows
-//! epoch by epoch: the RPC index history, the superseded object versions, the
-//! ledger history of executed transactions, and the checkpoint history.
-//!
-//! Rows are partitioned by the epoch that produced them, one column family
-//! per epoch, so pruning an epoch is one constant-time column-family drop
-//! instead of per-row deletes. The stores differ only in what one bucket
-//! holds; everything about creating, finding, and dropping buckets is
-//! shared here.
+//! Per-epoch column families ("buckets") for the stores that retain their
+//! rows epoch by epoch, so that pruning an epoch is one column-family drop
+//! instead of per-row deletes.
 //!
 //! The history stores keep their buckets' SST files outside the database
-//! directory, one directory per epoch under a root shared by all of them (see
-//! [`BucketPaths`]).
+//! directory (see [`BucketPaths`]).
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -41,8 +34,7 @@ use typed_store::{
 /// per-epoch history of all its stores.
 pub const HISTORIC_DB_DIR: &str = "historic";
 
-/// The root a database's buckets live under: `historic_db_path` if its opener
-/// names one, which a node's stores and the tools working on them always do,
+/// The root a database's buckets live under: `historic_db_path` if given,
 /// otherwise [`HISTORIC_DB_DIR`] in the database directory itself.
 pub(crate) fn historic_root(db_path: &Path, historic_db_path: Option<&Path>) -> PathBuf {
     historic_db_path.map_or_else(|| db_path.join(HISTORIC_DB_DIR), Path::to_path_buf)
@@ -51,11 +43,9 @@ pub(crate) fn historic_root(db_path: &Path, historic_db_path: Option<&Path>) -> 
 /// Where one store keeps the SST files of its buckets: `epoch`'s column family
 /// keeps them in `<root>/epoch_<epoch>/<store_dir>`.
 ///
-/// The directories are named after the column family's epoch, so the open
-/// that creates a bucket and every later open place its files the same way:
-/// RocksDB does not record where they are, and looks for them only where the
-/// options it is opened with say. Every open of a database must therefore
-/// pass the same root.
+/// RocksDB does not record where a column family's files are and looks for
+/// them only where its options say, so every open of a database must pass
+/// the same root.
 #[derive(Clone, Debug)]
 pub(crate) struct BucketPaths {
     root: PathBuf,
@@ -63,7 +53,6 @@ pub(crate) struct BucketPaths {
 }
 
 impl BucketPaths {
-    /// The paths of the buckets that the store `store_dir` keeps under `root`.
     pub(crate) fn new(root: &Path, store_dir: &'static str) -> Self {
         Self {
             root: root.to_path_buf(),
@@ -93,10 +82,8 @@ impl BucketPaths {
         options
     }
 
-    /// [`Self::cf_options`] for a bucket already on disk. Its directory is
-    /// created if it is missing, which it is when the bucket never wrote a
-    /// file and a prune removed the empty directory although the bucket's
-    /// drop failed: the open would otherwise fail on it.
+    /// [`Self::cf_options`] for a bucket already on disk. Creates the
+    /// bucket's directory if it is missing, as the open would fail without it.
     pub(crate) fn existing_cf_options(
         &self,
         options: &rocksdb::Options,
@@ -135,13 +122,9 @@ impl BucketPaths {
     }
 
     /// Deletes this store's directory of every epoch `has_bucket` says has no
-    /// bucket, with whatever files are left in it.
+    /// bucket, with whatever untracked files are left in it.
     ///
-    /// Only for a database opened read-write and before it creates a bucket:
-    /// then no bucket can be created behind this, and a directory without a
-    /// bucket holds files RocksDB no longer tracks. Those are left by a bucket
-    /// whose files were not yet deleted when the node stopped, and by a
-    /// database that has been deleted and created anew.
+    /// Only for a database opened read-write, before it creates a bucket.
     fn remove_dirs_without_bucket(&self, has_bucket: impl Fn(EpochId) -> bool) {
         let dirs = match self.epoch_dirs() {
             Ok(dirs) => dirs,
@@ -170,8 +153,7 @@ impl BucketPaths {
     /// leave empty.
     ///
     /// RocksDB deletes a dropped bucket's files only once nothing reads it,
-    /// so a directory that still holds files is left for a later prune, or
-    /// for [`Self::remove_dirs_without_bucket`] at the next open.
+    /// so a directory still holding files is left for a later call.
     fn remove_empty_dirs_below(&self, earliest_retained: EpochId) {
         let Ok(dirs) = self.epoch_dirs() else {
             return;
@@ -192,12 +174,9 @@ fn epoch_of_dir(name: &OsStr) -> Option<EpochId> {
     name.to_str()?.strip_prefix("epoch_")?.parse().ok()
 }
 
-/// Options for the RPC index stores' history buckets. Each bucket is
-/// write-once (appended during its epoch or the backfill, then only read)
-/// and queried by bounded range scans plus exact-key digest probes, which
-/// the block-based bloom filters answer from RAM. `set_block_options`
-/// creates the single block cache that every clone of these options shares.
-/// A store with another access pattern builds its own options.
+/// Options for the RPC index stores' history buckets, which are written once
+/// and then read by range scans and exact-key probes. Every clone of the
+/// returned options shares one block cache.
 pub(crate) fn history_cf_options(
     db_options: &DBOptions,
     block_cache_size_mb: usize,
@@ -216,16 +195,14 @@ pub(crate) fn bucket_cf_options(db_options: &DBOptions) -> DBOptions {
         .optimize_for_write_throughput_no_deletion()
 }
 
-/// The `(name, options)` pairs a store's open path must list for its buckets
-/// and for `earliest_retained_cf`, the column family holding their retention
-/// floor. A store that keeps its buckets' files outside the database directory
-/// passes their `paths`, which every bucket's options then carry.
+/// The `(name, options)` pairs a store's open must list for its buckets and
+/// for `earliest_retained_cf`, the column family holding their retention
+/// floor. With `paths`, every bucket's options place its files there.
 ///
 /// Every bucket column family already on disk under `db_path` is included,
-/// since one left for auto-discovery would be reopened with default options,
-/// a block cache of its own, and no `paths`, so that RocksDB would not find its
-/// files. If `db_path` has no database yet, or its column families cannot be
-/// listed, only `earliest_retained_cf` is returned.
+/// since auto-discovery would reopen it with default options and without its
+/// `paths`. If the column families cannot be listed, only
+/// `earliest_retained_cf` is returned.
 pub(crate) fn extra_column_family_options(
     db_path: &Path,
     db_options: &DBOptions,
@@ -311,15 +288,13 @@ pub(crate) struct EpochBuckets<B> {
     /// for the same epoch.
     name: &'static str,
     cf_prefix: &'static str,
-    /// Template options for the buckets' column families. All clones share
-    /// one block cache through the cloned table factory.
+    /// Template options for new buckets; all clones share one block cache.
     cf_options: rocksdb::Options,
     /// Where the buckets keep their files, `None` for a store that keeps them
     /// in the database directory.
     paths: Option<BucketPaths>,
     buckets: RwLock<BTreeMap<EpochId, Arc<B>>>,
-    /// The earliest retained epoch recorded by the last [`Self::prune`]
-    /// call, mirroring the persisted row; never moves backwards.
+    /// Mirrors the persisted retention floor; never moves backwards.
     earliest_retained_epoch: AtomicU64,
     earliest_retained_table: DBMap<(), EpochId>,
     /// Mirrors the oldest epoch in `buckets` ([`NO_BUCKET`] when empty),
@@ -330,19 +305,17 @@ pub(crate) struct EpochBuckets<B> {
 }
 
 impl<B: BucketReopen> EpochBuckets<B> {
-    /// Assembles the store's buckets from the ones discovered on disk,
-    /// dropping those below the persisted retention floor.
-    ///
-    /// A bucket below the floor is one whose drop failed: RocksDB
-    /// unregisters a column family before dropping it, so the failure
-    /// survives only on disk. It is dropped here rather than served again,
-    /// and a drop that fails again still leaves the epoch out of the
-    /// history. A floor read error fails the open instead of passing for a
-    /// store with no retention floor.
+    /// Assembles the store's buckets from the ones found on disk, dropping
+    /// those below the persisted retention floor, which a failed drop leaves
+    /// behind.
     ///
     /// `paths` must be the ones `db` was opened with, and `db` must be open
     /// read-write: the directories of epochs without a bucket are deleted
-    /// here, before anything can create one.
+    /// here.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the retention floor cannot be read.
     pub(crate) fn open(
         db: Arc<Database>,
         name: &'static str,
@@ -698,9 +671,8 @@ mod tests {
         (paths, dir.join("db"))
     }
 
-    /// An `EpochBuckets` whose buckets keep their files under `paths`, over
-    /// the database at `db_path` holding a bucket for each of `epochs`, opened
-    /// the way a store opens one: every bucket on disk listed with its paths.
+    /// An `EpochBuckets` over the database at `db_path` with a bucket for each
+    /// of `epochs`, keeping their files under `paths`.
     fn placed_buckets(
         db_path: &Path,
         paths: &BucketPaths,

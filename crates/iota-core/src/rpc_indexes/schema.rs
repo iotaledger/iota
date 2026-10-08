@@ -78,9 +78,7 @@ pub(super) const HISTORY_BUCKET_DIR: &str = "indexes";
 
 // The tag a history table's keys carry inside its bucket's column family.
 // Do not reuse a tag for a different table: mark it retired in a comment
-// instead, so an older bucket's rows can never be read as the wrong type.
-// Public so that the database inspection tooling can scan a bucket without
-// reopening the store.
+// instead. Public for the database inspection tooling.
 pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
 pub const DB_PREFIX_HISTORIC_TXS_SEQ: u8 = 1;
 pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;

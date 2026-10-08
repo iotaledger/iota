@@ -82,11 +82,11 @@ fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreE
 pub struct AuthorityPerpetualTablesOptions {
     /// Whether to enable write stalling on all column families.
     pub enable_write_stall: bool,
-    /// The root the historic object and ledger buckets keep their files
-    /// under. A node passes [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in its live
-    /// database directory, and so must anything else opening its database; unset, the
-    /// root is [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in the perpetual
-    /// database directory.
+    /// The directory the historic object and ledger buckets keep their files
+    /// in. Anything opening a node's database must pass the same path the
+    /// node does; unset, it is
+    /// [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in the
+    /// perpetual database directory.
     pub historic_db_path: Option<PathBuf>,
 }
 
@@ -284,11 +284,7 @@ impl AuthorityPerpetualTables {
     }
 
     /// The perpetual tables, the base options their column families were
-    /// opened with, and the root of the historic buckets. The buckets clone
-    /// those options, so they share the base options' block cache with each
-    /// other and with every column family that takes those options unchanged;
-    /// `objects`, `live_owned_object_markers`, `transactions` and `effects`
-    /// install caches of their own.
+    /// opened with, and the root of the historic buckets.
     fn open_with_db_options(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
@@ -310,9 +306,8 @@ impl AuthorityPerpetualTables {
     }
 
     /// The options of the column families of the perpetual database at
-    /// `path` that do not take `db_options` unchanged, the historic buckets
-    /// under `historic_root` among them, for every open of it to pass the same
-    /// ones.
+    /// `path` that do not take `db_options` unchanged, including the historic
+    /// buckets. Every open of the database must pass these.
     fn table_options(
         path: &Path,
         db_options: &DBOptions,
@@ -336,9 +331,6 @@ impl AuthorityPerpetualTables {
                 effects_table_config(db_options.clone()),
             ),
         ]);
-        // The historic object and ledger buckets are column families of this
-        // database, so they are opened here together with the tables declared
-        // above.
         table_options.extend(HistoricObjects::extra_column_family_options(
             path,
             db_options,
@@ -612,8 +604,8 @@ impl AuthorityPerpetualTables {
         let time_threshold =
             SystemTime::now() - Duration::from_secs(delay_days as u64 * 24 * 60 * 60);
         for sst_file in self.objects.db.live_files()? {
-            // Checked before the file is looked up: the historic buckets keep
-            // their files outside `db_path`, and are never compacted here.
+            // Checked first: the historic buckets keep their files outside
+            // `db_path`.
             if !compacted_tables.contains(sst_file.column_family_name.as_str()) {
                 continue;
             }
@@ -1311,9 +1303,8 @@ mod tests {
         more_asserts::assert_lt!(after_compaction_size, before_compaction_size);
     }
 
-    /// The periodic compaction walks every live file of the perpetual
-    /// database, and the historic buckets keep theirs outside its directory:
-    /// it must pass over those rather than fail looking them up there.
+    /// The periodic compaction skips the historic bucket files, which live
+    /// outside the perpetual database directory, instead of failing on them.
     #[tokio::test]
     async fn periodic_compaction_passes_over_the_historic_bucket_files() {
         let tmp_dir = iota_common::tempdir();

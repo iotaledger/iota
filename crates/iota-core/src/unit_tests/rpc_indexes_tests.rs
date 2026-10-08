@@ -2205,7 +2205,6 @@ async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
         .unwrap();
     close_index_store(index_store).await;
 
-    // A fresh registry: the rebuilt store registers the same metrics again.
     let index_store = RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
         None,
@@ -2379,8 +2378,6 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     let index_store = RpcIndexesStore::new_without_init(index_dir, None, grpc_only.clone());
     index_store.tables.seed_meta(&grpc_only).unwrap();
 
-    // One coin for the owner, plus a created coin object turned into the
-    // coin metadata of its type.
     let mut builder = TestCheckpointDataBuilder::new(0)
         .start_transaction(0)
         .create_coin_object(0, 1, 100, TypeTag::from(StructTag::new_gas()))
@@ -2424,9 +2421,7 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
         Err(IotaError::IndexStoreNotAvailable)
     ));
 
-    // The same checkpoint the other way round: a JSON-RPC-only store fills
-    // the history tables and the balances, and leaves the gRPC group's own
-    // tables empty.
+    // The same checkpoint into a JSON-RPC-only store.
     let jsonrpc_store = RpcIndexesStore::new_without_init(
         dir.path().join("jsonrpc_only"),
         None,
@@ -2497,7 +2492,7 @@ async fn test_reopening_with_fewer_groups_makes_re_enabling_them_rebuild() {
     let both = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
     let jsonrpc_only = BTreeSet::from([IndexGroup::JsonRpc]);
     let open = async |groups: BTreeSet<IndexGroup>| {
-        // A fresh registry: every open registers the same metrics again.
+        // A fresh registry, since every open registers the same metrics.
         let store = RpcIndexesStore::new(
             index_dir.path().to_path_buf(),
             None,
@@ -2799,7 +2794,6 @@ async fn test_a_failed_floor_read_fails_the_open() {
     let index_dir = tmp_dir.path().join(super::schema::RPC_INDEXES_DIR);
     let opened = RpcIndexesStore::open_index_db(&index_dir, &index_dir.join("historic")).unwrap();
 
-    // Makes the floor read fail: RocksDB unregisters the column family.
     opened.db.drop_cf("earliest_retained_epoch").unwrap();
 
     assert!(
