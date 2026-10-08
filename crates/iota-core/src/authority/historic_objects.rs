@@ -130,9 +130,8 @@ impl BucketReopen for HistoricObjectsBucket {
 
 impl HistoricObjectsBucket {
     /// Whether this bucket has been marked expiring, in which case its rows
-    /// must no longer be served: the tombstone heads it recorded may already
-    /// be deleted from the live `objects` table, and a version served from
-    /// under a deleted tombstone resurrects a deleted object.
+    /// must no longer be served: its tombstone heads may already be deleted
+    /// from the live `objects` table.
     fn is_expiring(&self) -> bool {
         self.expiring_marked.load(Ordering::Relaxed)
     }
