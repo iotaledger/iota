@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use futures::{StreamExt, stream::ReadyChunks};
 use iota_metrics::metered_channel::ReceiverStream;
+use strum::IntoEnumIterator;
 use tap::tap::TapFallible;
 use tracing::{error, info, instrument};
 
@@ -269,7 +270,7 @@ impl PrimaryWriter {
         }
 
         self.state
-            .update_watermarks_upper_bound::<CommitterTables>(committer_watermark)
+            .update_watermarks_upper_bound(CommitterTables::iter(), committer_watermark)
             .await
             .tap_err(|e| {
                 error!(
