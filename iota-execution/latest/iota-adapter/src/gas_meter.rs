@@ -146,6 +146,7 @@ impl GasMeter for IotaGasMeter<'_> {
             input_bytes += abstract_input_size(&elem);
             acc + abstract_memory_size(elem)
         });
+        self.0.discard_native_call_frame();
         self.0.record_native_input_bytes(input_bytes.into());
         // Track that this is going to be popping from the operand stack. We also
         // increment the instruction count as we need to account for the `Call`
