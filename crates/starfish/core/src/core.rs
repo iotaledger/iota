@@ -43,7 +43,7 @@ use crate::{
     },
     block_manager::BlockManager,
     block_rate_limiter::BlockRateLimiter,
-    commit::{CertifiedCommits, CommitAPI, PendingSubDag, WAVE_LENGTH},
+    commit::{CertifiedCommits, CommitAPI, PendingSubDag},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     commit_syncer::fast::FastSyncOutput,
     commit_vote_monitor::CommitVoteMonitor,
@@ -183,10 +183,8 @@ impl ReasonToCreateBlock {
 }
 
 /// Rounds below `clock_round` to propose for after the clock passed them:
-/// above our last proposal, above the round peers know we proposed in, above
-/// the approximate quorum commit round, and within one wave below the clock,
-/// where a block still serves as vote or certificate for leaders the commit
-/// rule may not have decided.
+/// above our last proposal, above the round peers know we proposed in and
+/// above the approximate quorum commit round.
 fn skipped_rounds_to_propose(
     clock_round: Round,
     last_proposed_round: Round,
@@ -196,8 +194,7 @@ fn skipped_rounds_to_propose(
     let first = last_proposed_round
         .max(last_known_proposed_round)
         .max(approx_quorum_commit_round)
-        .saturating_add(1)
-        .max(clock_round.saturating_sub(WAVE_LENGTH));
+        .saturating_add(1);
     first..clock_round
 }
 
@@ -4496,8 +4493,8 @@ mod test {
         // below the approximate quorum commit round.
         assert_eq!(skipped_rounds_to_propose(8, 4, 6, 0), 7..8);
         assert_eq!(skipped_rounds_to_propose(8, 4, 0, 6), 7..8);
-        // Far behind: only the last wave.
-        assert_eq!(skipped_rounds_to_propose(50, 4, 0, 0), 50 - WAVE_LENGTH..50);
+        // Far behind: every round since the last proposal.
+        assert_eq!(skipped_rounds_to_propose(50, 4, 0, 0), 5..50);
     }
 
     /// A core that receives the previous round's leader block only after a
