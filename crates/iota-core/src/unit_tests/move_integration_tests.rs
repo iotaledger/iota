@@ -3110,7 +3110,7 @@ async fn check_latest_object_ref(
 
 /// Collects formatted tracing output in a shared buffer.
 #[derive(Clone, Default)]
-struct SharedTraceBuffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+pub struct SharedTraceBuffer(pub std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl std::io::Write for SharedTraceBuffer {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
@@ -3240,7 +3240,7 @@ async fn resource_profile_replay_is_deterministic() {
 }
 
 /// Reads a counter out of the `Debug` rendering of a `ResourceProfile`.
-fn profile_counter(trace_line: &str, name: &str) -> u64 {
+pub fn profile_counter(trace_line: &str, name: &str) -> u64 {
     let field = format!("{name}: ");
     let start = trace_line
         .find(&field)
