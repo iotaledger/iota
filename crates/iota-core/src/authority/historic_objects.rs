@@ -191,10 +191,6 @@ impl HistoricObjects {
     /// Only for reads that serve a response: consensus and execution read
     /// current versions, which never leave the live table, so a miss there is a
     /// bug and must stay one.
-    ///
-    /// The caller reads the live table itself, so it can use
-    /// [`crate::execution_cache::ObjectCacheRead`]'s batched multi-get rather
-    /// than [`iota_types::storage::ObjectStore`]'s per-key one.
     pub fn fill_missing(
         &self,
         keys: &[ObjectKey],
@@ -249,10 +245,8 @@ impl HistoricObjects {
     }
 }
 
-/// The fallback-aware counterpart of
-/// [`iota_types::storage::get_transaction_input_objects`]. These are the
-/// versions the transaction superseded, so its own checkpoint commit relocates
-/// them out of the live table.
+/// Like [`iota_types::storage::get_transaction_input_objects`], but also
+/// reads the relocated versions.
 pub fn get_transaction_input_objects(
     object_store: &dyn ObjectStore,
     historic_objects: &HistoricObjects,
@@ -271,10 +265,8 @@ pub fn get_transaction_input_objects(
     )
 }
 
-/// The fallback-aware counterpart of
-/// [`iota_types::storage::get_transaction_output_objects`]. These versions are
-/// current when written, but a later transaction supersedes them and relocates
-/// them out of the live table.
+/// Like [`iota_types::storage::get_transaction_output_objects`], but also
+/// reads the relocated versions.
 pub fn get_transaction_output_objects(
     object_store: &dyn ObjectStore,
     historic_objects: &HistoricObjects,

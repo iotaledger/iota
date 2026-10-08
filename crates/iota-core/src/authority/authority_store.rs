@@ -390,8 +390,7 @@ impl AuthorityStore {
         Ok(store)
     }
 
-    /// The object versions this store's transactions superseded, bucketed by
-    /// the epoch that superseded them.
+    /// Superseded object versions, bucketed by the epoch that superseded them.
     pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
         &self.historic_objects
     }
@@ -911,18 +910,10 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
 
-        // Relocate the versions this transaction superseded into the epoch's
-        // historic bucket. The insert and the delete join the batch that
-        // carries the transaction's own outputs, so a crash leaves each
-        // version in the live table or in the bucket, always in one of the
-        // two.
-        //
-        // A batch applies its operations in order, so a delete survives only
-        // if nothing behind it writes the same key again. Nothing does: a
-        // transaction never supersedes a version it writes, and
-        // `build_db_batch` appends transactions in checkpoint order, so
-        // whichever transaction wrote a superseded version is already ahead
-        // of this one in the batch.
+        // A delete survives only if nothing later in the batch writes the
+        // same key. Nothing does: a transaction never supersedes a version it
+        // writes, and `build_db_batch` appends transactions in checkpoint
+        // order, so the writer of a superseded version is earlier in the batch.
         write_batch.insert_batch_tagged(
             &historic_bucket.objects,
             superseded

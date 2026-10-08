@@ -1515,10 +1515,9 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// Balance and object changes are assembled from the transaction's input
-/// pre-images, read by exact version. The commit of the transaction's own
-/// checkpoint moves those versions out of the live objects table, so the read
-/// has to reach the historic buckets to still answer.
+/// Balance and object changes still resolve once the transaction's input
+/// versions have been moved out of the live objects table into the historic
+/// buckets.
 #[sim_test]
 async fn transaction_changes_resolve_after_relocation() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -1529,9 +1528,7 @@ async fn transaction_changes_resolve_after_relocation() {
         .with_balance_changes()
         .with_object_changes();
 
-    // The versions the transaction superseded are relocated by the batch that
-    // commits its checkpoint, which is done once that checkpoint counts as
-    // executed.
+    // The superseded versions are relocated once the checkpoint is executed.
     let sequence_number = timeout(Duration::from_secs(60), async {
         loop {
             let response: IotaTransactionBlockResponse = jsonrpc_client
