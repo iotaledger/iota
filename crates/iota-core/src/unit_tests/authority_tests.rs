@@ -3724,6 +3724,13 @@ async fn test_response_reads_resolve_relocated_versions() {
             "the owner reads must serve the relocated version"
         );
     }
+    let keys = [&transferred_pre_image, &gas_pre_image]
+        .map(|pre_image| ObjectKey(pre_image.id(), pre_image.version()));
+    assert_eq!(
+        object_store.try_multi_get_objects_by_key(&keys).unwrap(),
+        vec![Some(transferred_pre_image), Some(gas_pre_image)],
+        "a batched read must serve the relocated versions too"
+    );
 }
 
 #[tokio::test]

@@ -934,6 +934,21 @@ impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
             .get_object_with_historic_fallback(&ObjectKey(*object_id, version))
             .map_err(iota_types::storage::error::Error::custom)
     }
+
+    fn try_multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> iota_types::storage::error::Result<Vec<Option<Object>>> {
+        let mut objects = self
+            .0
+            .get_object_store()
+            .try_multi_get_objects_by_key(object_keys)?;
+        self.0
+            .historic_objects
+            .fill_missing(object_keys, &mut objects)
+            .map_err(iota_types::storage::error::Error::custom)?;
+        Ok(objects)
+    }
 }
 
 pub struct AuthorityState {
