@@ -15,7 +15,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use iota_grpc_client::{
     GrpcClient,
-    read_mask_fields::{ObjectField, ObjectReadMask, OwnedObjectReadMask, TransactionField},
+    read_mask_fields::{ObjectField, TransactionField},
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
@@ -126,7 +126,6 @@ impl SimpleFaucet {
         let coins = grpc_client
             .owned_objects(active_address)
             .object_type(StructTag::new_gas_coin())
-            .read_mask(OwnedObjectReadMask::default())
             .collect(None)
             .await
             .map_err(|e| FaucetError::FullnodeReading(e.to_string()))?
@@ -365,11 +364,7 @@ impl SimpleFaucet {
     ///
     /// Returns Ok(None) if the object does not exist (anymore).
     async fn get_object(&self, object_id: ObjectId) -> anyhow::Result<Option<Object>> {
-        let response = self
-            .grpc_client
-            .objects([object_id])
-            .read_mask(ObjectReadMask::default())
-            .await?;
+        let response = self.grpc_client.objects([object_id]).await?;
         match response.into_parts().0.into_iter().next() {
             Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
             // Per-item error: the object does not exist (anymore).

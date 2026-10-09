@@ -1,7 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::read_mask_fields::{DynamicFieldReadMask, OwnedObjectReadMask};
 use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
 
@@ -18,7 +17,6 @@ async fn list_owned_objects_single_page() {
 
     let page = client
         .owned_objects(owner)
-        .read_mask(OwnedObjectReadMask::default())
         .await
         .expect("single page should succeed");
 
@@ -35,7 +33,6 @@ async fn list_owned_objects_collect_all() {
 
     let all = client
         .owned_objects(owner)
-        .read_mask(OwnedObjectReadMask::default())
         .collect(None)
         .await
         .expect("collect should succeed");
@@ -55,7 +52,6 @@ async fn list_owned_objects_pagination_with_token() {
     let page1 = client
         .owned_objects(owner)
         .page_size(1)
-        .read_mask(OwnedObjectReadMask::default())
         .await
         .expect("first page should succeed");
 
@@ -68,7 +64,6 @@ async fn list_owned_objects_pagination_with_token() {
     // Collect all for comparison
     let all = client
         .owned_objects(owner)
-        .read_mask(OwnedObjectReadMask::default())
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -85,7 +80,6 @@ async fn list_owned_objects_pagination_with_token() {
             .owned_objects(owner)
             .page_size(1)
             .page_token(token.clone())
-            .read_mask(OwnedObjectReadMask::default())
             .await
             .expect("second page should succeed");
 
@@ -114,7 +108,6 @@ async fn list_owned_objects_collect_with_limit() {
     // Collect all first to see how many there are
     let all = client
         .owned_objects(owner)
-        .read_mask(OwnedObjectReadMask::default())
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -124,7 +117,6 @@ async fn list_owned_objects_collect_with_limit() {
         let limited = client
             .owned_objects(owner)
             .page_size(1)
-            .read_mask(OwnedObjectReadMask::default())
             .collect(Some(1))
             .await
             .expect("collect with limit should succeed");
@@ -145,7 +137,6 @@ async fn list_owned_objects_collect_limit_truncates() {
     // Collect everything to confirm we have more than 2 objects.
     let all = client
         .owned_objects(owner)
-        .read_mask(OwnedObjectReadMask::default())
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -161,7 +152,6 @@ async fn list_owned_objects_collect_limit_truncates() {
     // truncate the result to exactly 2 items.
     let limited = client
         .owned_objects(owner)
-        .read_mask(OwnedObjectReadMask::default())
         .collect(Some(2))
         .await
         .expect("collect with limit should succeed");
@@ -186,7 +176,6 @@ async fn list_dynamic_fields_single_page() {
 
     let page = client
         .dynamic_fields(parent)
-        .read_mask(DynamicFieldReadMask::default())
         .await
         .expect("single page should succeed");
 
@@ -203,7 +192,6 @@ async fn list_dynamic_fields_collect_all() {
 
     let all = client
         .dynamic_fields(parent)
-        .read_mask(DynamicFieldReadMask::default())
         .collect(None)
         .await
         .expect("collect should succeed");
@@ -223,7 +211,6 @@ async fn list_dynamic_fields_pagination_with_token() {
     let page1 = client
         .dynamic_fields(parent)
         .page_size(1)
-        .read_mask(DynamicFieldReadMask::default())
         .await
         .expect("first page should succeed");
 
@@ -236,7 +223,6 @@ async fn list_dynamic_fields_pagination_with_token() {
     // Collect all for comparison
     let all = client
         .dynamic_fields(parent)
-        .read_mask(DynamicFieldReadMask::default())
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -252,7 +238,6 @@ async fn list_dynamic_fields_pagination_with_token() {
             .dynamic_fields(parent)
             .page_size(1)
             .page_token(token.clone())
-            .read_mask(DynamicFieldReadMask::default())
             .await
             .expect("second page should succeed");
 

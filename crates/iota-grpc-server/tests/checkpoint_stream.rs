@@ -14,10 +14,7 @@ use iota_grpc_client::{
     read_mask_fields::CheckpointResponseField,
 };
 use iota_grpc_server::GrpcServerHandle;
-use iota_grpc_types::{
-    read_mask_fields::CheckpointResponseReadMask,
-    v1::{filter, ledger_service::checkpoint_data},
-};
+use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
 use iota_sdk_types::{
     Address, Event, Identifier, ObjectId, Owner, StructTag, TransactionEffects, TransactionEvents,
 };
@@ -563,7 +560,6 @@ async fn test_chunked_checkpoint_streaming() {
     // Test individual checkpoint retrieval
     let individual_checkpoint = client
         .checkpoint_by_sequence_number(0)
-        .read_mask(CheckpointResponseReadMask::default())
         .await
         .expect("get_checkpoint should work");
 
@@ -582,7 +578,6 @@ async fn test_chunked_checkpoint_streaming() {
         .checkpoints_stream()
         .start_sequence_number(0)
         .end_sequence_number(0)
-        .read_mask(CheckpointResponseReadMask::default())
         .await
         .unwrap();
 
@@ -618,7 +613,6 @@ async fn test_filter_checkpoints_validation() {
         .checkpoints_stream_filtered()
         .start_sequence_number(0)
         .end_sequence_number(5)
-        .read_mask(CheckpointResponseReadMask::default())
         .await;
     assert!(result.is_err(), "expected error when no filters are set");
 
@@ -776,10 +770,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
 
     // Requesting checkpoint 0 (genesis, still in DB) should fail because it's below
     // lowest_available_checkpoint
-    let result = client
-        .checkpoint_by_sequence_number(0)
-        .read_mask(CheckpointResponseReadMask::default())
-        .await;
+    let result = client.checkpoint_by_sequence_number(0).await;
     assert!(result.is_err(), "Expected error for pruned checkpoint");
     match result.unwrap_err() {
         iota_grpc_client::GrpcError::Grpc(status) => {
@@ -796,10 +787,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
     }
 
     // Requesting checkpoint 5 (at lowest_available) should succeed
-    let result = client
-        .checkpoint_by_sequence_number(5)
-        .read_mask(CheckpointResponseReadMask::default())
-        .await;
+    let result = client.checkpoint_by_sequence_number(5).await;
     assert!(result.is_ok(), "Checkpoint at lowest_available should work");
 
     server_handle
@@ -899,7 +887,6 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         .checkpoints_stream()
         .start_sequence_number(0)
         .end_sequence_number(10)
-        .read_mask(CheckpointResponseReadMask::default())
         .await;
 
     match result {
@@ -1179,9 +1166,7 @@ fn stream_in_range(
         Option<CheckpointSequenceNumber>,
     ),
 ) -> CheckpointsStreamQuery {
-    let mut query = client
-        .checkpoints_stream()
-        .read_mask(CheckpointResponseReadMask::default());
+    let mut query = client.checkpoints_stream();
     if let Some(start) = start {
         query = query.start_sequence_number(start);
     }

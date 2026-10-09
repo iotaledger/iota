@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_client::{HeadersInterceptor, ResponseExt};
-use iota_grpc_types::read_mask_fields::ServiceInfoReadMask;
 use iota_macros::sim_test;
 
 use super::super::utils::setup_grpc_test;
@@ -53,7 +52,6 @@ async fn metadata_envelope_headers() {
 
     let service_info = client
         .service_info()
-        .read_mask(ServiceInfoReadMask::default())
         .await
         .expect("service_info should succeed");
     assert_standard_headers(&service_info, "service_info");
@@ -86,7 +84,6 @@ async fn metadata_envelope_with_auth() {
 
         let service_info = authed_client
             .service_info()
-            .read_mask(ServiceInfoReadMask::default())
             .await
             .unwrap_or_else(|e| panic!("service_info should succeed with {label}: {e}"));
         assert_standard_headers(&service_info, &format!("service_info ({label})"));

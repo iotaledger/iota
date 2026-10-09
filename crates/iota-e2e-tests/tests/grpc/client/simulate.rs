@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_client::read_mask_fields::SimulateField;
-use iota_grpc_types::{
-    read_mask_fields::SimulateReadMask,
-    v1::transaction_execution_service::simulated_transaction::ExecutionResult,
-};
+use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
 use iota_sdk_types::{Address, Command, Transaction};
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -32,7 +29,6 @@ async fn simulate_transaction_scenarios() {
         let result = client
             .simulate_transaction(transaction)
             .skip_checks(skip_checks)
-            .read_mask(SimulateReadMask::default())
             .await
             .unwrap_or_else(|e| panic!("Failed to simulate transaction in {mode_name} mode: {e}"));
 
@@ -97,7 +93,6 @@ async fn simulate_transaction_scenarios() {
     let result = client
         .simulate_transaction(transaction)
         .skip_checks(false)
-        .read_mask(SimulateReadMask::default())
         .await;
     assert_grpc_error(result, Code::InvalidArgument);
 
@@ -118,7 +113,6 @@ async fn simulate_transaction_scenarios() {
     let response = client
         .simulate_transaction(transaction)
         .skip_checks(false)
-        .read_mask(SimulateReadMask::default())
         .await
         .expect("Simulation should succeed at RPC level");
 

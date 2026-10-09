@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use iota_grpc_client::read_mask_fields::CheckpointResponseField;
-use iota_grpc_types::read_mask_fields::CheckpointResponseReadMask;
 use iota_macros::sim_test;
 use tokio::time::timeout;
 
@@ -18,7 +17,6 @@ async fn get_checkpoint_scenarios() {
     // Test: get latest checkpoint
     let latest = client
         .checkpoint_latest()
-        .read_mask(CheckpointResponseReadMask::default())
         .await
         .expect("Failed to get latest checkpoint");
     assert!(
@@ -29,7 +27,6 @@ async fn get_checkpoint_scenarios() {
     // Test: get genesis checkpoint (sequence 0)
     let genesis = client
         .checkpoint_by_sequence_number(0)
-        .read_mask(CheckpointResponseReadMask::default())
         .await
         .expect("Failed to get genesis checkpoint");
     assert_eq!(
@@ -41,7 +38,6 @@ async fn get_checkpoint_scenarios() {
     // Test: get checkpoint by sequence number
     let checkpoint_1 = client
         .checkpoint_by_sequence_number(1)
-        .read_mask(CheckpointResponseReadMask::default())
         .await
         .expect("Failed to get checkpoint by sequence number");
     assert_eq!(
@@ -59,7 +55,6 @@ async fn get_checkpoint_scenarios() {
         .expect("genesis summary should have a digest");
     let by_digest = client
         .checkpoint_by_digest(genesis_digest)
-        .read_mask(CheckpointResponseReadMask::default())
         .await
         .expect("Failed to get checkpoint by digest");
     assert_eq!(
@@ -69,18 +64,12 @@ async fn get_checkpoint_scenarios() {
     );
 
     // Test: nonexistent checkpoint returns not-found error
-    let result = client
-        .checkpoint_by_sequence_number(999_999_999)
-        .read_mask(CheckpointResponseReadMask::default())
-        .await;
+    let result = client.checkpoint_by_sequence_number(999_999_999).await;
     assert_grpc_not_found(result);
 
     // Test: future checkpoint returns not-found error
     let future_sequence = latest.body().sequence_number() + 100;
-    let result = client
-        .checkpoint_by_sequence_number(future_sequence)
-        .read_mask(CheckpointResponseReadMask::default())
-        .await;
+    let result = client.checkpoint_by_sequence_number(future_sequence).await;
     assert_grpc_not_found(result);
 }
 
@@ -107,7 +96,6 @@ async fn stream_checkpoints_live() {
         .checkpoints_stream()
         .start_sequence_number(target)
         .end_sequence_number(target)
-        .read_mask(CheckpointResponseReadMask::default())
         .await
         .expect("Failed to open checkpoint stream");
 

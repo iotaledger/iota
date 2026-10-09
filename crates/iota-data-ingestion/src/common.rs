@@ -3,10 +3,7 @@
 
 use std::ops::Range;
 
-use iota_grpc_client::{
-    GrpcClient,
-    read_mask_fields::{CheckpointResponseReadMask, EpochField},
-};
+use iota_grpc_client::{GrpcClient, read_mask_fields::EpochField};
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
 
 /// How often the per-checkpoint workers log progress at info level: one line
@@ -46,7 +43,6 @@ pub async fn checkpoint_sequence_number_range_to_watermark(
 ) -> anyhow::Result<Range<CheckpointSequenceNumber>> {
     let chk = client
         .checkpoint_by_sequence_number(watermark)
-        .read_mask(CheckpointResponseReadMask::default())
         .await?
         .into_inner();
 

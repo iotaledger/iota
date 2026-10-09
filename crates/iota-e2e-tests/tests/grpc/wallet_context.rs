@@ -1,7 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::read_mask_fields::ServiceInfoReadMask;
 use iota_macros::sim_test;
 use test_cluster::TestClusterBuilder;
 
@@ -21,7 +20,6 @@ async fn wallet_context_get_grpc_client() {
         .await
         .unwrap()
         .service_info()
-        .read_mask(ServiceInfoReadMask::default())
         .await
         .unwrap();
 
