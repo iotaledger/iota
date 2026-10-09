@@ -579,7 +579,10 @@ pub(crate) mod tests {
 
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use tokio::time::{Instant, timeout};
+    use tokio::{
+        sync::Notify,
+        time::{Instant, timeout},
+    };
 
     use super::*;
     use crate::{
@@ -607,9 +610,44 @@ pub(crate) mod tests {
         quorum_subscribers_exists: Mutex<bool>,
         reinitialize_components_calls: Mutex<usize>,
         reinitialize_components_should_fail: Mutex<bool>,
+        transactions: Mutex<Vec<CommitmentVerifiedTransactions>>,
+        missing_transactions: Mutex<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
+        /// When set, `get_missing_transaction_data` signals
+        /// `missing_transactions_query_entered` and waits to be notified
+        /// before answering.
+        missing_transactions_gate: Mutex<Option<Arc<Notify>>>,
+        missing_transactions_query_entered: Notify,
     }
 
     impl MockCoreThreadDispatcher {
+        /// The transactions delivered so far, in delivery order.
+        pub(crate) fn fetched_transactions(&self) -> Vec<CommitmentVerifiedTransactions> {
+            self.transactions.lock().clone()
+        }
+
+        /// The missing transactions `get_missing_transaction_data` reports,
+        /// minus the ones delivered since.
+        pub(crate) fn stub_missing_transactions(
+            &self,
+            missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        ) {
+            *self.missing_transactions.lock() = missing_transactions;
+        }
+
+        /// Blocks every `get_missing_transaction_data` call until the returned
+        /// notify is triggered.
+        pub(crate) fn block_missing_transactions_queries(&self) -> Arc<Notify> {
+            let gate = Arc::new(Notify::new());
+            *self.missing_transactions_gate.lock() = Some(gate.clone());
+            gate
+        }
+
+        /// Waits until a blocked `get_missing_transaction_data` call is
+        /// waiting on the gate.
+        pub(crate) async fn missing_transactions_query_entered(&self) {
+            self.missing_transactions_query_entered.notified().await;
+        }
+
         pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
             let mut blocks = self.blocks.lock();
             blocks.drain(0..).collect()
@@ -697,10 +735,19 @@ pub(crate) mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<CommitmentVerifiedTransactions>,
+            transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            let mut delivered = self.transactions.lock();
+            for transaction in transactions {
+                if !delivered
+                    .iter()
+                    .any(|t| t.transaction_ref() == transaction.transaction_ref())
+                {
+                    delivered.push(transaction);
+                }
+            }
+            Ok(())
         }
 
         async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
@@ -710,7 +757,24 @@ pub(crate) mod tests {
         async fn get_missing_transaction_data(
             &self,
         ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            Ok(BTreeMap::new())
+            let gate = self.missing_transactions_gate.lock().clone();
+            if let Some(gate) = gate {
+                self.missing_transactions_query_entered.notify_one();
+                gate.notified().await;
+            }
+            let delivered: BTreeSet<GenericTransactionRef> = self
+                .transactions
+                .lock()
+                .iter()
+                .map(|t| GenericTransactionRef::from(t.transaction_ref()))
+                .collect();
+            Ok(self
+                .missing_transactions
+                .lock()
+                .iter()
+                .filter(|(tx_ref, _)| !delivered.contains(tx_ref))
+                .map(|(tx_ref, authorities)| (*tx_ref, authorities.clone()))
+                .collect())
         }
 
         async fn add_certified_commits(
