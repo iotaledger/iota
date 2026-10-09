@@ -82,7 +82,10 @@ how many expensive transactions execute within the ≈50 ms between commits. A
 executes within the ≈50 ms, no limit is good: a 500K transaction takes 81 ms on
 EPYC and 55 ms on the reference machine, and every limit that admits one there
 has 5–10 s of checkpoint lag, while on the WS, where it takes 17.7 ms, a 1M
-limit admits two at checkpoint lag of 0.20 s.
+limit admits two at checkpoint lag of 0.20 s. With turbo boost on, the
+reference machine executes a 100K transaction in 13.8 ms and a 500K one in
+37.8 ms, and its best limits move as the rule says: to 300K at 1K/100K, which
+admits three, and to 509K at 1K/500K, which admits one.
 
 **Neither limit stops the object from being overloaded because neither
 measures time.** From 2,000 CUs per transaction upward, a count limit of 10
@@ -101,7 +104,7 @@ and cancellations, checkpoint lag, and settlement latency match the same way
 (findings 1, 2). A network switching modes at ten times the average CUs loses
 nothing, and gains nothing, while its traffic stays uniform.
 
-**All 2,770 runs passed the safety check (H4):** no checkpoint fork, no
+**All 2,920 runs passed the safety check (H4):** no checkpoint fork, no
 inconsistent state, no double spend, no attestation panic, no soft-lock
 equivocation, and no validator crash, restart, or OOM in any of them.
 
@@ -223,10 +226,11 @@ databases, runs B, and scrapes Prometheus into one JSON per run. The settings:
     machine below), an Intel Xeon Gold 5412U with 24 cores / 48 threads and
     128 GB of RAM, which executes them about 1.8× faster than EPYC with turbo
     boost off, the setting the validators run with.
-  - Those runs carry `-ws` and `-ref` labels and are kept under
-    `results/matrix-ws/` and `results/matrix-ref/`, so they never mix with the
-    EPYC data.
-- **152 configurations**:
+  - The reference machine ran them a second time with turbo boost on.
+  - Those runs carry `-ws`, `-ref` and `-refturbo` labels and are kept under
+    `results/matrix-ws/`, `results/matrix-ref/` and `results/matrix-refturbo/`,
+    so they never mix with the EPYC data.
+- **167 configurations**:
   - 80 fixed-cost configurations, 10 iterations each.
   - 5 mixed-cost configurations at `10 × mean cost`, 11 iterations each — one
     run first to check the configuration, then ten more.
@@ -238,6 +242,8 @@ databases, runs B, and scrapes Prometheus into one JSON per run. The settings:
   - The WS adds 13 mixed-cost configurations, 5 iterations each.
   - The reference machine adds 15 mixed-cost configurations, 5 iterations
     each: the WS's 13 and two more `mix20800` limits, 300K and 400K.
+  - The reference machine with turbo boost on adds the same 15, 5 iterations
+    each.
 
 **Aggregation and reporting tooling**:
 
@@ -1325,6 +1331,59 @@ longer than the interval on its own, so every limit that admits one has 5–10 s
 of checkpoint lag: 5.2 s at 509K, 9.4 s at 1M and 9.8 s at 1.5M. The WS, where
 it takes 17.7 ms, fits two under 1M at 0.20 s.
 
+##### The three ladders on the reference machine with turbo boost on
+
+The same 15 configurations were run again on the reference machine with turbo
+boost on, 5 iterations each. The probe gives the new execution times: a 10K CU
+transaction takes 6.5 ms, a 100K one 13.8 ms and a 500K one 37.8 ms, about
+0.72 of the time with turbo boost off. So within the ≈50 ms between commits,
+seven 10K transactions execute instead of five, three 100K ones instead of two,
+and one 500K one instead of none. The VM execution time measured in Run A is
+0.67–0.76 of that with turbo boost off in every configuration, so turbo boost
+was on in every run.
+
+Run A is the same as with turbo boost off at `mix3700` and `mix20800`. At
+`mix50900` it no longer falls behind: 201–202 tx/s, 796–800 cancelled/s and
+0.4–1.4 s of checkpoint lag, as at the other two mixes. So its backlog with
+turbo boost off goes away once a 500K transaction executes within the ≈50 ms.
+Why EPYC, where one takes 81 ms, has a smaller backlog is still not known.
+
+Run B, with turbo boost off / on:
+
+| Configuration | Success tps B | Cancelled/s B | Checkpoint lag mean s B | M units/s B |
+| --- | --- | --- | --- | --- |
+| `mix3700` at 37K | 282 / 287 | 705 / 708 | 0.82 / 0.26 | 0.73 / 0.73 |
+| `mix3700` at 100K | 364 / 515 | 38 / 135 | 5.03 / 2.96 | 1.32 / 1.82 |
+| `mix20800` at 208K | 578 / 592 | 413 / 409 | 0.35 / 0.22 | 4.10 / 4.15 |
+| `mix20800` at 300K | 372 / 710 | 65 / 286 | 5.01 / 0.33 | 5.22 / 5.94 |
+| `mix20800` at 400K | 300 / 476 | 18 / 66 | 6.60 / 3.66 | 5.48 / 7.34 |
+| `mix50900` at 509K | 372 / 835 | 54 / 166 | 5.18 / 0.28 | 8.76 / 10.14 |
+| `mix50900` at 1M | 220 / 323 | 4 / 7 | 9.44 / 6.56 | 9.66 / 13.66 |
+
+**The best limit moves as the rule says.** At `mix20800`, 300K, which admits
+three 100K transactions (41 ms), now keeps checkpoint lag at 0.33 s and gives
+710 tx/s; 400K, the first limit that admits four (55 ms), has 3.7 s. At
+`mix50900`, 509K, which admits one 500K transaction and nine cheap ones
+(≈41 ms), keeps checkpoint lag at 0.28 s and gives 835 tx/s; 1M, which admits
+two (76 ms), has 6.6 s. At `mix3700`, 37K is still the best of the limits run:
+ten 10K transactions take 65 ms, so 100K and 200K still have 3.0–3.7 s of
+checkpoint lag. Limits that already fit with turbo boost off give the same
+numbers with it on, for example 822 and 820 tx/s at `mix20800` with 150K.
+Cancellations go up at 300K and 509K because the excess is no longer queued for
+execution but cancelled, as in finding 4.
+
+**At its best limit, the unit limit now does better than the count limit on
+throughput, units executed, cancellations and checkpoint lag at the same
+time.** At `mix20800` with 300K, it gives 710 tx/s against 200, 5.94 against
+4.00 M units/s, 286 against 793 cancelled/s, and 0.33 against 0.71 s of
+checkpoint lag. With turbo boost off, its best, 208K, only matched the count
+limit's units (4.10 against 4.06). At `mix50900` with 509K, it gives 835 tx/s
+against 202, 10.14 against 9.33 M units/s, 166 against 800 cancelled/s, and
+0.28 against 1.16 s of checkpoint lag.
+
+If the validators ever turn turbo boost on, these are the limits to move to:
+300K at 1K/100K and 509K at 1K/500K.
+
 ##### What the three machines show together
 
 The three ladders run on all three machines, `mix3700`, `mix20800` and
@@ -1336,21 +1395,23 @@ The three ladders run on all three machines, `mix3700`, `mix20800` and
   depend on the machine, and that is what decides each ladder's best limit, the
   one with the highest success tps while checkpoint lag stays low:
 
-| Mix | Best limit on EPYC | Best limit on the reference machine | Best limit on the WS |
-| --- | --- | --- | --- |
-| `mix3700` (1K/10K) | 37K CUs | 37K CUs | above 200K CUs, not reached at this rate |
-| `mix20800` (1K/100K) | 150K CUs | 150K CUs on success tps; 208K CUs executes as many units as the count limit, at 0.35 s of checkpoint lag | 500K CUs |
-| `mix50900` (1K/500K) | none: every limit that admits a 500K transaction has 8–9 s of checkpoint lag | none: 5–10 s of checkpoint lag at every such limit | 1M CUs |
+| Mix | Best limit on EPYC | Best limit on the reference machine | Best limit on the reference machine, turbo boost on | Best limit on the WS |
+| --- | --- | --- | --- | --- |
+| `mix3700` (1K/10K) | 37K CUs | 37K CUs | 37K CUs | above 200K CUs, not reached at this rate |
+| `mix20800` (1K/100K) | 150K CUs | 150K CUs on success tps; 208K CUs executes as many units as the count limit, at 0.35 s of checkpoint lag | 300K CUs | 500K CUs |
+| `mix50900` (1K/500K) | none: every limit that admits a 500K transaction has 8–9 s of checkpoint lag | none: 5–10 s of checkpoint lag at every such limit | 509K CUs | 1M CUs |
 
 Put as one rule for any machine: take the expensive transaction's execution
 time on that machine, count how many of them execute within the ≈50 ms between
 commits, and set the limit to admit that many and not one more. That is one
-100K transaction on EPYC, two on the reference machine and six on the WS,
-where 500K (five) was the largest limit run; at `mix3700` three 10K
-transactions on EPYC and five on the reference machine, where 37K (three) was
-the last rung below 100K; and at `mix50900`, none on EPYC and the reference
-machine, two on the WS. Every rung run on the three machines agrees with it,
-where the limit and not the client decided what was admitted.
+100K transaction on EPYC, two on the reference machine (three with turbo boost
+on) and six on the WS, where 500K (five) was the largest limit run; at
+`mix3700` three 10K transactions on EPYC and five on the reference machine
+(seven with turbo boost on), where 37K (three) was the last rung below 100K;
+and at `mix50900`, none on EPYC and the reference machine (one with turbo boost
+on), two on the WS. Every rung run on the three machines, and on the reference
+machine with turbo boost on, agrees with it, where the limit and not the client
+decided what was admitted.
 
 The first point has one exception. A limit allows the same transactions on
 every machine, but the scheduler does not always admit that many. Under a
@@ -1388,8 +1449,8 @@ between commits on the machine in question, and set the unit limit to admit
 that many per commit and not one more. The rest of the limit goes to the cheap
 ones.* On EPYC, where a 100K transaction takes 34 ms, that is one: a limit at
 the expensive transaction's cost or above, but below twice it. On the
-reference machine, where it takes 18.7 ms, it is two, and on the WS, where it
-takes 7.4 ms, six.
+reference machine, where it takes 18.7 ms, it is two (three with turbo boost
+on, where it takes 13.8 ms), and on the WS, where it takes 7.4 ms, six.
 
 Measured at 1K/100K on EPYC, at 100K–150K CUs limits, this rule gives the
 following advantages:
@@ -1485,8 +1546,9 @@ Five things to keep in mind when applying the rule:
 ## H4 — safety (pass/fail)
 
 **PASS.** Across all 2,490 runs of the 124 configurations on EPYC, the 130
-runs of the 13 configurations on the WS and the 150 runs of the 15
-configurations on the reference machine:
+runs of the 13 configurations on the WS, the 150 runs of the 15
+configurations on the reference machine and the 150 runs of the same 15 with
+turbo boost on:
 
 - every safety counter is zero: checkpoint forks
   (`split_brain_checkpoint_forks`, `remote_checkpoint_forks`), inconsistent
@@ -1507,9 +1569,10 @@ commits. It affects performance, not safety.
 The takeaway is the TL;DR at the top of this document. Everything behind it:
 
 - per-configuration numbers: `results/matrix/summary.md` and `summary.csv` for
-  EPYC, `results/matrix-ws/summary.md` for the WS and
-  `results/matrix-ref/summary.md` for the reference machine — generated by
-  [`aggregate.py`](aggregate.py) from the raw runs and not committed;
+  EPYC, `results/matrix-ws/summary.md` for the WS,
+  `results/matrix-ref/summary.md` for the reference machine and
+  `results/matrix-refturbo/summary.md` for it with turbo boost on — generated
+  by [`aggregate.py`](aggregate.py) from the raw runs and not committed;
 - figures: `results/matrix/summary_plots/`;
 - the cost calibration behind the grid: [`PROBE.md`](PROBE.md).
 
@@ -1521,15 +1584,6 @@ The takeaway is the TL;DR at the top of this document. Everything behind it:
   commit every ≈50 ms, the interval of a local 4-validator network. Read
   `rate(consensus_committed_subdags[5m])` on a production validator; if mainnet
   commits less often, the best limits scale up with the interval.
-- **Rerun the `mix20800` ladder on the reference machine with turbo boost on.**
-  The probe and the three ladders ran on it with turbo boost off, which is how
-  the validators run today: the default was never changed. The probe also ran
-  with it on ([`PROBE.md`](PROBE.md)), and a 100K transaction then
-  takes 13.8 ms instead of 18.7 ms, so three execute within the ≈50 ms between
-  commits instead of two, and the best 1K/100K limit should move up one rung,
-  from 208K to 300K. The ladder with turbo boost on would show whether it does:
-  six configurations, 5 iterations each, about two hours. If the validators
-  ever turn turbo boost on, that is the limit to move to.
 - **Report that groth16 native calls are charged far less than they cost to
   execute.** All the workloads above run Move code, where CUs follow execution
   time. Native functions are instead charged a fixed amount per call, set in the
