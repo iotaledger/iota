@@ -5881,6 +5881,27 @@ impl AuthorityState {
         .map_err(IotaError::from)
     }
 
+    /// Fails if the protocol config rejects immutable accounts and
+    /// `account_object` is immutable. Reads only the object's owner, so every
+    /// validator reaches the same result for the version the transaction
+    /// names.
+    fn check_account_object_not_immutable(
+        account_object_id: ObjectId,
+        account_object: &Object,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<(), UserInputError> {
+        if protocol_config.reject_immutable_account_objects() {
+            fp_ensure!(
+                !account_object.is_immutable(),
+                UserInputError::ImmutableAccountObjectNotSupported {
+                    object_id: account_object_id
+                }
+            );
+        }
+
+        Ok(())
+    }
+
     /// Checks whether `authenticator` unlocks a valid Move account and returns
     /// the account-related `AuthenticatorFunctionRef`. Where the protocol
     /// config requires it, the account object must be shared, so that a
@@ -5921,15 +5942,11 @@ impl AuthorityState {
                     .into()
                 );
 
-                if protocol_config.reject_immutable_account_objects() {
-                    fp_ensure!(
-                        !object.is_immutable(),
-                        UserInputError::ImmutableAccountObjectNotSupported {
-                            object_id: auth_account_object_id
-                        }
-                        .into()
-                    );
-                }
+                Self::check_account_object_not_immutable(
+                    auth_account_object_id,
+                    object,
+                    protocol_config,
+                )?;
 
                 fp_ensure!(
                     object.is_shared() || object.is_immutable(),
@@ -6190,8 +6207,8 @@ impl AuthorityState {
 
     /// [`Self::check_transaction_inputs_for_validation`] for post-consensus
     /// validation at a commit. The difference is the Move authenticator: the
-    /// account is not resolved here, only the authenticator's inputs are
-    /// checked, so no function reference comes back.
+    /// account's authenticator function is not looked up here, so no function
+    /// reference comes back.
     fn check_transaction_inputs_at_commit(
         &self,
         protocol_config: &ProtocolConfig,
@@ -6217,12 +6234,20 @@ impl AuthorityState {
 
         // The account object is among the authenticator's inputs, so this
         // check still rejects an account owned by an address or by another
-        // object, and the other inputs with it. Resolving the account's
-        // authenticator function, and rejecting an immutable account, are left
-        // to execution.
+        // object, and the other inputs with it. An immutable account is
+        // rejected here as well, as before submission. Both read only the
+        // account object's owner. Looking up the account's authenticator
+        // function is left to execution.
         let per_authenticator_checked_inputs = per_authenticator_inputs
             .into_iter()
-            .map(|(authenticator_input_objects, _account_object)| {
+            .map(|(authenticator_input_objects, account_object)| {
+                if let ObjectReadResultKind::Object(object) = &account_object.object {
+                    Self::check_account_object_not_immutable(
+                        account_object.id(),
+                        object,
+                        protocol_config,
+                    )?;
+                }
                 iota_transaction_checks::check_move_authenticator_input_for_validation(
                     authenticator_input_objects,
                 )

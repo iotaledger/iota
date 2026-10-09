@@ -5740,8 +5740,8 @@ async fn validation_at_commit_keeps_an_account_without_authenticator_function() 
 
 /// The check of the Move authenticator's input objects stays in
 /// post-consensus validation. The account object is one of those inputs, so
-/// an account owned by an address is dropped there, with the same error a
-/// validator gives it before submission, and never reaches execution.
+/// an account owned by an address is dropped there and never reaches
+/// execution.
 #[tokio::test]
 async fn validation_at_commit_drops_an_account_owned_by_an_address() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -5790,12 +5790,12 @@ async fn validation_at_commit_drops_an_account_owned_by_an_address() {
     );
 }
 
-/// Rejecting an immutable account is left to execution: the check of the
-/// Move authenticator's input objects accepts an immutable input, so
-/// post-consensus validation keeps the transaction, and execution fails it
-/// with `AccountNotSharedObject`.
+/// An immutable account is dropped in post-consensus validation, with the
+/// same error a validator gives it before submission, and never reaches
+/// execution. The rule reads only the account object's owner, so every
+/// validator reaches the same verdict.
 #[tokio::test]
-async fn validation_at_commit_keeps_an_immutable_account_that_execution_rejects() {
+async fn validation_at_commit_drops_an_immutable_account() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let account = Object::immutable_for_testing();
@@ -5803,6 +5803,73 @@ async fn validation_at_commit_keeps_an_immutable_account_that_execution_rejects(
     let s = setup_bookkeeping(
         vec![Object::with_id_owner_for_testing(gas_id, sponsor), account],
         true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let tx = s.build_account_authenticated_call(
+        MoveAuthenticatorV1::new_with_immutable_account_object(
+            vec![],
+            vec![],
+            s.latest_ref(&account_id),
+        ),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+    let is_immutable_account_error = |error: &IotaError| {
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+            } if *object_id == account_id
+        )
+    };
+
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            false,
+            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
+        )
+        .await
+        .expect_err("a validator must reject an immutable account before submission");
+    assert!(is_immutable_account_error(&error), "{error:?}");
+
+    let error = s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .expect_err("post-consensus validation must drop an immutable account");
+    assert!(is_immutable_account_error(&error), "{error:?}");
+}
+
+/// Where the protocol config does not reject immutable accounts,
+/// post-consensus validation keeps one, as it keeps any other account that
+/// passes the input check.
+#[tokio::test]
+async fn validation_at_commit_keeps_an_immutable_account_when_the_config_allows_it() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account = Object::immutable_for_testing();
+    let account_id = account.id();
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config.set_reject_immutable_account_objects_for_testing(false);
+        config
+    });
+    let s = setup_bookkeeping_with_config_guard(
+        vec![Object::with_id_owner_for_testing(gas_id, sponsor), account],
+        Some(config_guard),
     )
     .await;
     let deny_config = &s.authority.config.transaction_deny_config;
@@ -5837,20 +5904,6 @@ async fn validation_at_commit_keeps_an_immutable_account_that_execution_rejects(
         ),
         other => panic!("expected keep, got {other:?}"),
     }
-
-    let effects = s.execute_unchecked(tx);
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionErrorKind::MoveAuthentication {
-                error: Box::new(ExecutionErrorKind::AccountNotSharedObject {
-                    object_id: account_id,
-                }),
-            },
-            command: None,
-        },
-        "execution must fail the kept transaction with the status that names the account"
-    );
 }
 
 /// Post-consensus validation keeps a transaction whose account object was
