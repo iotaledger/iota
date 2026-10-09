@@ -1368,6 +1368,7 @@
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": true,
                 "validate_input_object_versions": true,
+                "validate_ptb_argument_indices": true,
                 "validator_metadata_verify_v2": true,
                 "variant_nodes": true
               },

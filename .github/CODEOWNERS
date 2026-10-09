@@ -12,6 +12,7 @@
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
 /crates/iota-cluster-test/ @iotaledger/infrastructure
 /crates/iota-common/ @iotaledger/core-protocol
+/crates/iota-common/src/portable_random.rs @iotaledger/consensus
 /crates/iota-config/ @iotaledger/node
 /crates/iota-core/ @iotaledger/node @iotaledger/consensus
 /crates/iota-core/src/authority/ @iotaledger/node @iotaledger/consensus @iotaledger/research

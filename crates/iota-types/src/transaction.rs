@@ -596,6 +596,27 @@ impl CommandExt for Command {
     }
 }
 
+/// Iterates over arguments in command-argument order.
+fn command_arguments(command: &Command) -> Box<dyn Iterator<Item = &Argument> + '_> {
+    match command {
+        Command::MoveCall(c) => Box::new(c.arguments.iter()),
+        Command::TransferObjects(TransferObjects { objects, address }) => {
+            Box::new(objects.iter().chain(iter::once(address)))
+        }
+        Command::SplitCoins(SplitCoins { coin, amounts }) => {
+            Box::new(iter::once(coin).chain(amounts))
+        }
+        Command::MergeCoins(MergeCoins {
+            coin,
+            coins_to_merge,
+        }) => Box::new(iter::once(coin).chain(coins_to_merge)),
+        Command::MakeMoveVector(MakeMoveVector { elements, .. }) => Box::new(elements.iter()),
+        Command::Upgrade(Upgrade { ticket, .. }) => Box::new(iter::once(ticket)),
+        Command::Publish(_) => Box::new(iter::empty()),
+        _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+    }
+}
+
 mod programmable_transaction_ext {
     pub trait Sealed {}
     impl Sealed for super::ProgrammableTransaction {}
@@ -605,6 +626,7 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    fn validate_argument_indices(&self) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
@@ -686,6 +708,9 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         for command in commands {
             command.validity_check(config)?;
         }
+        if config.validate_ptb_argument_indices() {
+            self.validate_argument_indices()?;
+        }
 
         // If randomness is used, it must be enabled by protocol config.
         // A command that uses Random can only be followed by TransferObjects or
@@ -706,6 +731,34 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             }
         }
 
+        Ok(())
+    }
+
+    fn validate_argument_indices(&self) -> UserInputResult {
+        for (command_idx, command) in self.commands.iter().enumerate() {
+            for (argument_idx, argument) in command_arguments(command).enumerate() {
+                let index = match argument {
+                    Argument::Input(index) if *index as usize >= self.inputs.len() => *index,
+                    Argument::Result(index) | Argument::NestedResult(index, _)
+                        if *index as usize >= command_idx =>
+                    {
+                        *index
+                    }
+                    Argument::Gas
+                    | Argument::Input(_)
+                    | Argument::Result(_)
+                    | Argument::NestedResult(_, _) => continue,
+                    _ => unimplemented!(
+                        "a new Argument enum variant was added and needs to be handled"
+                    ),
+                };
+                return Err(UserInputError::InvalidArgumentIndex {
+                    command_idx,
+                    argument_idx,
+                    index,
+                });
+            }
+        }
         Ok(())
     }
 
