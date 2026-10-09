@@ -32,16 +32,15 @@ pub struct GrpcStore {
 }
 
 impl GrpcStore {
-    /// Wrap an existing client. The store starts with the built-in framework
-    /// packages already loaded so Move calls resolve.
+    /// Wrap an existing client. The store starts empty and fetches every
+    /// object a run needs, framework packages included, from the node.
     pub fn new(client: GrpcClient) -> Self {
         Self {
             cache: CachingStore::new(GrpcFetcher { client }),
         }
     }
 
-    /// Connect to a gRPC endpoint (by URL) and create a store containing only
-    /// the built-in framework packages.
+    /// Connect to a gRPC endpoint (by URL) and create an empty store.
     ///
     /// # Errors
     ///
@@ -52,8 +51,7 @@ impl GrpcStore {
         Ok(Self::new(client))
     }
 
-    /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand).
+    /// A snapshot clone of the objects fetched or inserted so far.
     pub fn store(&self) -> InMemoryStore {
         self.cache.store()
     }
