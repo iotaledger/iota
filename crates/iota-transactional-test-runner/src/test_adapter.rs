@@ -1566,19 +1566,17 @@ impl IotaTestAdapter {
         let aa_call_arg = aa_arg.into_call_arg(self)?;
 
         match &aa_call_arg {
-            CallArg::ImmutableOrOwned(_) => anyhow::bail!(
-                "immutable account objects can no longer be built with the SDK \
-                 (iotaledger/iota-rust-sdk#1633)"
-            ),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
                 UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new(auth_inputs, vec![], *shared).into(),
                 ),
             )),
-            CallArg::Pure(_) | CallArg::Receiving(_) => Err(anyhow::anyhow!(
-                "abstract: account must be an object representing the abstract account"
-            )),
+            CallArg::ImmutableOrOwned(_) | CallArg::Pure(_) | CallArg::Receiving(_) => {
+                Err(anyhow::anyhow!(
+                    "abstract: account must be a shared object representing the abstract account"
+                ))
+            }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
