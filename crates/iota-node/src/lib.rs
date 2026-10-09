@@ -2940,7 +2940,7 @@ mod listener_metrics_tests {
 
     use iota_metrics::{MetricGroups, MetricLevel, test_utils::MetricsReader};
     use iota_network_stack::config::Config;
-    use iota_types::crypto::{NetworkKeyPair, get_key_pair};
+    use iota_types::crypto::{NetworkPrivateKey, get_key_pair};
     use prometheus_filtered::Registry;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
@@ -2980,7 +2980,7 @@ mod listener_metrics_tests {
     async fn node_registry(groups: &MetricGroups) -> Registry {
         let registry = registry_with_groups(groups);
 
-        let key_pair = get_key_pair::<NetworkKeyPair>().1;
+        let key_pair = get_key_pair::<NetworkPrivateKey>().1;
         let tls_config =
             iota_tls::create_rustls_server_config(key_pair.clone(), "test".to_string());
         let client_config =

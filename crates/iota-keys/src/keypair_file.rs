@@ -14,7 +14,7 @@ use iota_sdk_crypto::{
     simple::SimpleKeypair,
 };
 use iota_sdk_types::SignatureScheme;
-use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair};
+use iota_types::crypto::{AuthorityKeyPair, NetworkPrivateKey};
 
 /// Write Bech32 encoded `flag || privkey` to file.
 pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(
@@ -52,10 +52,10 @@ pub fn read_keypair_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Res
 }
 
 /// Read from file as Base64 encoded `flag || privkey` and return a
-/// NetworkKeyPair.
+/// NetworkPrivateKey.
 pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
     path: P,
-) -> anyhow::Result<NetworkKeyPair> {
+) -> anyhow::Result<NetworkPrivateKey> {
     let kp = read_keypair_from_file(path)?;
     kp.as_opt_ed25519()
         .cloned()
