@@ -271,6 +271,7 @@ impl CheckpointProgressTracker {
                 let objects_retained_from = checkpoint_store
                     .lowest_checkpoint_with_retained_objects(
                         historic_objects.earliest_bucket_epoch(),
+                        historic_objects.objects_pruned_through,
                     )
                     .unwrap_or(0);
                 let checkpoint_pruned_seq_number = checkpoint_store
