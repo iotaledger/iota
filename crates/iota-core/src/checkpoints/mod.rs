@@ -1022,6 +1022,34 @@ impl CheckpointStore {
         self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
+    /// The lowest checkpoint whose superseded object versions this node still
+    /// holds, given the epoch of its oldest historic-object bucket: that
+    /// epoch's first checkpoint. When there is no bucket, or that checkpoint
+    /// is unknown, returns one past the highest executed checkpoint. Never
+    /// below one past `objects_pruned_through`, the checkpoint through which
+    /// the objects pruner of earlier releases deleted superseded versions.
+    pub fn lowest_checkpoint_with_retained_objects(
+        &self,
+        earliest_bucket_epoch: Option<EpochId>,
+        objects_pruned_through: Option<CheckpointSequenceNumber>,
+    ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
+        let lowest = match earliest_bucket_epoch {
+            Some(0) => Some(0),
+            Some(epoch) => self
+                .get_epoch_last_checkpoint_seq_number(epoch - 1)?
+                .map(|seq| seq + 1),
+            None => None,
+        };
+        let lowest = match lowest {
+            Some(lowest) => lowest,
+            None => self
+                .get_highest_executed_checkpoint_seq_number()?
+                .map(|seq| seq + 1)
+                .unwrap_or(0),
+        };
+        Ok(objects_pruned_through.map_or(lowest, |pruned| lowest.max(pruned + 1)))
+    }
+
     pub fn insert_epoch_last_checkpoint(
         &self,
         epoch_id: EpochId,
@@ -3151,6 +3179,26 @@ mod tests {
 
     use super::*;
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
+
+    /// The lowest checkpoint with retained objects starts after the oldest
+    /// bucket's previous epoch, and never at or below the checkpoint the
+    /// objects pruner of earlier releases deleted through.
+    #[tokio::test]
+    async fn the_lowest_checkpoint_with_objects_respects_the_old_pruner() {
+        let store = CheckpointStore::new_for_tests();
+        store
+            .insert_epoch_last_checkpoint(0, &crate::test_utils::executed_checkpoint(0, 9))
+            .unwrap();
+
+        let lowest = |pruned_through| {
+            store
+                .lowest_checkpoint_with_retained_objects(Some(1), pruned_through)
+                .unwrap()
+        };
+        assert_eq!(lowest(None), 10);
+        assert_eq!(lowest(Some(3)), 10);
+        assert_eq!(lowest(Some(14)), 15);
+    }
 
     #[tokio::test]
     async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {

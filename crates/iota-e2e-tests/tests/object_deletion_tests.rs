@@ -7,27 +7,27 @@ mod sim_only_tests {
     use std::{path::PathBuf, sync::Arc, time::Duration};
 
     use iota_core::authority::AuthorityState;
+    use iota_json_rpc_api::{GovernanceReadApiClient, ReadApiClient};
+    use iota_json_rpc_types::{IotaPastObjectResponse, StakeStatus};
     use iota_macros::sim_test;
     use iota_node::IotaNode;
-    use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, Version};
+    use iota_sdk_types::{Identifier, ObjectId, TransactionDigest, TransactionEffects, Version};
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
-        effects::TransactionEffectsAPI, messages_checkpoint::CheckpointSequenceNumber,
-        storage::ObjectKey, transaction::CallArg,
+        effects::TransactionEffectsAPI, governance::StakedIota,
+        messages_checkpoint::CheckpointSequenceNumber, storage::ObjectKey, transaction::CallArg,
     };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
 
     // Tests that relocation moves superseded object versions into the historic
-    // bucket, and that the still-unchanged pruner goes on to remove the
-    // lineages' tombstones the same way it always did. Specifically, we first
-    // wrap a child object into a root object (tests wrap tombstone), then
-    // unwrap and delete the child object (tests unwrap and delete), and last
-    // delete the root object (tests object deletion).
+    // bucket, and that expiring that bucket removes the tombstones from the
+    // live table. We first wrap a child object into a root object (tests wrap
+    // tombstone), then unwrap and delete the child object (tests unwrap and
+    // delete), and last delete the root object (tests object deletion).
     //
-    // Pruning is disabled on this node's own schedule so it cannot race the
-    // relocation checks below; the pruner is instead driven once, explicitly,
-    // at the end.
+    // Pruning is disabled so it cannot race the relocation checks; expiry is
+    // driven explicitly at the end.
     #[sim_test]
     async fn object_pruning_test() {
         let test_cluster = TestClusterBuilder::new()
@@ -76,27 +76,24 @@ mod sim_only_tests {
         let unwrap_delete_effects =
             unwrap_and_delete_child(&test_cluster, package_id, object_id).await;
         let unwrap_delete_txn_digest = *unwrap_delete_effects.transaction_digest();
-        // Unwrapping takes only the root as an explicit input; the wrapped child
-        // never appears in this transaction's `modified_at_versions`, so relocation
-        // has nothing to move for it here. Its wrap tombstone stays live until the
-        // pruner's tombstone sweep catches it at the end of this test.
+        // The wrapped child is not in this transaction's `modified_at_versions`,
+        // so relocation has nothing to move for it; its wrap tombstone stays live
+        // until its bucket expires.
         let object_pre_unwrap_version = superseded_version(&unwrap_delete_effects, object_id);
 
         let delete_root_effects = delete_object(&test_cluster, package_id, object_id).await;
         let delete_root_obj_txn_digest = *delete_root_effects.transaction_digest();
         let object_pre_delete_version = superseded_version(&delete_root_effects, object_id);
 
-        let delete_root_checkpoint = fullnode
+        fullnode
             .with_async(|node| async {
-                // Wait for both transactions' checkpoints to execute and relocate the
-                // versions they superseded.
                 timeout(
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &unwrap_delete_txn_digest),
                 )
                 .await
                 .unwrap();
-                let delete_root_checkpoint = timeout(
+                timeout(
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &delete_root_obj_txn_digest),
                 )
@@ -107,43 +104,21 @@ mod sim_only_tests {
 
                 assert_relocated(&state, object_id, object_pre_unwrap_version);
                 assert_relocated(&state, object_id, object_pre_delete_version);
-
-                delete_root_checkpoint
             })
             .await;
+
+        // The tombstones are recorded in the current epoch's bucket, which can
+        // only expire once the epoch has ended.
+        test_cluster.force_new_epoch().await;
 
         fullnode
             .with_async(|node| async {
                 let state = node.state();
-                let checkpoint_store = state.get_checkpoint_store();
 
-                // The pruner's eligibility window leaves the newest executed
-                // checkpoint alone, so wait for at least one checkpoint past the
-                // final delete's before driving it — otherwise the root's last
-                // tombstone would not be eligible yet.
-                timeout(Duration::from_secs(60), async {
-                    loop {
-                        if checkpoint_store
-                            .get_highest_executed_checkpoint()
-                            .unwrap()
-                            .is_some_and(|c| c.sequence_number() > delete_root_checkpoint)
-                        {
-                            return;
-                        }
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                })
-                .await
-                .unwrap();
-
-                // The historic buckets are never pruned and the pruner itself is
-                // unchanged: manually driving it here still finds and removes both
-                // lineages' tombstone heads from the live table, exactly as it did
-                // before relocation existed.
+                // Expiring that bucket deletes its tombstones from the live table.
                 state
                     .database_for_testing()
-                    .prune_objects_and_compact_for_testing(checkpoint_store)
-                    .await;
+                    .expire_historic_objects_and_compact_for_testing();
 
                 // Check that both root and child objects are gone from object store.
                 assert_eq!(
@@ -160,8 +135,98 @@ mod sim_only_tests {
             .await;
     }
 
-    /// The version of `id` that `effects`' transaction superseded — its
-    /// pre-image is what relocation must have moved into the historic bucket.
+    // `iota_tryGetObjectBeforeVersion` bounded below an object's live version
+    // answers from the historic bucket.
+    //
+    // Pruning is disabled so that no bucket expiry runs before the read.
+    #[sim_test]
+    async fn try_get_object_before_version_reads_a_relocated_version() {
+        let test_cluster = TestClusterBuilder::new()
+            .disable_fullnode_pruning()
+            .build()
+            .await;
+        let fullnode = &test_cluster.fullnode_handle.iota_node;
+
+        let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
+        let created_version = test_cluster.get_latest_object_ref(&object_id).await.version;
+
+        let mutate_effects = create_and_wrap_child(&test_cluster, package_id, object_id).await;
+        let mutate_txn_digest = *mutate_effects.transaction_digest();
+
+        fullnode
+            .with_async(|node| async {
+                timeout(
+                    Duration::from_secs(60),
+                    wait_until_txn_in_checkpoint(node, &mutate_txn_digest),
+                )
+                .await
+                .unwrap();
+
+                let state = node.state();
+                assert_relocated(&state, object_id, created_version);
+                clear_caches_so_the_read_reaches_storage(&state);
+            })
+            .await;
+
+        let response = test_cluster
+            .rpc_client()
+            .try_get_object_before_version(object_id, created_version)
+            .await
+            .unwrap();
+
+        let IotaPastObjectResponse::VersionFound(object_data) = response else {
+            panic!("expected version {created_version} of {object_id}, got {response:?}");
+        };
+        assert_eq!(object_data.version, created_version);
+    }
+
+    // `iotax_getStakesByIds` still reports a withdrawn stake, reading the
+    // deleted `StakedIota`'s last version from the historic bucket.
+    //
+    // Pruning is disabled so that no bucket expiry runs before the read.
+    #[sim_test]
+    async fn a_withdrawn_stake_still_reports_its_status() {
+        let test_cluster = TestClusterBuilder::new()
+            .disable_fullnode_pruning()
+            .build()
+            .await;
+        let fullnode = &test_cluster.fullnode_handle.iota_node;
+
+        let staked_iota_id = add_stake(&test_cluster).await;
+        let withdraw_effects = withdraw_stake(&test_cluster, staked_iota_id).await;
+        let withdraw_txn_digest = *withdraw_effects.transaction_digest();
+        let version_before_withdrawal = superseded_version(&withdraw_effects, staked_iota_id);
+
+        fullnode
+            .with_async(|node| async {
+                timeout(
+                    Duration::from_secs(60),
+                    wait_until_txn_in_checkpoint(node, &withdraw_txn_digest),
+                )
+                .await
+                .unwrap();
+
+                let state = node.state();
+                assert_relocated(&state, staked_iota_id, version_before_withdrawal);
+                clear_caches_so_the_read_reaches_storage(&state);
+            })
+            .await;
+
+        let stakes = test_cluster
+            .rpc_client()
+            .get_stakes_by_ids(vec![staked_iota_id])
+            .await
+            .unwrap()
+            .into_iter()
+            .flat_map(|delegated| delegated.stakes)
+            .collect::<Vec<_>>();
+
+        assert_eq!(stakes.len(), 1);
+        assert_eq!(stakes[0].staked_iota_id, staked_iota_id);
+        assert!(matches!(stakes[0].status, StakeStatus::Unstaked));
+    }
+
+    /// The version of `id` that `effects`' transaction superseded.
     fn superseded_version(effects: &TransactionEffects, id: ObjectId) -> Version {
         effects
             .modified_at_versions()
@@ -175,9 +240,14 @@ mod sim_only_tests {
             })
     }
 
-    /// Asserts that `version` of `id` has left the live `objects` table and
-    /// arrived in the historic bucket — the two halves relocation must keep
-    /// true together, since a version is always readable from one of the two.
+    /// Drops the execution cache's copies of committed data, which would
+    /// otherwise answer a bounded read without reaching the historic bucket.
+    fn clear_caches_so_the_read_reaches_storage(state: &Arc<AuthorityState>) {
+        state.clear_execution_caches_for_testing();
+    }
+
+    /// Asserts that `version` of `id` has moved from the live `objects` table
+    /// to the historic bucket.
     fn assert_relocated(state: &Arc<AuthorityState>, id: ObjectId, version: Version) {
         assert!(
             !state
@@ -235,6 +305,102 @@ mod sim_only_tests {
             .created()[0]
             .reference()
             .object_id
+    }
+
+    async fn create_and_wrap_child(
+        test_cluster: &TestCluster,
+        package_id: ObjectId,
+        object_id: ObjectId,
+    ) -> TransactionEffects {
+        let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
+        test_cluster
+            .sign_and_execute_transaction(
+                &test_cluster
+                    .test_transaction_builder()
+                    .await
+                    .move_call(
+                        package_id,
+                        "objects",
+                        "create_and_wrap_child",
+                        vec![CallArg::ImmutableOrOwned(object), CallArg::pure(&false)],
+                    )
+                    .build(),
+            )
+            .await
+    }
+
+    /// Stakes a whole gas coin with the first active validator and returns the
+    /// `StakedIota` it created.
+    async fn add_stake(test_cluster: &TestCluster) -> ObjectId {
+        let sender = test_cluster.get_address_0();
+        let mut coins = test_cluster
+            .wallet
+            .get_gas_objects_owned_by_address(sender, 2)
+            .await
+            .unwrap();
+        let stake_coin = coins.pop().expect("the sender needs two gas coins");
+        let gas = coins.pop().expect("the sender needs two gas coins");
+
+        let validator_address = test_cluster
+            .swarm
+            .active_validators()
+            .next()
+            .unwrap()
+            .config()
+            .iota_address();
+
+        let effects = test_cluster
+            .sign_and_execute_transaction(
+                &test_cluster
+                    .test_transaction_builder_with_gas_object(sender, gas)
+                    .await
+                    .call_staking(stake_coin, validator_address)
+                    .build(),
+            )
+            .await;
+
+        let mut staked_iota_ids = vec![];
+        for created in effects.created() {
+            let object = test_cluster
+                .get_object_from_fullnode_store(&created.reference().object_id)
+                .await
+                .unwrap();
+            if StakedIota::try_from(&object).is_ok() {
+                staked_iota_ids.push(created.reference().object_id);
+            }
+        }
+        assert_eq!(staked_iota_ids.len(), 1);
+        staked_iota_ids[0]
+    }
+
+    async fn withdraw_stake(
+        test_cluster: &TestCluster,
+        staked_iota_id: ObjectId,
+    ) -> TransactionEffects {
+        let staked_iota = test_cluster
+            .wallet
+            .get_object_ref(staked_iota_id)
+            .await
+            .unwrap();
+        let effects = test_cluster
+            .sign_and_execute_transaction(
+                &test_cluster
+                    .test_transaction_builder()
+                    .await
+                    .move_call(
+                        ObjectId::SYSTEM,
+                        Identifier::IOTA_SYSTEM_MODULE.as_str(),
+                        "request_withdraw_stake",
+                        vec![
+                            CallArg::IOTA_SYSTEM_MUTABLE,
+                            CallArg::ImmutableOrOwned(staked_iota),
+                        ],
+                    )
+                    .build(),
+            )
+            .await;
+        assert_eq!(effects.deleted().len(), 1);
+        effects
     }
 
     async fn wrap_child(

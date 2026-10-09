@@ -233,6 +233,7 @@ pub mod authority_store_tables;
 pub mod authority_store_types;
 pub mod epoch_start_configuration;
 pub mod historic_objects;
+pub mod object_backlog_sweep;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
@@ -2863,12 +2864,23 @@ impl AuthorityState {
                 .num_latest_epoch_dbs_to_retain,
         )
         .await;
+        let num_epochs_to_retain = config.authority_store_pruning_config.num_epochs_to_retain;
+        if epoch_store.committee().authority_exists(&name)
+            && num_epochs_to_retain > 0
+            && num_epochs_to_retain < u64::MAX
+        {
+            warn!(
+                num_epochs_to_retain,
+                "this validator retains superseded object versions it does not serve, which \
+                 grows its database; lowering the retention later expires every epoch they \
+                 span in one epoch boundary. Set 0 to retain none beyond the current epoch."
+            );
+        }
         let pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             rpc_indexes_store.clone(),
             config.authority_store_pruning_config.clone(),
-            epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
             checkpoint_progress_tracker.clone(),
@@ -2982,6 +2994,14 @@ impl AuthorityState {
         self.execution_cache_trait_pointers
             .testing_api
             .database_for_testing()
+    }
+
+    /// Drops the execution cache's copies of committed data, so that reads
+    /// issued afterwards answer from the store.
+    pub fn clear_execution_caches_for_testing(&self) {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .clear_caches_for_testing()
     }
 
     pub async fn prune_checkpoints_for_eligible_epochs_for_testing(
@@ -3212,11 +3232,7 @@ impl AuthorityState {
             .await;
 
         let new_epoch = new_committee.epoch;
-        // Create the new epoch's historic-object bucket while execution is
-        // stopped: creating a column family is a blocking RocksDB operation,
-        // and the first checkpoint commit of the epoch would otherwise wait
-        // for it.
-        self.historic_objects.ensure(new_epoch)?;
+        self.advance_historic_objects(new_epoch).await?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,
@@ -3238,6 +3254,49 @@ impl AuthorityState {
         // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match
         Ok(new_epoch_store)
+    }
+
+    /// Opens `new_epoch`'s historic-object bucket and expires the buckets that
+    /// have fallen outside the configured object retention.
+    ///
+    /// Creating the bucket is done here, while execution is stopped, because
+    /// creating a column family is a blocking RocksDB operation the epoch's
+    /// first checkpoint commit would otherwise wait for. It is fatal: without
+    /// its bucket the epoch has nowhere to relocate superseded versions to.
+    ///
+    /// Expiry is the same retention pass the epoch boundary is the natural
+    /// place for — a bucket can only fall out of a window counted in epochs
+    /// here — and it is not fatal. A bucket it fails to finish keeps its
+    /// durable expiring marker, so its versions stay unreadable and its
+    /// tombstones stay in the live table, and the next open finishes the job;
+    /// failing the reconfiguration instead would halt the node at a boundary
+    /// it would then fail again on every retry.
+    async fn advance_historic_objects(&self, new_epoch: EpochId) -> IotaResult<()> {
+        self.historic_objects.ensure(new_epoch)?;
+
+        // `num_epochs_to_retain` counts the historic epochs kept beyond the
+        // current one, while `prune` counts buckets including the newest.
+        let num_epochs_to_retain = self
+            .config
+            .authority_store_pruning_config
+            .num_epochs_to_retain;
+        if num_epochs_to_retain == u64::MAX {
+            return Ok(());
+        }
+
+        // `prune` deletes the expiring epochs' tombstone heads and drops their
+        // column families, blocking for as long as that takes; it must not run
+        // on an async worker.
+        let historic_objects = self.historic_objects.clone();
+        let expired =
+            tokio::task::spawn_blocking(move || historic_objects.prune(num_epochs_to_retain + 1))
+                .await;
+        match expired {
+            Ok(Ok(_)) => {}
+            Ok(Err(err)) => error!("Failed to expire historic object buckets: {err:?}"),
+            Err(err) => error!("The historic object expiry task failed: {err:?}"),
+        }
+        Ok(())
     }
 
     /// Advance the epoch store to the next epoch for testing only.

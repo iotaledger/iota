@@ -380,7 +380,7 @@ impl CachedCommittedData {
         }
     }
 
-    fn clear_and_assert_empty(&self) {
+    fn clear(&self) {
         self.object_cache.invalidate_all();
         self.marker_cache.invalidate_all();
         self.transactions.invalidate_all();
@@ -388,6 +388,10 @@ impl CachedCommittedData {
         self.transaction_events.invalidate_all();
         self.executed_effects_digests.invalidate_all();
         self._transaction_objects.invalidate_all();
+    }
+
+    fn clear_and_assert_empty(&self) {
+        self.clear();
 
         assert_empty(&self.object_cache);
         assert_empty(&self.marker_cache);
@@ -1319,6 +1323,18 @@ impl WritebackCache {
         self.store.insert_genesis_object(object)
     }
 
+    /// Drops everything held for committed data, leaving the uncommitted
+    /// `dirty` set alone, so reads answer from the store as after a restart.
+    ///
+    /// Unlike `clear_caches_and_assert_empty`, this asserts nothing and is safe
+    /// to call while the node keeps executing.
+    pub fn clear_caches(&self) {
+        info!("clearing caches");
+        self.cached.clear();
+        self.object_by_id_cache.invalidate_all();
+        self.packages.invalidate_all();
+    }
+
     pub fn clear_caches_and_assert_empty(&self) {
         info!("clearing caches");
         self.cached.clear_and_assert_empty();
@@ -1687,7 +1703,10 @@ impl ObjectCacheRead for WritebackCache {
                         // But we already know there is no dirty entry within the bound,
                         // so we go to the db.
                         self.record_db_get("object_lt_or_eq_version_scan")
-                            .find_object_lt_or_eq_version(object_id, version_bound)
+                            .find_object_lt_or_eq_version_with_historic_fallback(
+                                object_id,
+                                version_bound,
+                            )
                     }
 
                 // no object found in dirty set or db, object does not exist
@@ -1831,13 +1850,6 @@ impl ObjectCacheRead for WritebackCache {
             },
         )?;
         Ok(())
-    }
-
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.store
-            .perpetual_tables
-            .get_highest_pruned_checkpoint()
-            .map_err(IotaError::from)
     }
 
     fn notify_read_input_objects<'a>(
@@ -2265,6 +2277,10 @@ impl ExecutionCacheReconfigAPI for WritebackCache {
 impl TestingAPI for WritebackCache {
     fn database_for_testing(&self) -> Arc<AuthorityStore> {
         self.store.clone()
+    }
+
+    fn clear_caches_for_testing(&self) {
+        self.clear_caches();
     }
 }
 
