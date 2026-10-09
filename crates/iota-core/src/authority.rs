@@ -1277,10 +1277,9 @@ impl AuthorityState {
     /// inputs and receiving objects are read as of that commit through the
     /// commit-indexed reader. Returns `Drop` or `Missing` when one of them is
     /// dropped or not visible yet. Any other failed check returns the same
-    /// `Err` as at admission. The coin deny list is read epoch-gated, so every
-    /// validator gets the same answer. The Move authenticator's account is not
-    /// resolved and the authenticators are not run here: both happen at
-    /// execution.
+    /// `Err` as at admission. The Move authenticator's account is not
+    /// resolved, the authenticators are not run and the coin deny list is not
+    /// checked here: all three happen at execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1292,8 +1291,6 @@ impl AuthorityState {
     ) -> IotaResult<ValidationAtCommit> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
-
-        let epoch = epoch_store.epoch();
 
         let tx = transaction.data().transaction();
 
@@ -1361,20 +1358,9 @@ impl AuthorityState {
             "Move authenticator input objects must not contain owned objects"
         );
 
-        // Epoch-gated: the result decides whether the transaction stays in
-        // the committed set, so it must not depend on this validator's
-        // execution progress. Receiving objects are not read at a commit, so
-        // received coins are left to the check at execution, which looks only
-        // at the new owners: a denied sender can receive a coin of a denied
-        // type and pass it on.
-        check_coin_deny_list_v1(
-            tx.sender(),
-            &tx_checked_input_objects,
-            &ReceivingObjects::from(vec![]),
-            &per_authenticator_checked_input_objects,
-            &self.get_object_store(),
-            Some(epoch),
-        )?;
+        // The coin deny list is not checked here either. It reads the coin
+        // type of every input, and neither a live shared input nor a
+        // receiving object is read here.
 
         Ok(ValidationAtCommit::Keep(
             tx_checked_input_objects.inner().filter_owned_objects(),
@@ -6026,6 +6012,12 @@ impl AuthorityState {
             // dynamic field because it is greater than the version of the child dynamic
             // field.
             (ObjectReadResultKind::CancelledTransactionObject(version), true) => Ok(*version),
+            // A transaction validated post-consensus at a commit leaves its account
+            // to execution, which reads it, so no check gets an unread account.
+            (ObjectReadResultKind::UnreadSharedObject, _) => unreachable!(
+                "only post-consensus validation at a commit lists an unread shared object, and \
+                    it leaves the account to execution"
+            ),
         }?;
 
         let authenticator_function_ref_field_id =

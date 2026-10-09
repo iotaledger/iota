@@ -135,7 +135,7 @@ impl CommitIndexedReader {
         {
             SharedTablesLookup::Created(created) => {
                 return match created.read_object(self)? {
-                    CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                    CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
                     CreatedObjectLookup::Absent(object_absent) => {
                         self.check_deletion(object_absent)
                     }
@@ -153,10 +153,10 @@ impl CommitIndexedReader {
             .reread_creation_row(self)?
         {
             SharedTablesRecheck::Created(created) => match created.read_object(self)? {
-                CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
                 CreatedObjectLookup::Absent(object_absent) => self.check_deletion(object_absent),
             },
-            SharedTablesRecheck::Exists(object) => Ok(SharedVerdict::Exists(object)),
+            SharedTablesRecheck::Exists => Ok(SharedVerdict::Exists),
             SharedTablesRecheck::Missing(reason) => Ok(SharedVerdict::Missing(reason)),
             SharedTablesRecheck::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
             SharedTablesRecheck::Absent(object_absent) => self.check_deletion(object_absent),

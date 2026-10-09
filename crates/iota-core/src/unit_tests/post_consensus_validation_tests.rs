@@ -22,9 +22,7 @@ use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     crypto::{AccountPrivateKey, get_key_pair},
-    deny_list_v1::{
-        check_address_denied_by_config, check_global_pause, get_per_type_coin_deny_list_v1,
-    },
+    deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
     dynamic_field::get_dynamic_field_object_from_store,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
@@ -4044,7 +4042,7 @@ async fn change_epoch_execution_leaves_no_bookkeeping() {
 fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
     match verdict {
         SharedVerdict::Drop(reason) => assert_eq!(reason.kind(), kind),
-        SharedVerdict::Exists(_) => panic!("expected a drop, got exists"),
+        SharedVerdict::Exists => panic!("expected a drop, got exists"),
         SharedVerdict::Deleted(version, digest) => {
             panic!("expected a drop, got deleted at {version} by {digest}")
         }
@@ -4056,7 +4054,7 @@ fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
 fn assert_shared_missing(verdict: SharedVerdict, kind: MissingKind) {
     match verdict {
         SharedVerdict::Missing(reason) => assert_eq!(reason.kind(), kind),
-        SharedVerdict::Exists(_) => panic!("expected missing, got exists"),
+        SharedVerdict::Exists => panic!("expected missing, got exists"),
         SharedVerdict::Deleted(version, digest) => {
             panic!("expected missing, got deleted at {version} by {digest}")
         }
@@ -4079,7 +4077,7 @@ fn assert_deleted_at(verdict: SharedVerdict, expected_version: Version) -> Trans
             assert_eq!(version, expected_version);
             digest
         }
-        SharedVerdict::Exists(_) => panic!("expected deleted, got exists"),
+        SharedVerdict::Exists => panic!("expected deleted, got exists"),
         SharedVerdict::Drop(reason) => panic!("expected deleted, got drop {reason:?}"),
         SharedVerdict::Missing(reason) => panic!("expected deleted, got missing {reason:?}"),
     }
@@ -4339,8 +4337,9 @@ async fn loader_stops_at_a_package_published_above_the_horizon() {
 }
 
 /// Every input kind resolves to the read result the input checks expect:
-/// the package from epoch-start state, the shared object at this
-/// validator's latest version, the gas coin at the named reference.
+/// the package from epoch-start state, the gas coin at the named reference,
+/// and the shared object as an unread shared object, since its contents are
+/// not read.
 #[tokio::test]
 async fn loader_resolves_every_input_kind_at_a_commit() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -4382,11 +4381,15 @@ async fn loader_resolves_every_input_kind_at_a_commit() {
                 assert_eq!(object.id(), s.package_id);
             }
             (
-                InputObjectKind::SharedMoveObject { id, .. },
-                ObjectReadResultKind::Object(object),
+                InputObjectKind::SharedMoveObject {
+                    id,
+                    initial_shared_version,
+                    ..
+                },
+                ObjectReadResultKind::UnreadSharedObject,
             ) => {
                 assert_eq!(&id, shared_id);
-                assert_eq!(object.owner, Owner::Shared(initial));
+                assert_eq!(initial_shared_version, initial);
             }
             (
                 InputObjectKind::ImmOrOwnedMoveObject(reference),
@@ -7750,8 +7753,6 @@ struct SharedRegulatedCoin {
 /// state.
 #[derive(Clone, Copy, Default)]
 struct RegulatedCoinOptions {
-    /// Pauses the coin type for every address instead of denying one.
-    global_pause: bool,
     /// Shares the coin handler-known at this commit of epoch 1 instead of
     /// before the epoch.
     share_at: Option<CommitIndex>,
@@ -7889,11 +7890,11 @@ fn share_zero_regulated_coin(
 
 /// Two validators of one chain at epoch 1, with deterministic validation on
 /// and the state of [`SharedRegulatedCoin`], built as `options` asks. Epoch 0
-/// publishes the coin, hands out the owned coins and denies the address (or
-/// pauses the type) with deterministic validation off, as its executions run
-/// outside any consensus commit; the epoch change turns it on and makes the
-/// denial active for the epoch-gated read. The first setup holds the
-/// protocol config override for both.
+/// publishes the coin, hands out the owned coins and denies the address with
+/// deterministic validation off, as its executions run outside any consensus
+/// commit; the epoch change turns it on and makes the denial active for the
+/// epoch-gated read. The first setup holds the protocol config override for
+/// both.
 async fn setup_validators_with_a_shared_regulated_coin(
     options: RegulatedCoinOptions,
 ) -> (BookkeepingSetup, BookkeepingSetup, SharedRegulatedCoin) {
@@ -7987,18 +7988,13 @@ async fn setup_validators_with_a_shared_regulated_coin(
         };
         let owned_coins = (coin_of(denied), coin_of(other));
 
-        let mut deny_args = vec![
+        let deny_args = vec![
             s.shared_arg(&ObjectId::DENY_LIST),
             CallArg::ImmutableOrOwned(deny_cap),
+            CallArg::Pure(bcs::to_bytes(&denied).unwrap()),
         ];
-        let deny_function = if options.global_pause {
-            "deny_list_v1_enable_global_pause"
-        } else {
-            deny_args.push(CallArg::Pure(bcs::to_bytes(&denied).unwrap()));
-            "deny_list_v1_add"
-        };
         let deny = TestTransactionBuilder::new(publisher, s.latest_ref(&publisher_gas), s.rgp)
-            .move_call(ObjectId::FRAMEWORK, "coin", deny_function, deny_args)
+            .move_call(ObjectId::FRAMEWORK, "coin", "deny_list_v1_add", deny_args)
             .with_type_args(vec![coin_type.clone()])
             .build();
         s.execute_with_assigned_shared_versions(
@@ -8053,11 +8049,7 @@ async fn setup_validators_with_a_shared_regulated_coin(
         let epoch = Some(s.epoch_store.epoch());
         let store = s.authority.get_object_store();
         assert!(
-            if options.global_pause {
-                check_global_pause(&config, &store, epoch)
-            } else {
-                check_address_denied_by_config(&config, denied, &store, epoch)
-            },
+            check_address_denied_by_config(&config, denied, &store, epoch),
             "the denial must be active for the epoch-gated read"
         );
     }
@@ -8126,13 +8118,7 @@ async fn run_shared_coin_deletion_verdict_comparison(
 /// the horizon of commit 12. Commit 12 holds a transaction naming the coin,
 /// sent by an address the coin type's deny list denies. Every validator must
 /// keep or drop it alike, whether or not it has executed the deletion.
-///
-/// Currently fails: the reader answers `Deleted` where the deletion executed
-/// and `Exists` where it did not, and the coin deny check takes the coin type
-/// only from an existing object, so it drops the transaction only on the
-/// validator that has not executed the deletion.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator() {
     run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11).await;
 }
@@ -8143,12 +8129,7 @@ async fn shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validat
 /// commit 11 are durable. On replay the deletion is not executed, as on the
 /// second validator here, and the commit must replay without stopping the
 /// node, with the saved decision.
-///
-/// Currently fails: the replay reads the coin as existing, the coin deny
-/// check drops the transaction the first run kept, and validation stops the
-/// node on the disagreement with the saved decision.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn replay_after_losing_a_shared_coin_deletion_repeats_the_saved_verdict() {
     run_shared_coin_deletion_replay(RegulatedCoinOptions::default()).await;
 }
@@ -8670,62 +8651,24 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
 /// As [`shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator`],
 /// with the coin shared at commit 5 of the current epoch, so the reader finds
 /// it through its creation row.
-///
-/// Currently fails: the creation row leads to `Deleted` where the deletion
-/// executed and to `Exists` where it did not, and the coin deny check drops
-/// the transaction only on the validator that has not executed it.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn shared_coin_created_this_epoch_and_deleted_above_the_horizon_gets_one_verdict() {
-    run_shared_coin_deletion_verdict_comparison(
-        RegulatedCoinOptions {
-            share_at: Some(5),
-            ..Default::default()
-        },
-        11,
-    )
-    .await;
+    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions { share_at: Some(5) }, 11)
+        .await;
 }
 
 /// As [`replay_after_losing_a_shared_coin_deletion_repeats_the_saved_verdict`],
 /// with the coin shared at commit 5 of the current epoch.
-///
-/// Currently fails: the replay reads the coin as existing, the coin deny
-/// check drops the transaction the first run kept, and validation stops the
-/// node on the disagreement with the saved decision.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn replay_after_losing_the_deletion_of_a_coin_shared_this_epoch_repeats_the_saved_verdict() {
-    run_shared_coin_deletion_replay(RegulatedCoinOptions {
-        share_at: Some(5),
-        ..Default::default()
-    })
-    .await;
-}
-
-/// As [`shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator`],
-/// with the coin type paused for every address instead of one address denied.
-///
-/// Currently fails: the coin deny check sees the paused coin type only where
-/// the shared coin still exists, so it drops the transaction only on the
-/// validator that has not executed the deletion.
-#[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
-async fn paused_shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator() {
-    run_shared_coin_deletion_verdict_comparison(
-        RegulatedCoinOptions {
-            global_pause: true,
-            ..Default::default()
-        },
-        11,
-    )
-    .await;
+    run_shared_coin_deletion_replay(RegulatedCoinOptions { share_at: Some(5) }).await;
 }
 
 /// The denied address's entry is removed at commit 11, above the horizon of
-/// commit 12, on one validator only. The removal takes effect next epoch, so
-/// a transfer of the address's own regulated coin at commit 12 drops on both
-/// validators, whether or not they executed the removal.
+/// commit 12, on one validator only. The coin deny list is not read at the
+/// commit, so a transfer of the address's own regulated coin at commit 12 is
+/// kept on both validators, whether or not they executed the removal, and
+/// execution decides on the deny list as settled before this epoch.
 #[tokio::test]
 async fn deny_entry_removed_above_the_horizon_gets_one_verdict_on_every_validator() {
     let (removed, not_removed, coin) =
@@ -8745,15 +8688,7 @@ async fn deny_entry_removed_above_the_horizon_gets_one_verdict_on_every_validato
     let on_not_removed = not_removed
         .validate_at(12, std::slice::from_ref(&transfer))
         .await;
-    assert!(
-        matches!(
-            on_not_removed.dropped.as_slice(),
-            [(_, IotaError::UserInput {
-                error: UserInputError::AddressDeniedForCoin { address, .. }
-            })] if *address == coin.denied
-        ),
-        "{on_not_removed:?}"
-    );
+    assert_eq!(on_not_removed.kept, vec![*transfer.digest()]);
     assert_eq!(on_removed, on_not_removed);
 }
 
