@@ -3364,8 +3364,9 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk-crypto"
-version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5cdf671c0e73e41571975a6504eed6d917889a0f#5cdf671c0e73e41571975a6504eed6d917889a0f"
+version = "1.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "610b062ef17bad0f06da044b7b9de903e06ad142625458dbb73e56b761575c2a"
 dependencies = [
  "base64ct",
  "bech32 0.12.0",
@@ -3380,8 +3381,9 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk-grpc-client"
-version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5cdf671c0e73e41571975a6504eed6d917889a0f#5cdf671c0e73e41571975a6504eed6d917889a0f"
+version = "1.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30353f3b33e0d307bd5f9464dc2f1b2ca73f58ac050f44183b4918d4e43a6254"
 dependencies = [
  "async-stream",
  "base64 0.23.1",
@@ -3400,8 +3402,9 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk-grpc-types"
-version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5cdf671c0e73e41571975a6504eed6d917889a0f#5cdf671c0e73e41571975a6504eed6d917889a0f"
+version = "1.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1038f684323581d52cd210d743f98ef2dbb0ca853fb08618ac9bd8afffe445e9"
 dependencies = [
  "bcs 0.2.1",
  "iota-sdk-types",
@@ -3416,8 +3419,9 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk-move-types"
-version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5cdf671c0e73e41571975a6504eed6d917889a0f#5cdf671c0e73e41571975a6504eed6d917889a0f"
+version = "1.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7b51732265a246eff5ba67f674bdf928372251a8bb792a6ad9af3e9a4358fc3"
 dependencies = [
  "bcs 0.2.1",
  "filetime",
@@ -3431,8 +3435,9 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk-transaction-builder"
-version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5cdf671c0e73e41571975a6504eed6d917889a0f#5cdf671c0e73e41571975a6504eed6d917889a0f"
+version = "1.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "410cb2666bd3c6b342496419c52694b372e2493655400767b2bb3ef996b24b37"
 dependencies = [
  "bcs 0.2.1",
  "derive_more 2.1.1",
@@ -3449,8 +3454,9 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk-types"
-version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5cdf671c0e73e41571975a6504eed6d917889a0f#5cdf671c0e73e41571975a6504eed6d917889a0f"
+version = "1.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22f3c4059fc01eeeb3803f160a5a20073385d033b8d7b70fbe1a3bc69adb457c"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
