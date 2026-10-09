@@ -10,12 +10,12 @@ use std::{
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use crate::metrics::{ListenerMetrics, TrackedConnection};
+use crate::metrics::{ConnectionGuard, ListenerMetrics};
 
 /// IO wrapper made at accept. Its drop is the close of the connection.
 pub(crate) struct TrackedIo<IO> {
     io: IO,
-    connection: Option<TrackedConnection>,
+    connection: Option<ConnectionGuard>,
 }
 
 impl<IO> TrackedIo<IO> {
@@ -28,16 +28,8 @@ impl<IO> TrackedIo<IO> {
         }
     }
 
-    pub(crate) fn connection(&self) -> Option<&TrackedConnection> {
+    pub(crate) fn connection(&self) -> Option<&ConnectionGuard> {
         self.connection.as_ref()
-    }
-}
-
-impl<IO> Drop for TrackedIo<IO> {
-    fn drop(&mut self) {
-        if let Some(connection) = self.connection.take() {
-            connection.record_close();
-        }
     }
 }
 

@@ -9,7 +9,7 @@ pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
-use metrics::{HandshakeResult, ListenerMetrics, TrackedIo};
+use metrics::{HandshakeResult, TrackedIo};
 use tokio::task::JoinSet;
 use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
@@ -52,14 +52,6 @@ impl Builder {
 
     pub fn config(mut self, config: Config) -> Self {
         self.config = config;
-        self
-    }
-
-    /// Sets the metrics of the listener, and nothing else of the configuration.
-    /// Call it after [`config`](Self::config), which replaces the whole
-    /// configuration, the metrics too.
-    pub fn metrics(mut self, metrics: Option<ListenerMetrics>) -> Self {
-        self.config.metrics = metrics;
         self
     }
 
@@ -318,35 +310,28 @@ where
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
             let handshake_timeout = self.config.handshake_timeout;
-            let handshake_guard = io.connection().and_then(|c| c.start_handshake());
+            let handshake_guard = io.connection().and_then(|c| c.record_handshake_start());
             self.pending_connections.spawn(async move {
-                let (result, outcome) = tokio::select! {
-                    result = handshake(io, remote_addr, tls_acceptor) => {
-                        let outcome = if result.is_ok() {
-                            HandshakeResult::Completed
-                        } else {
-                            HandshakeResult::Failed
-                        };
-                        (result, outcome)
-                    },
+                let result = tokio::select! {
+                    result = handshake(io, remote_addr, tls_acceptor) => Some(result),
                     // Dropping the handshake closes the connection, releasing its file descriptor.
-                    _ = sleep_or_pending(handshake_timeout) => (
-                        Err(std::io::Error::new(
-                            std::io::ErrorKind::TimedOut,
-                            "TLS handshake timed out",
-                        )
-                        .into()),
-                        HandshakeResult::TimedOut,
-                    ),
+                    _ = sleep_or_pending(handshake_timeout) => None,
                 };
-                if let Some(guard) = &handshake_guard {
-                    guard.record_result(outcome);
+                if let Some(guard) = handshake_guard {
+                    guard.record_result(match &result {
+                        Some(Ok(_)) => HandshakeResult::Completed,
+                        Some(Err(_)) => HandshakeResult::Failed,
+                        None => HandshakeResult::TimedOut,
+                    });
                 }
-                result
+                result.unwrap_or_else(|| {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "TLS handshake timed out",
+                    )
+                    .into())
+                })
             });
-            if let Some(metrics) = &self.config.metrics {
-                metrics.record_pending_handshakes(self.pending_connections.len());
-            }
         } else {
             self.handle_connection(ServerIo::new_io(io), remote_addr);
         }
@@ -481,21 +466,6 @@ mod tests {
     use axum::Router;
 
     use super::*;
-
-    #[test]
-    fn metrics_leave_the_rest_of_the_configuration() {
-        let registry = prometheus_filtered::Registry::new();
-        let metrics = ListenerMetrics::new("t", &registry, prometheus_filtered::MetricLevel::Info);
-        let builder = Builder::new()
-            .config(Config::default().max_connection_age(Duration::from_secs(7)))
-            .metrics(Some(metrics));
-        assert_eq!(
-            builder.config.max_connection_age,
-            Some(Duration::from_secs(7))
-        );
-        assert!(builder.config.metrics.is_some());
-        assert!(builder.metrics(None).config.metrics.is_none());
-    }
 
     #[tokio::test]
     async fn simple() {

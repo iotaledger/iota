@@ -43,7 +43,7 @@ pub fn serve_handle(
     tls_config: Option<rustls::ServerConfig>,
     app: Router,
 ) -> iota_http::ServerHandle<SocketAddr> {
-    let mut builder = Builder::new().config(config).metrics(Some(metrics.clone()));
+    let mut builder = Builder::new().config(config.metrics(Some(metrics.clone())));
     if let Some(tls_config) = tls_config {
         builder = builder.tls_config(tls_config);
     }

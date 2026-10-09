@@ -3,7 +3,13 @@
 
 //! The TLS handshakes of a listener.
 
-use std::time::Instant;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
 
 use iota_metrics::peak::PeakGauge;
 use prometheus_filtered::{
@@ -11,7 +17,7 @@ use prometheus_filtered::{
 };
 
 /// Handshake durations in seconds.
-const HANDSHAKE_SECONDS_BUCKETS: &[f64] = &[0.1, 1.0, 5.0];
+const HANDSHAKE_LATENCY_SEC_BUCKETS: &[f64] = &[0.1, 1.0, 5.0];
 
 /// The result of a TLS handshake.
 #[derive(Clone, Copy, strum::IntoStaticStr)]
@@ -20,24 +26,28 @@ pub(crate) enum HandshakeResult {
     Completed,
     Failed,
     TimedOut,
+    /// The handshake was cancelled, as at the shutdown of the server.
+    Dropped,
 }
 
 pub(super) struct Metrics {
     handshake_latency: HistogramVec,
     pending_handshakes_peak: PeakGauge,
+    /// The handshakes in progress: one per live `HandshakeGuard`.
+    pending_handshakes: AtomicU64,
 }
 
 impl Metrics {
-    pub(super) fn new(prefix: &str, registry: &Registry) -> Self {
+    pub(super) fn new(prefix: &str, registry: &Registry, level: MetricLevel) -> Self {
         Self {
             handshake_latency: register_histogram_vec_with_registry!(
                 format!("{prefix}_handshake_latency"),
                 "Time of a TLS handshake in seconds, from the start of the TLS accept. The \
-                 result is completed, failed or timed_out",
+                 result is completed, failed, timed_out or dropped",
                 &["result"],
-                HANDSHAKE_SECONDS_BUCKETS.to_vec(),
+                HANDSHAKE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry;
-                MetricLevel::Info
+                level
             )
             .expect("the metrics of a listener register without collision"),
             pending_handshakes_peak: PeakGauge::register(
@@ -47,38 +57,52 @@ impl Metrics {
                  accepting",
                 module_path!(),
                 registry,
-                MetricLevel::Info,
+                level,
             ),
-        }
-    }
-
-    /// Records the connections in the set of pending handshakes.
-    pub(super) fn record_pending_handshakes(&self, pending: usize) {
-        self.pending_handshakes_peak.observe(pending as u64);
-    }
-
-    /// Starts to time a TLS handshake.
-    pub(super) fn start_handshake(&self) -> HandshakeGuard {
-        HandshakeGuard {
-            handshake_latency: self.handshake_latency.clone(),
-            started_at: Instant::now(),
+            pending_handshakes: AtomicU64::new(0),
         }
     }
 }
 
-/// A TLS handshake in progress.
+/// Records the start of a TLS handshake: times it, and counts it as pending
+/// until the guard is dropped.
+pub(super) fn record_handshake_start(metrics: &Arc<Metrics>) -> HandshakeGuard {
+    let pending = metrics.pending_handshakes.fetch_add(1, Ordering::Relaxed) + 1;
+    metrics.pending_handshakes_peak.observe(pending);
+    HandshakeGuard {
+        metrics: metrics.clone(),
+        started_at: Instant::now(),
+        result: HandshakeResult::Dropped,
+    }
+}
+
+/// A TLS handshake in progress. Dropping it records the handshake, as
+/// `dropped` if no result was recorded.
 pub(crate) struct HandshakeGuard {
-    handshake_latency: HistogramVec,
+    metrics: Arc<Metrics>,
     started_at: Instant,
+    result: HandshakeResult,
 }
 
 impl HandshakeGuard {
-    pub(crate) fn record_result(&self, result: HandshakeResult) {
-        let result: &str = result.into();
-        self.handshake_latency.with_label_values(&[result]).observe(
-            Instant::now()
-                .saturating_duration_since(self.started_at)
-                .as_secs_f64(),
-        );
+    pub(crate) fn record_result(mut self, result: HandshakeResult) {
+        self.result = result;
+    }
+}
+
+impl Drop for HandshakeGuard {
+    fn drop(&mut self) {
+        self.metrics
+            .pending_handshakes
+            .fetch_sub(1, Ordering::Relaxed);
+        let result: &str = self.result.into();
+        self.metrics
+            .handshake_latency
+            .with_label_values(&[result])
+            .observe(
+                Instant::now()
+                    .saturating_duration_since(self.started_at)
+                    .as_secs_f64(),
+            );
     }
 }

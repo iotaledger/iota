@@ -201,6 +201,38 @@ async fn garbage_instead_of_a_client_hello_is_a_failed_handshake() {
 }
 
 #[tokio::test]
+async fn a_handshake_pending_at_shutdown_is_dropped() {
+    let (reader, metrics) = setup();
+    let (server_config, _) = tls_configs();
+    let handle = serve_handle(Config::default(), &metrics, Some(server_config), ok_app());
+
+    let _silent = TcpStream::connect(handle.local_addr()).await.unwrap();
+    wait_until("the connection to be counted", || {
+        reader.value("inbound_connections", &[]) == 1.0
+    })
+    .await;
+
+    handle.trigger_shutdown();
+    wait_until("the handshake to be dropped", || {
+        reader
+            .histogram_totals("handshake_latency", &[("result", "dropped")])
+            .count
+            == 1
+    })
+    .await;
+    assert_eq!(
+        reader
+            .histogram_totals("handshake_latency", &[("result", "completed")])
+            .count,
+        0
+    );
+    wait_until("the close", || {
+        reader.value("inbound_connections", &[]) == 0.0
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn pending_handshakes_peak_counts_the_silent_connections() {
     let (reader, metrics) = setup();
     let addr = serve_tls(Config::default(), &metrics, ok_app());

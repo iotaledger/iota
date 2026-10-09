@@ -23,13 +23,14 @@ mod io;
 mod scope;
 mod tls;
 
-pub(crate) use connection::TrackedConnection;
+pub(crate) use connection::ConnectionGuard;
 pub(crate) use io::TrackedIo;
 use scope::Scope;
 pub(crate) use tls::HandshakeResult;
 
 /// Connection lifetimes in seconds.
-const LIFETIME_SECONDS_BUCKETS: &[f64] = &[1.0, 5.0, 30.0, 60.0, 300.0, 1800.0, 14400.0, 86400.0];
+const CONNECTION_LIFETIME_SEC_BUCKETS: &[f64] =
+    &[1.0, 5.0, 30.0, 60.0, 300.0, 1800.0, 14400.0, 86400.0];
 
 /// The metrics of one listener, and the state they need.
 #[derive(Clone)]
@@ -44,19 +45,18 @@ impl fmt::Debug for ListenerMetrics {
 }
 
 impl ListenerMetrics {
-    /// Registers the metrics as `{prefix}_<name>` in `registry`, at level
-    /// `Info`, except the counter of the accepted connections, which gets
-    /// `connection_counts_level`. The TLS metrics are registered later, by
-    /// `enable_tls`.
+    /// Registers the metrics as `{prefix}_<name>` in `registry`, all at
+    /// `level`. The TLS metrics are registered later, by `enable_tls`.
     ///
     /// # Panics
     ///
     /// Panics if the same `prefix` is registered twice in one registry.
-    pub fn new(prefix: &str, registry: &Registry, connection_counts_level: MetricLevel) -> Self {
+    pub fn new(prefix: &str, registry: &Registry, level: MetricLevel) -> Self {
         Self(Arc::new(Inner {
             prefix: prefix.to_owned(),
             registry: registry.clone(),
-            metrics: Metrics::new(prefix, registry, connection_counts_level),
+            level,
+            metrics: Metrics::new(prefix, registry, level),
             tls: OnceLock::new(),
         }))
     }
@@ -64,21 +64,18 @@ impl ListenerMetrics {
     /// Registers the TLS metrics. The server calls it when it starts with TLS;
     /// a second call does nothing.
     pub(crate) fn enable_tls(&self) {
-        self.0
-            .tls
-            .get_or_init(|| tls::Metrics::new(&self.0.prefix, &self.0.registry));
-    }
-
-    /// Records the connections in the set of pending handshakes.
-    pub(crate) fn record_pending_handshakes(&self, pending: usize) {
-        if let Some(tls) = self.0.tls.get() {
-            tls.record_pending_handshakes(pending);
-        }
+        self.0.tls.get_or_init(|| {
+            Arc::new(tls::Metrics::new(
+                &self.0.prefix,
+                &self.0.registry,
+                self.0.level,
+            ))
+        });
     }
 
     /// Counts a socket the listener has just accepted, before any TLS
     /// handshake.
-    fn record_accept(&self, remote: SocketAddr) -> TrackedConnection {
+    fn record_accept(&self, remote: SocketAddr) -> ConnectionGuard {
         let metrics = &self.0.metrics;
         let scope: &str = Scope::of(remote.ip()).into();
         metrics
@@ -86,16 +83,17 @@ impl ListenerMetrics {
             .with_label_values(&[scope])
             .inc();
         metrics.inbound_connections.inc();
-        TrackedConnection::new(self.0.clone())
+        ConnectionGuard::new(self.0.clone())
     }
 }
 
 struct Inner {
     prefix: String,
     registry: Registry,
+    level: MetricLevel,
     metrics: Metrics,
     /// Registered when the listener starts with TLS.
-    tls: OnceLock<tls::Metrics>,
+    tls: OnceLock<Arc<tls::Metrics>>,
 }
 
 struct Metrics {
@@ -105,7 +103,7 @@ struct Metrics {
 }
 
 impl Metrics {
-    fn new(prefix: &str, registry: &Registry, connection_counts_level: MetricLevel) -> Self {
+    fn new(prefix: &str, registry: &Registry, level: MetricLevel) -> Self {
         Self {
             inbound_connections_accepted: register_int_counter_vec_with_registry!(
                 format!("{prefix}_inbound_connections_accepted"),
@@ -113,7 +111,7 @@ impl Metrics {
                  The scope is where the remote address is: loopback, private or public",
                 &["scope"],
                 registry;
-                connection_counts_level
+                level
             )
             .expect("the metrics of a listener register without collision"),
             inbound_connections: IntGaugeWithPeakGauge::register(
@@ -129,14 +127,14 @@ impl Metrics {
                 ),
                 module_path!(),
                 registry,
-                MetricLevel::Info,
+                level,
             ),
             connection_lifetime_seconds: register_histogram_with_registry!(
                 format!("{prefix}_connection_lifetime_seconds"),
                 "Time from the TCP accept to the close, in seconds",
-                LIFETIME_SECONDS_BUCKETS.to_vec(),
+                CONNECTION_LIFETIME_SEC_BUCKETS.to_vec(),
                 registry;
-                MetricLevel::Info
+                level
             )
             .expect("the metrics of a listener register without collision"),
         }

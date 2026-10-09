@@ -1588,22 +1588,24 @@ impl IotaNode {
         server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
         server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
         server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
-        let server_builder = validator_server_builder(&server_conf, prometheus_registry)
-            .add_service_with_concurrency_limit(
-                ValidatorServer::new(validator_service.clone()),
-                concurrency_limit,
-                load_shed,
-            )
-            .add_service_with_concurrency_limit(
-                ValidatorV2Server::new(validator_service.clone()),
-                concurrency_limit,
-                load_shed,
-            )
-            .add_service_with_concurrency_limit(
-                ValidatorPeerServer::new(validator_service),
-                concurrency_limit,
-                load_shed,
-            );
+        let server_builder =
+            ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
+                .listener_metrics(validator_server_listener_metrics(prometheus_registry))
+                .add_service_with_concurrency_limit(
+                    ValidatorServer::new(validator_service.clone()),
+                    concurrency_limit,
+                    load_shed,
+                )
+                .add_service_with_concurrency_limit(
+                    ValidatorV2Server::new(validator_service.clone()),
+                    concurrency_limit,
+                    load_shed,
+                )
+                .add_service_with_concurrency_limit(
+                    ValidatorPeerServer::new(validator_service),
+                    concurrency_limit,
+                    load_shed,
+                );
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
@@ -2687,7 +2689,10 @@ pub async fn build_http_server(
     router = router.layer(layers);
 
     let handle = iota_http::Builder::new()
-        .metrics(Some(json_rpc_listener_metrics(prometheus_registry)))
+        .config(
+            iota_http::Config::default()
+                .metrics(Some(json_rpc_listener_metrics(prometheus_registry))),
+        )
         .serve(&config.json_rpc_address, router)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
@@ -2699,14 +2704,8 @@ fn json_rpc_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics 
     ListenerMetrics::new("json_rpc", prometheus_registry, MetricLevel::Info)
 }
 
-/// The server builder of the validator listener, with its metrics.
-fn validator_server_builder(
-    server_conf: &iota_network_stack::config::Config,
-    prometheus_registry: &Registry,
-) -> ServerBuilder<GrpcMetrics> {
-    ServerBuilder::from_config(server_conf, GrpcMetrics::new(prometheus_registry)).listener_metrics(
-        ListenerMetrics::new("authority_grpc", prometheus_registry, MetricLevel::Warn),
-    )
+fn validator_server_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics {
+    ListenerMetrics::new("authority_grpc", prometheus_registry, MetricLevel::Warn)
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -2946,7 +2945,9 @@ mod listener_metrics_tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
-    use super::{json_rpc_listener_metrics, validator_server_builder};
+    use super::{
+        GrpcMetrics, ServerBuilder, json_rpc_listener_metrics, validator_server_listener_metrics,
+    };
 
     async fn get_health(handle: &iota_http::ServerHandle<std::net::SocketAddr>) {
         let mut stream = tokio::net::TcpStream::connect(handle.local_addr())
@@ -2988,7 +2989,8 @@ mod listener_metrics_tests {
             None,
         );
         let config = Config::new();
-        let validator = validator_server_builder(&config, &registry)
+        let validator = ServerBuilder::from_config(&config, GrpcMetrics::new(&registry))
+            .listener_metrics(validator_server_listener_metrics(&registry))
             .bind(
                 &"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(),
                 Some(tls_config),
@@ -3007,7 +3009,9 @@ mod listener_metrics_tests {
             .unwrap();
 
         let json_rpc = iota_http::Builder::new()
-            .metrics(Some(json_rpc_listener_metrics(&registry)))
+            .config(
+                iota_http::Config::default().metrics(Some(json_rpc_listener_metrics(&registry))),
+            )
             .serve(
                 "127.0.0.1:0",
                 axum::Router::new().route("/health", axum::routing::get(|| async { "up" })),
@@ -3020,13 +3024,8 @@ mod listener_metrics_tests {
         registry
     }
 
-    fn prefix_names(prefix: &str, names: &[&str]) -> impl Iterator<Item = String> {
-        let prefix = prefix.to_owned();
-        names
-            .iter()
-            .map(|name| format!("{prefix}_{name}"))
-            .collect::<Vec<_>>()
-            .into_iter()
+    fn prefix_names<'a>(prefix: &'a str, names: &'a [&str]) -> impl Iterator<Item = String> + 'a {
+        names.iter().map(move |name| format!("{prefix}_{name}"))
     }
 
     const CONNECTION_FAMILIES: &[&str] = &[
@@ -3037,11 +3036,10 @@ mod listener_metrics_tests {
     ];
     const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
 
-    /// Every family the listeners register.
-    fn all_families() -> BTreeSet<String> {
+    /// Every family the validator listener registers.
+    fn validator_families() -> BTreeSet<String> {
         prefix_names("authority_grpc", CONNECTION_FAMILIES)
             .chain(prefix_names("authority_grpc", TLS_FAMILIES))
-            .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
             .collect()
     }
 
@@ -3056,29 +3054,20 @@ mod listener_metrics_tests {
     }
 
     #[tokio::test]
-    async fn only_the_validator_accept_count_shows_by_default() {
+    async fn only_the_validator_listener_shows_by_default() {
         let shown =
             MetricsReader::new(&node_registry(&MetricGroups::default()).await).family_names();
-        assert_eq!(
-            shown,
-            BTreeSet::from(["authority_grpc_inbound_connections_accepted".to_owned()])
-        );
+        assert_eq!(shown, validator_families());
     }
 
     #[tokio::test]
-    async fn overrides_show_every_family() {
-        let groups = overrides(&["authority_grpc", "iota_http"]);
-        let shown = MetricsReader::new(&node_registry(&groups).await).family_names();
-        assert_eq!(shown, all_families());
-    }
-
-    #[tokio::test]
-    async fn an_override_of_the_validator_group_shows_no_other_listener() {
-        let shown = MetricsReader::new(&node_registry(&overrides(&["authority_grpc"])).await)
-            .family_names();
-        let validator: BTreeSet<String> = prefix_names("authority_grpc", CONNECTION_FAMILIES)
-            .chain(prefix_names("authority_grpc", TLS_FAMILIES))
+    async fn the_iota_http_override_shows_the_json_rpc_listener() {
+        let shown =
+            MetricsReader::new(&node_registry(&overrides(&["iota_http"])).await).family_names();
+        let all: BTreeSet<String> = validator_families()
+            .into_iter()
+            .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
             .collect();
-        assert_eq!(shown, validator);
+        assert_eq!(shown, all);
     }
 }

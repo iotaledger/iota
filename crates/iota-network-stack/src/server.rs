@@ -124,12 +124,9 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     }
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
-        let http_config = self
-            .config
-            .http_config()
-            .metrics(self.listener_metrics.clone());
-
         let request_timeout = self.request_timeout();
+        let http_config = self.config.http_config().metrics(self.listener_metrics);
+
         let metrics_provider = self.metrics_provider;
         let metrics = MetricsHandler::new(metrics_provider.clone());
         let request_metrics = TraceLayer::new_for_grpc()

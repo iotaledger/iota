@@ -3,40 +3,41 @@
 
 use std::{sync::Arc, time::Instant};
 
-use crate::metrics::{Inner, tls::HandshakeGuard};
+use crate::metrics::{
+    Inner,
+    tls::{self, HandshakeGuard},
+};
 
-/// One accepted connection. Cloning is cheap.
-#[derive(Clone)]
-pub(crate) struct TrackedConnection(Arc<ConnectionState>);
+/// One accepted connection. Dropping it records the close of the connection.
+pub(crate) struct ConnectionGuard {
+    listener: Arc<Inner>,
+    accepted_at: Instant,
+}
 
-impl TrackedConnection {
+impl ConnectionGuard {
     pub(super) fn new(listener: Arc<Inner>) -> Self {
-        Self(Arc::new(ConnectionState {
+        Self {
             listener,
             accepted_at: Instant::now(),
-        }))
+        }
     }
 
-    /// Starts to time a TLS handshake of this connection. Returns `None` when
-    /// the listener has no TLS metrics.
-    pub(crate) fn start_handshake(&self) -> Option<HandshakeGuard> {
-        let tls = self.0.listener.tls.get()?;
-        Some(tls.start_handshake())
+    /// Records the start of a TLS handshake of this connection; the handshake
+    /// itself is run by the caller. Returns `None` when the listener has no
+    /// TLS metrics.
+    pub(crate) fn record_handshake_start(&self) -> Option<HandshakeGuard> {
+        let tls = self.listener.tls.get()?;
+        Some(tls::record_handshake_start(tls))
     }
+}
 
-    /// Records the close of the connection. Call it once.
-    pub(super) fn record_close(&self) {
-        let state = &*self.0;
-        let metrics = &state.listener.metrics;
-        let age = Instant::now().saturating_duration_since(state.accepted_at);
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        let metrics = &self.listener.metrics;
+        let age = Instant::now().saturating_duration_since(self.accepted_at);
         metrics
             .connection_lifetime_seconds
             .observe(age.as_secs_f64());
         metrics.inbound_connections.dec();
     }
-}
-
-pub(super) struct ConnectionState {
-    listener: Arc<Inner>,
-    accepted_at: Instant,
 }

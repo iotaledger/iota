@@ -30,10 +30,14 @@ iota-tls.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
+# external dependencies
 axum.workspace = true
 fastcrypto.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
+
+# internal dependencies
+iota-metrics = { workspace = true, features = ["test-utils"] }
 
 [lints]
 workspace = true

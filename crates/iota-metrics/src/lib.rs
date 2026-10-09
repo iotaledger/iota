@@ -48,6 +48,7 @@ pub mod quantile_gauge;
 // fork does not provide; the node only starts these monitors outside simtests.
 #[cfg(not(msim))]
 pub mod runtime_metrics;
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 pub mod thread_stall_monitor;
 pub use guards::*;
