@@ -22,6 +22,7 @@ use iota_types::{
     committee::EpochId,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
+    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{ObjectKey, ObjectStore},
 };
@@ -151,6 +152,9 @@ pub struct HistoricObjects {
     /// The live objects table of the same database, which holds the
     /// tombstones of every bucket that has not expired.
     objects: DBMap<ObjectKey, StoreObjectWrapper>,
+    /// The checkpoint through which the objects pruner of earlier releases
+    /// deleted superseded versions, `None` on a database it never ran on.
+    pub(crate) objects_pruned_through: Option<CheckpointSequenceNumber>,
 }
 
 impl HistoricObjects {
@@ -287,7 +291,11 @@ impl HistoricObjects {
             buckets,
             HistoricObjectsBucket::reopen,
         )?;
-        Ok(Self { buckets, objects })
+        Ok(Self {
+            buckets,
+            objects,
+            objects_pruned_through: None,
+        })
     }
 
     /// The oldest epoch this store holds a bucket for, `None` when it holds

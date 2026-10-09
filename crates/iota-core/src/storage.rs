@@ -608,6 +608,7 @@ impl GrpcStateReader for GrpcReadStore {
             .checkpoint_store
             .lowest_checkpoint_with_retained_objects(
                 self.state.get_historic_objects().earliest_bucket_epoch(),
+                self.state.get_historic_objects().objects_pruned_through,
             )
             .map_err(StorageError::custom)
     }
