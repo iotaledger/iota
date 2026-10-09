@@ -924,3 +924,39 @@ async fn a_retained_empty_checkpoint_gets_back_the_contents_row_a_pruner_deleted
         "the retained empty checkpoint must have its contents after the migration"
     );
 }
+
+/// A run resumed under a longer retention keeps the floor of the run that
+/// started the migration: the epoch that run had begun deleting goes
+/// entirely, and is reported as pruned.
+#[tokio::test]
+async fn a_resumed_run_keeps_the_floor_the_migration_started_with() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    let mut interrupted = migration(
+        &store,
+        checkpoint_store.clone(),
+        Some(NARROWEST_RETENTION),
+        1,
+    );
+    interrupted.pin_floor().unwrap();
+    interrupted.move_transactions(None).unwrap();
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+
+    assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
+    assert_eq!(
+        checkpoint_store
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestPruned)
+            .unwrap()
+            .map(|(sequence, _)| sequence),
+        Some(10),
+        "the epoch the first run deleted rows of must be reported as pruned"
+    );
+}
