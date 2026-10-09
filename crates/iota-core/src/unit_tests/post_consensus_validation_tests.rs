@@ -5200,7 +5200,7 @@ async fn immutable_input_read_does_not_extend_record_or_shelter() {
 fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
     match verdict {
         SharedVerdict::Drop(reason) => assert_eq!(reason.kind(), kind),
-        SharedVerdict::Exists(_) => panic!("expected a drop, got exists"),
+        SharedVerdict::Exists => panic!("expected a drop, got exists"),
         SharedVerdict::Deleted(version, digest) => {
             panic!("expected a drop, got deleted at {version} by {digest}")
         }
@@ -5215,7 +5215,7 @@ fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects
             assert_eq!(version, delete_effects.lamport_version());
             assert_eq!(digest, *delete_effects.transaction_digest());
         }
-        SharedVerdict::Exists(_) => panic!("expected deleted, got exists"),
+        SharedVerdict::Exists => panic!("expected deleted, got exists"),
         SharedVerdict::Drop(reason) => panic!("expected deleted, got drop {reason:?}"),
         SharedVerdict::Missing(reason) => panic!("expected deleted, got missing {reason:?}"),
     }
@@ -5384,8 +5384,9 @@ async fn loader_stops_at_a_package_published_ahead_of_the_handler() {
 }
 
 /// Every input kind resolves to the read result the input checks expect:
-/// the package from epoch-start state, the shared object at this
-/// validator's latest version, the gas coin at the named reference.
+/// the package from epoch-start state, the gas coin at the named reference,
+/// and the shared object as an unread shared object, since its contents are
+/// not read.
 #[tokio::test]
 async fn loader_resolves_every_input_kind_at_a_commit() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -5427,11 +5428,15 @@ async fn loader_resolves_every_input_kind_at_a_commit() {
                 assert_eq!(object.id(), s.package_id);
             }
             (
-                InputObjectKind::SharedMoveObject { id, .. },
-                ObjectReadResultKind::Object(object),
+                InputObjectKind::SharedMoveObject {
+                    id,
+                    initial_shared_version,
+                    ..
+                },
+                ObjectReadResultKind::UnreadSharedObject,
             ) => {
                 assert_eq!(&id, shared_id);
-                assert_eq!(object.owner, Owner::Shared(initial));
+                assert_eq!(initial_shared_version, initial);
             }
             (
                 InputObjectKind::ImmOrOwnedMoveObject(reference),
