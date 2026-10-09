@@ -27,9 +27,9 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{BackingPackageStore, ObjectKey},
     transaction::{
-        CallArg, InputObjectKind, ObjectReadResultKind, SenderSignedTransactionAPI,
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionEnvelope, TransactionKey,
-        VerifiedTransaction,
+        CallArg, InputObjectKind, ObjectReadResult, ObjectReadResultKind,
+        SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
+        TransactionEnvelope, TransactionKey, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
@@ -137,6 +137,8 @@ async fn test_valid_user_transaction_passes() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -204,6 +206,8 @@ async fn drop_error_for_gas_version_below_canceled_range(
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -269,6 +273,8 @@ async fn test_non_user_transaction_passes_through() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -325,6 +331,8 @@ async fn test_duplicate_transaction_deduplicated() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -397,6 +405,8 @@ async fn test_mixed_batch_filtering() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -485,6 +495,8 @@ async fn test_simple_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -589,6 +601,8 @@ async fn test_stale_version_dropped_fresh_kept() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -693,6 +707,8 @@ async fn test_no_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -794,6 +810,8 @@ async fn test_chain_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -916,6 +934,8 @@ async fn test_multiple_conflicts_in_batch() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -1006,6 +1026,8 @@ async fn test_gas_object_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -1120,6 +1142,8 @@ async fn test_winner_blocks_multiple_losers() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -1240,6 +1264,8 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
+            false,
             &mut transactions,
         )
         .await
@@ -1690,6 +1716,8 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -1726,6 +1754,8 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -1777,6 +1807,8 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
     let (dropped, locks, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &setup.authority,
         &setup.epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -1861,6 +1893,8 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     let _ = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await;
@@ -1931,6 +1965,8 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -1988,6 +2024,8 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -2041,6 +2079,8 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -2091,6 +2131,8 @@ async fn post_consensus_validation_applies_relaxed_rules() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -2112,6 +2154,8 @@ async fn post_consensus_validation_applies_relaxed_rules() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -5376,6 +5420,184 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
 }
 
 // ---------------------------------------------------------------------------
+// P-COOL deterministic-validation wiring
+// ---------------------------------------------------------------------------
+
+/// With the flag on, the validation loop reads inputs as of the commit. One
+/// transaction keeps and locks its gas coin, one drops on a wrong shared
+/// declaration, one is missing on a gas coin produced above the horizon. The
+/// dropped ones carry the not-found error of their deciding input.
+#[tokio::test]
+async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_keep = ObjectId::random();
+    let gas_wrong = ObjectId::random();
+    let gas_missing = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_keep, sender),
+            Object::with_id_owner_for_testing(gas_wrong, sender),
+            Object::with_id_owner_for_testing(gas_missing, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_keep, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference().object_id();
+    // Commit 11 mutates `gas_missing`. At commit 12 the horizon is 10.
+    s.handler_known_shared_object_basics_call(
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
+        ],
+        &gas_missing,
+        sender,
+        &sender_key,
+        11,
+    );
+    let set_value = |arg: CallArg, gas_id: &ObjectId, value: u64| {
+        s.build_move_call(
+            "object_basics",
+            "set_value",
+            vec![arg, CallArg::Pure(bcs::to_bytes(&value).unwrap())],
+            gas_id,
+            sender,
+            &sender_key,
+        )
+    };
+    let keep = set_value(s.shared_arg(shared_id), &gas_keep, 2);
+    let wrong = set_value(
+        CallArg::Shared(SharedObjectReference::new(
+            *shared_id,
+            Version::from_u64(1),
+            true,
+        )),
+        &gas_wrong,
+        3,
+    );
+    let missing = set_value(s.shared_arg(shared_id), &gas_missing, 4);
+    let keep_digest = *keep.digest();
+    let wrong_digest = *wrong.digest();
+    let missing_digest = *missing.digest();
+    let gas_keep_ref = s.latest_ref(&gas_keep);
+    let gas_missing_ref = s.latest_ref(&gas_missing);
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(keep),
+        make_user_tx_v1_verified(wrong),
+        make_user_tx_v1_verified(missing),
+    ];
+    let (dropped, locks, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        12,
+        true,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(all_digests, vec![keep_digest, wrong_digest, missing_digest]);
+    assert_eq!(transactions.len(), 1);
+    assert!(
+        locks.contains_key(&gas_keep_ref),
+        "the kept transaction locks its gas coin"
+    );
+    let verdicts = &s
+        .authority
+        .metrics
+        .consensus_handler_validation_reader_verdicts;
+    assert_eq!(verdicts.with_label_values(&["keep", "none"]).get(), 1);
+    assert_eq!(
+        verdicts
+            .with_label_values(&["drop", "SharedInitialVersionMismatch"])
+            .get(),
+        1
+    );
+    assert_eq!(
+        verdicts
+            .with_label_values(&["missing", "HandlerRowAboveHorizon"])
+            .get(),
+        1
+    );
+    assert_eq!(dropped.len(), 2);
+    assert_eq!(dropped[0].0, wrong_digest);
+    assert!(
+        matches!(
+            &dropped[0].1,
+            IotaError::UserInput {
+                error: UserInputError::ObjectNotFound { object_id, version: None }
+            } if object_id == shared_id
+        ),
+        "{:?}",
+        dropped[0].1
+    );
+    assert_eq!(dropped[1].0, missing_digest);
+    assert!(
+        matches!(
+            &dropped[1].1,
+            IotaError::UserInput {
+                error: UserInputError::ObjectNotFound { object_id, version: Some(version) }
+            } if *object_id == gas_missing && *version == gas_missing_ref.version
+        ),
+        "{:?}",
+        dropped[1].1
+    );
+}
+
+/// A Move authenticator's account object that the reader answered as deleted
+/// is not a rejection at a commit. The check proceeds to the function
+/// reference lookup, which here fails only because the random account has
+/// none.
+#[tokio::test]
+async fn account_check_at_commit_tolerates_a_deleted_account_object() {
+    let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let account_id = ObjectId::random();
+    let version = Version::from_u64(7);
+    let deleted = ObjectReadResult {
+        input_object_kind: InputObjectKind::SharedMoveObject {
+            id: account_id,
+            initial_shared_version: Version::from_u64(3),
+            mutable: false,
+        },
+        object: ObjectReadResultKind::DeletedSharedObject(version, TransactionDigest::random()),
+    };
+
+    let epoch_store = s.authority.epoch_store_for_testing();
+    let error = s
+        .authority
+        .check_move_account_at_commit(
+            account_id,
+            Some(version),
+            None,
+            deleted,
+            &Address::from(account_id),
+            epoch_store.protocol_config(),
+        )
+        .expect_err("a random account has no authenticator function reference");
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::MoveAuthenticatorNotFound { .. }
+            }
+        ),
+        "{error:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // P-COOL deterministic-validation reader: owned inputs
 // ---------------------------------------------------------------------------
 
@@ -5679,6 +5901,8 @@ impl ImmutableInputSetup {
         let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
             &self.authority,
             &self.epoch_store,
+            1,
+            false,
             transactions,
         )
         .await
@@ -5880,6 +6104,8 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &setup.authority,
         &epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
@@ -5913,6 +6139,8 @@ async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_di
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &setup.authority,
         &epoch_store,
+        1,
+        false,
         &mut transactions,
     )
     .await
