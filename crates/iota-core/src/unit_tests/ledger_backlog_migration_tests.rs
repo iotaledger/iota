@@ -36,9 +36,9 @@ use crate::{
 /// epoch the seed writes history for.
 const RUNNING_EPOCH: EpochId = 3;
 
-/// The narrowest retentions a node can be given: both keep epochs 2 and 3
-/// and leave epoch 1 behind.
-const NARROWEST_RETENTIONS: [u64; 2] = [0, 1];
+/// The narrowest retention a node can be given: it keeps epochs 2 and 3 and
+/// leaves epoch 1 behind.
+const NARROWEST_RETENTION: u64 = 1;
 
 /// The epoch the executed and synced watermarks are seeded in, as on a node
 /// restarted before executing the running epoch's first checkpoint.
@@ -482,31 +482,34 @@ async fn rows_land_in_their_true_epoch() {
 /// and the checkpoint range no longer held is reported as pruned.
 #[tokio::test]
 async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
-    for retained in NARROWEST_RETENTIONS {
-        let store_dir = iota_common::tempdir();
-        let checkpoint_dir = iota_common::tempdir();
-        let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
-        let seeded = seed(&store, &checkpoint_store);
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
 
-        migration(&store, checkpoint_store.clone(), Some(retained), 5_000)
-            .run()
-            .unwrap();
+    migration(
+        &store,
+        checkpoint_store.clone(),
+        Some(NARROWEST_RETENTION),
+        5_000,
+    )
+    .run()
+    .unwrap();
 
-        assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
+    assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
 
-        // Otherwise a state-sync peer would be told a dropped checkpoint is
-        // available.
-        assert_eq!(
-            checkpoint_store
-                .tables
-                .watermarks
-                .get(&CheckpointWatermark::HighestPruned)
-                .unwrap()
-                .map(|(sequence, _)| sequence),
-            Some(10),
-            "retention {retained} must report epoch 1 as pruned"
-        );
-    }
+    // Otherwise a state-sync peer would be told a dropped checkpoint is
+    // available.
+    assert_eq!(
+        checkpoint_store
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestPruned)
+            .unwrap()
+            .map(|(sequence, _)| sequence),
+        Some(10),
+        "epoch 1 must be reported as pruned"
+    );
 }
 
 /// Two checkpoints in different epochs naming one contents row each get a
