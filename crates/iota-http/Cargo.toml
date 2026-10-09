@@ -16,6 +16,7 @@ hyper = { workspace = true, features = ["http1", "http2"] }
 hyper-util.workspace = true
 pin-project-lite.workspace = true
 socket2 = { version = "0.5", features = ["all"] }
+strum.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 tokio-rustls.workspace = true
 tokio-util.workspace = true
@@ -23,8 +24,10 @@ tower.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-metrics.workspace = true
 # TLS support
 iota-tls.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
 # external dependencies
@@ -33,6 +36,7 @@ reqwest.workspace = true
 rustls.workspace = true
 
 # internal dependencies
+iota-metrics = { workspace = true, features = ["test-utils"] }
 iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 
 [lints]

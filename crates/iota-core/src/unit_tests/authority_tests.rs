@@ -6896,12 +6896,10 @@ async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
 
 // Tests congestion control triggered transaction cancellation in consensus
 // handler:
-//   1. Consensus handler cancels transactions that are deferred for too many
-//      rounds.
+//   1. Consensus handler cancels transactions that are deferred for too many rounds.
 //   2. Shared locks for cancelled transaction are set correctly.
 //   3. Input objects can be read correctly.
-//   4. Consensus commit prologue contains cancelled transaction version
-//      assignment.
+//   4. Consensus commit prologue contains cancelled transaction version assignment.
 #[sim_test]
 async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     telemetry_subscribers::init_for_testing();

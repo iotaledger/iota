@@ -31,7 +31,6 @@ iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 iota-sdk-types = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-# internal dependencies
 iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
 
 [lints]

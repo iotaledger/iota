@@ -229,10 +229,11 @@ fn parse_transaction_proto(
     Ok(sdk_transaction)
 }
 
-/// Execute a batch of transactions sequentially.
+/// Execute a batch of transactions concurrently.
 ///
 /// Each transaction is executed independently — failure of one does not abort
-/// the rest. Results are returned in the same order as the input.
+/// the rest. Results are returned in the same order as the input, but the
+/// relative execution order of the transactions is not guaranteed.
 ///
 /// ## Checkpoint Inclusion
 ///
@@ -272,43 +273,39 @@ fn parse_transaction_proto(
 /// - `events` - includes all event fields (all events of the transaction)
 ///   - `events.digest` - the events digest
 ///   - `events.events.bcs` - the full BCS-encoded event
-///   - `events.events.package_id` - the ID of the package that emitted the
-///     event
+///   - `events.events.package_id` - the ID of the package that emitted the event
 ///   - `events.events.module` - the module that emitted the event
 ///   - `events.events.sender` - the sender that triggered the event
 ///   - `events.events.event_type` - the type of the event
-///   - `events.events.bcs_contents` - the full BCS-encoded contents of the
-///     event
+///   - `events.events.bcs_contents` - the full BCS-encoded contents of the event
 ///   - `events.events.json_contents` - the JSON-encoded contents of the event
 ///
 /// ## Checkpoint Fields
 /// - `checkpoint` - the checkpoint that included the transaction. Requires
 ///   `checkpoint_inclusion_timeout_ms` to be set.
-/// - `timestamp` - the timestamp of the checkpoint. Requires
-///   `checkpoint_inclusion_timeout_ms` to be set.
+/// - `timestamp` - the timestamp of the checkpoint. Requires `checkpoint_inclusion_timeout_ms` to
+///   be set.
 ///
 /// ## Object Fields
 /// - `input_objects` - includes all input object fields
 ///   - `input_objects.reference` - includes all reference fields
 ///     - `input_objects.reference.object_id` - the ID of the input object
 ///     - `input_objects.reference.version` - the version of the input object
-///     - `input_objects.reference.digest` - the digest of the input object
-///       contents
+///     - `input_objects.reference.digest` - the digest of the input object contents
 ///   - `input_objects.bcs` - the full BCS-encoded object
 /// - `output_objects` - includes all output object fields
 ///   - `output_objects.reference` - includes all reference fields
 ///     - `output_objects.reference.object_id` - the ID of the output object
 ///     - `output_objects.reference.version` - the version of the output object
-///     - `output_objects.reference.digest` - the digest of the output object
-///       contents
+///     - `output_objects.reference.digest` - the digest of the output object contents
 ///   - `output_objects.bcs` - the full BCS-encoded object
 ///
 /// ## Derived Change Fields
 /// Derived from the transaction's effects and input/output objects.
-/// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed
-///   transaction this contains only the gas charge.
-/// - `object_changes` - structured object changes (created, mutated, deleted,
-///   wrapped, unwrapped, published)
+/// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed transaction this
+///   contains only the gas charge.
+/// - `object_changes` - structured object changes (created, mutated, deleted, wrapped, unwrapped,
+///   published)
 #[tracing::instrument(skip_all, fields(batch_size = request.transactions.len()))]
 pub async fn execute_transactions(
     reader: &Arc<GrpcReader>,

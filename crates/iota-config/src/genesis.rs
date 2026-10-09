@@ -625,10 +625,9 @@ pub struct TokenAllocation {
     /// object.
     pub recipient_address: Address,
     /// Indicates an amount of nanos that is:
-    /// - minted for the `recipient_address` and staked to a validator, only in
-    ///   the case `staked_with_validator` is Some
-    /// - minted for the `recipient_address` and transferred that address,
-    ///   otherwise.
+    /// - minted for the `recipient_address` and staked to a validator, only in the case
+    ///   `staked_with_validator` is Some
+    /// - minted for the `recipient_address` and transferred that address, otherwise.
     pub amount_nanos: u64,
 
     /// Indicates if this allocation should be staked at genesis and with which

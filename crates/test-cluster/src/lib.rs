@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
     NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange, StateSnapshotConfig},
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
@@ -81,6 +81,7 @@ use tokio::{
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
+use typed_store::rocks::disable_fallocate;
 
 const NUM_VALIDATOR: usize = 4;
 
@@ -1136,6 +1137,7 @@ pub struct TestClusterBuilder {
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     fullnode_enable_grpc_api: bool,
+    fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
@@ -1168,6 +1170,7 @@ impl TestClusterBuilder {
             fullnode_policy_config: None,
             fullnode_fw_config: None,
             fullnode_enable_grpc_api: true,
+            fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1202,6 +1205,13 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_rpc_addr(mut self, addr: SocketAddr) -> Self {
         self.fullnode_rpc_addr = Some(addr);
+        self
+    }
+
+    /// Makes the fullnode publish a formal state snapshot at every epoch
+    /// boundary, to the store the config names.
+    pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.fullnode_state_snapshot_config = Some(config);
         self
     }
 
@@ -1440,6 +1450,10 @@ impl TestClusterBuilder {
 
     /// Start a Swarm and set up WalletConfig
     async fn start_swarm(&mut self) -> Result<Swarm, anyhow::Error> {
+        // Each node opens several databases, and each write-ahead log would
+        // otherwise take hundreds of MiB on disk.
+        disable_fallocate();
+
         let mut builder: SwarmBuilder = Swarm::builder()
             .committee_size(
                 NonZeroUsize::new(self.num_validators.unwrap_or(NUM_VALIDATOR)).unwrap(),
@@ -1516,6 +1530,9 @@ impl TestClusterBuilder {
             builder = builder.with_disable_fullnode_pruning();
         }
         builder = builder.with_fullnode_enable_grpc_api(self.fullnode_enable_grpc_api);
+        if let Some(config) = self.fullnode_state_snapshot_config.clone() {
+            builder = builder.with_fullnode_state_snapshot_config(config);
+        }
         if let Some(config) = &self.fullnode_grpc_api_config {
             builder = builder.with_fullnode_grpc_api_config(config.clone());
         }

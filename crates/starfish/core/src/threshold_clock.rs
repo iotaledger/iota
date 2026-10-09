@@ -46,10 +46,8 @@ impl ThresholdClock {
     ///
     /// Round advancement rules:
     /// - block.round < current: ignored (stale block)
-    /// - block.round > current: jump to block.round, start collecting stake
-    ///   there
-    /// - block.round == current: continue accumulating stake until quorum
-    ///   (2f+1) reached
+    /// - block.round > current: jump to block.round, start collecting stake there
+    /// - block.round == current: continue accumulating stake until quorum (2f+1) reached
     ///
     /// When quorum is reached, advance to round + 1. Returns true when the
     /// round advanced.

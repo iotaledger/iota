@@ -223,10 +223,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         block_transactions: ConsensusOutputTransactions,
     ) {
         // This may block until one of two conditions happens:
-        // - Number of uncommitted transactions in the writeback cache goes below the
-        //   backpressure threshold.
-        // - The highest executed checkpoint catches up to the highest certified
-        //   checkpoint.
+        // - Number of uncommitted transactions in the writeback cache goes below the backpressure
+        //   threshold.
+        // - The highest executed checkpoint catches up to the highest certified checkpoint.
         self.backpressure_subscriber.await_no_backpressure().await;
 
         let _scope = monitored_scope("HandleConsensusOutput");
@@ -536,9 +535,8 @@ const CONSENSUS_HANDLER_DESERIALIZE_CHANNEL_CAPACITY: usize = 2;
 /// consensus output to the channel.
 ///
 /// The handler is split into two stages connected by a small bounded channel:
-///   - **Deserialize worker** — BCS-parses each commit's transactions off the
-///     handler's critical path so parsing can overlap with the handler
-///     processing the previous commit.
+///   - **Deserialize worker** — BCS-parses each commit's transactions off the handler's critical
+///     path so parsing can overlap with the handler processing the previous commit.
 ///   - **Commit handler** — consumes pre-parsed commits in arrival order.
 ///
 /// Both stages run as a single worker each, with a FIFO channel between them,

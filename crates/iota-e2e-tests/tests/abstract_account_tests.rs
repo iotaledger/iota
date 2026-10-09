@@ -354,14 +354,11 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
-/// 1) Create a TX certificate signed by the validators where the authentication
-///    is successful
-/// 2) Tamper with the AA shared object state by creating a second TX altering
-///    the state by changing the public key that allows the authentication to
-///    pass
-/// 3) Submit the original certificate which should now fail during
-///    post-consensus, even though validators originally run the authenticate
-///    and it passed
+/// 1) Create a TX certificate signed by the validators where the authentication is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering the state by changing
+///    the public key that allows the authentication to pass
+/// 3) Submit the original certificate which should now fail during post-consensus, even though
+///    validators originally run the authenticate and it passed
 ///
 /// With `report_move_authentication_error` enabled (the latest protocol config)
 /// the failure surfaces as a distinct `MoveAuthentication` error that wraps the
@@ -496,13 +493,11 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
-/// 1) Create a TX certificate signed by the validators where the authentication
-///    is successful
-/// 2) Tamper with the AA shared object state by creating a second TX altering
-///    the state by deleting the AA shared object
-/// 3) Submit the original certificate which should now fail during
-///    post-consensus, even though validators originally run the authenticate
-///    and it passed
+/// 1) Create a TX certificate signed by the validators where the authentication is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering the state by deleting
+///    the AA shared object
+/// 3) Submit the original certificate which should now fail during post-consensus, even though
+///    validators originally run the authenticate and it passed
 #[sim_test]
 async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -1097,14 +1092,13 @@ async fn test_pre_consensus_authentication_failure_without_report_flag() -> Resu
 }
 
 /// Test in 3 steps
-/// 1) Create a valid TX1 certificate signed by validators where sender is an AA
-///    account using a owned Coin as gas
-/// 2) Tamper with the AA shared object by creating a second TX2, with sender
-///    being a random Bob address, altering the state calling the “receive“
-///    function for the Coin used as gas in TX1
-/// 3) Submit the original certificate TX1 which should NOT fail during
-///    post-consensus, because validators originally run the authenticate and it
-///    passed. What fails is the execution of TX2 because of the conflict on the
+/// 1) Create a valid TX1 certificate signed by validators where sender is an AA account using a
+///    owned Coin as gas
+/// 2) Tamper with the AA shared object by creating a second TX2, with sender being a random Bob
+///    address, altering the state calling the “receive“ function for the Coin used as gas in TX1
+/// 3) Submit the original certificate TX1 which should NOT fail during post-consensus, because
+///    validators originally run the authenticate and it passed. What fails is the execution of TX2
+///    because of the conflict on the
 ///   receiving object
 #[sim_test]
 async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error> {
@@ -1210,8 +1204,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
 }
 
 /// Test in 4 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by an
-///    AA account.
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by an AA account.
 /// 2) Create TX2 where the AA sender tries to use the conflict coin as input.
 /// 3) Submit the original TX1 certificate. This fails with an execution abort.
 /// 4) Submit the original TX2 certificate. This should now succeed.
@@ -1331,9 +1324,9 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
 }
 
 /// Test in 5 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
-///    AA object (before the AA account is actually created). The AA object is
-///    NOT an account yet (just a shared object).
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the AA object (before
+///    the AA account is actually created). The AA object is NOT an account yet (just a shared
+///    object).
 /// 2) Make the AA become the actual account (delayed AA creation).
 /// 3) Create TX2 where the AA sender tries to use the conflict coin as input.
 /// 4) Submit the original TX1 certificate. This fails with an execution abort.
@@ -1462,14 +1455,13 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
 }
 
 /// Test in 4 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
-///    AA object (before the AA account is actually created). The AA object is
-///    NOT an account yet (just a shared object).
-/// 2) Submit the original TX1 certificate. This is successful because the AA is
-///    not yet an account.
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the AA object (before
+///    the AA account is actually created). The AA object is NOT an account yet (just a shared
+///    object).
+/// 2) Submit the original TX1 certificate. This is successful because the AA is not yet an account.
 /// 3) Make the AA become the actual account (delayed AA creation).
-/// 4) Create and submit a TX2 where the AA sender tries to use the conflict
-///    coin using the latest reference, this should now succeed.
+/// 4) Create and submit a TX2 where the AA sender tries to use the conflict coin using the latest
+///    reference, this should now succeed.
 #[sim_test]
 async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -1633,6 +1625,12 @@ async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
+    // Creating the immutable account under test is rejected since version 38.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config
+    });
+
     let mut test_env = TestEnvironment::new().await;
     test_env
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
@@ -1681,6 +1679,12 @@ async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
 async fn test_immutable_account_sponsor_rejected() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
+
+    // Creating the immutable account under test is rejected since version 38.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config
+    });
 
     let mut test_env = TestEnvironment::new().await;
     test_env
@@ -1738,6 +1742,7 @@ async fn test_immutable_account_sender_succeeded_without_reject_flag() -> Result
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_reject_immutable_account_objects_for_testing(false);
+        config.set_reject_immutable_account_creation_for_testing(false);
         config
     });
 

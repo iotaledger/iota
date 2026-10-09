@@ -155,23 +155,26 @@ impl Frame<FlameMetric> {
 
         let Frame {
             label,
-            metrics: FlameMetric {
-                count: CountMetric {
-                    // the number of span samples is the number the span was entered
-                    entered: samples,
+            metrics:
+                FlameMetric {
+                    count:
+                        CountMetric {
+                            // the number of span samples is the number the span was entered
+                            entered: samples,
+                            ..
+                        },
+                    running:
+                        Stopwatch {
+                            // the total duration span was in active/running state
+                            total,
+                            ..
+                        },
+                    #[cfg(all(feature = "flamegraph-alloc", nightly))]
+                        // allocation metrics are accumulated metrics per all span entries
+                        alloc_total: alloc,
+                    // we do not need the rest of the metrics
                     ..
                 },
-                running: Stopwatch {
-                    // the total duration span was in active/running state
-                    total,
-                    ..
-                },
-                #[cfg(all(feature = "flamegraph-alloc", nightly))]
-                // allocation metrics are accumulated metrics per all span entries
-                alloc_total: alloc,
-                // we do not need the rest of the metrics
-                ..
-            },
         } = self;
 
         let rgb = random_rgb(rng);

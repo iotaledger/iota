@@ -39,11 +39,12 @@ iota-multiaddr.workspace = true
 # external dependencies
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
-rand08.workspace = true
 
 # internal dependencies
+iota-metrics = { workspace = true, features = ["test-utils"] }
 iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
 iota-tls.workspace = true
+prometheus-filtered.workspace = true
 
 [lints]
 workspace = true

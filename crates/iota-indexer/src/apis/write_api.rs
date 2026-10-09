@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
-use futures::{FutureExt, TryFutureExt};
+use futures::TryFutureExt;
 use iota_grpc_client::{GrpcClient, read_mask_fields::SimulateField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc::IotaRpcModule;
@@ -300,7 +300,7 @@ impl WriteApi {
             sim.effects,
             &package_resolver,
         )
-        .map(Ok);
+        .map_err(IndexerError::from);
 
         let (transaction_block, events, effects) =
             futures::future::try_join3(fut1, fut2, fut3).await?;

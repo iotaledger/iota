@@ -26,12 +26,11 @@ use serde::{Deserialize, Serialize};
 // To change the format of the object table value types (StoreObject and
 // StoreMoveObject), use the following process:
 // - Add a new variant to the enum to store the new version type.
-// - Define `From<StoreObjectV{N}> for StoreObjectV{N+1}` to update older
-//   versions, and extend `migrate()` to chain `V{N}` -> `V{N+1}`.
-// - Advance `pub type StoreObject = StoreObjectV{N+1}` and update
-//   `From<StoreObject> for StoreObjectWrapper` to wrap the new variant.
-// - Update `get_store_object` (and any other writers) to construct the new
-//   value type directly.
+// - Define `From<StoreObjectV{N}> for StoreObjectV{N+1}` to update older versions, and extend
+//   `migrate()` to chain `V{N}` -> `V{N+1}`.
+// - Advance `pub type StoreObject = StoreObjectV{N+1}` and update `From<StoreObject> for
+//   StoreObjectWrapper` to wrap the new variant.
+// - Update `get_store_object` (and any other writers) to construct the new value type directly.
 
 /// Enum wrapper for versioning
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]

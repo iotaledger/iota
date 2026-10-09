@@ -87,8 +87,7 @@ impl BlockSuspender {
     /// missing ancestors.
     ///
     /// Each header is either:
-    /// - Accepted immediately if all its ancestors are resolved (directly or
-    ///   through this batch),
+    /// - Accepted immediately if all its ancestors are resolved (directly or through this batch),
     /// - Or suspended if it still has missing or unresolved ancestors.
     ///
     /// After initially processing the batch, this function also recursively
@@ -96,15 +95,14 @@ impl BlockSuspender {
     /// now unblocked due to newly accepted ancestors.
     ///
     /// # Arguments
-    /// * `missing_ancestors_map` - A map of verified block headers to the set
-    ///   of their unresolved ancestor references as read from the DagState by
-    ///   the caller.
+    /// * `missing_ancestors_map` - A map of verified block headers to the set of their unresolved
+    ///   ancestor references as read from the DagState by the caller.
     ///
     /// # Returns
-    /// * `Vec<VerifiedBlockHeader>` — All headers that were accepted, either
-    ///   directly or via recursive unsuspension.
-    /// * `BTreeSet<BlockRef>` — Set of ancestor block references that are still
-    ///   missing and should be fetched.
+    /// * `Vec<VerifiedBlockHeader>` — All headers that were accepted, either directly or via
+    ///   recursive unsuspension.
+    /// * `BTreeSet<BlockRef>` — Set of ancestor block references that are still missing and should
+    ///   be fetched.
     ///
     /// # Side Effects
     /// - Updates the suspension state of blocks.
@@ -143,25 +141,21 @@ impl BlockSuspender {
     /// need to be fetched are identified.
     ///
     /// # Arguments
-    /// * `missing_ancestors_map` - A map from the incoming verified block
-    ///   headers to the set of their missing ancestor references as read from
-    ///   the DagState by the calling code in BlockManager.
+    /// * `missing_ancestors_map` - A map from the incoming verified block headers to the set of
+    ///   their missing ancestor references as read from the DagState by the calling code in
+    ///   BlockManager.
     ///
     /// # Returns
     /// A tuple containing:
-    /// * `Vec<VerifiedBlockHeader>` - List of block headers that are fully
-    ///   resolved and ready for further processing to check if their children
-    ///   can be unsuspended.
-    /// * `BTreeSet<BlockRef>` - Set of ancestor block references that still
-    ///   need to be fetched.
+    /// * `Vec<VerifiedBlockHeader>` - List of block headers that are fully resolved and ready for
+    ///   further processing to check if their children can be unsuspended.
+    /// * `BTreeSet<BlockRef>` - Set of ancestor block references that still need to be fetched.
     ///
     /// # Side Effects
     /// This function:
     /// - Removes incoming batch block references from `self.missing_blocks`.
-    /// - Registers suspended blocks and their missing ancestors in internal
-    ///   tracking structures.
-    /// - Triggers reporting mechanisms for suspended blocks and missing
-    ///   ancestors.
+    /// - Registers suspended blocks and their missing ancestors in internal tracking structures.
+    /// - Triggers reporting mechanisms for suspended blocks and missing ancestors.
     /// - Identifies which ancestor blocks must still be fetched externally.
     fn resolve_or_suspend_headers(
         &mut self,
@@ -224,8 +218,7 @@ impl BlockSuspender {
     /// their own dependents are checked in turn.
     ///
     /// # Arguments
-    /// * `resolved_block_ref` - The block that was just accepted and may
-    ///   unsuspend other blocks.
+    /// * `resolved_block_ref` - The block that was just accepted and may unsuspend other blocks.
     ///
     /// # Returns
     /// * A list of verified block headers that have been unsuspended.
@@ -268,24 +261,22 @@ impl BlockSuspender {
     /// removed from the suspension map and returned.
     ///
     /// # Arguments
-    /// * `suspended_block_ref` - Reference to the suspended block being
-    ///   re-evaluated.
-    /// * `resolved_dependency` - A block reference that was just accepted and
-    ///   may resolve a dependency.
+    /// * `suspended_block_ref` - Reference to the suspended block being re-evaluated.
+    /// * `resolved_dependency` - A block reference that was just accepted and may resolve a
+    ///   dependency.
     ///
     /// # Returns
-    /// * `Some(SuspendedBlockHeader)` if the block no longer has missing
-    ///   ancestors and is ready to be reprocessed.
+    /// * `Some(SuspendedBlockHeader)` if the block no longer has missing ancestors and is ready to
+    ///   be reprocessed.
     /// * `None` if the block still has unresolved ancestors.
     ///
     /// # Panics
     /// - If the block is not found in the `suspended_block_headers` map.
-    /// - If `resolved_dependency` is not in the block's `missing_ancestors`
-    ///   set.
+    /// - If `resolved_dependency` is not in the block's `missing_ancestors` set.
     ///
     /// # Side Effects
-    /// - Mutates internal state by removing resolved dependencies and possibly
-    ///   removing the suspended block.
+    /// - Mutates internal state by removing resolved dependencies and possibly removing the
+    ///   suspended block.
     fn unsuspend_if_ready(
         &mut self,
         suspended_block_ref: &BlockRef,
@@ -635,8 +626,7 @@ pub(crate) mod tests {
     /// returns:
     /// tuple of:
     /// - `Vec<BlockRef>`: all block references that should be suspended
-    /// - `Vec<BlockRef>`: all block references that are still missing and need
-    ///   to be fetched
+    /// - `Vec<BlockRef>`: all block references that are still missing and need to be fetched
     pub(crate) fn evaluate_block_headers(
         seen_so_far: &[VerifiedBlockHeader],
     ) -> (BTreeSet<BlockRef>, BTreeSet<BlockRef>) {

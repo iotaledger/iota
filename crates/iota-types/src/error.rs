@@ -377,6 +377,14 @@ pub enum UserInputError {
         "Randomness state object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
     RandomnessStateIsInMoveAuthenticatorInput { object_id: ObjectId },
+    #[error(
+        "Invalid argument at command {command_idx}, argument {argument_idx}: index {index} is out of bounds"
+    )]
+    InvalidArgumentIndex {
+        command_idx: usize,
+        argument_idx: usize,
+        index: u16,
+    },
 }
 
 /// Custom error type for Iota.
@@ -753,33 +761,6 @@ pub enum VMMemoryLimitExceededSubStatusCode {
     OBJECT_RUNTIME_CACHE_LIMIT_EXCEEDED = 5,
     OBJECT_RUNTIME_STORE_LIMIT_EXCEEDED = 6,
     TOTAL_EVENT_SIZE_LIMIT_EXCEEDED = 7,
-}
-
-/// Formats `error` followed by each error in its `source()` chain, separated
-/// by `": "`.
-///
-/// Use this instead of `Display` for errors such as `signature::Error`, whose
-/// `Display` output omits the underlying cause.
-pub struct ErrorChain<'a>(pub &'a dyn std::error::Error);
-
-impl<'a> std::fmt::Display for ErrorChain<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)?;
-        let mut source = self.0.source();
-        while let Some(cause) = source {
-            write!(f, ": ")?;
-            write!(f, "{cause}")?;
-            source = cause.source();
-        }
-        Ok(())
-    }
-}
-
-impl<'a> std::fmt::Debug for ErrorChain<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)?;
-        Ok(())
-    }
 }
 
 pub type IotaResult<T = ()> = Result<T, IotaError>;

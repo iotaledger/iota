@@ -20,9 +20,9 @@ const NUM_TRIES: u64 = 5;
 
 // Combiners for `TransactionKindMutator`s:
 // * `RandomMutator` will select a random mutator from a list of mutators
-// * `ChainedMutator` will apply a list of mutators in sequence. If a given
-//   mutator doesn't apply it will be skipped but other mutations both before
-//   and after the failed mutator may still be applied.
+// * `ChainedMutator` will apply a list of mutators in sequence. If a given mutator doesn't apply it
+//   will be skipped but other mutations both before and after the failed mutator may still be
+//   applied.
 pub struct RandomMutator {
     pub rng: rand::rngs::StdRng,
     pub mutators: Vec<Box<dyn TransactionKindMutator + Send + Sync>>,

@@ -137,25 +137,21 @@ impl VersionedUsedProcessedMessages {
 //
 // DKG protocol:
 // 1. This validator sends out a `Message` to all other validators.
-// 2. Once sufficient valid `Message`s are received from other validators via
-//    consensus and processed, this validator sends out a `Confirmation` to all
-//    other validators.
-// 3. Once sufficient `Confirmation`s are received from other validators via
-//    consensus and processed, they are combined to form a public VSS key and
-//    local private key shares.
+// 2. Once sufficient valid `Message`s are received from other validators via consensus and
+//    processed, this validator sends out a `Confirmation` to all other validators.
+// 3. Once sufficient `Confirmation`s are received from other validators via consensus and
+//    processed, they are combined to form a public VSS key and local private key shares.
 // 4. Randomness generation begins.
 //
 // Randomness generation:
-// 1. For each new round, AuthorityPerEpochStore eventually calls
-//    `generate_randomness`.
-// 2. This kicks off a process in RandomnessEventLoop to send partial signatures
-//    for the new round to all other validators.
-// 3. Once enough partial signatures for the round are collected, a
-//    RandomnessStateUpdate transaction is generated and injected into the
-//    TransactionManager.
-// 4. Once the RandomnessStateUpdate transaction is seen in a certified
-//    checkpoint, `notify_randomness_in_checkpoint` is called to complete the
-//    round and stop sending partial signatures for it.
+// 1. For each new round, AuthorityPerEpochStore eventually calls `generate_randomness`.
+// 2. This kicks off a process in RandomnessEventLoop to send partial signatures for the new round
+//    to all other validators.
+// 3. Once enough partial signatures for the round are collected, a RandomnessStateUpdate
+//    transaction is generated and injected into the TransactionManager.
+// 4. Once the RandomnessStateUpdate transaction is seen in a certified checkpoint,
+//    `notify_randomness_in_checkpoint` is called to complete the round and stop sending partial
+//    signatures for it.
 pub struct RandomnessManager {
     epoch_store: Weak<AuthorityPerEpochStore>,
     epoch: EpochId,

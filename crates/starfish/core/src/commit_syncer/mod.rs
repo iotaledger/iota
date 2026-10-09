@@ -244,6 +244,31 @@ impl<C: NetworkClient> Inner<C> {
             max_commits,
         )
     }
+
+    /// Moves the peers that have voted for `commit_index` or later, other than
+    /// those in `excluded`, ahead of the rest, keeping the order within each
+    /// group. Does nothing unless
+    /// `enable_commit_sync_peer_selection_by_commit_votes` is set.
+    pub(crate) fn order_voters_first(
+        &self,
+        authorities: &mut [AuthorityIndex],
+        commit_index: CommitIndex,
+        excluded: &BTreeSet<AuthorityIndex>,
+    ) {
+        if !self
+            .context
+            .parameters
+            .enable_commit_sync_peer_selection_by_commit_votes
+        {
+            return;
+        }
+        authorities.sort_by_cached_key(|authority| {
+            excluded.contains(authority)
+                || !self
+                    .commit_vote_monitor
+                    .has_voted_for_commit(*authority, commit_index)
+        });
+    }
 }
 
 /// Rejects a deserialized commit whose variant does not match the local
@@ -323,11 +348,13 @@ pub(crate) fn verify_commits(
 ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
     // Validate response size - peer should not return more than max_commits
     if serialized_commits.len() > max_commits {
-        return Err(ConsensusError::TooManyCommitsFromPeer {
+        let e = ConsensusError::TooManyCommitsFromPeer {
             peer,
             count: serialized_commits.len() as CommitIndex,
             limit: max_commits as CommitIndex,
-        });
+        };
+        misbehavior_store.record_fetch_fault(peer, &e);
+        return Err(e);
     }
 
     // One vote header per authority certifies a commit, but servers that do
@@ -339,11 +366,13 @@ pub(crate) fn verify_commits(
         .size()
         .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     if serialized_vote_blocks_headers.len() > max_vote_headers {
-        return Err(ConsensusError::TooManyCommitVoteHeaders {
+        let e = ConsensusError::TooManyCommitVoteHeaders {
             peer,
             count: serialized_vote_blocks_headers.len(),
             limit: max_vote_headers,
-        });
+        };
+        misbehavior_store.record_fetch_fault(peer, &e);
+        return Err(e);
     }
 
     // Parse and verify commits.
@@ -513,6 +542,26 @@ pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
     (requested as f64 / delivered.max(1) as f64).max(1.0)
 }
 
+/// Base timeout of one commit-sync request; every failed round adds one more
+/// of these, up to `MAX_FETCH_TIMEOUT_MULTIPLIER` times.
+#[cfg(not(test))]
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(test)]
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_millis(500);
+/// Cap on the escalation: at the extreme a request waits 120 s.
+pub(crate) const MAX_FETCH_TIMEOUT_MULTIPLIER: u32 = 12;
+/// A whole fetch attempt may take this many request timeouts: the regular
+/// syncer pipelines several requests per attempt, the fast syncer sends one.
+pub(crate) const REGULAR_FETCH_ATTEMPT_MULTIPLIER: u32 = 4;
+pub(crate) const FAST_FETCH_ATTEMPT_MULTIPLIER: u32 = 2;
+/// The longest any commit syncer waits for one fetch attempt, 480 s in the
+/// node.
+pub(crate) fn max_fetch_attempt_timeout() -> Duration {
+    FETCH_TIMEOUT
+        * MAX_FETCH_TIMEOUT_MULTIPLIER
+        * REGULAR_FETCH_ATTEMPT_MULTIPLIER.max(FAST_FETCH_ATTEMPT_MULTIPLIER)
+}
+
 /// Generic fetch loop that retries fetching data from available authorities
 /// until a request succeeds. This is shared between RegularCommitSyncer and
 /// FastCommitSyncer.
@@ -527,8 +576,7 @@ pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
 /// # Parameters
 /// - `inner`: Shared context and dependencies
 /// - `commit_range`: The range of commits to fetch
-/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for
-///   regular, 2 for fast)
+/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for regular, 2 for fast)
 /// - `fetch_once_fn`: Implementation-specific fetch function
 ///
 /// # Returns
@@ -546,15 +594,6 @@ where
     F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
 {
-    // Individual request base timeout.
-    #[cfg(not(test))]
-    const TIMEOUT: Duration = Duration::from_secs(10);
-    #[cfg(test)]
-    const TIMEOUT: Duration = Duration::from_millis(500);
-    // Max per-request timeout will be base timeout times a multiplier.
-    // At the extreme, this means there will be 120s timeout to fetch
-    // max_headers_per_commit_sync_fetch headers.
-    const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
     // timeout * max number of targets should be reasonably small, so the
     // system can adjust to slow network or large data sizes quickly.
     const MAX_NUM_TARGETS: usize = 24;
@@ -565,7 +604,7 @@ where
     // has seen for a peer and only decays it on success, so feeding the
     // escalated value would leave a peer looking slow for many rounds after it
     // recovered.
-    let failure_penalty = TIMEOUT * fetch_timeout_multiplier;
+    let failure_penalty = FETCH_TIMEOUT * fetch_timeout_multiplier;
     let data_source = inner.sync_type.data_source();
     let mut rng = StdRng::from_rng(&mut rng());
 
@@ -624,23 +663,15 @@ where
         // that provably solidified the range, and any header from a
         // behind-listed peer carrying a recent commit vote promotes it
         // immediately.
-        if inner
-            .context
-            .parameters
-            .enable_commit_sync_peer_selection_by_commit_votes
-        {
-            let (caught_up, behind): (Vec<_>, Vec<_>) =
-                target_authorities.into_iter().partition(|authority| {
-                    inner
-                        .commit_vote_monitor
-                        .has_voted_for_commit(*authority, commit_range.end())
-                });
-            target_authorities = caught_up.into_iter().chain(behind).collect();
-        }
+        inner.order_voters_first(
+            &mut target_authorities,
+            commit_range.end(),
+            &BTreeSet::new(),
+        );
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
-        timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
-        let request_timeout = TIMEOUT * timeout_multiplier;
+        timeout_multiplier = (timeout_multiplier + 1).min(MAX_FETCH_TIMEOUT_MULTIPLIER);
+        let request_timeout = FETCH_TIMEOUT * timeout_multiplier;
 
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
@@ -735,7 +766,7 @@ where
             }
         }
         // Avoid busy looping, by waiting for a while before retrying.
-        sleep(TIMEOUT).await;
+        sleep(FETCH_TIMEOUT).await;
     }
 }
 
@@ -943,7 +974,8 @@ pub(crate) mod tests {
 
     /// Fake `NetworkClient` for commit syncer tests, serving preset responses.
     /// With no preset response, `fetch_commits_and_transactions` fails the
-    /// fetch, while the other fetch endpoints panic as unimplemented.
+    /// fetch, `fetch_block_headers` answers from `stored_block_headers`, while
+    /// the other fetch endpoints panic as unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
@@ -961,6 +993,13 @@ pub(crate) mod tests {
         pub(crate) block_headers: Option<Vec<Bytes>>,
         /// Preset `fetch_transactions` response.
         pub(crate) transactions: Option<Vec<Bytes>>,
+        /// Every peer asked for block headers, in the order it was asked.
+        pub(crate) requested_header_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
+        /// Headers `fetch_block_headers` serves by requested ref when no preset
+        /// response is set; a ref without an entry is left out of the answer.
+        pub(crate) stored_block_headers: BTreeMap<BlockRef, Bytes>,
+        /// Peers whose `fetch_block_headers` fails as a connection error.
+        pub(crate) unreachable_header_peers: Vec<AuthorityIndex>,
     }
 
     #[async_trait::async_trait]
@@ -988,14 +1027,23 @@ pub(crate) mod tests {
 
         async fn fetch_block_headers(
             &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            peer: AuthorityIndex,
+            block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            self.requested_header_peers.lock().push(peer);
+            if self.unreachable_header_peers.contains(&peer) {
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "{peer} is unreachable"
+                )));
+            }
             match &self.block_headers {
                 Some(response) => Ok(response.clone()),
-                None => unimplemented!("Unimplemented"),
+                None => Ok(block_refs
+                    .iter()
+                    .filter_map(|block_ref| self.stored_block_headers.get(block_ref).cloned())
+                    .collect()),
             }
         }
 
@@ -1249,6 +1297,37 @@ pub(crate) mod tests {
                 limit: error_limit,
             }) if error_peer == peer && count == limit + 1 && error_limit == limit
         ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+    }
+
+    #[tokio::test]
+    async fn verify_commits_charges_peer_for_too_many_commits() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=2),
+            vec![Bytes::new(); 3],
+            vec![],
+            2,
+        );
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitsFromPeer {
+                peer: error_peer,
+                count: 3,
+                limit: 2,
+            }) if error_peer == peer
+        ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
     }
 
     #[test]

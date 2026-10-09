@@ -173,11 +173,9 @@ pub enum LocalnetCommand {
     /// Protocol config parameters can be overridden individually by setting
     /// environment variables as follows:
     /// - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
-    /// - Then, to configure an override, use the prefix
-    ///   `IOTA_PROTOCOL_CONFIG_OVERRIDE_` along with the parameter name. For
-    ///   example, to increase the interval between checkpoint creation to >1/s,
-    ///   you might set:
-    ///   IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000
+    /// - Then, to configure an override, use the prefix `IOTA_PROTOCOL_CONFIG_OVERRIDE_` along with
+    ///   the parameter name. For example, to increase the interval between checkpoint creation to
+    ///   >1/s, you might set: IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000
     ///
     /// Note that protocol config parameters must match between all nodes, or
     /// the network may break. Changing these values outside of local

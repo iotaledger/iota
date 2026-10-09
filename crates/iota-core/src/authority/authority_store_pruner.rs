@@ -511,15 +511,15 @@ impl AuthorityStorePruner {
         {
             let checkpoint = ckpt.into_inner();
             // Stop pruning at this checkpoint if any of the following holds:
-            // - Its epoch is within the retention window. This is the hard correctness
-            //   bound: parts of the system (e.g. the state accumulator) still require
-            //   access to old object versions of recently retained epochs.
-            // - It reaches the highest eligible checkpoint watermark (including the
-            //   watermark itself).
-            // - Its timestamp is newer than the retention cutoff. This paces pruning
-            //   against the chain's own (consensus-agreed, monotonic) time rather than
-            //   wall-clock, so the retained span is bounded to one retention window whether
-            //   the node is catching up or at tip.
+            // - Its epoch is within the retention window. This is the hard correctness bound: parts
+            //   of the system (e.g. the state accumulator) still require access to old object
+            //   versions of recently retained epochs.
+            // - It reaches the highest eligible checkpoint watermark (including the watermark
+            //   itself).
+            // - Its timestamp is newer than the retention cutoff. This paces pruning against the
+            //   chain's own (consensus-agreed, monotonic) time rather than wall-clock, so the
+            //   retained span is bounded to one retention window whether the node is catching up or
+            //   at tip.
             if (current_epoch < checkpoint.epoch() + num_epochs_to_retain)
                 || (checkpoint.sequence_number() >= max_eligible_checkpoint)
                 || (checkpoint.timestamp_ms > cutoff_timestamp_ms)
@@ -1131,6 +1131,92 @@ mod tests {
         };
         tokio::time::sleep(Duration::from_secs(3)).await;
         to_keep
+    }
+
+    /// Pruning and a compaction do not remove versions that an open database
+    /// snapshot still reads.
+    #[tokio::test]
+    async fn a_db_snapshot_outlives_the_pruner_and_a_compaction() {
+        let tmp_dir = iota_common::tempdir();
+        let db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+
+        // One object at its first version, live when the snapshot is taken.
+        let id = ObjectId::ZERO;
+        let mut batch = db.objects.batch();
+        batch
+            .insert_batch(
+                &db.objects,
+                [(
+                    ObjectKey(id, Version::from_u64(0)),
+                    get_store_object(Object::immutable_with_id_for_testing(id), None),
+                )],
+            )
+            .unwrap();
+        batch.write().unwrap();
+
+        let db_snapshot = db.db_snapshot();
+        let through_snapshot = |db_snapshot: &_| -> Vec<(ObjectId, Version)> {
+            db.iter_live_object_set_at(db_snapshot)
+                .map(|live| (live.object_id(), live.version()))
+                .collect()
+        };
+        let before = through_snapshot(&db_snapshot);
+        assert_eq!(before, vec![(id, Version::from_u64(0))]);
+
+        // The next epoch supersedes that version and the pruner removes it,
+        // exactly as it does seconds after a checkpoint executes.
+        let mut batch = db.objects.batch();
+        batch
+            .insert_batch(
+                &db.objects,
+                [(
+                    ObjectKey(id, Version::from_u64(1)),
+                    get_store_object(Object::immutable_with_id_for_testing(id), None),
+                )],
+            )
+            .unwrap();
+        batch.write().unwrap();
+
+        let mut effects =
+            TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
+        effects.unsafe_add_deleted_live_object_for_testing(ObjectReference::new(
+            id,
+            Version::from_u64(0),
+            ObjectDigest::MIN,
+        ));
+        AuthorityStorePruner::prune_objects(
+            vec![effects],
+            &db,
+            0,
+            AuthorityStorePruningMetrics::new(&Registry::default()),
+        )
+        .await
+        .unwrap();
+
+        // Physically rewrite the files, which is when a delete stops being a
+        // marker and the row is actually gone.
+        db.objects.flush().unwrap();
+        db.objects
+            .compact_range(
+                &ObjectKey(id, Version::from_u64(0)),
+                &ObjectKey(id, Version::from_u64(2)),
+            )
+            .unwrap();
+
+        assert_eq!(
+            through_snapshot(&db_snapshot),
+            before,
+            "the pruner must not take away what an open snapshot still reads",
+        );
+        // Without this the test would pass against a store where nothing had
+        // happened at all.
+        assert_eq!(
+            db.iter_live_object_set()
+                .map(|live| (live.object_id(), live.version()))
+                .collect::<Vec<_>>(),
+            vec![(id, Version::from_u64(1))],
+            "outside the snapshot the object must have moved on to its new version",
+        );
     }
 
     // Tests pruning old version of live objects.

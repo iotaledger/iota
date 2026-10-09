@@ -1502,13 +1502,15 @@ pub fn position_submit_certificate(
 mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
-    use fastcrypto::traits::KeyPair;
+    use fastcrypto::{
+        bls12381::min_sig::BLS12381PrivateKey,
+        traits::{KeyPair, ToFromBytes},
+    };
     use iota_sdk_types::TransactionDigest;
     use iota_types::{
         committee::Committee,
-        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes},
     };
-    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use super::position_submit_certificate;
     use crate::{
@@ -1519,28 +1521,27 @@ mod adapter_tests {
         starfish_adapter::LazyStarfishClient,
     };
 
-    fn test_committee(rng: &mut StdRng, size: usize) -> Committee {
-        let authorities = (0..size)
-            .map(|_k| {
-                (
-                    AuthorityPublicKeyBytes::from(
-                        get_key_pair_from_rng::<AuthorityKeyPair, _>(rng).1.public(),
-                    ),
-                    rng.random_range(0u64..10u64),
-                )
+    /// A committee built from fixed keys and stakes, so the submission order
+    /// these tests check depends only on the code under test, not on `rand`
+    /// or on how fastcrypto generates keys.
+    fn test_committee() -> Committee {
+        const STAKES: [u64; 10] = [3, 7, 1, 9, 4, 4, 2, 8, 5, 6];
+        let authorities = STAKES
+            .iter()
+            .enumerate()
+            .map(|(i, stake)| {
+                let key_pair = AuthorityKeyPair::from(
+                    BLS12381PrivateKey::from_bytes(&[i as u8 + 1; 32]).unwrap(),
+                );
+                (AuthorityPublicKeyBytes::from(key_pair.public()), *stake)
             })
-            .collect::<Vec<_>>();
-        Committee::new_for_testing_with_normalized_voting_power(
-            0,
-            authorities.iter().cloned().collect(),
-        )
+            .collect();
+        Committee::new_for_testing_with_normalized_voting_power(0, authorities)
     }
 
     #[tokio::test]
     async fn test_await_submit_delay_user_transaction() {
-        // grab a random committee and a random stake distribution
-        let mut rng = StdRng::from_seed([0; 32]);
-        let committee = test_committee(&mut rng, 10);
+        let committee = test_committee();
 
         // When we define max submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
@@ -1557,21 +1558,21 @@ mod adapter_tests {
         );
 
         // transaction to submit
-        let tx_digest = TransactionDigest::random_with(&mut rng);
+        let tx_digest = TransactionDigest::new([7; 32]);
 
         // Ensure that the original position is higher
         let (position, positions_moved, _) =
             consensus_adapter.submission_position(&committee, &tx_digest);
-        assert_eq!(position, 3);
-        assert!(!positions_moved > 0);
+        assert_eq!(position, 8);
+        assert_eq!(positions_moved, 0);
 
-        // Make sure that position is set to max value 0
+        // Make sure that position is set to max value 1
         let (delay_step, position, positions_moved, _) =
             consensus_adapter.await_submit_delay_user_transaction(&committee, &tx_digest);
 
         assert_eq!(position, 1);
         assert_eq!(delay_step, Duration::from_secs(2));
-        assert!(!positions_moved > 0);
+        assert_eq!(positions_moved, 0);
 
         // Without submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
@@ -1590,24 +1591,24 @@ mod adapter_tests {
         let (delay_step, position, positions_moved, _) =
             consensus_adapter.await_submit_delay_user_transaction(&committee, &tx_digest);
 
-        assert_eq!(position, 3);
+        assert_eq!(position, 8);
 
-        // delay_step * position * 2 = 1 * 3 * 2 = 6
-        assert_eq!(delay_step, Duration::from_secs(6));
-        assert!(!positions_moved > 0);
+        // delay_step * position * 2 = 1 * 8 * 2 = 16
+        assert_eq!(delay_step, Duration::from_secs(16));
+        assert_eq!(positions_moved, 0);
     }
 
     #[test]
     fn test_position_submit_certificate() {
-        // grab a random committee and a random stake distribution
-        let mut rng = StdRng::from_seed([0; 32]);
-        let committee = test_committee(&mut rng, 10);
+        let committee = test_committee();
 
-        // generate random transaction digests, and account for validator selection
-        const NUM_TEST_TRANSACTIONS: usize = 1000;
+        // many transaction digests, and account for validator selection
+        const NUM_TEST_TRANSACTIONS: u32 = 1000;
 
-        for _tx_idx in 0..NUM_TEST_TRANSACTIONS {
-            let tx_digest = TransactionDigest::random_with(&mut rng);
+        for tx_idx in 0..NUM_TEST_TRANSACTIONS {
+            let mut digest_bytes = [0u8; 32];
+            digest_bytes[..4].copy_from_slice(&tx_idx.to_le_bytes());
+            let tx_digest = TransactionDigest::new(digest_bytes);
 
             let mut zero_found = false;
             for (name, _) in committee.members() {

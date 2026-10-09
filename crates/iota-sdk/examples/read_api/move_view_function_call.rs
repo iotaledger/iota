@@ -76,6 +76,7 @@ async fn main() -> Result<(), anyhow::Error> {
         protocol_build_config: ProtocolBuildConfig {
             allow_view_function: true,
             max_move_package_size: None,
+            max_move_system_package_size: None,
         },
     };
     let compiled_package = build_config.build(&package_path)?;

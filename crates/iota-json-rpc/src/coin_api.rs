@@ -1436,14 +1436,17 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+        use iota_sdk_move_types::{
+            iota_framework::{bag::Bag, vec_map::VecMap},
+            iota_system::iota_system_state_inner::SystemParametersV1,
+        };
         use iota_types::{
             coin::CoinMetadata,
             gas_coin::IotaTreasuryCap,
             id::UID,
             iota_system_state::{
                 IotaSystemState,
-                iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1},
+                iota_system_state_inner_v1::StorageFundV1,
                 iota_system_state_inner_v2::{IotaSystemStateV2, ValidatorSetV2},
             },
         };
@@ -1608,7 +1611,7 @@ mod tests {
                     at_risk_validators: VecMap {
                         contents: Default::default(),
                     },
-                    extra_fields: Default::default(),
+                    extra_fields: Bag::new(ObjectId::ZERO.into(), 0),
                 },
                 storage_fund: StorageFundV1 {
                     total_object_storage_rebates: iota_types::balance::Balance::new(
@@ -1624,7 +1627,7 @@ mod tests {
                     validator_low_stake_threshold: Default::default(),
                     validator_very_low_stake_threshold: Default::default(),
                     validator_low_stake_grace_period: Default::default(),
-                    extra_fields: Default::default(),
+                    extra_fields: Bag::new(ObjectId::ZERO.into(), 0),
                 },
                 iota_system_admin_cap: Default::default(),
                 reference_gas_price: Default::default(),
@@ -1638,7 +1641,7 @@ mod tests {
                 safe_mode_storage_rebates: Default::default(),
                 safe_mode_non_refundable_storage_fee: Default::default(),
                 epoch_start_timestamp_ms: Default::default(),
-                extra_fields: Default::default(),
+                extra_fields: Bag::new(ObjectId::ZERO.into(), 0),
             }
         }
     }

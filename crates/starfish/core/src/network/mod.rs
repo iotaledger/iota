@@ -6,12 +6,9 @@
 //! implementations for the consensus protocol.
 //!
 //! Having an abstract network interface allows
-//! - simplifying the semantics of sending data and serving requests over the
-//!   network
-//! - hiding implementation specific types and semantics from the consensus
-//!   protocol
-//! - allowing easy swapping of network implementations, for better performance
-//!   or testing
+//! - simplifying the semantics of sending data and serving requests over the network
+//! - hiding implementation specific types and semantics from the consensus protocol
+//! - allowing easy swapping of network implementations, for better performance or testing
 //!
 //! When modifying the client and server interfaces, the principle is to keep
 //! the interfaces low level, close to underlying implementations in semantics.
@@ -85,8 +82,7 @@ pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBun
 ///
 /// NOTE: the timeout parameters help saving resources at client and potentially
 /// server. But it is up to the server implementation if the timeout is honored.
-/// - To bound server resources, server should implement own timeout for
-///   incoming requests.
+/// - To bound server resources, server should implement own timeout for incoming requests.
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Subscribes to blocks from a peer after last_received round.

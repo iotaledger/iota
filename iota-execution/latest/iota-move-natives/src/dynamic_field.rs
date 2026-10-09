@@ -82,13 +82,12 @@ pub struct DynamicFieldHashTypeAndKeyCostParams {
 /// + store>(parent: address, k: K): address`   gas cost:
 /// dynamic_field_hash_type_and_key_cost_base                            |
 /// covers various fixed costs in the oper
-///              + dynamic_field_hash_type_and_key_type_cost_per_byte *
-///                size_of(K)   | covers cost of operating on the type `K`
-///              + dynamic_field_hash_type_and_key_value_cost_per_byte *
-///                size_of(k)  | covers cost of operating on the value `k`
-///              + dynamic_field_hash_type_and_key_type_tag_cost_per_byte *
-///                size_of(type_tag(k))    | covers cost of operating on the
-///                type tag of `K`
+///              + dynamic_field_hash_type_and_key_type_cost_per_byte * size_of(K)   | covers cost
+///                of operating on the type `K`
+///              + dynamic_field_hash_type_and_key_value_cost_per_byte * size_of(k)  | covers cost
+///                of operating on the value `k`
+///              + dynamic_field_hash_type_and_key_type_tag_cost_per_byte * size_of(type_tag(k)) |
+///                covers cost of operating on the type tag of `K`
 /// ****************************************************************************
 /// *******************
 #[instrument(level = "trace", skip_all)]
@@ -175,15 +174,13 @@ pub struct DynamicFieldAddChildObjectCostParams {
 /// key>(parent: address, child: Child)`   gas cost:
 /// dynamic_field_add_child_object_cost_base                    | covers various
 /// fixed costs in the oper
-///              + dynamic_field_add_child_object_type_cost_per_byte *
-///                size_of(Child)        | covers cost of operating on the type
-///                `Child`
-///              + dynamic_field_add_child_object_value_cost_per_byte *
-///                size_of(child)       | covers cost of operating on the value
-///                `child`
+///              + dynamic_field_add_child_object_type_cost_per_byte * size_of(Child)        |
+///                covers cost of operating on the type `Child`
+///              + dynamic_field_add_child_object_value_cost_per_byte * size_of(child)       |
+///                covers cost of operating on the value `child`
 ///              + dynamic_field_add_child_object_struct_tag_cost_per_byte *
-///                size_of(struct)tag(Child))  | covers cost of operating on the
-///                struct tag of `Child`
+///                size_of(struct)tag(Child))  | covers cost of operating on the struct tag of
+///                `Child`
 /// ****************************************************************************
 /// *******************
 #[instrument(level = "trace", skip_all)]
@@ -279,12 +276,10 @@ pub struct DynamicFieldBorrowChildObjectCostParams {
 /// UID, id: address): &mut Child`   gas cost:
 /// dynamic_field_borrow_child_object_cost_base                    | covers
 /// various fixed costs in the oper
-///              + dynamic_field_borrow_child_object_child_ref_cost_per_byte  *
-///                size_of(&Child)  | covers cost of fetching and returning
-///                `&Child`
-///              + dynamic_field_borrow_child_object_type_cost_per_byte  *
-///                size_of(Child)        | covers cost of operating on type
-///                `Child`
+///              + dynamic_field_borrow_child_object_child_ref_cost_per_byte  * size_of(&Child)  |
+///                covers cost of fetching and returning `&Child`
+///              + dynamic_field_borrow_child_object_type_cost_per_byte  * size_of(Child)        |
+///                covers cost of operating on type `Child`
 /// ****************************************************************************
 /// *******************
 #[instrument(level = "trace", skip_all)]
@@ -364,12 +359,10 @@ pub struct DynamicFieldRemoveChildObjectCostParams {
 /// key>(parent: address, id: address): Child`   gas cost:
 /// dynamic_field_remove_child_object_cost_base                    | covers
 /// various fixed costs in the oper
-///              + dynamic_field_remove_child_object_type_cost_per_byte *
-///                size_of(Child)      | covers cost of operating on type
-///                `Child`
-///              + dynamic_field_remove_child_object_child_cost_per_byte  *
-///                size_of(child)     | covers cost of fetching and returning
-///                value of type `Child`
+///              + dynamic_field_remove_child_object_type_cost_per_byte * size_of(Child)      |
+///                covers cost of operating on type `Child`
+///              + dynamic_field_remove_child_object_child_cost_per_byte  * size_of(child)     |
+///                covers cost of fetching and returning value of type `Child`
 /// ****************************************************************************
 /// *******************
 #[instrument(level = "trace", skip_all)]
@@ -478,9 +471,8 @@ pub struct DynamicFieldHasChildObjectWithTyCostParams {
 /// key>(parent: address, id: address): bool`   gas cost:
 /// dynamic_field_has_child_object_with_ty_cost_base               | covers
 /// various fixed costs in the oper
-///              + dynamic_field_has_child_object_with_ty_type_cost_per_byte *
-///                size_of(Child)        | covers cost of operating on type
-///                `Child`
+///              + dynamic_field_has_child_object_with_ty_type_cost_per_byte * size_of(Child) |
+///                covers cost of operating on type `Child`
 ///              + dynamic_field_has_child_object_with_ty_type_tag_cost_per_byte
 ///                * size_of(Child)    | covers cost of fetching and returning
 ///                value of type tag for `Child`

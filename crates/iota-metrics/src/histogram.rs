@@ -118,10 +118,9 @@ struct HistogramLabelsInner {
 /// not cause any harm to the code itself:
 /// * Reporting data point is a non-blocking send to a channel
 /// * Data point collections tries to clear the channel as fast as possible
-/// * Expensive histogram calculations are done in a separate blocking tokio
-///   thread pool to avoid effects on main scheduler
-/// * If histogram data is produced too fast, the data is dropped and error! log
-///   is emitted
+/// * Expensive histogram calculations are done in a separate blocking tokio thread pool to avoid
+///   effects on main scheduler
+/// * If histogram data is produced too fast, the data is dropped and error! log is emitted
 impl HistogramVec {
     pub fn new_in_registry(name: &str, desc: &str, labels: &[&str], registry: &Registry) -> Self {
         Self::new_in_registry_with_percentiles(
