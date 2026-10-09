@@ -3107,3 +3107,254 @@ async fn check_latest_object_ref(
         assert_eq!(&response.unwrap().object.object_ref(), object_ref);
     }
 }
+
+/// Collects formatted tracing output in a shared buffer.
+#[derive(Clone, Default)]
+pub struct SharedTraceBuffer(pub std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for SharedTraceBuffer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for SharedTraceBuffer {
+    type Writer = SharedTraceBuffer;
+    fn make_writer(&'a self) -> Self::Writer {
+        self.clone()
+    }
+}
+
+/// Re-executing the same transactions on a fresh authority must produce
+/// byte-identical resource profiles.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn resource_profile_replay_is_deterministic() {
+    async fn run_workload() -> Vec<String> {
+        use rand::SeedableRng;
+
+        // Fixed sender and gas object so both runs produce the same digests.
+        let mut rng = rand::rngs::StdRng::from_seed([7; 32]);
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            iota_types::crypto::get_key_pair_from_rng(&mut rng);
+        let gas_object_id = ObjectId::from_str(
+            "0x7777777777777777777777777777777777777777777777777777777777777777",
+        )
+        .unwrap();
+
+        let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
+
+        // Start after genesis, whose digest depends on the random committee.
+        let buffer = SharedTraceBuffer::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_env_filter("resource_profile=trace")
+            .with_writer(buffer.clone())
+            .with_ansi(false)
+            .without_time()
+            .finish();
+        let guard = tracing::subscriber::set_default(subscriber);
+
+        let package = build_and_publish_test_package(
+            &authority,
+            &sender,
+            &sender_key,
+            &gas_object_id,
+            "object_basics",
+            false,
+        )
+        .await;
+
+        let effects = call_move(
+            &authority,
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "create",
+            vec![],
+            vec![
+                TestCallArg::Pure(bcs::to_bytes(&(16_u64)).unwrap()),
+                TestCallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+        )
+        .await
+        .unwrap();
+        let created = effects.created()[0].reference().object_id;
+
+        call_move(
+            &authority,
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "set_value",
+            vec![],
+            vec![
+                TestCallArg::Object(created),
+                TestCallArg::Pure(bcs::to_bytes(&(42_u64)).unwrap()),
+            ],
+        )
+        .await
+        .unwrap();
+
+        call_move(
+            &authority,
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "delete",
+            vec![],
+            vec![TestCallArg::Object(created)],
+        )
+        .await
+        .unwrap();
+
+        drop(guard);
+
+        let captured = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
+        captured
+            .lines()
+            .filter(|line| line.contains("Per-transaction resource profile"))
+            .map(|line| line.to_string())
+            .collect()
+    }
+
+    let first = run_workload().await;
+    let second = run_workload().await;
+    assert!(
+        !first.is_empty(),
+        "expected resource_profile trace events to be captured"
+    );
+    assert_eq!(
+        first, second,
+        "resource profiles must be byte-identical across re-execution"
+    );
+}
+
+/// Reads a counter out of the `Debug` rendering of a `ResourceProfile`.
+pub fn profile_counter(trace_line: &str, name: &str) -> u64 {
+    let field = format!("{name}: ");
+    let start = trace_line
+        .find(&field)
+        .unwrap_or_else(|| panic!("{name} missing from {trace_line}"))
+        + field.len();
+    trace_line[start..]
+        .split(|c: char| !c.is_ascii_digit())
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap()
+}
+
+/// A transaction that fails part-way must still report the reads, events, and
+/// package loads of the commands that ran.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn resource_profile_keeps_counters_of_failed_transaction() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let authority = init_state_with_ids(vec![(sender, gas)]).await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let package = build_and_publish_test_package(
+        &authority,
+        &sender,
+        &sender_key,
+        &gas,
+        "object_basics",
+        false,
+    )
+    .await;
+
+    let mut created = vec![];
+    for _ in 0..2 {
+        let effects = call_move(
+            &authority,
+            &gas,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "create",
+            vec![],
+            vec![
+                TestCallArg::Pure(bcs::to_bytes(&(16_u64)).unwrap()),
+                TestCallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+        )
+        .await
+        .unwrap();
+        created.push(effects.created()[0].reference().object_id);
+    }
+
+    let buffer = SharedTraceBuffer::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_env_filter("resource_profile=trace")
+        .with_writer(buffer.clone())
+        .with_ansi(false)
+        .without_time()
+        .finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+
+    // `update` emits an event; `remove_field` then looks up a dynamic field
+    // that was never added and aborts.
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let first = TestCallArg::Object(created[0])
+            .to_call_arg(&mut builder, &authority)
+            .await;
+        let second = TestCallArg::Object(created[1])
+            .to_call_arg(&mut builder, &authority)
+            .await;
+        builder.programmable_move_call(
+            package.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("update"),
+            vec![],
+            vec![first, second],
+        );
+        builder.programmable_move_call(
+            package.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("remove_field"),
+            vec![],
+            vec![first],
+        );
+        builder.finish()
+    };
+    let effects = execute_programmable_transaction(
+        &authority,
+        &gas,
+        &sender,
+        &sender_key,
+        pt,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+    )
+    .await
+    .unwrap();
+    drop(guard);
+    assert!(
+        !matches!(effects.status(), ExecutionStatus::Success),
+        "expected the transaction to fail, got {:?}",
+        effects.status()
+    );
+
+    let captured = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
+    let lines: Vec<_> = captured
+        .lines()
+        .filter(|line| line.contains("Per-transaction resource profile"))
+        .collect();
+    assert_eq!(lines.len(), 1, "expected one profile, got {captured}");
+    let line = lines[0];
+    assert_eq!(profile_counter(line, "event_count"), 1);
+    assert!(profile_counter(line, "child_object_reads") >= 1);
+    assert_eq!(profile_counter(line, "packages_loaded"), 1);
+}

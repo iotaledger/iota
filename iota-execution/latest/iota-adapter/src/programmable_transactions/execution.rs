@@ -157,6 +157,7 @@ mod checked {
             if let Err(err) =
                 execute_command::<Mode>(&mut context, &mut mode_results, command, trace_builder_opt)
             {
+                context.record_resource_profile_counters()?;
                 let object_runtime: &ObjectRuntime = context.object_runtime()?;
                 // We still need to record the loaded child objects for replay
                 let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
@@ -1016,7 +1017,15 @@ mod checked {
                     msg,
                 ))
             }
-            Ok(Ok(pkgs)) => Ok(pkgs),
+            Ok(Ok(pkgs)) => {
+                for package in &pkgs {
+                    context.linkage_view.record_package_load(
+                        package.object().id(),
+                        package.move_package().size() as u64,
+                    );
+                }
+                Ok(pkgs)
+            }
         }
     }
 

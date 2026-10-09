@@ -19,6 +19,7 @@ pub mod checked {
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{
             gas_v1::{IotaGasStatus as IotaGasStatusV1, min_transaction_cost},
+            resource_profile::ResourceProfile,
             tables::GasStatus,
         },
         object::{MoveStructExt, Object},
@@ -42,6 +43,10 @@ pub mod checked {
         fn reset_storage_cost_and_rebate(&mut self);
         fn charge_storage_read(&mut self, size: usize) -> Result<(), ExecutionError>;
         fn charge_publish_package(&mut self, size: usize) -> Result<(), ExecutionError>;
+        /// Like [`charge_storage_read`](Self::charge_storage_read), but the
+        /// deducted gas is attributed to coin transfers in the resource
+        /// profile.
+        fn charge_coin_transfers(&mut self, size: usize) -> Result<(), ExecutionError>;
         fn track_storage_mutation(
             &mut self,
             object_id: ObjectId,
@@ -80,6 +85,14 @@ pub mod checked {
             // Always return V1 as unmetered gas status is identical from V1 to V2.
             // This is only used for system transactions which do not pay gas.
             Self::V1(IotaGasStatusV1::new_unmetered())
+        }
+
+        /// The per-transaction [`ResourceProfile`]. Complete only after
+        /// storage collection.
+        pub fn resource_profile(&self) -> ResourceProfile {
+            match self {
+                Self::V1(status) => status.resource_profile(),
+            }
         }
 
         // This is the only public API on IotaGasStatus, all other gas related
