@@ -1880,7 +1880,7 @@ impl AuthorityState {
                 primary: &inner_temporary_store.input_objects,
                 fallback: self.get_object_store().as_ref(),
             };
-            epoch_store.record_executed_transaction(effects, &loaded_input_objects)?;
+            epoch_store.record_executed_transaction(&key, effects, &loaded_input_objects)?;
         }
 
         // Allow testing what happens if we crash here.
@@ -3116,6 +3116,14 @@ impl AuthorityState {
         epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
+
+        // Read by the quarantine flush and the execution watcher; the next
+        // epoch's store inherits it.
+        epoch_store.set_effects_store(
+            execution_cache_trait_pointers
+                .transaction_cache_reader
+                .clone(),
+        );
 
         let metrics = Arc::new(AuthorityMetrics::new(prometheus_registry));
         let (tx_ready_transactions, rx_ready_transactions) = unbounded_channel();

@@ -122,6 +122,23 @@ pub struct EpochMetrics {
     /// The number of consensus output items in the quarantine.
     pub consensus_quarantine_queue_size: IntGauge,
 
+    /// The highest commit index such that it and every commit below it is
+    /// fully executed. Its lag behind consensus is `last_commit_index` minus
+    /// this.
+    pub handler_object_state_highest_fully_executed_commit: IntGauge,
+
+    /// The number of handler-processed rows held in memory, not yet durable.
+    pub handler_object_state_handler_processed_overlay_entries: IntGauge,
+
+    /// The number of sync-ahead records held in memory, not yet durable.
+    pub handler_object_state_sync_ahead_overlay_entries: IntGauge,
+
+    /// The number of sheltered objects held in memory, not yet durable.
+    pub handler_object_state_sheltered_overlay_entries: IntGauge,
+
+    /// The approximate size in bytes of the sheltered objects held in memory.
+    pub handler_object_state_sheltered_overlay_bytes: IntGauge,
+
     /// The number of consensus commits that injected deny-rule update
     /// transactions.
     pub deny_rule_updates_injected: IntCounter,
@@ -269,6 +286,36 @@ impl EpochMetrics {
                 "The number of consensus output items in the quarantine",
                 registry;
                 MetricLevel::Warn,
+            )
+            .unwrap(),
+            handler_object_state_highest_fully_executed_commit: register_int_gauge_with_registry!(
+                "handler_object_state_highest_fully_executed_commit",
+                "The highest commit index such that it and every commit below it is fully executed",
+                registry
+            )
+            .unwrap(),
+            handler_object_state_handler_processed_overlay_entries: register_int_gauge_with_registry!(
+                "handler_object_state_handler_processed_overlay_entries",
+                "The number of handler-processed rows held in memory, not yet durable",
+                registry
+            )
+            .unwrap(),
+            handler_object_state_sync_ahead_overlay_entries: register_int_gauge_with_registry!(
+                "handler_object_state_sync_ahead_overlay_entries",
+                "The number of sync-ahead records held in memory, not yet durable",
+                registry
+            )
+            .unwrap(),
+            handler_object_state_sheltered_overlay_entries: register_int_gauge_with_registry!(
+                "handler_object_state_sheltered_overlay_entries",
+                "The number of sheltered objects held in memory, not yet durable",
+                registry
+            )
+            .unwrap(),
+            handler_object_state_sheltered_overlay_bytes: register_int_gauge_with_registry!(
+                "handler_object_state_sheltered_overlay_bytes",
+                "The approximate size in bytes of the sheltered objects held in memory",
+                registry
             )
             .unwrap(),
             deny_rule_updates_injected: register_int_counter_with_registry!(

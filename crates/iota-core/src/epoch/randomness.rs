@@ -989,7 +989,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1026,7 +1026,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 1,
@@ -1140,7 +1140,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1316,7 +1316,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1519,7 +1519,7 @@ mod tests {
 
         // The other managers process the Messages and send their Confirmations.
         for randomness_manager in peer_managers.iter_mut() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
                 randomness_manager
                     .add_message(&epoch_stores[j].name, dkg_message)
@@ -1546,7 +1546,7 @@ mod tests {
 
         // Three of four Confirmations are enough for completion to run, and
         // the empty set of used messages leaves it nothing to aggregate.
-        let mut output = ConsensusCommitOutput::new(0);
+        let mut output = ConsensusCommitOutput::new(0, 0);
         for (dkg_confirmation, epoch_store) in dkg_confirmations.into_iter().zip(&epoch_stores[1..])
         {
             faulty_manager

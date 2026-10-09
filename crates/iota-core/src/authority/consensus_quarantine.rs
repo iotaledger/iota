@@ -48,6 +48,7 @@ use crate::{
 pub(crate) struct ConsensusCommitOutput {
     // Consensus and reconfig state
     consensus_round: CommitRound,
+    commit_index: CommitIndex,
     consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
     end_of_publish: BTreeSet<AuthorityName>,
     reconfig_state: Option<ReconfigState>,
@@ -114,9 +115,10 @@ pub(crate) struct ConsensusCommitOutput {
 }
 
 impl ConsensusCommitOutput {
-    pub fn new(consensus_round: CommitRound) -> Self {
+    pub fn new(consensus_round: CommitRound, commit_index: CommitIndex) -> Self {
         Self {
             consensus_round,
+            commit_index,
             ..Default::default()
         }
     }
@@ -659,20 +661,26 @@ impl ConsensusOutputQuarantine {
     // Commit methods.
     /// Update the highest executed checkpoint and commit any data which is now
     /// below the watermark.
+    ///
+    /// The returned rows must be evicted from the overlay once the caller's
+    /// `batch` is durably written.
     pub(super) fn update_highest_executed_checkpoint(
         &mut self,
         checkpoint: CheckpointSequenceNumber,
         epoch_store: &AuthorityPerEpochStore,
         batch: &mut DBBatch,
-    ) -> IotaResult {
+    ) -> IotaResult<Vec<FlushedCommitRows>> {
         self.highest_executed_checkpoint = checkpoint;
         self.commit_with_batch(epoch_store, batch)
     }
 
     pub(super) fn commit(&mut self, epoch_store: &AuthorityPerEpochStore) -> IotaResult {
         let mut batch = epoch_store.db_batch()?;
-        self.commit_with_batch(epoch_store, &mut batch)?;
+        let flushed = self.commit_with_batch(epoch_store, &mut batch)?;
+        // No fsync: the write-then-evict order holds across a process crash
+        // only; see the `handler_object_state` module docs.
         batch.write()?;
+        epoch_store.evict_flushed_commit_rows(&flushed);
         Ok(())
     }
 
@@ -681,7 +689,7 @@ impl ConsensusOutputQuarantine {
         &mut self,
         epoch_store: &AuthorityPerEpochStore,
         batch: &mut DBBatch,
-    ) -> IotaResult {
+    ) -> IotaResult<Vec<FlushedCommitRows>> {
         // The commit algorithm is simple:
         // 1. First commit all checkpoint builder state which is below the watermark.
         // 2. Determine the consensus commit height that corresponds to the highest committed
@@ -744,9 +752,10 @@ impl ConsensusOutputQuarantine {
         }
 
         let Some(highest_committed_height) = highest_committed_height else {
-            return Ok(());
+            return Ok(Vec::new());
         };
 
+        let mut flushed = Vec::new();
         while !self.output_queue.is_empty() {
             // A consensus commit can have more than one pending checkpoint (a regular one
             // and a randomnes one). We can only write the consensus commit if
@@ -783,6 +792,11 @@ impl ConsensusOutputQuarantine {
                     .extend(&output.overload_notifications);
                 self.cached_deny_rule_proposals
                     .extend(output.deny_rule_proposals.clone());
+                flushed.extend(epoch_store.stage_flushed_commit_rows(
+                    output.commit_index,
+                    &output.pending_checkpoints,
+                    batch,
+                )?);
                 output.write_to_batch(epoch_store, batch)?;
             } else {
                 break;
@@ -793,7 +807,7 @@ impl ConsensusOutputQuarantine {
             .consensus_quarantine_queue_size
             .set(self.output_queue.len() as i64);
 
-        Ok(())
+        Ok(flushed)
     }
 
     /// The last executed builder checkpoint whose `checkpoint_height` is fully
@@ -1304,7 +1318,7 @@ mod tests {
         round: CommitRound,
         checkpoint_heights: impl IntoIterator<Item = CheckpointHeight>,
     ) -> ConsensusCommitOutput {
-        let mut output = ConsensusCommitOutput::new(round);
+        let mut output = ConsensusCommitOutput::new(round, round);
         output.set_default_commit_stats_for_testing();
         for checkpoint_height in checkpoint_heights {
             output.insert_pending_checkpoint(pending_checkpoint(vec![], checkpoint_height));
@@ -1529,7 +1543,7 @@ mod tests {
 
         let regular_height = 40;
         let randomness_height = regular_height + 1;
-        let mut output = ConsensusCommitOutput::new(1);
+        let mut output = ConsensusCommitOutput::new(1, 1);
         output.set_default_commit_stats_for_testing();
         output.insert_pending_checkpoint(pending_checkpoint(vec![], regular_height));
         output.insert_pending_checkpoint(pending_checkpoint(
