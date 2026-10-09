@@ -243,11 +243,12 @@ impl AuthorityPerpetualTables {
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
     ) -> Result<(Self, HistoricObjects), TypedStoreError> {
         let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
-        let historic_objects = HistoricObjects::open(
+        let mut historic_objects = HistoricObjects::open(
             tables.objects.db.clone(),
             &db_options,
             tables.objects.clone(),
         )?;
+        historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
         Ok((tables, historic_objects))
     }
 
