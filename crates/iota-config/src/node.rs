@@ -1865,20 +1865,20 @@ mod tests {
     }
 
     #[test]
-    fn a_zero_ledger_retention_refuses_a_one_index_retention() {
+    fn the_narrowest_ledger_retention_refuses_a_longer_index_retention() {
         let config = AuthorityStorePruningConfig {
-            num_epochs_to_retain_for_checkpoints: Some(0),
-            num_epochs_to_retain_for_indexes: Some(1),
+            num_epochs_to_retain_for_checkpoints: Some(1),
+            num_epochs_to_retain_for_indexes: Some(2),
             ..Default::default()
         };
         assert!(config.check_index_retention_within_ledger().is_err());
     }
 
     #[test]
-    fn equal_zero_retentions_are_accepted() {
+    fn equal_narrowest_retentions_are_accepted() {
         let config = AuthorityStorePruningConfig {
-            num_epochs_to_retain_for_checkpoints: Some(0),
-            num_epochs_to_retain_for_indexes: Some(0),
+            num_epochs_to_retain_for_checkpoints: Some(1),
+            num_epochs_to_retain_for_indexes: Some(1),
             ..Default::default()
         };
         assert!(config.check_index_retention_within_ledger().is_ok());

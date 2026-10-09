@@ -171,11 +171,8 @@ impl LedgerBacklogMigration {
         epoch: EpochId,
         epochs_to_retain_for_checkpoints: Option<u64>,
     ) -> Self {
-        // Also keep the epoch before the running one: the executed and synced
-        // watermarks can still point at its last checkpoint. `max(1)` keeps
-        // it even at retention 0; the next reconfiguration drops it.
-        let floor = epochs_to_retain_for_checkpoints
-            .map_or(0, |retained| epoch.saturating_sub(retained.max(1)));
+        let floor =
+            epochs_to_retain_for_checkpoints.map_or(0, |retained| epoch.saturating_sub(retained));
         Self {
             perpetual_tables: store.perpetual_tables.clone(),
             historic_ledger: store.get_historic_ledger().clone(),

@@ -111,8 +111,9 @@ rather than outliving it.
 
 :::info
 
-`num-epochs-to-retain-for-checkpoints` keeps one epoch more than it did in
-earlier releases, where the same value kept `N` epochs in total. Transaction
+From `2` up, `num-epochs-to-retain-for-checkpoints` keeps one epoch more than
+it did in earlier releases, where the same value kept `N` epochs in total, and
+values below `2` were raised to `2`. Transaction
 and checkpoint history therefore takes roughly 50% more disk at the commonly
 used value of `2` — size disks accordingly, or lower the value by one to keep
 the previous window.
