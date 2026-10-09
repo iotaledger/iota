@@ -3037,11 +3037,9 @@ mod listener_metrics_tests {
     ];
     const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
 
-    const GRPC_API_FAMILIES: &[&str] = &[
-        "unary_response_bytes",
-        "response_item_bytes_peak",
-        "requested_max_message_bytes",
-    ];
+    /// `node_grpc_response_message_bytes` is not listed: it has a series per
+    /// method, so it shows only once the gRPC API has sent a response.
+    const GRPC_API_FAMILIES: &[&str] = &["response_item_bytes_peak", "requested_max_message_bytes"];
 
     /// Every family the validator listener registers.
     fn validator_families() -> BTreeSet<String> {

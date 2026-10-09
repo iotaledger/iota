@@ -25,9 +25,18 @@ use crate::{
     },
 };
 
-/// The count and the sum of the observed sizes.
+const GET_HEALTH: &str = "/iota.grpc.v1.ledger_service.LedgerService/GetHealth";
+const GET_OBJECTS: &str = "/iota.grpc.v1.ledger_service.LedgerService/GetObjects";
+const LIST_OWNED_OBJECTS: &str = "/iota.grpc.v1.state_service.StateService/ListOwnedObjects";
+
+/// The count and the sum of the observed sizes of all methods.
 fn observed(metrics: &MetricsReader) -> (u64, usize) {
-    let hist = metrics.histogram_totals("unary_response_bytes", &[]);
+    observed_of(metrics, &[])
+}
+
+/// The count and the sum of the observed sizes of the series with `labels`.
+fn observed_of(metrics: &MetricsReader, labels: &[(&str, &str)]) -> (u64, usize) {
+    let hist = metrics.histogram_totals("response_message_bytes", labels);
     (hist.count, hist.sum as usize)
 }
 
@@ -58,6 +67,11 @@ async fn ledger_service_unary_responses_are_observed() {
         epoch.encoded_len(),
     ];
     assert_eq!(observed(&metrics), (3, sizes.iter().sum()));
+    assert_eq!(
+        observed_of(&metrics, &[("method", GET_HEALTH)]),
+        (1, health.encoded_len()),
+        "each method has its own series"
+    );
 }
 
 #[tokio::test]
@@ -147,20 +161,34 @@ async fn a_large_response_is_observed_with_its_whole_size() {
 
     assert_eq!(owned.objects.len(), 400);
     assert!(owned.encoded_len() > 32 * 1024, "{}", owned.encoded_len());
-    assert_eq!(observed(&metrics), (1, owned.encoded_len()));
+    assert_eq!(
+        observed_of(&metrics, &[("method", LIST_OWNED_OBJECTS)]),
+        (1, owned.encoded_len())
+    );
 }
 
 #[tokio::test]
-async fn the_responses_of_streaming_methods_and_failed_calls_are_not_observed() {
-    let mut call = call_get_objects().await;
-    assert_eq!(observed(&call.reader), (0, 0));
+async fn each_message_of_a_stream_is_observed() {
+    let call = call_get_objects().await;
+    assert!(
+        call.responses.len() > 1,
+        "{} messages",
+        call.responses.len()
+    );
 
+    let sizes = call.responses.iter().map(Message::encoded_len);
+    assert_eq!(
+        observed_of(&call.reader, &[("method", GET_OBJECTS)]),
+        (call.responses.len() as u64, sizes.sum())
+    );
+}
+
+#[tokio::test]
+async fn a_failed_call_is_not_observed() {
     let (handle, metrics) = start(MockGrpcStateReader::default()).await;
     let failed = StateServiceClient::new(connect(&handle).await)
         .list_owned_objects(ListOwnedObjectsRequest::default())
         .await;
     assert!(failed.is_err());
     assert_eq!(observed(&metrics), (0, 0));
-    call.call_without_max_message_size().await;
-    assert_eq!(observed(&call.reader), (0, 0));
 }

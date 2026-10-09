@@ -138,13 +138,13 @@ async fn test_grpc_api_responses_are_measured() -> Result<(), anyhow::Error> {
         .fullnode_handle
         .iota_node
         .with(|node| node.gather_metrics());
-    let unary_responses = families
+    let response_messages = families
         .iter()
-        .filter(|family| family.name() == "node_grpc_unary_response_bytes")
+        .filter(|family| family.name() == "node_grpc_response_message_bytes")
         .flat_map(|family| family.get_metric())
         .map(|metric| metric.get_histogram().sample_count())
         .sum::<u64>();
-    assert!(unary_responses > 0, "no unary response was measured");
+    assert!(response_messages > 0, "no response message was measured");
     assert!(
         families
             .iter()

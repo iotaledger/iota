@@ -9,4 +9,4 @@ mod common;
 mod harness;
 mod requested_max;
 mod response_item_sizes;
-mod unary_response_sizes;
+mod response_message_sizes;

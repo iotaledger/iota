@@ -23,10 +23,9 @@ use tonic::{Code, Status};
 use tower::{Layer, Service};
 
 mod response_item_sizes;
-mod unary_response_sizes;
+mod response_message_sizes;
 
 pub(crate) use response_item_sizes::{CheckpointSizeTracker, ResponseItemKind};
-use unary_response_sizes::STREAMING_METHODS;
 
 pub const SPAM_LABEL: &str = "SPAM";
 
@@ -34,10 +33,28 @@ pub const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
 ];
 
-/// Sizes of a gRPC message in bytes: 64 KiB, 1 MiB, 4 MiB, 8 MiB, 16 MiB, 30 MiB, 64
-/// MiB and 128 MiB.
+/// Sizes of a gRPC message in bytes, at the message size limits of the API: 1
+/// MiB is the smallest `max_message_size_bytes` a request may ask for, 4 MiB the
+/// default, 30 MiB the largest checkpoint of the protocol and 128 MiB the
+/// largest message. 64 KiB, 8, 16 and 64 MiB fill in between.
 const MESSAGE_SIZE_BUCKETS: &[f64] = &[
     65_536.0,
+    1_048_576.0,
+    4_194_304.0,
+    8_388_608.0,
+    16_777_216.0,
+    31_457_280.0,
+    67_108_864.0,
+    134_217_728.0,
+];
+
+/// Sizes of a response message in bytes: [`MESSAGE_SIZE_BUCKETS`], and 1, 16
+/// and 256 KiB for the small responses.
+const RESPONSE_MESSAGE_SIZE_BUCKETS: &[f64] = &[
+    1_024.0,
+    16_384.0,
+    65_536.0,
+    262_144.0,
     1_048_576.0,
     4_194_304.0,
     8_388_608.0,
@@ -50,8 +67,8 @@ const MESSAGE_SIZE_BUCKETS: &[f64] = &[
 /// Metrics for the public-facing gRPC server.
 ///
 /// Tracks in-flight requests, total request counts (by method and gRPC status),
-/// request latency per RPC method, the sizes of responses and items, and the
-/// max message size that requests ask for.
+/// request latency per RPC method, the sizes of response messages and items,
+/// and the max message size that requests ask for.
 #[derive(Clone)]
 pub struct GrpcServerMetrics {
     inflight_requests: IntGaugeVec,
@@ -61,7 +78,7 @@ pub struct GrpcServerMetrics {
     /// The peak of each kind of item, indexed by `ResponseItemKind as usize`.
     response_item_bytes_peaks: Vec<PeakGauge>,
     requested_max_message_bytes: Histogram,
-    unary_response_bytes: Histogram,
+    response_message_bytes: HistogramVec,
 }
 
 impl GrpcServerMetrics {
@@ -121,11 +138,13 @@ impl GrpcServerMetrics {
                 MetricLevel::Info
             )
             .expect("the gRPC server metrics register without collision"),
-            unary_response_bytes: register_histogram_with_registry!(
-                "node_grpc_unary_response_bytes",
-                "Size of the response of a method that returns one message. A response that the \
-                 tonic encoder rejects for its size is not observed",
-                MESSAGE_SIZE_BUCKETS.to_vec(),
+            response_message_bytes: register_histogram_vec_with_registry!(
+                "node_grpc_response_message_bytes",
+                "Size of each message of a response per method, in bytes: one message for a \
+                 method that returns one, each message of a stream. A compressed message and a \
+                 response that the tonic encoder rejects for its size are not observed",
+                &["method"],
+                RESPONSE_MESSAGE_SIZE_BUCKETS.to_vec(),
                 registry;
                 MetricLevel::Info
             )
@@ -148,8 +167,7 @@ impl GrpcServerMetrics {
 /// unbounded cardinality.
 ///
 /// It puts the request metrics in the request extensions, for the handlers,
-/// and observes the size of the response of each method that returns one
-/// message.
+/// and observes the size of each message of each response.
 #[derive(Clone)]
 pub struct GrpcMetricsLayer {
     metrics: Arc<GrpcServerMetrics>,
@@ -209,7 +227,7 @@ where
     fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
         let raw_path = req.uri().path();
 
-        let Some(&known_path) = self.known_methods.get(raw_path) else {
+        if !self.known_methods.contains(raw_path) {
             // SPAM: bump counter and reject immediately without calling the
             // inner service, avoiding unnecessary router work.
             self.metrics
@@ -222,7 +240,7 @@ where
             return GrpcMetricsFuture::Rejected {
                 response: Some(response),
             };
-        };
+        }
 
         let method = raw_path.to_owned();
         let metrics = self.metrics.clone();
@@ -233,8 +251,7 @@ where
             .inc();
 
         let req = RequestMetrics::attach(req, &metrics);
-        let response_size_metrics =
-            (!STREAMING_METHODS.contains(&known_path)).then(|| metrics.clone());
+        let response_message_bytes = metrics.response_message_bytes.with_label_values(&[&method]);
 
         let guard = InFlightGuard {
             metrics,
@@ -248,7 +265,7 @@ where
         GrpcMetricsFuture::Inner {
             inner: future,
             guard,
-            response_size_metrics,
+            response_message_bytes,
         }
     }
 }
@@ -295,8 +312,8 @@ pin_project! {
     ///   gRPC status from the response headers on completion. If dropped before
     ///   completion (client disconnect), the [`InFlightGuard`] records a
     ///   `"canceled"` status.
-    ///   For a method that returns one message, `response_size_metrics` observes
-    ///   the size of the response.
+    ///   `response_message_bytes` observes the size of each message of the
+    ///   response.
     /// - `Rejected`: a SPAM request that was rejected immediately. Returns the
     ///   pre-built response on first poll.
     #[project = GrpcMetricsFutureProj]
@@ -305,7 +322,7 @@ pin_project! {
             #[pin]
             inner: F,
             guard: InFlightGuard,
-            response_size_metrics: Option<Arc<GrpcServerMetrics>>,
+            response_message_bytes: Histogram,
         },
         Rejected {
             response: Option<Res>,
@@ -324,7 +341,7 @@ where
             GrpcMetricsFutureProj::Inner {
                 inner,
                 guard,
-                response_size_metrics,
+                response_message_bytes,
             } => match inner.poll(cx) {
                 Poll::Ready(result) => {
                     let status = match &result {
@@ -340,10 +357,12 @@ where
 
                     guard.completed = true;
 
-                    let metrics = response_size_metrics.take();
-                    Poll::Ready(
-                        result.map(|response| unary_response_sizes::record_size(response, metrics)),
-                    )
+                    Poll::Ready(result.map(|response| {
+                        response_message_sizes::record_sizes(
+                            response,
+                            response_message_bytes.clone(),
+                        )
+                    }))
                 }
                 Poll::Pending => Poll::Pending,
             },
