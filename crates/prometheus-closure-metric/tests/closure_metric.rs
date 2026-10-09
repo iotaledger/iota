@@ -26,9 +26,12 @@ fn closure_metric_basic() {
 
     // Gather the metrics.
     let metric_families = prometheus_filtered::default_registry().gather();
-    assert_eq!(1, metric_families.len());
-    let metric_family = &metric_families[0];
-    assert_eq!("my_closure_metric", metric_family.name());
+    // The global registry may hold other metrics, such as the standard
+    // process metrics.
+    let metric_family = metric_families
+        .iter()
+        .find(|family| family.name() == "my_closure_metric")
+        .unwrap();
     let metric = metric_family.get_metric();
     assert_eq!(1, metric.len());
     assert_eq!(42.0, metric[0].get_gauge().value());

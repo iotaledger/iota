@@ -8,7 +8,9 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_metrics::hardware_metrics::register_hardware_metrics;
+use iota_metrics::{
+    hardware_metrics::register_hardware_metrics, process_metrics::register_process_metrics,
+};
 use iota_multiaddr::Multiaddr;
 use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
@@ -106,8 +108,12 @@ fn main() {
         eprintln!("failed to register hardware metrics: {err}");
     }
 
-    // Initialize logging
     let prometheus_registry = registry_service.default_registry();
+    if let Err(err) = register_process_metrics(&prometheus_registry) {
+        eprintln!("failed to register process metrics: {err}");
+    }
+
+    // Initialize logging
     let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)

@@ -24,6 +24,7 @@ parking_lot.workspace = true
 scopeguard.workspace = true
 serde.workspace = true
 simple-server-timing-header = "0.1.1"
+strum.workspace = true
 sysinfo.workspace = true
 tap.workspace = true
 thiserror.workspace = true
@@ -37,3 +38,4 @@ prometheus-filtered.workspace = true
 
 [dev-dependencies]
 serde_yaml.workspace = true
+tempfile.workspace = true

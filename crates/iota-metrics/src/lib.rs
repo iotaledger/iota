@@ -42,6 +42,7 @@ pub mod metered_channel;
 pub mod metric_groups;
 pub mod metrics_network;
 pub mod monitored_mpsc;
+pub mod process_metrics;
 // Relies on tokio's `RuntimeMetrics`, which the deterministic simulator's tokio
 // fork does not provide; the node only starts these monitors outside simtests.
 #[cfg(not(msim))]
