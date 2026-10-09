@@ -58,18 +58,79 @@ pub fn check_coin_deny_list_v1(
         tx_receiving_objects,
         per_authenticator_input_objects,
     );
+
+    match coin_type_denial(address, coin_types, object_store, cur_epoch) {
+        Some(CoinTypeDenial::GlobalPause(coin_type)) => {
+            Err(UserInputError::CoinTypeGlobalPause { coin_type })
+        }
+        Some(CoinTypeDenial::AddressDenied(coin_type)) => {
+            Err(UserInputError::AddressDeniedForCoin { address, coin_type })
+        }
+        None => Ok(()),
+    }
+}
+
+/// Fails if `sender` is denied for one of `coin_types`, or one of them is
+/// paused for every address. `coin_types` are the coin types of the objects
+/// execution loaded as the transaction's inputs. This is the check that
+/// [`check_coin_deny_list_v1`] makes before submission, with the deny list
+/// read as it stood at the start of `cur_epoch`, so every validator reaches
+/// the same result.
+pub fn check_coin_deny_list_v1_for_sender_during_execution(
+    sender: Address,
+    coin_types: BTreeSet<String>,
+    cur_epoch: EpochId,
+    object_store: &dyn ObjectStore,
+) -> Result<(), ExecutionError> {
+    match coin_type_denial(sender, coin_types, object_store, Some(cur_epoch)) {
+        Some(CoinTypeDenial::GlobalPause(coin_type)) => Err(ExecutionError::new(
+            ExecutionErrorKind::CoinTypeGlobalPause { coin_type },
+            None,
+        )),
+        Some(CoinTypeDenial::AddressDenied(coin_type)) => Err(ExecutionError::new(
+            ExecutionErrorKind::AddressDeniedForCoin {
+                address: sender,
+                coin_type,
+            },
+            None,
+        )),
+        None => Ok(()),
+    }
+}
+
+/// A coin type an address may not use, and the reason: the type is paused
+/// for every address, or the address is denied for it.
+enum CoinTypeDenial {
+    GlobalPause(String),
+    AddressDenied(String),
+}
+
+/// Returns the first of `coin_types` (in sorted order) that `address` may
+/// not use, with the reason, or `None` if it may use them all. For each type,
+/// a global pause is checked before a denial of `address`. `cur_epoch` is
+/// `None` to read the latest deny list, or `Some(epoch)` to read it as it
+/// stood at the start of `epoch`.
+fn coin_type_denial(
+    address: Address,
+    coin_types: BTreeSet<String>,
+    object_store: &dyn ObjectStore,
+    cur_epoch: Option<EpochId>,
+) -> Option<CoinTypeDenial> {
     for coin_type in coin_types {
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
         };
+
         if check_global_pause(&deny_list, object_store, cur_epoch) {
-            return Err(UserInputError::CoinTypeGlobalPause { coin_type });
+            return Some(CoinTypeDenial::GlobalPause(coin_type));
         }
+
         if check_address_denied_by_config(&deny_list, address, object_store, cur_epoch) {
-            return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
+            return Some(CoinTypeDenial::AddressDenied(coin_type));
         }
     }
-    Ok(())
+
+    None
 }
 
 /// Returns 1) whether the coin deny list check passed,
@@ -244,7 +305,16 @@ fn input_object_coin_types_for_denylist_check(
             .chain(per_authenticator_input_objects.iter().flat_map(
                 |authenticator_input_objects| authenticator_input_objects.inner().iter_objects(),
             ));
-    all_objects
+    coin_types_for_denylist_check(all_objects)
+}
+
+/// Returns all unique coin types of `objects` in canonical string form. It
+/// filters out IOTA coins since it's known that it's not a regulated coin.
+pub fn coin_types_for_denylist_check<'a>(
+    objects: impl IntoIterator<Item = &'a Object>,
+) -> BTreeSet<String> {
+    objects
+        .into_iter()
         .filter_map(|obj| {
             if obj.is_gas_coin() {
                 None

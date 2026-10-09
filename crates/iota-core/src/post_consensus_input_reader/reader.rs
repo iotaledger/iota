@@ -111,7 +111,7 @@ impl CommitIndexedReader {
         {
             SharedTablesLookup::Created(created) => {
                 return match created.read_object(self)? {
-                    CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                    CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
                     CreatedObjectLookup::Absent(object_absent) => {
                         self.check_deletion(object_absent)
                     }
@@ -121,7 +121,7 @@ impl CommitIndexedReader {
             SharedTablesLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
             SharedTablesLookup::PreSyncExisted(pre_sync_existed) => {
                 return match pre_sync_existed.read_object(self)? {
-                    PreSyncObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                    PreSyncObjectLookup::Exists => Ok(SharedVerdict::Exists),
                     PreSyncObjectLookup::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
                     PreSyncObjectLookup::Absent(object_absent) => {
                         self.check_deletion(object_absent)
@@ -137,10 +137,10 @@ impl CommitIndexedReader {
         let record_reread = object_answered.reread_sync_ahead_record(self)?;
         match record_reread.reread_creation_row(self)? {
             SharedTablesRecheck::Created(created) => match created.read_object(self)? {
-                CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
                 CreatedObjectLookup::Absent(object_absent) => self.check_deletion(object_absent),
             },
-            SharedTablesRecheck::Exists(object) => Ok(SharedVerdict::Exists(object)),
+            SharedTablesRecheck::Exists => Ok(SharedVerdict::Exists),
             SharedTablesRecheck::Missing(reason) => Ok(SharedVerdict::Missing(reason)),
             SharedTablesRecheck::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
             SharedTablesRecheck::Absent(object_absent) => self.check_deletion(object_absent),

@@ -2881,6 +2881,11 @@ pub enum ObjectReadResultKind {
     DeletedSharedObject(Version, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
     CancelledTransactionObject(Version),
+    // A shared object that exists and is shared at the declared initial version, whose contents
+    // were not read. Only post-consensus validation lists it: the version and contents a
+    // validator holds there differ between validators, and execution reads the object at the
+    // version consensus assigned.
+    UnreadSharedObject,
 }
 
 impl std::fmt::Debug for ObjectReadResultKind {
@@ -2895,6 +2900,7 @@ impl std::fmt::Debug for ObjectReadResultKind {
             ObjectReadResultKind::CancelledTransactionObject(seq) => {
                 write!(f, "CancelledTransactionObject({seq})")
             }
+            ObjectReadResultKind::UnreadSharedObject => write!(f, "UnreadSharedObject"),
         }
     }
 }
@@ -2923,6 +2929,14 @@ impl ObjectReadResult {
             panic!("only shared objects can be CancelledTransactionObject");
         }
 
+        if let (
+            InputObjectKind::ImmOrOwnedMoveObject(_),
+            ObjectReadResultKind::UnreadSharedObject,
+        ) = (&input_object_kind, &object)
+        {
+            panic!("only shared objects can be UnreadSharedObject");
+        }
+
         Self {
             input_object_kind,
             object,
@@ -2938,6 +2952,7 @@ impl ObjectReadResult {
             ObjectReadResultKind::Object(object) => Some(object),
             ObjectReadResultKind::DeletedSharedObject(_, _) => None,
             ObjectReadResultKind::CancelledTransactionObject(_) => None,
+            ObjectReadResultKind::UnreadSharedObject => None,
         }
     }
 
@@ -2962,6 +2977,10 @@ impl ObjectReadResult {
             (
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::CancelledTransactionObject(_),
+            ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::UnreadSharedObject,
             ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { mutable, .. }, _) => *mutable,
         }
@@ -3005,6 +3024,10 @@ impl ObjectReadResult {
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::CancelledTransactionObject(_),
             ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::UnreadSharedObject,
+            ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { .. }, _) => None,
         }
     }
@@ -3025,6 +3048,9 @@ impl ObjectReadResult {
                 ObjectReadResultKind::CancelledTransactionObject(seq) => {
                     SharedInput::Cancelled((id, *seq))
                 }
+                ObjectReadResultKind::UnreadSharedObject => {
+                    unreachable!("an unread shared object has no version to execute at")
+                }
             }),
         }
     }
@@ -3034,6 +3060,7 @@ impl ObjectReadResult {
             ObjectReadResultKind::Object(obj) => Some(obj.previous_transaction),
             ObjectReadResultKind::DeletedSharedObject(_, digest) => Some(*digest),
             ObjectReadResultKind::CancelledTransactionObject(_) => None,
+            ObjectReadResultKind::UnreadSharedObject => None,
         }
     }
 }
@@ -3278,6 +3305,18 @@ impl InputObjects {
                         InputObjectKind::SharedMoveObject { .. },
                         ObjectReadResultKind::CancelledTransactionObject(_),
                     ) => None,
+                    (
+                        InputObjectKind::ImmOrOwnedMoveObject(_),
+                        ObjectReadResultKind::UnreadSharedObject,
+                    ) => {
+                        unreachable!()
+                    }
+                    (
+                        InputObjectKind::SharedMoveObject { .. },
+                        ObjectReadResultKind::UnreadSharedObject,
+                    ) => {
+                        unreachable!("an unread shared object has no version, digest or owner")
+                    }
                 },
             )
             .collect()
@@ -3296,6 +3335,9 @@ impl InputObjects {
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionObject(_) => None,
+                ObjectReadResultKind::UnreadSharedObject => {
+                    unreachable!("an unread shared object has no version to exceed")
+                }
             })
             .chain(
                 receiving_objects
