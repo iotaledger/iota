@@ -5,7 +5,8 @@
 
 use crate::{metrics::RequestMetrics, utils::checkpoint_data_wrapper_overhead};
 
-/// What an item of a response is, for the item size metrics.
+/// What an item of a response is, for the item size metrics. `kind as usize`
+/// indexes the peak of a kind, so the variants keep their implicit discriminants.
 #[derive(Clone, Copy, strum::IntoStaticStr, strum::EnumIter)]
 #[strum(serialize_all = "snake_case")]
 pub(crate) enum ResponseItemKind {

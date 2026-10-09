@@ -362,7 +362,7 @@ impl GrpcReader {
     }
 
     /// Get a single checkpoint as chunked messages stream
-    pub fn get_checkpoint_data(
+    pub(crate) fn get_checkpoint_data(
         &self,
         sequence_number: u64,
         checkpoint_mask: FieldMaskTree,
@@ -968,7 +968,7 @@ impl GrpcReader {
     }
 
     /// Create a checkpoint stream implementation
-    pub fn create_checkpoint_data_stream(
+    pub(crate) fn create_checkpoint_data_stream(
         &self,
         subscription: SubscribedReceiver,
         start_sequence_number: Option<u64>,

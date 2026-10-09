@@ -10,7 +10,7 @@ use std::{
     time::Instant,
 };
 
-use iota_metrics::peak::PeakGaugeVec;
+use iota_metrics::peak::{PeakGauge, PeakGaugeVec};
 use pin_project_lite::pin_project;
 use prometheus_filtered::{
     Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
@@ -58,7 +58,8 @@ pub struct GrpcServerMetrics {
     num_requests: IntCounterVec,
     request_latency: HistogramVec,
     inflight_checkpoint_stream_subscribers: IntGauge,
-    response_item_bytes_peak: PeakGaugeVec,
+    /// The peak of each kind of item, indexed by `ResponseItemKind as usize`.
+    response_item_bytes_peaks: Vec<PeakGauge>,
     requested_max_message_bytes: Histogram,
     unary_response_bytes: Histogram,
 }
@@ -78,9 +79,9 @@ impl GrpcServerMetrics {
             registry,
             MetricLevel::Info,
         );
-        for kind in ResponseItemKind::iter() {
-            response_item_bytes_peak.with_label_values(&[kind.into()]);
-        }
+        let response_item_bytes_peaks = ResponseItemKind::iter()
+            .map(|kind| response_item_bytes_peak.with_label_values(&[kind.into()]))
+            .collect();
         Self {
             inflight_requests: register_int_gauge_vec_with_registry!(
                 "node_grpc_inflight_requests",
@@ -110,7 +111,7 @@ impl GrpcServerMetrics {
                 registry,
             )
             .unwrap(),
-            response_item_bytes_peak,
+            response_item_bytes_peaks,
             requested_max_message_bytes: register_histogram_with_registry!(
                 "node_grpc_requested_max_message_bytes",
                 "The max_message_size_bytes a request sets, as sent, before validation. A request \
@@ -387,7 +388,7 @@ pub fn grpc_code_to_str(code: Code) -> &'static str {
 
 /// The metrics a handler can reach: the ones of its request, or none.
 #[derive(Clone, Default)]
-pub struct RequestMetrics(Option<Arc<GrpcServerMetrics>>);
+pub(crate) struct RequestMetrics(Option<Arc<GrpcServerMetrics>>);
 
 impl RequestMetrics {
     /// The metrics that the metrics layer put in the request extensions.
@@ -407,10 +408,7 @@ impl RequestMetrics {
     /// Records the size of an item built for a response.
     pub(crate) fn record_response_item(&self, kind: ResponseItemKind, size: usize) {
         if let Some(metrics) = &self.0 {
-            metrics
-                .response_item_bytes_peak
-                .with_label_values(&[kind.into()])
-                .observe(size as u64);
+            metrics.response_item_bytes_peaks[kind as usize].observe(size as u64);
         }
     }
 
