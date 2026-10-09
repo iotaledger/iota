@@ -32,7 +32,6 @@ use once_cell::sync::OnceCell;
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use serde::{Deserialize, Serialize};
 use starfish_config::Parameters as StarfishParameters;
-use tracing::info;
 
 use crate::{
     Config, certificate_deny_config::CertificateDenyConfig, genesis,
@@ -814,6 +813,12 @@ impl NodeConfig {
         self.consensus_config.as_ref()
     }
 
+    /// Whether this node builds the RPC indexes: only a fullnode with the
+    /// JSON-RPC or gRPC API enabled does.
+    pub fn maintains_rpc_indexes(&self) -> bool {
+        self.consensus_config().is_none() && (self.enable_jsonrpc_api || self.enable_grpc_api)
+    }
+
     pub fn genesis(&self) -> Result<&genesis::Genesis> {
         self.genesis.genesis()
     }
@@ -907,6 +912,19 @@ impl NodeConfig {
                 "`firewall-config` is set but `policy-config` is `null`; the firewall is driven \
                  by the traffic controller, which does not run without a policy; remove \
                  `firewall-config` or set a `policy-config`"
+            );
+        }
+        // Right after an epoch boundary, peers still sync the end of the
+        // previous epoch, and a validator still decides whether a transaction
+        // re-proposed from it was already executed, from its checkpoints.
+        if self
+            .authority_store_pruning_config
+            .num_epochs_to_retain_for_checkpoints()
+            == Some(0)
+        {
+            anyhow::bail!(
+                "`num-epochs-to-retain-for-checkpoints` is 0, but the previous epoch's \
+                 checkpoints are still needed after an epoch boundary; set it to 1 or more"
             );
         }
         Ok(())
@@ -1143,10 +1161,10 @@ pub struct AuthorityStorePruningConfig {
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
     /// Number of historic epochs of object versions to keep, on top of the
-    /// current epoch's bucket.
-    ///   0        — keep the current epoch's bucket only (default).
-    ///   N        — keep the current epoch's bucket plus the N previous ones.
-    ///   u64::MAX — keep every bucket; object pruning is off.
+    /// epoch the node is in. Read through [`Self::num_epochs_to_retain`].
+    ///   0        — keep the epoch the node is in only (default).
+    ///   N        — keep the epoch the node is in plus the N epochs before it.
+    ///   u64::MAX — keep every epoch's bucket; object pruning is off.
     #[serde(default)]
     pub num_epochs_to_retain: u64,
     /// enables periodic background compaction for old SST files whose last
@@ -1162,10 +1180,28 @@ pub struct AuthorityStorePruningConfig {
         skip_serializing_if = "is_default_periodic_compaction_threshold_days"
     )]
     pub periodic_compaction_threshold_days: Option<usize>,
-    /// number of epochs to keep the latest version of transactions and effects
-    /// for
+    /// Number of historic epochs of transactions, effects, events, and
+    /// checkpoint data to keep, on top of the epoch the node is in. Controls
+    /// transaction pruning. Read through
+    /// [`Self::num_epochs_to_retain_for_checkpoints`].
+    ///   0        — refused by [`NodeConfig::validate`].
+    ///   N        — keep the epoch the node is in plus the N epochs before it.
+    ///   u64::MAX — keep every epoch's bucket; transaction pruning is off.
+    ///   None     — the same as `u64::MAX`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
+    /// Number of historic epochs of RPC index history (the transaction and
+    /// event lookups behind `iotax_queryTransactionBlocks`, `iotax_queryEvents`
+    /// and their gRPC equivalents) to keep, on top of the epoch the node is
+    /// in. Index tables for live objects are not affected. Read through
+    /// [`Self::num_epochs_to_retain_for_indexes`].
+    ///   0        — keep the epoch the node is in only.
+    ///   N        — keep the epoch the node is in plus the N epochs before it.
+    ///   u64::MAX — keep every epoch's bucket; index pruning is off.
+    ///   None     — follow `num_epochs_to_retain_for_checkpoints`.
+    ///
+    /// Must not exceed `num_epochs_to_retain_for_checkpoints`; the node
+    /// refuses to start otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
@@ -1203,17 +1239,51 @@ impl AuthorityStorePruningConfig {
         self.num_epochs_to_retain_for_checkpoints = num_epochs_to_retain;
     }
 
+    /// Historic epochs of object versions to keep on top of the epoch the
+    /// node is in, `None` when object pruning is off.
+    pub fn num_epochs_to_retain(&self) -> Option<u64> {
+        (self.num_epochs_to_retain != u64::MAX).then_some(self.num_epochs_to_retain)
+    }
+
+    /// Historic epochs of transactions, effects, events and checkpoint data
+    /// to keep on top of the epoch the node is in, `None` when transaction
+    /// pruning is off.
     pub fn num_epochs_to_retain_for_checkpoints(&self) -> Option<u64> {
         self.num_epochs_to_retain_for_checkpoints
-            // if n less than 2, coerce to 2 and log
-            .map(|n| {
-                if n < 2 {
-                    info!("num_epochs_to_retain_for_checkpoints must be at least 2, rounding up from {}", n);
-                    2
-                } else {
-                    n
-                }
-            })
+            .filter(|&n| n != u64::MAX)
+    }
+
+    /// Historic epochs of RPC index history to keep on top of the epoch the
+    /// node is in, `None` when index pruning is off. Unset follows the
+    /// transaction retention.
+    pub fn num_epochs_to_retain_for_indexes(&self) -> Option<u64> {
+        match self.num_epochs_to_retain_for_indexes {
+            Some(n) if n == u64::MAX => None,
+            Some(n) => Some(n),
+            None => self.num_epochs_to_retain_for_checkpoints(),
+        }
+    }
+
+    /// Fails if the index retention exceeds the transaction retention, which
+    /// would let `iotax_queryTransactionBlocks` return digests the node has
+    /// already pruned.
+    pub fn check_index_retention_within_ledger(&self) -> Result<()> {
+        let Some(ledger) = self.num_epochs_to_retain_for_checkpoints() else {
+            // An unbounded ledger outlives every index retention.
+            return Ok(());
+        };
+        let index = self.num_epochs_to_retain_for_indexes();
+        if index.is_none_or(|index| index > ledger) {
+            let index = index.map_or("unlimited".to_owned(), |index| index.to_string());
+            anyhow::bail!(
+                "num-epochs-to-retain-for-indexes ({index}) must not exceed \
+                 num-epochs-to-retain-for-checkpoints ({ledger}): a longer index retention \
+                 lets iotax_queryTransactionBlocks return a transaction digest whose ledger \
+                 data has already been pruned. Lower num-epochs-to-retain-for-indexes or \
+                 raise num-epochs-to-retain-for-checkpoints."
+            );
+        }
+        Ok(())
     }
 }
 
@@ -1697,10 +1767,11 @@ mod tests {
     use serde_yaml::Value;
 
     use super::{
-        Genesis, GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
-        default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
+        AuthorityStorePruningConfig, Genesis, GrpcApiConfig, ObjectStoreConfig,
+        default_grpc_api_config, default_periodic_compaction_threshold_days,
+        default_traffic_controller_policy_config,
     };
-    use crate::{NodeConfig, object_storage_config::ObjectStoreType};
+    use crate::{ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType};
 
     const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
@@ -1752,6 +1823,151 @@ mod tests {
             .unwrap()
             .get(&Value::String((*last).to_owned()))
             .cloned()
+    }
+
+    #[test]
+    fn a_retention_below_two_is_no_longer_rounded_up() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(config.num_epochs_to_retain_for_checkpoints(), Some(1));
+    }
+
+    #[test]
+    fn index_retention_within_ledger_retention_is_accepted() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(2),
+            num_epochs_to_retain_for_indexes: Some(2),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn index_retention_beyond_ledger_retention_is_refused() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(2),
+            num_epochs_to_retain_for_indexes: Some(3),
+            ..Default::default()
+        };
+        let err = config
+            .check_index_retention_within_ledger()
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("num-epochs-to-retain-for-indexes"), "{err}");
+        assert!(
+            err.contains("num-epochs-to-retain-for-checkpoints"),
+            "{err}"
+        );
+        assert!(err.contains('3'), "{err}");
+        assert!(err.contains('2'), "{err}");
+    }
+
+    #[test]
+    fn the_narrowest_ledger_retention_refuses_a_longer_index_retention() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(1),
+            num_epochs_to_retain_for_indexes: Some(2),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_err());
+    }
+
+    #[test]
+    fn equal_narrowest_retentions_are_accepted() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(1),
+            num_epochs_to_retain_for_indexes: Some(1),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn unbounded_ledger_retention_accepts_any_index_retention() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: None,
+            num_epochs_to_retain_for_indexes: Some(1000),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn unset_index_retention_follows_the_ledger() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(3),
+            num_epochs_to_retain_for_indexes: None,
+            ..Default::default()
+        };
+        assert_eq!(config.num_epochs_to_retain_for_indexes(), Some(3));
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn index_pruning_turned_off_against_a_bounded_ledger_is_refused() {
+        // `u64::MAX` is index pruning off, which outlives any bounded ledger.
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(2),
+            num_epochs_to_retain_for_indexes: Some(u64::MAX),
+            ..Default::default()
+        };
+        let err = config
+            .check_index_retention_within_ledger()
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("unlimited"), "{err}");
+    }
+
+    #[test]
+    fn max_retention_means_pruning_is_off_for_every_knob() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain: u64::MAX,
+            num_epochs_to_retain_for_checkpoints: Some(u64::MAX),
+            num_epochs_to_retain_for_indexes: Some(u64::MAX),
+            ..Default::default()
+        };
+        assert_eq!(config.num_epochs_to_retain(), None);
+        assert_eq!(config.num_epochs_to_retain_for_checkpoints(), None);
+        assert_eq!(config.num_epochs_to_retain_for_indexes(), None);
+    }
+
+    #[test]
+    fn a_fullnode_serving_an_api_builds_the_indexes() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        assert!(config.maintains_rpc_indexes());
+    }
+
+    #[test]
+    fn a_fullnode_with_both_apis_off_builds_no_indexes() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.enable_jsonrpc_api = false;
+        config.enable_grpc_api = false;
+        assert!(!config.maintains_rpc_indexes());
+    }
+
+    #[test]
+    fn a_validator_builds_no_indexes_even_with_an_api_enabled() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.enable_jsonrpc_api = true;
+        config.consensus_config = Some(ConsensusConfig {
+            db_path: PathBuf::from("/tmp/consensus"),
+            db_retention_epochs: None,
+            db_pruner_period_secs: None,
+            max_pending_transactions: None,
+            max_submit_position: None,
+            submit_delay_step_override_millis: None,
+            parameters: None,
+            graduated_load_shedding_soft_limit_pct: None,
+        });
+        assert!(!config.maintains_rpc_indexes());
     }
 
     #[test]
@@ -1827,6 +2043,24 @@ mod tests {
 
         let err = config.validate().unwrap_err().to_string();
         assert!(err.contains("storage backend"), "{err}");
+    }
+
+    #[test]
+    fn validate_rejects_a_zero_checkpoint_retention() {
+        let mut config = template_config();
+        config
+            .authority_store_pruning_config
+            .set_num_epochs_to_retain_for_checkpoints(Some(0));
+        let err = config.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("num-epochs-to-retain-for-checkpoints"),
+            "{err}"
+        );
+
+        config
+            .authority_store_pruning_config
+            .set_num_epochs_to_retain_for_checkpoints(Some(1));
+        config.validate().unwrap();
     }
 
     #[test]
