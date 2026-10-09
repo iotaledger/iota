@@ -33,7 +33,7 @@ mod checked {
                 AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
                 AuthenticatorFunctionRefForSigning, AuthenticatorFunctionRefV1,
             },
-            builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
+            builtin_authenticator_functions,
             public_key::MovePublicKey,
         },
         auth_context::{AuthContext, AuthContextData},
@@ -416,22 +416,18 @@ mod checked {
                         authenticator_function_ref,
                         loaded_object_id,
                         loaded_object_metadata,
-                        builtin_authenticator_data,
-                        builtin_public_key_loaded_object,
                     } = authenticator_function_ref_for_execution;
 
                     // Save the loaded object metadata, i.e., the field object containing the
-                    // AuthenticatorFunctionRef and, for a built-in authenticator, the
-                    // account's public key field, in the temporary store.
-                    let mut loaded_objects =
-                        BTreeMap::from([(loaded_object_id, loaded_object_metadata)]);
-                    loaded_objects.extend(builtin_public_key_loaded_object);
-                    temporary_store.save_loaded_runtime_objects(loaded_objects);
+                    // AuthenticatorFunctionRef, in the temporary store.
+                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                        loaded_object_id,
+                        loaded_object_metadata,
+                    )]));
 
                     (
                         authenticator,
                         authenticator_function_ref,
-                        builtin_authenticator_data,
                         authenticator_input_objects,
                     )
                 },
@@ -444,12 +440,7 @@ mod checked {
 
         // Run each authenticator in sequence; the first failure aborts the chain.
         let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(
-                authenticator,
-                authenticator_function_ref,
-                builtin_authenticator_data,
-                authenticator_input_objects,
-            )| {
+            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                         authenticate_transaction_inner(
@@ -459,7 +450,6 @@ mod checked {
                             &mut gas_charger,
                             authenticator,
                             authenticator_function_ref_v1,
-                            builtin_authenticator_data,
                             &authenticator_input_objects.into_inner(),
                             transaction_kind.clone(),
                             transaction_digest,
@@ -580,7 +570,6 @@ mod checked {
             )| {
                 let AuthenticatorFunctionRefForSigning {
                     authenticator_function_ref,
-                    builtin_authenticator_data,
                 } = authenticator_function_ref_for_signing;
 
                 match authenticator_function_ref {
@@ -592,7 +581,6 @@ mod checked {
                             &mut gas_charger,
                             authenticator,
                             authenticator_function_ref_v1,
-                            builtin_authenticator_data,
                             &authenticator_input_objects.into_inner(),
                             transaction_kind.clone(),
                             transaction_digest,
@@ -611,10 +599,9 @@ mod checked {
 
     /// Executes a single authenticator against the transaction.
     ///
-    /// If `builtin_authenticator_data` is `Some`, the authenticator function
-    /// ref is a built-in and signature verification is done directly via
-    /// [`builtin_authenticator_functions::verify_builtin_signature`].
-    /// Otherwise a Move VM call is executed for the custom authenticator.
+    /// A built-in authenticator is executed as a system call to its private
+    /// Move function; a custom one as a Move call to its `#[authenticator]`
+    /// function.
     ///
     /// Returns an error on the first failure; an empty value on success.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
@@ -628,9 +615,6 @@ mod checked {
         // Authenticator
         authenticator: MoveAuthenticator,
         authenticator_function_ref: AuthenticatorFunctionRefV1,
-        // Pre-loaded data for built-in authenticators.
-        // Must be `Some` when `authenticator_function_ref` is a built-in.
-        builtin_authenticator_data: Option<PreloadedBuiltinAuthenticatorData>,
         authenticator_input_objects: &InputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -662,69 +646,69 @@ mod checked {
             "No receiving inputs are allowed"
         );
 
-        let authentication_execution_result = if let Some(builtin_authenticator_data) =
-            builtin_authenticator_data
-        {
-            debug_assert_eq!(
-                builtin_authenticator_functions::resolve_builtin_signature_scheme(
-                    &authenticator_function_ref
-                ),
-                Some(builtin_authenticator_data.expected_scheme),
-                "PreloadedBuiltinAuthenticatorData scheme must match authenticator function ref scheme"
-            );
-            authenticate_transaction_with_builtin_signature(
-                protocol_config,
-                &authenticator,
-                builtin_authenticator_data,
-                &auth_context_data.transaction_data_bytes,
-                gas_charger,
-            )
-        } else {
-            let contains_deleted_input = authenticator_input_objects.contains_deleted_objects();
-            let cancelled_objects = authenticator_input_objects.get_cancelled_objects();
+        let contains_deleted_input = authenticator_input_objects.contains_deleted_objects();
+        let cancelled_objects = authenticator_input_objects.get_cancelled_objects();
 
-            // Prepare the authentication context.
-            let auth_ctx = {
-                let TransactionKind::Programmable(ptb) = &transaction_kind else {
-                    unreachable!("Only programmable transactions are allowed");
-                };
-                AuthContext::new_from_components(
-                    authenticator.digest().into(),
-                    auth_context_data.sender_auth_digest,
-                    auth_context_data.sponsor_auth_digest,
-                    auth_context_data
-                        .sender_authenticator_function_ref
-                        .and_then(Into::into),
-                    auth_context_data
-                        .sponsor_authenticator_function_ref
-                        .and_then(Into::into),
-                    ptb,
-                    auth_context_data.transaction_data_bytes,
-                )
+        // Prepare the authentication context.
+        let auth_ctx = {
+            let TransactionKind::Programmable(ptb) = &transaction_kind else {
+                unreachable!("Only programmable transactions are allowed");
             };
-            let auth_ctx = Rc::new(RefCell::new(auth_ctx));
-
-            // Store the authentication context in the temporary store.
-            // It will be added to the authentication's parameter list later, just before
-            // execution.
-            temporary_store.store_auth_context(auth_ctx);
-
-            // Execute the authentication.
-            execute_authenticator_move_call(
-                temporary_store,
-                authenticator,
-                authenticator_function_ref,
-                gas_charger,
-                tx_ctx,
-                move_vm,
-                protocol_config,
-                metrics,
-                false,
-                contains_deleted_input,
-                cancelled_objects,
-                trace_builder_opt,
+            AuthContext::new_from_components(
+                authenticator.digest().into(),
+                auth_context_data.sender_auth_digest,
+                auth_context_data.sponsor_auth_digest,
+                auth_context_data
+                    .sender_authenticator_function_ref
+                    .and_then(Into::into),
+                auth_context_data
+                    .sponsor_authenticator_function_ref
+                    .and_then(Into::into),
+                ptb,
+                auth_context_data.transaction_data_bytes,
             )
         };
+        let auth_ctx = Rc::new(RefCell::new(auth_ctx));
+
+        // Store the authentication context in the temporary store.
+        // It will be added to the authentication's parameter list later, just before
+        // execution.
+        temporary_store.store_auth_context(auth_ctx);
+
+        // Execute the authentication.
+        let authentication_execution_result =
+            if builtin_authenticator_functions::is_builtin_authenticator_function_ref(
+                &authenticator_function_ref,
+            ) {
+                execute_builtin_authenticator_call(
+                    temporary_store,
+                    authenticator,
+                    authenticator_function_ref,
+                    gas_charger,
+                    tx_ctx,
+                    move_vm,
+                    protocol_config,
+                    metrics,
+                    contains_deleted_input,
+                    cancelled_objects,
+                    trace_builder_opt,
+                )
+            } else {
+                execute_authenticator_move_call(
+                    temporary_store,
+                    authenticator,
+                    authenticator_function_ref,
+                    gas_charger,
+                    tx_ctx,
+                    move_vm,
+                    protocol_config,
+                    metrics,
+                    false,
+                    contains_deleted_input,
+                    cancelled_objects,
+                    trace_builder_opt,
+                )
+            };
 
         // Check the authentication result.
         let authentication_execution_status = if let Err(error) = &authentication_execution_result {
@@ -742,6 +726,61 @@ mod checked {
         );
 
         authentication_execution_result
+    }
+
+    /// Executes a built-in authenticator as a system call to its private
+    /// Move function in `builtin_authenticator_functions`.
+    ///
+    /// Like [`execute_authenticator_move_call`], it charges gas only for the
+    /// Move function execution and returns only the execution results.
+    #[instrument(name = "auth_builtin_execute", level = "debug", skip_all)]
+    fn execute_builtin_authenticator_call(
+        temporary_store: &mut TemporaryStore<'_>,
+        authenticator: MoveAuthenticator,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
+        gas_charger: &mut GasCharger,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
+    {
+        // It must NOT charge gas for reading the Move authenticator input objects from
+        // the storage. It will be done later during the transaction execution.
+        // Then execute the authentication.
+        run_inputs_checks(
+            protocol_config,
+            false,
+            contains_deleted_input,
+            cancelled_objects,
+        )
+        .and_then(|()| {
+            let builtin_authenticator_call = setup_builtin_authenticator_call(
+                temporary_store,
+                authenticator,
+                authenticator_function_ref,
+            )?;
+            // The built-in authenticator functions are private, so they can only be
+            // called in the `System` mode.
+            programmable_transactions::execution::execute::<execution_mode::System>(
+                protocol_config,
+                metrics,
+                move_vm,
+                temporary_store,
+                tx_ctx,
+                gas_charger,
+                builtin_authenticator_call,
+                trace_builder_opt,
+            )
+            .map_err(|(e, _)| e)
+            .and_then(|(ok_result, _timings)| {
+                temporary_store.check_move_authenticator_results_consistency()?;
+                Ok(ok_result)
+            })
+        })
     }
 
     /// Executes an authentication move call by processing the specified
@@ -2310,6 +2349,56 @@ mod checked {
         Ok(builder.finish())
     }
 
+    /// Construct a PTB with a single call to the built-in authenticator
+    /// function found in `AuthenticatorFunctionRef`, instantiated with the
+    /// type of `MoveAuthenticator::object_to_authenticate` followed by
+    /// `MoveAuthenticator::type_args`. As in `setup_authenticator_move_call`,
+    /// `MoveAuthenticator::object_to_authenticate` is the first argument,
+    /// followed by all arguments in `MoveAuthenticator::call_args`.
+    fn setup_builtin_authenticator_call(
+        temporary_store: &TemporaryStore<'_>,
+        authenticator: MoveAuthenticator,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        let account_type = authenticator
+            .object_to_authenticate_components()
+            .ok()
+            .and_then(|(account_id, _, _)| temporary_store.read_object(&account_id))
+            .and_then(|account| account.struct_tag());
+        let Some(account_type) = account_type else {
+            invariant_violation!(
+                "the account object to authenticate should be a loaded Move object"
+            )
+        };
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        let mut type_args = vec![TypeTag::Struct(Box::new(account_type))];
+        type_args.extend(authenticator.type_args().to_owned());
+
+        let mut args = vec![authenticator.object_to_authenticate().to_owned()];
+        args.extend(authenticator.call_args().to_owned());
+
+        let res = builder.move_call(
+            authenticator_function_ref.package,
+            Identifier::new(authenticator_function_ref.module).expect(
+                "`AuthenticatorFunctionRefV1::module` is expected to be a valid `Identifier`",
+            ),
+            Identifier::new(authenticator_function_ref.function).expect(
+                "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
+            ),
+            type_args,
+            args,
+        );
+
+        assert_invariant!(
+            res.is_ok(),
+            "Unable to generate a built-in authenticator call transaction!"
+        );
+
+        Ok(builder.finish())
+    }
+
     fn resolve_sponsor(gas_data: &GasPayment, transaction_signer: &Address) -> Option<Address> {
         let gas_owner = gas_data.owner;
         if &gas_owner == transaction_signer {
@@ -2317,40 +2406,5 @@ mod checked {
         } else {
             Some(gas_owner)
         }
-    }
-
-    /// This function implements the authentication of a transaction through a
-    /// built-in signature verification.
-    fn authenticate_transaction_with_builtin_signature(
-        protocol_config: &ProtocolConfig,
-        authenticator: &MoveAuthenticator,
-        builtin_authenticator_data: PreloadedBuiltinAuthenticatorData,
-        tx_data_bytes: &[u8],
-        gas_charger: &mut GasCharger,
-    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
-    {
-        if !protocol_config.enable_builtin_move_authenticators() {
-            return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
-                    reason: "Built-in Move authenticators are not enabled on this network"
-                        .to_string(),
-                },
-            ));
-        }
-
-        let cost = protocol_config.builtin_move_authenticator_cost_base();
-        gas_charger.charge_fixed_cost(cost)?;
-
-        builtin_authenticator_functions::verify_builtin_signature(
-            protocol_config,
-            authenticator,
-            &builtin_authenticator_data,
-            tx_data_bytes,
-        )
-        .map_err(|e| {
-            ExecutionError::from_kind(ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
-                reason: e.to_string(),
-            })
-        })
     }
 }
