@@ -1022,10 +1022,7 @@ fn validity_check_rejects_versions_in_or_below_canceled_range() {
 }
 
 /// The object a Move authenticator authenticates is checked like any other
-/// input, whether it is named as an owned or as a shared object.
-// Immutable account objects can no longer be built with the SDK
-// (iotaledger/iota-rust-sdk#1633).
-#[cfg(any())]
+/// input.
 #[test]
 fn validity_check_rejects_authenticated_object_version_in_or_below_canceled_range() {
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -1036,30 +1033,23 @@ fn validity_check_rejects_authenticated_object_version_in_or_below_canceled_rang
     let sender = Address::random();
     let version = Version::MAX_VALID_EXCL - 1;
 
-    let owned = MoveAuthenticatorV1::new_with_immutable_account_object(
-        vec![],
-        vec![],
-        ObjectReference::new(sender.into(), version, ObjectDigest::new([0; 32])),
-    );
-    let shared = MoveAuthenticatorV1::new(
+    let authenticator = MoveAuthenticatorV1::new(
         vec![],
         vec![],
         SharedObjectReference::new(sender.into(), version, false),
     );
-    for authenticator in [owned, shared] {
-        let tx = SenderSignedTransaction::new(
-            make_transaction_data(sender),
-            vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
-                authenticator,
-            ))],
-        );
-        assert!(matches!(
-            tx.validity_check(&context),
-            Err(IotaError::UserInput {
-                error: UserInputError::InvalidSequenceNumber
-            })
-        ));
-    }
+    let tx = SenderSignedTransaction::new(
+        make_transaction_data(sender),
+        vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+            authenticator,
+        ))],
+    );
+    assert!(matches!(
+        tx.validity_check(&context),
+        Err(IotaError::UserInput {
+            error: UserInputError::InvalidSequenceNumber
+        })
+    ));
 }
 
 /// A programmable transaction that reads the randomness state object and

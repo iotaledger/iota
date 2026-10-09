@@ -1344,9 +1344,6 @@ mod tests {
     /// Computing it from the transaction body alone would under-count and
     /// assign shared objects a version below one their execution already
     /// wrote.
-    // Immutable account objects can no longer be built with the SDK
-    // (iotaledger/iota-rust-sdk#1633).
-    #[cfg(any())]
     #[tokio::test]
     async fn test_assign_versions_from_consensus_with_owned_authenticator_input() {
         let shared_object = Object::shared_for_testing();
@@ -1361,17 +1358,18 @@ mod tests {
             .await;
         let epoch_store = authority.epoch_store_for_testing();
 
-        // The authenticated object is owned and at a version far above the gas
-        // object's, so it alone decides the lamport version.
-        let authenticated_version = Version::from_u64(100);
-        let authenticator = MoveAuthenticatorV1::new_with_immutable_account_object(
-            vec![],
-            vec![],
-            ObjectReference::new(
+        // The authenticator's owned input is at a version far above the gas
+        // object's, so it alone decides the lamport version. The account is the
+        // transaction's own shared object, read-only, so it adds no shared input.
+        let owned_input_version = Version::from_u64(100);
+        let authenticator = MoveAuthenticatorV1::new(
+            vec![CallArg::ImmutableOrOwned(ObjectReference::new(
                 ObjectId::random(),
-                authenticated_version,
+                owned_input_version,
                 ObjectDigest::random(),
-            ),
+            ))],
+            vec![],
+            SharedObjectReference::new(id, init_shared_version, false),
         );
         let transaction =
             generate_tx_with_authenticator(&[(id, init_shared_version, true)], authenticator, 3);
@@ -1399,7 +1397,7 @@ mod tests {
         // 4 (from the gas object at version 3).
         assert_eq!(
             shared_input_next_versions,
-            HashMap::from([(id, authenticated_version.next().unwrap())])
+            HashMap::from([(id, owned_input_version.next().unwrap())])
         );
     }
 
@@ -1409,9 +1407,6 @@ mod tests {
     /// mutable, so its version must advance for later transactions. Taking the
     /// flag from the body alone would leave the version behind while execution
     /// writes the object.
-    // Immutable account objects can no longer be built with the SDK
-    // (iotaledger/iota-rust-sdk#1633).
-    #[cfg(any())]
     #[tokio::test]
     async fn test_assign_versions_from_consensus_unions_authenticator_mutability() {
         let shared_object = Object::shared_for_testing();
@@ -1428,21 +1423,15 @@ mod tests {
 
         // The mutable reference is a call argument: authenticating a mutable
         // shared object is rejected outright by `validity_check`, so that is
-        // the only shape in which an authenticator can read one mutably. The
-        // authenticated object is owned and at a version below the gas
-        // object's, keeping it out of the lamport computation.
-        let authenticator = MoveAuthenticatorV1::new_with_immutable_account_object(
+        // the only shape in which an authenticator can read one mutably.
+        let authenticator = MoveAuthenticatorV1::new(
             vec![CallArg::Shared(SharedObjectReference::new(
                 id,
                 init_shared_version,
                 true,
             ))],
             vec![],
-            ObjectReference::new(
-                ObjectId::random(),
-                Version::from_u64(1),
-                ObjectDigest::random(),
-            ),
+            SharedObjectReference::new(id, init_shared_version, false),
         );
         // The body reads the very same object read-only.
         let transaction =
