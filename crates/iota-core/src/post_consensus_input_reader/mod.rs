@@ -116,11 +116,9 @@ pub enum OwnedVerdict {
 /// contents.
 #[must_use]
 pub enum SharedVerdict {
-    /// Live and shared at the declared initial version. Holds the object at
-    /// this validator's latest version, for the kind and owner checks that
-    /// follow. That version can differ between validators, so no result may
-    /// depend on it.
-    Exists(Object),
+    /// Live and shared at the declared initial version. Holds no object:
+    /// execution reads it at the version consensus assigns.
+    Exists,
     /// Deleted by a commit above the horizon. The input is kept and passed
     /// on as `DeletedSharedObject`, with the version and the deleting
     /// transaction from the tombstone row. Neither decides anything at the

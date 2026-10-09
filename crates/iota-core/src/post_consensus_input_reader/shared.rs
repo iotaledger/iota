@@ -127,9 +127,8 @@ impl SharedState for CreatedShared {}
 /// created shared.
 #[must_use]
 pub enum CreatedObjectLookup {
-    /// The object is live in this validator's store, at whatever version it
-    /// holds.
-    Exists(Object),
+    /// The object is live in this validator's store.
+    Exists,
     /// No live object locally. Next: the deletion row.
     Absent(SharedReader<ObjectAbsent>),
 }
@@ -139,7 +138,7 @@ impl SharedReader<CreatedShared> {
     /// presence matters here.
     pub fn read_object(self, ctx: &CommitIndexedReader) -> IotaResult<CreatedObjectLookup> {
         Ok(match ctx.cache.try_get_object(&self.id)? {
-            Some(object) => CreatedObjectLookup::Exists(object),
+            Some(_) => CreatedObjectLookup::Exists,
             None => CreatedObjectLookup::Absent(self.into_state(ObjectAbsent {
                 origin: AbsentOrigin::Created,
             })),
@@ -183,7 +182,7 @@ impl SharedState for ObjectAnswered {}
 #[must_use]
 pub enum SharedTablesRecheck {
     Created(SharedReader<CreatedShared>),
-    Exists(Object),
+    Exists,
     Missing(MissingReason),
     Drop(DropReason),
     /// No live object. Next: the deletion row.
@@ -208,7 +207,7 @@ impl SharedReader<ObjectAnswered> {
             // No creation row at the declared version: the kept object
             // decides, from its owner alone.
             Some(object) => match classify_object(&object, self.initial_shared_version) {
-                ObjectClass::Exists => SharedTablesRecheck::Exists(object),
+                ObjectClass::Exists => SharedTablesRecheck::Exists,
                 ObjectClass::Drop(reason) => SharedTablesRecheck::Drop(reason),
             },
             None => SharedTablesRecheck::Absent(self.into_state(ObjectAbsent {
@@ -556,7 +555,7 @@ mod tests {
             SharedTablesRecheck::Missing(reason) => {
                 assert_eq!(reason.kind(), MissingKind::SharedCreationAboveHorizon)
             }
-            SharedTablesRecheck::Exists(_) => panic!("kept an object created above the horizon"),
+            SharedTablesRecheck::Exists => panic!("kept an object created above the horizon"),
             SharedTablesRecheck::Created(_) => panic!("the row is above the horizon"),
             SharedTablesRecheck::Drop(reason) => panic!("dropped: {reason:?}"),
             SharedTablesRecheck::Absent(_) => panic!("the object is in the store"),

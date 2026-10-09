@@ -2931,8 +2931,8 @@ impl<'a> Validator<'a> {
         }
         let absent = match lookup {
             SharedTablesLookup::Created(created) => match self.storage(created.read_object(ctx))? {
-                CreatedObjectLookup::Exists(object) => {
-                    return Ok(Ok(shared_read(SharedVerdict::Exists(object))));
+                CreatedObjectLookup::Exists => {
+                    return Ok(Ok(shared_read(SharedVerdict::Exists)));
                 }
                 CreatedObjectLookup::Absent(absent) => absent,
             },
@@ -2950,14 +2950,14 @@ impl<'a> Validator<'a> {
                 match self.storage(object_answered.reread_creation_row(ctx))? {
                     SharedTablesRecheck::Created(created) => {
                         match self.storage(created.read_object(ctx))? {
-                            CreatedObjectLookup::Exists(object) => {
-                                return Ok(Ok(shared_read(SharedVerdict::Exists(object))));
+                            CreatedObjectLookup::Exists => {
+                                return Ok(Ok(shared_read(SharedVerdict::Exists)));
                             }
                             CreatedObjectLookup::Absent(absent) => absent,
                         }
                     }
-                    SharedTablesRecheck::Exists(object) => {
-                        return Ok(Ok(shared_read(SharedVerdict::Exists(object))));
+                    SharedTablesRecheck::Exists => {
+                        return Ok(Ok(shared_read(SharedVerdict::Exists)));
                     }
                     SharedTablesRecheck::Missing(reason) => {
                         return Ok(Ok(shared_read(SharedVerdict::Missing(reason))));
@@ -3079,7 +3079,7 @@ impl<'a> Validator<'a> {
 
 fn shared_read(verdict: SharedVerdict) -> InputRead {
     match verdict {
-        SharedVerdict::Exists(_) => InputRead {
+        SharedVerdict::Exists => InputRead {
             class: InputClass::Visible,
             reason: "exists".to_string(),
         },
