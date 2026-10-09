@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::stream;
+use futures::{StreamExt as _, stream};
 use parking_lot::Mutex;
 use starfish_config::AuthorityIndex;
 use tokio::sync::Notify;
@@ -41,8 +41,12 @@ pub(crate) struct TestService {
     pub(crate) block_bundle_handler_gate: Option<BundleHandlerGate>,
     /// Keeps every subscription open, so a test can hold admission slots.
     pub(crate) endless_subscriptions: bool,
-    /// Served as the transactions of every fast commit-sync fetch.
-    pub(crate) fetch_commits_and_transactions_payload: Vec<Bytes>,
+    /// Served as the transaction chunks of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_chunks: Vec<ConsensusResult<Vec<Bytes>>>,
+    /// Served as the commits of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_commits: Vec<Bytes>,
+    /// Served as the certifier headers of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_certifier_block_headers: Vec<Bytes>,
 }
 
 impl TestService {
@@ -69,7 +73,9 @@ impl TestService {
             handle_fetch_commits: Vec::new(),
             block_bundle_handler_gate: None,
             endless_subscriptions: false,
-            fetch_commits_and_transactions_payload: Vec::new(),
+            fetch_commits_and_transactions_chunks: Vec::new(),
+            fetch_commits_and_transactions_commits: Vec::new(),
+            fetch_commits_and_transactions_certifier_block_headers: Vec::new(),
         }
     }
 
@@ -153,11 +159,14 @@ impl NetworkService for Mutex<TestService> {
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
     ) -> ConsensusResult<FetchedCommitsAndTransactions> {
+        let service = self.lock();
         Ok(FetchedCommitsAndTransactions {
-            commits: vec![],
-            certifier_block_headers: vec![],
-            transactions: self.lock().fetch_commits_and_transactions_payload.clone(),
-            oversized_commit_permit: None,
+            commits: service.fetch_commits_and_transactions_commits.clone(),
+            certifier_block_headers: service
+                .fetch_commits_and_transactions_certifier_block_headers
+                .clone(),
+            transactions: stream::iter(service.fetch_commits_and_transactions_chunks.clone())
+                .boxed(),
         })
     }
 

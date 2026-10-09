@@ -1268,7 +1268,7 @@ mod tests {
         core_thread::CoreError,
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
     };
@@ -3131,7 +3131,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }
