@@ -241,6 +241,8 @@ fun check_builtin_authenticators_enabled() {
 // === Native Functions ===
 
 /// Borrows the account `UID`.
+///
+/// IMPORTANT: This function is allowed to be called only by the built-in authenticator.
 native fun borrow_account_uid<Account: key>(account: &Account): &UID;
 
 /// Returns true if `signature` is a valid signature of the transaction being authenticated
