@@ -129,3 +129,65 @@ impl VmChecks {
         matches!(self, Self::Enabled)
     }
 }
+
+/// Which input checks a simulation drops relative to a transaction bound for
+/// execution.
+///
+/// Every field defaults to `false`, so a check added to the shared path applies
+/// to a simulation too until someone names it here and says why.
+#[derive(Default, Debug, Copy, Clone)]
+pub struct InputCheckRules {
+    /// Skip the bounds on the gas budget, so a caller whose gas is not settled
+    /// runs out of gas rather than being rejected.
+    pub unbounded_gas_budget: bool,
+    /// Skip the match between an address-owned input's owner and the sender, so
+    /// a caller can ask what a transaction would do over objects it does not
+    /// own. Gas coins go through the same check, so the gas owner is not
+    /// matched either.
+    pub any_object_owner: bool,
+    /// Skip the match between an input object's declared digest and the loaded
+    /// object. Execution reads the object by id and version, but the effects
+    /// report the declared digest as the object's input digest, so a wrong one
+    /// is echoed back there.
+    pub any_object_digest: bool,
+    /// Accept a shared object named as an owned input. Owned versus shared only
+    /// decides how validators order a transaction, which a simulation does not
+    /// do, and execution takes an input's mutability from the object itself.
+    pub shared_object_as_owned_input: bool,
+    /// Skip the match between a shared input's declared initial shared version
+    /// and the object's own. Only consensus reads the declared one.
+    pub any_initial_shared_version: bool,
+    /// Skip the match between a receiving reference's declared version and the
+    /// object's current version, so a simulation can run over a reference the
+    /// caller has not refreshed. Receiving at that version then fails unless
+    /// the store still serves it, as a node does for older versions.
+    pub any_receiving_object_version: bool,
+    /// Skip the match between a receiving reference's declared digest and the
+    /// object it names. Receiving does not read the digest; the effects leave
+    /// the received object out of their dependencies when it does not match.
+    pub any_receiving_object_digest: bool,
+}
+
+impl InputCheckRules {
+    /// No relaxations: exactly what a validator applies.
+    pub const STRICT: Self = Self {
+        unbounded_gas_budget: false,
+        any_object_owner: false,
+        any_object_digest: false,
+        shared_object_as_owned_input: false,
+        any_initial_shared_version: false,
+        any_receiving_object_version: false,
+        any_receiving_object_digest: false,
+    };
+
+    /// What a simulation with [`VmChecks::Disabled`] drops.
+    pub const RELAXED_UNSAFE: Self = Self {
+        unbounded_gas_budget: true,
+        any_object_owner: true,
+        any_object_digest: true,
+        shared_object_as_owned_input: true,
+        any_initial_shared_version: true,
+        any_receiving_object_version: true,
+        any_receiving_object_digest: true,
+    };
+}

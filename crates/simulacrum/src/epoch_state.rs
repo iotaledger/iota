@@ -25,7 +25,7 @@ use iota_types::{
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 
 use crate::SimulatorStore;
@@ -163,6 +163,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
+            InputCheckRules::STRICT,
         )?;
 
         let transaction = transaction.data().transaction();
@@ -201,15 +202,12 @@ impl EpochState {
         mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        transaction.check_serialized_size(&self.protocol_config)?;
-
-        // Cheap validity checks for a transaction, including input size limits.
-        transaction.validity_check_no_gas_check(&self.protocol_config)?;
-
-        // The full validity check caps the gas payment size alongside requiring a
-        // gas payment at all, which a simulation relaxes so it can mock one. The cap
-        // still applies, and is cheapest before any object is loaded.
-        transaction.check_gas_payment_size(&self.protocol_config)?;
+        // A missing gas payment is allowed here, since we may create a mock gas
+        // object below.
+        iota_transaction_checks::check_user_transaction_validity(
+            &transaction,
+            &self.protocol_config,
+        )?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
@@ -255,44 +253,22 @@ impl EpochState {
 
         // Checks enabled -> DRY-RUN (simulating a real TX)
         // Checks disabled -> DEV-INSPECT (more relaxed Move VM checks)
-        let (gas_status, checked_input_objects) = if checks.enabled() {
-            iota_transaction_checks::check_transaction_input(
-                &self.protocol_config,
-                self.epoch_start_state.reference_gas_price(),
-                &transaction,
-                input_objects,
-                &receiving_objects,
-                &self.bytecode_verifier_metrics,
-                VerifierLimitsSource::NodeConfig(verifier_signing_config),
-                authenticator_gas_budget,
-            )?
+        let input_checks = if checks.enabled() {
+            InputCheckRules::STRICT
         } else {
-            // Execution smashes the gas coins and reserves the whole budget from them
-            // before running any command, treating the input checks as having verified
-            // that they are gas coins at all — so with those checks skipped here, this
-            // has to stand in for them. With the checks enabled,
-            // `check_transaction_input` covers it.
-            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
-                &input_objects,
-                transaction.gas(),
-                transaction.gas_budget(),
-            )?;
-
-            let checked_input_objects = iota_transaction_checks::check_simulation_input(
-                &self.protocol_config,
-                transaction.kind(),
-                input_objects,
-                receiving_objects,
-            )?;
-            let gas_status = IotaGasStatus::new(
-                transaction.gas_budget(),
-                transaction.gas_price(),
-                self.epoch_start_state.reference_gas_price(),
-                &self.protocol_config,
-            )?;
-
-            (gas_status, checked_input_objects)
+            InputCheckRules::RELAXED_UNSAFE
         };
+        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
+            &self.protocol_config,
+            self.epoch_start_state.reference_gas_price(),
+            &transaction,
+            input_objects,
+            &receiving_objects,
+            &self.bytecode_verifier_metrics,
+            VerifierLimitsSource::NodeConfig(verifier_signing_config),
+            authenticator_gas_budget,
+            input_checks,
+        )?;
 
         // Execute the simulation
         let (kind, signer, gas_data) = transaction.execution_parts();

@@ -29,8 +29,9 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionAPI, TransactionKindExt,
+            ReceivingObjects, TransactionAPI,
         },
+        transaction_executor::InputCheckRules,
     };
     use tracing::{error, instrument};
 
@@ -56,6 +57,7 @@ mod checked {
         transaction: &Transaction,
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
+        input_checks: InputCheckRules,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
             Ok(IotaGasStatus::new_unmetered())
@@ -69,6 +71,7 @@ mod checked {
                 transaction.gas_budget(),
                 authentication_gas_budget,
                 is_execute_transaction_to_effects,
+                input_checks,
             )
         }
     }
@@ -88,6 +91,42 @@ mod checked {
         ProtocolConfig,
     }
 
+    /// Cheap validity checks for a transaction that has not been through
+    /// signing, to run before any object is loaded.
+    ///
+    /// Rejects a system transaction, then runs the transaction's own validity
+    /// checks except the one requiring a gas payment, so a caller can supply
+    /// the gas payment itself. The limit on the number of gas payment objects
+    /// still applies.
+    ///
+    /// Signing rejects a system transaction before [`check_transaction_input`]
+    /// runs, and [`check_transaction_input`] itself accepts one, so a caller
+    /// with a transaction that has not been signed must call this first.
+    pub fn check_user_transaction_validity(
+        transaction: &Transaction,
+        protocol_config: &ProtocolConfig,
+    ) -> IotaResult {
+        if transaction.kind().is_system() {
+            return Err(IotaError::UnsupportedFeature {
+                error: "system transactions are not supported".to_string(),
+            });
+        }
+        transaction.check_serialized_size(protocol_config)?;
+        transaction.validity_check_no_gas_check(protocol_config)?;
+        transaction.check_gas_payment_size(protocol_config)?;
+        Ok(())
+    }
+
+    /// Checks whether a transaction may run, for signing, for a certificate, or
+    /// for a simulation.
+    ///
+    /// `input_checks` names the checks the caller drops: a simulation with
+    /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled)
+    /// passes [`InputCheckRules::RELAXED_UNSAFE`], everything bound for
+    /// execution [`InputCheckRules::STRICT`]. A caller that needs a check
+    /// relaxed must name it in [`InputCheckRules`] rather than validate its
+    /// inputs elsewhere, so that a check added here applies to every caller
+    /// until someone says otherwise.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
@@ -98,6 +137,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_limits_source: VerifierLimitsSource<'_>,
         authentication_gas_budget: u64,
+        input_checks: InputCheckRules,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -107,8 +147,9 @@ mod checked {
             &[],
             authentication_gas_budget,
             false,
+            input_checks,
         )?;
-        check_receiving_objects(&input_objects, receiving_objects)?;
+        check_receiving_objects(&input_objects, receiving_objects, input_checks)?;
         // Runs verifier, which could be expensive.
         check_non_system_packages_to_be_published(
             transaction,
@@ -142,8 +183,9 @@ mod checked {
             &[gas_object_ref],
             0,
             true,
+            InputCheckRules::STRICT,
         )?;
-        check_receiving_objects(&input_objects, &receiving_objects)?;
+        check_receiving_objects(&input_objects, &receiving_objects, InputCheckRules::STRICT)?;
         // Runs verifier, which could be expensive.
         check_non_system_packages_to_be_published(
             transaction,
@@ -176,53 +218,13 @@ mod checked {
             &[],
             0,
             true,
+            InputCheckRules::STRICT,
         )?;
         // NB: We do not check receiving objects when executing. Only at signing
         // time do we check. NB: move verifier is only checked at
         // signing time, not at execution.
 
         Ok((gas_status, input_objects.into_checked()))
-    }
-
-    /// WARNING! Only for simulating a transaction with
-    /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled).
-    /// This bypasses many of the normal object checks. A simulation with
-    /// `VmChecks::Enabled` goes through [`check_transaction_input`] instead,
-    /// the same as a transaction bound for execution.
-    #[instrument(level = "trace", skip_all)]
-    pub fn check_simulation_input(
-        config: &ProtocolConfig,
-        kind: &TransactionKind,
-        input_objects: InputObjects,
-        // TODO: check ReceivingObjects when simulating?
-        _receiving_objects: ReceivingObjects,
-    ) -> IotaResult<CheckedInputObjects> {
-        kind.validity_check(config)?;
-        if kind.is_system() {
-            return Err(UserInputError::Unsupported(format!(
-                "Transaction kind {kind} is not supported in a simulation"
-            ))
-            .into());
-        }
-        let mut used_objects: HashSet<Address> = HashSet::new();
-        for input_object in input_objects.iter() {
-            let Some(object) = input_object.as_object() else {
-                // object was deleted
-                continue;
-            };
-
-            if !object.is_immutable() {
-                fp_ensure!(
-                    used_objects.insert(object.id().into()),
-                    UserInputError::MutableObjectUsedMoreThanOnce {
-                        object_id: object.id()
-                    }
-                    .into()
-                );
-            }
-        }
-
-        Ok(input_objects.into_checked())
     }
 
     /// A common function to check the `MoveAuthenticator` inputs for signing.
@@ -293,6 +295,7 @@ mod checked {
             &[],
             authenticator_gas_budget,
             true,
+            InputCheckRules::STRICT,
         )?;
 
         let per_authenticator_checked_input_objects = per_authenticator_input_objects
@@ -323,6 +326,7 @@ mod checked {
         gas_override: &[ObjectReference],
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
+        input_checks: InputCheckRules,
     ) -> IotaResult<IotaGasStatus> {
         // Cheap validity checks that is ok to run multiple times during processing.
         let gas = if gas_override.is_empty() {
@@ -339,16 +343,32 @@ mod checked {
             transaction,
             authentication_gas_budget,
             is_execute_transaction_to_effects,
+            input_checks,
         )?;
-        check_objects(transaction, input_objects)?;
+        check_objects(transaction, input_objects, input_checks)?;
 
         Ok(gas_status)
     }
 
+    /// Checks the receiving references against the objects they name.
+    ///
+    /// Two separable things happen here. Whether each reference is current —
+    /// its version and digest match the loaded object — can be dropped per
+    /// half by
+    /// [`InputCheckRules::any_receiving_object_version`] and
+    /// [`InputCheckRules::any_receiving_object_digest`].
+    /// What the object is, and that no reference duplicates another or collides
+    /// with an input object, is not relaxed by anything: the duplicate
+    /// rejection below is the only one there is, since `CallArg::Receiving`
+    /// is not part of `input_objects()` and so escapes its
+    /// `DuplicateObjectRefInput` dedup. Without it a duplicated receiving
+    /// ticket reaches the object runtime, which treats receiving the same
+    /// object twice as impossible.
     #[instrument(level = "trace", skip_all)]
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,
+        input_checks: InputCheckRules,
     ) -> Result<(), IotaError> {
         let mut objects_in_txn: HashSet<_> = input_objects
             .object_kinds()
@@ -374,19 +394,36 @@ mod checked {
                 continue;
             };
 
+            // A reference is fine if it names an address-owned object and matches
+            // it on both counts the caller still cares about, so the block below
+            // is for the ones that are not. Relax each equality here rather than
+            // reordering the block: which error a caller gets when a reference
+            // fails more than one test is observable.
+            //
+            // Keep the two conditions in step with the two `fp_ensure!`s inside.
+            // The trailing `match object.owner` has no gate of its own, and its
+            // `Owner::Address` arm is a `debug_assert!(false)` — dead only
+            // because every path that enters here with an address owner bails at
+            // whichever `fp_ensure!` let it in. Skipping a test while still
+            // admitting the references it would have rejected makes that arm
+            // reachable, which panics in a debug build.
             if !(object.owner.is_address()
-                && object.version() == object_ref.version
-                && object.digest() == object_ref.digest)
+                && (object.version() == object_ref.version
+                    || input_checks.any_receiving_object_version)
+                && (object.digest() == object_ref.digest
+                    || input_checks.any_receiving_object_digest))
             {
-                // Version mismatch
-                fp_ensure!(
-                    object.version() == object_ref.version,
-                    UserInputError::ObjectVersionUnavailableForConsumption {
-                        provided_obj_ref: *object_ref,
-                        current_version: object.version(),
-                    }
-                    .into()
-                );
+                if !input_checks.any_receiving_object_version {
+                    // Version mismatch
+                    fp_ensure!(
+                        object.version() == object_ref.version,
+                        UserInputError::ObjectVersionUnavailableForConsumption {
+                            provided_obj_ref: *object_ref,
+                            current_version: object.version(),
+                        }
+                        .into()
+                    );
+                }
 
                 // Tried to receive a package
                 fp_ensure!(
@@ -397,16 +434,18 @@ mod checked {
                     .into()
                 );
 
-                // Digest mismatch
-                let expected_digest = object.digest();
-                fp_ensure!(
-                    expected_digest == object_ref.digest,
-                    UserInputError::InvalidObjectDigest {
-                        object_id: object_ref.object_id,
-                        expected_digest
-                    }
-                    .into()
-                );
+                if !input_checks.any_receiving_object_digest {
+                    // Digest mismatch
+                    let expected_digest = object.digest();
+                    fp_ensure!(
+                        expected_digest == object_ref.digest,
+                        UserInputError::InvalidObjectDigest {
+                            object_id: object_ref.object_id,
+                            expected_digest
+                        }
+                        .into()
+                    );
+                }
 
                 match object.owner {
                     Owner::Address(_) => {
@@ -472,6 +511,7 @@ mod checked {
         transaction_gas_budget: u64,
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
+        input_checks: InputCheckRules,
     ) -> IotaResult<IotaGasStatus> {
         let gas_budget_to_set = if authentication_gas_budget > 0 {
             // If there is an authentication gas budget, then we are checking if
@@ -524,14 +564,22 @@ mod checked {
             })?;
             gas_objects.push(obj);
         }
-        gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
+        gas_status.check_gas_balance(
+            &gas_objects,
+            gas_budget_to_check,
+            !input_checks.unbounded_gas_budget,
+        )?;
         Ok(gas_status)
     }
 
     /// Check all the objects used in the transaction against the database, and
     /// ensure that they are all the correct version and number.
     #[instrument(level = "trace", skip_all)]
-    fn check_objects(transaction: &Transaction, objects: &InputObjects) -> UserInputResult<()> {
+    fn check_objects(
+        transaction: &Transaction,
+        objects: &InputObjects,
+        input_checks: InputCheckRules,
+    ) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
         let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {
@@ -570,6 +618,7 @@ mod checked {
                         input_object_kind,
                         object,
                         system_transaction,
+                        input_checks,
                     )?;
                 }
                 // We skip checking a deleted shared object because it no longer exists
@@ -589,6 +638,7 @@ mod checked {
         object_kind: InputObjectKind,
         object: &Object,
         system_transaction: bool,
+        input_checks: InputCheckRules,
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
@@ -622,14 +672,16 @@ mod checked {
                 );
 
                 // Check the digest matches - user could give a mismatched ObjectDigest
-                let expected_digest = object.digest();
-                fp_ensure!(
-                    expected_digest == object_ref.digest,
-                    UserInputError::InvalidObjectDigest {
-                        object_id: object_ref.object_id,
-                        expected_digest
-                    }
-                );
+                if !input_checks.any_object_digest {
+                    let expected_digest = object.digest();
+                    fp_ensure!(
+                        expected_digest == object_ref.digest,
+                        UserInputError::InvalidObjectDigest {
+                            object_id: object_ref.object_id,
+                            expected_digest
+                        }
+                    );
+                }
 
                 match object.owner {
                     Owner::Immutable => {
@@ -637,15 +689,17 @@ mod checked {
                     }
                     Owner::Address(actual_owner) => {
                         // Check the owner is correct.
-                        fp_ensure!(
-                            owner == &actual_owner,
-                            UserInputError::IncorrectUserSignature {
-                                error: format!(
-                                    "Object {} is owned by account address {}, but given owner/signer address is {}",
-                                    object_ref.object_id, actual_owner, owner
-                                ),
-                            }
-                        );
+                        if !input_checks.any_object_owner {
+                            fp_ensure!(
+                                owner == &actual_owner,
+                                UserInputError::IncorrectUserSignature {
+                                    error: format!(
+                                        "Object {} is owned by account address {}, but given owner/signer address is {}",
+                                        object_ref.object_id, actual_owner, owner
+                                    ),
+                                }
+                            );
+                        }
                     }
                     Owner::Object(owner) => {
                         return Err(UserInputError::InvalidChildObjectArgument {
@@ -656,7 +710,10 @@ mod checked {
                     Owner::Shared(_) => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
-                        return Err(UserInputError::NotSharedObject);
+                        fp_ensure!(
+                            input_checks.shared_object_as_owned_input,
+                            UserInputError::NotSharedObject
+                        );
                     }
                     _ => {
                         unimplemented!("a new Owner enum variant was added and needs to be handled")
@@ -665,9 +722,13 @@ mod checked {
             }
             InputObjectKind::SharedMoveObject {
                 id: ObjectId::CLOCK,
-                initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
+                initial_shared_version,
                 mutable: true,
-            } => {
+            } if initial_shared_version == IOTA_CLOCK_OBJECT_SHARED_VERSION
+                // Without the second condition, a relaxed version check would let a
+                // wrong declared version carry a mutable Clock past this arm.
+                || input_checks.any_initial_shared_version =>
+            {
                 // Only system transactions can accept the Clock
                 // object as a mutable parameter.
                 if system_transaction {
@@ -735,7 +796,8 @@ mod checked {
                     }
                     Owner::Shared(actual_initial_shared_version) => {
                         fp_ensure!(
-                            input_initial_shared_version == actual_initial_shared_version,
+                            input_checks.any_initial_shared_version
+                                || input_initial_shared_version == actual_initial_shared_version,
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
                     }
