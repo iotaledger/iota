@@ -632,6 +632,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     pcool_verifier_limits_from_protocol_config: bool,
 
+    // If true, P-COOL post-consensus validation reads object state as of the
+    // commit height being processed. Requires `enable_pcool_flow`.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_deterministic_validation: bool,
+
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
@@ -2075,6 +2080,15 @@ impl ProtocolConfig {
     pub fn pcool_verifier_limits_from_protocol_config(&self) -> bool {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config
+    }
+
+    pub fn pcool_deterministic_validation(&self) -> bool {
+        let res = self.feature_flags.pcool_deterministic_validation;
+        assert!(
+            !res || self.enable_pcool_flow(),
+            "pcool_deterministic_validation requires enable_pcool_flow to be enabled"
+        );
+        res
     }
 
     pub fn validator_metadata_verify_v2(&self) -> bool {
@@ -3948,6 +3962,10 @@ impl ProtocolConfig {
 
     pub fn set_disallow_randomness_in_move_authenticator_for_testing(&mut self, val: bool) {
         self.feature_flags.disallow_randomness_in_move_authenticator = val;
+    }
+
+    pub fn set_pcool_deterministic_validation_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_deterministic_validation = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
