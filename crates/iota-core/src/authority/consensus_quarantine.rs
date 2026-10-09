@@ -1287,13 +1287,20 @@ where
 mod tests {
     use iota_sdk_types::{CheckpointSummary, GasCostSummary};
     use iota_types::{
-        base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt,
-        transaction::TransactionKey,
+        base_types::{ExecutionDigests, dbg_addr},
+        crypto::{AccountPrivateKey, get_key_pair},
+        messages_checkpoint::CheckpointSummaryExt,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionKey},
     };
 
     use super::*;
     use crate::{
-        authority::test_authority_builder::TestAuthorityBuilder,
+        authority::{
+            authority_test_utils::{
+                init_state_with_ids, init_transfer_transaction, send_and_confirm_transaction,
+            },
+            test_authority_builder::TestAuthorityBuilder,
+        },
         checkpoints::{
             BuilderCheckpointSummary, CheckpointHeight, PendingCheckpointContentsV1,
             PendingCheckpointInfo,
@@ -1532,8 +1539,34 @@ mod tests {
     /// split build of the regular checkpoint is not enough on its own.
     #[tokio::test]
     async fn waits_for_the_randomness_checkpoint_of_a_split_commit() {
-        let state = TestAuthorityBuilder::new().build().await;
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let object_id = ObjectId::random();
+        let gas_id = ObjectId::random();
+        let state = init_state_with_ids(vec![(sender, object_id), (sender, gas_id)]).await;
         let epoch_store = state.epoch_store_for_testing();
+
+        // The flush of a commit reads the effects of its roots when P-COOL
+        // deterministic validation is on, so the randomness root stands for an
+        // executed transaction.
+        let rgp = state.reference_gas_price_for_testing().unwrap();
+        let transfer = init_transfer_transaction(
+            &state,
+            sender,
+            &sender_key,
+            dbg_addr(2),
+            state.get_object(&object_id).unwrap().object_ref(),
+            state.get_object(&gas_id).unwrap().object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let (certificate, _) = send_and_confirm_transaction(&state, transfer.into_inner())
+            .await
+            .unwrap();
+        let randomness_root =
+            TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(1));
+        epoch_store
+            .insert_tx_key(randomness_root, *certificate.digest())
+            .unwrap();
         let mut quarantine = ConsensusOutputQuarantine::new(
             9,
             HashMap::new(),
@@ -1547,10 +1580,7 @@ mod tests {
         output.set_default_commit_stats_for_testing();
         output.insert_pending_checkpoint(pending_checkpoint(vec![], regular_height));
         output.insert_pending_checkpoint(pending_checkpoint(
-            vec![TransactionKey::RandomnessRound(
-                epoch_store.epoch(),
-                RandomnessRound::new(1),
-            )],
+            vec![randomness_root],
             randomness_height,
         ));
         quarantine
