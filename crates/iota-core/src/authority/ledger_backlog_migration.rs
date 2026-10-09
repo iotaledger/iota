@@ -15,12 +15,14 @@ use std::{collections::BTreeMap, ops::Bound, sync::Arc};
 
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEffectsDigest,
+    TransactionKind,
 };
 use iota_types::{
     committee::EpochId,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     messages_checkpoint::CheckpointContentsExt,
+    transaction::TransactionAPI,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info};
@@ -473,7 +475,17 @@ impl LedgerBacklogMigration {
         use LedgerBacklogMigrationProgress as Progress;
 
         let flat = &self.perpetual_tables.transactions;
-        let slice = self.read_slice(flat, from, |digest, _| self.transaction_epoch(digest))?;
+        let slice = self.read_slice(flat, from, |digest, transaction| {
+            if let Some(epoch) = self.transaction_epoch(digest)? {
+                return Ok(Some(epoch));
+            }
+            // A validator stores a randomness state update before executing it,
+            // since its signature cannot always be built again after a restart.
+            Ok(match transaction.inner().transaction().kind() {
+                TransactionKind::RandomnessStateUpdate(update) => Some(update.epoch),
+                _ => None,
+            })
+        })?;
         let progress = slice.progress(Progress::Transactions, Progress::Events(None));
         self.move_ledger_slice(
             flat,

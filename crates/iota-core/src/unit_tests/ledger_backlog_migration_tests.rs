@@ -4,8 +4,8 @@
 use std::{path::Path, sync::Arc};
 
 use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointContentsDigest, TransactionDigest,
-    TransactionEffectsDigest, TransactionEvents,
+    Address, CheckpointContents, CheckpointContentsDigest, RandomnessRound, TransactionDigest,
+    TransactionEffectsDigest, TransactionEvents, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -958,5 +958,45 @@ async fn a_resumed_run_keeps_the_floor_the_migration_started_with() {
             .map(|(sequence, _)| sequence),
         Some(10),
         "the epoch the first run deleted rows of must be reported as pruned"
+    );
+}
+
+/// A randomness state update the node stored but has not executed is filed
+/// under the epoch it names rather than deleted, since a validator may not be
+/// able to build it again.
+#[tokio::test]
+async fn an_unexecuted_randomness_update_is_kept() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed(&store, &checkpoint_store);
+
+    let update = VerifiedTransaction::new_randomness_state_update(
+        RUNNING_EPOCH,
+        RandomnessRound::new(7),
+        vec![1, 2, 3],
+        Version::from_u64(1),
+    );
+    let digest = *update.digest();
+    store
+        .perpetual_tables
+        .transactions
+        .insert(&digest, update.serializable_ref())
+        .unwrap();
+
+    migration(&store, checkpoint_store, Some(NARROWEST_RETENTION), 5_000)
+        .run()
+        .unwrap();
+
+    let historic_ledger = store.get_historic_ledger();
+    assert!(
+        historic_ledger
+            .ensure(RUNNING_EPOCH)
+            .unwrap()
+            .transactions
+            .get(&digest)
+            .unwrap()
+            .is_some(),
+        "the update must be filed under the epoch it names"
     );
 }
