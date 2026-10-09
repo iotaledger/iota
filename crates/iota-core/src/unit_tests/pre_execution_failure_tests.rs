@@ -32,8 +32,7 @@ use crate::authority::{
 
 /// An authority and a transaction whose Move authenticator names an object
 /// the account check rejects: a shared object with no authenticator function
-/// field, which fails with `MoveAuthenticatorNotFound`, or an immutable
-/// object, which fails with `ImmutableAccountObjectNotSupported`.
+/// field, which fails with `MoveAuthenticatorNotFound`.
 ///
 /// The P-COOL consensus handler cannot keep this check because it answers from
 /// its own load of the account, which can differ between validators. Once the

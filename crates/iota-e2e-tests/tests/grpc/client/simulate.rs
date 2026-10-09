@@ -56,7 +56,6 @@ async fn simulate_transaction_scenarios() {
     let transaction = create_transaction_for_simulation(&test_cluster).await;
     let result = client
         .simulate_transaction(transaction)
-        .skip_checks(false)
         .read_mask(SimulateField::EXECUTED_TRANSACTION_EFFECTS)
         .await
         .expect("Failed to simulate transaction with minimal mask");
@@ -90,10 +89,7 @@ async fn simulate_transaction_scenarios() {
         .transfer_iota(None, sender)
         .with_gas_budget(1)
         .build();
-    let result = client
-        .simulate_transaction(transaction)
-        .skip_checks(false)
-        .await;
+    let result = client.simulate_transaction(transaction).await;
     assert_grpc_error(result, Code::InvalidArgument);
 
     // Test: transfer exceeding balance returns Ok with failed effects
@@ -112,7 +108,6 @@ async fn simulate_transaction_scenarios() {
         .build();
     let response = client
         .simulate_transaction(transaction)
-        .skip_checks(false)
         .await
         .expect("Simulation should succeed at RPC level");
 
@@ -165,7 +160,6 @@ async fn simulate_transaction_command_results_split_coins() {
 
     let response = client
         .simulate_transaction(transaction)
-        .skip_checks(false)
         .read_mask(SimulateField::EXECUTION_RESULT_COMMAND_RESULTS)
         .await
         .expect("simulate_transaction should succeed");
