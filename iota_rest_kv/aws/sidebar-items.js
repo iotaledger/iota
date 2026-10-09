@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["AWS_STATUS_CACHE_TTL","CONNECT_TIMEOUT_SECS","OPERATION_ATTEMPT_TIMEOUT_SECS","OPERATION_TIMEOUT_SECS"],"struct":["AwsStatus","CachedAwsStatus","DynamoDbConfig","KvStoreClient","KvStoreConfig","ServiceStatus"]};
