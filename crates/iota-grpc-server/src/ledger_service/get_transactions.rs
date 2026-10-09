@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
@@ -23,9 +23,13 @@ use crate::{
     error::RpcError,
     merge::Merge,
     transaction_execution_service::TransactionReadSource,
-    types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
+    types::{GrpcReader, StoreReadBudget, TransactionReadFields, TransactionsStreamResult},
     validation::validate_read_mask,
 };
+
+/// The most transactions of one request whose store reads share one call for each kind of data.
+/// Matches JSON-RPC's default limit of digests per request.
+const TRANSACTION_READ_CHUNK_SIZE: usize = 50;
 
 type ValidationResult = Result<(Vec<TransactionDigest>, FieldMaskTree), RpcError>;
 
@@ -60,11 +64,12 @@ pub(crate) fn validate_get_transaction_requests(
 
 /// Available Read Mask Fields
 ///
-/// Data the node has pruned is read from the configured key-value store. The
+/// Data the node has pruned is read from the configured key-value store, with one store call for
+/// each kind of data (checkpoint lookup, transactions and effects, checkpoint summaries, events,
+/// objects) for up to [`TRANSACTION_READ_CHUNK_SIZE`] transactions of a request at a time. The
 /// result of a transaction is:
-/// - `UNAVAILABLE` if a store read returns an error or times out, except the checkpoint lookup,
-///   which counts as a miss. Once the store reads of the request have taken 30 s in total, every
-///   further store read is `UNAVAILABLE`.
+/// - `UNAVAILABLE` if a store call it needs fails or times out, or once the request's store calls
+///   have taken 30 s in total. A failed checkpoint lookup counts as a miss while that budget lasts.
 /// - `UNAVAILABLE` if the store returns the checkpoint of a pruned transaction but lacks its
 ///   transaction, effects or events.
 /// - `INTERNAL` if the store returns data that does not match the effects.
@@ -163,21 +168,24 @@ pub(crate) fn get_transactions(
 
     let (digests, read_mask) = validate_get_transaction_requests(requests, read_mask)?;
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
-    let store_budget = crate::types::StoreReadBudget::default();
+    let store_budget = StoreReadBudget::default();
+    // Without a store, reading ahead would only hold results in memory.
+    let chunk_size = if reader.has_transaction_fallback() {
+        TRANSACTION_READ_CHUNK_SIZE
+    } else {
+        1
+    };
 
     Ok(crate::create_batching_stream!(
-        digests.into_iter(),
-        digest,
+        stream: futures::stream::iter(digests.chunks(chunk_size))
+            .then(|digests| get_transactions_impl(&reader, &config, digests, &read_mask, &store_budget))
+            .flat_map(futures::stream::iter),
+        tx_read,
         {
-            let tx_result =
-                match get_transaction_impl(&reader, &config, digest, &read_mask, &store_budget)
-                    .await
-                {
-                    Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
-                    Err(error) => {
-                        TransactionResult::default().with_error(error.into_status_proto())
-                    }
-                };
+            let tx_result = match tx_read {
+                Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
+                Err(error) => TransactionResult::default().with_error(error.into_status_proto()),
+            };
 
             let tx_size = tx_result.encoded_len();
             (tx_result, tx_size)
@@ -189,37 +197,42 @@ pub(crate) fn get_transactions(
     ))
 }
 
-#[tracing::instrument(skip(reader, config, store_budget))]
-async fn get_transaction_impl(
+async fn get_transactions_impl(
     reader: &Arc<GrpcReader>,
     config: &iota_config::node::GrpcApiConfig,
-    digest: TransactionDigest,
+    digests: &[TransactionDigest],
     read_mask: &FieldMaskTree,
-    store_budget: &crate::types::StoreReadBudget,
-) -> Result<ExecutedTransaction, RpcError> {
+    store_budget: &StoreReadBudget,
+) -> Vec<Result<ExecutedTransaction, RpcError>> {
     // Derive which optional fields to fetch based on the read_mask
     let fields = TransactionReadFields::from_mask(read_mask);
 
     // Get transaction data from storage, skipping unrequested fields
-    let tx_read = reader
-        .get_transaction_read(&digest, &fields, store_budget)
-        .await?;
+    let tx_reads = reader
+        .get_transaction_reads(digests, &fields, store_budget)
+        .await;
 
-    // Create a source for the merge
-    let source = TransactionReadSource {
-        reader: reader.clone(),
-        config,
-        transaction: tx_read.transaction,
-        signatures: tx_read.signatures,
-        effects: tx_read.effects,
-        events: tx_read.events,
-        checkpoint: tx_read.checkpoint,
-        timestamp_ms: tx_read.timestamp_ms,
-        input_objects: tx_read.input_objects,
-        output_objects: tx_read.output_objects,
-        mocked_coin: None,
-    };
+    tx_reads
+        .into_iter()
+        .map(|tx_read| {
+            let tx_read = tx_read?;
+            // Create a source for the merge
+            let source = TransactionReadSource {
+                reader: reader.clone(),
+                config,
+                transaction: tx_read.transaction,
+                signatures: tx_read.signatures,
+                effects: tx_read.effects,
+                events: tx_read.events,
+                checkpoint: tx_read.checkpoint,
+                timestamp_ms: tx_read.timestamp_ms,
+                input_objects: tx_read.input_objects,
+                output_objects: tx_read.output_objects,
+                mocked_coin: None,
+            };
 
-    ExecutedTransaction::merge_from(&source, read_mask)
-        .map_err(|e| e.with_context("failed to merge transaction"))
+            ExecutedTransaction::merge_from(&source, read_mask)
+                .map_err(|e| e.with_context("failed to merge transaction"))
+        })
+        .collect()
 }

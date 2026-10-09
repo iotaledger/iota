@@ -71,6 +71,12 @@ struct MockFallbackStore {
     requests: Arc<Mutex<Vec<&'static str>>>,
     /// Keys of each `multi_get_objects` call.
     requested_objects: Arc<Mutex<Vec<Vec<ObjectKey>>>>,
+    /// Digests of each lookup, `multi_get` (transactions, then effects) and events call.
+    requested_digests: Arc<Mutex<Vec<Vec<TransactionDigest>>>>,
+    /// Summary keys of each `multi_get_checkpoints` call.
+    requested_checkpoints: Arc<Mutex<Vec<Vec<CheckpointSequenceNumber>>>>,
+    /// How long the checkpoint lookup takes.
+    lookup_delay: Option<std::time::Duration>,
     evicted_objects: Arc<Mutex<Vec<ObjectKey>>>,
     evicted_events: Arc<Mutex<Vec<TransactionDigest>>>,
 }
@@ -99,6 +105,10 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
         transaction_keys: &[TransactionDigest],
         effects_keys: &[TransactionDigest],
     ) -> IotaResult<KVStoreTransactionData> {
+        self.requested_digests
+            .lock()
+            .unwrap()
+            .push([transaction_keys, effects_keys].concat());
         let request = match (transaction_keys.is_empty(), effects_keys.is_empty()) {
             (false, false) => "multi_get(transaction, effects)",
             (false, true) => "multi_get(transaction)",
@@ -127,6 +137,10 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
         _checkpoint_contents: &[CheckpointSequenceNumber],
         _checkpoint_summaries_by_digest: &[CheckpointDigest],
     ) -> IotaResult<KVStoreCheckpointData> {
+        self.requested_checkpoints
+            .lock()
+            .unwrap()
+            .push(checkpoint_summaries.to_vec());
         self.serve(
             "multi_get_checkpoints",
             (
@@ -142,12 +156,9 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
 
     async fn get_transaction_perpetual_checkpoint(
         &self,
-        digest: TransactionDigest,
+        _digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.serve(
-            "get_transaction_perpetual_checkpoint",
-            self.transaction_checkpoints.get(&digest).copied(),
-        )
+        self.serve("get_transaction_perpetual_checkpoint", None)
     }
 
     async fn get_object(
@@ -179,9 +190,19 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
+        self.requested_digests
+            .lock()
+            .unwrap()
+            .push(digests.to_vec());
+        if let Some(delay) = self.lookup_delay {
+            tokio::time::sleep(delay).await;
+        }
         self.serve(
             "multi_get_transactions_perpetual_checkpoints",
-            vec![None; digests.len()],
+            digests
+                .iter()
+                .map(|digest| self.transaction_checkpoints.get(digest).copied())
+                .collect(),
         )
     }
 
@@ -189,6 +210,10 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.requested_digests
+            .lock()
+            .unwrap()
+            .push(digests.to_vec());
         self.serve(
             "multi_get_events_by_tx_digests",
             digests
@@ -690,7 +715,7 @@ const CASE: Case = Case {
     evicted: Evicted::Nothing,
 };
 
-const LOOKUP: &str = "get_transaction_perpetual_checkpoint";
+const LOOKUP: &str = "multi_get_transactions_perpetual_checkpoints";
 const READ_BOTH: &str = "multi_get(transaction, effects)";
 const READ_EVENTS: &str = "multi_get_events_by_tx_digests";
 const READ_SUMMARY: &str = "multi_get_checkpoints";
@@ -749,6 +774,15 @@ const CASES: &[Case] = &[
         node: PRUNED,
         store: store(Data::Without(Part::TransactionAndEffects)),
         read_mask: "effects",
+        requests: &[LOOKUP, "multi_get(effects)"],
+        expect: Expect::Error(tonic::Code::Unavailable),
+        ..CASE
+    },
+    Case {
+        name: "pruned, effects missing from the store: unavailable before the summary is read",
+        node: PRUNED,
+        store: store(Data::Without(Part::TransactionAndEffects)),
+        read_mask: "effects,timestamp",
         requests: &[LOOKUP, "multi_get(effects)"],
         expect: Expect::Error(tonic::Code::Unavailable),
         ..CASE
@@ -1143,9 +1177,17 @@ async fn run_case(case: Case) {
         }
         Expect::Error(code) => {
             assert_eq!(result.error_code(), Some(code as i32), "{name}: {result:?}");
+            let message = result.error_message().unwrap();
             if code == tonic::Code::Unavailable {
-                let message = result.error_message().unwrap();
                 assert!(!message.contains(STORE_HOST), "{name}: {message}");
+            }
+            // With a store, a missing item may be a failed store read.
+            if code == tonic::Code::FailedPrecondition {
+                assert_eq!(
+                    message.contains("retry, and if it stays unavailable"),
+                    case.store.is_some(),
+                    "{name}: {message}"
+                );
             }
         }
         Expect::Internal(text) => {
@@ -1258,4 +1300,348 @@ async fn failing_store_only_fails_its_own_item() {
     );
     let message = results[1].error_message().unwrap();
     assert!(message.contains("key-value store unavailable"));
+}
+
+// ---------------------------------------------------------------------------
+// Batched store reads
+// ---------------------------------------------------------------------------
+
+/// The state of a node that holds `node` of each of `tests`, and a store that holds all of them.
+fn node_and_store(
+    node: Node,
+    tests: &[TestTransaction],
+) -> (MockGrpcStateReader, MockFallbackStore) {
+    let mut state =
+        MockGrpcStateReader::default().with_lowest_available_checkpoint(node.lowest_available);
+    let mut store = MockFallbackStore::default();
+    for test in tests {
+        let part = node.state(test);
+        state.transactions.extend(part.transactions);
+        state.effects.extend(part.effects);
+        state.object_versions.extend(part.object_versions);
+        let part = FULL_STORE.unwrap().build(test);
+        store.transactions.extend(part.transactions);
+        store.effects.extend(part.effects);
+        store.events.extend(part.events);
+        store
+            .transaction_checkpoints
+            .extend(part.transaction_checkpoints);
+        store.checkpoint_summaries.extend(part.checkpoint_summaries);
+        store.objects.extend(part.objects);
+    }
+    (state, store)
+}
+
+fn served_digest(result: &TransactionResult) -> Vec<u8> {
+    result
+        .executed_transaction()
+        .unwrap()
+        .unwrap_or_else(|| panic!("expected a transaction, got {result:?}"))
+        .transaction
+        .as_ref()
+        .unwrap()
+        .digest
+        .as_ref()
+        .unwrap()
+        .digest
+        .to_vec()
+}
+
+fn error_code(result: &TransactionResult) -> Option<tonic::Code> {
+    result.error_code().map(tonic::Code::from)
+}
+
+#[tokio::test]
+async fn pruned_transactions_of_a_request_share_one_call_for_each_kind_of_data() {
+    let tests = (0..3).map(|_| test_transaction(true)).collect::<Vec<_>>();
+    let digests = tests
+        .iter()
+        .map(TestTransaction::digest)
+        .collect::<Vec<_>>();
+    let (state, store) = node_and_store(PRUNED, &tests);
+    let (requests, requested_objects, requested_checkpoints) = (
+        store.requests.clone(),
+        store.requested_objects.clone(),
+        store.requested_checkpoints.clone(),
+    );
+    let handle = start(state, Some(store)).await;
+
+    let results = get_transactions(
+        &handle,
+        &digests,
+        "transaction,effects,events,timestamp,input_objects,output_objects",
+    )
+    .await;
+
+    let served = results.iter().map(served_digest).collect::<Vec<_>>();
+    let expected = digests
+        .iter()
+        .map(|digest| digest.bytes().to_vec())
+        .collect::<Vec<_>>();
+    assert_eq!(served, expected);
+    assert_eq!(
+        *requests.lock().unwrap(),
+        [LOOKUP, READ_BOTH, READ_SUMMARY, READ_EVENTS, READ_OBJECTS]
+    );
+    // The transactions share their checkpoint, which is read once.
+    assert_eq!(*requested_checkpoints.lock().unwrap(), [[CHECKPOINT_SEQ]]);
+    let object_count = tests
+        .iter()
+        .map(|test| {
+            input_object_keys(&test.effects).len() + output_object_keys(&test.effects).len()
+        })
+        .sum::<usize>();
+    let requested_objects = requested_objects.lock().unwrap();
+    assert_eq!(requested_objects.len(), 1);
+    assert_eq!(requested_objects[0].len(), object_count);
+}
+
+#[tokio::test]
+async fn results_keep_the_request_order_with_local_unknown_and_pruned_transactions() {
+    let (pruned, local) = (
+        [test_transaction(false), test_transaction(false)],
+        test_transaction(false),
+    );
+    let (mut state, store) = node_and_store(PRUNED, &pruned);
+    let local_state = LOCAL.state(&local);
+    state.transactions.extend(local_state.transactions);
+    state.effects.extend(local_state.effects);
+    let (requests, requested_digests) = (store.requests.clone(), store.requested_digests.clone());
+    let handle = start(state, Some(store)).await;
+    let unknown = TransactionDigest::random();
+    let digests = [
+        pruned[0].digest(),
+        local.digest(),
+        unknown,
+        pruned[1].digest(),
+    ];
+
+    let results = get_transactions(&handle, &digests, "transaction,effects").await;
+
+    assert_eq!(results.len(), digests.len());
+    for index in [0, 1, 3] {
+        assert_eq!(
+            served_digest(&results[index]),
+            digests[index].bytes().to_vec()
+        );
+    }
+    assert_eq!(error_code(&results[2]), Some(tonic::Code::NotFound));
+    assert_eq!(*requests.lock().unwrap(), [LOOKUP, READ_BOTH]);
+    // Only the transactions the node lacks are looked up, and only the pruned ones are read.
+    let pruned = [pruned[0].digest(), pruned[1].digest()];
+    assert_eq!(
+        *requested_digests.lock().unwrap(),
+        [
+            vec![pruned[0], unknown, pruned[1]],
+            [pruned, pruned].concat()
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_transaction_requested_twice_shares_its_summary_and_object_reads() {
+    let test = test_transaction(false);
+    let (state, store) = node_and_store(PRUNED, std::slice::from_ref(&test));
+    let (requests, requested_objects, requested_checkpoints) = (
+        store.requests.clone(),
+        store.requested_objects.clone(),
+        store.requested_checkpoints.clone(),
+    );
+    let handle = start(state, Some(store)).await;
+
+    let results = get_transactions(
+        &handle,
+        &[test.digest(), test.digest()],
+        "timestamp,input_objects",
+    )
+    .await;
+
+    assert_eq!(results.len(), 2);
+    for result in &results {
+        assert!(
+            result.executed_transaction().unwrap().is_some(),
+            "{result:?}"
+        );
+    }
+    assert_eq!(
+        *requests.lock().unwrap(),
+        [LOOKUP, "multi_get(effects)", READ_SUMMARY, READ_OBJECTS]
+    );
+    assert_eq!(*requested_checkpoints.lock().unwrap(), [[CHECKPOINT_SEQ]]);
+    let mut input_keys = input_object_keys(&test.effects);
+    input_keys.sort();
+    assert_eq!(*requested_objects.lock().unwrap(), [input_keys]);
+}
+
+#[tokio::test]
+async fn each_chunk_of_50_transactions_makes_its_own_calls() {
+    let digests = (0..51)
+        .map(|_| TransactionDigest::random())
+        .collect::<Vec<_>>();
+    let store = MockFallbackStore::default();
+    let (requests, requested_digests) = (store.requests.clone(), store.requested_digests.clone());
+    let handle = start(PRUNED.state(&test_transaction(false)), Some(store)).await;
+
+    let results = get_transactions(&handle, &digests, "transaction,effects").await;
+
+    assert_eq!(results.len(), digests.len());
+    for result in &results {
+        assert_eq!(error_code(result), Some(tonic::Code::NotFound));
+    }
+    assert_eq!(*requests.lock().unwrap(), [LOOKUP, LOOKUP]);
+    assert_eq!(
+        *requested_digests.lock().unwrap(),
+        [digests[..50].to_vec(), digests[50..].to_vec()]
+    );
+}
+
+#[tokio::test]
+async fn a_failed_call_fails_every_transaction_that_needed_it() {
+    let tests = (0..3).map(|_| test_transaction(false)).collect::<Vec<_>>();
+    let mut state = MockGrpcStateReader::default();
+    for (index, test) in tests.iter().enumerate() {
+        let node = Node {
+            // Only the first transaction's objects are on the node.
+            objects: index == 0,
+            ..LOCAL
+        };
+        let part = node.state(test);
+        state.transactions.extend(part.transactions);
+        state.effects.extend(part.effects);
+        state.object_versions.extend(part.object_versions);
+    }
+    let store = MockFallbackStore {
+        failing: HashSet::from([READ_OBJECTS]),
+        ..Default::default()
+    };
+    let requests = store.requests.clone();
+    let handle = start(state, Some(store)).await;
+    let digests = tests
+        .iter()
+        .map(TestTransaction::digest)
+        .collect::<Vec<_>>();
+
+    let results = get_transactions(&handle, &digests, "transaction,input_objects").await;
+
+    assert_eq!(served_digest(&results[0]), digests[0].bytes().to_vec());
+    let executed = results[0].executed_transaction().unwrap().unwrap();
+    assert_eq!(
+        served_object_keys(&executed.input_objects).len(),
+        tests[0].input_objects.len(),
+        "the transaction whose objects are on the node lost them"
+    );
+    assert_eq!(error_code(&results[1]), Some(tonic::Code::Unavailable));
+    assert_eq!(error_code(&results[2]), Some(tonic::Code::Unavailable));
+    assert_eq!(*requests.lock().unwrap(), [READ_OBJECTS]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn lookups_after_the_budget_is_spent_are_unavailable() {
+    // Each lookup times out after 10 s, so the third chunk's lookup spends the
+    // last of the 30 s budget.
+    let digests = (0..101)
+        .map(|_| TransactionDigest::random())
+        .collect::<Vec<_>>();
+    let store = MockFallbackStore {
+        lookup_delay: Some(std::time::Duration::from_secs(60)),
+        ..Default::default()
+    };
+    let handle = start(PRUNED.state(&test_transaction(false)), Some(store)).await;
+
+    let results = get_transactions(&handle, &digests, "transaction,effects").await;
+
+    let codes = results.iter().map(error_code).collect::<Vec<_>>();
+    let mut expected = vec![Some(tonic::Code::NotFound); 100];
+    expected.push(Some(tonic::Code::Unavailable));
+    assert_eq!(codes, expected);
+}
+
+#[tokio::test]
+async fn a_failed_transaction_or_events_call_fails_only_the_transactions_that_needed_it() {
+    // Transactions: the local one is served, the pruned one needs the failing call.
+    let (local, pruned) = (test_transaction(false), test_transaction(false));
+    let (mut state, mut store) = node_and_store(PRUNED, std::slice::from_ref(&pruned));
+    let local_state = LOCAL.state(&local);
+    state.transactions.extend(local_state.transactions);
+    state.effects.extend(local_state.effects);
+    store.failing = HashSet::from(["multi_get"]);
+    let handle = start(state, Some(store)).await;
+
+    let results = get_transactions(
+        &handle,
+        &[local.digest(), pruned.digest()],
+        "transaction,effects",
+    )
+    .await;
+
+    assert_eq!(served_digest(&results[0]), local.digest().bytes().to_vec());
+    assert_eq!(error_code(&results[1]), Some(tonic::Code::Unavailable));
+
+    // Events: the node holds the events of the first transaction only.
+    let tests = [test_transaction(true), test_transaction(true)];
+    let mut state = MockGrpcStateReader::default();
+    for (index, test) in tests.iter().enumerate() {
+        let part = Node {
+            events: index == 0,
+            ..LOCAL
+        }
+        .state(test);
+        state.transactions.extend(part.transactions);
+        state.effects.extend(part.effects);
+        state.events.extend(part.events);
+    }
+    let store = MockFallbackStore {
+        failing: HashSet::from([READ_EVENTS]),
+        ..Default::default()
+    };
+    let handle = start(state, Some(store)).await;
+
+    let results = get_transactions(
+        &handle,
+        &[tests[0].digest(), tests[1].digest()],
+        "transaction,events",
+    )
+    .await;
+
+    assert_eq!(
+        served_digest(&results[0]),
+        tests[0].digest().bytes().to_vec()
+    );
+    assert_eq!(error_code(&results[1]), Some(tonic::Code::Unavailable));
+}
+
+#[tokio::test]
+async fn only_the_events_that_do_not_match_are_evicted() {
+    let tests = [test_transaction(true), test_transaction(true)];
+    let (state, mut store) = node_and_store(PRUNED, &tests);
+    store
+        .events
+        .insert(tests[1].digest(), TransactionEvents(vec![]));
+    let evicted_events = store.evicted_events.clone();
+    let handle = start(state, Some(store)).await;
+    let digests = [tests[0].digest(), tests[1].digest()];
+
+    let results = get_transactions(&handle, &digests, "transaction,events").await;
+
+    assert_eq!(served_digest(&results[0]), digests[0].bytes().to_vec());
+    assert_eq!(error_code(&results[1]), Some(tonic::Code::Internal));
+    assert_eq!(*evicted_events.lock().unwrap(), [digests[1]]);
+}
+
+#[tokio::test]
+async fn a_wrong_shared_object_fails_every_transaction_that_reads_it() {
+    let test = test_transaction(false);
+    let store = store(Data::WrongVersionInputs).unwrap().build(&test);
+    let evicted_objects = store.evicted_objects.clone();
+    let handle = start(LOCAL.state(&test), Some(store)).await;
+
+    let results = get_transactions(&handle, &[test.digest(), test.digest()], "input_objects").await;
+
+    for result in &results {
+        assert_eq!(error_code(result), Some(tonic::Code::Internal));
+    }
+    // Each rejected object is evicted once.
+    let mut input_keys = input_object_keys(&test.effects);
+    input_keys.sort();
+    assert_eq!(*evicted_objects.lock().unwrap(), input_keys);
 }
