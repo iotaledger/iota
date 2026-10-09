@@ -704,6 +704,7 @@ impl CheckpointExecutor {
             ckpt_data,
             tx_data,
             self.state.get_object_store(),
+            self.state.get_historic_objects(),
             &*self.transaction_cache_reader,
         )
         .expect("failed to load checkpoint data");
@@ -1075,6 +1076,7 @@ impl CheckpointExecutor {
                     checkpoint_exec_data,
                     &tx_data,
                     self.state.get_object_store(),
+                    self.state.get_historic_objects(),
                     self.transaction_cache_reader.as_ref(),
                 )
                 .expect("Failed to load full CheckpointData")
