@@ -348,11 +348,13 @@ pub(crate) fn verify_commits(
 ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
     // Validate response size - peer should not return more than max_commits
     if serialized_commits.len() > max_commits {
-        return Err(ConsensusError::TooManyCommitsFromPeer {
+        let e = ConsensusError::TooManyCommitsFromPeer {
             peer,
             count: serialized_commits.len() as CommitIndex,
             limit: max_commits as CommitIndex,
-        });
+        };
+        misbehavior_store.record_fetch_fault(peer, &e);
+        return Err(e);
     }
 
     // One vote header per authority certifies a commit, but servers that do
@@ -364,11 +366,13 @@ pub(crate) fn verify_commits(
         .size()
         .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     if serialized_vote_blocks_headers.len() > max_vote_headers {
-        return Err(ConsensusError::TooManyCommitVoteHeaders {
+        let e = ConsensusError::TooManyCommitVoteHeaders {
             peer,
             count: serialized_vote_blocks_headers.len(),
             limit: max_vote_headers,
-        });
+        };
+        misbehavior_store.record_fetch_fault(peer, &e);
+        return Err(e);
     }
 
     // Parse and verify commits.
@@ -1293,6 +1297,37 @@ pub(crate) mod tests {
                 limit: error_limit,
             }) if error_peer == peer && count == limit + 1 && error_limit == limit
         ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+    }
+
+    #[tokio::test]
+    async fn verify_commits_charges_peer_for_too_many_commits() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=2),
+            vec![Bytes::new(); 3],
+            vec![],
+            2,
+        );
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitsFromPeer {
+                peer: error_peer,
+                count: 3,
+                limit: 2,
+            }) if error_peer == peer
+        ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
     }
 
     #[test]

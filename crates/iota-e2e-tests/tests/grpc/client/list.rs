@@ -1,7 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::read_mask_fields::{DynamicFieldReadMask, OwnedObjectReadMask};
 use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
 
@@ -17,7 +16,7 @@ async fn list_owned_objects_single_page() {
     let owner = first_sender(&test_cluster);
 
     let page = client
-        .owned_objects(owner, None, None, None, OwnedObjectReadMask::default())
+        .owned_objects(owner)
         .await
         .expect("single page should succeed");
 
@@ -33,7 +32,7 @@ async fn list_owned_objects_collect_all() {
     let owner = first_sender(&test_cluster);
 
     let all = client
-        .owned_objects(owner, None, None, None, OwnedObjectReadMask::default())
+        .owned_objects(owner)
         .collect(None)
         .await
         .expect("collect should succeed");
@@ -51,7 +50,8 @@ async fn list_owned_objects_pagination_with_token() {
 
     // Fetch first page with page_size=1
     let page1 = client
-        .owned_objects(owner, None, Some(1), None, OwnedObjectReadMask::default())
+        .owned_objects(owner)
+        .page_size(1)
         .await
         .expect("first page should succeed");
 
@@ -63,7 +63,7 @@ async fn list_owned_objects_pagination_with_token() {
 
     // Collect all for comparison
     let all = client
-        .owned_objects(owner, None, None, None, OwnedObjectReadMask::default())
+        .owned_objects(owner)
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -77,13 +77,9 @@ async fn list_owned_objects_pagination_with_token() {
             .expect("Should have next_page_token when more objects exist");
 
         let page2 = client
-            .owned_objects(
-                owner,
-                None,
-                Some(1),
-                Some(token.clone()),
-                OwnedObjectReadMask::default(),
-            )
+            .owned_objects(owner)
+            .page_size(1)
+            .page_token(token.clone())
             .await
             .expect("second page should succeed");
 
@@ -111,7 +107,7 @@ async fn list_owned_objects_collect_with_limit() {
 
     // Collect all first to see how many there are
     let all = client
-        .owned_objects(owner, None, None, None, OwnedObjectReadMask::default())
+        .owned_objects(owner)
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -119,7 +115,8 @@ async fn list_owned_objects_collect_with_limit() {
     if all.body().len() > 1 {
         // Collect with limit=1, should get at most 1
         let limited = client
-            .owned_objects(owner, None, Some(1), None, OwnedObjectReadMask::default())
+            .owned_objects(owner)
+            .page_size(1)
             .collect(Some(1))
             .await
             .expect("collect with limit should succeed");
@@ -139,7 +136,7 @@ async fn list_owned_objects_collect_limit_truncates() {
 
     // Collect everything to confirm we have more than 2 objects.
     let all = client
-        .owned_objects(owner, None, None, None, OwnedObjectReadMask::default())
+        .owned_objects(owner)
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -154,7 +151,7 @@ async fn list_owned_objects_collect_limit_truncates() {
     // default (50), which is larger than the limit. The client must
     // truncate the result to exactly 2 items.
     let limited = client
-        .owned_objects(owner, None, None, None, OwnedObjectReadMask::default())
+        .owned_objects(owner)
         .collect(Some(2))
         .await
         .expect("collect with limit should succeed");
@@ -178,7 +175,7 @@ async fn list_dynamic_fields_single_page() {
     let parent: ObjectId = "0x5".parse().unwrap();
 
     let page = client
-        .dynamic_fields(parent, None, None, DynamicFieldReadMask::default())
+        .dynamic_fields(parent)
         .await
         .expect("single page should succeed");
 
@@ -194,7 +191,7 @@ async fn list_dynamic_fields_collect_all() {
     let parent: ObjectId = "0x5".parse().unwrap();
 
     let all = client
-        .dynamic_fields(parent, None, None, DynamicFieldReadMask::default())
+        .dynamic_fields(parent)
         .collect(None)
         .await
         .expect("collect should succeed");
@@ -212,7 +209,8 @@ async fn list_dynamic_fields_pagination_with_token() {
 
     // Fetch first page with page_size=1
     let page1 = client
-        .dynamic_fields(parent, Some(1), None, DynamicFieldReadMask::default())
+        .dynamic_fields(parent)
+        .page_size(1)
         .await
         .expect("first page should succeed");
 
@@ -224,7 +222,7 @@ async fn list_dynamic_fields_pagination_with_token() {
 
     // Collect all for comparison
     let all = client
-        .dynamic_fields(parent, None, None, DynamicFieldReadMask::default())
+        .dynamic_fields(parent)
         .collect(None)
         .await
         .expect("collect all should succeed");
@@ -237,12 +235,9 @@ async fn list_dynamic_fields_pagination_with_token() {
             .expect("Should have next_page_token when more fields exist");
 
         let page2 = client
-            .dynamic_fields(
-                parent,
-                Some(1),
-                Some(token.clone()),
-                DynamicFieldReadMask::default(),
-            )
+            .dynamic_fields(parent)
+            .page_size(1)
+            .page_token(token.clone())
             .await
             .expect("second page should succeed");
 
@@ -265,7 +260,7 @@ async fn list_package_versions_single_page() {
     let package_id: ObjectId = "0x2".parse().unwrap();
 
     let page = client
-        .package_versions(package_id, None, None)
+        .package_versions(package_id)
         .await
         .expect("single page should succeed");
 
@@ -281,7 +276,7 @@ async fn list_package_versions_collect_all() {
     let package_id: ObjectId = "0x2".parse().unwrap();
 
     let all = client
-        .package_versions(package_id, None, None)
+        .package_versions(package_id)
         .collect(None)
         .await
         .expect("collect should succeed");

@@ -81,6 +81,7 @@ use tokio::{
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
+use typed_store::rocks::disable_fallocate;
 
 const NUM_VALIDATOR: usize = 4;
 
@@ -677,11 +678,9 @@ impl TestCluster {
     pub async fn execute_transaction(&self, tx: TransactionEnvelope) -> TransactionEffects {
         let executed = self
             .grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap_or_else(|e| panic!("Transaction submission failed: {e}"))
             .into_inner();
@@ -717,11 +716,9 @@ impl TestCluster {
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
         self.grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap();
         Ok(results)
@@ -1449,6 +1446,10 @@ impl TestClusterBuilder {
 
     /// Start a Swarm and set up WalletConfig
     async fn start_swarm(&mut self) -> Result<Swarm, anyhow::Error> {
+        // Each node opens several databases, and each write-ahead log would
+        // otherwise take hundreds of MiB on disk.
+        disable_fallocate();
+
         let mut builder: SwarmBuilder = Swarm::builder()
             .committee_size(
                 NonZeroUsize::new(self.num_validators.unwrap_or(NUM_VALIDATOR)).unwrap(),

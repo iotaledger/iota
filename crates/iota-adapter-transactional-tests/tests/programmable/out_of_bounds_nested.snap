@@ -28,8 +28,7 @@ task 3, lines 22-24:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::copy_(NestedResult(1, 0))
-Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
-Execution Error: CommandArgumentError: Invalid command argument at 0. Out of bounds access to input or result vector 1; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 0: index 1 is out of bounds
 
 task 4, lines 26-28:
 //# programmable
@@ -42,8 +41,7 @@ task 5, lines 29-31:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::take(NestedResult(1, 0))
-Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
-Execution Error: CommandArgumentError: Invalid command argument at 0. Out of bounds access to input or result vector 1; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 0: index 1 is out of bounds
 
 task 6, lines 33-35:
 //# programmable
@@ -56,8 +54,7 @@ task 7, lines 36-38:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::by_imm(NestedResult(1, 0))
-Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
-Execution Error: CommandArgumentError: Invalid command argument at 0. Out of bounds access to input or result vector 1; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 0: index 1 is out of bounds
 
 task 8, lines 40-42:
 //# programmable
@@ -70,8 +67,7 @@ task 9, lines 43-45:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::by_mut(NestedResult(1, 0))
-Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds access to input or result vector 1
-Execution Error: CommandArgumentError: Invalid command argument at 0. Out of bounds access to input or result vector 1; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 0: index 1 is out of bounds
 
 task 10, lines 47-49:
 //# programmable
@@ -84,8 +80,7 @@ task 11, lines 50-52:
 //# programmable
 //> 0: test::m1::r();
 //> MakeMoveVec<u64>([NestedResult(0, 2), NestedResult(1, 0)])
-Error: Transaction Effects Status: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2
-Execution Error: CommandArgumentError: Invalid command argument at 0. Out of bounds secondary access to result vector 0 at secondary index 2; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 1: index 1 is out of bounds
 
 task 12, lines 54-56:
 //# programmable
@@ -98,8 +93,7 @@ task 13, lines 57-59:
 //# programmable
 //> 0: test::m1::r();
 //> SplitCoins(Gas, [NestedResult(1, 0)])
-Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
-Execution Error: CommandArgumentError: Invalid command argument at 1. Out of bounds access to input or result vector 1; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 1: index 1 is out of bounds
 
 task 14, lines 61-63:
 //# programmable
@@ -112,8 +106,7 @@ task 15, lines 64-66:
 //# programmable
 //> 0: test::m1::r();
 //> MergeCoins(Gas, [NestedResult(1, 0), NestedResult(0, 2)])
-Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
-Execution Error: CommandArgumentError: Invalid command argument at 1. Out of bounds access to input or result vector 1; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 1: index 1 is out of bounds
 
 task 16, lines 68-70:
 //# programmable
@@ -126,5 +119,4 @@ task 17, lines 71-73:
 //# programmable
 //> 0: test::m1::r();
 //> TransferObjects([Gas], NestedResult(1, 0))
-Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
-Execution Error: CommandArgumentError: Invalid command argument at 1. Out of bounds access to input or result vector 1; at command index: 1
+Error: Error checking transaction input objects: Invalid argument at command 1, argument 1: index 1 is out of bounds

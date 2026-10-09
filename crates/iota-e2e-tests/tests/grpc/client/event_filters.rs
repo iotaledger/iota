@@ -99,13 +99,11 @@ async fn event_filter_scenarios() {
         let client = client.clone();
         async move {
             let mut stream = client
-                .checkpoints_stream(
-                    Some(0),
-                    Some(latest_seq),
-                    None,
-                    Some(event_filter),
-                    CheckpointResponseField::EVENTS,
-                )
+                .checkpoints_stream()
+                .start_sequence_number(0)
+                .end_sequence_number(latest_seq)
+                .events_filter(event_filter)
+                .read_mask(CheckpointResponseField::EVENTS)
                 .await
                 .expect("Failed to create stream");
 

@@ -24,7 +24,6 @@ use crate::authority::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
-    pruner_db_migration,
 };
 
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
@@ -181,16 +180,13 @@ impl AuthorityPerpetualTables {
                 effects_table_config(db_options.clone()),
             ),
         ]));
-        let perpetual_tables = Self::open_tables_read_write(
+        Self::open_tables_read_write(
             Self::path(parent_path),
             MetricConf::new("perpetual")
                 .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
             Some(db_options.options),
             Some(table_options),
-        );
-        pruner_db_migration::drain_leftover_object_tombstones(parent_path, &perpetual_tables)
-            .expect("failed to drain the leftover object tombstones");
-        perpetual_tables
+        )
     }
 
     pub fn open_readonly(parent_path: &Path) -> AuthorityPerpetualTablesReadOnly {

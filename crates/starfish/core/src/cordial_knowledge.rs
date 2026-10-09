@@ -36,6 +36,11 @@ use crate::{
 /// relevant. 40 rounds correspond to at least 2 second due to the minimum block
 /// delay
 pub(crate) const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
+/// Round gap within which a peer that reported an author's headers useful
+/// still receives that author's leader blocks our blocks vote for. Ordinary
+/// reports expire after `MAX_ROUND_GAP_FOR_USEFUL_PARTS`, before the author
+/// leads again, and a peer that is late on the leader block loses the round.
+pub(crate) const MAX_ROUND_GAP_FOR_LEADER_HEADERS: Round = 500;
 /// Capacity of the cordial knowledge channel. For normal operation with
 /// 100 authorities, this allows buffering up to 5 seconds of headers at 20
 /// blocks/sec. When the channel is full, the sender will skip sending new
@@ -1333,8 +1338,13 @@ impl ConnectionKnowledge {
             .map(|(authority_index, _opt_round)| authority_index)
             .collect();
 
-        let useful_headers_block_refs_to_peer =
+        let mut useful_headers_block_refs_to_peer =
             self.take_useful_header_block_refs_round(block_round, &useful_headers_authors_to_peer);
+        if let Some(leader_ref) =
+            self.take_voted_leader_header(&block, &useful_headers_authors_to_peer)
+        {
+            useful_headers_block_refs_to_peer.push(leader_ref);
+        }
 
         let useful_headers_to_peer: Vec<VerifiedBlockHeader> = {
             let dag_state_read = self.dag_state.read();
@@ -1412,6 +1422,31 @@ impl ConnectionKnowledge {
             useful_headers_authors: useful_headers_authors_from_peer,
             useful_shards_authors: useful_shards_authors_from_peer,
         }
+    }
+
+    /// The leader block that `block` votes for, for a peer that reported the
+    /// leader's headers useful within `MAX_ROUND_GAP_FOR_LEADER_HEADERS`
+    /// rounds but not within the ordinary window, so `served_authors` does not
+    /// cover it.
+    fn take_voted_leader_header(
+        &mut self,
+        block: &VerifiedBlock,
+        served_authors: &[usize],
+    ) -> Option<BlockRef> {
+        let leader = block.strong_vote_leader()?;
+        if served_authors.contains(&leader.value()) {
+            return None;
+        }
+        let reported_round = self.last_useful_headers_to_peer_round[leader.value()]?;
+        if reported_round.saturating_add(MAX_ROUND_GAP_FOR_LEADER_HEADERS) < block.round() {
+            return None;
+        }
+        let leader_ref = *block
+            .ancestors()
+            .iter()
+            .find(|ancestor| ancestor.author == leader && ancestor.round + 1 == block.round())?;
+        self.handle_remove_header(leader_ref);
+        Some(leader_ref)
     }
 
     /// Handles adding a new header to the set of potentially unknown headers.
@@ -1504,7 +1539,9 @@ mod tests {
     use super::*;
     use crate::{
         TestBlockHeader,
-        block_header::{GENESIS_ROUND, VerifiedBlock, VerifiedOwnShard},
+        block_header::{
+            GENESIS_ROUND, StrongVote, TestBlockHeaderVersion, VerifiedBlock, VerifiedOwnShard,
+        },
         context::Context,
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
@@ -2743,5 +2780,73 @@ mod tests {
         assert!(shards.is_empty());
         assert!(useful_headers_authors_from_peer.is_empty());
         assert!(useful_shards_authors_from_peer.is_empty());
+    }
+
+    /// A peer that reported the leader's headers useful long before, past the
+    /// ordinary window, still receives the leader block our block votes for.
+    #[tokio::test]
+    async fn test_voted_leader_header_sent_within_long_window() {
+        telemetry_subscribers::init_for_testing();
+        let our_index = AuthorityIndex::new_for_test(0);
+        let peer_index = AuthorityIndex::new_for_test(1);
+        let leader_index = AuthorityIndex::new_for_test(2);
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let cordial_knowledge = CordialKnowledge::start(context, dag_state.clone());
+        let connection_knowledge = cordial_knowledge.connection_knowledges[peer_index].clone();
+
+        // The peer reported the leader's headers useful at round 1.
+        connection_knowledge.write().process_one_message(
+            ConnectionKnowledgeMessage::UsefulAuthors {
+                useful_headers_to_peer: BTreeMap::from([(leader_index, 1)]),
+                useful_shards_to_peer: BTreeMap::new(),
+            },
+        );
+
+        // Headers in the bundle for our block of the round after
+        // `leader_round`, which references the leader block of that round and
+        // votes for it or not.
+        let headers_sent = |leader_round: Round, votes: bool| {
+            let leader = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(leader_round, leader_index.value() as u8).build(),
+            );
+            dag_state
+                .write()
+                .accept_block_header(leader.clone(), DataSource::Test);
+            let strong_vote = votes.then(|| StrongVote {
+                leader_authority: leader_index,
+                missing: AuthoritySet::new(),
+            });
+            let own_block = VerifiedBlock::new_for_test(
+                TestBlockHeader::new(leader_round + 1, our_index.value() as u8)
+                    .set_version(TestBlockHeaderVersion::V2)
+                    .set_ancestors(vec![leader.reference()])
+                    .set_strong_vote(strong_vote)
+                    .build(),
+            );
+            let bundle = connection_knowledge.write().create_bundle(own_block);
+            bundle
+                .verified_headers
+                .iter()
+                .map(|header| (header.round(), header.author()))
+                .collect::<Vec<_>>()
+        };
+
+        // Within the ordinary window the leader header is sent once.
+        assert_eq!(headers_sent(10, true), vec![(10, leader_index)]);
+        // Past it, the leader block still goes out when our block votes for
+        // it, and only then.
+        let past_window = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 5;
+        assert_eq!(
+            headers_sent(past_window, true),
+            vec![(past_window, leader_index)]
+        );
+        assert!(headers_sent(past_window + 2, false).is_empty());
+        // Past the long window nothing is sent.
+        assert!(headers_sent(MAX_ROUND_GAP_FOR_LEADER_HEADERS + 5, true).is_empty());
     }
 }

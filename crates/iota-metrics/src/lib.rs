@@ -42,10 +42,14 @@ pub mod metered_channel;
 pub mod metric_groups;
 pub mod metrics_network;
 pub mod monitored_mpsc;
+pub mod peak;
+pub mod quantile_gauge;
 // Relies on tokio's `RuntimeMetrics`, which the deterministic simulator's tokio
 // fork does not provide; the node only starts these monitors outside simtests.
 #[cfg(not(msim))]
 pub mod runtime_metrics;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 pub mod thread_stall_monitor;
 pub use guards::*;
 pub use metric_groups::{MetricGroups, MetricLevel};

@@ -245,11 +245,8 @@ impl OptimisticTransactionExecutor {
 
         let response = self
             .rpc_client
-            .execute_transaction(
-                signed_transaction.into(),
-                None,
-                EXECUTE_TRANSACTION_READ_MASK,
-            )
+            .execute_transaction(signed_transaction.into())
+            .read_mask(EXECUTE_TRANSACTION_READ_MASK)
             .await;
 
         match response {
