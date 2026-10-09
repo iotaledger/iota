@@ -3,8 +3,6 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
-
 /// Per-transaction breakdown of the physical resources that computation gas
 /// sums into a single number.
 ///
@@ -19,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// up to the failure, and the write counters cover every mutable input, since
 /// a failed transaction still mutates them all, plus any extra gas coins
 /// smashed into the primary one.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ResourceProfile {
     // CPU time.
     /// The charged instruction count. Past the native-call threshold this also
@@ -52,9 +50,13 @@ pub struct ResourceProfile {
     pub storage_read_gas: u64,
     /// Internal gas deducted by per-byte package publish/upgrade charges.
     pub package_publish_gas: u64,
-    /// Total computation gas used, in gas units, before bucketization.
-    /// `interpreter_gas + native_gas + storage_read_gas + package_publish_gas`
-    /// equals it in internal units (1 gas unit = 1000 internal units).
+    /// Internal gas deducted by the per-owner charge for coin transfers, a
+    /// flat deny-list read with no matching bytes in `input_object_bytes`.
+    pub coin_transfer_gas: u64,
+    /// Total computation gas used, in gas units, before bucketization. The sum
+    /// `interpreter_gas + native_gas + storage_read_gas + package_publish_gas +
+    /// coin_transfer_gas` equals it in internal units (1 gas unit = 1000
+    /// internal units).
     pub computation_gas_used: u64,
 
     // Working memory, in abstract sizes (`AbstractMemorySize`), not RAM bytes.
@@ -67,6 +69,9 @@ pub struct ResourceProfile {
     pub locals_size_high_water_mark: u64,
     /// Serialized bytes of child objects loaded into the object runtime,
     /// plus the abstract sizes of child objects added during execution.
+    /// Added children are sized by the same rule as
+    /// `native_input_bytes_by_function`, not the VM's sizing for gas charges,
+    /// which differs on vector headers and variant tags.
     pub object_runtime_cached_bytes: u64,
 
     // Read I/O.

@@ -43,6 +43,10 @@ pub mod checked {
         fn reset_storage_cost_and_rebate(&mut self);
         fn charge_storage_read(&mut self, size: usize) -> Result<(), ExecutionError>;
         fn charge_publish_package(&mut self, size: usize) -> Result<(), ExecutionError>;
+        /// Like [`charge_storage_read`](Self::charge_storage_read), but the
+        /// deducted gas is attributed to coin transfers in the resource
+        /// profile.
+        fn charge_coin_transfers(&mut self, size: usize) -> Result<(), ExecutionError>;
         fn track_storage_mutation(
             &mut self,
             object_id: ObjectId,
