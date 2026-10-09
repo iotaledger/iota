@@ -470,6 +470,173 @@ async fn test_claim_account_rejected_with_invalid_public_key() {
     }
 }
 
+/// A `ClaimAccount` at exactly the budget floor the validity check demands
+/// must not run out of gas. The floor scales with the gas price and the key
+/// size, so the largest MultiSig committee at the highest admissible gas price
+/// is the most expensive claim the floor has to cover.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_at_the_gas_floor_succeeds() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
+    use iota_sdk_types::{
+        ClaimAccountTransaction, SignatureScheme, SmartAccountClaim, Transaction, TransactionKind,
+        UserSignature,
+        crypto::{
+            Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, MultisigAggregatedSignature,
+            MultisigCommittee, MultisigMember, SimpleSignature,
+        },
+    };
+    use iota_types::{
+        account_abstraction::public_key::MovePublicKey,
+        transaction::{TransactionAPI, TransactionEnvelope},
+    };
+    use rand::{SeedableRng, rngs::StdRng};
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+    let gas_price = protocol_config.max_gas_price();
+
+    // The largest committee the chain accepts, with a threshold one member
+    // meets.
+    let mut rng = StdRng::from_seed([7; 32]);
+    let keys: Vec<Ed25519PrivateKey> = (0..MULTISIG_COMMITTEE_SIZE_MAX)
+        .map(|_| Ed25519PrivateKey::random_with(&mut rng))
+        .collect();
+    let committee = MultisigCommittee::new(
+        keys.iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        1,
+    )
+    .expect("a valid committee");
+    let claim = SmartAccountClaim::new_multisig(&committee);
+    let sender = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        claim.public_key_raw_bytes.clone(),
+    )
+    .expect("a valid multisig key")
+    .address()
+    .expect("a multisig key derives an address");
+    let budget = protocol_config
+        .claim_account_min_gas_budget(gas_price, claim.public_key_raw_bytes.len() as u64);
+
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(2 * budget), sender)
+        .await;
+    let tx_data = Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+        sender,
+        gas,
+        budget,
+        gas_price,
+    );
+    let signer = SimpleKeypair::from(keys[0].clone());
+    let digest = IntentMessage::new(Intent::iota_transaction(), tx_data.clone()).signing_digest();
+    let signature: SimpleSignature = signer.sign(&digest);
+    let multisig = MultisigAggregatedSignature::new(vec![signature.into()], committee)
+        .expect("a valid multisig signature");
+    let tx =
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![UserSignature::Multisig(multisig)]);
+
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .expect("a claim at the floor must execute");
+    let effects = response.effects.expect("response must include effects");
+    assert!(
+        effects.status().is_ok(),
+        "a claim at the floor must not run out of gas; got {:?}",
+        effects.status(),
+    );
+    let object_changes = response
+        .object_changes
+        .expect("response must include object changes");
+    assert_eq!(
+        created_smart_accounts(&object_changes).len(),
+        1,
+        "the claim must create the account object"
+    );
+}
+
+/// Verify that a `TransactionKind::ClaimAccount` whose public key derives an
+/// address other than the sender is rejected at validation, before it is
+/// executed.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_rejected_when_key_does_not_derive_sender() {
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
+    };
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    let mut addresses = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter();
+    let sender: Address = addresses
+        .next()
+        .expect("wallet must have at least one account");
+    let other: Address = addresses
+        .next()
+        .expect("wallet must have at least two accounts");
+
+    // The claim carries the key of another account, which derives `other`.
+    let keypair: SimpleKeypair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&other)
+        .expect("keypair must exist for the other account")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+    let claim = SmartAccountClaim {
+        public_key_scheme,
+        public_key_raw_bytes,
+    };
+    let kind =
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
+
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let tx_data = Transaction::new(
+        kind,
+        sender,
+        first_gas_coin(&test_cluster.wallet, sender).await,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+
+    // The transaction must be rejected before execution
+    // (UserInputError::IncorrectUserSignature), not abort in Move.
+    let err = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
+        .await
+        .expect_err("a claim whose key does not derive the sender must be rejected");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("claimed public key derives"),
+        "unexpected error message: {msg}",
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
