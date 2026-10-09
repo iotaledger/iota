@@ -64,7 +64,6 @@ impl UnresolvedAccountSetup {
     ) -> Self {
         let account_id = account.id();
         let account_is_shared = account.is_shared();
-        let account_ref = account.object_ref();
         let sender: Address = account_id.into();
         let gas_owner = sponsor.map_or(sender, |(address, _)| *address);
         let objects = vec![
@@ -100,7 +99,10 @@ impl UnresolvedAccountSetup {
                 SharedObjectReference::new(account_id, OBJECT_START_VERSION, false),
             )
         } else {
-            MoveAuthenticatorV1::new_with_immutable_account_object(vec![], vec![], account_ref)
+            unimplemented!(
+                "immutable account objects can no longer be built with the SDK \
+                 (iotaledger/iota-rust-sdk#1633)"
+            )
         };
         let authenticator =
             UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator));
@@ -279,6 +281,9 @@ async fn unresolved_gas_payer_account_fails_with_effects() {
 /// An immutable account fails the transaction with a status that says the
 /// account is not a shared object and names it, with gas charged to the
 /// sponsor.
+// Immutable account objects can no longer be built with the SDK
+// (iotaledger/iota-rust-sdk#1633).
+#[cfg(any())]
 #[tokio::test]
 async fn immutable_account_fails_with_effects() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();

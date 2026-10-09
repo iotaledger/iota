@@ -57,6 +57,9 @@ const AA_DELAYED_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_ACCOUNT_NAME: &str = "DelayedAbstractAccount";
 const AA_CREATE_MODULE_NAME: &str = "abstract_account_keyed";
 const AA_CREATE_FN_NAME: &str = "create";
+// Immutable account objects can no longer be built with the SDK
+// (iotaledger/iota-rust-sdk#1633).
+#[cfg(any())]
 const AA_CREATE_IMMUTABLE_FN_NAME: &str = "create_immutable";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "abstract_account_keyed";
 const AA_DELAYED_CREATE_MODULE_NAME: &str = "delayed_abstract_account";
@@ -1620,6 +1623,9 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
 
 /// A TX whose sender is an abstract account held in an immutable object must be
 /// rejected.
+// Immutable account objects can no longer be built with the SDK
+// (iotaledger/iota-rust-sdk#1633).
+#[cfg(any())]
 #[sim_test]
 async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -1675,6 +1681,9 @@ async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
 /// A sponsored TX whose sponsor is an abstract account held in an immutable
 /// object must be rejected, even though its sender is a shared abstract
 /// account.
+// Immutable account objects can no longer be built with the SDK
+// (iotaledger/iota-rust-sdk#1633).
+#[cfg(any())]
 #[sim_test]
 async fn test_immutable_account_sponsor_rejected() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -1734,6 +1743,9 @@ async fn test_immutable_account_sponsor_rejected() -> Result<(), anyhow::Error> 
 
 /// An immutable abstract account still authenticates while
 /// `reject_immutable_account_objects` is off.
+// Immutable account objects can no longer be built with the SDK
+// (iotaledger/iota-rust-sdk#1633).
+#[cfg(any())]
 #[sim_test]
 async fn test_immutable_account_sender_succeeded_without_reject_flag() -> Result<(), anyhow::Error>
 {
@@ -3035,6 +3047,9 @@ impl TestEnvironment {
 
     /// Creates an extra AA as an immutable object (not stored in `aa_ref`) and
     /// returns its object ref.
+    // Immutable account objects can no longer be built with the SDK
+    // (iotaledger/iota-rust-sdk#1633).
+    #[cfg(any())]
     async fn create_extra_immutable_abstract_account(
         &self,
         authenticate_fn_name: &str,
@@ -3137,6 +3152,9 @@ impl TestEnvironment {
     }
 
     /// Create a free-access MoveAuthenticator for an immutable account object.
+    // Immutable account objects can no longer be built with the SDK
+    // (iotaledger/iota-rust-sdk#1633).
+    #[cfg(any())]
     fn create_move_authenticator_for_free_access_for_immutable_ref(
         &self,
         aa_obj_ref: ObjectReference,
@@ -3149,6 +3167,9 @@ impl TestEnvironment {
 
     /// PTB that splits a coin off the gas and transfers it, so that the
     /// transaction needs no object input besides the gas.
+    // Immutable account objects can no longer be built with the SDK
+    // (iotaledger/iota-rust-sdk#1633).
+    #[cfg(any())]
     fn craft_split_and_transfer_ptb(&self, recipient: Address) -> ProgrammableTransaction {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(recipient, Some(100));

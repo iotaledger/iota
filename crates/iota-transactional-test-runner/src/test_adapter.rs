@@ -1566,17 +1566,10 @@ impl IotaTestAdapter {
         let aa_call_arg = aa_arg.into_call_arg(self)?;
 
         match &aa_call_arg {
-            CallArg::ImmutableOrOwned(obj_ref) => Ok((
-                obj_ref.object_id,
-                UserSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_with_immutable_account_object(
-                        auth_inputs,
-                        vec![],
-                        *obj_ref,
-                    )
-                    .into(),
-                ),
-            )),
+            CallArg::ImmutableOrOwned(_) => anyhow::bail!(
+                "immutable account objects can no longer be built with the SDK \
+                 (iotaledger/iota-rust-sdk#1633)"
+            ),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
                 UserSignature::MoveAuthenticator(
