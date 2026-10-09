@@ -92,21 +92,21 @@ fn builtin_ref_has_correct_fields() {
 
 #[test]
 fn verify_builtin_signature_ok_ed25519() {
-    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut seeded_rng()));
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let verifier = builtin_signature_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
 fn verify_builtin_signature_ok_secp256k1() {
-    let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut seeded_rng()));
+    let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(seeded_rng()));
     let verifier = builtin_signature_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
 fn verify_builtin_signature_ok_secp256r1() {
-    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut seeded_rng()));
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(seeded_rng()));
     let verifier = builtin_signature_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
@@ -195,7 +195,7 @@ fn verify_builtin_signature_ok_passkey() {
 
 #[test]
 fn verify_builtin_signature_error_invalid_sig_bytes() {
-    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut seeded_rng()));
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     // An unrecognized scheme flag so UserSignature rejects it.
     verifier.signature = vec![0xAB, 0xCD, 0xEF];
@@ -209,7 +209,7 @@ fn verify_builtin_signature_error_invalid_sig_bytes() {
 
 #[test]
 fn verify_builtin_signature_error_unsupported_sig_type() {
-    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut seeded_rng()));
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     // A MoveAuthenticator in wire format parses as
     // UserSignature::MoveAuthenticator, which hits the unsupported branch in
@@ -243,7 +243,7 @@ fn verify_builtin_signature_error_sig_scheme_mismatch() {
 
 #[test]
 fn verify_builtin_signature_error_invalid_public_key_bytes() {
-    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut seeded_rng()));
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     // Construct a MovePublicKey with 1 raw byte for ED25519 (requires 32) by
     // bypassing new() via BCS deserialization.
@@ -271,7 +271,7 @@ fn verify_builtin_signature_error_other_public_key() {
 
 #[test]
 fn verify_builtin_signature_error_invalid_tx_data_bytes() {
-    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut seeded_rng()));
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
     let mut verifier = builtin_signature_verifier(&key_pair);
     verifier.tx_data_bytes = vec![];
 
