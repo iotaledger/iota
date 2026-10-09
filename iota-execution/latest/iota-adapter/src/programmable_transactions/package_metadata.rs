@@ -6,12 +6,11 @@
 //!
 //! Two layouts are supported, selected by the
 //! `package_metadata_with_dynamic_module_metadata` protocol feature flag:
-//! - `V1`: the legacy inline layout, where the module metadata is embedded in
-//!   the `PackageMetadataV1` object itself. Built natively here for backwards
-//!   compatibility with the existing ledger.
-//! - `V1WithDynamicModuleMetadata`: the module metadata is stored in dynamic
-//!   fields, built by the framework
-//!   `create_package_metadata_v1_with_dynamic_metadata` constructor.
+//! - `V1`: the legacy inline layout, where the module metadata is embedded in the
+//!   `PackageMetadataV1` object itself. Built natively here for backwards compatibility with the
+//!   existing ledger.
+//! - `V1WithDynamicModuleMetadata`: the module metadata is stored in dynamic fields, built by the
+//!   framework `create_package_metadata_v1_with_dynamic_metadata` constructor.
 
 pub(crate) use checked::*;
 

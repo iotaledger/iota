@@ -165,22 +165,10 @@ impl GraphQLFetcher {
             "query".to_owned(),
             serde_json::Value::String(query.to_owned()),
         )]);
-        let response = self
-            .client
+        self.client
             .run_query_from_json(request)
             .await
-            .map_err(|e| StoreError::new(context, e))?;
-        if let Some(errors) = response.errors.filter(|errors| !errors.is_empty()) {
-            let message = errors
-                .iter()
-                .map(|e| e.message.as_str())
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(StoreError::new(context, message));
-        }
-        response
-            .data
-            .ok_or_else(|| StoreError::new(context, "empty response"))
+            .map_err(|e| StoreError::new(context, e))
     }
 }
 

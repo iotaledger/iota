@@ -11,7 +11,7 @@ use iota_sdk_types::{
 use serde::Serialize;
 
 use crate::{
-    error::{ErrorChain, IotaError},
+    error::IotaError,
     signature::{AuthenticatorTrait, VerifyParams},
 };
 
@@ -38,7 +38,7 @@ impl AuthenticatorTrait for MultisigAggregatedSignature {
         verifier
             .verify(&digest, self)
             .map_err(|e| IotaError::InvalidSignature {
-                error: format!("Invalid multisig: {}", ErrorChain(&e)),
+                error: format!("Invalid multisig: {e}"),
             })
     }
 }

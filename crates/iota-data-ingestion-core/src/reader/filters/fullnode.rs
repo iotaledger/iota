@@ -10,10 +10,10 @@
 //! # Filter types
 //!
 //! - [`TransactionFilter`]: applied to a checkpoint's transactions.
-//! - [`EventFilter`]: matches a transaction by its emitted events. Used as
-//!   input to [`TransactionFilter::event`].
-//! - [`CommandFilter`]: matches a command within a programmable transaction.
-//!   Used as input to [`TransactionFilter::command`].
+//! - [`EventFilter`]: matches a transaction by its emitted events. Used as input to
+//!   [`TransactionFilter::event`].
+//! - [`CommandFilter`]: matches a command within a programmable transaction. Used as input to
+//!   [`TransactionFilter::command`].
 //!
 //! # Composition
 //!

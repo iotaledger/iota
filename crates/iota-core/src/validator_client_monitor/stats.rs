@@ -379,8 +379,8 @@ impl ValidatorClientStats {
         // - small score (latency)
         // - large sample size
         // - small failures
-        // - small recency (of the latest observation) (or close to 1-1/e if
-        //   observations interval is close to tau)
+        // - small recency (of the latest observation) (or close to 1-1/e if observations interval
+        //   is close to tau)
         // - small interval (frequent observations)
         // exploitation score is constructed such that lower value means better
         // performance

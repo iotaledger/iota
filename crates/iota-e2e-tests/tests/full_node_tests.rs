@@ -86,6 +86,40 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Guards the calls in the node that register the listener metrics of the
+/// JSON-RPC and validator listeners. Only the simulator has
+/// `IotaNode::gather_metrics`, so the test is `cfg(msim)`.
+#[cfg(msim)]
+#[sim_test]
+async fn test_json_rpc_and_validator_listeners_are_measured() -> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    transfer_coin(&test_cluster.wallet).await?;
+
+    let accepted = |node: &IotaNodeHandle, name: &str| -> f64 {
+        node.with(|node| node.gather_metrics())
+            .iter()
+            .filter(|family| family.name() == name)
+            .flat_map(|family| family.get_metric())
+            .map(|metric| metric.get_counter().value())
+            .sum()
+    };
+
+    let json_rpc_measured = accepted(
+        &test_cluster.fullnode_handle.iota_node,
+        "json_rpc_inbound_connections_accepted",
+    ) > 0.0;
+    let validator_measured = test_cluster
+        .all_validator_handles()
+        .iter()
+        .any(|validator| accepted(validator, "authority_grpc_inbound_connections_accepted") > 0.0);
+    assert_eq!(
+        (json_rpc_measured, validator_measured),
+        (true, true),
+        "(json_rpc, authority_grpc) listeners measured"
+    );
+    Ok(())
+}
+
 #[sim_test]
 async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;

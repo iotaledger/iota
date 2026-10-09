@@ -1488,11 +1488,10 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
 //
 // `validate_and_resolve_conflicts` performs the same 3-tier lock lookup in
 // two places (via `find_existing_lock`):
-//   * Check #1 (already-executed branch): same digest = OK; different digest =
-//     `fatal!`.
-//   * Check #4 (conflict drop): a hit from a different digest = drop with
-//     `ObjectLockConflict`; a hit from the same digest (a deferred tx's own
-//     prior-round lock) is exempt and the tx is retained.
+//   * Check #1 (already-executed branch): same digest = OK; different digest = `fatal!`.
+//   * Check #4 (conflict drop): a hit from a different digest = drop with `ObjectLockConflict`; a
+//     hit from the same digest (a deferred tx's own prior-round lock) is exempt and the tx is
+//     retained.
 //
 // The earlier tests cover Tier 1 (`current_commit_locks` HashMap within the
 // same commit). The tests below close the matrix by seeding Tier 2 (consensus

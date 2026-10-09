@@ -28,15 +28,13 @@ use crate::{INIT_FN_NAME, verification_failure};
 /// - The function must have the name specified by `INIT_FN_NAME`
 /// - The function must have `Visibility::Private`
 /// - The function can have at most two parameters:
-///   - mandatory &mut TxContext or &TxContext (see `is_tx_context`) in the last
-///     position
-///   - optional one-time witness type (see one_time_witness verifier pass)
-///     passed by value in the first position
+///   - mandatory &mut TxContext or &TxContext (see `is_tx_context`) in the last position
+///   - optional one-time witness type (see one_time_witness verifier pass) passed by value in the
+///     first position
 ///
 /// For transaction entry points
 /// - The function must have `is_entry` true
-/// - The function may have a &mut TxContext or &TxContext (see `is_tx_context`)
-///   parameter
+/// - The function may have a &mut TxContext or &TxContext (see `is_tx_context`) parameter
 ///   - The transaction context parameter must be the last parameter
 /// - The function cannot have any return values
 pub fn verify_module(

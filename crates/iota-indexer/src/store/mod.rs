@@ -311,10 +311,9 @@ pub mod diesel_macro {
     /// - Checking that we are not inside a tokio runtime context
     ///
     /// Or:
-    /// - If we are inside a tokio runtime context, ensure that the call went
-    ///   through a spawned blocking task that called `mark_in_blocking_pool`,
-    ///   such as `store::diesel_macro::spawn_blocking_task`,
-    ///   `IndexerReader::spawn_blocking` or
+    /// - If we are inside a tokio runtime context, ensure that the call went through a spawned
+    ///   blocking task that called `mark_in_blocking_pool`, such as
+    ///   `store::diesel_macro::spawn_blocking_task`, `IndexerReader::spawn_blocking` or
     ///   `PgIndexerStore::execute_in_blocking_worker`.
     #[macro_export]
     macro_rules! blocking_call_is_ok_or_panic {
@@ -342,25 +341,20 @@ pub mod diesel_macro {
     ///
     /// # Parameters
     ///
-    /// * `$table` - The target database table (e.g., `events::table`,
-    ///   `transactions::table`)
-    /// * `$chunk` - Collection of data to persist (must implement `.len()` and
-    ///   `.chunks()`)
+    /// * `$table` - The target database table (e.g., `events::table`, `transactions::table`)
+    /// * `$chunk` - Collection of data to persist (must implement `.len()` and `.chunks()`)
     /// * `$pool` - Database connection pool reference
     ///
     /// # Behavior
     ///
     /// 1. **Performance Timing**: Records operation duration for monitoring
-    /// 2. **Automatic Batching**: Splits data into chunks of
-    ///    `PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX` rows
-    /// 3. **Transaction Safety**: Uses `transactional_blocking_with_retry!` for
-    ///    atomic operations
-    /// 4. **Conflict Resolution**: Employs `INSERT ... ON CONFLICT DO NOTHING`
-    ///    strategy
-    /// 5. **Retry Logic**: Automatically retries failed operations with timeout
-    ///    of `PG_DB_COMMIT_SLEEP_DURATION`
-    /// 6. **Comprehensive Logging**: Logs success/failure with timing and row
-    ///    count information
+    /// 2. **Automatic Batching**: Splits data into chunks of `PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX`
+    ///    rows
+    /// 3. **Transaction Safety**: Uses `transactional_blocking_with_retry!` for atomic operations
+    /// 4. **Conflict Resolution**: Employs `INSERT ... ON CONFLICT DO NOTHING` strategy
+    /// 5. **Retry Logic**: Automatically retries failed operations with timeout of
+    ///    `PG_DB_COMMIT_SLEEP_DURATION`
+    /// 6. **Comprehensive Logging**: Logs success/failure with timing and row count information
     ///
     /// # Examples
     ///

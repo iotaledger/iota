@@ -397,10 +397,9 @@ pub enum TransactionsOrder {
 /// # Conversions
 /// - `From<u64>`: produces a `ReverseSequenceNumber` holding `!seq`.
 /// - `Into<u64>`: returns the original `seq` from the wrapped `!seq`.
-/// - [`ReverseSequenceNumber::to_be_bytes`]: encodes the stored value as
-///   big-endian bytes for BigTable storage.
-/// - [`ReverseSequenceNumber::from_be_bytes`]: decodes the stored value from
-///   big-endian bytes.
+/// - [`ReverseSequenceNumber::to_be_bytes`]: encodes the stored value as big-endian bytes for
+///   BigTable storage.
+/// - [`ReverseSequenceNumber::from_be_bytes`]: decodes the stored value from big-endian bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ReverseSequenceNumber(u64);
 

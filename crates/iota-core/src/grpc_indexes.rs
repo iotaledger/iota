@@ -168,10 +168,10 @@ pub struct OwnerIndexInfo {
 /// Type filter for `owner_iter`.
 ///
 /// - `None` — all objects for the owner.
-/// - `BaseType` — all objects whose `address::module::name` matches (e.g. all
-///   `Coin<*>`). Post-filters hash collisions via `tag`.
-/// - `ExactType` — only objects of the exact `StructTag` (e.g. `Coin<IOTA>`).
+/// - `BaseType` — all objects whose `address::module::name` matches (e.g. all `Coin<*>`).
 ///   Post-filters hash collisions via `tag`.
+/// - `ExactType` — only objects of the exact `StructTag` (e.g. `Coin<IOTA>`). Post-filters hash
+///   collisions via `tag`.
 #[derive(Clone)]
 pub enum OwnerTypeFilter {
     None,
@@ -338,10 +338,10 @@ struct IndexStoreTables {
     /// A singleton that store metadata information on the DB.
     ///
     /// A few uses for this singleton:
-    /// - determining if the DB has been initialized (as some tables will still
-    ///   be empty post initialization)
-    /// - version of the DB. Everytime a new table or schema is changed the
-    ///   version number needs to be incremented.
+    /// - determining if the DB has been initialized (as some tables will still be empty post
+    ///   initialization)
+    /// - version of the DB. Everytime a new table or schema is changed the version number needs to
+    ///   be incremented.
     meta: DBMap<(), MetadataInfo>,
 
     /// Table used to track watermark for the highest indexed checkpoint
@@ -997,9 +997,9 @@ impl GrpcIndexesStore {
     ///
     /// Invariants:
     /// - `index_checkpoint` must have been called for the provided checkpoint
-    /// - Callers of this function must ensure that it is called for each
-    ///   checkpoint in sequential order. This will panic if the provided
-    ///   checkpoint does not match the expected next checkpoint to commit.
+    /// - Callers of this function must ensure that it is called for each checkpoint in sequential
+    ///   order. This will panic if the provided checkpoint does not match the expected next
+    ///   checkpoint to commit.
     #[tracing::instrument(skip(self))]
     pub fn commit_update_for_checkpoint(&self, checkpoint: u64) -> Result<(), StorageError> {
         let next_batch = self.pending_updates.lock().unwrap().pop_first();

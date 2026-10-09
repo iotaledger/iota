@@ -313,7 +313,7 @@
           "name": "Write API"
         }
       ],
-      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to    client. This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the    node executed the transaction locally before returning the client. The    local execution makes sure this node is aware of this transaction when    client fires subsequent queries. However if the node fails to execute the    transaction locally in a timely manner, a bool type in the response is    set to false to indicated the case. request_type defaults to `WaitForEffectsCert` when omitted.",
+      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to client. This mode    is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the node executed    the transaction locally before returning the client. The local execution makes sure this    node is aware of this transaction when client fires subsequent queries. However if the    node fails to execute the transaction locally in a timely manner, a bool type in the    response is set to false to indicated the case. request_type defaults to `WaitForEffectsCert` when omitted.",
       "params": [
         {
           "name": "tx_bytes",
@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 37
+              "value": 38
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "37",
-              "protocolVersion": "37",
+              "maxSupportedProtocolVersion": "38",
+              "protocolVersion": "38",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1356,6 +1356,7 @@
                 "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
+                "reject_immutable_account_creation": true,
                 "reject_immutable_account_objects": true,
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
@@ -1367,6 +1368,7 @@
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": true,
                 "validate_input_object_versions": true,
+                "validate_ptb_argument_indices": true,
                 "validator_metadata_verify_v2": true,
                 "variant_nodes": true
               },
@@ -1970,6 +1972,9 @@
                 },
                 "max_move_package_size": {
                   "u64": "102400"
+                },
+                "max_move_system_package_size": {
+                  "u64": "204800"
                 },
                 "max_move_value_depth": {
                   "u64": "128"
@@ -5507,7 +5512,7 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and deposit all IOTA to the first    input coin 2. transfer the updated first coin to the recipient and also use this first    coin as gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) -    actual_gas_cost. 4. all other input coins other than the first are deleted.",
+      "description": "Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and deposit all IOTA to the first input coin 2. transfer the updated first coin to the recipient and also use this first coin as gas coin    object. 3. the balance of the first input coin after tx is sum(input_coins) - actual_gas_cost. 4. all other input coins other than the first are deleted.",
       "params": [
         {
           "name": "signer",
@@ -5560,7 +5565,7 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_iota does are: 1. debit each input_coin to create new coin following the order of amounts and assign it to the corresponding recipient. 2. accumulate all residual IOTA from input coins left and deposit all IOTA    to the first input coin, then use the first input coin as the gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) -    sum(amounts) - actual_gas_cost 4. all other input coints other than the first one are deleted.",
+      "description": "Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_iota does are: 1. debit each input_coin to create new coin following the order of amounts and assign it to the corresponding recipient. 2. accumulate all residual IOTA from input coins left and deposit all IOTA to the first input coin, then use the first input coin as the gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) - sum(amounts) -    actual_gas_cost 4. all other input coints other than the first one are deleted.",
       "params": [
         {
           "name": "signer",

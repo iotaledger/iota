@@ -485,17 +485,14 @@ impl EffectsCertifier {
     /// status.
     ///
     /// Behavior:
-    /// - If f+1 stake (including the initial validator if its error was a
-    ///   non-retriable rejection) report a non-retriable rejection, return
-    ///   [`TransactionDriverError::RejectedByValidators`] so the driver's outer
-    ///   loop surfaces a terminal error to the user.
-    /// - If the f+1 rejection threshold becomes unreachable (or the broadcast
-    ///   ends without reaching it), record bad client-monitor feedback for the
-    ///   initial validator and return
-    ///   [`TransactionDriverError::SubmittedButFetchFailed`]. That error is
-    ///   classified retriable, so the outer `drive_transaction` loop reissues
-    ///   submission; the bad feedback deprioritizes the suspect in the next
-    ///   `RequestRetrier`'s ranking.
+    /// - If f+1 stake (including the initial validator if its error was a non-retriable rejection)
+    ///   report a non-retriable rejection, return [`TransactionDriverError::RejectedByValidators`]
+    ///   so the driver's outer loop surfaces a terminal error to the user.
+    /// - If the f+1 rejection threshold becomes unreachable (or the broadcast ends without reaching
+    ///   it), record bad client-monitor feedback for the initial validator and return
+    ///   [`TransactionDriverError::SubmittedButFetchFailed`]. That error is classified retriable,
+    ///   so the outer `drive_transaction` loop reissues submission; the bad feedback deprioritizes
+    ///   the suspect in the next `RequestRetrier`'s ranking.
     ///
     /// TODO: this returns `SubmittedButFetchFailed` (retriable) for every
     /// inconclusive outcome, which makes the driver reissue submission even

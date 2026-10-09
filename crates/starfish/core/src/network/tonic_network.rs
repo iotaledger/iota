@@ -19,6 +19,7 @@ use iota_network_stack::{
     Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
+    request_message_timeout::RequestMessageTimeout,
 };
 use iota_sdk_types::{Ed25519PublicKey, crypto::PublicKeyExt as _};
 use iota_tls::AllowPublicKeys;
@@ -47,14 +48,19 @@ use crate::{
     block_header::{BlockRef, max_signed_block_header_bytes},
     block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
     commit::{CommitRange, max_commit_bytes},
-    commit_syncer::{CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY},
+    commit_syncer::{
+        CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY,
+        fast::FETCH_HEADERS_TIMEOUT as FAST_SYNC_HEADER_FETCH_TIMEOUT, max_fetch_attempt_timeout,
+    },
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::FETCH_FROM_PEERS_TIMEOUT as HEADER_SYNC_FETCH_TIMEOUT,
     network::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
     transaction_ref::{SERIALIZED_TRANSACTION_REF_BYTES, TransactionRef},
+    transactions_synchronizer::FETCH_REQUEST_TIMEOUT as TRANSACTION_SYNC_FETCH_TIMEOUT,
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
@@ -135,17 +141,20 @@ impl TonicClient {
         peer: AuthorityIndex,
         timeout: Duration,
     ) -> ConsensusResult<ConsensusServiceClient<Channel>> {
-        let config = &self.context.parameters.tonic;
         let channel = self
             .channel_pool
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
-        let client = ConsensusServiceClient::new(channel)
+        Ok(self.service_client(channel))
+    }
+
+    fn service_client(&self, channel: Channel) -> ConsensusServiceClient<Channel> {
+        let config = &self.context.parameters.tonic;
+        ConsensusServiceClient::new(channel)
             .max_encoding_message_size(config.request_message_size_limit())
             .max_decoding_message_size(config.message_size_limit)
             .send_compressed(CompressionEncoding::Zstd)
-            .accept_compressed(CompressionEncoding::Zstd);
-        Ok(client)
+            .accept_compressed(CompressionEncoding::Zstd)
     }
 }
 
@@ -159,8 +168,13 @@ impl NetworkClient for TonicClient {
         last_received: Round,
         timeout: Duration,
     ) -> ConsensusResult<BlockBundleStream> {
-        let mut client = self.get_client(peer, timeout).await?;
-        // TODO: add sampled block acknowledgments for latency measurements.
+        // The subscriber has no other peer to turn to, so it keeps retrying the
+        // connection and picks up a peer within a second of it coming up.
+        let channel = self
+            .channel_pool
+            .get_channel_with_retries(self.network_keypair.clone(), peer, timeout)
+            .await?;
+        let mut client = self.service_client(channel);
         let request = Request::new(stream::once(async move {
             SubscribeBlockBundlesRequest {
                 last_received_round: last_received,
@@ -739,11 +753,53 @@ impl ChannelPool {
         }
     }
 
+    /// Returns the pooled channel to `peer`, connecting to it first if there is
+    /// none. Fails as soon as one connection attempt fails.
     async fn get_channel(
         &self,
         network_keypair: NetworkKeyPair,
         peer: AuthorityIndex,
         timeout: Duration,
+    ) -> ConsensusResult<Channel> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        self.connect_once(network_keypair, peer, timeout, deadline)
+            .await
+    }
+
+    /// Returns the pooled channel to `peer`, retrying a failed connection
+    /// attempt every second until `timeout` elapses.
+    async fn get_channel_with_retries(
+        &self,
+        network_keypair: NetworkKeyPair,
+        peer: AuthorityIndex,
+        timeout: Duration,
+    ) -> ConsensusResult<Channel> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let error = match self
+                .connect_once(network_keypair.clone(), peer, timeout, deadline)
+                .await
+            {
+                Ok(channel) => return Ok(channel),
+                Err(e) => e,
+            };
+            let retry_at = tokio::time::Instant::now() + Duration::from_secs(1);
+            if retry_at >= deadline {
+                return Err(error);
+            }
+            tokio::time::sleep_until(retry_at).await;
+        }
+    }
+
+    /// Returns the pooled channel to `peer`, or makes one attempt to connect to
+    /// it by `deadline`. The new channel reconnects later within
+    /// `connect_timeout`.
+    async fn connect_once(
+        &self,
+        network_keypair: NetworkKeyPair,
+        peer: AuthorityIndex,
+        connect_timeout: Duration,
+        deadline: tokio::time::Instant,
     ) -> ConsensusResult<Channel> {
         {
             let channels = self.channels.read();
@@ -752,7 +808,6 @@ impl ChannelPool {
             }
         }
 
-        let deadline = tokio::time::Instant::now() + timeout;
         let Ok(_connecting) =
             tokio::time::timeout_at(deadline, self.connecting[peer.value()].lock()).await
         else {
@@ -787,7 +842,7 @@ impl ChannelPool {
         );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .map_err(|e| ConsensusError::NetworkConfig(format!("invalid URI '{address}': {e}")))?
-            .connect_timeout(timeout)
+            .connect_timeout(connect_timeout)
             .initial_connection_window_size(Some(buffer_size as u32))
             .initial_stream_window_size(Some(buffer_size as u32 / 2))
             .keep_alive_while_idle(true)
@@ -799,25 +854,19 @@ impl ChannelPool {
             .tls_config(client_tls_config)
             .unwrap();
 
-        let channel = loop {
-            trace!("Connecting to endpoint at {address}");
-            match tokio::time::timeout_at(deadline, endpoint.connect()).await {
-                Ok(Ok(channel)) => break channel,
-                Ok(Err(e)) => {
-                    debug!("Failed to connect to endpoint at {address}: {e:?}");
-                    let now = tokio::time::Instant::now();
-                    if now >= deadline {
-                        return Err(ConsensusError::NetworkClientConnection(format!(
-                            "Timed out connecting to endpoint at {address}: {e:?}"
-                        )));
-                    }
-                    tokio::time::sleep_until((now + Duration::from_secs(1)).min(deadline)).await;
-                }
-                Err(_) => {
-                    return Err(ConsensusError::NetworkClientConnection(format!(
-                        "Timed out connecting to endpoint at {address}"
-                    )));
-                }
+        trace!("Connecting to endpoint at {address}");
+        let channel = match tokio::time::timeout_at(deadline, endpoint.connect()).await {
+            Ok(Ok(channel)) => channel,
+            Ok(Err(e)) => {
+                debug!("Failed to connect to endpoint at {address}: {e:?}");
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "Failed to connect to endpoint at {address}: {e:?}"
+                )));
+            }
+            Err(_) => {
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "Timed out connecting to endpoint at {address}"
+                )));
             }
         };
         trace!("Connected to {address}");
@@ -1201,8 +1250,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 /// 2. Take `TonicClient` from `TonicManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `TonicService` for consensus service handler.
-/// 5. Install `TonicService` to `TonicManager` with
-///    `TonicManager::install_service()`.
+/// 5. Install `TonicService` to `TonicManager` with `TonicManager::install_service()`.
 pub(crate) struct TonicManager<S>
 where
     S: NetworkService,
@@ -1212,11 +1260,14 @@ where
     client: Arc<TonicClient>,
     server: Option<ServerHandle>,
     _marker: std::marker::PhantomData<S>,
+    /// Time the server gives a response to be fully written.
+    send_timeout: Duration,
 }
 
 /// Long-lived server-streaming RPCs exempt from the server-side fallback
-/// request timeout: they carry no client `grpc-timeout`, so a deadline would
-/// abort an otherwise healthy subscription. Bounded RPCs are not listed.
+/// request timeout and from the request-message deadline: they carry no
+/// client `grpc-timeout`, and their request is a client stream that stays
+/// open with the subscription. Bounded RPCs are not listed.
 const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBlockBundles"];
 
 /// Connections a single committee peer may hold on the consensus listener at
@@ -1224,6 +1275,31 @@ const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBl
 /// connection per authority and multiplexes every RPC over it. The rest is
 /// headroom for a reconnect whose predecessor has not been reaped yet.
 const MAX_CONNECTIONS_PER_PEER: usize = 4;
+
+/// Time a bounded RPC has to deliver its request message after its headers;
+/// a request still waiting for it is answered with `DEADLINE_EXCEEDED`, which
+/// releases its admission slot. Requests are at most
+/// `max_request_message_size`, so any working link delivers them well within
+/// this. Paths in `TIMEOUT_EXEMPT_PATHS` carry client streams and are exempt.
+#[cfg(not(test))]
+const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Long enough that `request_timeout` still cuts the tests that rely on it.
+#[cfg(test)]
+const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Time a response has to be fully written after its handler returned it. A
+/// peer that stops reading leaves the stream parked with the built response,
+/// the encoder buffer and the admission permits in it; past this the body
+/// gives them up, keeping only the peer's own slot until the stream ends. The
+/// block-subscription stream is exempt. It equals the longest any requester
+/// waits for one fetch attempt, so a read the peer still waits for is never
+/// cut.
+fn response_send_timeout() -> Duration {
+    max_fetch_attempt_timeout()
+        .max(FAST_SYNC_HEADER_FETCH_TIMEOUT)
+        .max(HEADER_SYNC_FETCH_TIMEOUT)
+        .max(TRANSACTION_SYNC_FETCH_TIMEOUT)
+}
 
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
@@ -1233,6 +1309,7 @@ impl<S: NetworkService> TonicManager<S> {
             client: Arc::new(TonicClient::new(context, network_keypair)),
             server: None,
             _marker: std::marker::PhantomData,
+            send_timeout: response_send_timeout(),
         }
     }
 
@@ -1304,13 +1381,18 @@ impl<S: NetworkService> TonicManager<S> {
             // Innermost, so a rejected request is still counted and traced by
             // the layers above, and a request stalled in decode has its permit
             // released when the timeout above fires.
-            .layer(AdmissionLayer::new(self.context.clone()));
+            .layer(AdmissionLayer::new(self.context.clone(), self.send_timeout));
 
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
             .max_decoding_message_size(config.request_message_size_limit())
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
+        let consensus_service_server = RequestMessageTimeout::new(
+            consensus_service_server,
+            REQUEST_MESSAGE_TIMEOUT,
+            TIMEOUT_EXEMPT_PATHS,
+        );
 
         let consensus_service = tonic::service::Routes::new(consensus_service_server)
             .into_axum_router()
@@ -2453,18 +2535,23 @@ mod tests {
 
     /// A caller queued behind another caller's connection attempt still gives
     /// up by its own timeout.
+    #[cfg(not(msim))]
     #[tokio::test]
     async fn queued_connect_keeps_its_own_timeout() {
-        use std::time::Duration;
+        use std::{net::TcpListener, time::Duration};
 
         use parking_lot::Mutex;
 
-        use super::TonicManager;
+        use super::{TonicManager, to_socket_addr};
         use crate::network::test_network::TestService;
 
         let (context, keys) = Context::new_for_test(4);
-        // Nothing listens at this peer's address, so every attempt fails.
         let peer = context.committee.to_authority_index(0).unwrap();
+        // Never accepted, so the TLS handshake gets no answer and a connection
+        // attempt hangs until its deadline.
+        let _listener =
+            TcpListener::bind(to_socket_addr(&context.committee.authority(peer).address).unwrap())
+                .unwrap();
         let client_context = Arc::new(
             context
                 .clone()
@@ -2607,6 +2694,224 @@ mod tests {
         );
     }
 
+    /// A request whose message never arrives is cut by the request-message
+    /// deadline long before the fallback request timeout, and the peer's slot
+    /// serves a complete request right after.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_request_message_that_never_arrives_is_cut_by_its_deadline() {
+        use std::time::{Duration, Instant};
+
+        use parking_lot::Mutex;
+
+        use super::{FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicManager};
+        use crate::network::{NetworkClient as _, test_network::TestService};
+
+        const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let mut server_context = context.clone().with_authority_index(server_index);
+        server_context
+            .parameters
+            .tonic
+            .admission
+            .max_header_fetches_per_peer = 1;
+        server_context.parameters.tonic.request_timeout = REQUEST_TIMEOUT;
+        let server_context = Arc::new(server_context);
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let started = Instant::now();
+        let status = stalled_call::<FetchBlockHeadersRequest, FetchBlockHeadersResponse>(
+            &client,
+            server_index,
+            &format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchBlockHeaders"),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
+        assert!(
+            started.elapsed() < REQUEST_TIMEOUT / 2,
+            "the request-message deadline must cut the request, not the request timeout"
+        );
+
+        // The cut request gives its slot back once its error response is
+        // written; with one slot per peer, a complete request is then served.
+        let in_use = server_context
+            .metrics
+            .network_metrics
+            .admission_in_use
+            .with_label_values(&["header_fetch"]);
+        for _ in 0..500 {
+            if in_use.get() == 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(in_use.get(), 0, "the cut request must release its slot");
+        client
+            .fetch_block_headers(server_index, vec![], vec![], Duration::from_secs(5))
+            .await
+            .expect("the peer's only header-fetch slot must be free again");
+    }
+
+    /// A response the peer never reads gives up the node-wide commit-fetch slot
+    /// and its contents at the send deadline, while the peer's own slot stays
+    /// charged until the peer finally reads and the stream is reset.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn an_unread_response_gives_up_its_shared_slot_at_the_deadline() {
+        use std::time::Duration;
+
+        use bytes::Bytes;
+        use parking_lot::Mutex;
+
+        use super::{
+            FetchCommitsAndTransactionsRequest, FetchCommitsAndTransactionsResponse, TonicManager,
+        };
+        use crate::network::test_network::TestService;
+
+        const SEND_TIMEOUT: Duration = Duration::from_secs(4);
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let mut server_context = context.clone().with_authority_index(server_index);
+        server_context
+            .parameters
+            .tonic
+            .admission
+            .max_commit_fetches_total = 1;
+        let server_context = Arc::new(server_context);
+        let mut service = TestService::new();
+        // Larger than the client's window below, so the server stalls on it.
+        service.fetch_commits_and_transactions_payload = vec![Bytes::from(vec![0u8; 1 << 20])];
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server.send_timeout = SEND_TIMEOUT;
+        server.install_service(Arc::new(Mutex::new(service))).await;
+
+        let mut client_context = context
+            .clone()
+            .with_authority_index(context.committee.to_authority_index(1).unwrap());
+        // A small window, so little of the response is in flight before the
+        // client reads.
+        client_context.parameters.tonic.connection_buffer_size = 128 << 10;
+        let client =
+            TonicManager::<Mutex<TestService>>::new(Arc::new(client_context), keys[1].0.clone())
+                .client();
+        let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchCommitsAndTransactions");
+        let fetch = || {
+            unread_call::<_, FetchCommitsAndTransactionsResponse>(
+                &client,
+                server_index,
+                &path,
+                FetchCommitsAndTransactionsRequest { start: 0, end: 0 },
+            )
+        };
+        let metrics = &server_context.metrics.network_metrics;
+        let in_use = metrics
+            .admission_in_use
+            .with_label_values(&["commit_fetch"]);
+        let reclaimed = metrics
+            .admission_reclaimed
+            .with_label_values(&["commit_fetch"]);
+        let settles = async |what: &str, holds: &dyn Fn() -> bool| {
+            for _ in 0..500 {
+                if holds() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            panic!("{what}");
+        };
+
+        let unread = fetch().await.expect("the first fetch is admitted");
+        settles("the unread fetch is not counted in use", &|| {
+            in_use.get() == 1
+        })
+        .await;
+        // The peer's second fetch needs the shared budget, which the unread
+        // response holds.
+        assert_eq!(
+            fetch().await.unwrap_err().code(),
+            tonic::Code::ResourceExhausted
+        );
+
+        // At the deadline the shared budget is free again; the peer's own slot
+        // is not.
+        settles("the unread response was not reclaimed", &|| {
+            reclaimed.get() == 1
+        })
+        .await;
+        assert_eq!(in_use.get(), 1);
+        let admitted = fetch().await.expect("the shared budget is free again");
+        assert_eq!(in_use.get(), 2);
+
+        // Reading the abandoned response fails before its payload arrives,
+        // and only that releases the peer's slot.
+        let mut unread = unread.into_inner();
+        let read_to_the_end = async {
+            while let Some(response) = unread.message().await? {
+                assert!(
+                    response.transactions.is_empty(),
+                    "the reclaimed payload must not arrive"
+                );
+            }
+            Ok::<(), tonic::Status>(())
+        }
+        .await;
+        assert!(
+            read_to_the_end.is_err(),
+            "reading a reclaimed response must fail"
+        );
+        drop((unread, admitted));
+        settles("the reset streams keep their slots", &|| in_use.get() == 0).await;
+        // The deadline fired once, for the response that was never read.
+        tokio::time::sleep(SEND_TIMEOUT).await;
+        assert_eq!(reclaimed.get(), 1);
+    }
+
+    /// Opens a server-streaming call and returns its response stream without
+    /// reading from it.
+    async fn unread_call<Req, Res>(
+        client: &TonicClient,
+        peer: AuthorityIndex,
+        path: &str,
+        request: Req,
+    ) -> Result<tonic::Response<tonic::Streaming<Res>>, tonic::Status>
+    where
+        Req: prost::Message + Default + Send + Sync + 'static,
+        Res: prost::Message + Default + Send + Sync + 'static,
+    {
+        use std::time::Duration;
+
+        use tonic::Request;
+
+        let channel = client
+            .channel_pool
+            .get_channel(client.network_keypair.clone(), peer, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let mut grpc = tonic::client::Grpc::new(channel);
+        grpc.ready().await.unwrap();
+        grpc.server_streaming(
+            Request::new(request),
+            http::uri::PathAndQuery::try_from(path).unwrap(),
+            tonic_prost::ProstCodec::default(),
+        )
+        .await
+    }
+
     /// Opens a call whose request message never arrives, so it stays open until
     /// the server answers or the caller drops it.
     async fn stalled_call<Req, Res>(
@@ -2702,5 +3007,151 @@ mod tests {
 
         drop(responses);
         assert_eq!(slot.available_permits(), 1);
+    }
+
+    /// A refused connection fails the call at once, well before the caller's
+    /// timeout.
+    #[tokio::test]
+    async fn refused_connection_fails_before_the_timeout() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        // Nothing listens at this peer's address, so every attempt is refused.
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            client.channel_pool.get_channel(
+                client.network_keypair.clone(),
+                peer,
+                Duration::from_secs(30),
+            ),
+        )
+        .await
+        .expect("a refused connection must fail before the caller's timeout");
+        assert!(matches!(
+            result,
+            Err(ConsensusError::NetworkClientConnection(_))
+        ));
+    }
+
+    /// A caller retrying a refused connection leaves the connect lock free
+    /// between attempts, so other callers to that peer still fail at once.
+    #[tokio::test]
+    async fn retrying_connect_does_not_hold_up_other_callers() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        // Nothing listens at this peer's address, so every attempt is refused.
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let retrying = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .channel_pool
+                    .get_channel_with_retries(
+                        client.network_keypair.clone(),
+                        peer,
+                        Duration::from_secs(30),
+                    )
+                    .await
+            }
+        });
+        // Let the retrying caller make its first attempt.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            client.channel_pool.get_channel(
+                client.network_keypair.clone(),
+                peer,
+                Duration::from_secs(30),
+            ),
+        )
+        .await
+        .expect("the caller must not wait behind the retrying caller");
+        assert!(matches!(
+            result,
+            Err(ConsensusError::NetworkClientConnection(_))
+        ));
+
+        retrying.abort();
+    }
+
+    /// A retrying caller connects to a peer that starts listening after its
+    /// first attempt was refused.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn retrying_connect_reaches_a_peer_that_starts_later() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let retrying = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .channel_pool
+                    .get_channel_with_retries(
+                        client.network_keypair.clone(),
+                        server_index,
+                        Duration::from_secs(10),
+                    )
+                    .await
+            }
+        });
+        // Long enough for the first attempt to be refused.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        let mut server = TonicManager::new(
+            Arc::new(context.clone().with_authority_index(server_index)),
+            keys[0].0.clone(),
+        );
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        tokio::time::timeout(Duration::from_secs(10), retrying)
+            .await
+            .expect("the retrying caller must connect before its timeout")
+            .unwrap()
+            .expect("the retrying caller must connect once the peer listens");
     }
 }

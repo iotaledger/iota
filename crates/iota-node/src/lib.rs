@@ -61,6 +61,7 @@ use iota_core::{
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
         reconfiguration::ReconfigurationInitiator,
     },
+    epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, EpochEndDbSnapshotRequest},
     execution_cache::build_execution_cache,
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
@@ -76,6 +77,7 @@ use iota_core::{
 };
 use iota_genesis_common::MigrationTxDataExt;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
+use iota_http::metrics::ListenerMetrics;
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
     indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
@@ -117,7 +119,6 @@ use iota_types::{
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
-    execution_config_utils::to_binary_config,
     full_checkpoint_content::CheckpointData,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
@@ -133,7 +134,7 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{SenderSignedTransactionAPI, TransactionEnvelope, VerifiedCertificate},
 };
-use prometheus_filtered::Registry;
+use prometheus_filtered::{MetricLevel, Registry};
 #[cfg(msim)]
 use simulator::*;
 use tap::tap::TapFallible;
@@ -275,6 +276,27 @@ impl fmt::Debug for IotaNode {
         f.debug_struct("IotaNode")
             .field("name", &self.state.name.concise())
             .finish()
+    }
+}
+
+/// Removes the `db_checkpoints` directory earlier releases wrote under the
+/// node's `db-path`. A failure is logged, not returned.
+// TODO(#12968): remove once a release containing this has shipped.
+fn remove_legacy_db_checkpoints(config: &NodeConfig) {
+    let path = config.db_path.join("db_checkpoints");
+    if !path.exists() {
+        return;
+    }
+    match std::fs::remove_dir_all(&path) {
+        Ok(()) => info!(
+            "removed {}, the database checkpoint directory of an earlier release",
+            path.display()
+        ),
+        // The directory only costs disk, which is no reason to refuse to start.
+        Err(e) => warn!(
+            "failed to remove the leftover database checkpoint directory {}: {e}",
+            path.display()
+        ),
     }
 }
 
@@ -435,6 +457,8 @@ impl IotaNode {
             None
         };
 
+        remove_legacy_db_checkpoints(&config);
+
         let secret = Arc::pin(config.authority_key_pair().copy());
         let genesis_committee = genesis.committee()?;
         let committee_store = Arc::new(CommitteeStore::new(
@@ -466,6 +490,7 @@ impl IotaNode {
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
         let perpetual_tables_for_progress = perpetual_tables.clone();
+        let perpetual_tables_for_snapshots = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -642,9 +667,21 @@ impl IotaNode {
         );
 
         info!("start snapshot upload");
-        // Start uploading state snapshot to remote store
-        let state_snapshot_handle =
-            Self::start_state_snapshot(&config, &prometheus_registry, checkpoint_store.clone())?;
+        // The state snapshot writer is the consumer of the epoch end database
+        // snapshot: the boundary hands each epoch to it on this channel. A
+        // depth of one is enough, because an epoch arriving while the writer
+        // is still busy is skipped rather than queued.
+        let (state_snapshot_requests, state_snapshot_receiver) = mpsc::channel(1);
+        let state_snapshot_handle = Self::start_state_snapshot(
+            &config,
+            &prometheus_registry,
+            checkpoint_store.clone(),
+            perpetual_tables_for_snapshots,
+            state_snapshot_receiver,
+        )?;
+        let epoch_end_db_snapshots = state_snapshot_handle
+            .is_some()
+            .then(|| EpochEndDbSnapshotHandle::new(state_snapshot_requests));
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
@@ -683,6 +720,7 @@ impl IotaNode {
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),
+            epoch_end_db_snapshots,
         )
         .await;
 
@@ -973,6 +1011,8 @@ impl IotaNode {
         config: &NodeConfig,
         prometheus_registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
+        requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
     ) -> Result<Option<tokio::sync::broadcast::Sender<()>>> {
         if let Some(remote_store_config) = &config.state_snapshot_write_config.object_store_config {
             debug_assert!(
@@ -980,15 +1020,15 @@ impl IotaNode {
                 "`NodeConfig::validate` rejects snapshot upload on a validator"
             );
             let snapshot_uploader = StateSnapshotUploader::new(
-                &config.db_checkpoint_path(),
                 &config.snapshot_path(),
                 remote_store_config.clone(),
                 config.state_snapshot_write_config.concurrency,
                 60,
                 prometheus_registry,
                 checkpoint_store,
+                perpetual_tables,
             )?;
-            Ok(Some(snapshot_uploader.start()))
+            Ok(Some(snapshot_uploader.start(requests)))
         } else {
             Ok(None)
         }
@@ -1550,6 +1590,7 @@ impl IotaNode {
         server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
+                .listener_metrics(validator_server_listener_metrics(prometheus_registry))
                 .add_service_with_concurrency_limit(
                     ValidatorServer::new(validator_service.clone()),
                     concurrency_limit,
@@ -1592,19 +1633,16 @@ impl IotaNode {
     /// committed to disk before the node restarted. This is necessary for
     /// the following reasons:
     ///
-    /// 1. For any transaction for which we returned signed effects to a client,
-    ///    we must ensure that we have re-executed the transaction before we
-    ///    begin accepting grpc requests. Otherwise we would appear to have
-    ///    forgotten about the transaction.
-    /// 2. While this is running, we are concurrently waiting for all previously
-    ///    built checkpoints to be rebuilt. Since there may be dependencies in
-    ///    either direction (from checkpointed consensus transactions to pending
-    ///    consensus transactions, or vice versa), we must re-execute pending
-    ///    consensus transactions to ensure that both processes can complete.
-    /// 3. Also note that for any pending consensus transactions for which we
-    ///    wrote a signed effects digest to disk, we must re-execute using that
-    ///    digest as the expected effects digest, to ensure that we cannot
-    ///    arrive at different effects than what we previously signed.
+    /// 1. For any transaction for which we returned signed effects to a client, we must ensure that
+    ///    we have re-executed the transaction before we begin accepting grpc requests. Otherwise we
+    ///    would appear to have forgotten about the transaction.
+    /// 2. While this is running, we are concurrently waiting for all previously built checkpoints
+    ///    to be rebuilt. Since there may be dependencies in either direction (from checkpointed
+    ///    consensus transactions to pending consensus transactions, or vice versa), we must
+    ///    re-execute pending consensus transactions to ensure that both processes can complete.
+    /// 3. Also note that for any pending consensus transactions for which we wrote a signed effects
+    ///    digest to disk, we must re-execute using that digest as the expected effects digest, to
+    ///    ensure that we cannot arrive at different effects than what we previously signed.
     async fn reexecute_pending_consensus_certs(
         epoch_store: &Arc<AuthorityPerEpochStore>,
         state: &Arc<AuthorityState>,
@@ -1838,7 +1876,6 @@ impl IotaNode {
                 tokio::time::sleep(Duration::from_millis(1)).await;
 
                 let config = cur_epoch_store.protocol_config();
-                let binary_config = to_binary_config(config, None);
                 let transaction = ConsensusTransaction::new_capability_notification_v1(
                     AuthorityCapabilitiesV1::new(
                         self.state.name,
@@ -1848,9 +1885,7 @@ impl IotaNode {
                             .expect("Supported versions should be populated")
                             // no need to send digests of versions less than the current version
                             .truncate_below(config.version),
-                        self.state
-                            .get_available_system_packages(&binary_config)
-                            .await,
+                        self.state.get_available_system_packages(config).await,
                     ),
                 );
                 info!(?transaction, "submitting capabilities to consensus");
@@ -2290,7 +2325,6 @@ impl IotaNode {
 
         // Create the capability notification once
         let config = epoch_store.protocol_config();
-        let binary_config = to_binary_config(config, None);
 
         // Create the capability notification
         let capabilities = AuthorityCapabilitiesV1::new(
@@ -2300,9 +2334,7 @@ impl IotaNode {
                 .supported_protocol_versions
                 .expect("Supported versions should be populated")
                 .truncate_below(config.version),
-            self.state
-                .get_available_system_packages(&binary_config)
-                .await,
+            self.state.get_available_system_packages(config).await,
         );
 
         // Sign the capabilities using the authority key pair from config
@@ -2370,6 +2402,11 @@ impl IotaNode {
 impl IotaNode {
     pub fn get_sim_node_id(&self) -> iota_simulator::task::NodeId {
         self.sim_state.sim_node.id()
+    }
+
+    /// Gathers the metric families the node exposes under the current filter.
+    pub fn gather_metrics(&self) -> Vec<prometheus_filtered::proto::MetricFamily> {
+        self.registry_service.gather_all()
     }
 
     pub fn set_safe_mode_expected(&self, new_value: bool) {
@@ -2554,16 +2591,14 @@ async fn build_grpc_server(
 /// API based on the node's configuration.
 ///
 /// This function performs the following tasks:
-/// 1. Checks if the node is a validator by inspecting the consensus
-///    configuration; if so, it returns early as validators do not expose these
-///    APIs.
+/// 1. Checks if the node is a validator by inspecting the consensus configuration; if so, it
+///    returns early as validators do not expose these APIs.
 /// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based
-///    on the node's state and configuration, including CoinApi,
-///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
-///    IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening
-///    for incoming connections.
+/// 3. Initializes the JSON-RPC server and registers various RPC modules based on the node's state
+///    and configuration, including CoinApi, TransactionBuilderApi, GovernanceApi,
+///    TransactionExecutionApi, and IndexerApi.
+/// 4. Binds the server to the specified JSON-RPC address and starts listening for incoming
+///    connections.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
@@ -2654,11 +2689,23 @@ pub async fn build_http_server(
     router = router.layer(layers);
 
     let handle = iota_http::Builder::new()
+        .config(
+            iota_http::Config::default()
+                .metrics(Some(json_rpc_listener_metrics(prometheus_registry))),
+        )
         .serve(&config.json_rpc_address, router)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
 
     Ok(Some(handle))
+}
+
+fn json_rpc_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics {
+    ListenerMetrics::new("json_rpc", prometheus_registry, MetricLevel::Info)
+}
+
+fn validator_server_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics {
+    ListenerMetrics::new("authority_grpc", prometheus_registry, MetricLevel::Warn)
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -2822,24 +2869,31 @@ mod config_tests {
     use iota_metrics::RegistryService;
     use prometheus_filtered::Registry;
 
-    use super::IotaNode;
+    use super::{IotaNode, remove_legacy_db_checkpoints};
 
-    /// `start_async` validates the config before it does anything else. That
-    /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
-    /// `start_state_snapshot` unreachable.
-    #[tokio::test]
-    async fn start_rejects_a_config_no_node_could_start_with() {
-        let mut config: NodeConfig = serde_yaml::from_str(
+    /// A config whose `db-path` is `db_path`, with nothing else a node would
+    /// need to start.
+    fn config_with_db_path(db_path: &std::path::Path) -> NodeConfig {
+        serde_yaml::from_str(&format!(
             r#"
-db-path: /nonexistent/db
+db-path: {}
 network-address: /dns/localhost/tcp/8080/http
 metrics-address: "0.0.0.0:9184"
 json-rpc-address: "0.0.0.0:9000"
 genesis:
   genesis-file-location: /nonexistent/genesis.blob
 "#,
-        )
-        .unwrap();
+            db_path.display()
+        ))
+        .unwrap()
+    }
+
+    /// `start_async` validates the config before it does anything else. That
+    /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
+    /// `start_state_snapshot` unreachable.
+    #[tokio::test]
+    async fn start_rejects_a_config_no_node_could_start_with() {
+        let mut config = config_with_db_path(std::path::Path::new("/nonexistent/db"));
         config.enable_grpc_api = true;
         config.grpc_api_config = None;
 
@@ -2849,5 +2903,168 @@ genesis:
 
         let err = format!("{err:#}");
         assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
+    }
+
+    #[test]
+    fn a_leftover_database_checkpoint_directory_is_removed() {
+        let dir = iota_common::tempdir();
+        let config = config_with_db_path(dir.path());
+        let leftover = dir.path().join("db_checkpoints").join("epoch_0");
+        std::fs::create_dir_all(&leftover).unwrap();
+        std::fs::write(leftover.join("CURRENT"), b"hard link to a live SST").unwrap();
+        let live = config.db_path();
+        std::fs::create_dir_all(&live).unwrap();
+
+        remove_legacy_db_checkpoints(&config);
+
+        assert!(!dir.path().join("db_checkpoints").exists());
+        assert!(live.exists(), "the live database must be left alone");
+    }
+
+    #[test]
+    fn a_database_without_one_is_left_alone() {
+        let dir = iota_common::tempdir();
+
+        remove_legacy_db_checkpoints(&config_with_db_path(dir.path()));
+
+        assert!(
+            !dir.path().join("db_checkpoints").exists(),
+            "the cleanup must not create what it is there to remove",
+        );
+    }
+}
+
+#[cfg(test)]
+mod listener_metrics_tests {
+    use std::{collections::BTreeSet, sync::Arc, time::Duration};
+
+    use iota_metrics::{MetricGroups, MetricLevel, test_utils::MetricsReader};
+    use iota_network_stack::config::Config;
+    use iota_types::crypto::{NetworkKeyPair, get_key_pair};
+    use prometheus_filtered::Registry;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
+
+    use super::{
+        GrpcMetrics, ServerBuilder, json_rpc_listener_metrics, validator_server_listener_metrics,
+    };
+
+    async fn get_health(handle: &iota_http::ServerHandle<std::net::SocketAddr>) {
+        let mut stream = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        stream
+            .write_all(b"GET /health HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        let mut response = String::new();
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            stream.read_to_string(&mut response),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    }
+
+    fn registry_with_groups(groups: &MetricGroups) -> Registry {
+        let (filter, errors) = groups.startup_filter(None);
+        assert!(errors.is_empty());
+        Registry::new_custom(None, None, Some(Arc::new(filter))).unwrap()
+    }
+
+    /// The registry of a node with the listener metrics registered the way the
+    /// node registers them, after one request to the JSON-RPC listener and one
+    /// TLS connection to the validator listener.
+    async fn node_registry(groups: &MetricGroups) -> Registry {
+        let registry = registry_with_groups(groups);
+
+        let key_pair = get_key_pair::<NetworkKeyPair>().1;
+        let tls_config =
+            iota_tls::create_rustls_server_config(key_pair.clone(), "test".to_string());
+        let client_config =
+            iota_tls::create_rustls_client_config(key_pair.public_key(), "test".to_string(), None);
+        let config = Config::new();
+        let validator = ServerBuilder::from_config(&config, GrpcMetrics::new(&registry))
+            .listener_metrics(validator_server_listener_metrics(&registry))
+            .bind(
+                &"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(),
+                Some(tls_config),
+            )
+            .await
+            .unwrap();
+        let channel = config
+            .connect(validator.local_addr(), client_config)
+            .await
+            .unwrap();
+        HealthClient::new(channel)
+            .check(HealthCheckRequest {
+                service: String::new(),
+            })
+            .await
+            .unwrap();
+
+        let json_rpc = iota_http::Builder::new()
+            .config(
+                iota_http::Config::default().metrics(Some(json_rpc_listener_metrics(&registry))),
+            )
+            .serve(
+                "127.0.0.1:0",
+                axum::Router::new().route("/health", axum::routing::get(|| async { "up" })),
+            )
+            .unwrap();
+        get_health(&json_rpc).await;
+
+        validator.trigger_shutdown();
+        json_rpc.trigger_shutdown();
+        registry
+    }
+
+    fn prefix_names<'a>(prefix: &'a str, names: &'a [&str]) -> impl Iterator<Item = String> + 'a {
+        names.iter().map(move |name| format!("{prefix}_{name}"))
+    }
+
+    const CONNECTION_FAMILIES: &[&str] = &[
+        "inbound_connections_accepted",
+        "inbound_connections",
+        "inbound_connections_peak",
+        "connection_lifetime_seconds",
+    ];
+    const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
+
+    /// Every family the validator listener registers.
+    fn validator_families() -> BTreeSet<String> {
+        prefix_names("authority_grpc", CONNECTION_FAMILIES)
+            .chain(prefix_names("authority_grpc", TLS_FAMILIES))
+            .collect()
+    }
+
+    fn overrides(patterns: &[&str]) -> MetricGroups {
+        MetricGroups {
+            overrides: patterns
+                .iter()
+                .map(|pattern| ((*pattern).to_owned(), MetricLevel::Info))
+                .collect(),
+            ..MetricGroups::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn only_the_validator_listener_shows_by_default() {
+        let shown =
+            MetricsReader::new(&node_registry(&MetricGroups::default()).await).family_names();
+        assert_eq!(shown, validator_families());
+    }
+
+    #[tokio::test]
+    async fn the_iota_http_override_shows_the_json_rpc_listener() {
+        let shown =
+            MetricsReader::new(&node_registry(&overrides(&["iota_http"])).await).family_names();
+        let all: BTreeSet<String> = validator_families()
+            .into_iter()
+            .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
+            .collect();
+        assert_eq!(shown, all);
     }
 }

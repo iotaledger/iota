@@ -955,11 +955,10 @@ impl CheckpointStore {
     /// INVARIANT: The caller must have durably written the matching
     /// `checkpoint_content` row (and the contained transactions and
     /// effects) first for two reasons:
-    /// 1. once the cache evicts the entry (or after a restart), readers
-    ///    reconstruct the full contents from those stores.
-    /// 2. state-sync treats available contents as proof of that row and skips
-    ///    its own durable write, and the checkpoint executor panics on a
-    ///    missing row.
+    /// 1. once the cache evicts the entry (or after a restart), readers reconstruct the full
+    ///    contents from those stores.
+    /// 2. state-sync treats available contents as proof of that row and skips its own durable
+    ///    write, and the checkpoint executor panics on a missing row.
     ///
     /// Best-effort: a serialization failure is logged and the insert skipped;
     /// readers fall back to reconstructing the contents from the durable
@@ -3403,24 +3402,17 @@ mod tests {
             id[0] = seed;
             VerifiedTransaction::new_genesis_transaction(
                 vec![GenesisObject::new(
-                    ObjectData::Package(
-                        MovePackage::new(
-                            ObjectId::new(id),
-                            Version::default(),
-                            BTreeMap::from([(
-                                Identifier::new_unchecked("m"),
-                                vec![0u8; payload_size],
-                            )]),
-                            100_000,
-                            // no modules so empty type_origin_table as no types are defined in
-                            // this package
-                            Vec::new(),
-                            // no modules so empty linkage_table as no dependencies of this package
-                            // exist
-                            BTreeMap::new(),
-                        )
-                        .unwrap(),
-                    ),
+                    ObjectData::Package(MovePackage::new(
+                        ObjectId::new(id),
+                        Version::default(),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
+                        // no modules so empty type_origin_table as no types are defined in
+                        // this package
+                        Vec::new(),
+                        // no modules so empty linkage_table as no dependencies of this package
+                        // exist
+                        BTreeMap::new(),
+                    )),
                     Owner::Immutable,
                 )],
                 vec![],
@@ -3682,21 +3674,17 @@ mod tests {
             id[0] = seed;
             VerifiedTransaction::new_genesis_transaction(
                 vec![GenesisObject::new(
-                    ObjectData::Package(
-                        MovePackage::new(
-                            ObjectId::new(id),
-                            Version::default(),
-                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
-                            100_000,
-                            // no modules so empty type_origin_table as no types are defined in
-                            // this package
-                            Vec::new(),
-                            // no modules so empty linkage_table as no dependencies of this package
-                            // exist
-                            BTreeMap::new(),
-                        )
-                        .unwrap(),
-                    ),
+                    ObjectData::Package(MovePackage::new(
+                        ObjectId::new(id),
+                        Version::default(),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
+                        // no modules so empty type_origin_table as no types are defined in
+                        // this package
+                        Vec::new(),
+                        // no modules so empty linkage_table as no dependencies of this package
+                        // exist
+                        BTreeMap::new(),
+                    )),
                     Owner::Immutable,
                 )],
                 vec![],

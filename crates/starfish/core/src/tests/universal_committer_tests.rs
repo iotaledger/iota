@@ -721,8 +721,8 @@ async fn test_byzantine_direct_commit(#[values(false, true)] starfish_speed: boo
 
     // DagState Update:
     // - 'A12' got a good vote from 'C' above
-    // - 'A12' will then get a bad vote from 'C' indirectly through the ancenstors
-    //   of the wave 4 certifying blocks of B C D
+    // - 'A12' will then get a bad vote from 'C' indirectly through the ancenstors of the wave 4
+    //   certifying blocks of B C D
 
     // Add block layer for wave 4 certifying round with no votes for leader A12
     // from a byzantine validator C that sent different blocks to all validators.
@@ -837,10 +837,9 @@ async fn test_byzantine_direct_commit(#[values(false, true)] starfish_speed: boo
         .accept_block_header(certifying_block_d14, DataSource::Test);
 
     // DagState Update:
-    // - We have A13, B13, D13 & C13 as good votes in the voting round for round-12
-    //   leader block
-    // - We have 3 byzantine C13 nonvotes that we received as ancestors from
-    //   certifying round blocks from B, C, & D.
+    // - We have A13, B13, D13 & C13 as good votes in the voting round for round-12 leader block
+    // - We have 3 byzantine C13 nonvotes that we received as ancestors from certifying round blocks
+    //   from B, C, & D.
     // - We have B14, C14 & D14 that include this byzantine nonvote from C13 but
     // all of these blocks also have good votes for leader A12 through A, B, D.
 

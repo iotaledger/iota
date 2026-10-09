@@ -73,3 +73,4 @@
 71: MutableSharedIsInMoveAuthenticatorInput
 72: ImmutableAccountObjectNotSupported
 73: RandomnessStateIsInMoveAuthenticatorInput
+74: InvalidArgumentIndex

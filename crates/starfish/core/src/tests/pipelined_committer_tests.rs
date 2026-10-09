@@ -620,8 +620,8 @@ async fn test_byzantine_validator(#[values(false, true)] starfish_speed: bool) {
 
     // DagState Update:
     // - A12 got a good vote from 'B' above
-    // - A12 will then get a bad vote from 'B' indirectly through the ancestors of
-    //   the decision round blocks (B, C, & D) of leader A12
+    // - A12 will then get a bad vote from 'B' indirectly through the ancestors of the decision
+    //   round blocks (B, C, & D) of leader A12
 
     // Add block layer for decision round of leader A12 with no votes for leader A12
     // from a byzantine validator B that sent different blocks to all validators.
@@ -744,8 +744,8 @@ async fn test_byzantine_validator(#[values(false, true)] starfish_speed: bool) {
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of leader A12
-    // - We have 3 byzantine B13 nonvotes that we received as ancestors from
-    //   decision round blocks from B, C, & D.
+    // - We have 3 byzantine B13 nonvotes that we received as ancestors from decision round blocks
+    //   from B, C, & D.
     // - We have B14, C14 & D14 that include this byzantine nonvote. But all of
     // these blocks also have good votes from A, C & D.
 

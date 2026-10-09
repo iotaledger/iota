@@ -42,10 +42,14 @@ pub mod metered_channel;
 pub mod metric_groups;
 pub mod metrics_network;
 pub mod monitored_mpsc;
+pub mod peak;
+pub mod quantile_gauge;
 // Relies on tokio's `RuntimeMetrics`, which the deterministic simulator's tokio
 // fork does not provide; the node only starts these monitors outside simtests.
 #[cfg(not(msim))]
 pub mod runtime_metrics;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 pub mod thread_stall_monitor;
 pub use guards::*;
 pub use metric_groups::{MetricGroups, MetricLevel};
@@ -400,10 +404,8 @@ impl Drop for MonitoredScopeGuard {
 }
 
 /// This function creates a named scoped object, that keeps track of
-/// - the total iterations where the scope is called in the
-///   `monitored_scope_iterations` metric.
-/// - and the total duration of the scope in the `monitored_scope_duration_ns`
-///   metric.
+/// - the total iterations where the scope is called in the `monitored_scope_iterations` metric.
+/// - and the total duration of the scope in the `monitored_scope_duration_ns` metric.
 ///
 /// The monitored scope should be single threaded, e.g. the scoped object
 /// encompass the lifetime of a select loop or guarded by mutex.
@@ -658,12 +660,9 @@ impl RegistryService {
 
 /// Create a metric that measures the uptime from when this metric was
 /// constructed. The metric is labeled with:
-/// - 'process': the process type, differentiating between validator and
-///   fullnode
-/// - 'version': binary version, generally be of the format:
-///   'semver-gitrevision'
-/// - 'chain_identifier': the identifier of the network which this process is
-///   part of
+/// - 'process': the process type, differentiating between validator and fullnode
+/// - 'version': binary version, generally be of the format: 'semver-gitrevision'
+/// - 'chain_identifier': the identifier of the network which this process is part of
 pub fn uptime_metric(
     process: &str,
     version: &'static str,
