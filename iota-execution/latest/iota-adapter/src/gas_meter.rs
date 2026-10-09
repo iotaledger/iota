@@ -156,7 +156,7 @@ impl GasMeter for IotaGasMeter<'_> {
 
     fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
         self.0
-            .set_pending_native_function(&module_id.short_str_lossless(), function_name);
+            .record_native_function_identity(module_id, function_name);
     }
 
     fn charge_call(
@@ -404,4 +404,78 @@ impl GasMeter for IotaGasMeter<'_> {
 
 fn abstract_memory_size(val: impl ValueView) -> AbstractMemorySize {
     val.abstract_memory_size(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::gas_model::tables::initial_cost_schedule_v1;
+    use move_core_types::{
+        account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
+    };
+    use move_vm_types::values::Value;
+
+    use super::*;
+
+    struct NoTypeArgs;
+    impl TypeView for NoTypeArgs {
+        fn to_type_tag(&self) -> TypeTag {
+            unreachable!("the benchmarks pass no type arguments")
+        }
+    }
+
+    /// Run with: `cargo test --release -p iota-adapter-latest --lib
+    /// bench_native_call_hot_path -- --ignored --nocapture`
+    #[test]
+    #[ignore = "manual benchmark, run explicitly in release mode"]
+    fn bench_native_call_hot_path() {
+        let module_id = ModuleId::new(AccountAddress::TWO, Identifier::new("hash").unwrap());
+        let arg = Value::vector_u8(vec![7u8; 10_000]);
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        let iterations: u64 = 100_000;
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            meter.record_native_function_identity(&module_id, "blake2b256");
+            meter
+                .charge_native_function_before_execution(
+                    std::iter::empty::<NoTypeArgs>(),
+                    std::iter::once(&arg),
+                )
+                .unwrap();
+            meter
+                .charge_native_function(
+                    InternalGas::new(100),
+                    Option::<std::iter::Empty<&Value>>::None,
+                )
+                .unwrap();
+        }
+        let elapsed = start.elapsed();
+        println!(
+            "native call: {:.2} ns/call over {iterations} calls, one 10 KB vector argument \
+             (total {elapsed:?})",
+            elapsed.as_nanos() as f64 / iterations as f64,
+        );
+    }
+
+    /// Run with: `cargo test --release -p iota-adapter-latest --lib
+    /// bench_drop_frame_hot_path -- --ignored --nocapture`
+    #[test]
+    #[ignore = "manual benchmark, run explicitly in release mode"]
+    fn bench_drop_frame_hot_path() {
+        let local = Value::vector_u8(vec![7u8; 10_000]);
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        let iterations: u64 = 100_000;
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            meter.0.record_call_frame(0);
+            meter.charge_drop_frame(std::iter::once(&local)).unwrap();
+        }
+        let elapsed = start.elapsed();
+        println!(
+            "drop frame: {:.2} ns/call over {iterations} calls, one 10 KB vector local \
+             (total {elapsed:?})",
+            elapsed.as_nanos() as f64 / iterations as f64,
+        );
+    }
 }

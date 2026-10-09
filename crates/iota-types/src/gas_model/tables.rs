@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     gas_algebra::{AbstractMemorySize, InternalGas},
+    language_storage::ModuleId,
     vm_status::StatusCode,
 };
 use move_vm_profiler::GasProfiler;
@@ -76,6 +77,12 @@ pub struct GasStatus {
     pub num_native_calls: u64,
 
     // Counters feeding `ResourceProfile`; updating them deducts no gas.
+    profile: ProfileCounters,
+}
+
+/// Counters feeding [`ResourceProfile`]; updating them deducts no gas.
+#[derive(Debug, Default)]
+struct ProfileCounters {
     locals_size_current: u64,
     locals_size_high_water_mark: u64,
     // Abstract bytes added to each live frame's locals, innermost frame last.
@@ -83,20 +90,23 @@ pub struct GasStatus {
     // Locals high-water mark before the most recent `record_call_frame`, kept
     // until the next locals event so a native callee can discard its frame.
     locals_peak_before_call: Option<u64>,
-    // Unlike the charged `stack_size_current`, this applies decreases too.
-    profile_stack_size_current: u64,
-    profile_stack_size_peak: u64,
+    // Unlike the charged `GasStatus::stack_size_current`, this applies
+    // decreases too.
+    stack_size_current: u64,
+    stack_size_peak: u64,
     native_gas_deducted: u64,
     storage_read_gas_deducted: u64,
     publish_gas_deducted: u64,
+    coin_transfer_gas_deducted: u64,
     interp_instr_flow: u64,
     interp_stack_size_flow: u64,
     interp_stack_height_flow: u64,
-    // Key of the native currently executing, for the per-function maps.
-    pending_native_function: String,
-    native_gas_by_function: BTreeMap<String, u64>,
-    native_calls_by_function: BTreeMap<String, u64>,
-    native_input_bytes_by_function: BTreeMap<String, u64>,
+    // Identity of the native currently executing, and its rendered key in
+    // `native_by_function`; the key is rebuilt only when the identity changes.
+    pending_native_module: Option<ModuleId>,
+    pending_native_name: String,
+    pending_native_key: String,
+    native_by_function: BTreeMap<String, NativeFunctionCounters>,
     input_object_count: u64,
     input_object_bytes: u64,
     child_object_reads: u64,
@@ -106,6 +116,130 @@ pub struct GasStatus {
     package_bytes_loaded: u64,
     event_count: u64,
     event_bytes: u64,
+}
+
+/// Per-function entry of `ProfileCounters::native_by_function`.
+#[derive(Debug, Default)]
+struct NativeFunctionCounters {
+    calls: u64,
+    gas: u64,
+    input_bytes: u64,
+}
+
+impl ProfileCounters {
+    fn increase_locals_size(&mut self, amount: u64) {
+        self.locals_size_current = self.locals_size_current.saturating_add(amount);
+        if self.locals_size_current > self.locals_size_high_water_mark {
+            self.locals_size_high_water_mark = self.locals_size_current;
+        }
+    }
+
+    fn decrease_locals_size(&mut self, amount: u64) {
+        self.locals_size_current = self.locals_size_current.saturating_sub(amount);
+    }
+
+    // Opens an implicit root frame if none is live, since the entry
+    // function's frame gets no `record_call_frame`.
+    fn add_to_current_frame(&mut self, amount: u64) {
+        match self.frame_locals_added.last_mut() {
+            Some(top) => *top = top.saturating_add(amount),
+            None => self.frame_locals_added.push(amount),
+        }
+    }
+
+    fn record_call_frame(&mut self, args_size: u64) {
+        self.locals_peak_before_call = Some(self.locals_size_high_water_mark);
+        self.increase_locals_size(args_size);
+        self.frame_locals_added.push(args_size);
+    }
+
+    fn record_store_loc(&mut self, size: u64) {
+        self.locals_peak_before_call = None;
+        self.increase_locals_size(size);
+        self.add_to_current_frame(size);
+    }
+
+    fn record_move_loc(&mut self, size: u64) {
+        self.locals_peak_before_call = None;
+        let tracked = self.frame_locals_added.last().copied().unwrap_or(0);
+        if size > tracked {
+            self.increase_locals_size(size - tracked);
+        }
+        self.decrease_locals_size(size);
+        if let Some(top) = self.frame_locals_added.last_mut() {
+            *top = top.saturating_sub(size);
+        }
+    }
+
+    fn record_drop_frame(&mut self, dropped_size: u64) {
+        self.locals_peak_before_call = None;
+        let tracked = self.frame_locals_added.pop().unwrap_or(0);
+        // The excess is growth in place through `&mut` references (e.g.
+        // `vector::push_back`), which the store/move hooks never saw.
+        if dropped_size > tracked {
+            self.increase_locals_size(dropped_size - tracked);
+        }
+        // References stored in locals were counted by the store hook but are
+        // not part of `dropped_size`, so release everything the frame tracked.
+        self.decrease_locals_size(dropped_size.max(tracked));
+    }
+
+    fn discard_native_call_frame(&mut self) {
+        let Some(peak_before) = self.locals_peak_before_call.take() else {
+            return;
+        };
+        let args_size = self.frame_locals_added.pop().unwrap_or(0);
+        self.decrease_locals_size(args_size);
+        self.locals_size_high_water_mark = peak_before;
+    }
+
+    fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
+        if self.pending_native_module.as_ref() == Some(module_id)
+            && self.pending_native_name == function_name
+        {
+            return;
+        }
+        self.pending_native_module = Some(module_id.clone());
+        self.pending_native_name.clear();
+        self.pending_native_name.push_str(function_name);
+        self.pending_native_key.clear();
+        self.pending_native_key
+            .push_str(&module_id.short_str_lossless());
+        self.pending_native_key.push_str("::");
+        self.pending_native_key.push_str(function_name);
+    }
+
+    fn record_native_input_bytes(&mut self, bytes: u64) {
+        // Look up before inserting so the key is cloned only once per function.
+        if let Some(counters) = self.native_by_function.get_mut(&self.pending_native_key) {
+            counters.input_bytes = counters.input_bytes.saturating_add(bytes);
+        } else {
+            self.native_by_function.insert(
+                self.pending_native_key.clone(),
+                NativeFunctionCounters {
+                    input_bytes: bytes,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+
+    fn record_native_charge(&mut self, deducted: u64) {
+        self.native_gas_deducted = self.native_gas_deducted.saturating_add(deducted);
+        if let Some(counters) = self.native_by_function.get_mut(&self.pending_native_key) {
+            counters.gas = counters.gas.saturating_add(deducted);
+            counters.calls = counters.calls.saturating_add(1);
+        } else {
+            self.native_by_function.insert(
+                self.pending_native_key.clone(),
+                NativeFunctionCounters {
+                    calls: 1,
+                    gas: deducted,
+                    input_bytes: 0,
+                },
+            );
+        }
+    }
 }
 
 impl GasStatus {
@@ -145,31 +279,7 @@ impl GasStatus {
             instructions_next_tier_start,
             profiler: None,
             num_native_calls: 0,
-            locals_size_current: 0,
-            locals_size_high_water_mark: 0,
-            frame_locals_added: Vec::new(),
-            locals_peak_before_call: None,
-            profile_stack_size_current: 0,
-            profile_stack_size_peak: 0,
-            native_gas_deducted: 0,
-            storage_read_gas_deducted: 0,
-            publish_gas_deducted: 0,
-            interp_instr_flow: 0,
-            interp_stack_size_flow: 0,
-            interp_stack_height_flow: 0,
-            pending_native_function: String::new(),
-            native_gas_by_function: BTreeMap::new(),
-            native_calls_by_function: BTreeMap::new(),
-            native_input_bytes_by_function: BTreeMap::new(),
-            input_object_count: 0,
-            input_object_bytes: 0,
-            child_object_reads: 0,
-            child_object_read_bytes: 0,
-            object_runtime_cached_bytes: 0,
-            packages_loaded: 0,
-            package_bytes_loaded: 0,
-            event_count: 0,
-            event_bytes: 0,
+            profile: ProfileCounters::default(),
         }
     }
 
@@ -198,31 +308,7 @@ impl GasStatus {
             instructions_next_tier_start: None,
             profiler: None,
             num_native_calls: 0,
-            locals_size_current: 0,
-            locals_size_high_water_mark: 0,
-            frame_locals_added: Vec::new(),
-            locals_peak_before_call: None,
-            profile_stack_size_current: 0,
-            profile_stack_size_peak: 0,
-            native_gas_deducted: 0,
-            storage_read_gas_deducted: 0,
-            publish_gas_deducted: 0,
-            interp_instr_flow: 0,
-            interp_stack_size_flow: 0,
-            interp_stack_height_flow: 0,
-            pending_native_function: String::new(),
-            native_gas_by_function: BTreeMap::new(),
-            native_calls_by_function: BTreeMap::new(),
-            native_input_bytes_by_function: BTreeMap::new(),
-            input_object_count: 0,
-            input_object_bytes: 0,
-            child_object_reads: 0,
-            child_object_read_bytes: 0,
-            object_runtime_cached_bytes: 0,
-            packages_loaded: 0,
-            package_bytes_loaded: 0,
-            event_count: 0,
-            event_bytes: 0,
+            profile: ProfileCounters::default(),
         }
     }
 
@@ -329,17 +415,18 @@ impl GasStatus {
     ) -> PartialVMResult<()> {
         // Native calls also route through here; the meter subtracts their
         // share via `discount_native_flows`.
-        self.interp_instr_flow = self.interp_instr_flow.saturating_add(num_instructions);
-        self.interp_stack_size_flow = self.interp_stack_size_flow.saturating_add(incr_size);
-        self.interp_stack_height_flow = self.interp_stack_height_flow.saturating_add(pushes);
+        let profile = &mut self.profile;
+        profile.interp_instr_flow = profile.interp_instr_flow.saturating_add(num_instructions);
+        profile.interp_stack_size_flow = profile.interp_stack_size_flow.saturating_add(incr_size);
+        profile.interp_stack_height_flow = profile.interp_stack_height_flow.saturating_add(pushes);
 
         // The charged `stack_size_current` intentionally ignores decreases, so
         // `decr_size` is applied only to the profile's copy.
-        self.profile_stack_size_current = self.profile_stack_size_current.saturating_add(incr_size);
-        if self.profile_stack_size_current > self.profile_stack_size_peak {
-            self.profile_stack_size_peak = self.profile_stack_size_current;
+        profile.stack_size_current = profile.stack_size_current.saturating_add(incr_size);
+        if profile.stack_size_current > profile.stack_size_peak {
+            profile.stack_size_peak = profile.stack_size_current;
         }
-        self.profile_stack_size_current = self.profile_stack_size_current.saturating_sub(decr_size);
+        profile.stack_size_current = profile.stack_size_current.saturating_sub(decr_size);
 
         self.push_stack(pushes)?;
         self.increase_instruction_count(num_instructions)?;
@@ -420,24 +507,45 @@ impl GasStatus {
     // As more bytes are read throughout the computation the cost per bytes is
     // increased.
     pub fn charge_bytes(&mut self, size: usize, cost_per_byte: u64) -> PartialVMResult<()> {
-        let computation_cost = size as u64 * cost_per_byte;
-        let gas_before = self.gas_left;
-        let result = self.deduct_units(computation_cost);
-        self.storage_read_gas_deducted = self
-            .storage_read_gas_deducted
-            .saturating_add(Self::gas_delta(gas_before, self.gas_left));
-        result
+        self.charge_bytes_into(size, cost_per_byte, |profile| {
+            &mut profile.storage_read_gas_deducted
+        })
     }
 
     /// Like [`charge_bytes`](Self::charge_bytes), but records the deducted gas
     /// as package publish/upgrade gas instead of storage-read gas.
     pub fn charge_publish_bytes(&mut self, size: usize, cost_per_byte: u64) -> PartialVMResult<()> {
+        self.charge_bytes_into(size, cost_per_byte, |profile| {
+            &mut profile.publish_gas_deducted
+        })
+    }
+
+    /// Like [`charge_bytes`](Self::charge_bytes), but records the deducted gas
+    /// as coin-transfer gas instead of storage-read gas.
+    pub fn charge_coin_transfer_bytes(
+        &mut self,
+        size: usize,
+        cost_per_byte: u64,
+    ) -> PartialVMResult<()> {
+        self.charge_bytes_into(size, cost_per_byte, |profile| {
+            &mut profile.coin_transfer_gas_deducted
+        })
+    }
+
+    // Deducts `size * cost_per_byte` and adds the deducted gas to the chosen
+    // profile counter.
+    fn charge_bytes_into(
+        &mut self,
+        size: usize,
+        cost_per_byte: u64,
+        counter: impl FnOnce(&mut ProfileCounters) -> &mut u64,
+    ) -> PartialVMResult<()> {
         let computation_cost = size as u64 * cost_per_byte;
         let gas_before = self.gas_left;
         let result = self.deduct_units(computation_cost);
-        self.publish_gas_deducted = self
-            .publish_gas_deducted
-            .saturating_add(Self::gas_delta(gas_before, self.gas_left));
+        let deducted = Self::gas_delta(gas_before, self.gas_left);
+        let counter = counter(&mut self.profile);
+        *counter = counter.saturating_add(deducted);
         result
     }
 
@@ -466,72 +574,31 @@ impl GasStatus {
         self.instructions_executed
     }
 
-    fn increase_locals_size(&mut self, amount: u64) {
-        self.locals_size_current = self.locals_size_current.saturating_add(amount);
-        if self.locals_size_current > self.locals_size_high_water_mark {
-            self.locals_size_high_water_mark = self.locals_size_current;
-        }
-    }
-
-    fn decrease_locals_size(&mut self, amount: u64) {
-        self.locals_size_current = self.locals_size_current.saturating_sub(amount);
-    }
-
-    /// Opens an implicit root frame if none is live, since the entry
-    /// function's frame gets no `record_call_frame`.
-    fn add_to_current_frame(&mut self, amount: u64) {
-        match self.frame_locals_added.last_mut() {
-            Some(top) => *top = top.saturating_add(amount),
-            None => self.frame_locals_added.push(amount),
-        }
-    }
-
     /// Record a function call whose arguments total `args_size` abstract
     /// bytes. The interpreter charges a call before it knows whether the
     /// callee is native, so natives pass through here too; see
     /// [`discard_native_call_frame`](Self::discard_native_call_frame).
     pub fn record_call_frame(&mut self, args_size: u64) {
-        self.locals_peak_before_call = Some(self.locals_size_high_water_mark);
-        self.increase_locals_size(args_size);
-        self.frame_locals_added.push(args_size);
+        self.profile.record_call_frame(args_size);
     }
 
     /// Record a value stored into a local. Storing over an occupied local
     /// over-counts, since the displaced value is not visible here.
     pub fn record_store_loc(&mut self, size: u64) {
-        self.locals_peak_before_call = None;
-        self.increase_locals_size(size);
-        self.add_to_current_frame(size);
+        self.profile.record_store_loc(size);
     }
 
     /// Record a value moved out of a local. A value larger than the frame has
     /// tracked was an entry-function argument or grew in place through `&mut`;
     /// the excess is counted before release so the peak sees it.
     pub fn record_move_loc(&mut self, size: u64) {
-        self.locals_peak_before_call = None;
-        let tracked = self.frame_locals_added.last().copied().unwrap_or(0);
-        if size > tracked {
-            self.increase_locals_size(size - tracked);
-        }
-        self.decrease_locals_size(size);
-        if let Some(top) = self.frame_locals_added.last_mut() {
-            *top = top.saturating_sub(size);
-        }
+        self.profile.record_move_loc(size);
     }
 
     /// Record a frame drop, where `dropped_size` is the total abstract size of
     /// the non-reference values still in the frame's locals.
     pub fn record_drop_frame(&mut self, dropped_size: u64) {
-        self.locals_peak_before_call = None;
-        let tracked = self.frame_locals_added.pop().unwrap_or(0);
-        // The excess is growth in place through `&mut` references (e.g.
-        // `vector::push_back`), which the store/move hooks never saw.
-        if dropped_size > tracked {
-            self.increase_locals_size(dropped_size - tracked);
-        }
-        // References stored in locals were counted by the store hook but are
-        // not part of `dropped_size`, so release everything the frame tracked.
-        self.decrease_locals_size(dropped_size.max(tracked));
+        self.profile.record_drop_frame(dropped_size);
     }
 
     /// Undo the frame pushed by [`record_call_frame`](Self::record_call_frame)
@@ -539,128 +606,110 @@ impl GasStatus {
     /// that push was the last locals event, so a native invoked without a
     /// preceding call leaves the caller's frames alone.
     pub fn discard_native_call_frame(&mut self) {
-        let Some(peak_before) = self.locals_peak_before_call.take() else {
-            return;
-        };
-        let args_size = self.frame_locals_added.pop().unwrap_or(0);
-        self.decrease_locals_size(args_size);
-        self.locals_size_high_water_mark = peak_before;
+        self.profile.discard_native_call_frame();
     }
 
     pub fn record_package_loads(&mut self, count: u64, bytes: u64) {
-        self.packages_loaded = count;
-        self.package_bytes_loaded = bytes;
+        self.profile.packages_loaded = count;
+        self.profile.package_bytes_loaded = bytes;
     }
 
     /// Set the native function that the following native recordings are
-    /// attributed to.
-    pub fn set_pending_native_function(&mut self, module_id: &str, function_name: &str) {
-        self.pending_native_function.clear();
-        self.pending_native_function.push_str(module_id);
-        self.pending_native_function.push_str("::");
-        self.pending_native_function.push_str(function_name);
+    /// attributed to. The per-function key is rendered only when the identity
+    /// differs from the previous call.
+    pub fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
+        self.profile
+            .record_native_function_identity(module_id, function_name);
     }
 
     /// Record the abstract size of the pending native's arguments.
     pub fn record_native_input_bytes(&mut self, bytes: u64) {
-        if let Some(per_function) = self
-            .native_input_bytes_by_function
-            .get_mut(&self.pending_native_function)
-        {
-            *per_function = per_function.saturating_add(bytes);
-        } else {
-            self.native_input_bytes_by_function
-                .insert(self.pending_native_function.clone(), bytes);
-        }
+        self.profile.record_native_input_bytes(bytes);
     }
 
     /// Record the gas deducted since `gas_left_before` against the pending
-    /// native function. Does not charge gas.
+    /// native function, and count the call. Does not charge gas.
     pub fn record_native_gas_deducted(&mut self, gas_left_before: InternalGas) {
         let deducted = Self::gas_delta(gas_left_before, self.gas_left);
-        self.native_gas_deducted = self.native_gas_deducted.saturating_add(deducted);
-        // Look up before inserting so the key is cloned only once per function.
-        if let Some(per_function) = self
-            .native_gas_by_function
-            .get_mut(&self.pending_native_function)
-        {
-            *per_function = per_function.saturating_add(deducted);
-        } else {
-            self.native_gas_by_function
-                .insert(self.pending_native_function.clone(), deducted);
-        }
-        if let Some(calls) = self
-            .native_calls_by_function
-            .get_mut(&self.pending_native_function)
-        {
-            *calls = calls.saturating_add(1);
-        } else {
-            self.native_calls_by_function
-                .insert(self.pending_native_function.clone(), 1);
-        }
+        self.profile.record_native_charge(deducted);
     }
 
     /// Undo a native call's additions to the interpreter counters. Pass the
     /// same values the native's [`charge`](Self::charge) call used.
     pub fn discount_native_flows(&mut self, num_instructions: u64, pushes: u64, incr_size: u64) {
-        self.interp_instr_flow = self.interp_instr_flow.saturating_sub(num_instructions);
-        self.interp_stack_size_flow = self.interp_stack_size_flow.saturating_sub(incr_size);
-        self.interp_stack_height_flow = self.interp_stack_height_flow.saturating_sub(pushes);
+        let profile = &mut self.profile;
+        profile.interp_instr_flow = profile.interp_instr_flow.saturating_sub(num_instructions);
+        profile.interp_stack_size_flow = profile.interp_stack_size_flow.saturating_sub(incr_size);
+        profile.interp_stack_height_flow = profile.interp_stack_height_flow.saturating_sub(pushes);
     }
 
     pub fn record_input_objects(&mut self, count: u64, bytes: u64) {
-        self.input_object_count = count;
-        self.input_object_bytes = bytes;
+        self.profile.input_object_count = count;
+        self.profile.input_object_bytes = bytes;
     }
 
     pub fn record_object_runtime_usage(&mut self, reads: u64, read_bytes: u64, cached_bytes: u64) {
-        self.child_object_reads = reads;
-        self.child_object_read_bytes = read_bytes;
-        self.object_runtime_cached_bytes = cached_bytes;
+        self.profile.child_object_reads = reads;
+        self.profile.child_object_read_bytes = read_bytes;
+        self.profile.object_runtime_cached_bytes = cached_bytes;
     }
 
     pub fn record_events(&mut self, count: u64, bytes: u64) {
-        self.event_count = count;
-        self.event_bytes = bytes;
+        self.profile.event_count = count;
+        self.profile.event_bytes = bytes;
     }
 
     /// The [`ResourceProfile`] without the write fields (written and deleted
     /// objects), which the caller fills in from storage tracking.
     pub fn resource_profile(&self) -> ResourceProfile {
+        let profile = &self.profile;
         let total_deducted = Self::gas_delta(self.initial_budget, self.gas_left);
         let interpreter_gas = total_deducted
-            .saturating_sub(self.native_gas_deducted)
-            .saturating_sub(self.storage_read_gas_deducted)
-            .saturating_sub(self.publish_gas_deducted);
+            .saturating_sub(profile.native_gas_deducted)
+            .saturating_sub(profile.storage_read_gas_deducted)
+            .saturating_sub(profile.publish_gas_deducted)
+            .saturating_sub(profile.coin_transfer_gas_deducted);
+        let mut native_gas_by_function = BTreeMap::new();
+        let mut native_calls_by_function = BTreeMap::new();
+        let mut native_input_bytes_by_function = BTreeMap::new();
+        for (function, counters) in &profile.native_by_function {
+            native_input_bytes_by_function.insert(function.clone(), counters.input_bytes);
+            // A function whose charge never completed has no call to report.
+            if counters.calls > 0 {
+                native_gas_by_function.insert(function.clone(), counters.gas);
+                native_calls_by_function.insert(function.clone(), counters.calls);
+            }
+        }
         ResourceProfile {
             instructions_executed: self.instructions_executed,
             num_native_calls: self.num_native_calls,
             interpreter_gas,
-            interp_instruction_count: self.interp_instr_flow,
-            interp_stack_size_flow: self.interp_stack_size_flow,
-            interp_stack_height_flow: self.interp_stack_height_flow,
-            native_gas: self.native_gas_deducted,
-            native_gas_by_function: self.native_gas_by_function.clone(),
-            native_calls_by_function: self.native_calls_by_function.clone(),
-            storage_read_gas: self.storage_read_gas_deducted,
-            package_publish_gas: self.publish_gas_deducted,
+            interp_instruction_count: profile.interp_instr_flow,
+            interp_stack_size_flow: profile.interp_stack_size_flow,
+            interp_stack_height_flow: profile.interp_stack_height_flow,
+            native_gas: profile.native_gas_deducted,
+            native_gas_by_function,
+            native_calls_by_function,
+            storage_read_gas: profile.storage_read_gas_deducted,
+            package_publish_gas: profile.publish_gas_deducted,
+            coin_transfer_gas: profile.coin_transfer_gas_deducted,
             computation_gas_used: self.gas_used_pre_gas_price(),
-            stack_size_high_water_mark: self.profile_stack_size_peak,
+            stack_size_high_water_mark: profile.stack_size_peak,
             stack_height_high_water_mark: self.stack_height_high_water_mark,
-            locals_size_high_water_mark: self.locals_size_high_water_mark,
-            object_runtime_cached_bytes: self.object_runtime_cached_bytes,
-            input_object_count: self.input_object_count,
-            input_object_bytes: self.input_object_bytes,
-            child_object_reads: self.child_object_reads,
-            packages_loaded: self.packages_loaded,
-            package_bytes_loaded: self.package_bytes_loaded,
-            child_object_read_bytes: self.child_object_read_bytes,
+            locals_size_high_water_mark: profile.locals_size_high_water_mark,
+            object_runtime_cached_bytes: profile.object_runtime_cached_bytes,
+            input_object_count: profile.input_object_count,
+            input_object_bytes: profile.input_object_bytes,
+            child_object_reads: profile.child_object_reads,
+            packages_loaded: profile.packages_loaded,
+            package_bytes_loaded: profile.package_bytes_loaded,
+            child_object_read_bytes: profile.child_object_read_bytes,
             written_object_count: 0,
             written_bytes: 0,
             deleted_object_count: 0,
-            event_count: self.event_count,
-            event_bytes: self.event_bytes,
-            native_input_bytes_by_function: self.native_input_bytes_by_function.clone(),
+            event_count: profile.event_count,
+            event_bytes: profile.event_bytes,
+            native_input_bytes_by_function,
         }
     }
 }
@@ -733,20 +782,26 @@ pub fn initial_cost_schedule_for_unit_tests() -> move_vm_test_utils::gas_schedul
 
 #[cfg(test)]
 mod tests {
+    use move_core_types::{account_address::AccountAddress, identifier::Identifier};
+
     use super::*;
+
+    fn native_id(address: AccountAddress, module: &str) -> ModuleId {
+        ModuleId::new(address, Identifier::new(module).unwrap())
+    }
 
     #[test]
     fn locals_size_tracking_records_high_water_mark() {
         let mut status = GasStatus::new_unmetered();
-        status.increase_locals_size(100);
-        status.increase_locals_size(50);
-        status.decrease_locals_size(120);
-        status.increase_locals_size(30);
+        status.profile.increase_locals_size(100);
+        status.profile.increase_locals_size(50);
+        status.profile.decrease_locals_size(120);
+        status.profile.increase_locals_size(30);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 150);
 
         // Draining below zero saturates instead of wrapping.
-        status.decrease_locals_size(u64::MAX);
-        status.increase_locals_size(10);
+        status.profile.decrease_locals_size(u64::MAX);
+        status.profile.increase_locals_size(10);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 150);
     }
 
@@ -780,12 +835,18 @@ mod tests {
         let interp = before_interp - u64::from(status.gas_left);
         assert!(interp > 0, "interpreter charge should deduct gas");
 
-        status.set_pending_native_function("0x2::ed25519", "ed25519_verify");
+        status.record_native_function_identity(
+            &native_id(AccountAddress::TWO, "ed25519"),
+            "ed25519_verify",
+        );
         let before_native = status.gas_left;
         status.deduct_gas(InternalGas::new(5000)).unwrap();
         status.record_native_gas_deducted(before_native);
 
-        status.set_pending_native_function("0x2::bls12381", "bls12381_min_sig_verify");
+        status.record_native_function_identity(
+            &native_id(AccountAddress::TWO, "bls12381"),
+            "bls12381_min_sig_verify",
+        );
         let before_native2 = status.gas_left;
         status.deduct_gas(InternalGas::new(2000)).unwrap();
         status.record_native_gas_deducted(before_native2);
@@ -838,7 +899,7 @@ mod tests {
         let cost_table = initial_cost_schedule_v1();
         let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
         let before = status.remaining_gas();
-        status.increase_locals_size(1_000_000);
+        status.profile.increase_locals_size(1_000_000);
         status.record_input_objects(10, 10_000);
         status.record_object_runtime_usage(10, 10_000, 10_000);
         status.record_events(10, 10_000);
@@ -897,11 +958,11 @@ mod tests {
         status.record_move_loc(64);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 164);
         // The outer frame's locals are still live.
-        assert_eq!(status.locals_size_current, 100);
+        assert_eq!(status.profile.locals_size_current, 100);
 
         status.record_drop_frame(0);
         status.record_drop_frame(100);
-        assert_eq!(status.locals_size_current, 0);
+        assert_eq!(status.profile.locals_size_current, 0);
     }
 
     #[test]
@@ -914,7 +975,7 @@ mod tests {
             // The interpreter passes only non-reference locals to the drop.
             status.record_drop_frame(0);
         }
-        assert_eq!(status.locals_size_current, 0);
+        assert_eq!(status.profile.locals_size_current, 0);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 8);
     }
 
@@ -927,13 +988,13 @@ mod tests {
             status.discard_native_call_frame();
         }
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 100);
-        assert_eq!(status.frame_locals_added, vec![100]);
+        assert_eq!(status.profile.frame_locals_added, vec![100]);
 
         // The caller's later stores and its own drop still land in its frame.
         status.record_store_loc(10);
         status.record_drop_frame(110);
-        assert_eq!(status.locals_size_current, 0);
-        assert!(status.frame_locals_added.is_empty());
+        assert_eq!(status.profile.locals_size_current, 0);
+        assert!(status.profile.frame_locals_added.is_empty());
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 110);
     }
 
@@ -942,14 +1003,14 @@ mod tests {
         let mut status = GasStatus::new_unmetered();
         // A native invoked as the entry function has no preceding call.
         status.discard_native_call_frame();
-        assert!(status.frame_locals_added.is_empty());
+        assert!(status.profile.frame_locals_added.is_empty());
 
         status.record_call_frame(8);
         status.record_store_loc(4);
         // A store in the callee means the frame belongs to a Move function.
         status.discard_native_call_frame();
-        assert_eq!(status.frame_locals_added, vec![12]);
-        assert_eq!(status.locals_size_current, 12);
+        assert_eq!(status.profile.frame_locals_added, vec![12]);
+        assert_eq!(status.profile.locals_size_current, 12);
     }
 
     #[test]
@@ -999,12 +1060,16 @@ mod tests {
         let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
         let before = status.gas_used_pre_gas_price();
 
-        status.set_pending_native_function("0x2::hash", "keccak256");
+        status
+            .record_native_function_identity(&native_id(AccountAddress::TWO, "hash"), "keccak256");
         status.record_native_input_bytes(512);
         status.record_native_input_bytes(512);
-        status.set_pending_native_function("0x1::hash", "sha2_256");
+        status.record_native_function_identity(&native_id(AccountAddress::ONE, "hash"), "sha2_256");
         status.record_native_input_bytes(256);
-        status.set_pending_native_function("0x2::tx_context", "fresh_id");
+        status.record_native_function_identity(
+            &native_id(AccountAddress::TWO, "tx_context"),
+            "fresh_id",
+        );
         status.record_native_input_bytes(0);
 
         assert_eq!(status.gas_used_pre_gas_price(), before);
@@ -1027,5 +1092,61 @@ mod tests {
                 .get("0x2::tx_context::fresh_id"),
             Some(&0)
         );
+    }
+
+    #[test]
+    fn coin_transfer_gas_attributed_separately() {
+        let cost_table = initial_cost_schedule_v1();
+        let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
+        status.charge_bytes(10, 3).unwrap();
+        status.charge_coin_transfer_bytes(5, 4).unwrap();
+        let profile = status.resource_profile();
+        assert_eq!(profile.storage_read_gas, 30);
+        assert_eq!(profile.coin_transfer_gas, 20);
+        assert_eq!(profile.interpreter_gas, 0);
+    }
+
+    #[test]
+    fn native_identity_switches_rebuild_the_key() {
+        let mut status = GasStatus::new_unmetered();
+        let hash = native_id(AccountAddress::TWO, "hash");
+        let tx_context = native_id(AccountAddress::TWO, "tx_context");
+
+        status.record_native_function_identity(&hash, "keccak256");
+        status.record_native_input_bytes(5);
+        // Same identity again: the cached key must still attribute correctly.
+        status.record_native_function_identity(&hash, "keccak256");
+        status.record_native_input_bytes(7);
+        // Same module, different function.
+        status.record_native_function_identity(&hash, "blake2b256");
+        status.record_native_input_bytes(1);
+        status.record_native_function_identity(&tx_context, "fresh_id");
+        status.record_native_input_bytes(2);
+        // Back to the first identity.
+        status.record_native_function_identity(&hash, "keccak256");
+        status.record_native_input_bytes(3);
+
+        let profile = status.resource_profile();
+        assert_eq!(
+            profile
+                .native_input_bytes_by_function
+                .get("0x2::hash::keccak256"),
+            Some(&15)
+        );
+        assert_eq!(
+            profile
+                .native_input_bytes_by_function
+                .get("0x2::hash::blake2b256"),
+            Some(&1)
+        );
+        assert_eq!(
+            profile
+                .native_input_bytes_by_function
+                .get("0x2::tx_context::fresh_id"),
+            Some(&2)
+        );
+        // Input recorded but no charge completed: no call to report.
+        assert!(profile.native_calls_by_function.is_empty());
+        assert!(profile.native_gas_by_function.is_empty());
     }
 }

@@ -267,7 +267,7 @@ pub mod checked {
                 protocol_config.dynamic_field_borrow_child_object_type_cost_per_byte() as usize;
             let cost_per_owner = bytes_read_per_owner * cost_per_byte;
             let owner_cost = cost_per_owner * (num_non_gas_coin_owners as usize);
-            self.gas_status.charge_storage_read(owner_cost)
+            self.gas_status.charge_coin_transfers(owner_cost)
         }
 
         /// Resets any mutations, deletions, and events recorded in the store,

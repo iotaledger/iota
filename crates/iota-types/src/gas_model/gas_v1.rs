@@ -507,6 +507,15 @@ mod checked {
                 })
         }
 
+        fn charge_coin_transfers(&mut self, size: usize) -> Result<(), ExecutionError> {
+            self.gas_status
+                .charge_coin_transfer_bytes(size, self.cost_table.object_read_per_byte_cost)
+                .map_err(|e| {
+                    debug_assert_eq!(e.major_status(), StatusCode::OUT_OF_GAS);
+                    ExecutionErrorKind::InsufficientGas.into()
+                })
+        }
+
         /// Update `storage_rebate` and `storage_gas_units` for each object in
         /// the transaction. There is no charge in this function.
         /// Charges will all be applied together at the end
