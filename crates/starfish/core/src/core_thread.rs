@@ -579,7 +579,10 @@ pub(crate) mod tests {
 
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use tokio::time::{Instant, timeout};
+    use tokio::{
+        sync::Notify,
+        time::{Instant, timeout},
+    };
 
     use super::*;
     use crate::{
@@ -594,6 +597,7 @@ pub(crate) mod tests {
         leader_schedule::LeaderSchedule,
         storage::{Store, WriteBatch, mem_store::MemStore},
         transaction::{TransactionClient, TransactionConsumer},
+        transaction_ref::TransactionRef,
     };
 
     // TODO: complete the Mock for thread dispatcher to be used from several tests
@@ -607,9 +611,42 @@ pub(crate) mod tests {
         quorum_subscribers_exists: Mutex<bool>,
         reinitialize_components_calls: Mutex<usize>,
         reinitialize_components_should_fail: Mutex<bool>,
+        transactions: Mutex<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>>,
+        /// Reported by `get_missing_transaction_data` until delivered.
+        missing_transactions: Mutex<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
+        /// When set, `get_missing_transaction_data` signals
+        /// `missing_transactions_query_entered` and never answers.
+        block_missing_transactions_queries: Mutex<bool>,
+        missing_transactions_query_entered: Notify,
     }
 
     impl MockCoreThreadDispatcher {
+        pub(crate) fn fetched_transactions(&self) -> Vec<CommitmentVerifiedTransactions> {
+            self.transactions.lock().values().cloned().collect()
+        }
+
+        pub(crate) fn fetched_count(&self) -> usize {
+            self.transactions.lock().len()
+        }
+
+        pub(crate) fn stub_missing_transactions(
+            &self,
+            missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        ) {
+            *self.missing_transactions.lock() = missing_transactions;
+        }
+
+        /// Makes every `get_missing_transaction_data` call block forever, as
+        /// a core thread with a long queue would.
+        pub(crate) fn block_missing_transactions_queries(&self) {
+            *self.block_missing_transactions_queries.lock() = true;
+        }
+
+        /// Waits until a `get_missing_transaction_data` call is blocked.
+        pub(crate) async fn missing_transactions_query_entered(&self) {
+            self.missing_transactions_query_entered.notified().await;
+        }
+
         pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
             let mut blocks = self.blocks.lock();
             blocks.drain(0..).collect()
@@ -697,10 +734,17 @@ pub(crate) mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<CommitmentVerifiedTransactions>,
+            transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            let mut missing = self.missing_transactions.lock();
+            let mut delivered = self.transactions.lock();
+            for transaction in transactions {
+                let transaction_ref = transaction.transaction_ref();
+                missing.remove(&GenericTransactionRef::from(transaction_ref));
+                delivered.entry(transaction_ref).or_insert(transaction);
+            }
+            Ok(())
         }
 
         async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
@@ -710,7 +754,11 @@ pub(crate) mod tests {
         async fn get_missing_transaction_data(
             &self,
         ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            Ok(BTreeMap::new())
+            if *self.block_missing_transactions_queries.lock() {
+                self.missing_transactions_query_entered.notify_one();
+                std::future::pending::<()>().await;
+            }
+            Ok(self.missing_transactions.lock().clone())
         }
 
         async fn add_certified_commits(

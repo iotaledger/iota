@@ -193,10 +193,7 @@ pub struct Parameters {
     /// Prefer more responsive peers when the transactions synchronizer, the
     /// commit syncer and the header synchronizer select peers to fetch from.
     /// Responses are verified the same way regardless, so it cannot affect
-    /// safety. Enabled by default; disabling it restores the previous
-    /// selection: for the transactions synchronizer a uniform random order
-    /// that excludes the most recently failed peers (up to less than f+1 by
-    /// stake), and for the commit syncer and the header synchronizer a uniform
+    /// safety. Enabled by default; disabling it selects peers in a uniform
     /// random order.
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,
