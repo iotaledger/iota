@@ -597,6 +597,7 @@ pub(crate) mod tests {
         leader_schedule::LeaderSchedule,
         storage::{Store, WriteBatch, mem_store::MemStore},
         transaction::{TransactionClient, TransactionConsumer},
+        transaction_ref::TransactionRef,
     };
 
     // TODO: complete the Mock for thread dispatcher to be used from several tests
@@ -610,23 +611,24 @@ pub(crate) mod tests {
         quorum_subscribers_exists: Mutex<bool>,
         reinitialize_components_calls: Mutex<usize>,
         reinitialize_components_should_fail: Mutex<bool>,
-        transactions: Mutex<Vec<CommitmentVerifiedTransactions>>,
+        transactions: Mutex<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>>,
+        /// Reported by `get_missing_transaction_data` until delivered.
         missing_transactions: Mutex<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
         /// When set, `get_missing_transaction_data` signals
-        /// `missing_transactions_query_entered` and waits to be notified
-        /// before answering.
-        missing_transactions_gate: Mutex<Option<Arc<Notify>>>,
+        /// `missing_transactions_query_entered` and never answers.
+        block_missing_transactions_queries: Mutex<bool>,
         missing_transactions_query_entered: Notify,
     }
 
     impl MockCoreThreadDispatcher {
-        /// The transactions delivered so far, in delivery order.
         pub(crate) fn fetched_transactions(&self) -> Vec<CommitmentVerifiedTransactions> {
-            self.transactions.lock().clone()
+            self.transactions.lock().values().cloned().collect()
         }
 
-        /// The missing transactions `get_missing_transaction_data` reports,
-        /// minus the ones delivered since.
+        pub(crate) fn fetched_count(&self) -> usize {
+            self.transactions.lock().len()
+        }
+
         pub(crate) fn stub_missing_transactions(
             &self,
             missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
@@ -634,16 +636,13 @@ pub(crate) mod tests {
             *self.missing_transactions.lock() = missing_transactions;
         }
 
-        /// Blocks every `get_missing_transaction_data` call until the returned
-        /// notify is triggered.
-        pub(crate) fn block_missing_transactions_queries(&self) -> Arc<Notify> {
-            let gate = Arc::new(Notify::new());
-            *self.missing_transactions_gate.lock() = Some(gate.clone());
-            gate
+        /// Makes every `get_missing_transaction_data` call block forever, as
+        /// a core thread with a long queue would.
+        pub(crate) fn block_missing_transactions_queries(&self) {
+            *self.block_missing_transactions_queries.lock() = true;
         }
 
-        /// Waits until a blocked `get_missing_transaction_data` call is
-        /// waiting on the gate.
+        /// Waits until a `get_missing_transaction_data` call is blocked.
         pub(crate) async fn missing_transactions_query_entered(&self) {
             self.missing_transactions_query_entered.notified().await;
         }
@@ -738,14 +737,12 @@ pub(crate) mod tests {
             transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
+            let mut missing = self.missing_transactions.lock();
             let mut delivered = self.transactions.lock();
             for transaction in transactions {
-                if !delivered
-                    .iter()
-                    .any(|t| t.transaction_ref() == transaction.transaction_ref())
-                {
-                    delivered.push(transaction);
-                }
+                let transaction_ref = transaction.transaction_ref();
+                missing.remove(&GenericTransactionRef::from(transaction_ref));
+                delivered.entry(transaction_ref).or_insert(transaction);
             }
             Ok(())
         }
@@ -757,24 +754,11 @@ pub(crate) mod tests {
         async fn get_missing_transaction_data(
             &self,
         ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
-            let gate = self.missing_transactions_gate.lock().clone();
-            if let Some(gate) = gate {
+            if *self.block_missing_transactions_queries.lock() {
                 self.missing_transactions_query_entered.notify_one();
-                gate.notified().await;
+                std::future::pending::<()>().await;
             }
-            let delivered: BTreeSet<GenericTransactionRef> = self
-                .transactions
-                .lock()
-                .iter()
-                .map(|t| GenericTransactionRef::from(t.transaction_ref()))
-                .collect();
-            Ok(self
-                .missing_transactions
-                .lock()
-                .iter()
-                .filter(|(tx_ref, _)| !delivered.contains(tx_ref))
-                .map(|(tx_ref, authorities)| (*tx_ref, authorities.clone()))
-                .collect())
+            Ok(self.missing_transactions.lock().clone())
         }
 
         async fn add_certified_commits(
