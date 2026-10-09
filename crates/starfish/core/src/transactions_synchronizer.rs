@@ -16,9 +16,7 @@ use iota_metrics::{
     monitored_scope,
 };
 use parking_lot::{Mutex, RwLock};
-#[cfg(not(test))]
-use rand::seq::SliceRandom;
-use rand::{SeedableRng, rng, rngs::StdRng};
+use rand::{SeedableRng, rng, rngs::StdRng, seq::SliceRandom};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::mpsc::error::TrySendError,
@@ -28,10 +26,9 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    Round,
     block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
-    commit_syncer::verify_transactions_commitments,
+    commit_syncer::{shortfall_factor, verify_transactions_commitments},
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
@@ -98,6 +95,7 @@ struct FetchStats {
 /// `MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION` peers fetch the same transaction
 /// at a time, and each peer serves at most
 /// `MAX_CONCURRENT_REQUESTS_PER_AUTHORITY` requests per sync method.
+#[derive(Default)]
 struct InflightTransactionsMap {
     inner: Mutex<InflightState>,
 }
@@ -111,12 +109,6 @@ struct InflightState {
 }
 
 impl InflightTransactionsMap {
-    fn new() -> Arc<Self> {
-        Arc::new(Self {
-            inner: Mutex::new(InflightState::default()),
-        })
-    }
-
     /// Locks up to `max_transactions` of `missing_transaction_refs` for
     /// `peer`, skipping those enough other peers are already fetching. Returns
     /// `None` when `peer` has too many requests in flight or nothing could be
@@ -162,7 +154,7 @@ impl InflightTransactionsMap {
     }
 
     #[cfg(test)]
-    fn num_of_locked_transactions(self: &Arc<Self>) -> usize {
+    fn num_of_locked_transactions(&self) -> usize {
         self.inner.lock().fetching_peers.len()
     }
 }
@@ -192,12 +184,10 @@ impl Drop for TransactionsGuard {
                 state.fetching_peers.remove(tx_ref);
             }
         }
-        if let Some(active_requests) = state
+        *state
             .active_requests
             .get_mut(&(self.peer, self.sync_method))
-        {
-            *active_requests = active_requests.saturating_sub(1);
-        }
+            .expect("a locked request is counted for its peer") -= 1;
     }
 }
 
@@ -268,16 +258,10 @@ fn transaction_refs(
 ///    them via a scheduler. This retrieves the missing transactions that were not fetched via the
 ///    live synchronization.
 pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
-    inner: Arc<Inner<C, D>>,
-    dag_state: Arc<RwLock<DagState>>,
-    periodic_tasks: JoinSet<()>,
-}
-
-/// The state shared by the live and the periodic fetch tasks.
-struct Inner<C: NetworkClient, D: CoreThreadDispatcher> {
     context: Arc<Context>,
     network_client: Arc<C>,
     core_dispatcher: Arc<D>,
+    dag_state: Arc<RwLock<DagState>>,
     /// Applies the same transaction limit and batch verification checks to
     /// fetched payloads as the direct block-bundle route.
     block_verifier: Arc<dyn BlockVerifier>,
@@ -299,32 +283,24 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         block_verifier: Arc<dyn BlockVerifier>,
     ) -> Arc<TransactionsSynchronizerHandle> {
         let misbehavior_store = dag_state.read().misbehavior_store().clone();
-        let inner = Arc::new(Inner {
+        let synchronizer = Arc::new(Self {
             context,
             network_client,
             core_dispatcher,
+            dag_state,
             block_verifier,
             misbehavior_store,
-            inflight_transactions_map: InflightTransactionsMap::new(),
+            inflight_transactions_map: Arc::default(),
         });
 
         let (live_fetch_sender, live_fetch_receiver) = channel(
             "consensus_transactions_synchronizer_live_fetches",
             LIVE_FETCH_TRANSACTIONS_CONCURRENCY,
         );
-
         let mut tasks = JoinSet::new();
-        let live_fetcher = Self::live_fetcher(inner.clone(), live_fetch_receiver);
+        let live_fetcher = synchronizer.clone().live_fetcher(live_fetch_receiver);
         tasks.spawn(monitored_future!(live_fetcher));
-
-        tasks.spawn(monitored_future!(async move {
-            let mut synchronizer = Self {
-                inner,
-                dag_state,
-                periodic_tasks: JoinSet::new(),
-            };
-            synchronizer.run().await;
-        }));
+        tasks.spawn(monitored_future!(synchronizer.run()));
 
         Arc::new(TransactionsSynchronizerHandle {
             live_fetch_requests: live_fetch_sender,
@@ -335,28 +311,47 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// Runs the periodic scheduler: on every tick, while fewer than
     /// `PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY` periodic fetches are
     /// running, asks the core for the missing transactions and fetches them.
-    #[cfg_attr(test, tracing::instrument(skip_all, name = "", fields(authority = %self.inner.context.own_index
+    /// Returns when the core shuts down.
+    #[cfg_attr(test, tracing::instrument(skip_all, name = "", fields(authority = %self.context.own_index
     )))]
-    async fn run(&mut self) {
+    async fn run(self: Arc<Self>) {
+        let mut tasks = JoinSet::new();
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
         tokio::pin!(scheduler_timeout);
 
         loop {
             tokio::select! {
-                Some(result) = self.periodic_tasks.join_next(), if !self.periodic_tasks.is_empty() => {
+                Some(result) = tasks.join_next(), if !tasks.is_empty() => {
                     resume_if_panicked(result);
                 },
                 () = &mut scheduler_timeout => {
                     let mut next_tick = TRANSACTIONS_SYNCHRONIZER_TIMEOUT;
-                    if self.periodic_tasks.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
-                        match self.start_fetch_missing_transactions_task().await {
-                            // Retry sooner while there is something to fetch.
-                            Ok(true) => next_tick /= 2,
-                            Ok(false) => {}
+                    if tasks.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
+                        let missing_transactions = match self.missing_transactions().await {
+                            Ok(missing_transactions) => missing_transactions,
                             Err(err) => {
                                 debug!("Core is shutting down, transactions synchronizer is shutting down: {err:?}");
                                 return;
                             }
+                        };
+                        if !missing_transactions.is_empty() {
+                            // Retry sooner while there is something to fetch.
+                            next_tick /= 2;
+                            let synchronizer = self.clone();
+                            tasks.spawn(monitored_future!(async move {
+                                let _scope = monitored_scope("FetchMissingTransactionsScheduler");
+                                fail_point_async!("consensus-delay");
+                                let _inflight = GaugeGuard::acquire(
+                                    &synchronizer
+                                        .context
+                                        .metrics
+                                        .node_metrics
+                                        .transactions_synchronizer_periodic_inflight,
+                                );
+                                synchronizer
+                                    .fetch_from_authorities(missing_transactions, SyncMethod::Periodic)
+                                    .await;
+                            }));
                         }
                     }
                     scheduler_timeout.as_mut().reset(Instant::now() + next_tick);
@@ -369,7 +364,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// `LIVE_FETCH_TRANSACTIONS_CONCURRENCY` at a time. Returns once the
     /// handle is dropped.
     async fn live_fetcher(
-        inner: Arc<Inner<C, D>>,
+        self: Arc<Self>,
         mut receiver: Receiver<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
     ) {
         let mut tasks = JoinSet::new();
@@ -380,9 +375,9 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         info!("Live fetcher task will now abort.");
                         return;
                     };
-                    let inner = inner.clone();
+                    let synchronizer = self.clone();
                     tasks.spawn(async move {
-                        inner
+                        synchronizer
                             .fetch_from_authorities(missing_transactions, SyncMethod::Live)
                             .await;
                     });
@@ -394,12 +389,14 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         }
     }
 
-    /// Asks the core for the missing transactions and spawns a periodic fetch
-    /// for them. Returns whether a fetch was spawned; fails only when the
-    /// core is shutting down.
-    async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<bool> {
+    /// Asks the core for the missing transactions and publishes the gap to
+    /// the earliest unavailable one and the per-authority counts, so they
+    /// read zero once nothing is missing. Fails only when the core is
+    /// shutting down; a ref of the wrong kind skips this tick.
+    async fn missing_transactions(
+        &self,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>> {
         let missing_transactions = self
-            .inner
             .core_dispatcher
             .get_missing_transaction_data()
             .await
@@ -408,56 +405,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             Ok(missing_transactions) => missing_transactions,
             Err(err) => {
                 warn!("Skipping the periodic transaction fetch: {err}");
-                return Ok(false);
+                return Ok(BTreeMap::new());
             }
         };
 
-        let accepted_round = self.dag_state.read().highest_accepted_round();
-        self.inner
-            .record_missing_transactions(&missing_transactions, accepted_round);
-        if missing_transactions.is_empty() {
-            return Ok(false);
-        }
-
-        let inner = self.inner.clone();
-        self.periodic_tasks.spawn(monitored_future!(async move {
-            let _scope = monitored_scope("FetchMissingTransactionsScheduler");
-            fail_point_async!("consensus-delay");
-            let _inflight = GaugeGuard::acquire(
-                &inner
-                    .context
-                    .metrics
-                    .node_metrics
-                    .transactions_synchronizer_periodic_inflight,
-            );
-            inner
-                .fetch_from_authorities(missing_transactions, SyncMethod::Periodic)
-                .await;
-        }));
-        Ok(true)
-    }
-}
-
-/// Re-raises a panic from a fetch task; a cancelled task is expected on
-/// shutdown.
-fn resume_if_panicked(result: Result<(), JoinError>) {
-    if let Err(err) = result {
-        if err.is_panic() {
-            std::panic::resume_unwind(err.into_panic());
-        }
-    }
-}
-
-impl<C: NetworkClient, D: CoreThreadDispatcher> Inner<C, D> {
-    /// Publishes the gap to the earliest unavailable transaction and the
-    /// per-authority missing counts, so they read zero once nothing is
-    /// missing.
-    fn record_missing_transactions(
-        &self,
-        missing_transactions: &BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
-        accepted_round: Round,
-    ) {
         let metrics = &self.context.metrics.node_metrics;
+        let accepted_round = self.dag_state.read().highest_accepted_round();
         let earliest_unavailable_round = missing_transactions
             .first_key_value()
             .map(|(tx_ref, _)| tx_ref.round)
@@ -475,15 +428,18 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> Inner<C, D> {
             .zip(self.context.committee.authorities())
         {
             let hostname = authority.hostname.as_str();
-            metrics
-                .transactions_synchronizer_missing_transactions_by_authority
-                .with_label_values(&[hostname])
-                .inc_by(missing);
+            if missing > 0 {
+                metrics
+                    .transactions_synchronizer_missing_transactions_by_authority
+                    .with_label_values(&[hostname])
+                    .inc_by(missing);
+            }
             metrics
                 .transactions_synchronizer_current_missing_transactions_by_authority
                 .with_label_values(&[hostname])
                 .set(missing as i64);
         }
+        Ok(missing_transactions)
     }
 
     /// Fetches the missing transactions from the authorities that acknowledged
@@ -513,8 +469,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> Inner<C, D> {
         // Responsive acknowledgers are tried first when ranking is enabled;
         // a peer whose last fetch failed is ordered behind the healthy
         // candidates rather than dropped. Without ranking the order is
-        // uniform, and the committee order under test so scenarios stay
-        // deterministic.
+        // uniform.
         let mut rng = StdRng::from_rng(&mut rng());
         let mut order: Vec<AuthorityIndex> =
             transaction_refs_by_authority.keys().copied().collect();
@@ -525,7 +480,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> Inner<C, D> {
                 &mut rng,
             );
         } else {
-            #[cfg(not(test))]
             order.shuffle(&mut rng);
         }
 
@@ -566,34 +520,28 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> Inner<C, D> {
         while let Some((peer, result)) = request_futures.next().await {
             match result {
                 Ok(stats) if stats.matched_requested > 0 => {
-                    let shortfall_factor =
-                        (stats.requested as f64 / stats.matched_requested as f64).max(1.0);
+                    let latency = stats
+                        .latency
+                        .mul_f64(shortfall_factor(stats.requested, stats.matched_requested))
+                        .min(FETCH_REQUEST_TIMEOUT);
                     context.peer_responsiveness.record_success(
                         DataSource::TransactionSynchronizer,
                         peer,
-                        stats
-                            .latency
-                            .mul_f64(shortfall_factor)
-                            .min(FETCH_REQUEST_TIMEOUT),
+                        latency,
                     );
                 }
-                Ok(_) => {
+                other => {
                     context.peer_responsiveness.record_failure_with_timeout(
                         DataSource::TransactionSynchronizer,
                         peer,
                         FETCH_REQUEST_TIMEOUT,
                     );
-                }
-                Err(err) => {
-                    context.peer_responsiveness.record_failure_with_timeout(
-                        DataSource::TransactionSynchronizer,
-                        peer,
-                        FETCH_REQUEST_TIMEOUT,
-                    );
-                    warn!(
-                        "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
-                        sync_method.as_str(),
-                    );
+                    if let Err(err) = other {
+                        warn!(
+                            "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
+                            sync_method.as_str(),
+                        );
+                    }
                 }
             }
         }
@@ -724,18 +672,19 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> Inner<C, D> {
 
         // Deserialization, commitment checks and the transaction batch
         // verification run on the blocking pool.
-        let transactions = spawn_blocking({
-            let inner = self.clone();
-            let requested_transactions_refs = transactions_guard.transactions_refs.clone();
+        let (transactions, transactions_guard) = spawn_blocking({
+            let synchronizer = self.clone();
             move || {
-                inner.verify_fetched_transactions(
+                let transactions = synchronizer.verify_fetched_transactions(
                     serialized_transactions_vec,
-                    &requested_transactions_refs,
+                    &transactions_guard.transactions_refs,
                     peer,
-                )
+                );
+                (transactions, transactions_guard)
             }
         })
-        .await??;
+        .await?;
+        let transactions = transactions?;
 
         let peer_hostname = self.context.committee.authority(peer).hostname.as_str();
         metrics
@@ -864,6 +813,16 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> Inner<C, D> {
     }
 }
 
+/// Re-raises a panic from a fetch task; a cancelled task is expected on
+/// shutdown.
+fn resume_if_panicked(result: Result<(), JoinError>) {
+    if let Err(err) = result {
+        if err.is_panic() {
+            std::panic::resume_unwind(err.into_panic());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -876,6 +835,7 @@ mod tests {
     use super::*;
     use crate::{
         Round, TestBlockHeader, Transaction,
+        authority_service::serialize_transactions_entry,
         block_header::{
             BlockRef, CommitmentVerifiedTransactions, TransactionsCommitment, VerifiedBlockHeader,
         },
@@ -961,18 +921,17 @@ mod tests {
             blocks
                 .into_iter()
                 .map(|(round, author, transactions)| {
-                    let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                    let commitment = TransactionsCommitment::compute_transactions_commitment(
-                        &serialized,
-                        &self.context,
-                        &mut encoder,
-                    )
-                    .unwrap();
                     let header = VerifiedBlockHeader::new_for_test(
-                        TestBlockHeader::new(round, author)
-                            .set_commitment(commitment)
-                            .build(),
+                        TestBlockHeader::with_transactions(
+                            round,
+                            author,
+                            transactions.clone(),
+                            &self.context,
+                            &mut encoder,
+                        )
+                        .build(),
                     );
+                    let serialized = Transaction::serialize(&transactions).unwrap();
                     let transactions = CommitmentVerifiedTransactions::new(
                         transactions,
                         header.transaction_ref(),
@@ -994,13 +953,6 @@ mod tests {
                 .accept_block_headers(headers, DataSource::Test);
         }
 
-        /// Serves `payloads` from `peer` and makes the core report them
-        /// missing, so the periodic scheduler retries what the live fetch
-        /// misses.
-        fn serve(&self, peer: u8, payloads: &[Payload]) {
-            self.network_client.serve(peer, payloads);
-        }
-
         fn misbehavior_counts(&self, authority: u8) -> (u64, u64) {
             let counts = self.dag_state.read().misbehavior_store().snapshot_totals();
             let counts = counts[AuthorityIndex::new_for_test(authority).value()].as_v2();
@@ -1010,10 +962,9 @@ mod tests {
             )
         }
 
-        /// Waits for `expected` transactions to reach the core and returns
-        /// whatever arrived by the deadline.
+        /// Waits for `expected` transactions to reach the core.
         async fn wait_for_fetched(&self, expected: usize) -> Vec<CommitmentVerifiedTransactions> {
-            wait_until(|| self.core_dispatcher.fetched_transactions().len() >= expected).await;
+            wait_until(|| self.core_dispatcher.fetched_count() >= expected).await;
             self.core_dispatcher.fetched_transactions()
         }
 
@@ -1022,10 +973,14 @@ mod tests {
         }
     }
 
-    /// Polls `condition` every 10 ms until it holds or the deadline passes.
+    /// Polls `condition` every 10 ms until it holds; panics at the deadline.
     async fn wait_until(mut condition: impl FnMut() -> bool) {
         let deadline = Instant::now() + WAIT_DEADLINE;
-        while !condition() && Instant::now() < deadline {
+        while !condition() {
+            assert!(
+                Instant::now() < deadline,
+                "condition not met within {WAIT_DEADLINE:?}"
+            );
             sleep(Duration::from_millis(10)).await;
         }
     }
@@ -1067,7 +1022,7 @@ mod tests {
         let payloads = fixture.payloads(&[(1, 0), (2, 1), (3, 2)]);
         let missing = missing(&payloads, &[1, 2]);
         fixture.network_client.set_behavior(1, behavior);
-        fixture.serve(2, &payloads);
+        fixture.network_client.serve(2, &payloads);
         fixture
             .core_dispatcher
             .stub_missing_transactions(missing.clone());
@@ -1084,7 +1039,7 @@ mod tests {
     async fn successful_live_syncing() {
         let fixture = Fixture::new(4);
         let payloads = fixture.payloads(&[(1, 1), (2, 1), (3, 2)]);
-        fixture.serve(1, &payloads);
+        fixture.network_client.serve(1, &payloads);
         fixture.accept_headers(&payloads);
 
         fixture
@@ -1114,7 +1069,7 @@ mod tests {
         let fixture = Fixture::start(context, block_verifier);
         let author = 1;
         let payloads = fixture.payloads_with([(1, author, vec![Transaction::new(vec![0u8; 2])])]);
-        fixture.serve(author, &payloads);
+        fixture.network_client.serve(author, &payloads);
         fixture.accept_headers(&payloads);
 
         // WHEN
@@ -1122,14 +1077,13 @@ mod tests {
             .handle
             .fetch_transactions(missing(&payloads, &[author]))
             .unwrap();
-        sleep(Duration::from_millis(500)).await;
+        wait_until(|| fixture.misbehavior_counts(author).0 >= 1).await;
 
-        // THEN the payload never reaches Core, so it can never be
-        // acknowledged, and the author is charged for the provably invalid
-        // payload. The peer is not charged separately when it is also the
-        // author.
-        assert!(fixture.core_dispatcher.fetched_transactions().is_empty());
+        // THEN the author is charged for the provably invalid payload, not
+        // separately as the peer, and the payload never reaches Core, so it
+        // can never be acknowledged.
         assert_eq!(fixture.misbehavior_counts(author), (1, 0));
+        assert!(fixture.core_dispatcher.fetched_transactions().is_empty());
         fixture.stop().await;
     }
 
@@ -1152,12 +1106,10 @@ mod tests {
 
         // WHEN the peer returns more transactions than requested.
         fixture.handle.fetch_transactions(missing).unwrap();
-        wait_until(|| fixture.misbehavior_counts(peer).1 >= 1).await;
+        wait_until(|| fixture.misbehavior_counts(peer).1 == 1).await;
 
-        // THEN nothing reaches the core and the serving peer is charged an
-        // unprovable fault.
+        // THEN nothing reaches the core.
         assert!(fixture.core_dispatcher.fetched_transactions().is_empty());
-        assert_eq!(fixture.misbehavior_counts(peer).1, 1);
         fixture.stop().await;
     }
 
@@ -1207,29 +1159,10 @@ mod tests {
     /// once its request times out.
     #[tokio::test]
     async fn live_syncing_with_timeout_peer() {
-        let fixture = Fixture::new(4);
-        let payloads = fixture.payloads(&[(1, 0), (2, 1), (3, 2)]);
-        let missing = missing(&payloads, &[1, 2]);
-        fixture
-            .network_client
-            .set_behavior(1, PeerBehavior::Timeout);
-        fixture.serve(2, &payloads);
-        fixture
-            .core_dispatcher
-            .stub_missing_transactions(missing.clone());
-        fixture.accept_headers(&payloads);
-
-        // WHEN
         let started = Instant::now();
-        fixture.handle.fetch_transactions(missing).unwrap();
-
-        // THEN peer 2 delivers well before peer 1's request times out.
-        let fetched = fixture.wait_for_fetched(payloads.len()).await;
-        assert_all_fetched(&fetched, &payloads);
+        let fixture = fetches_despite_bad_peer(PeerBehavior::Timeout, false).await;
         assert!(started.elapsed() < FETCH_REQUEST_TIMEOUT);
 
-        // AND once the request times out, peer 1 is recorded as failed with a
-        // timeout-scale latency.
         let timed_out_peer = AuthorityIndex::new_for_test(1);
         let timeouts = fixture
             .context
@@ -1246,21 +1179,13 @@ mod tests {
                 SyncMethod::Live.as_str(),
                 "timeout",
             ]);
-        wait_until(|| timeouts.get() >= 1).await;
-        assert_eq!(timeouts.get(), 1);
+        wait_until(|| timeouts.get() == 1).await;
         let latency = fixture
             .context
             .peer_responsiveness
             .effective_latency_ms(DataSource::TransactionSynchronizer, timed_out_peer)
             .expect("the timed-out peer has a recorded latency");
         assert!(latency >= FETCH_REQUEST_TIMEOUT.as_millis() as f64);
-        fixture.stop().await;
-    }
-
-    #[tokio::test]
-    async fn live_syncing_with_error_peer() {
-        let error = ConsensusError::NetworkRequest("Test error".to_string());
-        let fixture = fetches_despite_bad_peer(PeerBehavior::Error(error), false).await;
         fixture.stop().await;
     }
 
@@ -1276,8 +1201,7 @@ mod tests {
 
         // The corrupted peer is charged an unprovable fault for serving
         // undeserializable bytes.
-        wait_until(|| fixture.misbehavior_counts(1).1 >= 1).await;
-        assert_eq!(fixture.misbehavior_counts(1).1, 1);
+        wait_until(|| fixture.misbehavior_counts(1).1 == 1).await;
         fixture.stop().await;
     }
 
@@ -1313,7 +1237,7 @@ mod tests {
         let payloads = fixture.payloads(&[(1, 0), (2, 1), (3, 2)]);
         let unrequested = fixture.payloads(&[(9, 3)]);
         let peer = 1;
-        fixture.serve(peer, &payloads[..1]);
+        fixture.network_client.serve(peer, &payloads[..1]);
         fixture.network_client.serve_unrequested(peer, &unrequested);
         fixture.accept_headers(&payloads);
 
@@ -1322,12 +1246,10 @@ mod tests {
             .handle
             .fetch_transactions(missing(&payloads, &[peer]))
             .unwrap();
-        wait_until(|| fixture.misbehavior_counts(peer).1 >= 1).await;
+        wait_until(|| fixture.misbehavior_counts(peer).1 == 1).await;
 
-        // THEN nothing reaches the core, the serving peer is charged an
-        // unprovable fault and the named author is not blamed.
+        // THEN nothing reaches the core and the named author is not blamed.
         assert!(fixture.core_dispatcher.fetched_transactions().is_empty());
-        assert_eq!(fixture.misbehavior_counts(peer).1, 1);
         assert_eq!(fixture.misbehavior_counts(3), (0, 0));
         fixture.stop().await;
     }
@@ -1361,13 +1283,13 @@ mod tests {
     #[tokio::test]
     async fn live_fetch_proceeds_while_periodic_core_query_is_blocked() {
         let fixture = Fixture::new(4);
-        let gate = fixture.core_dispatcher.block_missing_transactions_queries();
+        fixture.core_dispatcher.block_missing_transactions_queries();
         fixture
             .core_dispatcher
             .missing_transactions_query_entered()
             .await;
         let payloads = fixture.payloads(&[(1, 1)]);
-        fixture.serve(2, &payloads);
+        fixture.network_client.serve(2, &payloads);
         fixture.accept_headers(&payloads);
 
         fixture
@@ -1377,7 +1299,6 @@ mod tests {
 
         let fetched = fixture.wait_for_fetched(payloads.len()).await;
         assert_all_fetched(&fetched, &payloads);
-        gate.notify_one();
         fixture.stop().await;
     }
 
@@ -1389,7 +1310,7 @@ mod tests {
         let author = 1;
         let payloads = fixture.payloads(&[(1, author), (2, author)]);
         let missing = missing(&payloads, &[2]);
-        fixture.serve(2, &payloads);
+        fixture.network_client.serve(2, &payloads);
         fixture.core_dispatcher.stub_missing_transactions(missing);
         fixture.accept_headers(&payloads);
         let gauge = fixture
@@ -1407,11 +1328,9 @@ mod tests {
         // The scheduler reports the payloads missing and fetches them; the
         // next tick finds nothing missing.
         wait_until(|| gauge.get() == payloads.len() as i64).await;
-        assert_eq!(gauge.get(), payloads.len() as i64);
         let fetched = fixture.wait_for_fetched(payloads.len()).await;
         assert_all_fetched(&fetched, &payloads);
         wait_until(|| gauge.get() == 0).await;
-        assert_eq!(gauge.get(), 0);
         fixture.stop().await;
     }
 
@@ -1420,7 +1339,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN
-        let map = InflightTransactionsMap::new();
+        let map = Arc::new(InflightTransactionsMap::default());
         let sync_method = SyncMethod::Periodic;
 
         let context = Context::new_for_test(10).0;
@@ -1548,12 +1467,13 @@ mod tests {
         }
     }
 
+    /// The fetch-response entry the authority service would serve.
     fn serialize(transactions: &CommitmentVerifiedTransactions) -> Bytes {
-        let serialized_transactions = SerializedTransactionsV2 {
-            transaction_ref: transactions.transaction_ref(),
-            serialized_transactions: transactions.serialized().clone(),
-        };
-        bcs::to_bytes(&serialized_transactions).unwrap().into()
+        serialize_transactions_entry(
+            transactions.transaction_ref(),
+            transactions.serialized().clone(),
+        )
+        .unwrap()
     }
 
     #[async_trait]

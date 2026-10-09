@@ -965,7 +965,7 @@ fn take_oversized_commit_slot(
 
 /// Wraps a payload and its ref into the entry a transaction-fetch response
 /// carries.
-fn serialize_transactions_entry(
+pub(crate) fn serialize_transactions_entry(
     transaction_ref: TransactionRef,
     serialized_transactions: Bytes,
 ) -> ConsensusResult<Bytes> {
