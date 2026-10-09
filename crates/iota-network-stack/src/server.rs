@@ -251,8 +251,8 @@ mod test {
         time::Duration,
     };
 
-    use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
     use iota_metrics::test_utils::MetricsReader;
+    use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
     use tonic::Code;
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
@@ -293,14 +293,14 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -312,7 +312,7 @@ mod test {
             .connect(
                 &address,
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),
@@ -378,7 +378,7 @@ mod test {
         let registry = prometheus_filtered::Registry::new();
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
         let server = config
             .server_builder()
             .listener_metrics(iota_http::metrics::ListenerMetrics::new(
@@ -389,7 +389,7 @@ mod test {
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -400,7 +400,7 @@ mod test {
             .connect(
                 server.local_addr(),
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),
@@ -462,14 +462,14 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -480,7 +480,7 @@ mod test {
             .connect(
                 &address,
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),
@@ -505,14 +505,14 @@ mod test {
 
     async fn test_multiaddr(address: Multiaddr) {
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
 
         let server_handle = config
             .server_builder()
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -523,7 +523,7 @@ mod test {
             .connect(
                 &address,
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),

@@ -63,11 +63,7 @@ async fn test_simple_request() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state
-            .config
-            .network_key_pair()
-            .public()
-            .to_owned(),
+        authority_state.config.network_key_pair().public_key(),
     )
     .await
     .unwrap();

@@ -101,6 +101,7 @@ use iota_network::{
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -1148,7 +1149,7 @@ impl IotaNode {
             let server_name = format!("iota-{chain_identifier}");
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
-                .private_key(config.network_key_pair().copy().private().0.to_bytes())
+                .private_key(config.network_key_pair().to_bytes())
                 .config(anemo_config)
                 .outbound_request_layer(outbound_layer)
                 .start(service)?;
@@ -1161,8 +1162,7 @@ impl IotaNode {
             network
         };
 
-        let discovery_handle =
-            discovery.start(p2p_network.clone(), config.network_key_pair().copy());
+        let discovery_handle = discovery.start(p2p_network.clone(), config.network_key_pair());
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
@@ -1608,7 +1608,7 @@ impl IotaNode {
                 );
 
         let tls_config = iota_tls::create_rustls_server_config(
-            config.network_key_pair().copy().private(),
+            config.network_key_pair(),
             IOTA_TLS_SERVER_NAME.to_string(),
         );
 
@@ -2940,7 +2940,7 @@ mod listener_metrics_tests {
 
     use iota_metrics::{MetricGroups, MetricLevel, test_utils::MetricsReader};
     use iota_network_stack::config::Config;
-    use iota_types::crypto::{KeypairTraits, NetworkKeyPair, get_key_pair};
+    use iota_types::crypto::{NetworkKeyPair, get_key_pair};
     use prometheus_filtered::Registry;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
@@ -2982,12 +2982,9 @@ mod listener_metrics_tests {
 
         let key_pair = get_key_pair::<NetworkKeyPair>().1;
         let tls_config =
-            iota_tls::create_rustls_server_config(key_pair.copy().private(), "test".to_string());
-        let client_config = iota_tls::create_rustls_client_config(
-            key_pair.public().to_owned(),
-            "test".to_string(),
-            None,
-        );
+            iota_tls::create_rustls_server_config(key_pair.clone(), "test".to_string());
+        let client_config =
+            iota_tls::create_rustls_client_config(key_pair.public_key(), "test".to_string(), None);
         let config = Config::new();
         let validator = ServerBuilder::from_config(&config, GrpcMetrics::new(&registry))
             .listener_metrics(validator_server_listener_metrics(&registry))
