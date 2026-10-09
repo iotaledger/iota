@@ -1,0 +1,849 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! The owned-input machine. One state per fact established about the named
+//! `(id, version)` and one transition per read, so a read cannot be skipped,
+//! repeated or taken out of order. The comparisons on what a read returned
+//! are pure functions shared by the first pass and the re-check.
+//!
+//! Both passes over the tables read the record before the row and let the
+//! row decide. The completion inserts the row and then removes the record,
+//! so a record a pass misses was removed after a row the later row read
+//! finds. The hook writes the row before the object, so a record whose base
+//! a sync-ahead execution consumed has its row in place for the row read
+//! that follows. The other order can see a record and no row, or neither,
+//! and decide from the record or the held store answer while a fresh read
+//! finds a row above the horizon.
+
+use std::cmp::Ordering;
+
+use iota_sdk_types::{ObjectReference, Version};
+use iota_types::{error::IotaResult, storage::ObjectKey};
+
+use super::{DropKind, DropReason, MissingKind, MissingReason, reader::CommitIndexedReader};
+use crate::authority::authority_per_epoch_store::handler_object_state::{
+    CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind, SyncAheadRecord,
+};
+
+// ---------------------------------------------------------------------------
+// Carrier
+// ---------------------------------------------------------------------------
+
+/// Marker for the owned machine's states.
+pub trait OwnedState {}
+
+/// One owned input being read at commit `C`. `S` is what the reader has
+/// established so far. Each state exposes only the transition the algorithm
+/// allows next, and every transition consumes the reader.
+pub struct OwnedReader<S: OwnedState> {
+    /// The `(id, version, digest)` the transaction names.
+    input: ObjectReference,
+    /// `C - K`. A row produced above it answers missing.
+    horizon: CommitIndex,
+    state: S,
+}
+
+impl<S: OwnedState> OwnedReader<S> {
+    fn into_state<T: OwnedState>(self, state: T) -> OwnedReader<T> {
+        OwnedReader {
+            input: self.input,
+            horizon: self.horizon,
+            state,
+        }
+    }
+
+    fn key(&self) -> ObjectKey {
+        ObjectKey(self.input.object_id, self.input.version)
+    }
+
+    /// Rule 1 against the current tables, `None` when no row exists at
+    /// `(id, V)`. Shared by the first pass and the re-read.
+    fn row_classification(&self, ctx: &CommitIndexedReader) -> IotaResult<Option<Classification>> {
+        Ok(ctx
+            .epoch_store
+            .handler_processed_object(&self.key())?
+            .map(|row| classify_row(&row, &self.input, self.horizon)))
+    }
+
+    /// Rule 2 against the current tables, `None` when no record exists for
+    /// `id`. Shared by the first pass and the re-read.
+    fn record_classification(
+        &self,
+        ctx: &CommitIndexedReader,
+    ) -> IotaResult<Option<Classification>> {
+        Ok(ctx
+            .epoch_store
+            .sync_ahead_record(&self.input.object_id)?
+            .map(|record| classify_record(&record, self.input.version)))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Rules 1 and 2: the sync-ahead record for id, then the row at (id, V)
+// ---------------------------------------------------------------------------
+
+/// Nothing read yet.
+pub struct Start;
+impl OwnedState for Start {}
+
+impl OwnedReader<Start> {
+    /// Begins the read of `input` at horizon `C - K`. The only constructor of
+    /// a reader in any state.
+    pub fn start(input: ObjectReference, horizon: CommitIndex) -> OwnedReader<Start> {
+        OwnedReader {
+            input,
+            horizon,
+            state: Start,
+        }
+    }
+
+    /// Overlay first, then the table. Holds what the record said. Not a
+    /// verdict: the row is read next and has precedence.
+    pub fn read_sync_ahead_record(
+        self,
+        ctx: &CommitIndexedReader,
+    ) -> IotaResult<OwnedReader<RecordRead>> {
+        let record = self.record_classification(ctx)?;
+        Ok(self.into_state(RecordRead { record }))
+    }
+}
+
+/// The sync-ahead record was read. Held until the row is read.
+pub struct RecordRead {
+    record: Option<Classification>,
+}
+impl OwnedState for RecordRead {}
+
+/// Outcome of the first pass over both tables. A row decides as in rule 1,
+/// else a record decides as in rule 2.
+#[must_use]
+pub enum TablesLookup {
+    /// A `Live` row at or below `C - K` with the named digest, or no row and
+    /// a record with `base_version == Some(V)`. Next: the bytes.
+    NeedBytes(OwnedReader<NeedBytes>),
+    /// A row above `C - K`, never skipped. Or no row and a record whose
+    /// `base_version` is `None` or below `V`.
+    Missing(MissingReason),
+    /// A tombstone row or a `Live` row with another digest. Or no row and a
+    /// record whose `base_version` is above `V`.
+    Drop(DropReason),
+    /// Not a verdict. Neither table knows `id`, so the machine continues
+    /// with the store.
+    NoEntry(OwnedReader<NoTablesEntry>),
+}
+
+impl OwnedReader<RecordRead> {
+    /// Overlay first, then the table through the cache. Decides.
+    pub fn read_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesLookup> {
+        // The row decides over the held record.
+        let Some(classification) = self.row_classification(ctx)?.or(self.state.record) else {
+            return Ok(TablesLookup::NoEntry(self.into_state(NoTablesEntry)));
+        };
+        Ok(match classification {
+            Classification::Keep => TablesLookup::NeedBytes(self.into_state(NeedBytes)),
+            Classification::Missing(reason) => TablesLookup::Missing(reason),
+            Classification::Drop(reason) => TablesLookup::Drop(reason),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Rule 3: the store, then both tables again
+// ---------------------------------------------------------------------------
+
+/// Neither table knows `id`. The store has not been asked.
+pub struct NoTablesEntry;
+impl OwnedState for NoTablesEntry {}
+
+impl OwnedReader<NoTablesEntry> {
+    /// The latest reference or tombstone of `id`. The answer is held, not
+    /// decided: both tables must be read again first.
+    pub fn read_store(self, ctx: &CommitIndexedReader) -> IotaResult<OwnedReader<StoreAnswered>> {
+        let latest = ctx
+            .cache
+            .try_get_latest_object_ref_or_tombstone(self.input.object_id)?;
+        Ok(self.into_state(StoreAnswered { latest }))
+    }
+}
+
+/// The store answered with the latest reference, a tombstone, or nothing.
+/// Held until both tables are re-read.
+pub struct StoreAnswered {
+    latest: Option<ObjectReference>,
+}
+impl OwnedState for StoreAnswered {}
+
+impl OwnedReader<StoreAnswered> {
+    /// Re-reads the sync-ahead record and holds what it said. Not a verdict:
+    /// the row is read next and has precedence.
+    pub fn reread_sync_ahead_record(
+        self,
+        ctx: &CommitIndexedReader,
+    ) -> IotaResult<OwnedReader<StoreAnsweredRecordReread>> {
+        let latest = self.state.latest;
+        let record = self.record_classification(ctx)?;
+        Ok(self.into_state(StoreAnsweredRecordReread { latest, record }))
+    }
+}
+
+/// The store answered and the sync-ahead record was re-read. Both are held
+/// until the row is re-read.
+pub struct StoreAnsweredRecordReread {
+    latest: Option<ObjectReference>,
+    record: Option<Classification>,
+}
+impl OwnedState for StoreAnsweredRecordReread {}
+
+/// Outcome of the re-read of both tables. A row decides as in rule 1, else a
+/// record decides as in rule 2, else the held store answer stands: equal to
+/// the named reference keeps, a newer version, a tombstone or no entry drops.
+#[must_use]
+pub enum TablesRecheck {
+    NeedBytes(OwnedReader<NeedBytes>),
+    Missing(MissingReason),
+    Drop(DropReason),
+}
+
+impl OwnedReader<StoreAnsweredRecordReread> {
+    /// Re-reads the handler-processed row and decides.
+    pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesRecheck> {
+        // The row decides over the held record. Nothing in either table means
+        // the store answer predates every this-epoch write for `id` and stands.
+        let classification = self
+            .row_classification(ctx)?
+            .or(self.state.record)
+            .unwrap_or_else(|| classify_latest(self.state.latest.as_ref(), &self.input));
+        Ok(match classification {
+            Classification::Keep => TablesRecheck::NeedBytes(self.into_state(NeedBytes)),
+            Classification::Missing(reason) => TablesRecheck::Missing(reason),
+            Classification::Drop(reason) => TablesRecheck::Drop(reason),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Keep: the bytes are loaded by the caller
+// ---------------------------------------------------------------------------
+
+/// The verdict is keep once the bytes at `(id, V)` are loaded. Only the
+/// machine constructs this, so bytes are only ever loaded on a keep path.
+pub struct NeedBytes;
+impl OwnedState for NeedBytes {}
+
+impl OwnedReader<NeedBytes> {
+    /// The exact key to load, consuming the token so it is loaded once.
+    pub fn into_key(self) -> ObjectKey {
+        self.key()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Pure comparisons, shared by the first pass and the re-check
+// ---------------------------------------------------------------------------
+
+/// What one source decided about `(id, V)`.
+#[must_use]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Classification {
+    Keep,
+    Missing(MissingReason),
+    Drop(DropReason),
+}
+
+/// Rule 1 on a row at `(id, V)`: horizon first, then kind, then digest.
+fn classify_row(
+    row: &HandlerProcessedObject,
+    input: &ObjectReference,
+    horizon: CommitIndex,
+) -> Classification {
+    if row.produced_at > horizon {
+        return Classification::Missing(MissingReason(MissingKind::HandlerRowAboveHorizon));
+    }
+    match row.kind {
+        HandlerProcessedObjectKind::Deleted | HandlerProcessedObjectKind::Wrapped => {
+            Classification::Drop(DropReason(DropKind::HandlerRowTombstone))
+        }
+        HandlerProcessedObjectKind::Live if row.digest == input.digest => Classification::Keep,
+        HandlerProcessedObjectKind::Live => {
+            Classification::Drop(DropReason(DropKind::HandlerRowDigestMismatch))
+        }
+    }
+}
+
+/// Rule 2 on a record for `id`: `base_version` against `V`.
+fn classify_record(record: &SyncAheadRecord, version: Version) -> Classification {
+    let Some(base) = record.base_version else {
+        return Classification::Missing(MissingReason(MissingKind::SyncAheadCreatedId));
+    };
+    match base.cmp(&version) {
+        Ordering::Equal => Classification::Keep,
+        Ordering::Less => {
+            Classification::Missing(MissingReason(MissingKind::SyncAheadCreatedVersion))
+        }
+        Ordering::Greater => Classification::Drop(DropReason(DropKind::SyncAheadBaseAboveVersion)),
+    }
+}
+
+/// Rule 3 on the held store answer: the latest reference against the named
+/// reference. A tombstone is checked before equality so that a transaction
+/// naming a tombstone reference drops instead of reaching the bytes load.
+fn classify_latest(latest: Option<&ObjectReference>, input: &ObjectReference) -> Classification {
+    let Some(latest) = latest else {
+        return Classification::Drop(DropReason(DropKind::StoreNotFound));
+    };
+    if !latest.digest.is_alive() {
+        return Classification::Drop(DropReason(DropKind::StoreSuperseded));
+    }
+    match latest.version.cmp(&input.version) {
+        Ordering::Greater => Classification::Drop(DropReason(DropKind::StoreSuperseded)),
+        Ordering::Less => Classification::Missing(MissingReason(MissingKind::StoreBelowVersion)),
+        Ordering::Equal if latest.digest == input.digest => Classification::Keep,
+        Ordering::Equal => Classification::Drop(DropReason(DropKind::StoreDigestMismatch)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{ObjectDigest, ObjectId};
+
+    use super::*;
+
+    const HORIZON: CommitIndex = 10;
+
+    fn named(version: u64) -> ObjectReference {
+        ObjectReference::new(
+            ObjectId::random(),
+            Version::from_u64(version),
+            ObjectDigest::random(),
+        )
+    }
+
+    fn row(
+        kind: HandlerProcessedObjectKind,
+        digest: ObjectDigest,
+        produced_at: CommitIndex,
+    ) -> HandlerProcessedObject {
+        HandlerProcessedObject {
+            digest,
+            kind,
+            produced_at,
+            initial_shared_version: None,
+        }
+    }
+
+    fn record(base_version: Option<u64>) -> SyncAheadRecord {
+        SyncAheadRecord {
+            base_version: base_version.map(Version::from_u64),
+            latest_created: Version::from_u64(100),
+            initial_shared_version: None,
+        }
+    }
+
+    fn missing(kind: MissingKind) -> Classification {
+        Classification::Missing(MissingReason(kind))
+    }
+
+    /// Review finding R1. `P` produces `X@8` in commit 11, above the horizon
+    /// of commit 12. The hook classified `P` before commit 11 was assigned,
+    /// so it writes a record, and the completion of commit 11 lands between
+    /// the two table re-reads: the row is inserted after the row re-read
+    /// and the record removed before the record re-read. The held store
+    /// answer must not decide. A fresh read answers missing.
+    #[tokio::test]
+    async fn recheck_stays_missing_when_completion_lands_between_the_table_reads() {
+        use std::collections::BTreeMap;
+
+        use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            object::Object,
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::{
+                authority_per_epoch_store::handler_object_state::handler_processed_upserts,
+                authority_tests::init_state_with_objects_and_object_basics,
+            },
+            post_consensus_input_reader::OwnedVerdict,
+        };
+
+        const PRODUCING_COMMIT: CommitIndex = HORIZON + 1;
+
+        let sender = Address::ZERO;
+        let gas_id = ObjectId::random();
+        let x_id = ObjectId::random();
+        let gas = Object::with_id_owner_version_for_testing(
+            gas_id,
+            Version::from_u64(7),
+            Owner::Address(sender),
+        );
+        let x_before = Object::with_id_owner_version_for_testing(
+            x_id,
+            Version::from_u64(7),
+            Owner::Address(sender),
+        );
+        let (authority, _) =
+            init_state_with_objects_and_object_basics([gas.clone(), x_before.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+
+        let x_after = Object::with_id_owner_version_for_testing(
+            x_id,
+            Version::from_u64(8),
+            Owner::Address(sender),
+        );
+        let input = x_after.object_ref();
+        let transaction = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let effects = TestEffectsBuilder::new(&transaction)
+            .with_mutated_objects([(x_id, Version::from_u64(7), Owner::Address(sender))])
+            .build();
+        assert_eq!(effects.lamport_version(), input.version);
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            PRODUCING_COMMIT + 1,
+        );
+
+        // First pass: nothing written yet.
+        let no_tables_entry = match OwnedReader::start(input, HORIZON)
+            .read_sync_ahead_record(&ctx)
+            .unwrap()
+            .read_handler_row(&ctx)
+            .unwrap()
+        {
+            TablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
+            _ => panic!("nothing in either table before the hook ran"),
+        };
+
+        // The hook, classified before commit 11 was assigned, writes the
+        // record, then X@8 reaches the store.
+        epoch_store
+            .record_executed_transaction(
+                &key,
+                &effects,
+                &BTreeMap::from([(gas_id, gas), (x_id, x_before)]),
+            )
+            .unwrap();
+        authority.insert_genesis_object(x_after);
+
+        // The store answers X@8. The first table re-read, whichever table it
+        // is, happens before the completion.
+        let store_answered = no_tables_entry.read_store(&ctx).unwrap();
+        let record_reread = store_answered.reread_sync_ahead_record(&ctx).unwrap();
+
+        // Completion of commit 11 inserts the row and removes the record.
+        epoch_store.assign_commit_to_transactions(PRODUCING_COMMIT, vec![key]);
+        epoch_store
+            .record_commit_fully_executed(
+                PRODUCING_COMMIT,
+                &handler_processed_upserts(&effects, PRODUCING_COMMIT),
+            )
+            .unwrap();
+
+        match record_reread.reread_handler_row(&ctx).unwrap() {
+            TablesRecheck::Missing(reason) => {
+                assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon)
+            }
+            TablesRecheck::NeedBytes(_) => panic!("kept a version produced above the horizon"),
+            TablesRecheck::Drop(reason) => panic!("dropped: {reason:?}"),
+        }
+
+        // The stable answer the interleaving must match.
+        assert!(matches!(
+            ctx.read_owned(input).unwrap(),
+            OwnedVerdict::Missing(reason) if reason.kind() == MissingKind::HandlerRowAboveHorizon
+        ));
+    }
+
+    /// Review finding U2a. `P` produces `X@8` in commit 11, above the horizon
+    /// of commit 12, and is handler-known, so the hook writes the row. State
+    /// sync then executes `Q`, which consumes `X@8`, and the hook writes a
+    /// record with base 8. Both land between the record read and the row
+    /// read, so the row read must find the row. A fresh read, with both
+    /// entries in place, must let the row decide over the record.
+    #[tokio::test]
+    async fn first_pass_record_hit_defers_to_a_row_that_landed_above_the_horizon() {
+        use std::collections::BTreeMap;
+
+        use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            object::Object,
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::authority_tests::init_state_with_objects_and_object_basics,
+            post_consensus_input_reader::OwnedVerdict,
+        };
+
+        const PRODUCING_COMMIT: CommitIndex = HORIZON + 1;
+
+        let sender = Address::ZERO;
+        let gas_id = ObjectId::random();
+        let x_id = ObjectId::random();
+        let owner = Owner::Address(sender);
+        let gas = Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(7), owner);
+        let x_before = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(7), owner);
+        let (authority, _) =
+            init_state_with_objects_and_object_basics([gas.clone(), x_before.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+
+        let gas_after =
+            Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(8), owner);
+        let x_after = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(8), owner);
+        let input = x_after.object_ref();
+
+        let producer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let producer_effects = TestEffectsBuilder::new(&producer)
+            .with_mutated_objects([(x_id, Version::from_u64(7), owner)])
+            .build();
+        assert_eq!(producer_effects.lamport_version(), input.version);
+        let producer_key = TransactionKey::Digest(*producer_effects.transaction_digest());
+
+        let consumer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas_after.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let consumer_effects = TestEffectsBuilder::new(&consumer)
+            .with_mutated_objects([(x_id, input.version, owner)])
+            .build();
+        let consumer_key = TransactionKey::Digest(*consumer_effects.transaction_digest());
+
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            PRODUCING_COMMIT + 1,
+        );
+
+        // First pass: the record is read first and finds nothing.
+        let record_read = OwnedReader::start(input, HORIZON)
+            .read_sync_ahead_record(&ctx)
+            .unwrap();
+
+        // Commit 11 is assigned and executes here: the hook writes the row at
+        // (X, 8), then X@8 reaches the store.
+        epoch_store.assign_commit_to_transactions(PRODUCING_COMMIT, vec![producer_key]);
+        epoch_store
+            .record_executed_transaction(
+                &producer_key,
+                &producer_effects,
+                &BTreeMap::from([(gas_id, gas), (x_id, x_before)]),
+            )
+            .unwrap();
+        authority.insert_genesis_object(x_after.clone());
+
+        // State sync executes the consumer of X@8 ahead of the handler: the
+        // hook writes a record with base 8.
+        epoch_store
+            .record_executed_transaction(
+                &consumer_key,
+                &consumer_effects,
+                &BTreeMap::from([(gas_id, gas_after), (x_id, x_after)]),
+            )
+            .unwrap();
+        assert_eq!(
+            epoch_store
+                .sync_ahead_record(&x_id)
+                .unwrap()
+                .unwrap()
+                .base_version,
+            Some(input.version)
+        );
+
+        match record_read.read_handler_row(&ctx).unwrap() {
+            TablesLookup::Missing(reason) => {
+                assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon)
+            }
+            TablesLookup::NeedBytes(_) => panic!("kept a version produced above the horizon"),
+            TablesLookup::Drop(reason) => panic!("dropped: {reason:?}"),
+            TablesLookup::NoEntry(_) => panic!("the row is there"),
+        }
+
+        // Both entries present: the row decides over the record's keep.
+        assert!(matches!(
+            ctx.read_owned(input).unwrap(),
+            OwnedVerdict::Missing(reason) if reason.kind() == MissingKind::HandlerRowAboveHorizon
+        ));
+    }
+
+    /// Review finding U4, the reader half. Open. One checkpoint holds `P`,
+    /// which is handler-known at commit 11 and produces `X@4` from `X@3`, and
+    /// `Q`, sync-ahead, which consumes `X@4`. The checkpoint's bookkeeping
+    /// batch persists the row at `(X, 4)` and the record with base 4 together,
+    /// and the node crashes before the outputs. On replay the store's latest
+    /// `X` is `X@3`, commit 11 is validated again with horizon 9, and the
+    /// record's base sits above that horizon. Every other validator kept `P`
+    /// on `X@3`. This reader drops it.
+    ///
+    /// The test pins the wrong verdict so that the fix, a read of the row at
+    /// `(id, base)` that lets a base above the horizon decide nothing, or the
+    /// removal of sync-ahead execution, flips it on purpose.
+    #[tokio::test]
+    async fn record_whose_base_is_above_the_horizon_still_drops_on_replay() {
+        use std::collections::BTreeMap;
+
+        use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            object::Object,
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::authority_tests::init_state_with_objects_and_object_basics,
+            post_consensus_input_reader::OwnedVerdict,
+        };
+
+        const REPLAYED_COMMIT: CommitIndex = 11;
+
+        let sender = Address::ZERO;
+        let gas_id = ObjectId::random();
+        let x_id = ObjectId::random();
+        let owner = Owner::Address(sender);
+        let gas = Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(2), owner);
+        let x_before = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(3), owner);
+        let (authority, _) =
+            init_state_with_objects_and_object_basics([gas.clone(), x_before.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        let input = x_before.object_ref();
+
+        // `P` consumes X@3 and produces X@4 at commit 11, handler-known: the
+        // hook writes the row. The outputs never reach the store.
+        let gas_after =
+            Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(4), owner);
+        let x_after = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(4), owner);
+        let producer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let producer_effects = TestEffectsBuilder::new(&producer)
+            .with_mutated_objects([(x_id, input.version, owner)])
+            .build();
+        assert_eq!(producer_effects.lamport_version(), x_after.version());
+        let producer_key = TransactionKey::Digest(*producer_effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(REPLAYED_COMMIT, vec![producer_key]);
+        epoch_store
+            .record_executed_transaction(
+                &producer_key,
+                &producer_effects,
+                &BTreeMap::from([(gas_id, gas), (x_id, x_before)]),
+            )
+            .unwrap();
+
+        // `Q` consumes X@4 ahead of the handler: the hook writes a record with
+        // base 4, the version the crash rolled back.
+        let consumer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas_after.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let consumer_effects = TestEffectsBuilder::new(&consumer)
+            .with_mutated_objects([(x_id, x_after.version(), owner)])
+            .build();
+        let consumer_key = TransactionKey::Digest(*consumer_effects.transaction_digest());
+        epoch_store
+            .record_executed_transaction(
+                &consumer_key,
+                &consumer_effects,
+                &BTreeMap::from([(gas_id, gas_after), (x_id, x_after.clone())]),
+            )
+            .unwrap();
+        assert_eq!(
+            epoch_store
+                .sync_ahead_record(&x_id)
+                .unwrap()
+                .unwrap()
+                .base_version,
+            Some(x_after.version())
+        );
+        assert_eq!(
+            epoch_store
+                .handler_processed_object(&ObjectKey(x_id, x_after.version()))
+                .unwrap()
+                .unwrap()
+                .produced_at,
+            REPLAYED_COMMIT
+        );
+
+        // Replay of commit 11: the row at (X, 4) is above its horizon.
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store,
+            REPLAYED_COMMIT,
+        );
+        // The stable answer is keep. The current verdict is the open finding.
+        assert!(matches!(
+            ctx.read_owned(input).unwrap(),
+            OwnedVerdict::Drop(reason) if reason.kind() == DropKind::SyncAheadBaseAboveVersion
+        ));
+    }
+
+    fn drop(kind: DropKind) -> Classification {
+        Classification::Drop(DropReason(kind))
+    }
+
+    #[test]
+    fn row_at_the_horizon_decides_and_one_above_answers_missing() {
+        let input = named(5);
+        let live = |produced_at| row(HandlerProcessedObjectKind::Live, input.digest, produced_at);
+        assert_eq!(
+            classify_row(&live(HORIZON), &input, HORIZON),
+            Classification::Keep
+        );
+        assert_eq!(
+            classify_row(&live(HORIZON + 1), &input, HORIZON),
+            missing(MissingKind::HandlerRowAboveHorizon)
+        );
+    }
+
+    #[test]
+    fn row_above_the_horizon_answers_missing_before_kind_and_digest() {
+        let input = named(5);
+        let tombstone = row(
+            HandlerProcessedObjectKind::Deleted,
+            ObjectDigest::OBJECT_DELETED,
+            HORIZON + 1,
+        );
+        let other_digest = row(
+            HandlerProcessedObjectKind::Live,
+            ObjectDigest::random(),
+            HORIZON + 1,
+        );
+        assert_eq!(
+            classify_row(&tombstone, &input, HORIZON),
+            missing(MissingKind::HandlerRowAboveHorizon)
+        );
+        assert_eq!(
+            classify_row(&other_digest, &input, HORIZON),
+            missing(MissingKind::HandlerRowAboveHorizon)
+        );
+    }
+
+    #[test]
+    fn tombstone_rows_drop() {
+        let input = named(5);
+        for (kind, digest) in [
+            (
+                HandlerProcessedObjectKind::Deleted,
+                ObjectDigest::OBJECT_DELETED,
+            ),
+            (
+                HandlerProcessedObjectKind::Wrapped,
+                ObjectDigest::OBJECT_WRAPPED,
+            ),
+        ] {
+            assert_eq!(
+                classify_row(&row(kind, digest, HORIZON), &input, HORIZON),
+                drop(DropKind::HandlerRowTombstone)
+            );
+        }
+    }
+
+    #[test]
+    fn live_row_with_another_digest_drops() {
+        let input = named(5);
+        let other_digest = row(
+            HandlerProcessedObjectKind::Live,
+            ObjectDigest::random(),
+            HORIZON,
+        );
+        assert_eq!(
+            classify_row(&other_digest, &input, HORIZON),
+            drop(DropKind::HandlerRowDigestMismatch)
+        );
+    }
+
+    #[test]
+    fn record_without_base_answers_missing_for_any_version() {
+        for version in [1, 50, 100, 101] {
+            assert_eq!(
+                classify_record(&record(None), Version::from_u64(version)),
+                missing(MissingKind::SyncAheadCreatedId)
+            );
+        }
+    }
+
+    #[test]
+    fn record_base_against_the_named_version() {
+        let base = record(Some(5));
+        assert_eq!(
+            classify_record(&base, Version::from_u64(5)),
+            Classification::Keep
+        );
+        assert_eq!(
+            classify_record(&base, Version::from_u64(6)),
+            missing(MissingKind::SyncAheadCreatedVersion)
+        );
+        assert_eq!(
+            classify_record(&base, Version::from_u64(4)),
+            drop(DropKind::SyncAheadBaseAboveVersion)
+        );
+    }
+
+    #[test]
+    fn store_without_an_entry_drops() {
+        assert_eq!(
+            classify_latest(None, &named(5)),
+            drop(DropKind::StoreNotFound)
+        );
+    }
+
+    #[test]
+    fn store_tombstone_drops_even_when_the_transaction_names_it() {
+        let id = ObjectId::random();
+        for digest in [ObjectDigest::OBJECT_DELETED, ObjectDigest::OBJECT_WRAPPED] {
+            let tombstone = ObjectReference::new(id, Version::from_u64(7), digest);
+            let live_below = ObjectReference::new(id, Version::from_u64(5), ObjectDigest::random());
+            assert_eq!(
+                classify_latest(Some(&tombstone), &tombstone),
+                drop(DropKind::StoreSuperseded)
+            );
+            assert_eq!(
+                classify_latest(Some(&tombstone), &live_below),
+                drop(DropKind::StoreSuperseded)
+            );
+        }
+    }
+
+    #[test]
+    fn store_latest_against_the_named_reference() {
+        let input = named(5);
+        let at = |version: u64, digest| {
+            ObjectReference::new(input.object_id, Version::from_u64(version), digest)
+        };
+        assert_eq!(classify_latest(Some(&input), &input), Classification::Keep);
+        assert_eq!(
+            classify_latest(Some(&at(6, ObjectDigest::random())), &input),
+            drop(DropKind::StoreSuperseded)
+        );
+        assert_eq!(
+            classify_latest(Some(&at(4, ObjectDigest::random())), &input),
+            missing(MissingKind::StoreBelowVersion)
+        );
+        assert_eq!(
+            classify_latest(Some(&at(5, ObjectDigest::random())), &input),
+            drop(DropKind::StoreDigestMismatch)
+        );
+    }
+}
