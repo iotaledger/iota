@@ -1,57 +1,19 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::collections::BTreeMap;
-
 use futures::{StreamExt, stream::ReadyChunks};
 use iota_metrics::metered_channel::ReceiverStream;
-use strum::IntoEnumIterator;
 use tap::tap::TapFallible;
 use tracing::{error, info, instrument};
 
+use super::{CheckpointBatch, CheckpointDataToCommit, EpochToCommit, data};
 use crate::{
-    ingestion::common::{
-        persist::{CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables, CommitterWatermark},
-        prepare::CheckpointObjectChanges,
+    ingestion::common::persist::{
+        CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables, CommitterWatermark,
     },
     metrics::IndexerMetrics,
-    models::{
-        display::StoredDisplay,
-        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
-        obj_indices::StoredObjectVersion,
-        objects::StoredBackwardHistoryObject,
-    },
     store::{IndexerStore, PgIndexerStore},
-    types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
-    },
+    types::IndexerResult,
 };
-#[derive(Debug)]
-pub(crate) struct CheckpointDataToCommit {
-    pub(crate) checkpoint: IndexedCheckpoint,
-    pub(crate) transactions: Vec<IndexedTransaction>,
-    pub(crate) events: Vec<IndexedEvent>,
-    pub(crate) event_indices: Vec<EventIndex>,
-    pub(crate) tx_indices: Vec<TxIndex>,
-    pub(crate) displays: BTreeMap<String, StoredDisplay>,
-    pub(crate) object_changes: CheckpointObjectChanges,
-    pub(crate) backward_history_changes: Vec<StoredBackwardHistoryObject>,
-    pub(crate) object_versions: Vec<StoredObjectVersion>,
-    pub(crate) packages: Vec<IndexedPackage>,
-    pub(crate) epoch: Option<EpochToCommit>,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct TransactionObjectChangesToCommit {
-    pub changed_objects: Vec<IndexedObject>,
-    pub deleted_objects: Vec<IndexedDeletedObject>,
-}
-
-#[derive(Clone, Debug)]
-pub struct EpochToCommit {
-    pub(crate) last_epoch: Option<EndOfEpochUpdate>,
-    pub(crate) new_epoch: StartOfEpochUpdate,
-}
 
 pub(crate) struct PrimaryWriter {
     state: PgIndexerStore,
@@ -83,73 +45,77 @@ impl PrimaryWriter {
         }
     }
 
-    /// Writes indexed checkpoint data to the database, and then update
-    /// watermark upper bounds and metrics. Expects
-    /// `indexed_checkpoint_batch` to be non-empty, and contain contiguous
-    /// checkpoints. There can be at most one epoch boundary at the end. If
+    /// Writes indexed checkpoint data to the database, and then updates
+    /// watermark upper bounds and metrics.
+    ///
+    /// There can be at most one epoch boundary at the end. If
     /// an epoch boundary is detected, epoch-partitioned tables must be
     /// advanced.
-    // Unwrap: Caller needs to make sure indexed_checkpoint_batch is not empty
+    ///
+    /// # Panics
+    ///
+    /// Panics if the batch is empty.
     #[instrument(skip_all, fields(
-        first = indexed_checkpoint_batch.first().as_ref().unwrap().checkpoint.sequence_number,
-        last = indexed_checkpoint_batch.last().as_ref().unwrap().checkpoint.sequence_number
+        first = data_batch.basic.first().as_ref().unwrap().checkpoint.sequence_number,
+        last = data_batch.basic.last().as_ref().unwrap().checkpoint.sequence_number
     ))]
     pub(crate) async fn commit_checkpoints(
         &self,
-        indexed_checkpoint_batch: Vec<CheckpointDataToCommit>,
+        data_batch: CheckpointBatch,
         epoch: Option<EpochToCommit>,
     ) {
-        let batch_len = indexed_checkpoint_batch.len();
+        let batch_len = data_batch.len();
+
+        let CheckpointBatch {
+            basic,
+            objects_history,
+            filtered_queries,
+            combined_event_filters,
+        } = data_batch;
+
         let mut checkpoint_batch = Vec::with_capacity(batch_len);
         let mut tx_batch = Vec::with_capacity(batch_len);
-        let mut events_batch = Vec::with_capacity(batch_len);
-        let mut tx_indices_batch = Vec::with_capacity(batch_len);
-        let mut event_indices_batch = Vec::with_capacity(batch_len);
         let mut displays_batch = Vec::with_capacity(batch_len);
         let mut object_changes_batch = Vec::with_capacity(batch_len);
-        let mut backward_history_batch = Vec::new();
         let mut object_versions_batch = Vec::with_capacity(batch_len);
         let mut packages_batch = Vec::with_capacity(batch_len);
 
-        for indexed_checkpoint in indexed_checkpoint_batch {
-            let CheckpointDataToCommit {
+        for basic_data in basic {
+            let data::Basic {
                 checkpoint,
                 transactions,
-                events,
-                event_indices,
-                tx_indices,
                 displays,
                 object_changes,
-                backward_history_changes,
                 object_versions,
                 packages,
                 ..
-            } = indexed_checkpoint;
+            } = basic_data;
             checkpoint_batch.push(checkpoint);
             tx_batch.push(transactions);
-            events_batch.push(events);
-            tx_indices_batch.push(tx_indices);
-            event_indices_batch.push(event_indices);
             displays_batch.extend(displays.into_values());
             object_changes_batch.push(object_changes);
-            backward_history_batch.extend(backward_history_changes);
             object_versions_batch.push(object_versions);
             packages_batch.push(packages);
         }
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
+
         let committer_watermark = CommitterWatermark::from(checkpoint_batch.last().unwrap());
+        let mut committer_tables = Vec::from_iter(CommitterTables::basic());
+        if objects_history.is_some() {
+            committer_tables.extend(CommitterTables::objects_history());
+        }
+        if filtered_queries.is_some() {
+            committer_tables.extend(CommitterTables::filtered_queries());
+        }
+        if combined_event_filters.is_some() {
+            committer_tables.extend(CommitterTables::combined_event_filters());
+        }
 
         let guard = self.metrics.checkpoint_db_commit_latency.start_timer();
         let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
 
         let tx_global_order_batch: Vec<_> = tx_batch.iter().map(Into::into).collect();
-        let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
-        let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
-        let event_indices_batch = event_indices_batch
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
         let object_versions_batch = object_versions_batch
             .into_iter()
             .flatten()
@@ -165,9 +131,6 @@ impl PrimaryWriter {
                 .start_timer();
             let mut persist_tasks = vec![
                 self.state.persist_transactions(tx_batch),
-                self.state.persist_tx_indices(tx_indices_batch),
-                self.state.persist_events(events_batch),
-                self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(displays_batch),
                 self.state
                     .persist_packages(packages_batch.into_iter().map(Into::into).collect()),
@@ -185,20 +148,56 @@ impl PrimaryWriter {
                         self.state.persist_objects(object_changes_batch).await
                     }
                 }),
-                // Backward history must be persisted before checkpointed_objects
-                // to prevent read races during consistent view queries.
-                Box::pin({
-                    let object_changes_batch = object_changes_batch.clone();
-                    async move {
-                        self.state
-                            .persist_object_backward_history(backward_history_batch)
-                            .await?;
-                        self.state
-                            .persist_checkpointed_objects(object_changes_batch)
-                            .await
-                    }
-                }),
             ];
+
+            if let Some(history_batch) = objects_history {
+                let history_objects = history_batch
+                    .into_iter()
+                    .flat_map(|data::ObjectsHistory { history_objects }| history_objects)
+                    .collect();
+                persist_tasks.push(
+                    // Backward history must be persisted before checkpointed_objects
+                    // to prevent read races during consistent view queries.
+                    Box::pin({
+                        let object_changes_batch = object_changes_batch.clone();
+                        async move {
+                            self.state
+                                .persist_object_backward_history(history_objects)
+                                .await?;
+                            self.state
+                                .persist_checkpointed_objects(object_changes_batch)
+                                .await
+                        }
+                    }),
+                )
+            } else {
+                persist_tasks.push(
+                    self.state
+                        .persist_checkpointed_objects(object_changes_batch),
+                )
+            }
+
+            if let Some(filtered_queries_batch) = filtered_queries {
+                let mut tx_indices_batch = Vec::with_capacity(filtered_queries_batch.len());
+                let mut events_batch = Vec::with_capacity(filtered_queries_batch.len());
+                for data::FilteredQueries { tx_indices, events } in filtered_queries_batch {
+                    tx_indices_batch.extend(tx_indices);
+                    events_batch.extend(events);
+                }
+                persist_tasks.extend([
+                    self.state.persist_tx_indices(tx_indices_batch),
+                    self.state.persist_events(events_batch),
+                ]);
+            }
+
+            if let Some(combined_event_filters) = combined_event_filters {
+                let event_indices = combined_event_filters
+                    .into_iter()
+                    .flat_map(|data::CombinedEventFilters { event_indices }| event_indices)
+                    .collect();
+                persist_tasks.push(self.state.persist_event_indices(event_indices));
+            }
+
             if let Some(epoch_data) = epoch.clone() {
                 persist_tasks.push(self.state.persist_epoch(epoch_data));
             }
@@ -270,7 +269,7 @@ impl PrimaryWriter {
         }
 
         self.state
-            .update_watermarks_upper_bound(CommitterTables::iter(), committer_watermark)
+            .update_watermarks_upper_bound(committer_tables, committer_watermark)
             .await
             .tap_err(|e| {
                 error!(

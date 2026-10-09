@@ -8,7 +8,10 @@ use iota_sdk_types::ObjectId;
 use iota_types::effects::{TransactionEffectsAPI, TransactionEffectsExt};
 
 use crate::{
-    ingestion::common::prepare::{CheckpointObjectChanges, ValidatedCheckpoint, extract_df_kind},
+    ingestion::common::{
+        orchestration::OperationalLevel,
+        prepare::{CheckpointObjectChanges, ValidatedCheckpoint, extract_df_kind},
+    },
     metrics::IndexerMetrics,
     models::{obj_indices::StoredObjectVersion, objects::StoredBackwardHistoryObject},
     types::{IndexedObject, IndexedPackage, ObjectStatus},
@@ -25,17 +28,24 @@ impl<'chk> ObjectsTransformer<'chk> {
         Self { checkpoint }
     }
 
-    pub(super) fn transform(self, metrics: &IndexerMetrics) -> ObjectData {
+    pub(super) fn transform(
+        self,
+        metrics: &IndexerMetrics,
+        operational_level: OperationalLevel,
+    ) -> ObjectData {
         let checkpoint_objects = {
             let _timer = metrics.indexing_objects_latency.start_timer();
             self.checkpoint.into()
         };
 
+        let history_objects = operational_level
+            .includes(OperationalLevel::ObjectsHistory)
+            .then(|| self.build_history_objects());
         ObjectData {
             checkpoint_objects,
             object_versions: self.build_object_versions(),
             packages: self.build_packages(metrics),
-            history_objects: self.build_history_objects(),
+            history_objects,
         }
     }
 
@@ -169,6 +179,9 @@ impl<'chk> ObjectsTransformer<'chk> {
 pub(super) struct ObjectData {
     pub(super) checkpoint_objects: CheckpointObjectChanges,
     pub(super) object_versions: Vec<StoredObjectVersion>,
-    pub(super) history_objects: Vec<StoredBackwardHistoryObject>,
+    /// Objects supporting consistent views.
+    ///
+    /// [`Some`] only on all operational levels above `Basic`.
+    pub(super) history_objects: Option<Vec<StoredBackwardHistoryObject>>,
     pub(super) packages: Vec<IndexedPackage>,
 }

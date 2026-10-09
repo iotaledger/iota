@@ -23,12 +23,13 @@ use crate::{
     errors::IndexerError,
     ingestion::{
         common::{
+            orchestration::OperationalLevel,
             persist::{CommitterWatermark, OptimisticIndexingTables},
             prepare::extract_df_kind,
         },
         primary::{
             persist::TransactionObjectChangesToCommit,
-            prepare::{EventsTransformer, index_transaction},
+            prepare::{TransactionEventsTransformer, index_transaction},
         },
     },
     metrics::IndexerMetrics,
@@ -552,13 +553,13 @@ impl<'a> TransactionExtractor<'a> {
     }
 
     fn index_displays(&self) -> BTreeMap<String, StoredDisplay> {
-        let transformer = EventsTransformer::new(
+        let transformer = TransactionEventsTransformer::new(
             self.full_tx_data,
             self.optimistic_sequence_number,
             Self::UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
             Self::UNKNOWN_CHECKPOINT_TIMESTAMP_MS,
         );
-        transformer.transform().displays
+        transformer.transform(OperationalLevel::Basic).displays
     }
 
     fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
