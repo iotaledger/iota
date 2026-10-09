@@ -15,17 +15,14 @@ use iota_grpc_client::{
 };
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
-use iota_sdk_types::{
-    Address, Event, Identifier, ObjectId, Owner, StructTag, TransactionEffects, TransactionEvents,
-};
+use iota_sdk_types::Address;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
     crypto::{AccountPrivateKey, get_key_pair},
-    effects::{TestEffectsBuilder, TransactionEffectsAPI as _, TransactionEffectsExt as _},
+    effects::TestEffectsBuilder,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
-    object::Object,
 };
 use prost::Message;
 use tokio_stream::StreamExt;
@@ -41,39 +38,6 @@ fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
     }
 }
 
-/// Input/output object sets matching `effects` (all plain gas coins owned by
-/// `sender`). Checkpoint transactions must carry complete object sets — a
-/// wildcard read mask derives change fields from them and errors on gaps.
-fn objects_for_effects(
-    sender: Address,
-    effects: &TransactionEffects,
-) -> (Vec<Object>, Vec<Object>) {
-    let owner = Owner::Address(sender);
-    let input_objects = effects
-        .modified_at_versions()
-        .into_iter()
-        .map(|modified| {
-            Object::with_id_owner_version_for_testing(
-                *modified.object_id(),
-                modified.version(),
-                owner,
-            )
-        })
-        .collect();
-    let output_objects = effects
-        .all_changed_objects()
-        .into_iter()
-        .map(|(changed, _)| {
-            Object::with_id_owner_version_for_testing(
-                changed.reference().object_id,
-                changed.reference().version,
-                owner,
-            )
-        })
-        .collect();
-    (input_objects, output_objects)
-}
-
 /// Create checkpoint data with a transaction from a specific sender.
 fn mock_checkpoint_data_with_sender(
     sequence_number: u64,
@@ -85,7 +49,7 @@ fn mock_checkpoint_data_with_sender(
         .transfer(random_object_ref(), sender)
         .build_and_sign(key);
     let effects = TestEffectsBuilder::new(transaction.data()).build();
-    let (input_objects, output_objects) = objects_for_effects(sender, &effects);
+    let (input_objects, output_objects) = common::objects_for_effects(sender, &effects);
     CheckpointData {
         checkpoint_summary: common::mock_summary(
             sequence_number,
@@ -116,7 +80,7 @@ fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
             .build_and_sign(&key);
 
         let effects = TestEffectsBuilder::new(transaction.data()).build();
-        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
+        let (input_objects, output_objects) = common::objects_for_effects(sender, &effects);
 
         transactions.push(CheckpointTransaction {
             transaction,
@@ -910,52 +874,6 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         .expect("Failed to shutdown server");
 }
 
-/// Build checkpoint transactions, each optionally carrying `events_per_tx`
-/// events.
-fn build_checkpoint_transactions_with_events(
-    count: usize,
-    events_per_tx: usize,
-) -> Vec<CheckpointTransaction> {
-    let mut transactions = Vec::with_capacity(count);
-    for _ in 0..count {
-        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
-        let gas = random_object_ref();
-        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
-            .transfer(random_object_ref(), sender)
-            .build_and_sign(&key);
-        let effects = TestEffectsBuilder::new(transaction.data()).build();
-        let events = if events_per_tx > 0 {
-            let mut data = Vec::with_capacity(events_per_tx);
-            for _ in 0..events_per_tx {
-                data.push(Event {
-                    package_id: ObjectId::ZERO,
-                    module: Identifier::from_static("test_module"),
-                    sender,
-                    struct_tag: StructTag::new(
-                        Address::ZERO,
-                        Identifier::from_static("test_module"),
-                        Identifier::from_static("TestEvent"),
-                        vec![],
-                    ),
-                    contents: vec![0u8; 64], // 64 bytes of dummy content
-                });
-            }
-            Some(TransactionEvents(data))
-        } else {
-            None
-        };
-        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
-        transactions.push(CheckpointTransaction {
-            transaction,
-            effects,
-            events,
-            input_objects,
-            output_objects,
-        });
-    }
-    transactions
-}
-
 /// Collect all CheckpointData messages from a tonic streaming response,
 /// partitioning payload sizes by type.
 async fn collect_checkpoint_data_stream(
@@ -1011,7 +929,7 @@ async fn get_checkpoint_raw(
 async fn test_chunked_checkpoint_message_sizes_within_limit() {
     // 10 000 transactions → total payload exceeds the 4 MB minimum message size
     // enforced by the server, which enables the splitting test.
-    let transactions = build_checkpoint_transactions_with_events(10_000, 0);
+    let transactions = common::build_checkpoint_transactions_with_events(10_000, 0);
     let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
     let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 
@@ -1087,7 +1005,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
 #[tokio::test]
 async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     // 2 500 transactions × 5 events each → total event payload exceeds 4 MB.
-    let transactions = build_checkpoint_transactions_with_events(2_500, 5);
+    let transactions = common::build_checkpoint_transactions_with_events(2_500, 5);
     let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
     let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 

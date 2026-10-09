@@ -13,15 +13,10 @@
 
 mod common;
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    future::Future,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use common::{
-    MockGrpcStateReader, create_large_object, start_test_server,
+    MockGrpcStateReader, UnreachableExecutor, create_large_object, start_test_server,
     start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
@@ -41,16 +36,10 @@ use iota_grpc_types::{
         types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
     },
 };
-use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_traffic_controller::TrafficController;
 use iota_types::{
-    error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber,
-    quorum_driver_types::{
-        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
-    },
     traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
-    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
+    transaction_executor::TransactionExecutor,
 };
 use tonic::{Code, transport::Channel};
 
@@ -137,38 +126,6 @@ where
         }
     }
     panic!("expected the traffic controller to block the client within {attempts} requests");
-}
-
-/// A `TransactionExecutor` for tests whose requests fail validation before
-/// reaching the executor.
-struct UnreachableExecutor;
-
-#[async_trait::async_trait]
-impl TransactionExecutor for UnreachableExecutor {
-    async fn execute_transaction(
-        &self,
-        _request: ExecuteTransactionRequestV1,
-        _skip_certification: bool,
-        _client_addr: Option<std::net::SocketAddr>,
-    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        unreachable!("test requests must fail validation before execution")
-    }
-
-    fn simulate_transaction(
-        &self,
-        _transaction: Transaction,
-        _checks: VmChecks,
-    ) -> Result<SimulateTransactionResult, IotaError> {
-        unreachable!("test requests must fail validation before simulation")
-    }
-
-    async fn wait_for_checkpoint_inclusion(
-        &self,
-        _digests: &[TransactionDigest],
-        _timeout: Duration,
-    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
-        unreachable!("test requests must fail validation before execution")
-    }
 }
 
 // ---------------------------------------------------------------------------

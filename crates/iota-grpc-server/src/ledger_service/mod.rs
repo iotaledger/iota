@@ -18,7 +18,7 @@ use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
 use tonic::{Code, Request, Response, Status};
 
-use crate::{traffic_control::TallyHandle, types::*};
+use crate::{metrics::RequestMetrics, traffic_control::TallyHandle, types::*};
 
 pub struct LedgerGrpcService {
     pub config: GrpcApiConfig,
@@ -135,14 +135,15 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         request: tonic::Request<grpc_ledger_service::GetObjectsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetObjectsStream>, tonic::Status> {
         let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+        let metrics = RequestMetrics::from_extensions(request.extensions());
         let request = request.into_inner();
         let item_count = request
             .requests
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_objects_batch_size)?;
-        let stream =
-            get_objects::get_objects(self.reader.clone(), request).map_err(tonic::Status::from)?;
+        let stream = get_objects::get_objects(self.reader.clone(), metrics, request)
+            .map_err(tonic::Status::from)?;
         let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
             response.objects.len()
         });
@@ -155,15 +156,20 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         request: tonic::Request<grpc_ledger_service::GetTransactionsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetTransactionsStream>, tonic::Status> {
         let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+        let metrics = RequestMetrics::from_extensions(request.extensions());
         let request = request.into_inner();
         let item_count = request
             .requests
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_transactions_batch_size)?;
-        let stream =
-            get_transactions::get_transactions(self.reader.clone(), self.config.clone(), request)
-                .map_err(tonic::Status::from)?;
+        let stream = get_transactions::get_transactions(
+            self.reader.clone(),
+            self.config.clone(),
+            metrics,
+            request,
+        )
+        .map_err(tonic::Status::from)?;
         let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
             response.transaction_results.len()
         });

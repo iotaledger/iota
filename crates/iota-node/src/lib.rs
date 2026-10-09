@@ -3018,6 +3018,7 @@ mod listener_metrics_tests {
             )
             .unwrap();
         get_health(&json_rpc).await;
+        let _grpc_api = iota_grpc_server::GrpcServerMetrics::new(&registry);
 
         validator.trigger_shutdown();
         json_rpc.trigger_shutdown();
@@ -3035,6 +3036,10 @@ mod listener_metrics_tests {
         "connection_lifetime_seconds",
     ];
     const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
+
+    /// `node_grpc_response_message_bytes` is not listed: it has a series per
+    /// method, so it shows only once the gRPC API has sent a response.
+    const GRPC_API_FAMILIES: &[&str] = &["response_item_bytes_peak", "requested_max_message_bytes"];
 
     /// Every family the validator listener registers.
     fn validator_families() -> BTreeSet<String> {
@@ -3061,12 +3066,13 @@ mod listener_metrics_tests {
     }
 
     #[tokio::test]
-    async fn the_iota_http_override_shows_the_json_rpc_listener() {
-        let shown =
-            MetricsReader::new(&node_registry(&overrides(&["iota_http"])).await).family_names();
+    async fn overrides_show_every_family() {
+        let groups = overrides(&["iota_http", "iota_grpc_server"]);
+        let shown = MetricsReader::new(&node_registry(&groups).await).family_names();
         let all: BTreeSet<String> = validator_families()
             .into_iter()
             .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
+            .chain(prefix_names("node_grpc", GRPC_API_FAMILIES))
             .collect();
         assert_eq!(shown, all);
     }

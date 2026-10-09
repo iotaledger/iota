@@ -88,8 +88,8 @@ use tracing::debug;
 
 use super::LedgerGrpcService;
 use crate::{
-    error::RpcError, event_filter::EventFilter, transaction_filter::TransactionFilter,
-    types::CheckpointStreamResult,
+    error::RpcError, event_filter::EventFilter, metrics::RequestMetrics,
+    transaction_filter::TransactionFilter, types::CheckpointStreamResult,
 };
 
 /// Helper function to convert proto filters to internal filters and validate
@@ -199,7 +199,9 @@ pub(crate) fn get_checkpoint(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::GetCheckpointRequest>,
 ) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
+    let metrics = RequestMetrics::from_extensions(request.extensions());
     let req = request.into_inner();
+    metrics.record_requested_max_message_size(req.max_message_size_bytes);
 
     // determine if we need to get the checkpoint based on the sequential number,
     // digest or the latest one.
@@ -284,6 +286,7 @@ pub(crate) fn get_checkpoint(
         max_message_size_bytes,
         transaction_filter,
         event_filter,
+        metrics,
     ))
 }
 
@@ -311,10 +314,12 @@ pub(crate) fn stream_checkpoints(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::StreamCheckpointsRequest>,
 ) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
+    let metrics = RequestMetrics::from_extensions(request.extensions());
     let req = request.into_inner();
     let start_sequence_number = req.start_sequence_number;
     let end_sequence_number = req.end_sequence_number;
     let client_max_message_size_bytes = req.max_message_size_bytes;
+    metrics.record_requested_max_message_size(client_max_message_size_bytes);
     let filter_checkpoints = req.filter_checkpoints.unwrap_or(false);
     let progress_interval =
         std::time::Duration::from_millis(req.progress_interval_ms.unwrap_or(2000).max(500) as u64);
@@ -398,6 +403,7 @@ pub(crate) fn stream_checkpoints(
         event_filter,
         filter_checkpoints,
         progress_interval,
+        metrics,
     ));
     Ok(stream)
 }

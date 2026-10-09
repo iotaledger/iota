@@ -22,6 +22,7 @@ use crate::{
     constants::validate_max_message_size,
     error::RpcError,
     merge::Merge,
+    metrics::{RequestMetrics, ResponseItemKind},
     transaction_execution_service::TransactionReadSource,
     types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
     validation::validate_read_mask,
@@ -130,6 +131,7 @@ pub(crate) fn validate_get_transaction_requests(
 pub(crate) fn get_transactions(
     reader: Arc<GrpcReader>,
     config: iota_config::node::GrpcApiConfig,
+    metrics: RequestMetrics,
     GetTransactionsRequest {
         requests,
         read_mask,
@@ -137,6 +139,7 @@ pub(crate) fn get_transactions(
         ..
     }: GetTransactionsRequest,
 ) -> Result<impl Stream<Item = TransactionsStreamResult> + Send, RpcError> {
+    metrics.record_requested_max_message_size(max_message_size_bytes);
     let requests = requests
         .map(|r| r.requests)
         .unwrap_or_default()
@@ -159,6 +162,7 @@ pub(crate) fn get_transactions(
             let tx_size = tx_result.encoded_len();
             (tx_result, tx_size)
         },
+        |size| metrics.record_response_item(ResponseItemKind::Transaction, size),
         max_message_size,
         GetTransactionsResponse,
         transaction_results,
