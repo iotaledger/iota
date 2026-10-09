@@ -44,12 +44,7 @@ impl<'chk> TransactionTransformer<'chk> {
         metrics: &IndexerMetrics,
         operational_level: OperationalLevel,
     ) -> IndexerResult<TransactionData> {
-        let mut transaction_data = TransactionData {
-            transaction_indices: operational_level
-                .includes(OperationalLevel::FilteredQueries)
-                .then(Default::default),
-            ..Default::default()
-        };
+        let mut transaction_data = TransactionData::new(operational_level);
 
         for (sequence_number, checkpoint_transaction) in self.checkpoint.enumerate_transactions() {
             let transaction = self
@@ -152,6 +147,18 @@ pub(super) struct TransactionData {
     pub(super) transaction_indices: Option<Vec<TxIndex>>,
 }
 
+impl TransactionData {
+    /// Creates empty transaction data with the collections that the
+    /// `operational_level` includes.
+    fn new(operational_level: OperationalLevel) -> Self {
+        Self {
+            transactions: Default::default(),
+            transaction_indices: operational_level
+                .includes(OperationalLevel::FilteredQueries)
+                .then(Default::default),
+        }
+    }
+}
 pub(crate) async fn index_transaction(
     tx: &CheckpointTransaction,
     tx_sequence_number: u64,
