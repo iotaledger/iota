@@ -52,12 +52,13 @@ async fn metadata_envelope_headers() {
     let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let service_info = client
-        .service_info(ServiceInfoReadMask::default())
+        .service_info()
+        .read_mask(ServiceInfoReadMask::default())
         .await
         .expect("service_info should succeed");
     assert_standard_headers(&service_info, "service_info");
 
-    let health = client.health(None).await.expect("health should succeed");
+    let health = client.health().await.expect("health should succeed");
     assert_standard_headers(&health, "health");
 }
 
@@ -84,7 +85,8 @@ async fn metadata_envelope_with_auth() {
         let authed_client = client.clone().with_headers(interceptor);
 
         let service_info = authed_client
-            .service_info(ServiceInfoReadMask::default())
+            .service_info()
+            .read_mask(ServiceInfoReadMask::default())
             .await
             .unwrap_or_else(|e| panic!("service_info should succeed with {label}: {e}"));
         assert_standard_headers(&service_info, &format!("service_info ({label})"));

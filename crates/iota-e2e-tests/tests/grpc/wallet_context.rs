@@ -20,7 +20,8 @@ async fn wallet_context_get_grpc_client() {
         .get_grpc_client()
         .await
         .unwrap()
-        .service_info(ServiceInfoReadMask::default())
+        .service_info()
+        .read_mask(ServiceInfoReadMask::default())
         .await
         .unwrap();
 

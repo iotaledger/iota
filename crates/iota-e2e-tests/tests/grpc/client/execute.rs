@@ -16,7 +16,8 @@ async fn execute_transaction_transfer() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, None, ExecuteTransactionReadMask::default())
+        .execute_transaction(signed_tx)
+        .read_mask(ExecuteTransactionReadMask::default())
         .await
         .expect("Failed to execute transaction");
 
@@ -62,7 +63,8 @@ async fn execute_transaction_transfer_outputs() {
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
 
     let result = client
-        .execute_transaction(tx.into(), None, ExecuteTransactionReadMask::default())
+        .execute_transaction(tx.into())
+        .read_mask(ExecuteTransactionReadMask::default())
         .await
         .expect("Failed to execute transaction");
 
@@ -96,7 +98,8 @@ async fn execute_transaction_minimal_mask() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, None, TransactionField::EFFECTS)
+        .execute_transaction(signed_tx)
+        .read_mask(TransactionField::EFFECTS)
         .await
         .expect("Failed to execute transaction");
 
@@ -148,7 +151,8 @@ async fn execute_transaction_invalid_signature() {
     signed_tx.signatures = vec![corrupted_sig];
 
     let result = client
-        .execute_transaction(signed_tx, None, ExecuteTransactionReadMask::default())
+        .execute_transaction(signed_tx)
+        .read_mask(ExecuteTransactionReadMask::default())
         .await;
 
     // With batch semantics, per-item validation errors come back as Error::Server
@@ -174,11 +178,8 @@ async fn execute_transaction_idempotency() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result1 = client
-        .execute_transaction(
-            signed_tx.clone(),
-            None,
-            ExecuteTransactionReadMask::default(),
-        )
+        .execute_transaction(signed_tx.clone())
+        .read_mask(ExecuteTransactionReadMask::default())
         .await
         .expect("First execution should succeed");
 
@@ -199,7 +200,8 @@ async fn execute_transaction_idempotency() {
     // The server uses TransactionOrchestrator with a NotifyRead pub-sub mechanism
     // that naturally returns cached effects for duplicates.
     let result2 = client
-        .execute_transaction(signed_tx, None, ExecuteTransactionReadMask::default())
+        .execute_transaction(signed_tx)
+        .read_mask(ExecuteTransactionReadMask::default())
         .await
         .expect("Re-execution should return cached result");
 

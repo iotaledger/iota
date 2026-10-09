@@ -30,7 +30,9 @@ async fn simulate_transaction_scenarios() {
         let transaction = create_transaction_for_simulation(&test_cluster).await;
 
         let result = client
-            .simulate_transaction(transaction, skip_checks, SimulateReadMask::default())
+            .simulate_transaction(transaction)
+            .skip_checks(skip_checks)
+            .read_mask(SimulateReadMask::default())
             .await
             .unwrap_or_else(|e| panic!("Failed to simulate transaction in {mode_name} mode: {e}"));
 
@@ -57,11 +59,9 @@ async fn simulate_transaction_scenarios() {
     // Test: minimal read mask
     let transaction = create_transaction_for_simulation(&test_cluster).await;
     let result = client
-        .simulate_transaction(
-            transaction,
-            false,
-            SimulateField::EXECUTED_TRANSACTION_EFFECTS,
-        )
+        .simulate_transaction(transaction)
+        .skip_checks(false)
+        .read_mask(SimulateField::EXECUTED_TRANSACTION_EFFECTS)
         .await
         .expect("Failed to simulate transaction with minimal mask");
 
@@ -95,7 +95,9 @@ async fn simulate_transaction_scenarios() {
         .with_gas_budget(1)
         .build();
     let result = client
-        .simulate_transaction(transaction, false, SimulateReadMask::default())
+        .simulate_transaction(transaction)
+        .skip_checks(false)
+        .read_mask(SimulateReadMask::default())
         .await;
     assert_grpc_error(result, Code::InvalidArgument);
 
@@ -114,7 +116,9 @@ async fn simulate_transaction_scenarios() {
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
     let response = client
-        .simulate_transaction(transaction, false, SimulateReadMask::default())
+        .simulate_transaction(transaction)
+        .skip_checks(false)
+        .read_mask(SimulateReadMask::default())
         .await
         .expect("Simulation should succeed at RPC level");
 
@@ -166,11 +170,9 @@ async fn simulate_transaction_command_results_split_coins() {
     );
 
     let response = client
-        .simulate_transaction(
-            transaction,
-            false,
-            SimulateField::EXECUTION_RESULT_COMMAND_RESULTS,
-        )
+        .simulate_transaction(transaction)
+        .skip_checks(false)
+        .read_mask(SimulateField::EXECUTION_RESULT_COMMAND_RESULTS)
         .await
         .expect("simulate_transaction should succeed");
 
