@@ -6,6 +6,7 @@
 //! [`PeakGauge`] keeps the exact maximum over a window of the same length as
 //! that of the quantile gauges, for values that move faster than the scrape
 //! interval and would otherwise only ever be sampled at one arbitrary instant.
+//! [`IntGaugeWithPeakGauge`] pairs an `IntGauge` with such a peak.
 
 use std::{
     sync::{
@@ -120,11 +121,15 @@ impl PeakWindow {
 /// no observation reports zero rather than dropping the series, so an idle
 /// period is visible as such.
 ///
+/// For an `IntGauge` that also exports its peak, see [`IntGaugeWithPeakGauge`].
+///
 /// [`observe`]: PeakGauge::observe
 #[derive(Clone)]
 pub struct PeakGauge {
     gauge: IntGauge,
     window: Arc<PeakWindow>,
+    /// If set, the peak is never reported below the current value of this gauge.
+    floor: Option<IntGauge>,
 }
 
 impl PeakGauge {
@@ -138,10 +143,24 @@ impl PeakGauge {
         registry: &Registry,
         level: MetricLevel,
     ) -> Self {
+        Self::register_with_floor(name, help, module, registry, level, None)
+    }
+
+    /// Like [`register`](Self::register), and with a `floor` the peak is never
+    /// reported below the current value of `floor`.
+    fn register_with_floor(
+        name: &str,
+        help: &str,
+        module: &str,
+        registry: &Registry,
+        level: MetricLevel,
+        floor: Option<IntGauge>,
+    ) -> Self {
         let gauge = IntGauge::with_opts(Opts::new(name, help)).expect("valid gauge options");
         let this = Self {
             gauge,
             window: Arc::new(PeakWindow::new(Instant::now())),
+            floor,
         };
         registry
             .register_filtered(name, module, level, this)
@@ -159,9 +178,64 @@ impl Collector for PeakGauge {
     }
 
     fn collect(&self) -> Vec<MetricFamily> {
+        let current = self
+            .floor
+            .as_ref()
+            .map_or(0, |gauge| gauge.get().max(0) as u64);
         self.gauge
-            .set(i64::try_from(self.window.max()).unwrap_or(i64::MAX));
+            .set(i64::try_from(self.window.max().max(current)).unwrap_or(i64::MAX));
         self.gauge.collect()
+    }
+}
+
+/// An `IntGauge` and its peak over the window, as a [`PeakGauge`]. The peak is
+/// observed at each increment, and a scrape reports at least the current value
+/// of the gauge.
+/// A decrement that runs between an increment and the observation that
+/// follows it can make the peak miss the value the increment gave.
+#[derive(Clone)]
+pub struct IntGaugeWithPeakGauge {
+    gauge: IntGauge,
+    peak: PeakGauge,
+}
+
+impl IntGaugeWithPeakGauge {
+    /// Registers the gauge and its peak, each as `(name, help)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a metric of one of the names is already registered.
+    pub fn register(
+        (name, help): (&str, &str),
+        (peak_name, peak_help): (&str, &str),
+        module: &str,
+        registry: &Registry,
+        level: MetricLevel,
+    ) -> Self {
+        let gauge = IntGauge::with_opts(Opts::new(name, help)).expect("valid gauge options");
+        let gauge = registry
+            .register_filtered(name, module, level, gauge)
+            .expect("gauge registers without collision");
+        let peak = PeakGauge::register_with_floor(
+            peak_name,
+            peak_help,
+            module,
+            registry,
+            level,
+            Some(gauge.clone()),
+        );
+        Self { gauge, peak }
+    }
+
+    /// Adds one and observes the new value as a peak.
+    pub fn inc(&self) {
+        self.gauge.inc();
+        self.peak.observe(self.gauge.get().max(0) as u64);
+    }
+
+    /// Subtracts one. The peak does not change.
+    pub fn dec(&self) {
+        self.gauge.dec();
     }
 }
 
@@ -170,6 +244,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::test_utils::MetricsReader;
 
     #[test]
     fn peak_is_zero_before_any_observation() {
@@ -316,5 +391,73 @@ mod tests {
             .find(|f| f.name() == "test_peak_gauge")
             .unwrap();
         assert_eq!(family.get_metric()[0].get_gauge().value(), 32768.0);
+    }
+
+    #[test]
+    fn int_gauge_with_peak_gauge_reports_the_peak_and_the_gauge() {
+        let registry = Registry::new();
+        let gauge = IntGaugeWithPeakGauge::register(
+            ("test_gauge", "help"),
+            ("test_gauge_peak", "help"),
+            module_path!(),
+            &registry,
+            MetricLevel::Warn,
+        );
+        let reader = MetricsReader::new(&registry);
+        for _ in 0..3 {
+            gauge.inc();
+        }
+        gauge.dec();
+        gauge.dec();
+        assert_eq!(reader.value("test_gauge", &[]), 1.0);
+        assert_eq!(reader.value("test_gauge_peak", &[]), 3.0);
+    }
+
+    #[test]
+    fn the_peak_of_a_gauge_is_never_below_the_gauge() {
+        let registry = Registry::new();
+        let gauge = IntGaugeWithPeakGauge::register(
+            ("test_gauge", "help"),
+            ("test_gauge_peak", "help"),
+            module_path!(),
+            &registry,
+            MetricLevel::Warn,
+        );
+        // The window of the peak holds no observation of this value.
+        gauge.gauge.set(5);
+        assert_eq!(
+            MetricsReader::new(&registry).value("test_gauge_peak", &[]),
+            5.0
+        );
+    }
+
+    #[test]
+    fn peak_with_a_floor_reports_the_peak_and_never_less_than_the_gauge() {
+        let registry = Registry::new();
+        let gauge = IntGauge::new("test_gauge", "help").unwrap();
+        let peak = PeakGauge::register_with_floor(
+            "test_gauge_peak",
+            "help",
+            module_path!(),
+            &registry,
+            MetricLevel::Warn,
+            Some(gauge.clone()),
+        );
+        let reader = MetricsReader::new(&registry);
+        for _ in 0..3 {
+            gauge.inc();
+            peak.observe(gauge.get() as u64);
+        }
+        gauge.dec();
+        gauge.dec();
+        assert_eq!(reader.value("test_gauge_peak", &[]), 3.0);
+
+        peak.window
+            .observe_at(0, Instant::now() + WINDOW_SLOT * (WINDOW_SLOTS as u32 + 1));
+        assert_eq!(
+            reader.value("test_gauge_peak", &[]),
+            1.0,
+            "the window is empty, so the peak is the current gauge"
+        );
     }
 }
