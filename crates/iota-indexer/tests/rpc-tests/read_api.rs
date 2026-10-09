@@ -13,13 +13,14 @@ use iota_indexer::{
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
     IndexerApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient, TransactionBuilderClient,
+    WriteApiClient,
 };
 use iota_json_rpc_types::{
-    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
+    CheckpointId, ExecuteTransactionRequestType, IotaGetPastObjectRequest, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
-    TransactionFilterV2,
+    TransactionBlockBytes, TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
@@ -28,8 +29,7 @@ use iota_sdk_types::{
     Address, Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
 };
 use iota_test_transaction_builder::{
-    TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
-    publish_simple_warrior_package,
+    TestTransactionBuilder, publish_example_package, publish_simple_warrior_package,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -1643,18 +1643,60 @@ fn try_get_past_object_object_deleted() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        // Publish NFT package and create an NFT
-        let context = &cluster.wallet;
-        let (package_id, _, _) = publish_nfts_package(context).await;
+        // Use a freshly funded address to not modify objects of shared addresses
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                sender,
+            )
+            .await;
+        let gas_object_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
-        let (sender, nft_object_id, _) = create_nft(context, package_id).await;
+        let context = &cluster.wallet;
+        let gas_price = context.get_reference_gas_price().await.unwrap();
+
+        // Publish NFT package and create an NFT
+        let (package_id, _) =
+            publish_example_package(context, "nft", &sender_key, sender, gas).await;
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let create_nft_tx = to_sender_signed_transaction(
+            TestTransactionBuilder::new(sender, gas, gas_price)
+                .call_nft_create(package_id)
+                .build(),
+            &sender_key,
+        );
+        let create_nft_res = context
+            .execute_transaction_must_succeed(create_nft_tx)
+            .await;
+        let nft_object_id = create_nft_res
+            .effects
+            .as_ref()
+            .unwrap()
+            .created()
+            .first()
+            .unwrap()
+            .reference
+            .object_id;
 
         // Retrieve the latest object reference (which includes version) for deletion.
         let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
 
         // Delete the NFT
-        let delete_nft_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
-        wait_for_objects_history(delete_nft_tx.digest, store, client).await;
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let delete_nft_tx = to_sender_signed_transaction(
+            TestTransactionBuilder::new(sender, gas, gas_price)
+                .call_nft_delete(package_id, nft_object_ref)
+                .build(),
+            &sender_key,
+        );
+        let delete_nft_res = context
+            .execute_transaction_must_succeed(delete_nft_tx)
+            .await;
+        wait_for_objects_history(delete_nft_res.digest, store, client).await;
 
         let deleted_version = nft_object_ref.version.next().unwrap();
 
@@ -2547,26 +2589,43 @@ fn is_transaction_present() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let address = cluster.get_address_2();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let gas_price = cluster.get_reference_gas_price().await;
+        let object_to_transfer = cluster
+            .fund_address_and_return_gas(gas_price, Some(500_000_000), address)
+            .await;
+        let gas = cluster
+            .fund_address_and_return_gas(gas_price, Some(500_000_000), address)
+            .await;
 
-        let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
-
-        let gas = owned_objects.last().unwrap().object_id().unwrap();
-
-        let object_ids = owned_objects
-            .iter()
-            .take(owned_objects.len() - 1)
-            .map(|obj| obj.object_id().unwrap())
-            .collect::<Vec<_>>();
-
-        let transaction = cluster
-            .transfer_object(address, address, object_ids[0], gas, None)
+        // Execute the transaction on the fullnode, bypassing the indexer.
+        let transaction_bytes: TransactionBlockBytes = cluster
+            .rpc_client()
+            .transfer_object(
+                address,
+                object_to_transfer.object_id,
+                Some(gas.object_id),
+                10_000_000.into(),
+                address,
+            )
+            .await
+            .unwrap();
+        let transaction = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &key);
+        let (tx_bytes, signatures) = transaction.to_tx_bytes_and_signatures();
+        let response = cluster
+            .rpc_client()
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                None,
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
             .await
             .unwrap();
 
         assert!(
             client
-                .is_transaction_indexed_on_node(transaction.digest)
+                .is_transaction_indexed_on_node(response.digest)
                 .await
                 .unwrap()
         );
