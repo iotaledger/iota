@@ -69,7 +69,7 @@ use self::{
 use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
-    epoch_buckets::{self, EpochBuckets},
+    epoch_buckets::{self, BucketReopen, EpochBuckets, absent_if_dropped},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::par_index_live_object_set,
     progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
@@ -783,7 +783,6 @@ impl RpcIndexesStore {
             history_cf_options,
             tables.earliest_retained_epoch.clone(),
             history,
-            HistoryBucket::reopen,
         )?;
         let metrics = RpcIndexesMetrics::new(registry);
         let jsonrpc_metrics = JsonRpcMetrics::new(registry);
@@ -920,7 +919,7 @@ impl RpcIndexesStore {
         digest: &TransactionDigest,
     ) -> IotaResult<Option<TxSequenceNumber>> {
         for bucket in self.history.iter(true) {
-            if let Some(found) = bucket.txs_seq.get(digest)? {
+            if let Some(found) = absent_if_dropped(bucket.txs_seq.get(digest))? {
                 return Ok(Some(found));
             }
         }
@@ -935,9 +934,9 @@ impl RpcIndexesStore {
     /// keeps the current epoch only. The newest epoch's bucket is always
     /// kept, since [`Self::index_checkpoint`] reads its digests.
     ///
-    /// A query racing a drop may report an error for the dropped epoch's
-    /// rows. Queries block for the duration of the drops, so callers on an
-    /// async runtime must use `spawn_blocking`.
+    /// A query racing a drop answers without the dropped epoch's rows.
+    /// Queries block for the duration of the drops, so callers on an async
+    /// runtime must use `spawn_blocking`.
     pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<EpochId>> {
         let Some(epochs_to_retain) = self.epochs_to_retain else {
             return Ok(None);

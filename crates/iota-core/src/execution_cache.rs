@@ -1153,6 +1153,15 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 
     fn clear_state_end_of_epoch(&self, execution_guard: &ExecutionLockWriteGuard<'_>);
 
+    /// Drops the marker buckets of every epoch below `new_epoch`. Call once
+    /// the scheduler and the execution lock are on `new_epoch`, so that no
+    /// read of an earlier epoch's markers can still follow.
+    fn expire_epoch_markers(
+        &self,
+        new_epoch: EpochId,
+        execution_guard: &ExecutionLockWriteGuard<'_>,
+    ) -> IotaResult<()>;
+
     fn try_expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,

@@ -22,13 +22,14 @@ use crate::authority::{AuthorityStore, authority_store_tables::AuthorityPerpetua
 
 async fn create_store() -> Arc<AuthorityStore> {
     let path = tempdir().unwrap();
-    let (tables, historic_objects, historic_ledger) =
+    let (tables, historic_objects, historic_ledger, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(path.path(), None).unwrap();
     let config = ConfigBuilder::new_with_temp_dir().build();
     AuthorityStore::open_with_committee_for_testing(
         Arc::new(tables),
         Arc::new(historic_objects),
         Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
         config.committee_with_network().committee(),
         &config.genesis,
     )
