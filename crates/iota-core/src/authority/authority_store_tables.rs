@@ -227,6 +227,11 @@ pub struct AuthorityPerpetualTables {
     /// migration first writes a slice.
     // TODO(https://github.com/iotaledger/iota/issues/12763): remove this table.
     pub(crate) ledger_backlog_migration_progress: DBMap<(), LedgerBacklogMigrationProgress>,
+
+    /// The oldest epoch the one-time ledger migration keeps, as computed by
+    /// the run that started it. Empty until that run writes anything.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove this table.
+    pub(crate) ledger_backlog_migration_floor: DBMap<(), EpochId>,
 }
 
 /// The total IOTA supply used during conservation checks.

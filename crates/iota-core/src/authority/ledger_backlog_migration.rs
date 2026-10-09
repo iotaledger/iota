@@ -183,12 +183,13 @@ impl LedgerBacklogMigration {
         }
     }
 
-    fn run(&self) -> IotaResult<()> {
+    fn run(&mut self) -> IotaResult<()> {
         // Before the drains, so a run interrupted mid-drain never leaves the
         // synced watermark above rows the drains deleted. Skipped once the
         // drains are done, so later starts keep what state sync fetched ahead
         // of execution.
         if self.migration_pending()? {
+            self.pin_floor()?;
             self.rewind_synced_watermark()?;
         }
         let mut counts = self.drain_ledger()?;
@@ -358,6 +359,19 @@ impl LedgerBacklogMigration {
                 "rewinding the synced watermark to the executed checkpoint so state sync \
                  fetches the checkpoints the migration could not attribute"
             );
+        }
+        Ok(())
+    }
+
+    /// Takes the floor of the run that started the migration, recording this
+    /// run's floor if it is that run. A resumed run under a changed retention
+    /// would otherwise keep epochs an earlier run already deleted rows of, and
+    /// report them as still held.
+    fn pin_floor(&mut self) -> IotaResult<()> {
+        let pinned = &self.perpetual_tables.ledger_backlog_migration_floor;
+        match pinned.get(&())? {
+            Some(floor) => self.floor = floor,
+            None => pinned.insert(&(), &self.floor)?,
         }
         Ok(())
     }
