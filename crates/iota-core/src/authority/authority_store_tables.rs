@@ -65,6 +65,9 @@ pub struct AuthorityPerpetualTables {
     /// executed transactions whose effects have not yet been written out,
     /// and which must be retried. But, they cannot be retried unless their
     /// input objects are still accessible!
+    ///
+    /// Superseded versions are moved into the [`HistoricObjects`] buckets
+    /// and expire with them; see [`HistoricObjects::prune`].
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
@@ -74,6 +77,8 @@ pub struct AuthorityPerpetualTables {
     /// transaction that's known to be executable. This means that it may
     /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
+    ///
+    /// Prunes with the ledger; see [`AuthorityStorePruner::prune_checkpoints`].
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
     /// A map between the transaction digest of a certificate to the effects of
@@ -88,6 +93,8 @@ pub struct AuthorityPerpetualTables {
     ///
     /// It's also possible for the effects to be reverted if the transaction
     /// didn't make it into the epoch.
+    ///
+    /// Prunes with the ledger; see [`AuthorityStorePruner::prune_checkpoints`].
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
     /// Transactions that have been executed locally on this node. We need this
@@ -95,13 +102,23 @@ pub struct AuthorityPerpetualTables {
     /// execution status of the transaction on this node. When we wait for
     /// transactions to be executed, we wait for them to appear in this
     /// table. When we revert transactions, we remove them from both tables.
+    ///
+    /// Prunes with the ledger; see [`AuthorityStorePruner::prune_checkpoints`].
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
-    // Events keyed by the digest of the transaction that produced them.
+    /// Events produced by each transaction, keyed by the transaction's
+    /// digest.
+    ///
+    /// Prunes with the ledger, not with the RPC index; see
+    /// [`AuthorityStorePruner::prune_checkpoints`].
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
-    /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
+    /// executor.
+    ///
+    /// Prunes with the ledger, not with the RPC index; see
+    /// [`AuthorityStorePruner::prune_checkpoints`].
+    ///
     /// Note, there is a table with the same name in
     /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
     pub(crate) executed_transactions_to_checkpoint:
