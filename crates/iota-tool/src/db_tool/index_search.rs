@@ -5,7 +5,7 @@
 use std::{fmt::Debug, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail};
-use iota_core::jsonrpc_index::{
+use iota_core::rpc_indexes::{
     DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
     DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_SENDER,
     DB_PREFIX_HISTORIC_EVENT_ORDER, DB_PREFIX_HISTORIC_TX_ORDER,

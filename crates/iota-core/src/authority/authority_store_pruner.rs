@@ -38,8 +38,7 @@ use super::authority_store_tables::AuthorityPerpetualTables;
 use crate::{
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark, EMPTY_CHECKPOINT_CONTENTS_DIGEST},
-    grpc_indexes::GrpcIndexesStore,
-    jsonrpc_index::IndexStore,
+    rpc_indexes::{IndexStore, grpc_api::GrpcIndexesStore},
 };
 
 static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {

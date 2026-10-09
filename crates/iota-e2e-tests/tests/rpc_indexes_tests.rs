@@ -58,8 +58,7 @@ async fn transactions_from(
         .unwrap()
 }
 
-/// History buckets are created per epoch by the live indexing path; queries
-/// must chain across the epoch boundary in both directions on a real node.
+/// Queries chain across the epoch boundary in both directions.
 #[sim_test]
 async fn indexes_chain_across_epoch_buckets_on_a_live_node() {
     let cluster = TestClusterBuilder::new().build().await;
