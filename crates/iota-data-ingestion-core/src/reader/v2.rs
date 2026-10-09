@@ -330,14 +330,14 @@ impl CheckpointReaderActor {
     /// Fetches checkpoints from the fullnode through a gRPC streaming
     /// connection and streams them to a channel.
     async fn relay_from_fullnode(&mut self, client: &mut GrpcClient) -> IngestionResult<()> {
-        let mut checkpoints_stream = client
-            .checkpoints_stream(
-                Some(self.current_checkpoint_number),
-                None,
-                self.fullnode_transaction_filter.clone().map(Into::into),
-                None,
-                iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA,
-            )
+        let mut query = client
+            .checkpoints_stream()
+            .start_sequence_number(self.current_checkpoint_number)
+            .read_mask(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA);
+        if let Some(filter) = self.fullnode_transaction_filter.clone() {
+            query = query.transactions_filter(filter.into());
+        }
+        let mut checkpoints_stream = query
             .await
             .map_err(|e| {
                 IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))

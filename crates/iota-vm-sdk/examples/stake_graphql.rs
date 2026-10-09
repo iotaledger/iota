@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     let stake_amount_nanos: u64 = 1_000_000_000;
 
     // Build the staking transaction.
-    let client = GraphQLClient::new_testnet();
+    let client = GraphQLClient::new_testnet()?;
     let mut builder = client.transaction_builder(sender);
     builder.stake(stake_amount_nanos, validator);
     let tx: Transaction = builder.finish().await.context("resolve staking tx")?;

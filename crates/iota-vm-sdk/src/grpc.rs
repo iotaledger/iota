@@ -3,10 +3,7 @@
 
 //! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
-use iota_grpc_client::{
-    GrpcClient,
-    read_mask_fields::{EpochReadMask, ObjectReadMask, ServiceInfoReadMask},
-};
+use iota_grpc_client::GrpcClient;
 use iota_sdk_types::{CheckpointDigest, Digest, ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
@@ -70,10 +67,8 @@ impl GrpcStore {
     /// can't be decoded.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let client = &self.cache.fetcher().client;
-        let (epoch_response, service_info_response) = tokio::join!(
-            client.epoch(None, EpochReadMask::default()),
-            client.service_info(ServiceInfoReadMask::default())
-        );
+        let (epoch_response, service_info_response) =
+            tokio::join!(client.epoch(), client.service_info());
         let epoch = epoch_response
             .map_err(|e| StoreError::new("fetch epoch", e))?
             .into_inner();
@@ -149,7 +144,7 @@ impl ObjectFetcher for GrpcFetcher {
     ) -> Result<Vec<Object>, StoreError> {
         let results = self
             .client
-            .objects_with_versions(refs.iter().copied(), ObjectReadMask::default())
+            .objects_with_versions(refs.iter().copied())
             .await
             .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
             .into_inner();
@@ -196,11 +191,9 @@ mod tests {
     use super::skip_not_found;
 
     fn server_error(code: tonic::Code) -> GrpcError {
-        GrpcError::Server(RpcStatus {
-            code: code.into(),
-            message: String::new(),
-            details: Vec::new(),
-        })
+        let mut status = RpcStatus::default();
+        status.code = code.into();
+        GrpcError::Server(status)
     }
 
     #[test]
