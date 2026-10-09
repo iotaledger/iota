@@ -1719,6 +1719,17 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `public_key::to_iota_address_impl(flag: u8,
     // raw_bytes: &vector<u8>): address`
     public_key_to_iota_address_impl_cost_base: Option<u64>,
+
+    // Upper bound on the computation units a `ClaimAccount` is charged, after rounding.
+    //
+    // The claim runs a fixed pipeline with no user code, so its cost is bounded by this many
+    // units at the transaction's own gas price plus the storage bound below. Requiring the
+    // budget to clear that sum rejects, from the transaction bytes alone, a claim that would
+    // run out of gas at execution.
+    claim_account_max_computation_units: Option<u64>,
+    // Upper bound on the bytes a `ClaimAccount` stores beyond its raw public key bytes: the
+    // account object, its authenticator function reference and the field holding the key.
+    claim_account_storage_bytes_bound: Option<u64>,
 }
 
 // feature flags
@@ -2283,7 +2294,18 @@ impl ProtocolConfig {
     }
 
     pub fn enable_claim_account_transaction(&self) -> bool {
-        self.feature_flags.enable_claim_account_transaction
+        let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
+        if enable_claim_account_transaction {
+            // The validity check rejects a claim whose budget cannot cover the
+            // pipeline, so the bounds that define that floor must be set.
+            assert!(
+                self.claim_account_max_computation_units.is_some()
+                    && self.claim_account_storage_bytes_bound.is_some(),
+                "enable_claim_account_transaction requires claim_account_max_computation_units \
+                 and claim_account_storage_bytes_bound to be set"
+            );
+        }
+        enable_claim_account_transaction
     }
 }
 
@@ -2963,6 +2985,9 @@ impl ProtocolConfig {
             multisig_multisig_validate_pubkey_cost_per_secp256k1_member: None,
             multisig_multisig_validate_pubkey_cost_per_secp256r1_member: None,
             public_key_to_iota_address_impl_cost_base: None,
+
+            claim_account_max_computation_units: None,
+            claim_account_storage_bytes_bound: None,
 
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
@@ -3705,6 +3730,11 @@ impl ProtocolConfig {
                         // Enable claiming an account for the sender's address in
                         // devnet only.
                         cfg.feature_flags.enable_claim_account_transaction = true;
+
+                        // Bounds on a ClaimAccount's cost, so a claim cannot run
+                        // out of gas at any admissible gas price or key size.
+                        cfg.claim_account_max_computation_units = Some(5_000);
+                        cfg.claim_account_storage_bytes_bound = Some(2_000);
                     }
 
                     // Set the cost for built-in Move authenticators to 0 for now.
