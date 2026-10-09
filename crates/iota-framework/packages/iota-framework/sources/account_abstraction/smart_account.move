@@ -1,32 +1,26 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// `SmartAccount` — an on-chain account with built-in support for IOTA's standard
-/// signature schemes (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey).
-/// Any `AuthenticatorFunctionRefV1` can also be used via `SmartAccountBuilder`
-/// or by rotating the authenticator after creation.
+/// `SmartAccount` — a general-purpose on-chain account authenticated by any
+/// `AuthenticatorFunctionRefV1`.
 ///
-/// `SmartAccount`s are created through the `SmartAccountBuilder` API:
+/// This module holds only what every `SmartAccount` needs: creating the account, managing its
+/// dynamic fields, and rotating its authenticator. It knows nothing about any particular
+/// authenticator. Other modules extend an account by adding dynamic fields under their own key
+/// types. `iota::smart_account_builtin_auth` is such a module: it adds the built-in authenticator
+/// for IOTA's standard signature schemes together with the public key it checks signatures
+/// against.
 ///
-/// - `builder_v1`: allocates a new object ID; the caller supplies any
-///   `AuthenticatorFunctionRefV1`.
-/// - `builtin_auth_builder_v1`: allocates a new object ID; uses the built-in
-///   authenticator with the provided `PublicKey`.
+/// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
+/// object ID for the supplied authenticator. After optionally adding fields with `with_field`,
+/// finalize with `build_v1`.
 ///
-/// Claiming an existing address through the `ClaimAccount` transaction kind does
-/// not go through that API: it drives the private `claim_account_v1` below.
-///
-/// After optionally adding fields with `with_field`, finalize with `build_v1`.
-///
-/// Once built, dynamic fields can only be managed by the account itself — the admin
-/// functions require the transaction sender to be the smart account's address.
-/// The authenticator can be rotated after creation, and dynamic fields can be
-/// added, removed and mutated, through the admin functions in this module.
+/// Once built, the account can only be changed by itself — the admin functions require the
+/// transaction sender to be the smart account's address.
 module iota::smart_account;
 
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
-use iota::builtin_authenticator_functions;
 use iota::claim;
 use iota::dynamic_field;
 use iota::public_key::PublicKey;
@@ -41,9 +35,8 @@ const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
 
 /// General-purpose on-chain account object.
 ///
-/// `SmartAccount`s can only be created via `SmartAccountBuilder` — use `builder_v1`
-/// or `builtin_auth_builder_v1` to obtain one, optionally add fields with
-/// `with_field`, then finalize with `build_v1`.
+/// `SmartAccount`s can only be created via `SmartAccountBuilder` — use `builder_v1` to obtain
+/// one, optionally add fields with `with_field`, then finalize with `build_v1`.
 ///
 /// All data is stored as dynamic fields, keeping the struct stable across
 /// upgrades and allowing arbitrary extensions.
@@ -53,12 +46,10 @@ public struct SmartAccount has key {
 
 /// Temporary builder for constructing a `SmartAccount` before it is registered on-chain.
 ///
-/// The builder cannot be copied, stored, or dropped — it must be consumed by
-/// `build_v1`.
+/// The builder cannot be copied, stored, or dropped — it must be consumed by `build_v1`.
 ///
-/// Use `with_field` to add dynamic fields before finalizing. This is the only
-/// way to add fields at creation time, since post-creation the admin functions
-/// require the transaction sender to be the account's address.
+/// Use `with_field` before finalizing. It is the only way to add fields at creation time, since
+/// post-creation the admin functions require the transaction sender to be the account's address.
 public struct SmartAccountBuilder {
     account: SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
@@ -68,8 +59,8 @@ public struct SmartAccountBuilder {
 
 /// Creates a `SmartAccountBuilder` for a new account with the provided authenticator.
 ///
-/// Use this when you want to supply a custom `AuthenticatorFunctionRefV1`.
-/// For accounts backed by a built-in signature scheme, prefer `builtin_auth_builder_v1`.
+/// The authenticator must be able to authenticate the account as built. For accounts backed by
+/// a public key and the built-in authenticator, use `smart_account_builtin_auth::builder_v1`.
 public fun builder_v1(
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &mut TxContext,
@@ -77,26 +68,6 @@ public fun builder_v1(
     SmartAccountBuilder {
         account: SmartAccount { id: object::new(ctx) },
         authenticator,
-    }
-}
-
-/// Creates a `SmartAccountBuilder` for a new account backed by the built-in authenticator
-/// with `public_key`.
-///
-/// The public key is stored as a dynamic field on the account so the authenticator
-/// can validate future transactions.
-///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
-public fun builtin_auth_builder_v1(
-    public_key: PublicKey,
-    ctx: &mut TxContext,
-): SmartAccountBuilder {
-    let mut account = SmartAccount { id: object::new(ctx) };
-    builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
-
-    SmartAccountBuilder {
-        account,
-        authenticator: builtin_authenticator_functions::builtin_authenticator_function_ref_v1(),
     }
 }
 
@@ -136,11 +107,6 @@ public fun has_field<Name: copy + drop + store>(self: &SmartAccount, name: Name)
     dynamic_field::exists_(&self.id, name)
 }
 
-/// Returns `true` if and only if `self` has a built-in authenticator public key attached.
-public fun has_builtin_auth_public_key(self: &SmartAccount): bool {
-    builtin_authenticator_functions::has_public_key(&self.id)
-}
-
 /// Borrows a reference to a dynamic field from the account.
 ///
 /// Aborts if no field with the specified `name` exists.
@@ -151,13 +117,6 @@ public fun borrow_field<Name: copy + drop + store, Value: store>(
     dynamic_field::borrow(&self.id, name)
 }
 
-/// Borrows the built-in authenticator public key attached to the account.
-///
-/// Aborts if no public key is currently attached.
-public fun borrow_builtin_auth_public_key(self: &SmartAccount): &PublicKey {
-    builtin_authenticator_functions::borrow_public_key(&self.id)
-}
-
 /// Borrows a reference to the attached `AuthenticatorFunctionRefV1` instance.
 ///
 /// Aborts if no authenticator is attached.
@@ -165,6 +124,11 @@ public fun borrow_auth_function_ref_v1(
     self: &SmartAccount,
 ): &AuthenticatorFunctionRefV1<SmartAccount> {
     account::borrow_auth_function_ref_v1(&self.id)
+}
+
+/// Aborts if the sender of this transaction is not the account itself.
+public fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
+    assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
 }
 
 // === Admin Functions ===
@@ -184,24 +148,6 @@ public fun add_field<Name: copy + drop + store, Value: store>(
     dynamic_field::add(&mut self.id, name, value);
 }
 
-/// Attaches built-in authenticator `public_key` to the account.
-///
-/// Use this when migrating away from a custom authenticator to a built-in one.
-///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
-///
-/// Aborts if the transaction sender is not the account.
-/// Aborts if a public key is already attached.
-public fun attach_builtin_auth_public_key(
-    self: &mut SmartAccount,
-    public_key: PublicKey,
-    ctx: &TxContext,
-) {
-    ensure_tx_sender_is_smart_account(self, ctx);
-
-    builtin_authenticator_functions::attach_public_key(&mut self.id, public_key);
-}
-
 /// Removes a dynamic field from the account.
 ///
 /// Aborts if the transaction sender is not the account.
@@ -214,20 +160,6 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_smart_account(self, ctx);
 
     dynamic_field::remove(&mut self.id, name)
-}
-
-/// Detaches and returns the built-in authenticator public key attached to the account.
-///
-/// Use this when migrating away from a built-in authenticator to a custom one.
-///
-/// Emits a `builtin_authenticator_functions::PublicKeyDetached` event on success.
-///
-/// Aborts if the transaction sender is not the account.
-/// Aborts if no public key is currently attached.
-public fun detach_builtin_auth_public_key(self: &mut SmartAccount, ctx: &TxContext): PublicKey {
-    ensure_tx_sender_is_smart_account(self, ctx);
-
-    builtin_authenticator_functions::detach_public_key(&mut self.id)
 }
 
 /// Borrows a mutable reference to a dynamic field from the account.
@@ -262,24 +194,14 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
     previous_value
 }
 
-/// Replaces the existing built-in authenticator public key with `public_key`
-/// and returns the previous key.
+/// Rotates the attached authenticator and returns the previous one.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
-///
-/// Aborts if the transaction sender is not the account.
-/// Aborts if no public key is currently attached.
-public fun rotate_builtin_auth_public_key(
-    self: &mut SmartAccount,
-    public_key: PublicKey,
-    ctx: &TxContext,
-): PublicKey {
-    ensure_tx_sender_is_smart_account(self, ctx);
-
-    builtin_authenticator_functions::rotate_public_key(&mut self.id, public_key)
-}
-
-/// Rotates the attached authenticator.
+/// Accepts any authenticator and does not check that the account can still be authenticated
+/// afterwards: rotating to the built-in authenticator while no public key is attached leaves the
+/// account unable to send any transaction. To switch to or from the built-in authenticator, use
+/// `smart_account_builtin_auth::rotate_to_builtin_auth_v1` and
+/// `smart_account_builtin_auth::rotate_to_custom_auth_v1`, which attach and detach the public key
+/// together with the rotation.
 ///
 /// Emits an `account::AuthenticatorFunctionRefV1Rotated` event upon success.
 ///
@@ -296,51 +218,31 @@ public fun rotate_auth_function_ref_v1(
 
 // === Package Functions ===
 
-// === Private Functions ===
-
-/// Claims the sender's address and creates a mutable `SmartAccount` at it,
-/// backed by the built-in authenticator with `public_key`.
-///
-/// This is the whole `ClaimAccount` pipeline. It is **private on purpose**: the
-/// account object it creates has an ID equal to a signature-derivable address,
-/// so `ClaimAccount` must stay the one and only way such an object can come
-/// into existence. A private function is reachable from the node's own PTB,
-/// which runs in an execution mode that bypasses visibility, and from nowhere
-/// else — not from a user PTB, and not from another package, which could
-/// otherwise wrap a public entry point. See the
-/// `iota::clock::consensus_commit_prologue` function for the same idiom.
-///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
-/// `account::MutableAccountCreated` event.
+/// Creates a `SmartAccountBuilder` whose account ID is the claimed sender address.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
-#[allow(unused_function)]
-fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    claim_builder(public_key, ctx).build_v1();
-}
-
-/// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
-/// address, backed by the built-in authenticator with `public_key`.
-fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
-    let mut account = SmartAccount { id: claim::claim_address(public_key, ctx) };
-    builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
-
+public(package) fun new_claim_builder(
+    public_key: PublicKey,
+    authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
+    ctx: &TxContext,
+): SmartAccountBuilder {
     SmartAccountBuilder {
-        account,
-        authenticator: builtin_authenticator_functions::builtin_authenticator_function_ref_v1(),
+        account: SmartAccount { id: claim::claim_address(public_key, ctx) },
+        authenticator,
     }
 }
 
-/// Check that the sender of this transaction is the account itself.
-fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
-    assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
+/// Borrows the `UID` of the account being built.
+public(package) fun borrow_uid_mut(self: &mut SmartAccountBuilder): &mut UID {
+    &mut self.account.id
 }
 
-// === Test Functions ===
+/// Borrows the account's `UID`.
+public(package) fun uid(self: &SmartAccount): &UID {
+    &self.id
+}
 
-/// Test-only entry to `claim_account_v1`, which is private so that only the
-/// node's `ClaimAccount` pipeline can reach it.
-#[test_only]
-public fun claim_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
-    claim_account_v1(public_key, ctx)
+/// Borrows the account's `UID` mutably.
+public(package) fun uid_mut(self: &mut SmartAccount): &mut UID {
+    &mut self.id
 }

@@ -4,6 +4,7 @@
 #[test_only]
 module iota::builtin_authenticator_functions_tests;
 
+use iota::authenticator_function;
 use iota::builtin_authenticator_functions;
 use iota::public_key;
 use iota::signature_scheme;
@@ -61,6 +62,34 @@ fun builtin_auth_function_ref_has_correct_fields() {
     assert_eq(ref.package(), object::id_from_address(@0x2));
     assert_ref_eq(ref.module_name(), &ascii::string(b"builtin_authenticator_functions"));
     assert_ref_eq(ref.function_name(), &ascii::string(b"builtin_authenticator_v1"));
+}
+
+#[test]
+fun is_builtin_authenticator_accepts_the_builtin_ref() {
+    let ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<TestAccount>();
+
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&ref), true);
+}
+
+#[test]
+fun is_builtin_authenticator_rejects_other_refs() {
+    let other_package = authenticator_function::create_auth_function_ref_v1_for_testing<
+        TestAccount,
+    >(
+        @0xABC,
+        ascii::string(b"builtin_authenticator_functions"),
+        ascii::string(b"builtin_authenticator_v1"),
+    );
+    let other_function = authenticator_function::create_auth_function_ref_v1_for_testing<
+        TestAccount,
+    >(
+        @0x2,
+        ascii::string(b"builtin_authenticator_functions"),
+        ascii::string(b"other_function"),
+    );
+
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_package), false);
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_function), false);
 }
 
 // === attach_public_key / has_public_key / borrow_public_key / detach_public_key ===
