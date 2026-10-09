@@ -40,6 +40,7 @@ mod checked {
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
+        transaction::ProgrammableTransactionExt,
         transfer::RESOLVED_RECEIVING_STRUCT,
     };
     use iota_verifier::{
@@ -137,6 +138,13 @@ mod checked {
         pt: ProgrammableTransaction,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
+        if protocol_config.validate_ptb_argument_indices() {
+            if let Err(err) = pt.validate_argument_indices() {
+                invariant_violation!(
+                    "PTB argument indices are checked at signing -- this should be impossible: {err}"
+                );
+            }
+        }
         let ProgrammableTransaction { inputs, commands } = pt;
         let mut context = ExecutionContext::new(
             protocol_config,
