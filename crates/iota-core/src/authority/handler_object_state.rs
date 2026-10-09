@@ -46,9 +46,11 @@
 //! - the quarantine flush of a commit's output (once its checkpoint is certified and executed):
 //!   inserts the commit's handler-processed rows atomically with `last_consensus_stats`, and drains
 //!   the queued sync-record deletions ([`HandlerObjectState::write_commit_rows_to_batch`]);
-//! - the checkpoint executor's auxiliary batch for a sync-executed checkpoint, durable before the
-//!   watermark bump: inserts sync-ahead records and sheltered bytes
-//!   ([`HandlerObjectState::write_sync_ahead_rows_to_batch`]).
+//! - the checkpoint executor's auxiliary batch for every executed checkpoint, durable before the
+//!   checkpoint's outputs and its watermark bump: inserts the handler-processed rows, sync-ahead
+//!   records and sheltered bytes its executions left in the overlays
+//!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]), so an object is never durable
+//!   without its row or record.
 //!
 //! Both batches go through `DBBatch::write`, which does not fsync. Every
 //! ordering this module relies on between a durable write and what follows
@@ -59,7 +61,7 @@
 //! lose its tail independently of the other.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -142,6 +144,10 @@ pub struct SyncAheadRecord {
     /// version validation may still treat as live. `None` when the chain
     /// created the object itself, in which case every named version answers
     /// missing.
+    ///
+    /// In the durable table, this version is durable in the store, or was
+    /// written by the same checkpoint, whose batch then also holds its
+    /// handler row.
     pub base_version: Option<Version>,
     /// The highest version the chain has created so far; extended as the
     /// chain grows.
@@ -196,21 +202,14 @@ pub fn handler_processed_upserts(
 
     let mut rows = Vec::with_capacity(changed.len());
     for (owned_ref, write_kind) in changed {
-        let initial_shared_version = match (write_kind, *owned_ref.owner()) {
-            // A shared object's creation row carries its initial shared
-            // version - the created-shared flag the shared-input checks read.
-            (WriteKind::Create, Owner::Shared(initial)) => Some(initial),
-            // Shared-object mutations write nothing: no check consults shared
-            // state beyond existence, creation, and deletion, and hot shared
-            // objects (the Clock) would churn the row every commit.
-            (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => continue,
-            (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => None,
-            // `WriteKind` is non-exhaustive; a kind this code does not know
-            // cannot be classified, so it is a bug here rather than a guess.
-            _ => fatal!(
-                "unknown write kind {write_kind:?} for {}",
-                owned_ref.reference().object_id
-            ),
+        if !needs_handler_row(write_kind, &owned_ref) {
+            continue;
+        }
+        // A shared object's creation row carries its initial shared version -
+        // the created-shared flag the shared-input checks read.
+        let initial_shared_version = match *owned_ref.owner() {
+            Owner::Shared(initial) => Some(initial),
+            _ => None,
         };
         rows.push((
             ObjectKey(
@@ -247,6 +246,46 @@ pub fn handler_processed_upserts(
         ));
     }
     rows
+}
+
+/// The keys of the rows [`handler_processed_upserts`] derives for `effects`,
+/// in the same order, without building the rows.
+pub fn handler_processed_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
+    let live = effects
+        .all_changed_objects()
+        .into_iter()
+        .filter(|(owned_ref, write_kind)| needs_handler_row(*write_kind, owned_ref))
+        .map(|(owned_ref, _)| {
+            ObjectKey(
+                owned_ref.reference().object_id,
+                owned_ref.reference().version,
+            )
+        });
+    let tombstones = chain!(
+        effects.deleted(),
+        effects.unwrapped_then_deleted(),
+        effects.wrapped()
+    )
+    .map(|reference| ObjectKey(reference.object_id, reference.version));
+    live.chain(tombstones).collect()
+}
+
+/// Whether a created, mutated or unwrapped object needs a handler-processed
+/// row; if so, the row is `Live`.
+fn needs_handler_row(write_kind: WriteKind, owned_ref: &OwnedObjectReference) -> bool {
+    match (write_kind, owned_ref.owner()) {
+        // Shared-object mutations write nothing: no check consults shared
+        // state beyond existence, creation, and deletion, and hot shared
+        // objects (the Clock) would churn the row every commit.
+        (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => false,
+        (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => true,
+        // `WriteKind` is non-exhaustive; a kind this code does not know
+        // cannot be classified, so it is a bug here rather than a guess.
+        _ => fatal!(
+            "unknown write kind {write_kind:?} for {}",
+            owned_ref.reference().object_id
+        ),
+    }
 }
 
 /// Derives the sync-ahead record writes for one sync-executed transaction:
@@ -346,6 +385,56 @@ pub struct AssignedCommit {
     /// The commit's roots: the same keys written to its pending checkpoints,
     /// cancelled transactions included.
     pub roots: Vec<TransactionKey>,
+}
+
+/// The entries of `overlay` at `keys`, skipping absent ones.
+fn present_entries<K: Ord, V: Clone>(
+    overlay: &RwLock<BTreeMap<K, V>>,
+    keys: impl IntoIterator<Item = K>,
+) -> Vec<(K, V)> {
+    let overlay = overlay.read();
+    keys.into_iter()
+        .filter_map(|key| overlay.get(&key).cloned().map(|value| (key, value)))
+        .collect()
+}
+
+/// The records in `sync_rows` of objects with a key in `handler_keys` that
+/// has no row in `handler_rows`: those a checkpoint's own sync-ahead
+/// executions wrote. See [`HandlerObjectState::checkpoint_rows`] for why
+/// only these are kept.
+fn records_written_by_sync_ahead(
+    sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
+    handler_keys: &[ObjectKey],
+    handler_rows: &[(ObjectKey, HandlerProcessedObject)],
+) -> Vec<(ObjectId, SyncAheadRecord)> {
+    if sync_rows.is_empty() {
+        return sync_rows;
+    }
+    let with_row: BTreeSet<ObjectKey> = handler_rows.iter().map(|(key, _)| *key).collect();
+    let written_sync_ahead: BTreeSet<ObjectId> = handler_keys
+        .iter()
+        .filter(|key| !with_row.contains(key))
+        .map(|key| key.0)
+        .collect();
+    sync_rows
+        .into_iter()
+        .filter(|(id, _)| written_sync_ahead.contains(id))
+        .collect()
+}
+
+/// A checkpoint's bookkeeping entries; see
+/// [`HandlerObjectState::checkpoint_rows`].
+#[derive(Debug, Default)]
+pub struct CheckpointRows {
+    pub handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+    pub sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
+    pub shelter_rows: Vec<(ObjectKey, Object)>,
+}
+
+impl CheckpointRows {
+    pub fn is_empty(&self) -> bool {
+        self.handler_rows.is_empty() && self.sync_rows.is_empty() && self.shelter_rows.is_empty()
+    }
 }
 
 /// A commit whose rows a quarantine flush staged into its batch. The flush
@@ -707,7 +796,10 @@ impl HandlerObjectState {
     /// Rows are keyed per version, so flushes of different commits may land
     /// in any order without one overwriting another. The staged deletions stay
     /// queued until eviction, so a sync-ahead write landing before the batch
-    /// is durable still sees the record as dead.
+    /// is durable still sees the record as dead. Such a write cancels the
+    /// queued deletion but not the copy already staged here, which is why the
+    /// auxiliary batch writes records under the quarantine lock; see
+    /// `AuthorityPerEpochStore::write_and_evict_checkpoint_rows`.
     pub fn write_commit_rows_to_batch(
         &self,
         commit_index: CommitIndex,
@@ -754,62 +846,129 @@ impl HandlerObjectState {
         self.sync_ahead_record_deletions
             .lock()
             .retain(|_, &mut index| index > commit_index);
-        {
-            let mut overlay = self.handler_processed_overlay.write();
-            for (key, _) in handler_rows {
-                overlay.remove(key);
-            }
-            self.metrics
-                .handler_object_state_handler_processed_overlay_entries
-                .set(overlay.len() as i64);
-        }
+        self.remove_handler_overlay_rows(handler_rows);
         // Last, so a validation released by the signal finds the rows.
         self.advance_highest_fully_executed_commit(commit_index);
     }
 
-    /// Stages a sync-executed checkpoint's records and sheltered bytes into
-    /// `batch` - the checkpoint executor's auxiliary batch, durable before
-    /// the executed-checkpoint watermark bump that lets the pruner delete the
-    /// consumed versions' perpetual rows. After the batch is durably written
-    /// (never before), pass the same rows to
-    /// [`Self::evict_flushed_sync_ahead_rows`].
+    /// The bookkeeping entries the executions behind `effects` left in the
+    /// overlays: the handler row at every key the execution hook could have
+    /// written, the sync-ahead record of every object their sync-ahead
+    /// executions wrote, and the sheltered bytes of every owned input they
+    /// consumed. `effects` are the transactions of one checkpoint whose
+    /// outputs are not yet durable.
     ///
-    /// These writes carry no version guard: the caller must flush checkpoints
-    /// in order, one at a time (the checkpoint executor does), or an older
-    /// record could overwrite a newer durable one.
-    pub fn write_sync_ahead_rows_to_batch(
+    /// A record is included only when some key of `effects` has no handler
+    /// row in the snapshot. The execution hook writes either a handler row or
+    /// a record for each write, so such a key is a sync-ahead write of this
+    /// checkpoint that started or extended the record. A record of an object
+    /// this checkpoint wrote only handler-known was started later, by a later
+    /// checkpoint's sync-ahead execution, and is left in the overlay for the
+    /// batch of that checkpoint.
+    ///
+    /// This relies on a handler-known write's row still being in the overlay.
+    /// Only this checkpoint's batch, after taking this snapshot, or its
+    /// commits' flushes, after this checkpoint's outputs are committed, evict
+    /// it. A change that flushed a commit before its checkpoint's outputs
+    /// would make such a write look sync-ahead, and a record would be
+    /// persisted before its base version is.
+    pub fn checkpoint_rows<'a>(
+        &self,
+        effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    ) -> CheckpointRows {
+        // The sync-ahead and shelter overlays are empty on a healthy
+        // validator, which then skips deriving their keys.
+        let find_sync_rows = !self.sync_ahead_overlay.read().is_empty();
+        iota_macros::fail_point!("pcool-checkpoint-rows-between-presence-reads");
+        let find_handler_rows = !self.handler_processed_overlay.read().is_empty();
+        let find_shelter_rows = !self.sheltered_overlay.read().is_empty();
+        if !(find_handler_rows || find_sync_rows || find_shelter_rows) {
+            return CheckpointRows::default();
+        }
+        let mut handler_keys = Vec::new();
+        let mut shelter_keys = Vec::new();
+        for effects in effects {
+            // The rows themselves, with their commit index, come from the
+            // overlay.
+            handler_keys.extend(handler_processed_keys(effects));
+            if find_shelter_rows {
+                shelter_keys.extend(consumed_input_keys_to_shelter(
+                    &effects.old_object_metadata(),
+                ));
+            }
+        }
+        // `sync_ahead_writes` covers the same objects as the handler rows: the
+        // two differ only on unwrapping into a shared object, which cannot
+        // happen.
+        let sync_ids: BTreeSet<ObjectId> = if find_sync_rows {
+            handler_keys.iter().map(|key| key.0).collect()
+        } else {
+            BTreeSet::new()
+        };
+        // Completion inserts H before removing S. Reading S first ensures
+        // that this snapshot persists at least one side of that transition.
+        let sync_rows = present_entries(&self.sync_ahead_overlay, sync_ids);
+        iota_macros::fail_point!("pcool-checkpoint-rows-between-data-reads");
+        let handler_rows = present_entries(
+            &self.handler_processed_overlay,
+            handler_keys.iter().copied(),
+        );
+        let sync_rows = records_written_by_sync_ahead(sync_rows, &handler_keys, &handler_rows);
+        CheckpointRows {
+            handler_rows,
+            sync_rows,
+            shelter_rows: present_entries(&self.sheltered_overlay, shelter_keys),
+        }
+    }
+
+    /// Stages a checkpoint's bookkeeping entries into `batch`, the checkpoint
+    /// executor's auxiliary batch. After the batch is durably written (never
+    /// before), pass the same rows to [`Self::evict_flushed_checkpoint_rows`].
+    ///
+    /// Sync-ahead records carry no version guard: the caller must flush
+    /// checkpoints in order, one at a time (the checkpoint executor does), or
+    /// an older record could overwrite a newer durable one. Handler rows and
+    /// sheltered bytes never change once written for a key.
+    ///
+    /// A record that [`Self::checkpoint_rows`] returns was written by the
+    /// checkpoint's own sync-ahead executions, so its base version is already
+    /// durable, from an earlier checkpoint's outputs, or written by this
+    /// checkpoint, whose handler row for it is in this same batch.
+    pub fn write_checkpoint_rows_to_batch(
         &self,
         tables: &AuthorityEpochTables,
         batch: &mut DBBatch,
-        sync_rows: &[(ObjectId, SyncAheadRecord)],
-        shelter_rows: &[(ObjectKey, Object)],
+        rows: &CheckpointRows,
     ) -> IotaResult {
         batch.insert_batch(
+            &tables.handler_processed_objects,
+            rows.handler_rows.iter().map(|(key, row)| (key, row)),
+        )?;
+        batch.insert_batch(
             &tables.sync_ahead_records,
-            sync_rows.iter().map(|(id, record)| (id, record)),
+            rows.sync_rows.iter().map(|(id, record)| (id, record)),
         )?;
         batch.insert_batch(
             &tables.sheltered_objects,
-            shelter_rows.iter().map(|(key, object)| (key, object)),
+            rows.shelter_rows.iter().map(|(key, object)| (key, object)),
         )?;
         Ok(())
     }
 
-    /// Evicts sync-ahead overlay entries once their rows are durable. Must
-    /// cover the checkpoint's full derived row set - including keys the write
-    /// skipped as already present - because a replay after a crash re-inserts
-    /// overlay entries for rows that are already durable, and this recurring
-    /// eviction is what clears them. An entry extended since the flush is
-    /// kept; shelter rows are immutable per key, so no such check is needed
-    /// there.
-    pub fn evict_flushed_sync_ahead_rows(
-        &self,
-        sync_rows: &[(ObjectId, SyncAheadRecord)],
-        shelter_rows: &[(ObjectKey, Object)],
-    ) {
-        {
+    /// Evicts a checkpoint's bookkeeping entries from the overlays once their
+    /// rows are durable. A sync-ahead record extended since it was read is
+    /// kept; handler rows and sheltered bytes are immutable per key, so no
+    /// such check is needed for them.
+    ///
+    /// A handler row evicted here may be inserted again by its commit's
+    /// completion, with the same value; the commit's flush evicts it then. A
+    /// replay after a crash re-inserts entries whose rows are already durable,
+    /// and re-running this for the re-executed checkpoint clears them.
+    pub fn evict_flushed_checkpoint_rows(&self, rows: &CheckpointRows) {
+        self.remove_handler_overlay_rows(&rows.handler_rows);
+        if !rows.sync_rows.is_empty() {
             let mut overlay = self.sync_ahead_overlay.write();
-            for (id, record) in sync_rows {
+            for (id, record) in &rows.sync_rows {
                 if overlay.get(id) == Some(record) {
                     overlay.remove(id);
                 }
@@ -818,16 +977,31 @@ impl HandlerObjectState {
                 .handler_object_state_sync_ahead_overlay_entries
                 .set(overlay.len() as i64);
         }
-        let mut overlay = self.sheltered_overlay.write();
-        for (key, _) in shelter_rows {
-            if let Some(object) = overlay.remove(key) {
-                self.metrics
-                    .handler_object_state_sheltered_overlay_bytes
-                    .sub(object.object_size_for_gas_metering() as i64);
+        if !rows.shelter_rows.is_empty() {
+            let mut overlay = self.sheltered_overlay.write();
+            for (key, _) in &rows.shelter_rows {
+                if let Some(object) = overlay.remove(key) {
+                    self.metrics
+                        .handler_object_state_sheltered_overlay_bytes
+                        .sub(object.object_size_for_gas_metering() as i64);
+                }
             }
+            self.metrics
+                .handler_object_state_sheltered_overlay_entries
+                .set(overlay.len() as i64);
+        }
+    }
+
+    fn remove_handler_overlay_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
+        if rows.is_empty() {
+            return;
+        }
+        let mut overlay = self.handler_processed_overlay.write();
+        for (key, _) in rows {
+            overlay.remove(key);
         }
         self.metrics
-            .handler_object_state_sheltered_overlay_entries
+            .handler_object_state_handler_processed_overlay_entries
             .set(overlay.len() as i64);
     }
 
@@ -886,9 +1060,37 @@ impl HandlerObjectState {
         if writes.is_empty() {
             return Ok(());
         }
+        // The record found below may be dead: the handler has already caught
+        // up past its chain, but the record is still here because its
+        // deletion is not queued (the handler has not completed the commit
+        // yet, or a restart dropped the queue). A dead record must not be
+        // extended; the write starts a new chain instead.
+        //
+        // A live chain's outputs never have handler rows, so a handler row at
+        // either of two versions proves the record is dead. First, at the
+        // version the write consumed: only handler-known execution writes
+        // rows, so the write builds on a handler-known version, not on the
+        // chain. This also covers a handler-known transaction that consumed
+        // the chain's head before its commit completed, when the head itself
+        // has no row yet. Second, at the record's head: the handler completed
+        // the commit that produced the head. This covers writes that consume
+        // nothing, such as an unwrap, where the first check has nothing to
+        // look up.
+        //
+        // Missing both rows extends the record. Both rows are read before the
+        // locks. The head row is looked up on the record read here, so under
+        // the lock it counts only if the record found there still ends at
+        // that head. A row that lands after these reads leaves the record
+        // extended; that row takes precedence over the record on every read.
+        let handler_known = writes
+            .iter()
+            .map(|write| self.handler_known_versions(tables, write))
+            .collect::<IotaResult<Vec<_>>>()?;
         let mut overlay = self.sync_ahead_overlay.write();
         let mut deletions = self.sync_ahead_record_deletions.lock();
-        for write in writes {
+        for (write, (consumed_handler_known, handler_known_head)) in
+            writes.into_iter().zip(handler_known)
+        {
             let current = match overlay.get(&write.id) {
                 Some(record) => Some(*record),
                 // A record with a queued deletion is logically gone (the
@@ -899,9 +1101,14 @@ impl HandlerObjectState {
                 None if deletions.contains_key(&write.id) => None,
                 None => tables.sync_ahead_records.get(&write.id)?,
             };
+            // A dead record is not this write's chain: the write starts a new
+            // one under the same key.
+            let chain = current.filter(|record| {
+                !consumed_handler_known && handler_known_head != Some(record.latest_created)
+            });
             // Only an extension of the chain updates the record
             // (re-executions after a restart replay the same writes).
-            if current.is_none_or(|record| write.created > record.latest_created) {
+            if chain.is_none_or(|record| write.created > record.latest_created) {
                 if current.is_none() {
                     // Cancel any queued deletion of the dead record: it
                     // drains into a later flush batch, which must not destroy
@@ -911,7 +1118,7 @@ impl HandlerObjectState {
                     self.live_sync_ahead_records_count
                         .fetch_add(1, Ordering::Relaxed);
                 }
-                let (base_version, initial_shared_version) = match current {
+                let (base_version, initial_shared_version) = match chain {
                     // First write of the chain: what it consumed is what was
                     // latest before the chain started (`None` when it created
                     // the object).
@@ -941,6 +1148,32 @@ impl HandlerObjectState {
         Ok(())
     }
 
+    /// Whether `write`'s consumed version has a handler row, and the head of
+    /// the object's current sync-ahead record when that head has one. The
+    /// head is not looked up when the consumed version has a row, so the
+    /// second value is then `None`.
+    fn handler_known_versions(
+        &self,
+        tables: &AuthorityEpochTables,
+        write: &SyncAheadWrite,
+    ) -> IotaResult<(bool, Option<Version>)> {
+        if let Some(consumed) = write.consumed {
+            if self
+                .handler_processed_object(tables, &ObjectKey(write.id, consumed))?
+                .is_some()
+            {
+                return Ok((true, None));
+            }
+        }
+        let Some(record) = self.sync_ahead_record(tables, &write.id)? else {
+            return Ok((false, None));
+        };
+        let head_known = self
+            .handler_processed_object(tables, &ObjectKey(write.id, record.latest_created))?
+            .is_some();
+        Ok((false, head_known.then_some(record.latest_created)))
+    }
+
     fn shelter_consumed_inputs(
         &self,
         keys: Vec<ObjectKey>,
@@ -965,9 +1198,9 @@ impl HandlerObjectState {
             }
         }
         // A replay after a crash may re-insert rows that are already durable;
-        // that is fine - the checkpoint executor's persist step re-runs on the
-        // same replay and evicts them again, and the bytes are identical
-        // either way.
+        // that is fine - the checkpoint's auxiliary batch re-runs on the same
+        // replay and evicts them again, and the bytes are identical either
+        // way.
         let mut overlay = self.sheltered_overlay.write();
         for (key, object) in rows {
             let size = object.object_size_for_gas_metering();
@@ -1012,10 +1245,9 @@ impl HandlerObjectState {
                 overlay.remove(&key.0);
                 // Queue the durable deletion even when the record was found
                 // only in the overlay: an extended record leaves its older
-                // durable row behind, and the checkpoint executor's persist
-                // step (which derives rows from effects, not the overlay) can
-                // still write this record after the removal. Deleting a key
-                // that never became durable is a no-op.
+                // durable row behind, and a checkpoint's auxiliary batch that
+                // read the record before this removal can still write it
+                // after. Deleting a key that never became durable is a no-op.
                 if deletions.insert(key.0, index).is_none() {
                     self.live_sync_ahead_records_count
                         .fetch_sub(1, Ordering::Relaxed);
@@ -1114,11 +1346,64 @@ mod tests {
         }
     }
 
+    #[cfg(msim)]
+    #[iota_macros::sim_test]
+    async fn checkpoint_snapshot_keeps_a_row_during_completion() {
+        let authority = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .build()
+            .await;
+        let epoch = authority.epoch_store_for_testing().clone();
+        for point in [
+            "pcool-checkpoint-rows-between-presence-reads",
+            "pcool-checkpoint-rows-between-data-reads",
+        ] {
+            let fixture = effects_fixture();
+            let state = epoch.handler_object_state_for_testing();
+            state.handler_processed_overlay.write().clear();
+            state.sync_ahead_overlay.write().insert(
+                fixture.created_owned,
+                SyncAheadRecord {
+                    base_version: None,
+                    latest_created: fixture.effects.lamport_version(),
+                    initial_shared_version: None,
+                },
+            );
+            let weak_epoch = Arc::downgrade(&epoch);
+            let id = fixture.created_owned;
+            let upserts = handler_processed_upserts(&fixture.effects, 1);
+            iota_macros::register_fail_point(point, move || {
+                let epoch = weak_epoch.upgrade().unwrap();
+                let state = epoch.handler_object_state_for_testing();
+                state.upsert_handler_processed_rows(&upserts);
+                state.sync_ahead_overlay.write().remove(&id);
+            });
+            let snapshot = state.checkpoint_rows([&fixture.effects]);
+            iota_macros::clear_fail_point(point);
+            assert!(
+                state.sync_ahead_overlay.read().is_empty(),
+                "completion must run between snapshot reads"
+            );
+            let key = ObjectKey(id, fixture.effects.lamport_version());
+            assert!(
+                snapshot.handler_rows.iter().any(|(k, _)| *k == key)
+                    || snapshot.sync_rows.iter().any(|(k, _)| *k == id),
+                "checkpoint snapshot lost both sides of the completion transition"
+            );
+        }
+    }
+
     #[test]
     fn handler_processed_upserts_map_every_write_kind() {
         let fixture = effects_fixture();
         let lamport = fixture.effects.lamport_version();
         let index: CommitIndex = 9;
+        assert_eq!(
+            handler_processed_keys(&fixture.effects),
+            handler_processed_upserts(&fixture.effects, index)
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect::<Vec<_>>()
+        );
         // Every id in the fixture is written once, so keying by id is exact.
         let rows: BTreeMap<ObjectId, (Version, HandlerProcessedObject)> =
             handler_processed_upserts(&fixture.effects, index)

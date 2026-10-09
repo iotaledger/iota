@@ -2035,6 +2035,8 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
+    use std::time::Duration;
+
     use futures::FutureExt;
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
@@ -2120,10 +2122,56 @@ mod handler_object_state_storage {
         (effects, inputs)
     }
 
+    /// Records `effects` as a sync-ahead execution that consumed `inputs`.
+    fn execute_sync_ahead(
+        epoch_store: &AuthorityPerEpochStore,
+        effects: &TransactionEffects,
+        inputs: &[Object],
+    ) {
+        epoch_store
+            .record_executed_transaction(
+                &TransactionKey::Digest(*effects.transaction_digest()),
+                effects,
+                &inputs,
+            )
+            .unwrap();
+    }
+
     fn generate_live_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
         HandlerProcessedObject {
             digest: ObjectDigest::random(),
             kind: HandlerProcessedObjectKind::Live,
+            produced_at,
+            initial_shared_version: None,
+        }
+    }
+
+    /// Turns on P-COOL deterministic validation, without which the quarantine
+    /// flush derives no handler rows. Build the authority while the guard
+    /// lives.
+    fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        })
+    }
+
+    /// Stores `effects` as executed, so the quarantine flush finds them when
+    /// it derives the rows of a commit rooting their transaction.
+    fn store_executed_effects(authority: &AuthorityState, effects: &TransactionEffects) {
+        let tables = &authority.database_for_testing().perpetual_tables;
+        tables.effects.insert(&effects.digest(), effects).unwrap();
+        tables
+            .executed_effects
+            .insert(effects.transaction_digest(), &effects.digest())
+            .unwrap();
+    }
+
+    fn generate_wrapped_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
+        HandlerProcessedObject {
+            digest: ObjectDigest::random(),
+            kind: HandlerProcessedObjectKind::Wrapped,
             produced_at,
             initial_shared_version: None,
         }
@@ -2389,6 +2437,189 @@ mod handler_object_state_storage {
         );
     }
 
+    /// A queued deletion canceled by a new chain lives only in memory. After
+    /// a restart the dead record is back in the table with no deletion queued
+    /// against it, beside the handler row of the version it ends at. The
+    /// re-executed write of the new chain consumes that handler-written
+    /// version, so it must start a fresh chain from it rather than inherit
+    /// the dead record's base.
+    #[tokio::test]
+    async fn reexecuted_sync_write_after_restart_does_not_extend_a_dead_record() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        let first_chain_head = effects.lamport_version();
+        let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, first_record)], vec![])
+            .unwrap();
+
+        // The handler catches up past the chain and a second chain starts
+        // before the queued deletion drains, canceling it.
+        let handler_rows = vec![(ObjectKey(mutated, first_chain_head), generate_live_entry(8))];
+        epoch_store.assign_commit_to_transactions(8, vec![]);
+        epoch_store
+            .record_commit_fully_executed(8, &handler_rows)
+            .unwrap();
+        let (next_effects, next_inputs) =
+            executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
+        execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
+        let fresh_record = SyncAheadRecord {
+            base_version: Some(first_chain_head),
+            latest_created: next_effects.lamport_version(),
+            initial_shared_version: None,
+        };
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+
+        // Commit 8 flushes its row with no deletion left to drain; crash
+        // before the fresh record is durable.
+        epoch_store
+            .flush_commit_rows_for_testing(8, handler_rows)
+            .unwrap();
+        let reopened = reopen(&authority, &epoch_store);
+        assert_eq!(
+            reopened.sync_ahead_record(&mutated).unwrap(),
+            Some(first_record)
+        );
+        execute_sync_ahead(&reopened, &next_effects, &next_inputs);
+        assert_eq!(
+            reopened.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+    }
+
+    /// A sync-ahead chain wraps the object; after the handler caught up past
+    /// the wrap, a new chain unwraps it, canceling the queued deletion of the
+    /// wrap chain's record in memory only. After a restart that dead record
+    /// is back in the table with no deletion queued against it. The re-executed
+    /// unwrap consumes no version, but the dead record's head has the handler
+    /// row written when the handler caught up, so the unwrap must start a new
+    /// chain with no base version rather than inherit the dead record's base.
+    #[tokio::test]
+    async fn reexecuted_sync_unwrap_after_restart_does_not_extend_a_dead_record() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // A sync-ahead chain wraps the object, and its record is durable.
+        let wrapped = ObjectId::random();
+        let wrap_tx = owned_inputs_tx(1);
+        let wrap_gas = wrap_tx.transaction().gas()[0].object_id;
+        let wrap_effects = TestEffectsBuilder::new(&wrap_tx)
+            .with_wrapped_objects([(wrapped, Version::from_u64(5))])
+            .build();
+        let wrap_inputs = vec![owned_object(wrapped, 5), owned_object(wrap_gas, 1)];
+        execute_sync_ahead(&epoch_store, &wrap_effects, &wrap_inputs);
+        let wrapped_version = wrap_effects.lamport_version();
+        let first_record = SyncAheadRecord {
+            base_version: Some(Version::from_u64(5)),
+            latest_created: wrapped_version,
+            initial_shared_version: None,
+        };
+        assert_eq!(
+            epoch_store.sync_ahead_record(&wrapped).unwrap(),
+            Some(first_record)
+        );
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(wrapped, first_record)], vec![])
+            .unwrap();
+
+        // The handler catches up past the wrap and a second chain unwraps the
+        // object before the queued deletion drains, canceling it.
+        let handler_rows = vec![(
+            ObjectKey(wrapped, wrapped_version),
+            generate_wrapped_entry(8),
+        )];
+        epoch_store.assign_commit_to_transactions(8, vec![]);
+        epoch_store
+            .record_commit_fully_executed(8, &handler_rows)
+            .unwrap();
+        let unwrap_tx = owned_inputs_tx(10);
+        let unwrap_gas = unwrap_tx.transaction().gas()[0].object_id;
+        let unwrap_effects = TestEffectsBuilder::new(&unwrap_tx)
+            .with_unwrapped_objects([(wrapped, Owner::Address(Address::ZERO))])
+            .build();
+        let unwrap_inputs = vec![owned_object(unwrap_gas, 10)];
+        assert!(unwrap_effects.lamport_version() > wrapped_version);
+        execute_sync_ahead(&epoch_store, &unwrap_effects, &unwrap_inputs);
+        let fresh_record = SyncAheadRecord {
+            base_version: None,
+            latest_created: unwrap_effects.lamport_version(),
+            initial_shared_version: None,
+        };
+        assert_eq!(
+            epoch_store.sync_ahead_record(&wrapped).unwrap(),
+            Some(fresh_record)
+        );
+
+        // Commit 8 flushes its row with no deletion left to drain; crash
+        // before the fresh record is durable.
+        epoch_store
+            .flush_commit_rows_for_testing(8, handler_rows)
+            .unwrap();
+        let reopened = reopen(&authority, &epoch_store);
+        assert_eq!(
+            reopened.sync_ahead_record(&wrapped).unwrap(),
+            Some(first_record)
+        );
+        execute_sync_ahead(&reopened, &unwrap_effects, &unwrap_inputs);
+        assert_eq!(
+            reopened.sync_ahead_record(&wrapped).unwrap(),
+            Some(fresh_record)
+        );
+    }
+
+    /// A handler-known transaction of a commit the handler registered
+    /// consumes the head of a sync-ahead chain and writes its row before the
+    /// commit completes, so the head itself has no handler row yet. A
+    /// sync-ahead write consuming that handler-known version must start a new
+    /// chain from it rather than extend the record and keep a base version
+    /// the handler has superseded.
+    #[tokio::test]
+    async fn handler_known_consumer_of_the_head_before_its_commit_completes_starts_a_new_chain() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        let chain_head = effects.lamport_version();
+
+        // Commit 8 holds a handler-known transaction consuming the chain's
+        // head; it executes, but the commit is not fully executed yet.
+        let (handler_effects, handler_inputs) =
+            executed_owned_tx_effects(mutated, chain_head.as_u64(), 2);
+        let handler_key = TransactionKey::Digest(*handler_effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(8, vec![handler_key]);
+        epoch_store
+            .record_executed_transaction(&handler_key, &handler_effects, &handler_inputs.as_slice())
+            .unwrap();
+        let handler_version = handler_effects.lamport_version();
+        assert!(
+            epoch_store
+                .handler_processed_object(&ObjectKey(mutated, chain_head))
+                .unwrap()
+                .is_none()
+        );
+
+        let (next_effects, next_inputs) =
+            executed_owned_tx_effects(mutated, handler_version.as_u64(), 3);
+        execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(SyncAheadRecord {
+                base_version: Some(handler_version),
+                latest_created: next_effects.lamport_version(),
+                initial_shared_version: None,
+            })
+        );
+    }
+
     /// The flush's deletion of a record stays queued until the batch holding
     /// it is durable. A new sync-ahead chain starting in that window must
     /// still see the old record as dead: it starts from the version it
@@ -2400,20 +2631,11 @@ mod handler_object_state_storage {
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
         let tables = epoch_store.tables().unwrap();
-        let execute_sync_ahead = |effects: &TransactionEffects, inputs: &[Object]| {
-            epoch_store
-                .record_executed_transaction(
-                    &TransactionKey::Digest(*effects.transaction_digest()),
-                    effects,
-                    &inputs,
-                )
-                .unwrap();
-        };
 
         // A sync-ahead chain whose record is durable.
         let mutated = ObjectId::random();
         let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
-        execute_sync_ahead(&effects, &inputs);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
         let first_chain_head = effects.lamport_version();
         let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
         epoch_store
@@ -2433,7 +2655,7 @@ mod handler_object_state_storage {
         // A second chain starts before the batch is written.
         let (next_effects, next_inputs) =
             executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
-        execute_sync_ahead(&next_effects, &next_inputs);
+        execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
         let fresh_record = SyncAheadRecord {
             base_version: Some(first_chain_head),
             latest_created: next_effects.lamport_version(),
@@ -2462,6 +2684,241 @@ mod handler_object_state_storage {
         assert_eq!(
             tables.sync_ahead_records.get(&mutated).unwrap(),
             Some(fresh_record)
+        );
+    }
+
+    /// A deletion copied into the flush batch cannot be cancelled, so a
+    /// replacement record must not become durable between the staging and
+    /// the batch write. The auxiliary write that persists it waits for the
+    /// flush, which holds the quarantine write lock throughout, and lands
+    /// after the delete.
+    #[tokio::test]
+    async fn auxiliary_write_of_a_replacement_record_waits_for_the_staged_delete() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        let state = epoch_store.handler_object_state_for_testing();
+
+        // A sync-ahead chain whose record is durable, and which the handler
+        // then catches up past: commit 8 queues the record's deletion.
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        let first_chain_head = effects.lamport_version();
+        let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, first_record)], vec![])
+            .unwrap();
+        let rows = vec![(ObjectKey(mutated, first_chain_head), generate_live_entry(8))];
+        epoch_store.assign_commit_to_transactions(8, vec![]);
+        epoch_store.record_commit_fully_executed(8, &rows).unwrap();
+
+        // Commit 8's flush stages the deletion. Before its batch is written,
+        // a second chain starts and a checkpoint's auxiliary write tries to
+        // persist the fresh record.
+        let (next_effects, next_inputs) =
+            executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
+        let fresh_record = SyncAheadRecord {
+            base_version: Some(first_chain_head),
+            latest_created: next_effects.lamport_version(),
+            initial_shared_version: None,
+        };
+        let (written, wait_written) = std::sync::mpsc::channel();
+        let mut auxiliary_write = None;
+        let overlay_records = state.overlay_sizes_for_testing().1;
+        epoch_store
+            .flush_commit_rows_interleaved_for_testing(8, rows, || {
+                execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
+                assert_eq!(
+                    epoch_store.sync_ahead_record(&mutated).unwrap(),
+                    Some(fresh_record)
+                );
+                let epoch_store = epoch_store.clone();
+                auxiliary_write = Some(std::thread::spawn(move || {
+                    epoch_store
+                        .flush_sync_ahead_rows_for_testing(vec![(mutated, fresh_record)], vec![])
+                        .unwrap();
+                    written.send(()).unwrap();
+                }));
+                assert!(
+                    wait_written
+                        .recv_timeout(Duration::from_millis(500))
+                        .is_err(),
+                    "the auxiliary write must wait for the flush"
+                );
+            })
+            .unwrap();
+        wait_written
+            .recv_timeout(Duration::from_secs(30))
+            .expect("the auxiliary write proceeds once the flush is done");
+        auxiliary_write.unwrap().join().unwrap();
+
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
+            Some(fresh_record)
+        );
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+        // The auxiliary write evicted the record it persisted, and only it.
+        assert_eq!(state.overlay_sizes_for_testing().1, overlay_records + 1);
+        let reopened = reopen(&authority, &epoch_store);
+        assert_eq!(
+            reopened
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
+            Some(fresh_record)
+        );
+    }
+
+    /// The quarantine flush reaches a commit before the watcher does. Until
+    /// its batch is durable, the commit's rows exist only in that batch, so
+    /// the durable sync-ahead record must keep answering reads and the
+    /// highest fully executed commit must not cover the commit yet.
+    #[tokio::test]
+    async fn commit_completed_by_the_flush_keeps_its_record_readable_until_the_batch_is_durable() {
+        let _guard = enable_deterministic_validation();
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+
+        // A sync-ahead execution with its records made durable.
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        store_executed_effects(&authority, &effects);
+        let version = effects.lamport_version();
+        let record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        let gas = effects.gas_object().reference().object_id;
+        let gas_record = epoch_store.sync_ahead_record(&gas).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, record), (gas, gas_record)], vec![])
+            .unwrap();
+
+        // The handler reaches the commit, and its checkpoint executes before
+        // the watcher completes it.
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(1, vec![key]);
+        epoch_store
+            .flush_commit_through_quarantine_interleaved_for_testing(
+                1,
+                vec![*effects.transaction_digest()],
+                || {
+                    assert_eq!(state.commit_index_of(&key), None);
+                    assert_eq!(
+                        epoch_store.sync_ahead_record(&mutated).unwrap(),
+                        Some(record)
+                    );
+                    assert_eq!(
+                        epoch_store
+                            .handler_processed_object(&ObjectKey(mutated, version))
+                            .unwrap(),
+                        None
+                    );
+                    assert_eq!(
+                        *epoch_store
+                            .subscribe_highest_fully_executed_commit()
+                            .borrow(),
+                        0
+                    );
+                    assert!(
+                        epoch_store
+                            .wait_for_fully_executed_commit(1)
+                            .now_or_never()
+                            .is_none()
+                    );
+                },
+            )
+            .unwrap();
+
+        let row = epoch_store
+            .handler_processed_object(&ObjectKey(mutated, version))
+            .unwrap()
+            .expect("the flush must make the commit's rows readable");
+        assert_eq!(row.produced_at, 1);
+        assert_eq!(
+            epoch_store
+                .durable_handler_processed_object_for_testing(&ObjectKey(mutated, version))
+                .unwrap(),
+            Some(row)
+        );
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
+            None
+        );
+        assert_eq!(epoch_store.sync_ahead_record(&mutated).unwrap(), None);
+        assert_eq!(state.overlay_sizes_for_testing().0, 0);
+        assert_eq!(
+            *epoch_store
+                .subscribe_highest_fully_executed_commit()
+                .borrow(),
+            1
+        );
+    }
+
+    /// When the quarantine flush completes a commit that covers only the
+    /// start of a sync-ahead chain, the chain's record stays: its later
+    /// versions still have no handler row, and the record is what answers
+    /// them.
+    #[tokio::test]
+    async fn commit_completed_by_the_flush_keeps_the_record_of_a_partly_covered_chain() {
+        let _guard = enable_deterministic_validation();
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // A sync-ahead chain of two transactions on one object, with its
+        // record made durable.
+        let mutated = ObjectId::random();
+        let (first, first_inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &first, &first_inputs);
+        let (second, second_inputs) =
+            executed_owned_tx_effects(mutated, first.lamport_version().as_u64(), 2);
+        execute_sync_ahead(&epoch_store, &second, &second_inputs);
+        store_executed_effects(&authority, &first);
+        let record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        assert_eq!(record.latest_created, second.lamport_version());
+        let first_gas = first.gas_object().reference().object_id;
+        let first_gas_record = epoch_store.sync_ahead_record(&first_gas).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(
+                vec![(mutated, record), (first_gas, first_gas_record)],
+                vec![],
+            )
+            .unwrap();
+
+        // The flush reaches the commit of the chain's first transaction only.
+        let key = TransactionKey::Digest(*first.transaction_digest());
+        epoch_store.assign_commit_to_transactions(1, vec![key]);
+        epoch_store
+            .flush_commit_through_quarantine_for_testing(1, vec![*first.transaction_digest()])
+            .unwrap();
+
+        assert!(
+            epoch_store
+                .handler_processed_object(&ObjectKey(mutated, first.lamport_version()))
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
+            Some(record)
+        );
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(record)
+        );
+        // The gas coin's chain ends at the flushed version.
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&first_gas)
+                .unwrap(),
+            None
         );
     }
 
@@ -2501,12 +2958,7 @@ mod handler_object_state_storage {
     /// never moves down.
     #[tokio::test]
     async fn highest_fully_executed_commit_resumes_from_the_flushed_commit() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_enable_pcool_flow_for_testing(true);
-                config.set_pcool_deterministic_validation_for_testing(true);
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let store = authority.epoch_store_for_testing().clone();
         let assert_highest = |store: &AuthorityPerEpochStore, index: CommitIndex| {
