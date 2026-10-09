@@ -21,7 +21,7 @@ use rand::seq::SliceRandom;
 use rand::{SeedableRng, rng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
-    sync::{Semaphore, mpsc::error::TrySendError, oneshot},
+    sync::mpsc::error::TrySendError,
     task::{JoinError, JoinSet},
     time::{Instant, sleep_until, timeout},
 };
@@ -201,36 +201,27 @@ impl Drop for TransactionsGuard {
     }
 }
 
-enum Command {
-    FetchTransactions {
-        missing_transaction_refs: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
-        result: oneshot::Sender<Result<(), ConsensusError>>,
-    },
-    KickOffScheduler,
-}
-
 pub(crate) struct TransactionsSynchronizerHandle {
-    commands_sender: Sender<Command>,
+    live_fetch_requests: Sender<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
     tasks: tokio::sync::Mutex<JoinSet<()>>,
 }
 
 impl TransactionsSynchronizerHandle {
-    /// Explicitly asks from the transactions synchronizer to fetch the
-    /// transactions - provided the refs set - from the peer authority.
-    pub(crate) async fn fetch_transactions(
+    /// Queues a live fetch of the missing transactions from the authorities
+    /// that acknowledged them. Fails with `TransactionSynchronizerSaturated`
+    /// when the live queue is full; the periodic scheduler picks the
+    /// transactions up later.
+    pub(crate) fn fetch_transactions(
         &self,
         missing_transaction_refs: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     ) -> ConsensusResult<()> {
         let missing_transaction_refs = transaction_refs(missing_transaction_refs)?;
-        let (sender, receiver) = oneshot::channel();
-        self.commands_sender
-            .send(Command::FetchTransactions {
-                missing_transaction_refs,
-                result: sender,
+        self.live_fetch_requests
+            .try_send(missing_transaction_refs)
+            .map_err(|err| match err {
+                TrySendError::Full(_) => ConsensusError::TransactionSynchronizerSaturated,
+                TrySendError::Closed(_) => ConsensusError::Shutdown,
             })
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
-        receiver.await.map_err(|_| ConsensusError::Shutdown)?
     }
 
     pub(crate) async fn stop(&self) -> Result<(), JoinError> {
@@ -278,11 +269,8 @@ fn transaction_refs(
 ///    live synchronization.
 pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
     inner: Arc<Inner<C, D>>,
-    commands_receiver: Receiver<Command>,
-    commands_sender: Sender<Command>,
-    live_fetch_requests: Sender<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
     dag_state: Arc<RwLock<DagState>>,
-    fetch_transactions_scheduler_task: JoinSet<()>,
+    periodic_tasks: JoinSet<()>,
 }
 
 /// The state shared by the live and the periodic fetch tasks.
@@ -320,8 +308,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             inflight_transactions_map: InflightTransactionsMap::new(),
         });
 
-        let (commands_sender, commands_receiver) =
-            channel("consensus_transactions_synchronizer_commands", 1_000);
         let (live_fetch_sender, live_fetch_receiver) = channel(
             "consensus_transactions_synchronizer_live_fetches",
             LIVE_FETCH_TRANSACTIONS_CONCURRENCY,
@@ -331,156 +317,124 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let live_fetcher = Self::live_fetcher(inner.clone(), live_fetch_receiver);
         tasks.spawn(monitored_future!(live_fetcher));
 
-        let commands_sender_clone = commands_sender.clone();
         tasks.spawn(monitored_future!(async move {
             let mut synchronizer = Self {
                 inner,
-                commands_receiver,
-                commands_sender: commands_sender_clone,
-                live_fetch_requests: live_fetch_sender,
                 dag_state,
-                fetch_transactions_scheduler_task: JoinSet::new(),
+                periodic_tasks: JoinSet::new(),
             };
             synchronizer.run().await;
         }));
 
         Arc::new(TransactionsSynchronizerHandle {
-            commands_sender,
+            live_fetch_requests: live_fetch_sender,
             tasks: tokio::sync::Mutex::new(tasks),
         })
     }
 
-    // The main loop to listen for the submitted commands.
+    /// Runs the periodic scheduler: on every tick, while fewer than
+    /// `PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY` periodic fetches are
+    /// running, asks the core for the missing transactions and fetches them.
     #[cfg_attr(test, tracing::instrument(skip_all, name = "", fields(authority = %self.inner.context.own_index
     )))]
     async fn run(&mut self) {
-        // We want the transactions synchronizer to run periodically to
-        // fetch any missing transactions.
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
-
         tokio::pin!(scheduler_timeout);
 
         loop {
             tokio::select! {
-                Some(command) = self.commands_receiver.recv() => {
-                    match command {
-                        Command::FetchTransactions{ missing_transaction_refs, result } => {
-                            // Enqueue the request to the live fetcher and return immediately.
-                            let r =  self.live_fetch_requests.try_send(missing_transaction_refs)
-                            .map_err(|err| {
-                                match err {
-                                    TrySendError::Full(_) => ConsensusError::TransactionSynchronizerSaturated,
-                                    TrySendError::Closed(_) => ConsensusError::Shutdown
-                                }
-                            });
-
-                            result.send(r).ok();
-                        }
-                        Command::KickOffScheduler => {
-                            // Reset the scheduler timeout timer to run immediately if not already running.
-                            // If the scheduler is already running, then reduce the remaining time to run.
-                            let timeout = if self.fetch_transactions_scheduler_task.is_empty() {
-                                Instant::now()
-                            } else {
-                                Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT.checked_div(2).unwrap()
-                            };
-
-                            // only reset if it is earlier than the next deadline
-                            if timeout < scheduler_timeout.deadline() {
-                                scheduler_timeout.as_mut().reset(timeout);
-                            }
-                        }
-                    }
-                },
-                Some(result) = self.fetch_transactions_scheduler_task.join_next(), if !self.fetch_transactions_scheduler_task.is_empty() => {
+                Some(result) = self.periodic_tasks.join_next(), if !self.periodic_tasks.is_empty() => {
                     resume_if_panicked(result);
                 },
                 () = &mut scheduler_timeout => {
-                    // we want to start a new task only if the number of tasks is not too large.
-                    if self.fetch_transactions_scheduler_task.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
-                        if let Err(err) = self.start_fetch_missing_transactions_task().await {
-                            debug!("Core is shutting down, transactions synchronizer is shutting down: {err:?}");
-                            return;
-                        };
+                    let mut next_tick = TRANSACTIONS_SYNCHRONIZER_TIMEOUT;
+                    if self.periodic_tasks.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
+                        match self.start_fetch_missing_transactions_task().await {
+                            // Retry sooner while there is something to fetch.
+                            Ok(true) => next_tick /= 2,
+                            Ok(false) => {}
+                            Err(err) => {
+                                debug!("Core is shutting down, transactions synchronizer is shutting down: {err:?}");
+                                return;
+                            }
+                        }
                     }
-
-                    scheduler_timeout
-                        .as_mut()
-                        .reset(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
+                    scheduler_timeout.as_mut().reset(Instant::now() + next_tick);
                 }
             }
         }
     }
 
     /// Serves the live fetch requests, at most
-    /// `LIVE_FETCH_TRANSACTIONS_CONCURRENCY` at a time.
+    /// `LIVE_FETCH_TRANSACTIONS_CONCURRENCY` at a time. Returns once the
+    /// handle is dropped.
     async fn live_fetcher(
         inner: Arc<Inner<C, D>>,
         mut receiver: Receiver<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
     ) {
-        let semaphore = Arc::new(Semaphore::new(LIVE_FETCH_TRANSACTIONS_CONCURRENCY));
-
+        let mut tasks = JoinSet::new();
         loop {
-            let permit = semaphore
-                .clone()
-                .acquire_owned()
-                .await
-                .expect("We expect semaphore to be valid");
-
-            let Some(missing_transactions) = receiver.recv().await else {
-                info!("Live fetcher task will now abort.");
-                return;
-            };
-            let inner = inner.clone();
-            tokio::spawn(async move {
-                inner
-                    .fetch_from_authorities(missing_transactions, SyncMethod::Live)
-                    .await;
-                drop(permit);
-            });
+            tokio::select! {
+                request = receiver.recv(), if tasks.len() < LIVE_FETCH_TRANSACTIONS_CONCURRENCY => {
+                    let Some(missing_transactions) = request else {
+                        info!("Live fetcher task will now abort.");
+                        return;
+                    };
+                    let inner = inner.clone();
+                    tasks.spawn(async move {
+                        inner
+                            .fetch_from_authorities(missing_transactions, SyncMethod::Live)
+                            .await;
+                    });
+                },
+                Some(result) = tasks.join_next(), if !tasks.is_empty() => {
+                    resume_if_panicked(result);
+                },
+            }
         }
     }
 
-    /// Starts a task to fetch missing transactions from other authorities.
-    async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<()> {
+    /// Asks the core for the missing transactions and spawns a periodic fetch
+    /// for them. Returns whether a fetch was spawned; fails only when the
+    /// core is shutting down.
+    async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<bool> {
         let missing_transactions = self
             .inner
             .core_dispatcher
             .get_missing_transaction_data()
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
-        let missing_transactions = transaction_refs(missing_transactions)?;
+        let missing_transactions = match transaction_refs(missing_transactions) {
+            Ok(missing_transactions) => missing_transactions,
+            Err(err) => {
+                warn!("Skipping the periodic transaction fetch: {err}");
+                return Ok(false);
+            }
+        };
 
         let accepted_round = self.dag_state.read().highest_accepted_round();
         self.inner
             .record_missing_transactions(&missing_transactions, accepted_round);
-
-        // If there are no missing transactions, we don't need to fetch anything.
         if missing_transactions.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
 
         let inner = self.inner.clone();
-        self.fetch_transactions_scheduler_task
-            .spawn(monitored_future!(async move {
-                let _scope = monitored_scope("FetchMissingTransactionsScheduler");
-                fail_point_async!("consensus-delay");
-                let _inflight = GaugeGuard::acquire(
-                    &inner
-                        .context
-                        .metrics
-                        .node_metrics
-                        .transactions_synchronizer_periodic_inflight,
-                );
-                inner
-                    .fetch_from_authorities(missing_transactions, SyncMethod::Periodic)
-                    .await;
-            }));
-        // Kick off the scheduler to fetch any remaining missing transactions
-        self.commands_sender
-            .try_send(Command::KickOffScheduler)
-            .map_err(|_| ConsensusError::Shutdown)?;
-        Ok(())
+        self.periodic_tasks.spawn(monitored_future!(async move {
+            let _scope = monitored_scope("FetchMissingTransactionsScheduler");
+            fail_point_async!("consensus-delay");
+            let _inflight = GaugeGuard::acquire(
+                &inner
+                    .context
+                    .metrics
+                    .node_metrics
+                    .transactions_synchronizer_periodic_inflight,
+            );
+            inner
+                .fetch_from_authorities(missing_transactions, SyncMethod::Periodic)
+                .await;
+        }));
+        Ok(true)
     }
 }
 
@@ -1020,9 +974,7 @@ mod tests {
 
         // WHEN
         // Request the transactions
-        let result = transaction_synchronizer
-            .fetch_transactions(missing_transactions)
-            .await;
+        let result = transaction_synchronizer.fetch_transactions(missing_transactions);
 
         // THEN
         assert!(result.is_ok());
@@ -1119,9 +1071,7 @@ mod tests {
             .accept_block_headers(vec![header], DataSource::Test);
 
         // WHEN
-        let result = transaction_synchronizer
-            .fetch_transactions(missing_transactions)
-            .await;
+        let result = transaction_synchronizer.fetch_transactions(missing_transactions);
         assert!(result.is_ok());
 
         // Wait a bit for processing to complete
@@ -1196,7 +1146,7 @@ mod tests {
             .accept_block_headers(vec![header], DataSource::Test);
 
         // WHEN the peer returns more transactions than requested.
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
         assert!(result.is_ok());
         sleep(Duration::from_millis(100)).await;
 
@@ -1309,11 +1259,9 @@ mod tests {
             .iter()
             .take(LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3)
         {
-            results.push(
-                handle
-                    .fetch_transactions(missing_transactions_to_request.clone())
-                    .await,
-            );
+            results.push(handle.fetch_transactions(missing_transactions_to_request.clone()));
+            // Let the live fetcher take the request before the next one lands.
+            tokio::task::yield_now().await;
         }
 
         // THEN
@@ -1438,7 +1386,7 @@ mod tests {
 
         // WHEN
         // Request the transactions
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
 
         // THEN
         assert!(result.is_ok());
@@ -1564,7 +1512,7 @@ mod tests {
 
         // WHEN
         // Request the transactions
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
 
         // THEN
         assert!(result.is_ok());
@@ -1683,7 +1631,7 @@ mod tests {
 
         // WHEN
         // Request the transactions
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
 
         // THEN
         assert!(result.is_ok());
@@ -1804,7 +1752,7 @@ mod tests {
 
         // WHEN
         // Request the transactions
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
 
         // THEN
         assert!(result.is_ok());
@@ -1922,7 +1870,7 @@ mod tests {
             .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN the peer returns the unrequested payload.
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
         assert!(result.is_ok());
         sleep(Duration::from_millis(100)).await;
 
@@ -2046,7 +1994,7 @@ mod tests {
 
         // WHEN
         // Request the transactions
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
 
         // THEN
         assert!(result.is_ok());
@@ -2153,7 +2101,7 @@ mod tests {
 
         // WHEN
         // Request the transactions
-        let result = handle.fetch_transactions(missing_transactions).await;
+        let result = handle.fetch_transactions(missing_transactions);
 
         // THEN
         assert!(result.is_ok());
@@ -2245,10 +2193,7 @@ mod tests {
             .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
-        handle
-            .fetch_transactions(missing_transactions)
-            .await
-            .unwrap();
+        handle.fetch_transactions(missing_transactions).unwrap();
         sleep(Duration::from_millis(500)).await;
 
         // THEN both peers were fed back, and the error peer ranks slower than the
