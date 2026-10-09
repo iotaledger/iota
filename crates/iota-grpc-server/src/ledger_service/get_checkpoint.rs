@@ -74,7 +74,7 @@
 
 use futures::Stream;
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil},
+    field::{FIELD_PATH_WILDCARD, FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
     read_masks::GET_CHECKPOINT_READ_MASK,
     v1::{
@@ -125,6 +125,9 @@ fn convert_and_validate_filters(
 }
 
 fn is_valid_checkpoint_data_path(path: &str) -> bool {
+    if path == FIELD_PATH_WILDCARD {
+        return true;
+    }
     let (head, rest) = match path.split_once('.') {
         Some((head, rest)) if !rest.is_empty() => (head, Some(rest)),
         Some((head, _)) => (head, None),
@@ -133,6 +136,9 @@ fn is_valid_checkpoint_data_path(path: &str) -> bool {
     let Some(rest) = rest else {
         return matches!(head, "checkpoint" | "transactions" | "events");
     };
+    if rest == FIELD_PATH_WILDCARD {
+        return false;
+    }
     let rest = FieldMask::from_paths([rest]);
     match head {
         "checkpoint" => rest.validate::<Checkpoint>().is_ok(),
@@ -410,6 +416,7 @@ mod tests {
     #[test]
     fn checkpoint_data_paths() {
         for path in [
+            "*",
             "checkpoint",
             "transactions",
             "events",
@@ -423,6 +430,9 @@ mod tests {
             "transaction",
             "executed_transactions",
             "transactions.no_such_field",
+            "checkpoint.*",
+            "transactions.*",
+            "events.*",
         ] {
             assert!(!is_valid_checkpoint_data_path(path), "{path}");
         }
