@@ -16,7 +16,9 @@ use iota_metrics::{
     monitored_scope,
 };
 use parking_lot::{Mutex, RwLock};
-use rand::{SeedableRng, rng, rngs::StdRng, seq::SliceRandom};
+#[cfg(not(test))]
+use rand::seq::SliceRandom;
+use rand::{SeedableRng, rng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Semaphore, mpsc::error::TrySendError, oneshot},
@@ -89,58 +91,6 @@ struct FetchStats {
     latency: Duration,
     requested: usize,
     matched_requested: usize,
-}
-
-/// Records when the transaction synchronizer failed for the last time when
-/// fetching from peers. Only consulted when responsiveness ranking is
-/// disabled, to keep the previous peer selection intact as a fallback.
-// TODO: remove once the responsiveness ranking has proven itself in
-// production.
-struct LastFailureByPeer {
-    inner: Mutex<Vec<Option<Instant>>>,
-    context: Context,
-}
-
-impl LastFailureByPeer {
-    fn new(context: &Context) -> Arc<Self> {
-        let committee_size = context.committee.size();
-        Arc::new(Self {
-            inner: Mutex::new(vec![None; committee_size]),
-            context: context.clone(),
-        })
-    }
-    fn update_with_new_instant(self: &Arc<Self>, peer: AuthorityIndex, new_instant: Instant) {
-        let mut inner = self.inner.lock();
-        inner[peer] = Some(new_instant);
-    }
-
-    /// Determine which authorities are less reliable to fetch transactions.
-    /// Returns less than f+1 authorities by stake.
-    fn get_excluded_authorities_by_stake(self: &Arc<Self>) -> BTreeSet<AuthorityIndex> {
-        let last_round_by_peer = { self.inner.lock().clone() };
-
-        let mut indexed_rounds: Vec<(AuthorityIndex, Instant)> = last_round_by_peer
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, last_instant)| {
-                last_instant.map(|last_instant| (AuthorityIndex::from(idx as u8), last_instant))
-            })
-            .collect();
-
-        indexed_rounds.sort_by_key(|&(_, instant)| std::cmp::Reverse(instant));
-
-        let mut excluded_authorities = BTreeSet::new();
-        let mut stake = 0;
-        for (authority_index, _last_instant) in indexed_rounds {
-            stake += self.context.committee.stake(authority_index);
-            if self.context.committee.reached_validity(stake) {
-                break;
-            }
-            excluded_authorities.insert(authority_index);
-        }
-
-        excluded_authorities
-    }
 }
 
 /// Tracks the number of concurrent transaction fetch requests to each peer.
@@ -393,7 +343,6 @@ pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispat
     network_client: Arc<C>,
     inflight_transactions_map: Arc<InflightTransactionsMap>,
     commands_sender: Sender<Command>,
-    last_failure_by_peer: Arc<LastFailureByPeer>,
     /// Applies the same transaction limit and batch verification checks to
     /// fetched payloads as the direct block-bundle route.
     block_verifier: Arc<dyn BlockVerifier>,
@@ -425,7 +374,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         let mut tasks = JoinSet::new();
         let active_requests = InflightActiveRequests::new();
-        let last_failure_by_peer = LastFailureByPeer::new(&context);
         let misbehavior_store = dag_state.read().misbehavior_store().clone();
         // Spawn the live fetcher task
         let live_fetcher_async = Self::live_fetcher(
@@ -435,7 +383,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             core_dispatcher.clone(),
             live_fetch_receiver,
             inflight_transactions_map.clone(),
-            last_failure_by_peer.clone(),
             block_verifier.clone(),
             misbehavior_store.clone(),
         );
@@ -456,7 +403,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 inflight_transactions_map,
                 commands_sender: commands_sender_clone,
                 dag_state,
-                last_failure_by_peer,
                 block_verifier,
                 misbehavior_store,
             };
@@ -549,7 +495,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         mut receiver: Receiver<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
-        last_failure_by_peer: Arc<LastFailureByPeer>,
         block_verifier: Arc<dyn BlockVerifier>,
         misbehavior_store: Arc<MisbehaviorStore>,
     ) {
@@ -570,7 +515,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     let inflight_transactions_map = inflight_transactions_map.clone();
                     let network_client = network_client.clone();
                     let core_dispatcher = core_dispatcher.clone();
-                    let last_failure_by_peer = last_failure_by_peer.clone();
                     let block_verifier = block_verifier.clone();
                     let misbehavior_store = misbehavior_store.clone();
                     tokio::spawn(async move {
@@ -581,7 +525,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                             network_client,
                             missing_transactions,
                             core_dispatcher,
-                            last_failure_by_peer,
                             SyncMethod::Live,
                             block_verifier,
                             misbehavior_store,
@@ -670,7 +613,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let commands_sender = self.commands_sender.clone();
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let active_requests = self.active_requests.clone();
-        let last_failure_by_peer = self.last_failure_by_peer.clone();
         let block_verifier = self.block_verifier.clone();
         let misbehavior_store = self.misbehavior_store.clone();
 
@@ -691,7 +633,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     network_client,
                     missing_transactions,
                     core_dispatcher,
-                    last_failure_by_peer,
                     SyncMethod::Periodic,
                     block_verifier,
                     misbehavior_store,
@@ -718,7 +659,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         network_client: Arc<C>,
         missing_transactions: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
         core_dispatcher: Arc<D>,
-        last_failure_by_peer: Arc<LastFailureByPeer>,
         sync_method: SyncMethod,
         block_verifier: Arc<dyn BlockVerifier>,
         misbehavior_store: Arc<MisbehaviorStore>,
@@ -753,57 +693,40 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // synchronizer for too long, as certain peers may take a while to respond.
         // The number of requests to each peer is limited by the parameters.
 
-        // Randomness for ordering the authorities below.
+        // Responsive acknowledgers are tried first when ranking is enabled;
+        // a peer whose last fetch failed is ordered behind the healthy
+        // candidates rather than dropped. Without ranking the order is
+        // uniform, and the committee order under test so scenarios stay
+        // deterministic.
         let mut rng = StdRng::from_rng(&mut rng());
-
-        // Create an iterator over authorities with their corresponding
-        // transaction refs.
-        // When ranking is enabled, responsive acknowledgers are tried earlier
-        // and a peer whose last fetch failed is ordered behind the healthy
-        // candidates rather than removed from the set. When ranking is
-        // disabled: a stable order under test, otherwise the previous
-        // selection — a uniform shuffle that excludes the most recently failed
-        // peers (up to less than f+1 by stake).
-        let iter_authorities: Box<dyn Iterator<Item = (AuthorityIndex, BTreeSet<TransactionRef>)>> =
-            if context.parameters.enable_peer_responsiveness_ranking {
-                let mut order: Vec<AuthorityIndex> =
-                    transaction_refs_by_authority.keys().copied().collect();
-                context.peer_responsiveness.prioritize(
-                    DataSource::TransactionSynchronizer,
-                    &mut order,
-                    &mut rng,
-                );
-                Box::new(order.into_iter().map(move |authority| {
-                    let transaction_refs = transaction_refs_by_authority
-                        .remove(&authority)
-                        .expect("prioritized order is a permutation of the candidate set");
-                    (authority, transaction_refs)
-                }))
-            } else if cfg!(test) {
-                // Stable order for tests.
-                Box::new(transaction_refs_by_authority.into_iter())
-            } else {
-                let excluded_authorities = last_failure_by_peer.get_excluded_authorities_by_stake();
-                let mut vec: Vec<_> = transaction_refs_by_authority
-                    .into_iter()
-                    .filter(|(authority, _)| !excluded_authorities.contains(authority))
-                    .collect();
-                vec.shuffle(&mut rng);
-                Box::new(vec.into_iter())
-            };
+        let mut order: Vec<AuthorityIndex> =
+            transaction_refs_by_authority.keys().copied().collect();
+        if context.parameters.enable_peer_responsiveness_ranking {
+            context.peer_responsiveness.prioritize(
+                DataSource::TransactionSynchronizer,
+                &mut order,
+                &mut rng,
+            );
+        } else {
+            #[cfg(not(test))]
+            order.shuffle(&mut rng);
+        }
 
         let mut request_futures = FuturesUnordered::new();
 
         let mut assigned_authorities_for_transaction_fetch = 0;
 
-        for (authority, authority_transaction_refs) in iter_authorities {
+        for authority in order {
+            let authority_transaction_refs = transaction_refs_by_authority
+                .remove(&authority)
+                .expect("the order is a permutation of the candidate set");
             // * If transactions are successfully locked, and we didn't make too many to this
             //   authority, then send a request to the network client to fetch the transactions from
             //   the authority. If the fetch is successful, then process the transactions and send
             //   them to the core for processing.
             if let Some((transactions_guard, active_request_guard)) = inflight_transactions_map
                 .lock_transactions_and_active_request(
-                    authority_transaction_refs.clone(),
+                    authority_transaction_refs,
                     authority,
                     context
                         .parameters
@@ -884,7 +807,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         peer,
                         FETCH_REQUEST_TIMEOUT,
                     );
-                    last_failure_by_peer.update_with_new_instant(peer, Instant::now());
                     warn!(
                         "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
                         sync_method.get_string(),
@@ -2699,70 +2621,6 @@ mod tests {
         drop(all_guards);
 
         assert_eq!(map.num_of_locked_transactions(), 0);
-    }
-
-    #[tokio::test]
-    async fn excluded_authorities_updates_and_results() {
-        telemetry_subscribers::init_for_testing();
-
-        // GIVEN a committee of 7 authorities
-        let (context, _) = Context::new_for_test(7);
-        let context = Arc::new(context);
-
-        let last_failure = LastFailureByPeer::new(&context);
-        let now = Instant::now();
-
-        // WHEN: no updates → excluded set should be empty
-        let mut excluded = last_failure.get_excluded_authorities_by_stake();
-        assert!(
-            excluded.is_empty(),
-            "Initially no authorities should be excluded"
-        );
-
-        // WHEN: authority 1 fails now
-        last_failure.update_with_new_instant(AuthorityIndex::new_for_test(1), now);
-        excluded = last_failure.get_excluded_authorities_by_stake();
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(1)),
-            "Authority 1 should be excluded after failure"
-        );
-
-        // WHEN: authority 2 fails later
-        last_failure.update_with_new_instant(
-            AuthorityIndex::new_for_test(2),
-            now + Duration::from_millis(50),
-        );
-        excluded = last_failure.get_excluded_authorities_by_stake();
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(2)),
-            "Authority 2 (latest failure) should be excluded"
-        );
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(1)),
-            "Authority 1 should remain excluded as an older failure"
-        );
-
-        // WHEN: authority 3 fails even later (newest)
-        last_failure.update_with_new_instant(
-            AuthorityIndex::new_for_test(3),
-            now + Duration::from_millis(100),
-        );
-        excluded = last_failure.get_excluded_authorities_by_stake();
-
-        // THEN: authority 3 should now be the first excluded one (most recent),
-        // but the total excluded stake must remain below the validity threshold.
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(3)),
-            "Newest failed authority (3) should be excluded"
-        );
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(2)),
-            "Newest failed authority (3) should be excluded"
-        );
-        assert!(
-            excluded.len() <= 2,
-            "Excluded authorities should be strictly less than f+1 stake limit"
-        );
     }
 
     struct MockNetworkClient {
