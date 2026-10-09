@@ -7,8 +7,8 @@ use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_move_types::iota_framework::coin::{DenyCapV1, RegulatedCoinMetadata};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
-    TransactionDigest, TransactionEffects, TypeTag, Version,
+    Address, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    StructTag, TransactionDigest, TransactionEffects, TypeTag, UnchangedSharedKind, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
@@ -19,7 +19,7 @@ use iota_types::{
         check_address_denied_by_config, check_global_pause, get_per_type_coin_deny_list_v1,
     },
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     transaction::{
@@ -35,6 +35,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     consensus_handler::VerifiedSequencedConsensusTransaction,
+    post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
     post_consensus_validation,
 };
 
@@ -422,11 +423,213 @@ async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
     );
 }
 
+// Under P-COOL with deterministic validation, the coin deny list is checked at
+// execution, against the inputs execution loaded, and not in post-consensus
+// validation. A sender denied in the previous epoch and allowed again in this
+// one is admitted, since admission reads the latest deny list. Post-consensus
+// validation keeps the transaction, and execution, which reads the deny list
+// as settled before this epoch, fails it. The recipient is not denied, so only
+// the check of the sender against the inputs can fail it.
+#[tokio::test]
+async fn test_execution_fails_tx_of_sender_undenied_this_epoch() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+    env.deny_sender().await;
+
+    // `reconfigure_for_testing` carries the flag into the next epoch and
+    // panics if another override is still installed.
+    drop(guard);
+
+    // Settle the denial: entries written in epoch 0 activate in epoch 1.
+    env.reconfigure().await;
+    env.undeny_sender().await;
+
+    let transfer_tx = env.build_transfer().await;
+    env.validation_check(&transfer_tx, false)
+        .await
+        .expect("admission must accept a sender the latest deny list allows");
+    env.assert_kept_at_commit(&transfer_tx);
+
+    let effects = env.execute(transfer_tx).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::AddressDeniedForCoin {
+                address: env.env.sender,
+                coin_type: env.coin_type(),
+            },
+            command: None,
+        },
+        "execution must fail the kept transaction for the denial settled before this epoch"
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
+    );
+    assert!(
+        effects
+            .unchanged_shared_objects()
+            .contains(&(ObjectId::DENY_LIST, UnchangedSharedKind::PerEpochConfig)),
+        "the effects must record the deny list as read"
+    );
+}
+
+// Without deterministic validation, execution checks the coin deny list only
+// for the owners of the coins it writes, so the transaction of
+// `test_execution_fails_tx_of_sender_undenied_this_epoch` executes.
+#[tokio::test]
+async fn test_execution_does_not_check_sender_without_deterministic_validation() {
+    let env = RegulatedCoinEnv::new().await;
+    env.deny_sender().await;
+    env.reconfigure().await;
+    env.undeny_sender().await;
+
+    let transfer_tx = env.build_transfer().await;
+    let effects = env.execute(transfer_tx).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Success,
+        "execution must not check the sender without the pcool_deterministic_validation flag"
+    );
+}
+
+// Under P-COOL with deterministic validation, a transaction spending a coin
+// whose global pause was settled at the epoch boundary and lifted in this
+// epoch is admitted and kept by post-consensus validation, and execution
+// fails it, charging gas.
+#[tokio::test]
+async fn test_execution_fails_tx_spending_coin_unpaused_this_epoch() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+    env.pause().await;
+    drop(guard);
+    env.reconfigure().await;
+    env.unpause().await;
+
+    let transfer_tx = env.build_transfer().await;
+    env.validation_check(&transfer_tx, false)
+        .await
+        .expect("admission must accept a coin the latest deny list does not pause");
+    env.assert_kept_at_commit(&transfer_tx);
+
+    let effects = env.execute(transfer_tx).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::CoinTypeGlobalPause {
+                coin_type: env.coin_type(),
+            },
+            command: None,
+        },
+        "execution must fail the kept transaction for the pause settled before this epoch"
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
+    );
+}
+
+// Under P-COOL with deterministic validation, the check of the sender against
+// the coin types of the inputs does not see a received coin: execution loads a
+// receiving object only when the Move code receives it, after the check. A
+// sender denied for a coin type can receive a coin of that type and send it on
+// to an address that is not denied, in one transaction.
+#[tokio::test]
+async fn test_execution_lets_denied_sender_forward_a_received_coin() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+
+    // The regulated coin is sent to an object the sender owns, to be received
+    // from it later.
+    let parent_id = env.create_parent().await;
+    env.transfer_coin(parent_id.into()).await;
+
+    env.deny_sender().await;
+    drop(guard);
+    env.reconfigure().await;
+    env.undeny_sender().await;
+
+    let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
+    env.validation_check(&receive_tx, false)
+        .await
+        .expect("admission must accept a sender the latest deny list allows");
+    env.assert_kept_at_commit(&receive_tx);
+
+    let effects = env.execute(receive_tx).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Success,
+        "the sender check at execution does not see the received coin"
+    );
+    assert_eq!(
+        env.env.get_latest_object_ref(&env.coin_id).await.version,
+        effects.lamport_version(),
+        "the received coin must be written by the transaction"
+    );
+    assert_eq!(
+        env.env.authority.get_object(&env.coin_id).unwrap().owner,
+        Owner::Address(dbg_addr(2)),
+        "the denied sender forwarded the regulated coin"
+    );
+}
+
+// Without `pcool_deterministic_validation`, the transaction of
+// `test_execution_lets_denied_sender_forward_a_received_coin` is dropped by
+// post-consensus validation, which reads the receiving object, so the
+// epoch-gated sender check sees the coin type.
+#[tokio::test]
+async fn test_post_consensus_drops_denied_sender_receiving_a_coin() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+    let parent_id = env.create_parent().await;
+    env.transfer_coin(parent_id.into()).await;
+
+    env.deny_sender().await;
+    drop(guard);
+    env.reconfigure().await;
+    env.undeny_sender().await;
+
+    let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
+    env.validation_check(&receive_tx, false)
+        .await
+        .expect("admission must accept a sender the latest deny list allows");
+
+    let (dropped, kept) = env.post_consensus_validate(receive_tx).await;
+    assert!(!kept, "post-consensus validation must drop the transaction");
+    assert!(
+        matches!(
+            &dropped[0].1,
+            IotaError::UserInput {
+                error: UserInputError::AddressDeniedForCoin { address, .. }
+            } if *address == env.env.sender
+        ),
+        "unexpected drop reason: {:?}",
+        dropped[0].1
+    );
+}
+
 /// A published `coin_deny_list_v1_mintable` package - the regulated coin
 /// type, its deny cap, and one minted coin - with helpers for the deny-list
 /// operations the tests exercise.
 struct RegulatedCoinEnv {
     env: TestEnv,
+    package_id: ObjectId,
     regulated_coin_type: TypeTag,
     deny_cap_id: ObjectId,
     coin_id: ObjectId,
@@ -458,8 +661,9 @@ impl RegulatedCoinEnv {
             }
         }
 
+        let package_id = package_id.expect("package must be created");
         let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
-            package_id.expect("package must be created"),
+            package_id,
             Identifier::from_static("regulated_coin"),
             Identifier::from_static("REGULATED_COIN"),
             vec![],
@@ -471,6 +675,7 @@ impl RegulatedCoinEnv {
 
         Self {
             env,
+            package_id,
             regulated_coin_type,
             deny_cap_id: deny_cap_id.expect("deny cap must be created"),
             coin_id: coin_id.expect("minted regulated coin must be created"),
@@ -567,15 +772,65 @@ impl RegulatedCoinEnv {
     /// object, so the deny-list calls above (which spend the publisher's gas)
     /// never invalidate its input references.
     async fn build_transfer(&self) -> TransactionEnvelope {
-        let gas_object = Object::with_owner_for_testing(self.env.sender);
-        self.env.authority.insert_genesis_object(gas_object.clone());
+        self.build_transfer_to(dbg_addr(2)).await
+    }
 
-        TestTransactionBuilder::new(self.env.sender, gas_object.object_ref(), self.rgp())
+    /// [`Self::build_transfer`] to `recipient`.
+    async fn build_transfer_to(&self, recipient: Address) -> TransactionEnvelope {
+        TestTransactionBuilder::new(self.env.sender, self.fresh_gas_ref(), self.rgp())
             .transfer(
                 self.env.get_latest_object_ref(&self.coin_id).await,
-                dbg_addr(2),
+                recipient,
             )
             .build_and_sign(&self.env.private_key)
+    }
+
+    /// Executes a transfer of the regulated coin to `recipient`.
+    async fn transfer_coin(&self, recipient: Address) {
+        let effects = self.execute(self.build_transfer_to(recipient).await).await;
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+    }
+
+    /// Creates a `receiver::Parent` owned by the sender and returns its id.
+    async fn create_parent(&self) -> ObjectId {
+        let tx = TestTransactionBuilder::new(self.env.sender, self.fresh_gas_ref(), self.rgp())
+            .move_call(self.package_id, "receiver", "create", vec![])
+            .build_and_sign(&self.env.private_key);
+        let effects = self.execute(tx).await;
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        let created = effects.created();
+        assert_eq!(created.len(), 1, "{created:?}");
+        created[0].reference().object_id
+    }
+
+    /// A `receiver::receive_and_send` call: the sender receives the regulated
+    /// coin from `parent_id` and sends it on to `to`.
+    async fn build_receive_and_send(
+        &self,
+        parent_id: ObjectId,
+        to: Address,
+    ) -> TransactionEnvelope {
+        TestTransactionBuilder::new(self.env.sender, self.fresh_gas_ref(), self.rgp())
+            .move_call(
+                self.package_id,
+                "receiver",
+                "receive_and_send",
+                vec![
+                    CallArg::ImmutableOrOwned(self.env.get_latest_object_ref(&parent_id).await),
+                    CallArg::Receiving(self.env.get_latest_object_ref(&self.coin_id).await),
+                    CallArg::pure(&to),
+                ],
+            )
+            .build_and_sign(&self.env.private_key)
+    }
+
+    /// A gas object freshly inserted for the sender, so the deny-list calls
+    /// (which spend the publisher's gas) never invalidate the references of
+    /// the transaction it pays for.
+    fn fresh_gas_ref(&self) -> ObjectReference {
+        let gas_object = Object::with_owner_for_testing(self.env.sender);
+        self.env.authority.insert_genesis_object(gas_object.clone());
+        gas_object.object_ref()
     }
 
     /// Runs `handle_transaction_validation_checks` with the given coin
@@ -634,6 +889,52 @@ impl RegulatedCoinEnv {
         assert_eq!(user_tx_digests, vec![digest]);
 
         (dropped, transactions.len() == 1)
+    }
+
+    /// The regulated coin type as the deny list and the statuses name it.
+    fn coin_type(&self) -> String {
+        self.regulated_coin_type.to_canonical_string(false)
+    }
+
+    /// Asserts that post-consensus validation at a commit, the path with
+    /// `pcool_deterministic_validation` on, keeps the transaction.
+    fn assert_kept_at_commit(&self, transaction: &TransactionEnvelope) {
+        let epoch_store = self.env.authority.epoch_store_for_testing();
+        let reader = CommitIndexedReader::new(
+            self.env.authority.get_object_cache_reader().clone(),
+            (*epoch_store).clone(),
+            1,
+        );
+        let verdict = self
+            .env
+            .authority
+            .handle_transaction_validation_checks_at_commit(
+                &reader,
+                &VerifiedTransaction::new_unchecked(transaction.clone()),
+                &epoch_store,
+                &self.env.authority.config.transaction_deny_config,
+                VerifierLimitsSource::ProtocolConfig,
+            )
+            .unwrap();
+        assert!(
+            matches!(verdict, ValidationAtCommit::Keep(_)),
+            "post-consensus validation must keep the transaction, got {verdict:?}"
+        );
+    }
+
+    /// Executes the transaction after the checks a validator runs before
+    /// signing it, and returns its effects.
+    async fn execute(&self, transaction: TransactionEnvelope) -> TransactionEffects {
+        let (_, effects, _) = send_and_confirm_transaction_with_execution_error(
+            &self.env.authority,
+            None,
+            transaction,
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+        effects.into_data()
     }
 }
 

@@ -20,7 +20,10 @@ use iota_types::{
     auth_context::AuthContext,
     base_types::VersionDigest,
     committee::EpochId,
-    deny_list_v1::check_coin_deny_list_v1_during_execution,
+    deny_list_v1::{
+        check_coin_deny_list_v1_during_execution,
+        check_coin_deny_list_v1_for_sender_during_execution, coin_types_for_denylist_check,
+    },
     effects::TransactionEffectsExt,
     error::{ExecutionError, IotaResult},
     execution::{
@@ -444,6 +447,27 @@ impl<'backing> TemporaryStore<'backing> {
             .written_objects
             .get(id)
             .or_else(|| self.input_objects.get(id))
+    }
+
+    /// Fails if `sender` is denied for the coin type of an input object, or a
+    /// global pause covers that type, reading the deny list as settled before
+    /// this epoch.
+    pub(crate) fn check_input_coin_deny_list(&self, sender: Address) -> Result<(), ExecutionError> {
+        let coin_types = coin_types_for_denylist_check(self.input_objects.values());
+        // The outcome depends on the deny list as soon as one coin type is
+        // looked up, so the deny list is recorded as read, as for written
+        // coins in `check_coin_deny_list`.
+        if !coin_types.is_empty() && !self.input_objects.contains_key(&ObjectId::DENY_LIST) {
+            self.loaded_per_epoch_config_objects
+                .write()
+                .insert(ObjectId::DENY_LIST);
+        }
+        check_coin_deny_list_v1_for_sender_during_execution(
+            sender,
+            coin_types,
+            self.cur_epoch,
+            self.store.as_object_store(),
+        )
     }
 
     pub fn save_loaded_runtime_objects(

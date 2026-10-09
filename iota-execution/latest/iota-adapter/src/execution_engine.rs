@@ -845,6 +845,14 @@ mod checked {
 
         let tx_digest = tx_ctx.borrow().digest();
 
+        // Under P-COOL deterministic validation, the coin deny list is checked
+        // here and not in post-consensus validation: execution has loaded every
+        // input, shared ones at the versions consensus assigned, so the result
+        // is the same on every validator.
+        let input_coin_deny_check_sender = (protocol_config.pcool_deterministic_validation()
+            && !transaction_kind.is_system())
+        .then(|| tx_ctx.borrow().sender());
+
         // We must charge object read here during transaction execution, because if this
         // fails we must still ensure an effect is committed and all objects
         // versions incremented
@@ -864,6 +872,13 @@ mod checked {
                     // else propagate the pre-execution error
                     let mut execution_result = pre_execution_result_opt
                         .unwrap_or(Ok(()))
+                        // The coin deny check is skipped if the Move authentication failed.
+                        // That transaction is not known to be the sender's, so it fails with
+                        // the authentication error and not with a denial of the sender.
+                        .and_then(|_| match input_coin_deny_check_sender {
+                            Some(sender) => temporary_store.check_input_coin_deny_list(sender),
+                            None => Ok(()),
+                        })
                         .map_err(|e| (e, vec![]))
                         .and_then(|_| {
                             execution_loop::<Mode>(

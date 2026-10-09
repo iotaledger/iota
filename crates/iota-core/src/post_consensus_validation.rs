@@ -337,7 +337,8 @@ pub async fn validate_and_resolve_conflicts(
             // is reported with the error the admission path gives a missing
             // input, so clients see a known error. The reason stays in the
             // log. Missing drops here until the Increment 8 wait and
-            // re-resolve land in front of this arm.
+            // re-resolve land in front of this arm. The Move authenticator and
+            // the coin deny list are checked at execution instead.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,

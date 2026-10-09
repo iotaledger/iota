@@ -577,6 +577,14 @@ mod checked {
                 // We skip checking shared objects from cancelled transactions since we are not
                 // reading it.
                 ObjectReadResultKind::CancelledTransactionObject(_) => (),
+                // An unread shared object has no contents to check. Only the rules on how
+                // the transaction declares it apply.
+                ObjectReadResultKind::UnreadSharedObject => {
+                    check_shared_object_declaration(
+                        &input_object_kind,
+                        transaction.is_system_tx(),
+                    )?;
+                }
             }
         }
 
@@ -664,65 +672,13 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectId::CLOCK,
-                initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-                mutable: true,
-            } => {
-                // Only system transactions can accept the Clock
-                // object as a mutable parameter.
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectId::CLOCK,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
-                id: ObjectId::AUTHENTICATOR_STATE,
-                ..
-            } => {
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: ObjectId::AUTHENTICATOR_STATE,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
-                id: ObjectId::RANDOMNESS_STATE,
-                mutable: true,
-                ..
-            } => {
-                // Only system transactions can accept the Random
-                // object as a mutable parameter.
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectId::RANDOMNESS_STATE,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
-                id: ObjectId::TRANSACTION_DENY_RULES,
-                ..
-            } => {
-                // The deny rules object is written only by system
-                // transactions and has no user-callable readers.
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: ObjectId::TRANSACTION_DENY_RULES,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
                 initial_shared_version: input_initial_shared_version,
                 ..
             } => {
+                if check_shared_object_declaration(&object_kind, system_transaction)? {
+                    return Ok(());
+                }
+
                 fp_ensure!(
                     object.version() < Version::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
@@ -745,7 +701,79 @@ mod checked {
                 }
             }
         };
+
         Ok(())
+    }
+
+    /// Checks a shared input against the rules on system objects, which depend
+    /// only on how the transaction declares it: only a system transaction may
+    /// name the authenticator state or the deny rules object, or name the clock
+    /// or the randomness state as mutable. Fails if a rule forbids the input.
+    /// Returns `true` if a rule allows it, so no further check is needed, and
+    /// `false` if no rule covers it.
+    fn check_shared_object_declaration(
+        object_kind: &InputObjectKind,
+        system_transaction: bool,
+    ) -> UserInputResult<bool> {
+        match object_kind {
+            InputObjectKind::SharedMoveObject {
+                id: ObjectId::CLOCK,
+                initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
+                mutable: true,
+            } => {
+                // Only system transactions can accept the Clock
+                // object as a mutable parameter.
+                if system_transaction {
+                    Ok(true)
+                } else {
+                    Err(UserInputError::ImmutableParameterExpected {
+                        object_id: ObjectId::CLOCK,
+                    })
+                }
+            }
+            InputObjectKind::SharedMoveObject {
+                id: ObjectId::AUTHENTICATOR_STATE,
+                ..
+            } => {
+                if system_transaction {
+                    Ok(true)
+                } else {
+                    Err(UserInputError::InaccessibleSystemObject {
+                        object_id: ObjectId::AUTHENTICATOR_STATE,
+                    })
+                }
+            }
+            InputObjectKind::SharedMoveObject {
+                id: ObjectId::RANDOMNESS_STATE,
+                mutable: true,
+                ..
+            } => {
+                // Only system transactions can accept the Random
+                // object as a mutable parameter.
+                if system_transaction {
+                    Ok(true)
+                } else {
+                    Err(UserInputError::ImmutableParameterExpected {
+                        object_id: ObjectId::RANDOMNESS_STATE,
+                    })
+                }
+            }
+            InputObjectKind::SharedMoveObject {
+                id: ObjectId::TRANSACTION_DENY_RULES,
+                ..
+            } => {
+                // The deny rules object is written only by system
+                // transactions and has no user-callable readers.
+                if system_transaction {
+                    Ok(true)
+                } else {
+                    Err(UserInputError::InaccessibleSystemObject {
+                        object_id: ObjectId::TRANSACTION_DENY_RULES,
+                    })
+                }
+            }
+            _ => Ok(false),
+        }
     }
 
     /// Check all the `MoveAuthenticator` related input objects against the
@@ -766,6 +794,11 @@ mod checked {
                 // We skip checking shared objects from cancelled transactions since we are not
                 // reading it.
                 ObjectReadResultKind::CancelledTransactionObject(_) => (),
+                // An unread shared object has no contents to check. Only the rules on how
+                // the authenticator declares it apply.
+                ObjectReadResultKind::UnreadSharedObject => {
+                    check_move_authenticator_shared_object_declaration(&input_object_kind)?;
+                }
             }
         }
 
@@ -838,24 +871,11 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                ..
-            } => {
-                return Err(UserInputError::InaccessibleSystemObject {
-                    object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                });
-            }
-            InputObjectKind::SharedMoveObject {
-                id, mutable: true, ..
-            } => {
-                return Err(UserInputError::MutableSharedIsInMoveAuthenticatorInput {
-                    object_id: id,
-                });
-            }
-            InputObjectKind::SharedMoveObject {
                 initial_shared_version: input_initial_shared_version,
                 ..
             } => {
+                check_move_authenticator_shared_object_declaration(&object_kind)?;
+
                 fp_ensure!(
                     object.version() < Version::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
@@ -879,6 +899,26 @@ mod checked {
             }
         };
         Ok(())
+    }
+
+    /// Checks a shared `MoveAuthenticator` input against the rules that depend
+    /// only on how it is declared: it may not be the authenticator state
+    /// object, and it may not be declared mutable.
+    fn check_move_authenticator_shared_object_declaration(
+        object_kind: &InputObjectKind,
+    ) -> UserInputResult {
+        match object_kind {
+            InputObjectKind::SharedMoveObject {
+                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                ..
+            } => Err(UserInputError::InaccessibleSystemObject {
+                object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+            }),
+            InputObjectKind::SharedMoveObject {
+                id, mutable: true, ..
+            } => Err(UserInputError::MutableSharedIsInMoveAuthenticatorInput { object_id: *id }),
+            _ => Ok(()),
+        }
     }
 
     /// Create a union of two CheckedInputObjects, ensuring consistency

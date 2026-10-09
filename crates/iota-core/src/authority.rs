@@ -1268,10 +1268,10 @@ impl AuthorityState {
     /// [`Self::handle_transaction_validation_checks`] for post-consensus
     /// validation at the commit `reader` was built for. Inputs come from the
     /// commit-indexed reader, so a drop or a missing input is a resolution
-    /// the caller matches on. The coin deny list is always read epoch-gated.
-    /// Every check after loading keeps its admission-time behaviour and error.
-    /// The Move authenticator's account resolution and the authenticator run
-    /// are not among them: both happen at execution.
+    /// the caller matches on. Every check after loading keeps its
+    /// admission-time behaviour and error. The Move authenticator's account
+    /// resolution, the authenticator run and the coin deny list are not among
+    /// them: all three happen at execution.
     ///
     /// Visibility is `pub` until the validation loop consumes it;
     /// `pub(crate)` would be dead code under `-D warnings` until then.
@@ -1353,17 +1353,9 @@ impl AuthorityState {
             "Move authenticator input objects must not contain owned objects"
         );
 
-        // Epoch-gated: the verdict decides whether the transaction stays in
-        // the committed set, so it must not depend on this validator's
-        // execution progress.
-        check_coin_deny_list_v1(
-            tx.sender(),
-            &tx_checked_input_objects,
-            &tx_receiving_objects,
-            &per_authenticator_checked_input_objects,
-            &self.get_object_store(),
-            Some(epoch),
-        )?;
+        // The coin deny list is not checked here either. It reads the coin
+        // type of every input, and a live shared input is not read here, so
+        // execution checks it against the inputs it loaded.
 
         Ok(ValidationAtCommit::Keep(
             tx_checked_input_objects.inner().filter_owned_objects(),
@@ -6019,6 +6011,12 @@ impl AuthorityState {
             // dynamic field because it is greater than the version of the child dynamic
             // field.
             (ObjectReadResultKind::CancelledTransactionObject(version), true) => Ok(*version),
+            // A transaction validated post-consensus at a commit leaves its account
+            // to execution, which reads it, so no check gets an unread account.
+            (ObjectReadResultKind::UnreadSharedObject, _) => unreachable!(
+                "only post-consensus validation at a commit lists an unread shared object, and \
+                    it leaves the account to execution"
+            ),
         }?;
 
         let authenticator_function_ref_field_id =
