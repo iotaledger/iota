@@ -7,7 +7,7 @@ mod common;
 
 use std::{collections::HashMap, sync::Arc};
 
-use common::{MockGrpcStateReader, create_large_object};
+use common::{MockGrpcStateReader, create_large_object, create_test_transaction};
 use iota_grpc_types::{
     field::FieldMaskUtil,
     v1::{
@@ -18,39 +18,7 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
-use iota_sdk_types::{TransactionDigest, TransactionEffects};
-use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::{
-    base_types::random_object_ref,
-    crypto::{AccountPrivateKey, get_key_pair},
-    effects::TestEffectsBuilder,
-    transaction::VerifiedTransaction,
-};
 use prost::Message;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Create a transaction and its effects so `get_transactions` can return it.
-fn create_test_transaction() -> (
-    TransactionDigest,
-    Arc<VerifiedTransaction>,
-    TransactionEffects,
-) {
-    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
-    let gas = random_object_ref();
-    let tx = TestTransactionBuilder::new(sender, gas, 1000)
-        .transfer(random_object_ref(), sender)
-        .build_and_sign(&key);
-    let effects = TestEffectsBuilder::new(tx.data()).build();
-    let digest = *tx.digest();
-    (
-        digest,
-        Arc::new(VerifiedTransaction::new_unchecked(tx)),
-        effects,
-    )
-}
 
 // ---------------------------------------------------------------------------
 // Tests
