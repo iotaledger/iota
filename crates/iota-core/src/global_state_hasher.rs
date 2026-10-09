@@ -19,6 +19,7 @@ use iota_types::{
 };
 use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::debug;
+use typed_store::DbIterator;
 
 use crate::authority::{
     authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
@@ -64,9 +65,9 @@ pub trait GlobalStateHashStore: ObjectStore + Send + Sync {
         acc: &GlobalStateHash,
     ) -> IotaResult;
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_>;
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject>;
 
-    fn iter_cached_live_object_set_for_testing(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_cached_live_object_set_for_testing(&self) -> DbIterator<'_, LiveObject> {
         self.iter_live_object_set()
     }
 }
@@ -94,7 +95,7 @@ impl GlobalStateHashStore for InMemoryStorage {
         unreachable!("not used for testing")
     }
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject> {
         unreachable!("not used for testing")
     }
 }
@@ -173,31 +174,33 @@ impl GlobalStateHasher {
         Ok(acc)
     }
 
-    pub fn accumulate_cached_live_object_set_for_testing(&self) -> GlobalStateHash {
+    pub fn accumulate_cached_live_object_set_for_testing(&self) -> IotaResult<GlobalStateHash> {
         Self::accumulate_live_object_set_impl(self.store.iter_cached_live_object_set_for_testing())
     }
 
     /// Returns the result of accumulating the live object set, without side
     /// effects
-    pub fn accumulate_live_object_set(&self) -> GlobalStateHash {
+    pub fn accumulate_live_object_set(&self) -> IotaResult<GlobalStateHash> {
         Self::accumulate_live_object_set_impl(self.store.iter_live_object_set())
     }
 
-    fn accumulate_live_object_set_impl(iter: impl Iterator<Item = LiveObject>) -> GlobalStateHash {
+    fn accumulate_live_object_set_impl(
+        iter: DbIterator<'_, LiveObject>,
+    ) -> IotaResult<GlobalStateHash> {
         let mut acc = GlobalStateHash::default();
-        iter.for_each(|live_object| {
-            Self::accumulate_live_object(&mut acc, &live_object);
-        });
-        acc
+        for live_object in iter {
+            Self::accumulate_live_object(&mut acc, &live_object?);
+        }
+        Ok(acc)
     }
 
     pub fn accumulate_live_object(acc: &mut GlobalStateHash, live_object: &LiveObject) {
         acc.insert(live_object.object.object_ref().digest);
     }
 
-    pub fn digest_live_object_set(&self) -> ECMHLiveObjectSetDigest {
-        let acc = self.accumulate_live_object_set();
-        acc.digest().into()
+    pub fn digest_live_object_set(&self) -> IotaResult<ECMHLiveObjectSetDigest> {
+        let acc = self.accumulate_live_object_set()?;
+        Ok(acc.digest().into())
     }
 
     pub async fn digest_epoch(
