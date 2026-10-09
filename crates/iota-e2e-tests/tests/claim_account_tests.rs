@@ -490,7 +490,7 @@ async fn test_claim_account_at_the_gas_floor_succeeds() {
     };
     use iota_types::{
         account_abstraction::public_key::MovePublicKey,
-        transaction::{TransactionAPI, TransactionEnvelope},
+        transaction::{TransactionAPI, TransactionEnvelope, claim_account_min_gas_budget},
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -522,8 +522,11 @@ async fn test_claim_account_at_the_gas_floor_succeeds() {
     .expect("a valid multisig key")
     .address()
     .expect("a multisig key derives an address");
-    let budget = protocol_config
-        .claim_account_min_gas_budget(gas_price, claim.public_key_raw_bytes.len() as u64);
+    let budget = claim_account_min_gas_budget(
+        &protocol_config,
+        gas_price,
+        claim.public_key_raw_bytes.len() as u64,
+    );
 
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(2 * budget), sender)

@@ -2307,22 +2307,6 @@ impl ProtocolConfig {
         }
         enable_claim_account_transaction
     }
-
-    /// Smallest gas budget a `ClaimAccount` carrying `public_key_len` raw key
-    /// bytes may declare at `gas_price`: the pipeline's computation bound
-    /// charged at that price plus the storage it creates. Requires
-    /// `enable_claim_account_transaction`.
-    pub fn claim_account_min_gas_budget(&self, gas_price: u64, public_key_len: u64) -> u64 {
-        let computation = self
-            .claim_account_max_computation_units()
-            .saturating_mul(gas_price);
-        let storage = self
-            .claim_account_storage_bytes_bound()
-            .saturating_add(public_key_len)
-            .saturating_mul(self.obj_data_cost_refundable())
-            .saturating_mul(self.storage_gas_price());
-        computation.saturating_add(storage)
-    }
 }
 
 #[cfg(not(msim))]

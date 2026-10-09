@@ -2666,6 +2666,28 @@ fn check_claimed_key_derives_sender(data: &Transaction) -> UserInputResult {
     Ok(())
 }
 
+/// Smallest gas budget a `ClaimAccount` carrying `public_key_len` raw key
+/// bytes may declare at `gas_price`: the pipeline's computation bound charged
+/// at that price plus the storage it creates, from the protocol parameters
+/// `claim_account_max_computation_units` and
+/// `claim_account_storage_bytes_bound`. Requires
+/// `enable_claim_account_transaction`.
+pub fn claim_account_min_gas_budget(
+    config: &ProtocolConfig,
+    gas_price: u64,
+    public_key_len: u64,
+) -> u64 {
+    let computation = config
+        .claim_account_max_computation_units()
+        .saturating_mul(gas_price);
+    let storage = config
+        .claim_account_storage_bytes_bound()
+        .saturating_add(public_key_len)
+        .saturating_mul(config.obj_data_cost_refundable())
+        .saturating_mul(config.storage_gas_price());
+    computation.saturating_add(storage)
+}
+
 /// Requires a `ClaimAccount`'s gas budget to cover the claim pipeline at the
 /// transaction's own gas price and key size, so a claim that is accepted
 /// cannot run out of gas at execution. A no-op for every other transaction
@@ -2682,8 +2704,11 @@ fn check_claim_account_gas_budget(data: &Transaction, config: &ProtocolConfig) -
     };
     // The cost scales with the declared gas price and the key bytes the claim
     // stores, so the floor does too.
-    let min_budget = config
-        .claim_account_min_gas_budget(data.gas_price(), smart.public_key_raw_bytes.len() as u64);
+    let min_budget = claim_account_min_gas_budget(
+        config,
+        data.gas_price(),
+        smart.public_key_raw_bytes.len() as u64,
+    );
     fp_ensure!(
         data.gas_budget() >= min_budget,
         UserInputError::GasBudgetTooLow {
