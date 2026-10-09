@@ -250,6 +250,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             rather than the limit that applies to user packages.
 //             Abort `iota::account::create_immutable_account_v1`, so no new
 //             immutable account object can be created.
+//             Allow random beacon DKG to complete after its timeout on devnet
+//             and testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -610,6 +612,11 @@ struct FeatureFlags {
     // instead of staying pending forever.
     #[serde(skip_serializing_if = "is_false")]
     always_advance_dkg_to_resolution: bool,
+
+    // If true, keep DKG pending after its timeout so that it can complete later
+    // in the epoch.
+    #[serde(skip_serializing_if = "is_false")]
+    allow_dkg_completion_after_timeout: bool,
 
     // If true, enables the P-COOL (post-consensus owned-object locking) flow:
     // transactions bypass pre-consensus certification and owned-object locking,
@@ -2060,6 +2067,10 @@ impl ProtocolConfig {
 
     pub fn always_advance_dkg_to_resolution(&self) -> bool {
         self.feature_flags.always_advance_dkg_to_resolution
+    }
+
+    pub fn allow_dkg_completion_after_timeout(&self) -> bool {
+        self.feature_flags.allow_dkg_completion_after_timeout
     }
 
     pub fn enable_pcool_flow(&self) -> bool {
@@ -3642,6 +3653,9 @@ impl ProtocolConfig {
                     // An immutable account object cannot authenticate anything
                     // since version 36, so stop creating new ones.
                     cfg.feature_flags.reject_immutable_account_creation = true;
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags.allow_dkg_completion_after_timeout = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -3919,6 +3933,10 @@ impl ProtocolConfig {
 
     pub fn set_always_advance_dkg_to_resolution_for_testing(&mut self, val: bool) {
         self.feature_flags.always_advance_dkg_to_resolution = val;
+    }
+
+    pub fn set_allow_dkg_completion_after_timeout_for_testing(&mut self, val: bool) {
+        self.feature_flags.allow_dkg_completion_after_timeout = val;
     }
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
