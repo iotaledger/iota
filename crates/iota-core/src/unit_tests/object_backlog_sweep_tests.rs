@@ -657,3 +657,38 @@ async fn the_walk_reaches_a_committed_checkpoint_above_the_executed_watermark() 
     );
     assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
 }
+
+/// The bounded walk is refused when the checkpoints above the watermark fall
+/// in epochs the ledger no longer holds the effects of, even if the pruned
+/// watermark was never moved past them.
+#[tokio::test]
+async fn effects_gone_above_the_watermark_refuse_the_bounded_walk() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    seed(&store);
+    seed_pruner_watermark(&store, 5);
+    // The ledger holds epoch 1 on, and epoch 0 ended at checkpoint 9, so the
+    // effects of checkpoints 6 to 9 are gone.
+    store.get_historic_ledger().ensure(1).unwrap();
+    checkpoint_store
+        .insert_epoch_last_checkpoint(0, &executed_checkpoint(0, 9))
+        .unwrap();
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH)
+        .await
+        .unwrap();
+
+    // The unbounded walk's outcome.
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![
+            ObjectKey(live_id(), 1.into()),
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 1.into()),
+            ObjectKey(deleted_id(), 2.into()),
+            ObjectKey(wrapped_id(), 1.into()),
+        ]
+    );
+}

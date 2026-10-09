@@ -167,6 +167,25 @@ impl ObjectBacklogSweep {
             );
             return Ok(None);
         }
+        // The same holds for their effects. The ledger migration deletes the
+        // effects of the epochs below its floor, and its record of that in the
+        // pruned watermark is best effort, so the oldest ledger bucket decides.
+        let first_with_effects = match self.historic_ledger.earliest_bucket_epoch() {
+            Some(0) => Some(0),
+            Some(epoch) => checkpoint_store
+                .get_epoch_last_checkpoint_seq_number(epoch - 1)?
+                .map(|last| last + 1),
+            None => None,
+        };
+        if first_with_effects.is_none_or(|first| bound.saturating_add(1) < first) {
+            warn!(
+                bound,
+                ?first_with_effects,
+                "the effects of the checkpoints above the objects pruner's watermark are gone, \
+                 so they no longer name the backlog; walking the whole live table"
+            );
+            return Ok(None);
+        }
         Ok(Some(bound))
     }
 
