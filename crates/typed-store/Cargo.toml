@@ -14,7 +14,6 @@ bcs.workspace = true
 bincode.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
-fdlimit = "0.2.1"
 hdrhistogram.workspace = true
 num_cpus.workspace = true
 once_cell.workspace = true
