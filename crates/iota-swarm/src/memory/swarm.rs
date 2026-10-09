@@ -78,6 +78,7 @@ pub struct SwarmBuilder<R = UnwrapErr<SysRng>> {
     global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    fullnode_enable_jsonrpc_api: bool,
     fullnode_enable_grpc_api: bool,
     fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
@@ -119,6 +120,7 @@ impl SwarmBuilder {
             global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             iota_names_config: None,
+            fullnode_enable_jsonrpc_api: true,
             fullnode_enable_grpc_api: false,
             fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
@@ -163,6 +165,7 @@ impl<R> SwarmBuilder<R> {
             global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
+            fullnode_enable_jsonrpc_api: self.fullnode_enable_jsonrpc_api,
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
             fullnode_state_snapshot_config: self.fullnode_state_snapshot_config,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
@@ -390,6 +393,11 @@ impl<R> SwarmBuilder<R> {
     /// config names.
     pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
         self.fullnode_state_snapshot_config = Some(config);
+        self
+    }
+
+    pub fn with_fullnode_enable_jsonrpc_api(mut self, enable: bool) -> Self {
+        self.fullnode_enable_jsonrpc_api = enable;
         self
     }
 
@@ -642,6 +650,9 @@ impl<R: rand::CryptoRng> SwarmBuilder<R> {
             fullnode_config_builder =
                 fullnode_config_builder.with_supported_protocol_versions(supported_versions);
         }
+
+        fullnode_config_builder =
+            fullnode_config_builder.with_enable_jsonrpc_api(self.fullnode_enable_jsonrpc_api);
 
         // Add gRPC config wiring
         fullnode_config_builder =
@@ -980,7 +991,7 @@ mod test {
                     .parse()
                     .unwrap(),
                 "validator:enable-soft-locking=false".parse().unwrap(),
-                "validator-0:enable-index-processing=false".parse().unwrap(),
+                "validator-0:enable-jsonrpc-api=false".parse().unwrap(),
             ])
             .build();
 
@@ -1007,7 +1018,7 @@ mod test {
         swarm.apply_node_config_overrides_for_spawn(&mut config);
         assert!(!config.enable_soft_locking);
         // The `validator-0` and fullnode scopes leave this validator alone.
-        assert!(config.enable_index_processing);
+        assert!(config.enable_jsonrpc_api);
         assert_eq!(
             config.authority_store_pruning_config.num_epochs_to_retain,
             num_epochs_to_retain
@@ -1166,7 +1177,7 @@ mod test {
                 "validator:firewall-config.destination-port=65001"
                     .parse()
                     .unwrap(),
-                "fullnode:enable-index-processing=false".parse().unwrap(),
+                "fullnode:enable-jsonrpc-api=false".parse().unwrap(),
             ])
             .try_build()
             .unwrap();
@@ -1179,7 +1190,7 @@ mod test {
             65001
         );
         let fullnode = swarm.fullnodes().next().unwrap();
-        assert!(!fullnode.config().enable_index_processing);
+        assert!(!fullnode.config().enable_jsonrpc_api);
     }
 
     #[test]

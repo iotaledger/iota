@@ -437,7 +437,7 @@ async fn write_config_writes_runnable_configs_and_starts_nothing() -> Result<(),
     start_command(
         working_dir,
         Some(config_dir.clone()),
-        vec!["fullnode:enable-index-processing=false".to_owned()],
+        vec!["fullnode:enable-jsonrpc-api=false".to_owned()],
     )
     .execute()
     .await?;
@@ -488,10 +488,10 @@ async fn write_config_writes_runnable_configs_and_starts_nothing() -> Result<(),
     // The override reached the fullnode, and only the fullnode.
     let fullnode =
         PersistedConfig::<NodeConfig>::read(&config_dir.join(IOTA_FULLNODE_CONFIG)).unwrap();
-    assert!(!fullnode.enable_index_processing);
+    assert!(!fullnode.enable_jsonrpc_api);
     let validator =
         PersistedConfig::<NodeConfig>::read(&config_dir.join("validator-0.yaml")).unwrap();
-    assert!(validator.enable_index_processing);
+    assert!(validator.enable_jsonrpc_api);
 
     tmp_dir.close()?;
     config_tmp_dir.close()?;
