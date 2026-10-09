@@ -255,6 +255,9 @@ pub struct CheckpointStore {
     full_checkpoint_contents_cache: FullCheckpointContentsCache,
     synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
     executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
+    locally_computed_checkpoint_notify_read:
+        NotifyRead<CheckpointSequenceNumber, CheckpointSummary>,
+    epoch_last_checkpoint_notify_read: NotifyRead<EpochId, CheckpointSequenceNumber>,
 }
 
 impl CheckpointStore {
@@ -282,6 +285,8 @@ impl CheckpointStore {
             full_checkpoint_contents_cache: contents_cache,
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
+            locally_computed_checkpoint_notify_read: NotifyRead::new(),
+            epoch_last_checkpoint_notify_read: NotifyRead::new(),
         })
     }
 
@@ -654,6 +659,14 @@ impl CheckpointStore {
             )?;
         batch.write()?;
 
+        for checkpoint in checkpoints
+            .iter()
+            .filter(|c| c.next_epoch_committee().is_some())
+        {
+            self.epoch_last_checkpoint_notify_read
+                .notify(&checkpoint.epoch(), &checkpoint.sequence_number());
+        }
+
         for checkpoint in checkpoints {
             if let Some(local_checkpoint) = self
                 .tables
@@ -793,6 +806,49 @@ impl CheckpointStore {
                 .expect("db error")
         })
         .await
+    }
+
+    /// Waits until this node's checkpoint builder has built checkpoint `seq`.
+    pub async fn notify_read_locally_computed_checkpoint(
+        &self,
+        seq: CheckpointSequenceNumber,
+    ) -> CheckpointSummary {
+        self.locally_computed_checkpoint_notify_read
+            .read("notify_read_locally_computed_checkpoint", &[seq], |seqs| {
+                Ok::<_, TypedStoreError>(vec![self.get_locally_computed_checkpoint(seqs[0])?])
+            })
+            .await
+            .expect("db error")
+            .pop()
+            .expect("one key requested")
+    }
+
+    pub(crate) fn notify_locally_computed_checkpoints<'a>(
+        &self,
+        summaries: impl IntoIterator<Item = &'a CheckpointSummary>,
+    ) {
+        for summary in summaries {
+            self.locally_computed_checkpoint_notify_read
+                .notify(&summary.sequence_number, summary);
+        }
+    }
+
+    /// Waits until the certified last checkpoint of `epoch` is known and
+    /// returns its sequence number.
+    pub async fn notify_read_epoch_last_checkpoint_seq_number(
+        &self,
+        epoch: EpochId,
+    ) -> CheckpointSequenceNumber {
+        self.epoch_last_checkpoint_notify_read
+            .read("notify_read_epoch_last_checkpoint", &[epoch], |epochs| {
+                Ok::<_, TypedStoreError>(vec![
+                    self.get_epoch_last_checkpoint_seq_number(epochs[0])?,
+                ])
+            })
+            .await
+            .expect("db error")
+            .pop()
+            .expect("one key requested")
     }
 
     pub fn update_highest_executed_checkpoint(
@@ -1017,6 +1073,8 @@ impl CheckpointStore {
         self.tables
             .epoch_last_checkpoint_map
             .insert(&epoch_id, &checkpoint.sequence_number())?;
+        self.epoch_last_checkpoint_notify_read
+            .notify(&epoch_id, &checkpoint.sequence_number());
         Ok(())
     }
 
@@ -1216,7 +1274,20 @@ impl CheckpointBuilder {
     /// It is optional to pass in consensus_replay_waiter, to make it easier to
     /// attribute if slow recovery of previously built checkpoints is due to
     /// consensus replay or checkpoint building.
-    async fn run(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
+    ///
+    /// Stops once this node executes downloaded checkpoints for the rest of
+    /// the epoch, also in the middle of building, so it signs nothing more.
+    async fn run(self, consensus_replay_waiter: Option<ReplayWaiter>) {
+        let epoch_store = self.epoch_store.clone();
+        tokio::select! {
+            _ = epoch_store.wait_for_synced_checkpoint_execution() => {
+                info!("CheckpointBuilder stopping: executing synced checkpoints for the rest of the epoch");
+            }
+            _ = self.build_until_stopped(consensus_replay_waiter) => {}
+        }
+    }
+
+    async fn build_until_stopped(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
         if let Some(replay_waiter) = consensus_replay_waiter {
             info!("Waiting for consensus commits to replay ...");
             replay_waiter.wait_for_replay().await;
@@ -1624,6 +1695,8 @@ impl CheckpointBuilder {
         }
 
         batch.write()?;
+        self.store
+            .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
 
         // Cache the full contents only now that the checkpoint_content rows
         // are durable
@@ -3377,6 +3450,44 @@ mod tests {
         );
     }
 
+    /// The checkpoint builder stops once this node executes synced checkpoints
+    /// for the rest of the epoch.
+    #[tokio::test]
+    pub async fn checkpoint_builder_stops_when_executing_synced_checkpoints() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let tmp_dir = iota_common::tempdir();
+        let epoch_store = state.epoch_store_for_testing();
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            CheckpointStore::new(tmp_dir.path()),
+            epoch_store.clone(),
+            Arc::new(HashMap::<TransactionDigest, TransactionEffects>::new()),
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let mut tasks = checkpoint_service.spawn(None).await;
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), tasks.join_next())
+                .await
+                .is_err()
+        );
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        tokio::time::timeout(Duration::from_secs(5), tasks.join_next())
+            .await
+            .expect("the checkpoint builder should stop")
+            .unwrap()
+            .unwrap();
+    }
     #[sim_test]
     pub async fn checkpoint_builder_test() {
         telemetry_subscribers::init_for_testing();

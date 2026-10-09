@@ -73,7 +73,10 @@ use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus_filtered::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
-use tokio::{sync::OnceCell, time::Instant};
+use tokio::{
+    sync::{OnceCell, watch},
+    time::Instant,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
@@ -809,6 +812,12 @@ pub struct AuthorityPerEpochStore {
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
 
+    /// Set once this node executes downloaded checkpoints for the rest of the
+    /// epoch instead of building them from consensus.
+    synced_checkpoint_execution: watch::Sender<bool>,
+    /// Held by the consensus handler while it processes a commit.
+    consensus_commit_guard: tokio::sync::Mutex<()>,
+
     /// Monitors local observations of misbehaviors and sends reports.
     pub(crate) misbehavior_monitor: MisbehaviorMonitor,
     /// Aggregates incoming misbehavior reports from peers.
@@ -1361,6 +1370,8 @@ impl AuthorityPerEpochStore {
             chain,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
+            synced_checkpoint_execution: watch::channel(false).0,
+            consensus_commit_guard: tokio::sync::Mutex::new(()),
             misbehavior_monitor,
             report_aggregator,
             scoreboard,
@@ -1411,6 +1422,37 @@ impl AuthorityPerEpochStore {
 
     pub fn randomness_reporter(&self) -> Option<RandomnessReporter> {
         self.randomness_reporter.get().cloned()
+    }
+
+    /// Whether this node executes downloaded checkpoints for the rest of the
+    /// epoch instead of building them from consensus. Once set, the
+    /// consensus handler processes no further commits of the epoch and the
+    /// checkpoint builder stops.
+    pub fn is_executing_synced_checkpoints(&self) -> bool {
+        *self.synced_checkpoint_execution.borrow()
+    }
+
+    /// Marks that this node executes downloaded checkpoints for the rest of
+    /// the epoch. Returns once the consensus handler is between commits, so no
+    /// commit is processed against state that executing those checkpoints
+    /// writes. Returns at once if this was already done.
+    pub async fn start_executing_synced_checkpoints(&self) {
+        if self.synced_checkpoint_execution.send_replace(true) {
+            return;
+        }
+        drop(self.consensus_commit_guard.lock().await);
+    }
+
+    /// Completes once `start_executing_synced_checkpoints` has been called.
+    pub async fn wait_for_synced_checkpoint_execution(&self) {
+        let mut started = self.synced_checkpoint_execution.subscribe();
+        // The sender lives as long as `self`, so this cannot fail.
+        let _ = started.wait_for(|started| *started).await;
+    }
+
+    /// Held by the consensus handler while it processes one commit.
+    pub(crate) async fn lock_consensus_commit(&self) -> tokio::sync::MutexGuard<'_, ()> {
+        self.consensus_commit_guard.lock().await
     }
 
     pub async fn set_randomness_manager(

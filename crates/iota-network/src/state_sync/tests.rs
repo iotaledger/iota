@@ -5,6 +5,7 @@
 use std::{
     collections::HashMap,
     num::{NonZeroU64, NonZeroUsize},
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -16,7 +17,7 @@ use iota_data_ingestion_core::history::{
     CHECKPOINT_FILE_MAGIC,
     manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
 };
-use iota_sdk_types::CheckpointDigest;
+use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
@@ -1371,6 +1372,127 @@ async fn wait_for_watermarks(
         store.get_highest_verified_checkpoint_seq_number(),
         store.get_highest_synced_checkpoint_seq_number(),
     );
+}
+
+/// Runs node 2 with a bound of 2 above execution, its execution held at
+/// genesis, against a peer holding an epoch that ends past the bound.
+/// `sync_to_epoch_end` is what the node sets for its current epoch: whether
+/// it is in the committee with the flag on. Returns node 2's store once node 1 has offered every
+/// checkpoint, the sequence number of the checkpoint that ends the epoch, and the
+/// networks and handles that keep both nodes running.
+async fn sync_with_epoch_end_past_the_bound(
+    sync_to_epoch_end: bool,
+) -> (SharedInMemoryStore, CheckpointSequenceNumber, impl Sized) {
+    telemetry_subscribers::init_for_testing();
+    let (committee, (mut ordered_checkpoints, mut contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 6, None, random_contents);
+    let (_, _, end_of_epoch) = committee.make_end_of_epoch_checkpoint(
+        ordered_checkpoints.last().cloned().unwrap(),
+        Some(EndOfEpochData {
+            next_epoch_committee: committee.committee().committee_members(),
+            next_epoch_protocol_version: 1,
+            epoch_commitments: vec![],
+            epoch_supply_change: 0,
+        }),
+    );
+    let end_of_epoch_seq = end_of_epoch.sequence_number();
+    ordered_checkpoints.push(end_of_epoch);
+    contents.push(empty_contents());
+    let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
+    let genesis_contents = contents.first().cloned().unwrap();
+
+    // Node 1 has every checkpoint and serves node 2.
+    let store_1 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        genesis_contents.clone(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
+    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_1, handle_1) = builder.build(network_1.clone());
+    let store_1 = event_loop_1.store.clone();
+
+    // Node 2's execution stays at genesis, as when a validator waits for
+    // checkpoints its own consensus can no longer build.
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint,
+        genesis_contents,
+        committee.committee().to_owned(),
+    );
+    store_2.inner_mut().set_highest_executed_checkpoint(0);
+    let (builder, server) = Builder::new()
+        .store(store_2)
+        .config(StateSyncConfig {
+            max_checkpoints_ahead_of_execution: NonZeroU64::new(2),
+            interval_period_ms: Some(50),
+            ..Default::default()
+        })
+        .sync_summaries_to_epoch_end(Arc::new(AtomicBool::new(sync_to_epoch_end)))
+        .build();
+    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_2, handle_2) = builder.build(network_2.clone());
+    let store_2 = event_loop_2.store.clone();
+
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+    network_1.connect(network_2.local_addr()).await.unwrap();
+
+    for (checkpoint, contents) in ordered_checkpoints
+        .iter()
+        .zip(contents.iter())
+        .skip(1)
+        .map(|(checkpoint, contents)| (checkpoint.clone(), contents.clone()))
+    {
+        store_1
+            .try_insert_checkpoint_contents(&checkpoint, contents)
+            .unwrap();
+        store_1.insert_certified_checkpoint(&checkpoint);
+        handle_1.send_checkpoint(checkpoint).await;
+    }
+
+    (
+        store_2,
+        end_of_epoch_seq,
+        (network_1, network_2, handle_1, handle_2),
+    )
+}
+
+#[tokio::test]
+async fn summary_sync_reaches_epoch_end_past_the_bound_when_enabled() {
+    let (store_2, end_of_epoch_seq, _nodes) = sync_with_epoch_end_past_the_bound(true).await;
+    // Summaries reach the end of the epoch past the bound; contents stay
+    // within it.
+    wait_for_watermarks(&store_2, end_of_epoch_seq, 2).await;
+}
+
+#[tokio::test]
+async fn summary_sync_stops_at_the_bound_when_not_enabled() {
+    let (store_2, _, _nodes) = sync_with_epoch_end_past_the_bound(false).await;
+    wait_for_watermarks(&store_2, 2, 2).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(store_2.get_highest_verified_checkpoint_seq_number(), 2);
+}
+
+#[test]
+fn test_summary_sync_target() {
+    use crate::state_sync::{checkpoint_sync_target, summary_sync_target};
+
+    // Without a pending epoch end it is the bound above execution.
+    assert_eq!(
+        summary_sync_target(1_000, Some(10), 110, 100, false),
+        checkpoint_sync_target(1_000, Some(10), 100)
+    );
+
+    // With a pending epoch end the bound counts from the highest verified
+    // summary, so summary sync keeps going while execution stands still.
+    assert_eq!(summary_sync_target(1_000, Some(10), 110, 100, true), 210);
+    assert_eq!(summary_sync_target(150, Some(10), 110, 100, true), 150);
+
+    // It never falls below the bound above execution.
+    assert_eq!(summary_sync_target(1_000, Some(10), 5, 100, true), 110);
+
+    // It never runs past the end of the sequence space.
+    assert_eq!(summary_sync_target(30, Some(10), u64::MAX, 100, true), 30);
 }
 
 #[test]

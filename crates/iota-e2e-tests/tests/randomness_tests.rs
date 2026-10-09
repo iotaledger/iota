@@ -8,6 +8,7 @@ use std::time::Duration;
 #[cfg(msim)]
 use iota_macros::register_fail_point_async;
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
 #[cfg(msim)]
@@ -115,4 +116,69 @@ async fn test_randomness_using_transaction_reaches_finality_transaction_manager(
 #[sim_test]
 async fn test_randomness_using_transaction_reaches_finality_execution_scheduler() {
     run_randomness_using_transaction_reaches_finality(true).await;
+}
+
+/// With `committee_validators_skip_synced_checkpoint_execution`, a validator stopped while the
+/// network completes randomness rounds catches up after restart. Its peers no
+/// longer send signatures for those rounds, so it relies on the signatures in
+/// certified checkpoints.
+#[sim_test]
+async fn test_validator_catches_up_across_randomness_rounds() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(true);
+        config
+    });
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    let package_ref = publish_basics_package(&test_cluster.wallet).await;
+    let lagging = test_cluster.get_validator_pubkeys()[0];
+
+    test_cluster.stop_node(&lagging);
+    for _ in 0..3 {
+        emit_new_random_u128(&test_cluster.wallet, package_ref.object_id).await;
+    }
+    tokio::time::sleep(Duration::from_secs(10)).await;
+    let target = test_cluster.fullnode_handle.iota_node.with(|node| {
+        node.state()
+            .checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .unwrap_or_default()
+    });
+
+    test_cluster.start_node(&lagging).await;
+    let handle = test_cluster
+        .swarm
+        .node(&lagging)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(120), async {
+        loop {
+            let (executed, built) = handle.with(|node| {
+                let state = node.state();
+                let executed = state
+                    .checkpoint_store
+                    .get_highest_executed_checkpoint_seq_number()
+                    .unwrap()
+                    .unwrap_or_default();
+                let built = state
+                    .epoch_store_for_testing()
+                    .last_built_checkpoint_builder_summary()
+                    .unwrap()
+                    .map(|summary| summary.summary.sequence_number)
+                    .unwrap_or_default();
+                (executed, built)
+            });
+            if executed >= target && built >= target {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    })
+    .await
+    .expect("lagging validator did not catch up");
 }
