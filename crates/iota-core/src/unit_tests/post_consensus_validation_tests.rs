@@ -5642,6 +5642,177 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
 }
 
 // ---------------------------------------------------------------------------
+// P-COOL deterministic-validation checks at a commit: shared inputs
+// ---------------------------------------------------------------------------
+
+/// A live shared object with the given id, in place of a system object the
+/// test authority does not create. Its contents are never read before the
+/// rules under test reject it.
+fn shared_object_with_id(id: ObjectId) -> Object {
+    Object::with_id_owner_version_for_testing(
+        id,
+        Version::OBJECT_START,
+        Owner::Shared(Version::OBJECT_START),
+    )
+}
+
+/// Post-consensus validation does not read a live shared input, but the rules
+/// that limit a user transaction's use of system objects still apply, with the
+/// same error a validator gives before submission. The clock and the
+/// randomness state can be inputs only as immutable. The authenticator state
+/// and the deny rules object cannot be inputs at all, mutable or not.
+#[tokio::test]
+async fn validation_at_commit_drops_a_forbidden_system_object_input() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            shared_object_with_id(ObjectId::AUTHENTICATOR_STATE),
+            shared_object_with_id(ObjectId::TRANSACTION_DENY_RULES),
+        ],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let randomness_version = initial_shared_version(
+        &s.authority
+            .get_object(&ObjectId::RANDOMNESS_STATE)
+            .unwrap()
+            .owner,
+    );
+    let declared = |object_id, version, mutable| {
+        CallArg::Shared(SharedObjectReference::new(object_id, version, mutable))
+    };
+    let immutable_parameter_expected =
+        |object_id| UserInputError::ImmutableParameterExpected { object_id };
+    let inaccessible_system_object =
+        |object_id| UserInputError::InaccessibleSystemObject { object_id };
+    let cases = [
+        (
+            CallArg::CLOCK_MUTABLE,
+            immutable_parameter_expected(ObjectId::CLOCK),
+        ),
+        (
+            declared(ObjectId::RANDOMNESS_STATE, randomness_version, true),
+            immutable_parameter_expected(ObjectId::RANDOMNESS_STATE),
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, Version::OBJECT_START, false),
+            inaccessible_system_object(ObjectId::AUTHENTICATOR_STATE),
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, Version::OBJECT_START, true),
+            inaccessible_system_object(ObjectId::AUTHENTICATOR_STATE),
+        ),
+        (
+            declared(
+                ObjectId::TRANSACTION_DENY_RULES,
+                Version::OBJECT_START,
+                false,
+            ),
+            inaccessible_system_object(ObjectId::TRANSACTION_DENY_RULES),
+        ),
+        (
+            declared(
+                ObjectId::TRANSACTION_DENY_RULES,
+                Version::OBJECT_START,
+                true,
+            ),
+            inaccessible_system_object(ObjectId::TRANSACTION_DENY_RULES),
+        ),
+    ];
+
+    for (input, expected) in cases {
+        let tx = s.build_move_call(
+            "object_basics",
+            "use_clock",
+            vec![input.clone()],
+            &gas_id,
+            sender,
+            &sender_key,
+        );
+
+        let error = s
+            .authority
+            .handle_transaction_validation_checks(
+                &tx,
+                &s.epoch_store,
+                deny_config,
+                false,
+                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
+            )
+            .await
+            .expect_err("a validator must reject the input before submission");
+        assert_eq!(
+            UserInputError::try_from(error).unwrap(),
+            expected,
+            "{input:?}"
+        );
+
+        let error = s
+            .authority
+            .handle_transaction_validation_checks_at_commit(
+                &s.reader_at(12),
+                &tx,
+                &s.epoch_store,
+                deny_config,
+                VerifierLimitsSource::ProtocolConfig,
+            )
+            .expect_err("post-consensus validation must drop the input");
+        assert_eq!(
+            UserInputError::try_from(error).unwrap(),
+            expected,
+            "{input:?}"
+        );
+    }
+}
+
+/// Only a mutable clock is rejected. A user transaction that declares the
+/// clock immutable is kept.
+#[tokio::test]
+async fn validation_at_commit_keeps_a_clock_declared_immutable() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let tx = s.build_move_call(
+        "object_basics",
+        "use_clock",
+        vec![CallArg::CLOCK_IMMUTABLE],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    let gas_ref = s.latest_ref(&gas_id);
+
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Keep(owned) => assert_eq!(
+            owned,
+            vec![gas_ref],
+            "the gas coin must be the only object the handler locks"
+        ),
+        other => panic!("expected keep, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // P-COOL deterministic-validation checks at a commit: the Move authenticator
 // ---------------------------------------------------------------------------
 
@@ -5995,6 +6166,90 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
         },
         "execution must fail the kept transaction because its account was deleted"
     );
+}
+
+/// The rules that limit a Move authenticator's shared inputs stay in
+/// post-consensus validation, although the input is not read there. None of
+/// them can be mutable, the clock included, and the authenticator state cannot
+/// be an input at all, mutable or not.
+#[tokio::test]
+async fn validation_at_commit_drops_a_forbidden_shared_authenticator_input() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            shared_object_with_id(ObjectId::AUTHENTICATOR_STATE),
+        ],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    // The account's authenticator function is not looked up here, so a shared
+    // object that was never made an account will do.
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sponsor, &sponsor_key, 5);
+    let account_id = *share_effects.created()[0].reference().object_id();
+    let account_start_version =
+        initial_shared_version(&s.authority.get_object(&account_id).unwrap().owner);
+
+    let declared = |object_id, mutable| {
+        CallArg::Shared(SharedObjectReference::new(
+            object_id,
+            Version::OBJECT_START,
+            mutable,
+        ))
+    };
+    let cases = [
+        (
+            declared(ObjectId::CLOCK, true),
+            UserInputError::MutableSharedIsInMoveAuthenticatorInput {
+                object_id: ObjectId::CLOCK,
+            },
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, false),
+            UserInputError::InaccessibleSystemObject {
+                object_id: ObjectId::AUTHENTICATOR_STATE,
+            },
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, true),
+            UserInputError::InaccessibleSystemObject {
+                object_id: ObjectId::AUTHENTICATOR_STATE,
+            },
+        ),
+    ];
+
+    for (input, expected) in cases {
+        let tx = s.build_account_authenticated_call(
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![input.clone()],
+                vec![],
+                SharedObjectReference::new(account_id, account_start_version, false),
+            ),
+            &gas_id,
+            sponsor,
+            &sponsor_key,
+        );
+
+        let error = s
+            .authority
+            .handle_transaction_validation_checks_at_commit(
+                &s.reader_at(12),
+                &tx,
+                &s.epoch_store,
+                deny_config,
+                VerifierLimitsSource::ProtocolConfig,
+            )
+            .expect_err("post-consensus validation must drop the input");
+        assert_eq!(
+            UserInputError::try_from(error).unwrap(),
+            expected,
+            "{input:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
