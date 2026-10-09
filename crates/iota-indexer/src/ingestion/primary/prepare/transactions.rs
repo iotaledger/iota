@@ -144,6 +144,9 @@ impl<'chk> TransactionTransformer<'chk> {
 #[derive(Default)]
 pub(super) struct TransactionData {
     pub(super) transactions: Vec<IndexedTransaction>,
+    /// The indices of transaction events.
+    ///
+    /// [`Some`] only on the `FilteredQueries` operational level and above.
     pub(super) transaction_indices: Option<Vec<TxIndex>>,
 }
 

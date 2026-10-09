@@ -179,6 +179,9 @@ impl<'chk> ObjectsTransformer<'chk> {
 pub(super) struct ObjectData {
     pub(super) checkpoint_objects: CheckpointObjectChanges,
     pub(super) object_versions: Vec<StoredObjectVersion>,
+    /// Objects supporting consistent views.
+    ///
+    /// [`Some`] only on all operational levels above `Basic`.
     pub(super) history_objects: Option<Vec<StoredBackwardHistoryObject>>,
     pub(super) packages: Vec<IndexedPackage>,
 }

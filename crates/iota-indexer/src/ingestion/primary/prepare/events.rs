@@ -141,7 +141,13 @@ impl<'tx> TransactionEventsTransformer<'tx> {
 #[derive(Debug)]
 pub(crate) struct EventData {
     pub(crate) displays: BTreeMap<String, StoredDisplay>,
+    /// The transaction events.
+    ///
+    /// [`Some`] only on the `FilteredQueries` operational level and above.
     pub(crate) events: Option<Vec<IndexedEvent>>,
+    /// The indices of transaction events.
+    ///
+    /// [`Some`] only on the `CombinedEventFilters` operational level.
     pub(crate) event_indices: Option<Vec<EventIndex>>,
 }
 
