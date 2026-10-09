@@ -149,8 +149,7 @@ async fn a_checkpoint_of_an_expired_epoch_is_filed_without_its_bucket() {
 }
 
 /// A watermark keeps resolving after the epoch of the checkpoint it names has
-/// been expired, which at a retention of 0 happens to the epoch the node has
-/// just left.
+/// been expired.
 #[tokio::test]
 async fn a_watermark_survives_the_expiry_of_its_own_epoch() {
     const EXPIRED_EPOCH: EpochId = 1;
