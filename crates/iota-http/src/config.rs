@@ -4,6 +4,8 @@
 
 use std::{fmt, sync::Arc, time::Duration};
 
+use crate::metrics::ListenerMetrics;
+
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// hyper's own default for the header read deadline; hyper only enforces it
 /// when a timer is configured, which this crate always does.
@@ -38,6 +40,7 @@ pub struct Config {
     pub(crate) max_pending_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
+    pub(crate) metrics: Option<ListenerMetrics>,
 }
 
 /// A change to the connections an authenticated peer holds, with the number
@@ -92,6 +95,7 @@ impl Default for Config {
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
             on_peer_connection_event: None,
+            metrics: None,
         }
     }
 }
@@ -312,6 +316,14 @@ impl Config {
             ))),
             ..self
         }
+    }
+
+    /// Measures the connections of the listener. The measuring changes no
+    /// behaviour.
+    ///
+    /// Default is no measuring (`None`).
+    pub fn metrics(self, metrics: Option<ListenerMetrics>) -> Self {
+        Self { metrics, ..self }
     }
 
     /// Rejects settings the accept loop cannot recover from.

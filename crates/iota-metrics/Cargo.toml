@@ -36,5 +36,8 @@ uuid.workspace = true
 prometheus-closure-metric.workspace = true
 prometheus-filtered.workspace = true
 
+[features]
+test-utils = []
+
 [dev-dependencies]
 serde_yaml.workspace = true
