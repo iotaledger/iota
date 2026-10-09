@@ -3953,7 +3953,7 @@ async fn test_owner_objects_queryable_through_authority_state() {
         .get_owner_objects(sender, None, 50, None)
         .unwrap()
         .iter()
-        .map(|info| info.object_id)
+        .map(|(info, _)| info.object_id)
         .collect();
     owned.sort();
     let mut expected = vec![gas_object_id, outer_id];
@@ -4055,7 +4055,7 @@ async fn test_rpc_index_rebuild_on_open() {
         )
         .unwrap();
     assert_eq!(owned.len(), 1);
-    assert_eq!(owned[0].object_id, gas_object.id());
+    assert_eq!(owned[0].0.object_id, gas_object.id());
     let balance = index_store
         .get_balance(owner, TypeTag::from(StructTag::new_gas()))
         .unwrap();
@@ -4151,13 +4151,11 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         )
         .unwrap();
     assert_eq!(owned.len(), 1);
-    assert_eq!(owned[0].object_id, gas_object.id());
+    assert_eq!(owned[0].0.object_id, gas_object.id());
 }
 
-/// History replay is bounded by the lowest checkpoint whose contents the node
-/// still holds: below that watermark the transactions and effects are gone, so
-/// those checkpoints are skipped while the live-object scan still covers the
-/// live state.
+/// History replay skips checkpoints below the pruned watermark, while the
+/// live-object scan still covers the live state.
 #[tokio::test]
 async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
     let authority_state = TestAuthorityBuilder::new()
@@ -4213,7 +4211,7 @@ async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
         )
         .unwrap();
     assert_eq!(owned.len(), 1);
-    assert_eq!(owned[0].object_id, gas_object.id());
+    assert_eq!(owned[0].0.object_id, gas_object.id());
 }
 
 /// Runs an executed transaction through the per-checkpoint RPC indexing
