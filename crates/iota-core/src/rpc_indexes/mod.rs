@@ -45,8 +45,9 @@ use typed_store::{
     TypedStoreError,
     database::{Database, drop_tolerant_write_options, wait_for_database_close},
     rocks::{
-        DBBatch, DBMap, MetricConf, ReadWriteOptions, bulk_ingestion_options, default_db_options,
-        list_tables, open_cf_opts, read_size_from_env, safe_drop_db,
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions,
+        bulk_ingestion_options, default_db_options, list_tables, open_cf_opts, read_size_from_env,
+        safe_drop_db,
     },
     rocksdb,
     traits::Map,
@@ -60,16 +61,19 @@ use self::{
     },
     live_scan::LiveObjectSetIndexer,
     schema::{
-        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_CF_PREFIX, HistoryBucket,
-        IndexStoreTables, MetadataInfo, OwnerIndexKey, history_cf_epoch, history_cf_name,
-        is_dynamic_field, merge_coin_into, transaction_index_data, try_create_coin_index_info,
-        try_create_package_version_info, try_create_regulated_coin_info,
+        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX,
+        HistoryBucket, IndexStoreTables, IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey,
+        history_cf_epoch, history_cf_name, is_dynamic_field, merge_coin_into,
+        transaction_index_data, try_create_coin_index_info, try_create_package_version_info,
+        try_create_regulated_coin_info,
     },
 };
 use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
-    epoch_buckets::{self, BucketReopen, EpochBuckets, absent_if_dropped},
+    epoch_buckets::{
+        self, BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, historic_root,
+    },
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::par_index_live_object_set,
     progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
@@ -140,6 +144,7 @@ struct OpenedIndexDb {
     tables: IndexStoreTables,
     db: Arc<Database>,
     history_cf_options: rocksdb::Options,
+    history_paths: BucketPaths,
     /// Every history bucket found on disk, before the retention floor is
     /// applied by [`EpochBuckets::open`].
     history: BTreeMap<EpochId, Arc<HistoryBucket>>,
@@ -207,13 +212,43 @@ pub(crate) fn highest_checkpoint_with_committed_outputs(
 }
 
 impl IndexStoreTables {
-    /// Opens the tables with tuned bulk-ingestion options (WAL disabled,
-    /// unordered writes) for a full rebuild. Writes must be flushed before
-    /// the database closes, and serving queries requires a reopen with
-    /// default options.
-    ///
-    /// Anything left under `path` is deleted first, so the caller does not
-    /// have to clear the directory.
+    /// Opens the tables read-only, for inspecting a store another process
+    /// may hold open. `historic_db_path` is as for [`RpcIndexesStore::new`].
+    pub fn open_readonly(
+        path: &Path,
+        historic_db_path: Option<&Path>,
+    ) -> IotaResult<IndexStoreTablesReadOnly> {
+        let db_options = default_db_options();
+        let history_cf_options =
+            epoch_buckets::history_cf_options(&db_options, DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB);
+        let history_paths =
+            BucketPaths::new(&historic_root(path, historic_db_path), HISTORY_BUCKET_DIR);
+        let existing_cfs =
+            list_tables(path.to_path_buf()).map_err(|e| IotaError::Storage(e.to_string()))?;
+        let table_options = existing_cfs
+            .into_iter()
+            .filter_map(|cf_name| {
+                let epoch = history_cf_epoch(&cf_name)?;
+                let options = DBOptions {
+                    options: history_paths.existing_cf_options(&history_cf_options, epoch),
+                    rw_options: db_options.rw_options.clone(),
+                };
+                Some((cf_name, options))
+            })
+            .collect();
+        Ok(Self::get_read_only_handle_with_table_options(
+            path.to_path_buf(),
+            None,
+            None,
+            MetricConf::new("rpc-index-readonly"),
+            DBMapTableConfigMap::new(table_options),
+        ))
+    }
+
+    /// Opens the tables with bulk-ingestion options (WAL disabled, unordered
+    /// writes) for a full rebuild, deleting anything left under `path` first.
+    /// Writes must be flushed before the database closes, and serving queries
+    /// requires a reopen with default options.
     fn open_for_bulk_ingestion(path: PathBuf) -> Self {
         // Leftover column families would be opened with default options, and
         // `safe_drop_db` can leave files RocksDB does not recognize.
@@ -515,12 +550,16 @@ impl RpcIndexesStore {
     /// returns; until it finishes, history-backed queries cover a growing
     /// range of recent checkpoints. `epochs_to_retain` also bounds the replay.
     ///
-    /// Setting `cancelled` abandons a rebuild running here and the
-    /// background replay, and fails the open: the store is left unadopted
-    /// for the next open to rebuild, and must not serve reads in the
-    /// meantime.
+    /// Setting `cancelled` abandons a rebuild running here, failing the open,
+    /// and stops the background replay. The next open rebuilds the store.
+    ///
+    /// `historic_db_path` is the root the history buckets keep their files
+    /// under, and must be the same on every open of a database; a node names
+    /// [`epoch_buckets::HISTORIC_DB_DIR`] in its live database directory.
+    /// Unset, the root is that directory in `path` itself.
     pub async fn new(
         path: PathBuf,
+        historic_db_path: Option<&Path>,
         registry: &Registry,
         groups: BTreeSet<IndexGroup>,
         max_type_length: Option<u64>,
@@ -529,14 +568,14 @@ impl RpcIndexesStore {
         checkpoint_store: &Arc<CheckpointStore>,
         cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<Self>, StorageError> {
-        // An unopenable database would crash-loop the node with no way to
-        // self-heal; wipe and rebuild it like a stale one — but only after
-        // one retry, so a transient error does not destroy a healthy store.
-        let mut opened = match Self::open_index_db(&path) {
+        let historic_root = historic_root(&path, historic_db_path);
+        // An unopenable database is rebuilt rather than crash-looping the
+        // node, but only after one retry, so a transient error keeps it.
+        let mut opened = match Self::open_index_db(&path, &historic_root) {
             Ok(opened) => Some(opened),
             Err(first) => {
                 warn!("unable to open the RPC index database, retrying once: {first}");
-                match Self::open_index_db(&path) {
+                match Self::open_index_db(&path, &historic_root) {
                     Ok(opened) => Some(opened),
                     Err(e) => {
                         warn!("unable to open the RPC index database, wiping and rebuilding: {e}");
@@ -632,13 +671,9 @@ impl RpcIndexesStore {
                 panic!("unable to reopen DB after indexing");
             }
 
-            // Reopen the DB with default options (e.g. without
-            // `unordered_write`s enabled).
-            let reopened = Self::open_index_db(&path)
+            let reopened = Self::open_index_db(&path, &historic_root)
                 .expect("unable to reopen the RPC index database after the rebuild");
 
-            // Smoke test: the reopened database is readable and carries the
-            // schema version the rebuild wrote.
             let stored_version = reopened
                 .tables
                 .meta
@@ -714,18 +749,24 @@ impl RpcIndexesStore {
     }
 
     /// Opens the store without the init logic of [`Self::new`] — for tests.
-    pub fn new_without_init(path: PathBuf, groups: BTreeSet<IndexGroup>) -> Self {
-        Self::new_without_init_with_retention(path, groups, None)
+    pub fn new_without_init(
+        path: PathBuf,
+        historic_db_path: Option<&Path>,
+        groups: BTreeSet<IndexGroup>,
+    ) -> Self {
+        Self::new_without_init_with_retention(path, historic_db_path, groups, None)
     }
 
     /// [`Self::new_without_init`] with an explicit retention, for tests that
     /// exercise pruning without a full node's setup.
     pub fn new_without_init_with_retention(
         path: PathBuf,
+        historic_db_path: Option<&Path>,
         groups: BTreeSet<IndexGroup>,
         epochs_to_retain: Option<u64>,
     ) -> Self {
-        let opened = Self::open_index_db(&path).expect("unable to open the RPC index database");
+        let opened = Self::open_index_db(&path, &historic_root(&path, historic_db_path))
+            .expect("unable to open the RPC index database");
         Self::finish_open(
             opened,
             &Registry::default(),
@@ -774,6 +815,7 @@ impl RpcIndexesStore {
             tables,
             db,
             history_cf_options,
+            history_paths,
             history,
         } = opened;
         let history = EpochBuckets::open(
@@ -781,6 +823,7 @@ impl RpcIndexesStore {
             "RPC index history",
             HISTORY_CF_PREFIX,
             history_cf_options,
+            Some(history_paths),
             tables.earliest_retained_epoch.clone(),
             history,
         )?;
@@ -805,11 +848,9 @@ impl RpcIndexesStore {
         })
     }
 
-    /// Opens the index database, passing every existing per-epoch history
-    /// column family at open with its tuned options: a column family left
-    /// for auto-discovery would silently get default options (and its own
-    /// block cache).
-    fn open_index_db(path: &Path) -> IotaResult<OpenedIndexDb> {
+    /// Opens the index database, with every existing per-epoch history
+    /// column family under its tuned options.
+    fn open_index_db(path: &Path, historic_root: &Path) -> IotaResult<OpenedIndexDb> {
         let db_options = default_db_options().disable_write_throttling();
         let history_cf_options = epoch_buckets::history_cf_options(
             &db_options,
@@ -825,6 +866,7 @@ impl RpcIndexesStore {
         } else {
             Vec::new()
         };
+        let history_paths = BucketPaths::new(historic_root, HISTORY_BUCKET_DIR);
         let mut epochs = BTreeSet::new();
         let mut opt_cfs: Vec<(String, rocksdb::Options)> = Vec::new();
         for name in static_tables.keys() {
@@ -835,7 +877,10 @@ impl RpcIndexesStore {
         for cf_name in &existing_cfs {
             if let Some(epoch) = history_cf_epoch(cf_name) {
                 epochs.insert(epoch);
-                opt_cfs.push((cf_name.clone(), history_cf_options.clone()));
+                opt_cfs.push((
+                    cf_name.clone(),
+                    history_paths.existing_cf_options(&history_cf_options, epoch),
+                ));
             }
         }
         let opt_cfs: Vec<(&str, rocksdb::Options)> = opt_cfs
@@ -879,6 +924,7 @@ impl RpcIndexesStore {
             tables,
             db,
             history_cf_options,
+            history_paths,
             history,
         })
     }

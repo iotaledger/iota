@@ -86,6 +86,8 @@ use tokio::{
 
 pub mod commands;
 pub mod db_tool;
+
+use crate::db_tool::{historic_db_path, perpetual_options};
 pub mod fire_drill;
 pub mod genesis_ceremony;
 pub mod genesis_inspector;
@@ -619,9 +621,15 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // already holds the genesis committee (from restore/sync), so it is opened
     // without re-supplying one.
     let (perpetual_db, historic_objects, historic_ledger, epoch_markers) =
-        AuthorityPerpetualTables::open_with_historic_objects(&node_db_path.join("store"), None)?;
+        AuthorityPerpetualTables::open_with_historic_objects(
+            &node_db_path.join("store"),
+            perpetual_options(node_db_path),
+        )?;
     let committee_store = Arc::new(CommitteeStore::open(node_db_path.join("epochs"), None)?);
-    let checkpoint_store = CheckpointStore::new(&node_db_path.join("checkpoints"));
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &node_db_path.join("checkpoints"),
+        &historic_db_path(node_db_path),
+    );
     let store = AuthorityStore::open_no_genesis(
         Arc::new(perpetual_db),
         Arc::new(historic_objects),
@@ -846,7 +854,10 @@ pub async fn download_formal_snapshot(
         fs::remove_dir_all(path.clone())?;
     }
     let (perpetual_db, historic_objects, historic_ledger, epoch_markers) =
-        AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
+        AuthorityPerpetualTables::open_with_historic_objects(
+            &path.join("store"),
+            perpetual_options(&path),
+        )?;
     let perpetual_db = Arc::new(perpetual_db);
     let historic_objects = Arc::new(historic_objects);
     let historic_ledger = Arc::new(historic_ledger);
@@ -907,7 +918,10 @@ pub async fn download_formal_snapshot(
         &genesis_committee,
         None,
     ));
-    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(&path),
+    );
 
     // Seed the end-of-epoch summaries and committees straight from the
     // chain-verified EPOCH_INFO — the restore needs no checkpoint archive. A
@@ -1084,6 +1098,7 @@ pub async fn download_formal_snapshot(
             .await?;
         RpcIndexesRestorer::verify_restored(
             &rpc_indexes_path,
+            Some(&historic_db_path(&path)),
             last_checkpoint.sequence_number,
             num_live_objects,
         )

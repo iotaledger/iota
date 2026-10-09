@@ -256,22 +256,21 @@ impl RpcIndexesRestorer {
         Ok(())
     }
 
-    /// Reopens the finalized store the way a node does and reads back the
-    /// markers and the live state, so a database the node would wipe and
-    /// rebuild — or one that carries no restored objects — fails the restore
-    /// instead. `live_object_count` is the number of objects the restore
-    /// wrote.
-    ///
-    /// Whichever groups the restore built, the `owner` table is the one every
-    /// one of them fills, so it is what proves the object stream landed: the
-    /// gRPC group's coin metadata and package versions depend on the snapshot
-    /// carrying such objects at all.
+    /// Reopens the finalized store as a node does and checks its markers, and
+    /// that the `owner` table is non-empty if `live_object_count` objects were
+    /// restored, so a store the node would rebuild fails the restore instead.
+    /// `historic_db_path` is as for [`RpcIndexesStore::new`].
     pub async fn verify_restored(
         path: &Path,
+        historic_db_path: Option<&Path>,
         restore_checkpoint: CheckpointSequenceNumber,
         live_object_count: u64,
     ) -> Result<(), StorageError> {
-        let reopened = RpcIndexesStore::open_index_db(path).map_err(|e| {
+        let reopened = RpcIndexesStore::open_index_db(
+            path,
+            &crate::epoch_buckets::historic_root(path, historic_db_path),
+        )
+        .map_err(|e| {
             StorageError::custom(format!(
                 "unable to reopen the restored RPC index database: {e}"
             ))

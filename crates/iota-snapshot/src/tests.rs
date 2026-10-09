@@ -814,12 +814,16 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     restorer.finalize(0).await?;
 
     // The restore tool's smoke test must accept a healthy restore.
-    RpcIndexesRestorer::verify_restored(&tmp_dir.join(RPC_INDEXES_DIR), 0, owned_ids.len() as u64)
-        .await?;
+    RpcIndexesRestorer::verify_restored(
+        &tmp_dir.join(RPC_INDEXES_DIR),
+        None,
+        0,
+        owned_ids.len() as u64,
+    )
+    .await?;
 
-    // Every address-owned object comes back owner-indexed, through the read
-    // the JSON-RPC API serves.
-    let reopened = RpcIndexesStore::new_without_init(tmp_dir.join(RPC_INDEXES_DIR), index_groups);
+    let reopened =
+        RpcIndexesStore::new_without_init(tmp_dir.join(RPC_INDEXES_DIR), None, index_groups);
     let restored_owned_ids: HashSet<ObjectId> = reopened
         .get_owner_objects(owner, None, 10, None, &restored_perpetual_db)?
         .into_iter()

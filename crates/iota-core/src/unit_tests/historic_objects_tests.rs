@@ -17,10 +17,13 @@ use super::{
     DB_PREFIX_HISTORIC_TOMBSTONES, EARLIEST_RETAINED_CF, HistoricObjects,
     TOMBSTONE_DELETE_BATCH_SIZE,
 };
-use crate::authority::{
-    AuthorityStore,
-    authority_store_tables::AuthorityPerpetualTables,
-    authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+use crate::{
+    authority::{
+        AuthorityStore,
+        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+    },
+    epoch_buckets::HISTORIC_DB_DIR,
 };
 
 /// A perpetual store, its historic buckets, and an [`AuthorityStore`] over
@@ -194,11 +197,10 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
         .insert_batch_tagged(&bucket.expiring, [((), ())])
         .unwrap();
     batch.write().unwrap();
-    // The dump reads through a secondary handle, which only sees what the
-    // primary has written out.
+    // The dump reads through a secondary handle, which only sees flushed data.
     perpetual.objects.db.flush_all().unwrap();
 
-    let read_only = AuthorityPerpetualTables::open_readonly(dir.path());
+    let read_only = AuthorityPerpetualTables::open_readonly(dir.path(), None);
     let db = &read_only.objects.db;
 
     let rows = HistoricObjects::dump_column_family(db, "hist_obj_e3", 100, 0)
@@ -470,6 +472,7 @@ async fn test_interrupted_expiries_are_resumed_oldest_first() {
             perpetual.objects.db.clone(),
             &default_db_options(),
             perpetual.objects.clone(),
+            &AuthorityPerpetualTables::path(dir.path()).join(HISTORIC_DB_DIR),
         )
         .is_err()
     );
