@@ -537,13 +537,13 @@ async fn test_execution_fails_tx_spending_coin_unpaused_this_epoch() {
     );
 }
 
-// Under P-COOL with deterministic validation, the check of the sender against
-// the coin types of the inputs does not see a received coin: execution loads a
-// receiving object only when the Move code receives it, after the check. A
-// sender denied for a coin type can receive a coin of that type and send it on
-// to an address that is not denied, in one transaction.
+// Under P-COOL with deterministic validation, the sender is also checked
+// against the coins the Move code receives, which the check of the inputs does
+// not see: execution loads a receiving object only when it is received. A
+// sender denied for a coin type fails when it receives a coin of that type and
+// sends it on to an address that is not denied.
 #[tokio::test]
-async fn test_execution_lets_denied_sender_forward_a_received_coin() {
+async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.enable_pcool_deterministic_validation_for_testing();
         config
@@ -570,23 +570,28 @@ async fn test_execution_lets_denied_sender_forward_a_received_coin() {
     let effects = env.execute(receive_tx).await;
     assert_eq!(
         effects.status(),
-        &ExecutionStatus::Success,
-        "the sender check at execution does not see the received coin"
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::AddressDeniedForCoin {
+                address: env.env.sender,
+                coin_type: env.coin_type(),
+            },
+            command: None,
+        },
+        "execution must fail the kept transaction for the denial settled before this epoch"
     );
-    assert_eq!(
-        env.env.get_latest_object_ref(&env.coin_id).await.version,
-        effects.lamport_version(),
-        "the received coin must be written by the transaction"
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
     );
     assert_eq!(
         env.env.authority.get_object(&env.coin_id).unwrap().owner,
-        Owner::Address(dbg_addr(2)),
-        "the denied sender forwarded the regulated coin"
+        Owner::Address(parent_id.into()),
+        "the regulated coin must stay with the parent"
     );
 }
 
 // Without `pcool_deterministic_validation`, the transaction of
-// `test_execution_lets_denied_sender_forward_a_received_coin` is dropped by
+// `test_execution_fails_denied_sender_forwarding_a_received_coin` is dropped by
 // post-consensus validation, which reads the receiving object, so the
 // epoch-gated sender check sees the coin type.
 #[tokio::test]
@@ -821,6 +826,7 @@ impl RegulatedCoinEnv {
                     CallArg::pure(&to),
                 ],
             )
+            .with_type_args(vec![self.regulated_coin_type.clone()])
             .build_and_sign(&self.env.private_key)
     }
 

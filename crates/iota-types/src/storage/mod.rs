@@ -10,14 +10,14 @@ mod write_store;
 
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::{Display, Formatter},
     rc::Rc,
     sync::Arc,
 };
 
 use iota_sdk_types::{
-    MovePackage, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    Address, MovePackage, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
     TransactionEffects, Version, WriteKind,
 };
 use itertools::Itertools;
@@ -214,6 +214,15 @@ pub trait Storage {
     /// Check coin denylist during execution,
     /// and the number of non-gas-coin owners.
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectId, Object>) -> DenyListResult;
+
+    /// Fails if `sender` is denied for one of `coin_types`, or one of them is
+    /// paused for every address, reading the deny list as settled before this
+    /// epoch. `coin_types` are the types of the coins the Move code received.
+    fn check_received_coin_deny_list(
+        &self,
+        sender: Address,
+        coin_types: BTreeSet<String>,
+    ) -> Result<(), ExecutionError>;
 
     fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>>;
 }
