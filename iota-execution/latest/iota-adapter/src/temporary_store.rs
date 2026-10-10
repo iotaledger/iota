@@ -453,7 +453,19 @@ impl<'backing> TemporaryStore<'backing> {
     /// global pause covers that type, reading the deny list as settled before
     /// this epoch.
     pub(crate) fn check_input_coin_deny_list(&self, sender: Address) -> Result<(), ExecutionError> {
-        let coin_types = coin_types_for_denylist_check(self.input_objects.values());
+        self.check_sender_for_coin_types(
+            sender,
+            coin_types_for_denylist_check(self.input_objects.values()),
+        )
+    }
+
+    /// Fails if `sender` is denied for one of `coin_types`, or a global pause
+    /// covers one of them, reading the deny list as settled before this epoch.
+    fn check_sender_for_coin_types(
+        &self,
+        sender: Address,
+        coin_types: BTreeSet<String>,
+    ) -> Result<(), ExecutionError> {
         // The outcome depends on the deny list as soon as one coin type is
         // looked up, so the deny list is recorded as read, as for written
         // coins in `check_coin_deny_list`.
@@ -1169,6 +1181,14 @@ impl Storage for TemporaryStore<'_> {
                 .insert(ObjectId::DENY_LIST);
         }
         result
+    }
+
+    fn check_received_coin_deny_list(
+        &self,
+        sender: Address,
+        coin_types: BTreeSet<String>,
+    ) -> Result<(), ExecutionError> {
+        self.check_sender_for_coin_types(sender, coin_types)
     }
 
     fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>> {
