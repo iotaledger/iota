@@ -784,6 +784,12 @@ impl CheckpointStore {
         .await
     }
 
+    /// The number of reads waiting for a checkpoint to be synced.
+    #[cfg(test)]
+    pub fn synced_checkpoint_waiters_for_testing(&self) -> usize {
+        self.synced_checkpoint_notify_read.num_pending()
+    }
+
     pub async fn notify_read_executed_checkpoint(
         &self,
         seq: CheckpointSequenceNumber,
