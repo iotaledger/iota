@@ -30,7 +30,8 @@
 //! - a commit is completed, by the watcher once it is fully executed
 //!   ([`HandlerObjectState::record_commit_fully_executed`]) or by its quarantine flush when that
 //!   comes first ([`HandlerObjectState::complete_commit_at_flush`]). Either way the commit's rows
-//!   go into the overlay and its map entries are dropped;
+//!   go into the overlay (the watcher skips those already present or durable) and its map entries
+//!   are dropped;
 //! - the two eviction methods below clear overlay entries once their rows are durable.
 //!
 //! Completing a commit also raises the highest fully executed commit
@@ -461,6 +462,14 @@ impl HandlerObjectState {
     /// ([`Self::take_completed_commit_rows`]), and drops the transaction key
     /// -> commit index map entries.
     ///
+    /// Only `inserts` go into the overlay: pass the rows of `upserts` that
+    /// [`Self::rows_not_yet_present`] returned. A row already present is in
+    /// the overlay or durable with the same value, since one (object,
+    /// version) has one row; inserting it again would only bring back rows
+    /// the checkpoint executor's batch already wrote and evicted, to be
+    /// written a second time by the commit's flush. The keys kept for the
+    /// flush use all of `upserts`.
+    ///
     /// Does nothing once the quarantine flush has completed the commit: its
     /// rows are durable already, and an overlay upsert now would leave entries
     /// no flush is left to evict. The caller holds the quarantine lock, so the
@@ -469,11 +478,12 @@ impl HandlerObjectState {
         &self,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
+        inserts: &[(ObjectKey, HandlerProcessedObject)],
     ) {
         if !self.is_commit_assigned(index) {
             return;
         }
-        self.upsert_handler_processed_rows(upserts);
+        self.upsert_handler_processed_rows(inserts);
         self.row_keys_by_completed_commit
             .lock()
             .insert(index, upserts.iter().map(|(key, _)| *key).collect());
@@ -481,6 +491,35 @@ impl HandlerObjectState {
         // Strictly after the upserts: a validation released by this value
         // must find this commit's rows already readable.
         self.advance_highest_fully_executed_commit(index);
+    }
+
+    /// The rows of `upserts` whose key has no handler-processed row yet, in
+    /// the overlay, the read-through cache or the durable table. Unlike
+    /// [`Self::handler_processed_object`], a table hit is not added to the
+    /// cache: these rows are bookkeeping no validation is about to read.
+    pub fn rows_not_yet_present(
+        &self,
+        tables: &AuthorityEpochTables,
+        upserts: &[(ObjectKey, HandlerProcessedObject)],
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let not_in_memory: Vec<_> = {
+            let overlay = self.handler_processed_overlay.read();
+            upserts
+                .iter()
+                .filter(|(key, _)| {
+                    !overlay.contains_key(key) && !self.handler_processed_cache.contains_key(key)
+                })
+                .copied()
+                .collect()
+        };
+        let durable = tables
+            .handler_processed_objects
+            .multi_contains_keys(not_in_memory.iter().map(|(key, _)| key))?;
+        Ok(not_in_memory
+            .into_iter()
+            .zip(durable)
+            .filter_map(|(row, durable)| (!durable).then_some(row))
+            .collect())
     }
 
     /// Completes commit `index` from the quarantine flush, when the flush
@@ -633,10 +672,12 @@ impl HandlerObjectState {
     /// Evicts a checkpoint's handler rows from the overlay once they are
     /// durable.
     ///
-    /// A handler row evicted here may be inserted again by its commit's
-    /// completion, with the same value; the commit's flush evicts it then. A
-    /// replay after a crash re-inserts entries whose rows are already durable,
-    /// and re-running this for the re-executed checkpoint clears them.
+    /// The completion of a row's commit skips the row once this eviction
+    /// made it durable; only a row that appears after completion's check is
+    /// inserted again, with the same value, and the commit's flush evicts it
+    /// then. A replay after a crash re-inserts entries whose rows are
+    /// already durable, and re-running this for the re-executed checkpoint
+    /// clears them.
     pub fn evict_flushed_checkpoint_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
         self.remove_handler_overlay_rows(rows);
     }
@@ -936,10 +977,10 @@ mod tests {
         assert_eq!(state.commit_index_of(&key_a), Some(3));
         assert_eq!(state.commit_index_of(&key_b), Some(4));
         assert_eq!(state.commit_index_of(&key_c), Some(4));
-        state.record_commit_fully_executed(3, &[]);
+        state.record_commit_fully_executed(3, &[], &[]);
         assert_eq!(state.commit_index_of(&key_a), None);
         assert_eq!(state.commit_index_of(&key_b), Some(4));
-        state.record_commit_fully_executed(4, &[]);
+        state.record_commit_fully_executed(4, &[], &[]);
         assert_eq!(state.commit_index_of(&key_b), None);
         assert_eq!(state.commit_index_of(&key_c), None);
     }
@@ -991,12 +1032,14 @@ mod tests {
         state.assign_commit_to_transactions(3, vec![]);
         state.complete_commit_at_flush(3, &[(key(1), row(3))]);
         assert_eq!(state.overlay_size_for_testing(), 1);
-        state.record_commit_fully_executed(3, &[(key(2), row(3))]);
+        let late = [(key(2), row(3))];
+        state.record_commit_fully_executed(3, &late, &late);
         assert_eq!(state.overlay_size_for_testing(), 1);
 
         // Full execution completes commit 4 first.
         state.assign_commit_to_transactions(4, vec![]);
-        state.record_commit_fully_executed(4, &[(key(3), row(4))]);
+        let executed = [(key(3), row(4))];
+        state.record_commit_fully_executed(4, &executed, &executed);
         assert_eq!(state.overlay_size_for_testing(), 2);
         state.complete_commit_at_flush(4, &[(key(4), row(4))]);
         assert_eq!(state.overlay_size_for_testing(), 2);
