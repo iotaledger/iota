@@ -2005,6 +2005,20 @@ impl AuthorityPerEpochStore {
             .await
     }
 
+    /// The highest commit whose post-consensus validation decisions are saved,
+    /// if any. A commit's decisions are deleted in the batch that moves the
+    /// consensus resume point past it, so this is the last commit the handler
+    /// validated, or `None` when it validated none above the resume point.
+    pub(crate) fn last_validated_commit(&self) -> IotaResult<Option<CommitIndex>> {
+        Ok(self
+            .tables()?
+            .post_consensus_verdict_candidates
+            .safe_range_iter_reversed(..)
+            .next()
+            .transpose()?
+            .map(|(index, _)| index))
+    }
+
     /// The saved post-consensus validation decision for `digest` at commit
     /// `index`, if the handler validated that commit and its output has not
     /// flushed yet.

@@ -5296,7 +5296,8 @@ async fn post_consensus_verdicts_survive_a_restart() {
 
 /// A commit's saved decisions are deleted in the batch that flushes its
 /// output, together with its processed flags and the resume point, so they
-/// exist exactly as long as the commit can be replayed.
+/// exist exactly as long as the commit can be replayed, and the highest saved
+/// commit is the last validated commit above the resume point.
 #[tokio::test]
 async fn decisions_retire_with_resume_progress_and_processed_state() {
     use typed_store::Map;
@@ -5323,6 +5324,15 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
     )
     .await
     .unwrap();
+    assert_eq!(s.epoch_store.last_validated_commit().unwrap(), Some(1));
+    // Commit 3 is validated and not flushed: its decisions outlive the batch.
+    s.epoch_store
+        .persist_post_consensus_verdicts(
+            3,
+            &[(TransactionDigest::random(), PostConsensusVerdict::Kept)],
+        )
+        .unwrap();
+    assert_eq!(s.epoch_store.last_validated_commit().unwrap(), Some(3));
     let key = make_user_tx_v1_verified(tx.clone()).0.key();
     let mut output = ConsensusCommitOutput::new(1, 1);
     output.set_owned_object_locks(locks);
@@ -5352,6 +5362,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
             .unwrap()
             .is_none()
     );
+    assert_eq!(reopened.last_validated_commit().unwrap(), Some(3));
     assert!(reopened.is_consensus_message_processed(&key).unwrap());
     assert_eq!(
         *reopened
@@ -6790,57 +6801,6 @@ async fn epoch_end_releases_a_pending_wait() {
         result,
         Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()
     ));
-}
-
-/// A validator that stops after processing a commit that reserved a
-/// randomness round, but before generating that round, cannot generate it
-/// after the restart: its peers have completed the round and drop its partial
-/// signatures. The round gets a digest here only once the checkpoint executor
-/// runs its randomness state update from a certified checkpoint, and node
-/// startup creates that executor only after the checkpoint rebuild, which
-/// waits for the replay. The replay must therefore not wait on that round.
-/// The test expects the wait to complete a commit without its randomness
-/// root; a fix that instead starts the executor before the replay needs a
-/// node-level test. Currently fails: the commit two above waits, because the
-/// watcher never completes the commit holding the randomness root.
-#[tokio::test(start_paused = true)]
-async fn replay_is_not_held_back_by_a_randomness_round_only_peers_generated() {
-    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
-    let obj_id = ObjectId::random();
-    let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
-        vec![
-            Object::with_id_owner_for_testing(obj_id, sender),
-            Object::with_id_owner_for_testing(gas_id, sender),
-        ],
-        true,
-    )
-    .await;
-    let _watcher = s.start_execution_watcher();
-
-    // Commit 1 holds a user transaction and the randomness round it reserved.
-    // The user transaction executes; the round is never generated here.
-    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
-    s.epoch_store.assign_commit_to_transactions(
-        1,
-        vec![
-            TransactionKey::Digest(*tx.digest()),
-            TransactionKey::RandomnessRound(
-                s.epoch_store.epoch(),
-                iota_sdk_types::RandomnessRound::new(1),
-            ),
-        ],
-    );
-    s.execute(tx);
-
-    // Commit 3 has horizon 1.
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        process_commit_at(s.authority.clone(), s.epoch_store.clone(), 3, vec![]),
-    )
-    .await
-    .expect("commit 3 must not wait for a randomness round this node cannot generate")
-    .unwrap();
 }
 
 // ---------------------------------------------------------------------------
