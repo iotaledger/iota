@@ -345,15 +345,56 @@ mod checked {
         Ok(gas_status)
     }
 
+    /// Checks the receiving references against the bytes of the transaction
+    /// alone: every version is below [`Version::MAX_VALID_EXCL`], and no
+    /// object is received twice or both received and taken as an input. The
+    /// receiving objects themselves are not read, so the answer is the same on
+    /// every validator.
+    #[instrument(level = "trace", skip_all)]
+    pub fn check_receiving_object_references(
+        input_objects: &InputObjects,
+        receiving_object_refs: &[ObjectReference],
+    ) -> Result<(), IotaError> {
+        let mut objects_in_txn = input_object_ids(input_objects);
+        for object_ref in receiving_object_refs {
+            check_receiving_version_bound(object_ref)?;
+            check_not_already_in_transaction(&mut objects_in_txn, object_ref)?;
+        }
+        Ok(())
+    }
+
+    fn input_object_ids(input_objects: &InputObjects) -> HashSet<ObjectId> {
+        input_objects
+            .object_kinds()
+            .map(|x| x.object_id())
+            .collect()
+    }
+
+    fn check_receiving_version_bound(object_ref: &ObjectReference) -> Result<(), IotaError> {
+        fp_ensure!(
+            object_ref.version < Version::MAX_VALID_EXCL,
+            UserInputError::InvalidSequenceNumber.into()
+        );
+        Ok(())
+    }
+
+    fn check_not_already_in_transaction(
+        objects_in_txn: &mut HashSet<ObjectId>,
+        object_ref: &ObjectReference,
+    ) -> Result<(), IotaError> {
+        fp_ensure!(
+            objects_in_txn.insert(object_ref.object_id),
+            UserInputError::DuplicateObjectRefInput.into()
+        );
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,
     ) -> Result<(), IotaError> {
-        let mut objects_in_txn: HashSet<_> = input_objects
-            .object_kinds()
-            .map(|x| x.object_id())
-            .collect();
+        let mut objects_in_txn = input_object_ids(input_objects);
 
         // Since we're at signing we check that every object reference that we are
         // receiving is the most recent version of that object. If it's been
@@ -364,10 +405,7 @@ mod checked {
         // If there are any object IDs in common (either between receiving objects and
         // input objects) we return an error.
         for ReceivingObjectReadResult { object_ref, object } in receiving_objects.iter() {
-            fp_ensure!(
-                object_ref.version < Version::MAX_VALID_EXCL,
-                UserInputError::InvalidSequenceNumber.into()
-            );
+            check_receiving_version_bound(object_ref)?;
 
             let Some(object) = object.as_object() else {
                 // object was previously received
@@ -450,12 +488,7 @@ mod checked {
                 };
             }
 
-            fp_ensure!(
-                !objects_in_txn.contains(&object_ref.object_id),
-                UserInputError::DuplicateObjectRefInput.into()
-            );
-
-            objects_in_txn.insert(object_ref.object_id);
+            check_not_already_in_transaction(&mut objects_in_txn, object_ref)?;
         }
         Ok(())
     }

@@ -73,7 +73,7 @@ use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
     object::Object,
     storage::PackageObject,
-    transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
+    transaction::{InputObjectKind, InputObjects, ObjectReadResult},
 };
 
 mod owned;
@@ -208,7 +208,6 @@ pub enum InputResolution {
 pub enum ValidationInputsAtCommit {
     Loaded {
         tx_input_objects: InputObjects,
-        tx_receiving_objects: ReceivingObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
     },
     Drop(InputObjectKind, DropReason),

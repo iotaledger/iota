@@ -1275,8 +1275,9 @@ impl AuthorityState {
     /// post-consensus validation at the commit `reader` was built for: the
     /// inputs are read as of that commit through the commit-indexed reader.
     /// Returns `Drop` or `Missing` when an input is dropped or not visible
-    /// yet. Any other failed check returns the same `Err` as at admission. The
-    /// coin deny list is read epoch-gated, so every validator gets the same
+    /// yet. Any other failed check returns the same `Err` as at admission,
+    /// except that receiving objects are checked by reference only. The coin
+    /// deny list is read epoch-gated, so every validator gets the same
     /// answer. The Move authenticator's account is not resolved and the
     /// authenticators are not run here: both happen at execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
@@ -1295,17 +1296,12 @@ impl AuthorityState {
 
         let tx = transaction.data().transaction();
 
-        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            match self.read_objects_for_validation_at_commit(reader, transaction, epoch)? {
+        let (tx_input_objects, per_authenticator_inputs) =
+            match self.read_objects_for_validation_at_commit(reader, transaction)? {
                 ValidationInputsAtCommit::Loaded {
                     tx_input_objects,
-                    tx_receiving_objects,
                     per_authenticator_inputs,
-                } => (
-                    tx_input_objects,
-                    tx_receiving_objects,
-                    per_authenticator_inputs,
-                ),
+                } => (tx_input_objects, per_authenticator_inputs),
                 ValidationInputsAtCommit::Drop(kind, reason) => {
                     return Ok(ValidationAtCommit::Drop(kind, reason));
                 }
@@ -1343,7 +1339,6 @@ impl AuthorityState {
                 reference_gas_price,
                 tx,
                 tx_input_objects,
-                &tx_receiving_objects,
                 &move_authenticators,
                 per_authenticator_inputs,
                 verifier_limits_source,
@@ -1361,11 +1356,14 @@ impl AuthorityState {
 
         // Epoch-gated: the result decides whether the transaction stays in
         // the committed set, so it must not depend on this validator's
-        // execution progress.
+        // execution progress. Receiving objects are not read at a commit, so
+        // received coins are left to the check at execution, which looks only
+        // at the new owners: a denied sender can receive a coin of a denied
+        // type and pass it on.
         check_coin_deny_list_v1(
             tx.sender(),
             &tx_checked_input_objects,
-            &tx_receiving_objects,
+            &ReceivingObjects::from(vec![]),
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
             Some(epoch),
@@ -6068,13 +6066,12 @@ impl AuthorityState {
     /// Like [`Self::read_objects_for_validation`], but for post-consensus
     /// validation at the commit `reader` was built for. Owned and shared
     /// inputs and packages come from the commit-indexed reader. Receiving
-    /// objects are read as at signing, from this validator's latest state,
-    /// not as of the commit.
-    pub(crate) fn read_objects_for_validation_at_commit(
+    /// objects are not read: whether one can still be received depends on how
+    /// far execution has got, so execution decides it.
+    fn read_objects_for_validation_at_commit(
         &self,
         reader: &CommitIndexedReader,
         transaction: &VerifiedTransaction,
-        epoch: u64,
     ) -> IotaResult<ValidationInputsAtCommit> {
         let input_objects = match self.input_loader.read_objects_at_commit(
             reader,
@@ -6089,15 +6086,10 @@ impl AuthorityState {
             }
         };
 
-        let tx_receiving_objects = self.input_loader.read_receiving_objects_for_signing(
-            &transaction.data().transaction().receiving_objects(),
-            epoch,
-        )?;
         let (tx_input_objects, per_authenticator_inputs) =
             transaction.split_input_objects_into_groups_for_reading(input_objects)?;
         Ok(ValidationInputsAtCommit::Loaded {
             tx_input_objects,
-            tx_receiving_objects,
             per_authenticator_inputs,
         })
     }
@@ -6194,17 +6186,16 @@ impl AuthorityState {
     }
 
     /// Like [`Self::check_transaction_inputs_for_validation`], but for
-    /// post-consensus validation at a commit. The difference is the Move
-    /// authenticator: the account is not resolved here, only the
-    /// authenticator's inputs are checked, so no function reference comes
-    /// back.
+    /// post-consensus validation at a commit. Two differences: the Move
+    /// account is not resolved here, only the authenticator's inputs are
+    /// checked, so no function reference comes back; and receiving objects
+    /// are checked by reference only.
     fn check_transaction_inputs_at_commit(
         &self,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         tx: &Transaction,
         tx_input_objects: InputObjects,
-        tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &[&MoveAuthenticator],
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         verifier_limits_source: VerifierLimitsSource<'_>,
@@ -6235,6 +6226,10 @@ impl AuthorityState {
             })
             .collect::<IotaResult<Vec<_>>>()?;
 
+        iota_transaction_checks::check_receiving_object_references(
+            &tx_input_objects,
+            &tx.receiving_objects(),
+        )?;
         // The gas status only meters an authenticator run, which does not happen here.
         let (_gas_status, tx_checked_input_objects) =
             iota_transaction_checks::check_transaction_input(
@@ -6242,7 +6237,7 @@ impl AuthorityState {
                 reference_gas_price,
                 tx,
                 tx_input_objects,
-                tx_receiving_objects,
+                &ReceivingObjects::from(vec![]),
                 &self.metrics.bytecode_verifier_metrics,
                 verifier_limits_source,
                 authenticator_gas_budget,
