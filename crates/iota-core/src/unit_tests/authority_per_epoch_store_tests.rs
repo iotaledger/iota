@@ -2018,3 +2018,207 @@ async fn start_executing_synced_checkpoints_waits_for_the_commit_in_progress() {
         .unwrap()
         .unwrap();
 }
+
+// === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
+
+mod handler_object_state_storage {
+    use iota_sdk_types::{
+        Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
+    };
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::{
+        effects::{TestEffectsBuilder, TransactionEffectsAPI},
+        storage::ObjectKey,
+        transaction::TransactionKey,
+    };
+
+    use super::*;
+    use crate::authority::authority_per_epoch_store::handler_object_state::{
+        CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
+    };
+
+    fn owned_inputs_tx(gas_version: u64) -> SenderSignedTransaction {
+        let tx_data = TestTransactionBuilder::new(
+            Address::ZERO,
+            ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(gas_version),
+                ObjectDigest::random(),
+            ),
+            0,
+        )
+        .transfer_iota(None, Address::ZERO)
+        .build();
+        SenderSignedTransaction::new(tx_data, vec![])
+    }
+
+    /// The effects of a transaction consuming `(consumed, consumed_version)`
+    /// plus its gas coin.
+    fn executed_owned_tx_effects(
+        consumed: ObjectId,
+        consumed_version: u64,
+        gas_version: u64,
+    ) -> TransactionEffects {
+        let transaction = owned_inputs_tx(gas_version);
+        TestEffectsBuilder::new(&transaction)
+            .with_mutated_objects([(
+                consumed,
+                Version::from_u64(consumed_version),
+                Owner::Address(Address::ZERO),
+            )])
+            .build()
+    }
+
+    fn generate_live_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
+        HandlerProcessedObject {
+            digest: ObjectDigest::random(),
+            kind: HandlerProcessedObjectKind::Live,
+            produced_at,
+            initial_shared_version: None,
+            replaced_version: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_for_testing(true);
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
+        let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let read_processed_object =
+            |version: u64| epoch_store.handler_processed_object(&key(version)).unwrap();
+
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store.record_commit_fully_executed(index, rows);
+        };
+
+        let v5 = generate_live_entry(1);
+        complete_commit(1, &[(key(5), v5)]);
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
+
+        // An earlier commit's row arriving later sits beside the newer one.
+        let v3 = generate_live_entry(0);
+        complete_commit(0, &[(key(3), v3)]);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+
+        // Flushing the newer commit moves only its row out of the overlay,
+        // without a read gap.
+        epoch_store
+            .flush_commit_rows_for_testing(vec![(key(5), v5)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+
+        // The earlier commit flushing afterwards (out of commit order) adds
+        // its row to the table beside the newer one.
+        epoch_store
+            .flush_commit_rows_for_testing(vec![(key(3), v3)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        let tables = epoch_store.tables().unwrap();
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
+            Some(v5)
+        );
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
+
+        // A later commit's row is readable through the overlay while the
+        // durable ones stay readable too.
+        let v7 = generate_live_entry(2);
+        complete_commit(2, &[(key(7), v7)]);
+        assert_eq!(read_processed_object(7), Some(v7));
+        assert_eq!(read_processed_object(5), Some(v5));
+    }
+
+    #[tokio::test]
+    async fn flushed_rows_for_one_id_keep_every_version() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_for_testing(true);
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
+
+        // Two commits write the same id (a sender's gas coin used in
+        // consecutive commits); each flush writes only its own commit's row.
+        let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let v3 = generate_live_entry(1);
+        let v5 = generate_live_entry(2);
+        epoch_store.assign_commit_to_transactions(1, vec![]);
+        epoch_store.record_commit_fully_executed(1, &[(key(3), v3)]);
+        epoch_store.assign_commit_to_transactions(2, vec![]);
+        epoch_store.record_commit_fully_executed(2, &[(key(5), v5)]);
+
+        // Commit 2's row for the same id lands beside commit 1's rather than
+        // replacing it: both versions stay durable and readable by their key.
+        epoch_store
+            .flush_commit_rows_for_testing(vec![(key(3), v3)])
+            .unwrap();
+        epoch_store
+            .flush_commit_rows_for_testing(vec![(key(5), v5)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        let tables = epoch_store.tables().unwrap();
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
+            Some(v5)
+        );
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(5)).unwrap(),
+            Some(v5)
+        );
+    }
+
+    #[tokio::test]
+    async fn map_hit_writes_handler_processed_only() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_for_testing(true);
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let effects = executed_owned_tx_effects(mutated, 5, 1);
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+
+        epoch_store.assign_commit_to_transactions(6, vec![key]);
+        epoch_store.record_executed_transaction(&key, &effects);
+
+        let row = epoch_store
+            .handler_processed_object(&ObjectKey(mutated, effects.lamport_version()))
+            .unwrap()
+            .expect("handler-processed row must exist for a handler-known commit");
+        assert_eq!(row.produced_at, 6);
+        assert_eq!(row.replaced_version, Some(Version::from_u64(5)));
+    }
+}
