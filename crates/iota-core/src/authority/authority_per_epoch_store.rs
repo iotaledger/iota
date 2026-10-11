@@ -700,6 +700,8 @@ pub struct AuthorityPerEpochStore {
     /// holding entries not yet durable.
     /// `None` without deterministic validation.
     handler_object_state: Option<HandlerObjectState>,
+    /// See [`Self::pcool_bookkeeping_enabled`].
+    pcool_bookkeeping_enabled: bool,
 
     protocol_config: ProtocolConfig,
 
@@ -1328,6 +1330,8 @@ impl AuthorityPerEpochStore {
         });
         let handler_object_state =
             resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
+        let pcool_bookkeeping_enabled =
+            committee.authority_exists(&name) && protocol_config.pcool_deterministic_validation();
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1382,6 +1386,7 @@ impl AuthorityPerEpochStore {
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             handler_object_state,
+            pcool_bookkeeping_enabled,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
                 cached_overload_notifications,
@@ -1868,6 +1873,16 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Whether this node keeps the P-COOL deterministic-validation
+    /// bookkeeping: the flag is on and this node is in the epoch's committee.
+    /// Every bookkeeping write, the execution watcher and the commit
+    /// assignment gate on this rather than on the flag alone. A node outside
+    /// the committee runs no consensus handler, so every execution there
+    /// would count as sync-ahead and nothing would ever clear its entries.
+    pub fn pcool_bookkeeping_enabled(&self) -> bool {
+        self.pcool_bookkeeping_enabled
+    }
+
     /// Registers the roots of commit `index` in the transaction-key ->
     /// commit-index map and hands the commit to the execution watcher. Must
     /// be called once per commit while the handler processes it, before any
@@ -1966,7 +1981,7 @@ impl AuthorityPerEpochStore {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(None);
         };
-        if !self.protocol_config.pcool_deterministic_validation() {
+        if !self.pcool_bookkeeping_enabled {
             return Ok(None);
         }
         let tables = self.tables()?;
@@ -2050,7 +2065,7 @@ impl AuthorityPerEpochStore {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(());
         };
-        if !self.protocol_config.pcool_deterministic_validation() {
+        if !self.pcool_bookkeeping_enabled {
             return Ok(());
         }
         let tables = match self.tables() {
@@ -4267,8 +4282,6 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
-        // Read once per commit, so validation and the commit assignment below
-        // decide on the same value.
         let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
 
         // Split transactions into different types for processing.
@@ -4735,7 +4748,7 @@ impl AuthorityPerEpochStore {
 
             // The deterministic-validation bookkeeping tracks exactly the
             // roots written to this commit's pending checkpoints.
-            if deterministic_validation {
+            if self.pcool_bookkeeping_enabled {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {
                     commit_roots.extend(randomness_roots.iter().copied());
