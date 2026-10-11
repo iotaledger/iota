@@ -1380,6 +1380,101 @@ mod tests {
         assert_eq!(consensus_handler.last_consensus_stats, initial_stats);
     }
 
+    /// A node that switched to executing synced checkpoints and restarts in
+    /// the same epoch processes the commits it processed before the switch
+    /// again, and stops at the first one after them: synced checkpoints it
+    /// executed since the switch wrote outputs that validating a later commit
+    /// would read.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_restarted_after_the_switch_stops_after_the_same_commit() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        });
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let consensus_committee = get_consensus_committee(epoch_store.epoch_start_state());
+        let backpressure_manager = BackpressureManager::new_for_tests();
+        let new_handler = |epoch_store: Arc<AuthorityPerEpochStore>| {
+            ConsensusHandler::new(
+                epoch_store,
+                state.clone(),
+                Arc::new(CheckpointServiceNoop {}),
+                state.execution_scheduler().clone(),
+                state.get_object_cache_reader().clone(),
+                Arc::new(ArcSwap::default()),
+                consensus_committee.clone(),
+                Arc::new(AuthorityMetrics::new(&Registry::new())),
+                backpressure_manager.subscribe(),
+            )
+        };
+        let commit = |round: u32, index: u32| {
+            let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
+            CommittedSubDag::new(
+                header.reference(),
+                vec![header.clone()],
+                vec![header.reference()],
+                vec![],
+                header.timestamp_ms(),
+                CommitRef::new(index, CommitDigest::MIN),
+                vec![],
+                vec![],
+            )
+        };
+
+        let mut consensus_handler = new_handler(epoch_store.clone());
+        for (round, index) in [(100, 1), (101, 2)] {
+            consensus_handler
+                .handle_consensus_output_for_test(commit(round, index))
+                .await;
+        }
+        assert_eq!(consensus_handler.last_processed_subdag_index(), 2);
+        epoch_store.start_executing_synced_checkpoints().await;
+        drop(consensus_handler);
+
+        let reopened =
+            crate::authority::authority_per_epoch_store::authority_per_epoch_store_tests::reopen(
+                &state,
+                &epoch_store,
+            );
+        // The commit boundary insists on a randomness manager; one whose DKG
+        // never completes keeps randomness out of the commits.
+        let randomness_manager = crate::epoch::randomness::RandomnessManager::try_new(
+            Arc::downgrade(&reopened),
+            Box::new(crate::mock_consensus::MockConsensusClient::new(
+                Arc::downgrade(&state),
+                crate::mock_consensus::ConsensusMode::Noop,
+            )),
+            iota_network::randomness::Handle::new_stub(),
+            network_config.validator_configs()[0].authority_key_pair(),
+        )
+        .await
+        .unwrap();
+        reopened
+            .set_randomness_manager(randomness_manager)
+            .await
+            .unwrap();
+        let mut consensus_handler = new_handler(reopened.clone());
+        for (round, index) in [(100, 1), (101, 2), (102, 3)] {
+            consensus_handler
+                .handle_consensus_output_for_test(commit(round, index))
+                .await;
+        }
+        assert_eq!(
+            consensus_handler.last_processed_subdag_index(),
+            2,
+            "the restarted handler must not process a commit after the last one it processed \
+             before the switch"
+        );
+        assert!(reopened.is_executing_synced_checkpoints());
+    }
+
     /// A commit mixing a shared-object certificate with an owned-object-only
     /// one. Version assignment emits no entry for the owned certificate, so it
     /// must fall back to an empty `ExecutionEnv` — the `unwrap_or_default()` in
