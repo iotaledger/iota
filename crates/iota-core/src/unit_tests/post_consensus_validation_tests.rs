@@ -12,8 +12,9 @@ use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
-    MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    Transaction, TransactionDigest, TransactionEffects, UserSignature, Version,
+    MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference, Owner,
+    SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, UserSignature,
+    Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
@@ -2273,6 +2274,69 @@ async fn build_bookkeeping_setup(
     }
 }
 
+/// Like [`setup_bookkeeping`] with the flags on, but with the given test
+/// package instead of `object_basics`, inserted at genesis like it, so the
+/// package is epoch-start state. `gas_id` is created at genesis for `sender`
+/// and funds the test's transactions.
+async fn setup_bookkeeping_with_package(
+    package_name: &str,
+    sender: Address,
+    gas_id: ObjectId,
+) -> BookkeepingSetup {
+    let _config_guard = Some(ProtocolConfig::apply_overrides_for_testing(
+        |_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        },
+    ));
+
+    let authority = TestAuthorityBuilder::new().build().await;
+    authority.insert_genesis_object(Object::with_id_owner_for_testing(gas_id, sender));
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/unit_tests/data")
+        .join(package_name);
+    let modules: Vec<_> = iota_move_build::BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_modules()
+        .cloned()
+        .collect();
+    let package = Object::new_package_for_testing(
+        &modules,
+        TransactionDigest::GENESIS_MARKER,
+        iota_framework::BuiltInFramework::genesis_move_packages(),
+    )
+    .unwrap();
+    let package_id = package.id();
+    authority.insert_genesis_object(package);
+    let epoch_store = (*authority.epoch_store_for_testing()).clone();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    BookkeepingSetup {
+        authority,
+        epoch_store,
+        package_id,
+        rgp,
+        _config_guard,
+    }
+}
+
+/// From the `tto::M1::start` effects, the `(parent, child)` pair where the
+/// child is address-owned by the parent object's id - the receivable shape.
+fn parent_and_child(
+    created: Vec<OwnedObjectReference>,
+) -> (OwnedObjectReference, OwnedObjectReference) {
+    created
+        .iter()
+        .find_map(|child| match *child.owner() {
+            Owner::Address(addr) => created
+                .iter()
+                .find(|parent| parent.reference().object_id == ObjectId::from(addr))
+                .map(|parent| (*parent, *child)),
+            _ => None,
+        })
+        .expect("start() creates a child owned by another created object's id")
+}
+
 /// The arguments of `object_basics::create` for an object owned by `owner`.
 fn create_object_args(owner: Address) -> Vec<CallArg> {
     vec![
@@ -4187,6 +4251,82 @@ async fn denied_packages_leave_a_package_above_the_horizon_missing() {
         }
         other => panic!("expected missing on the package, got {other:?}"),
     }
+}
+
+/// Receiving objects are checked by reference only at a commit. A receive of
+/// an object this validator never saw keeps, so the verdict does not depend
+/// on which receives a validator has executed. Receiving an input still
+/// rejects.
+#[tokio::test]
+async fn validation_at_commit_checks_receiving_objects_by_reference_only() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let start = s.build_move_call("M1", "start", vec![], &gas_id, sender, &sender_key);
+    let start_effects = s.execute_as_handler_known(vec![start], 5).remove(0);
+    let (parent, child) = parent_and_child(start_effects.created());
+    let parent_ref = *parent.reference();
+    let gas_ref = s.latest_ref(&gas_id);
+    let unseen = ObjectReference::new(
+        ObjectId::random(),
+        child.reference().version,
+        child.reference().digest,
+    );
+    // `M1::receiver(parent, Receiving(unseen))`, with `extra_input` appended
+    // as an unused input.
+    let validate = |extra_input: Option<CallArg>| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .move_call(
+                s.package_id,
+                Identifier::from_static("M1"),
+                Identifier::from_static("receiver"),
+                vec![],
+                vec![
+                    CallArg::ImmutableOrOwned(parent_ref),
+                    CallArg::Receiving(unseen),
+                ],
+            )
+            .unwrap();
+        let mut pt = builder.finish();
+        pt.inputs.extend(extra_input);
+        let tx = Transaction::new_programmable(
+            sender,
+            vec![gas_ref],
+            pt,
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * s.rgp,
+            s.rgp,
+        );
+        let tx = s
+            .epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
+            .unwrap();
+        s.authority.handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+    };
+
+    match validate(None).unwrap() {
+        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_ref, gas_ref]),
+        other => panic!("expected the receive of an unseen object to keep, got {other:?}"),
+    }
+
+    let result = validate(Some(CallArg::Receiving(parent_ref)));
+    assert!(
+        matches!(
+            result,
+            Err(IotaError::UserInput {
+                error: UserInputError::DuplicateObjectRefInput
+            })
+        ),
+        "receiving an input must reject, got {result:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
