@@ -7633,16 +7633,12 @@ async fn run_shared_coin_deletion_replay(options: RegulatedCoinOptions) {
     assert_eq!(replay, first_run.dropped);
 }
 
-/// After the final round, commits are validated without waiting for the
-/// horizon to be fully executed, and their decisions are saved. Here commit
-/// 20 keeps a transaction on a shared object whose deletion at commit 15, at
-/// or below its horizon, this validator had not executed yet. The deletion
-/// then executes and becomes durable, and the node restarts before the epoch
-/// ends. The replay of commit 20 must not stop the node.
-///
-/// Currently fails: the replay reads the deletion row at or below the
-/// horizon, drops the transaction the first run kept, and validation stops
-/// the node on the disagreement with the saved decision.
+/// After the final round, commits do not wait for the horizon to be fully
+/// executed. Here commit 20 carries a transaction on a shared object whose
+/// deletion at commit 15, at or below its horizon, this validator had not
+/// executed yet; no decision is saved for it. The deletion then executes and
+/// becomes durable, and the node restarts before the epoch ends. The replay
+/// of commit 20 must not stop the node.
 #[tokio::test]
 async fn replay_after_the_final_round_survives_a_shared_deletion_executed_late() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -7685,7 +7681,7 @@ async fn replay_after_the_final_round_survives_a_shared_deletion_executed_late()
     .unwrap();
     assert_eq!(
         s.epoch_store.post_consensus_verdict(20, digest).unwrap(),
-        Some(PostConsensusVerdict::Kept)
+        None
     );
 
     let delete_effects = s.handler_known_shared_object_basics_call(
@@ -7716,14 +7712,11 @@ async fn replay_after_the_final_round_survives_a_shared_deletion_executed_late()
     .unwrap();
 }
 
-/// After the final round, a commit is validated without waiting for the
-/// horizon to be fully executed. A transaction at or below the horizon can
-/// then have its handler row written while its output is not in the object
-/// store yet. Validation of a transaction naming that output must decide
-/// without a storage error, which would stop the consensus handler.
-///
-/// Currently fails: the reader keeps the version from the row, finds no
-/// bytes for it in the object store, and returns a storage error.
+/// After the final round, a commit does not wait for the horizon to be fully
+/// executed. A transaction at or below the horizon can then have its handler
+/// row written while its output is not in the object store yet. The commit
+/// carrying a transaction naming that output must be processed without a
+/// storage error, which would stop the consensus handler.
 #[tokio::test]
 async fn commit_after_the_final_round_decides_on_a_row_whose_output_is_not_stored() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -7991,10 +7984,6 @@ async fn pruned_dynamic_field_child_gets_the_verdict_of_a_validator_that_kept_it
 /// The check that the boundary finishes also passes when the watcher's
 /// error stops the node instead, since the spawned task then ends with a
 /// panic; that outcome is acceptable.
-///
-/// Currently fails: after the watcher stops, only the quarantine flush moves
-/// the frontier, which needs commit 1's checkpoint certified. This
-/// single-node setup certifies nothing, so the wait never ends here.
 #[tokio::test(start_paused = true)]
 async fn validation_wait_ends_after_the_execution_watcher_fails() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -8032,14 +8021,10 @@ async fn validation_wait_ends_after_the_execution_watcher_fails() {
 
 /// The handler executes commit 9's transaction, whose row stays in the
 /// overlay and whose output stays in the object cache. After the final round,
-/// commit 11 (horizon 9) keeps a transfer of that output, without waiting,
-/// and saves the decision. The node crashes before commit 9's checkpoint is
-/// durable, losing the row and the output. The replay of commit 11 must not
-/// stop the node.
-///
-/// Currently fails: after the restart the store holds the version before
-/// commit 9, the reader answers the named version as missing, and validation
-/// stops the node on the disagreement with the saved keep.
+/// commit 11 (horizon 9) carries a transfer of that output, does not wait,
+/// and saves no decision for it. The node crashes before commit 9's
+/// checkpoint is durable, losing the row and the output. The replay of commit
+/// 11 must not stop the node.
 #[tokio::test]
 async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -8082,7 +8067,7 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
         s.epoch_store
             .post_consensus_verdict(11, *consumer.digest())
             .unwrap(),
-        Some(PostConsensusVerdict::Kept)
+        None
     );
 
     // The crash: the producer's uncommitted output and the overlay go.
@@ -8256,10 +8241,6 @@ async fn deny_entry_added_and_removed_this_epoch_gets_one_verdict_on_every_valid
 /// the same way: each validator reads them once, and a storage error saves no
 /// decision, so the commit is validated afresh after the restart that follows
 /// the handler's panic.
-///
-/// Currently fails: the inputs are read in hash-set order, which changes from
-/// one read to the next, so some reads stop at the gas coin's drop and others
-/// at the child's missing bytes with a storage error.
 #[tokio::test]
 async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_alike() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();

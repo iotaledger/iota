@@ -21,7 +21,7 @@ use std::{
 };
 
 use futures::future::join_all;
-use iota_macros::{register_fail_point, register_fail_point_async, sim_test};
+use iota_macros::{clear_fail_point, register_fail_point, register_fail_point_async, sim_test};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, TransactionEffects};
 use iota_test_transaction_builder::{
@@ -189,11 +189,14 @@ fn fullnode_highest_executed_checkpoint(test_cluster: &TestCluster) -> Checkpoin
 }
 
 /// Waits until every validator has executed and built a checkpoint a few past
-/// the one the fullnode has executed, then asserts that every checkpoint a
-/// validator built itself matches the certified one. A validator whose
-/// validation decided differently builds a checkpoint that differs from the
-/// certified one, which the in-node fork check turns into a panic, and stops
-/// executing.
+/// the one the fullnode has executed, then compares each checkpoint up to that
+/// one for which the validator holds both its own summary and the certified
+/// one. A validator prunes its own summaries of earlier epochs when it executes
+/// an epoch's last checkpoint, so in practice only checkpoints of its current
+/// epoch are compared here. Earlier epochs are covered by the in-node fork
+/// check: a validator whose validation decided differently builds a
+/// checkpoint that differs from the certified one, which that check turns
+/// into a panic, and stops executing.
 async fn assert_validators_reach_the_same_checkpoints(test_cluster: &TestCluster) {
     let target = fullnode_highest_executed_checkpoint(test_cluster) + 5;
     for name in test_cluster.get_validator_pubkeys() {
@@ -354,6 +357,7 @@ async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills
     sleep(Duration::from_secs(10)).await;
     stop_traffic(traffic, &stop).await;
     assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    clear_fail_point(fail_point);
 }
 
 /// A validator killed after a checkpoint's bookkeeping batch is durable, but
@@ -484,6 +488,7 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
             )
         });
     }
+    clear_fail_point("crash-after-checkpoint-bookkeeping-write");
 }
 
 /// A validator killed right after it saved a commit's validation decisions,
@@ -590,7 +595,9 @@ async fn test_crash_after_post_consensus_verdicts_recovers() {
         }
     }
 
-    // No saved decision of a transfer outlives the flush of its commit.
+    // No saved decision of a transfer outlives the flush of its commit. The
+    // last flushed commit is read from the tables, as the validator keeps
+    // running.
     let resume_point = node_handle(victim).with(|node| {
         node.state()
             .epoch_store_for_testing()
@@ -616,6 +623,7 @@ async fn test_crash_after_post_consensus_verdicts_recovers() {
             );
         }
     }
+    clear_fail_point("crash-after-post-consensus-verdicts");
 }
 
 /// A faulty validator can sequence a transaction admission would refuse. One
@@ -831,6 +839,7 @@ async fn test_execution_stall_and_restart_on_one_validator_does_not_fork() {
     stall.store(false, Ordering::SeqCst);
     stop_traffic(traffic, &stop).await;
     assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    clear_fail_point("transaction_execution_delay");
 }
 
 /// A validator killed right after it saved a commit's validation decisions,
@@ -870,10 +879,11 @@ async fn test_crashes_at_shared_crash_points_under_double_spends() {
     run_crashes_at_fail_point_under_traffic("crash", 3).await;
 }
 
-/// A validator stopped while the network completes randomness rounds catches
-/// up after restart from the randomness in certified checkpoints, with its
-/// validation waiting on executions that include randomness transactions. It
-/// must build the certified checkpoints.
+/// A validator stopped while the network runs transactions that use
+/// randomness misses those randomness rounds. After restart it catches up from
+/// the certified checkpoints, which carry the randomness state updates of
+/// those rounds, and one more such transaction runs. It must build the
+/// certified checkpoints.
 #[sim_test]
 async fn test_validator_catches_up_across_randomness_rounds_without_fork() {
     telemetry_subscribers::init_for_testing();
@@ -972,4 +982,5 @@ async fn test_stopped_and_late_validator_do_not_halt_the_cluster() {
     );
     wait_for_validators_to_reach_epoch(&test_cluster, &names[..3], 4).await;
     stop_traffic(traffic, &stop).await;
+    clear_fail_point("transaction_execution_delay");
 }

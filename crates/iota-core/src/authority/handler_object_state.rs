@@ -841,7 +841,9 @@ impl HandlerObjectState {
     /// the hook and the watcher arrive in. A watcher completing a commit that
     /// already flushed must not reach here - its rows would sit in the overlay
     /// with no flush left to evict them - which is what the caller's check of
-    /// the commit against the quarantine rules out.
+    /// the commit against the quarantine rules out. The flush that completes a
+    /// commit itself also inserts here, under the quarantine write lock, and
+    /// evicts the rows after its own batch write.
     fn upsert_handler_processed_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
         if rows.is_empty() {
             return;
