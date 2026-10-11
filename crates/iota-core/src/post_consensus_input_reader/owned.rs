@@ -359,6 +359,138 @@ mod tests {
         ));
     }
 
+    /// `X@7` is the epoch-start version of `X`, so no row exists at
+    /// `(X, 7)`. A transaction of commit 11, above the horizon of commit 12,
+    /// replaces it without a lock, as a receive does. A validator that has
+    /// not executed commit 11 holds `X@7` as latest and keeps it. One that
+    /// has holds the row at `(X, 8)` and `X@8` as latest, and must keep it
+    /// too. Once commit 11 is at the horizon, the row drops it.
+    ///
+    /// `X@6`, superseded before the epoch, drops on both validators even
+    /// though a row above it exists, and so does `Y@3`, superseded before
+    /// the epoch with no row above it.
+    #[tokio::test]
+    async fn epoch_start_version_consumed_above_the_horizon_keeps_as_on_a_validator_behind() {
+        use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            object::Object,
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::{
+                authority_per_epoch_store::handler_object_state::handler_processed_upserts,
+                authority_tests::init_state_with_objects_and_object_basics,
+            },
+            post_consensus_input_reader::OwnedVerdict,
+        };
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+
+        const CONSUMING_COMMIT: CommitIndex = HORIZON + 1;
+
+        let owner = Owner::Address(Address::ZERO);
+        let gas_id = ObjectId::random();
+        let x_id = ObjectId::random();
+        let y_id = ObjectId::random();
+        let object = |id, version| {
+            Object::with_id_owner_version_for_testing(id, Version::from_u64(version), owner)
+        };
+        let gas = object(gas_id, 7);
+        let x_stale = object(x_id, 6);
+        let x_epoch_start = object(x_id, 7);
+        let y_stale = object(y_id, 3);
+        let (authority, _) = init_state_with_objects_and_object_basics([
+            gas.clone(),
+            x_stale.clone(),
+            y_stale.clone(),
+        ])
+        .await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        authority.insert_genesis_object(x_epoch_start.clone());
+        authority.insert_genesis_object(object(y_id, 4));
+
+        let read_at = |commit_index, input| {
+            CommitIndexedReader::new(
+                authority.get_object_cache_reader().clone(),
+                epoch_store.clone(),
+                commit_index,
+            )
+            .read_owned(input)
+            .unwrap()
+        };
+        let assert_keeps = |verdict: OwnedVerdict, input: ObjectReference| match verdict {
+            OwnedVerdict::Keep(object) => assert_eq!(object.0.object_ref(), input),
+            OwnedVerdict::Drop(reason) => panic!("dropped {input:?}: {reason:?}"),
+            OwnedVerdict::Missing(reason) => panic!("missing {input:?}: {reason:?}"),
+        };
+        let assert_drops = |verdict: OwnedVerdict, kind: DropKind| {
+            assert!(
+                matches!(verdict, OwnedVerdict::Drop(reason) if reason.kind() == kind),
+                "expected a drop with {kind:?}"
+            )
+        };
+
+        // A validator that has not executed commit 11.
+        assert_keeps(
+            read_at(CONSUMING_COMMIT + 1, x_epoch_start.object_ref()),
+            x_epoch_start.object_ref(),
+        );
+        assert_drops(
+            read_at(CONSUMING_COMMIT + 1, x_stale.object_ref()),
+            DropKind::StoreSuperseded,
+        );
+        assert_drops(
+            read_at(CONSUMING_COMMIT + 1, y_stale.object_ref()),
+            DropKind::StoreSuperseded,
+        );
+
+        // Commit 11 executes here: the row at (X, 8), then X@8.
+        let consumer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(Address::ZERO, gas.object_ref(), 0)
+                .transfer_iota(None, Address::ZERO)
+                .build(),
+            vec![],
+        );
+        let effects = TestEffectsBuilder::new(&consumer)
+            .with_mutated_objects([(x_id, x_epoch_start.version(), owner)])
+            .build();
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(CONSUMING_COMMIT, vec![key]);
+        epoch_store
+            .record_commit_fully_executed(
+                CONSUMING_COMMIT,
+                &handler_processed_upserts(&effects, CONSUMING_COMMIT),
+            )
+            .unwrap();
+        authority.insert_genesis_object(object(x_id, effects.lamport_version().as_u64()));
+
+        // The same reads on this validator.
+        assert_keeps(
+            read_at(CONSUMING_COMMIT + 1, x_epoch_start.object_ref()),
+            x_epoch_start.object_ref(),
+        );
+        assert_drops(
+            read_at(CONSUMING_COMMIT + 1, x_stale.object_ref()),
+            DropKind::StoreSuperseded,
+        );
+        assert_drops(
+            read_at(CONSUMING_COMMIT + 1, y_stale.object_ref()),
+            DropKind::StoreSuperseded,
+        );
+
+        // Commit 11 at the horizon.
+        assert_drops(
+            read_at(CONSUMING_COMMIT + 2, x_epoch_start.object_ref()),
+            DropKind::HandlerRowSuperseded,
+        );
+    }
+
     fn drop(kind: DropKind) -> Classification {
         Classification::Drop(DropReason(kind))
     }
