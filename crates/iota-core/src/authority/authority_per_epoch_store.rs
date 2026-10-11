@@ -1984,8 +1984,18 @@ impl AuthorityPerEpochStore {
         Some(handler_object_state.subscribe_highest_fully_executed_commit())
     }
 
+    /// Records that the execution watcher stopped on `error`; see
+    /// [`HandlerObjectState::record_execution_watcher_error`].
+    pub(crate) fn record_execution_watcher_error(&self, error: &IotaError) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        handler_object_state.record_execution_watcher_error(error)
+    }
+
     /// Waits until commit `index` and everything below it is fully executed;
-    /// see [`HandlerObjectState::wait_for_fully_executed_commit`].
+    /// see [`HandlerObjectState::wait_for_fully_executed_commit`], including
+    /// when it panics.
     pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
