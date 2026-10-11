@@ -112,6 +112,7 @@ use crate::{
         soft_lock::PreConsensusSoftLocks,
     },
     consensus_adapter::ConsensusAdapter,
+    epoch::reconfiguration::ReconfigState,
     execution_scheduler::ExecutionSchedulerAPI,
 };
 
@@ -126,6 +127,22 @@ fn checks_admitted_inputs() -> bool {
     let checks = std::cell::Cell::new(true);
     iota_macros::fail_point_if!("admit-without-input-checks", || checks.set(false));
     checks.get()
+}
+
+/// Whether the validator admits new user transactions in `reconfig_state`. It
+/// stops once its epoch starts closing.
+///
+/// Tests can register the `admit-user-transactions-after-epoch-close` fail
+/// point to keep a validator admitting them, and submitting them to consensus,
+/// after that point.
+fn admits_user_transactions(reconfig_state: &ReconfigState) -> bool {
+    // A `Cell` keeps the binding immutable in builds where the fail point
+    // compiles to nothing.
+    let admits = std::cell::Cell::new(reconfig_state.should_accept_user_certs());
+    iota_macros::fail_point_if!("admit-user-transactions-after-epoch-close", || {
+        admits.set(true)
+    });
+    admits.get()
 }
 
 impl ValidatorService {
@@ -298,10 +315,7 @@ impl ValidatorService {
         drop(tx_verif_guard);
 
         // Early bail-out during epoch boundary.
-        if !epoch_store
-            .get_reconfig_state_read_lock_guard()
-            .should_accept_user_certs()
-        {
+        if !admits_user_transactions(&epoch_store.get_reconfig_state_read_lock_guard()) {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
             let error = IotaError::ValidatorHaltedAtEpochEnd;
             let weight = normalize(&error);
@@ -372,7 +386,7 @@ impl ValidatorService {
 
         // Reconfig check. The guard is held through consensus submission below.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-        if !reconfiguration_lock.should_accept_user_certs() {
+        if !admits_user_transactions(&reconfiguration_lock) {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
             let error = IotaError::ValidatorHaltedAtEpochEnd;
             let weight = normalize(&error);
