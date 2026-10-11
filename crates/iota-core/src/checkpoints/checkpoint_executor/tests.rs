@@ -301,6 +301,48 @@ pub async fn test_switched_validator_executes_synced_data_of_locally_built_check
     executor_handle.abort();
 }
 
+/// With deterministic validation, a committee validator does not finish a
+/// checkpoint it built before a restart while the transactions in it have not
+/// executed again. Their outputs were only in memory, so the consensus handler
+/// has to replay their commit and execute them first.
+#[tokio::test]
+pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let epoch_store = state.epoch_store_for_testing().clone();
+    assert!(epoch_store.pcool_bookkeeping_enabled());
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(2, None);
+    for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
+        sync_checkpoint(&checkpoint_store, checkpoint, contents);
+    }
+    // Built and hashed before the restart; its transactions have not executed
+    // since.
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&1, checkpoints[1].data())
+        .unwrap();
+    epoch_store
+        .insert_state_hash_for_checkpoint(&1, &GlobalStateHash::default())
+        .unwrap();
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    assert_eq!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        Some(0),
+        "checkpoint 1 must wait until its transactions have executed"
+    );
+    executor_handle.abort();
+}
+
 /// Without `pcool_deterministic_validation`, a committee validator executes
 /// a synced checkpoint it has not built at once.
 #[tokio::test]
