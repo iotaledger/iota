@@ -9,11 +9,15 @@
 use std::sync::Arc;
 
 use iota_sdk_types::{ObjectId, ObjectReference, Version};
-use iota_types::error::{IotaError, IotaResult};
+use iota_types::{
+    error::{IotaError, IotaResult},
+    storage::{BackingPackageStore, PackageObject},
+};
 
 use super::{
-    KeptObject, OwnedVerdict, SharedVerdict,
+    KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
     owned::{NeedBytes, OwnedReader, TablesLookup, TablesRecheck},
+    package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
         CreatedObjectLookup, DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, SharedReader,
         SharedTablesLookup, SharedTablesRecheck,
@@ -135,6 +139,20 @@ impl CommitIndexedReader {
         })
     }
 
+    /// Visibility of one package input. The store is read first, because a
+    /// package input names no version, then the row. The package module doc
+    /// explains the order. Storage errors propagate.
+    pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
+        let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
+            PackageLookup::Loaded(loaded) => loaded,
+            PackageLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
+        };
+        Ok(match loaded.read_row(self)? {
+            PackageRowLookup::Visible(package) => PackageVerdict::Visible(package),
+            PackageRowLookup::Missing(reason) => PackageVerdict::Missing(reason),
+        })
+    }
+
     /// The bytes at exactly `(id, V)` from the store. Reachable only with the
     /// machine's keep token. No bytes break the design's invariant, so that
     /// is a storage error and halts commit processing, never a verdict.
@@ -146,5 +164,17 @@ impl CommitIndexedReader {
         Err(IotaError::Storage(format!(
             "kept input {key:?} has no bytes in the object store"
         )))
+    }
+}
+
+/// The deny check's package view as of the commit. A package the reader
+/// answers missing reads as absent, which the deny check reports as not
+/// found. The missing reason is set aside on this path.
+impl BackingPackageStore for CommitIndexedReader {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        Ok(match self.read_package(*package_id)? {
+            PackageVerdict::Visible(package) => Some(package),
+            PackageVerdict::Missing(_) => None,
+        })
     }
 }

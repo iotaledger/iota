@@ -52,6 +52,7 @@ use iota_types::{
 };
 
 mod owned;
+mod package;
 pub mod reader;
 mod shared;
 
