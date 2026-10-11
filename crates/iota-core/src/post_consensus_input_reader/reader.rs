@@ -8,12 +8,16 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::ObjectReference;
+use iota_sdk_types::{ObjectId, ObjectReference, Version};
 use iota_types::error::{IotaError, IotaResult};
 
 use super::{
-    KeptObject, OwnedVerdict,
+    KeptObject, OwnedVerdict, SharedVerdict,
     owned::{NeedBytes, OwnedReader, TablesLookup, TablesRecheck},
+    shared::{
+        CreatedObjectLookup, DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, SharedReader,
+        SharedTablesLookup, SharedTablesRecheck,
+    },
 };
 use crate::{
     authority::authority_per_epoch_store::{
@@ -70,6 +74,65 @@ impl CommitIndexedReader {
             TablesRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
             TablesRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
+    }
+
+    /// Existence and creation metadata for one shared input declared at
+    /// `initial_shared_version`. No content read. Storage errors propagate.
+    pub fn read_shared(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<SharedVerdict> {
+        // The creation row at the declared initial version, deciding. A row
+        // at or below the horizon proved the flag, so only the object's
+        // presence is left.
+        let no_tables_entry = match SharedReader::start(id, initial_shared_version, self.horizon)
+            .read_creation_row(self)?
+        {
+            SharedTablesLookup::Created(created) => {
+                return match created.read_object(self)? {
+                    CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                    CreatedObjectLookup::Absent(object_absent) => {
+                        self.check_deletion(object_absent)
+                    }
+                };
+            }
+            SharedTablesLookup::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
+            SharedTablesLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
+            SharedTablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
+        };
+
+        // Store: hold the latest object, read the creation row again.
+        match no_tables_entry
+            .read_object(self)?
+            .reread_creation_row(self)?
+        {
+            SharedTablesRecheck::Created(created) => match created.read_object(self)? {
+                CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                CreatedObjectLookup::Absent(object_absent) => self.check_deletion(object_absent),
+            },
+            SharedTablesRecheck::Exists(object) => Ok(SharedVerdict::Exists(object)),
+            SharedTablesRecheck::Missing(reason) => Ok(SharedVerdict::Missing(reason)),
+            SharedTablesRecheck::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
+            SharedTablesRecheck::Absent(object_absent) => self.check_deletion(object_absent),
+        }
+    }
+
+    /// Deletion: this epoch's marker, then the row at the deleted version.
+    /// Reached from a created object that is gone, in either pass, and from a
+    /// store answer no creation row claimed.
+    fn check_deletion(
+        &self,
+        object_absent: SharedReader<ObjectAbsent>,
+    ) -> IotaResult<SharedVerdict> {
+        let deletion_info_found = match object_absent.read_deletion_info(self)? {
+            DeletionInfoLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
+            DeletionInfoLookup::Found(deletion_info_found) => deletion_info_found,
+        };
+        Ok(match deletion_info_found.read_deletion_row(self)? {
+            DeletionRowLookup::Deleted(version, digest) => SharedVerdict::Deleted(version, digest),
+            DeletionRowLookup::Drop(reason) => SharedVerdict::Drop(reason),
+        })
     }
 
     /// The bytes at exactly `(id, V)` from the store. Reachable only with the

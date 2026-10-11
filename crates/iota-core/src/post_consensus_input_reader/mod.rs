@@ -53,6 +53,7 @@ use iota_types::{
 
 mod owned;
 pub mod reader;
+mod shared;
 
 /// The reader's answer for one owned input.
 #[must_use]
