@@ -277,6 +277,22 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             debug!("not processing consensus commit: executing synced checkpoints");
             return Ok(());
         }
+        // After a restart, a node that switched before stops at the same
+        // commit: synced checkpoints executed since then have written outputs
+        // that validating a later commit would read.
+        let commit_index = consensus_output.commit_sub_dag_index();
+        let last_commit_before_switch = epoch_store
+            .last_commit_before_synced_checkpoint_execution()
+            .expect("the epoch store of the commit being processed must be readable");
+        if last_commit_before_switch.is_some_and(|last| commit_index > last) {
+            info!(
+                commit_index,
+                ?last_commit_before_switch,
+                "not processing consensus commit: switched to executing synced checkpoints before a restart"
+            );
+            epoch_store.resume_executing_synced_checkpoints();
+            return Ok(());
+        }
         // Every wait while processing the commit races against the switch, so
         // the commit cannot run against state that executing downloaded
         // checkpoints writes, and the switch is not held up waiting for it.
@@ -286,7 +302,14 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 info!("abandoned consensus commit: executing synced checkpoints for the rest of the epoch");
                 Ok(())
             }
-            result = self.process_consensus_output(consensus_output, block_transactions) => result,
+            result = self.process_consensus_output(consensus_output, block_transactions) => {
+                // A commit stopped by runtime shutdown is replayed after restart,
+                // so it is not handled yet.
+                if result.is_ok() {
+                    epoch_store.record_handled_commit(commit_index);
+                }
+                result
+            }
         }
     }
 

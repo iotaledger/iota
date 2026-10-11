@@ -2063,6 +2063,64 @@ async fn start_executing_synced_checkpoints_waits_for_the_commit_in_progress() {
         .unwrap();
 }
 
+/// Starting to execute synced checkpoints saves the last commit the consensus
+/// handler finished, not the one it was processing, and a restart reads it
+/// back without being switched yet: the handler replays the commits up to it
+/// and switches at the next one.
+#[tokio::test]
+async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing().clone();
+    assert_eq!(
+        store
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        None
+    );
+
+    let commit_guard = store.lock_consensus_commit().await;
+    store.record_handled_commit(6);
+    store.record_handled_commit(7);
+    drop(commit_guard);
+    // Commit 8 is in progress when the switch starts and is abandoned.
+    let commit_guard = store.lock_consensus_commit().await;
+    let start = tokio::spawn({
+        let store = store.clone();
+        async move { store.start_executing_synced_checkpoints().await }
+    });
+    timeout(
+        Duration::from_secs(5),
+        store.wait_for_synced_checkpoint_execution(),
+    )
+    .await
+    .unwrap();
+    drop(commit_guard);
+    timeout(Duration::from_secs(5), start)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        store
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        Some(7)
+    );
+
+    // A second start leaves the saved commit as it is.
+    store.record_handled_commit(9);
+    store.start_executing_synced_checkpoints().await;
+    let reopened = reopen(&authority_state, &store);
+    assert!(!reopened.is_executing_synced_checkpoints());
+    assert_eq!(
+        reopened
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        Some(7)
+    );
+    reopened.resume_executing_synced_checkpoints();
+    assert!(reopened.is_executing_synced_checkpoints());
+}
+
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
