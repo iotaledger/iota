@@ -704,6 +704,9 @@ pub struct AuthorityPerEpochStore {
     handler_object_state: Option<HandlerObjectState>,
     /// See [`Self::pcool_bookkeeping_enabled`].
     pcool_bookkeeping_enabled: bool,
+    /// See [`Self::fail_next_watcher_completion_for_testing`].
+    #[cfg(test)]
+    fail_next_watcher_completion: std::sync::atomic::AtomicBool,
 
     protocol_config: ProtocolConfig,
 
@@ -1402,6 +1405,8 @@ impl AuthorityPerEpochStore {
             consensus_output_cache,
             handler_object_state,
             pcool_bookkeeping_enabled,
+            #[cfg(test)]
+            fail_next_watcher_completion: Default::default(),
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
                 cached_overload_notifications,
@@ -1923,6 +1928,29 @@ impl AuthorityPerEpochStore {
                 .read()
                 .last_checkpoint_of_prunable_commits(horizon_distance),
         })
+    }
+
+    /// Makes the execution watcher's next commit completion fail with a
+    /// storage error instead of marking the commit fully executed.
+    #[cfg(test)]
+    pub fn fail_next_watcher_completion_for_testing(&self) {
+        self.fail_next_watcher_completion
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// The error [`Self::fail_next_watcher_completion_for_testing`] asked
+    /// for, once.
+    #[cfg(test)]
+    pub(crate) fn injected_watcher_completion_error(&self) -> IotaResult {
+        if self
+            .fail_next_watcher_completion
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(IotaError::Storage(
+                "injected failure of the execution watcher's commit completion".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// Registers the roots of commit `index` in the transaction-key ->
