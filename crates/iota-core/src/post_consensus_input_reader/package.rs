@@ -71,10 +71,12 @@ impl PackageReader<Start> {
         }
     }
 
-    /// Reads the package from the store. Packages are never replaced or
-    /// pruned, so the only question is whether it is there, and a package
-    /// this store lacks is also missing on a validator that has executed
-    /// less.
+    /// Reads the package from the store, at its latest version. Packages are
+    /// never pruned, so a package this store lacks is also missing on a
+    /// validator that has executed less. A system package that the
+    /// change-epoch transaction upgraded in place is read at its new version:
+    /// that transaction writes no rows, so the upgraded version counts as the
+    /// state the epoch started with.
     pub fn read_package(self, ctx: &CommitIndexedReader) -> IotaResult<PackageLookup> {
         Ok(match ctx.cache.try_get_package_object(&self.id)? {
             Some(package) => PackageLookup::Loaded(self.into_state(PackageLoaded { package })),
@@ -128,8 +130,9 @@ enum PackageClass {
 }
 
 /// The row at `(id, package version)` against the horizon. No row means the
-/// package was published before the epoch. Packages are only ever created, so
-/// the row's kind needs no check.
+/// package was published before the epoch. The row's kind needs no check: a
+/// package is never deleted or wrapped, and the only in-place upgrade, of a
+/// system package by the change-epoch transaction, writes no row.
 fn classify_package(row: Option<&HandlerProcessedObject>, horizon: CommitIndex) -> PackageClass {
     match row {
         Some(row) if row.produced_at > horizon => {
