@@ -6324,7 +6324,8 @@ async fn epoch_end_releases_a_pending_wait() {
 
 /// Commits the outputs of `executed` and executes them as one certified
 /// checkpoint, followed by an empty one, then runs the object pruner over the
-/// executed checkpoints as the node does with aggressive pruning.
+/// executed checkpoints as the node does with aggressive pruning, within the
+/// epoch store's object pruning limit.
 async fn execute_checkpoint_and_prune(
     s: &BookkeepingSetup,
     executed: Vec<(VerifiedTransaction, TransactionEffects)>,
@@ -6391,6 +6392,7 @@ async fn execute_checkpoint_and_prune(
         0,
         None,
         None,
+        s.epoch_store.object_pruning_limit(),
     )
     .await
     .unwrap();
@@ -6438,4 +6440,47 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
     )
     .await;
     assert_keeps(s.read_owned(6, named), named);
+}
+
+/// The object pruning limit follows the flushed commits: a commit's
+/// checkpoints become prunable once it is at or below the last flushed commit
+/// plus one minus the horizon distance. Before that, none of the epoch's
+/// checkpoints is.
+#[tokio::test]
+async fn object_pruning_limit_follows_the_flushed_commits() {
+    use crate::authority::authority_store_pruner::ObjectPruningLimit;
+
+    let s = setup_bookkeeping(vec![], true).await;
+    let epoch = s.epoch_store.epoch();
+    let limit = |highest_prunable_checkpoint| {
+        Some(ObjectPruningLimit {
+            epoch,
+            highest_prunable_checkpoint,
+        })
+    };
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
+
+    // Commit `i` flushes with checkpoint `i`; the horizon distance is 2.
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![])
+        .unwrap();
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(2, vec![])
+        .unwrap();
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(1)));
+    for index in 3..=6 {
+        s.epoch_store
+            .flush_commit_through_quarantine_for_testing(index, vec![])
+            .unwrap();
+    }
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(5)));
+}
+
+/// A node outside the committee keeps no bookkeeping, so its object pruning
+/// has no limit.
+#[tokio::test]
+async fn object_pruning_limit_is_off_outside_the_committee() {
+    let s = setup_bookkeeping_outside_committee(vec![]).await;
+    assert_eq!(s.epoch_store.object_pruning_limit(), None);
 }

@@ -89,6 +89,7 @@ use typed_store::{
 };
 
 use super::{
+    authority_store_pruner::ObjectPruningLimit,
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
     shared_object_congestion_tracker::{
@@ -1893,6 +1894,33 @@ impl AuthorityPerEpochStore {
     /// would count as sync-ahead and nothing would ever clear its entries.
     pub fn pcool_bookkeeping_enabled(&self) -> bool {
         self.pcool_bookkeeping_enabled
+    }
+
+    /// How far the object pruner may go in this epoch's checkpoints, or `None`
+    /// for no limit, when the P-COOL bookkeeping is off.
+    ///
+    /// A version that commit `c` consumed can still be kept, as on a validator
+    /// that has not executed `c`, by the validation of a commit below
+    /// `c + K` (K the horizon distance), and by the replay after a restart of
+    /// any commit above the resume point. Keeping it needs its bytes. Every
+    /// commit not flushed yet is above the resume point, so the versions of
+    /// commits up to `resume point + 1 - K` are the ones no validation can
+    /// keep any more. Checkpoints of earlier epochs are not limited: rows are
+    /// per epoch, so no validation keeps a version consumed in one.
+    pub fn object_pruning_limit(&self) -> Option<ObjectPruningLimit> {
+        if !self.pcool_bookkeeping_enabled {
+            return None;
+        }
+        let horizon_distance = self
+            .protocol_config()
+            .pcool_deterministic_validation_horizon_distance_or_default();
+        Some(ObjectPruningLimit {
+            epoch: self.epoch(),
+            highest_prunable_checkpoint: self
+                .consensus_quarantine
+                .read()
+                .last_checkpoint_of_prunable_commits(horizon_distance),
+        })
     }
 
     /// Registers the roots of commit `index` in the transaction-key ->
