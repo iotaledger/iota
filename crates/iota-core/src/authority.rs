@@ -3288,6 +3288,7 @@ impl AuthorityState {
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
             checkpoint_progress_tracker.clone(),
+            epoch_store.object_pruning_limit(),
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
