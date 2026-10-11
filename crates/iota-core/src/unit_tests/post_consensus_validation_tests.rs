@@ -5,7 +5,7 @@
 //! conflict resolution, and the P-COOL bookkeeping written by executed
 //! transactions.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
@@ -37,6 +37,7 @@ use crate::{
         AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
             LockDetails,
+            authority_per_epoch_store_tests::reopen,
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
                 CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
@@ -46,7 +47,9 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
-    consensus_handler::{SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction},
+    consensus_handler::{
+        ExecutionWatcher, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
+    },
     post_consensus_validation,
     test_utils::make_transfer_object_transaction,
 };
@@ -2346,6 +2349,48 @@ impl BookkeepingSetup {
     ) -> TransactionEffects {
         self.execute(self.build_transfer(object_id, gas_id, sender, sender_key, recipient))
     }
+
+    /// Starts the execution watcher, as the consensus handler does when the
+    /// feature is on. Keep the returned value alive: dropping it aborts the
+    /// task.
+    fn start_execution_watcher(&self) -> ExecutionWatcher {
+        ExecutionWatcher::start(self.epoch_store.clone())
+            .expect("no other watcher has taken the assigned-commit receiver")
+    }
+
+    fn highest_fully_executed_commit(&self) -> CommitIndex {
+        *self
+            .epoch_store
+            .subscribe_highest_fully_executed_commit()
+            .unwrap()
+            .borrow()
+    }
+
+    /// Waits for commit `index` to be fully executed, failing the test if it
+    /// does not happen promptly.
+    async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            self.epoch_store.wait_for_fully_executed_commit(index),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("commit {index} must become fully executed"));
+    }
+
+    /// Asserts commit `index` does not become fully executed. Meant for
+    /// `start_paused` tests: the paused clock fires the timeout only once
+    /// every task, the watcher included, is idle.
+    async fn assert_commit_not_fully_executed(&self, index: CommitIndex) {
+        assert!(
+            tokio::time::timeout(
+                Duration::from_millis(200),
+                self.epoch_store.wait_for_fully_executed_commit(index),
+            )
+            .await
+            .is_err(),
+            "commit {index} must not be fully executed yet"
+        );
+    }
 }
 
 #[tokio::test]
@@ -2537,6 +2582,253 @@ async fn handler_known_share_records_the_initial_shared_version() {
             replaced_version: None,
         }
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn watcher_completes_a_commit_once_its_roots_execute() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let _watcher = s.start_execution_watcher();
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    // The handler assigns the commit before its root executes; the watcher
+    // must wait for the root's effects.
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let key = TransactionKey::Digest(*tx.digest());
+    s.epoch_store.assign_commit_to_transactions(1, vec![key]);
+    s.assert_commit_not_fully_executed(1).await;
+    assert_eq!(state.commit_index_of(&key), Some(1));
+
+    let effects = s.execute(tx);
+    s.wait_for_fully_executed_commit(1).await;
+    assert_eq!(s.highest_fully_executed_commit(), 1);
+    assert_eq!(state.commit_index_of(&key), None);
+    for id in [&obj_id, &gas_id] {
+        assert_eq!(
+            s.handler_processed_object(id, effects.lamport_version())
+                .produced_at,
+            1
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn watcher_completes_commits_in_assignment_order() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+    let _watcher = s.start_execution_watcher();
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let first = s.build_transfer(
+        &obj1_id,
+        &gas1_id,
+        address_1,
+        &address_1_key,
+        Address::random(),
+    );
+    let second = s.build_transfer(
+        &obj2_id,
+        &gas2_id,
+        address_2,
+        &address_2_key,
+        Address::random(),
+    );
+    let first_key = TransactionKey::Digest(*first.digest());
+    let second_key = TransactionKey::Digest(*second.digest());
+    s.epoch_store
+        .assign_commit_to_transactions(1, vec![first_key]);
+    s.epoch_store
+        .assign_commit_to_transactions(2, vec![second_key]);
+
+    // The later commit's root executes first. Completing commit 2 now would
+    // claim commit 1 executed too, so the watcher must hold it back.
+    s.execute(second);
+    s.assert_commit_not_fully_executed(1).await;
+    assert_eq!(state.commit_index_of(&second_key), Some(2));
+
+    s.execute(first);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(state.commit_index_of(&first_key), None);
+    assert_eq!(state.commit_index_of(&second_key), None);
+}
+
+/// The flush reaches a commit before the watcher does, as for a commit
+/// whose checkpoint executes before the watcher starts. The flush completes
+/// the commit from its own batch; the watcher reaching it afterwards must
+/// change nothing.
+#[tokio::test]
+async fn flush_first_completion_leaves_the_watcher_a_no_op() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    // The handler assigns commit 1 and its root executes; its checkpoint
+    // executes and the commit flushes before any watcher runs.
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let key = TransactionKey::Digest(*tx.digest());
+    let effects = s.execute_as_handler_known(vec![tx], 1).remove(0);
+    let version = effects.lamport_version();
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+
+    assert_eq!(state.overlay_size_for_testing(), 0);
+    for id in [obj_id, gas_id] {
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(id, version))
+            .unwrap()
+            .expect("the flush must write the commit's rows");
+        assert_eq!(row.produced_at, 1);
+    }
+    assert_eq!(state.commit_index_of(&key), None);
+    assert_eq!(s.highest_fully_executed_commit(), 1);
+
+    // The watcher now receives commit 1, then an empty commit 2; once commit
+    // 2 is complete, commit 1 has been handled. Had the watcher completed
+    // commit 1 again, its rows would sit in the overlay with no flush left
+    // to evict them.
+    let _watcher = s.start_execution_watcher();
+    s.epoch_store.assign_commit_to_transactions(2, vec![]);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(state.overlay_size_for_testing(), 0);
+}
+
+/// A commit executed before a crash but not yet flushed loses its rows with
+/// the overlay, and the execution hook does not run again for its
+/// transactions. When the handler replays the commit, the watcher must
+/// restore the rows from the effects already on disk.
+#[tokio::test]
+async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+
+    // Commit 1 executes and flushes; commit 2 executes and completes, but its
+    // output is still in the quarantine when the node crashes.
+    let watcher = s.start_execution_watcher();
+    let first = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(
+                &obj1_id,
+                &gas1_id,
+                address_1,
+                &address_1_key,
+                Address::random(),
+            )],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*first.transaction_digest()])
+        .unwrap();
+    let second = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(
+                &obj2_id,
+                &gas2_id,
+                address_2,
+                &address_2_key,
+                Address::random(),
+            )],
+            2,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(2).await;
+    drop(watcher);
+
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    let row = |effects: &TransactionEffects, id: ObjectId| {
+        reopened
+            .handler_processed_object(&ObjectKey(id, effects.lamport_version()))
+            .unwrap()
+    };
+
+    // The value resumes from the flushed commit. Commit 1's rows are on disk;
+    // commit 2's were only in the overlay and are gone.
+    assert_eq!(
+        *reopened
+            .subscribe_highest_fully_executed_commit()
+            .unwrap()
+            .borrow(),
+        1
+    );
+    assert_eq!(
+        reopened
+            .handler_object_state_for_testing()
+            .overlay_size_for_testing(),
+        0
+    );
+    for id in [obj1_id, gas1_id] {
+        assert_eq!(row(&first, id).map(|row| row.produced_at), Some(1));
+    }
+    for id in [obj2_id, gas2_id] {
+        assert_eq!(row(&second, id), None);
+    }
+
+    // The handler replays commit 2. Its transaction is not executed again.
+    let _watcher = ExecutionWatcher::start(reopened.clone())
+        .expect("the reopened store's receiver is untaken");
+    reopened.assign_commit_to_transactions(
+        2,
+        vec![TransactionKey::Digest(*second.transaction_digest())],
+    );
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        reopened.wait_for_fully_executed_commit(2),
+    )
+    .await
+    .expect("the replayed commit must become fully executed");
+    for id in [obj2_id, gas2_id] {
+        assert_eq!(row(&second, id).map(|row| row.produced_at), Some(2));
+    }
 }
 
 #[tokio::test]
