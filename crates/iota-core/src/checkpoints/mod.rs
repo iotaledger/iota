@@ -1225,6 +1225,7 @@ pub struct CheckpointBuilder {
     global_state_hasher: Weak<GlobalStateHasher>,
     send_to_hasher: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
     output: Box<dyn CheckpointOutput>,
+    checkpoint_service: Weak<CheckpointService>,
     metrics: Arc<CheckpointMetrics>,
     max_transactions_per_checkpoint: usize,
     max_checkpoint_size_bytes: usize,
@@ -1264,6 +1265,7 @@ impl CheckpointBuilder {
         // for asynchronous/concurrent accumulation of regular checkpoints
         send_to_hasher: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
         output: Box<dyn CheckpointOutput>,
+        checkpoint_service: Weak<CheckpointService>,
         notify_aggregator: Arc<Notify>,
         last_built: watch::Sender<CheckpointSequenceNumber>,
         metrics: Arc<CheckpointMetrics>,
@@ -1279,6 +1281,7 @@ impl CheckpointBuilder {
             global_state_hasher,
             send_to_hasher,
             output,
+            checkpoint_service,
             notify_aggregator,
             last_built,
             metrics,
@@ -1737,6 +1740,13 @@ impl CheckpointBuilder {
             }
         }
 
+        let checkpoint_service = self.checkpoint_service.upgrade();
+        // The consensus handler still delivers our own signatures if the service is
+        // already gone.
+        let checkpoint_service: &(dyn CheckpointServiceNotify + Sync) = match &checkpoint_service {
+            Some(service) => service.as_ref(),
+            None => &CheckpointServiceNoop {},
+        };
         // Send all checkpoint sigs to consensus. The messages including
         // MisbehaviorReports are also sent in this step.
         for BuiltCheckpoint {
@@ -1744,7 +1754,13 @@ impl CheckpointBuilder {
         } in &new_checkpoints
         {
             self.output
-                .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
+                .checkpoint_created(
+                    summary,
+                    contents,
+                    &self.epoch_store,
+                    &self.store,
+                    checkpoint_service,
+                )
                 .await?;
         }
 
@@ -2927,40 +2943,43 @@ impl CheckpointService {
             receive_from_builder,
         );
 
-        let builder = CheckpointBuilder::new(
-            state,
-            checkpoint_store.clone(),
-            epoch_store.clone(),
-            notify_builder.clone(),
-            effects_store,
-            global_state_hasher,
-            send_to_hasher,
-            checkpoint_output,
-            notify_aggregator.clone(),
-            highest_currently_built_seq_tx.clone(),
-            metrics.clone(),
-            max_transactions_per_checkpoint,
-            max_checkpoint_size_bytes,
-        );
-
         let last_signature_index = epoch_store
             .get_last_checkpoint_signature_index()
             .expect("should not cross end of epoch");
         let last_signature_index = Mutex::new(last_signature_index);
 
-        Arc::new(Self {
-            tables: checkpoint_store,
-            notify_builder,
-            notify_aggregator,
-            last_signature_index,
-            highest_currently_built_seq_tx,
-            highest_previously_built_seq,
-            metrics,
-            state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
-                builder,
-                aggregator,
-                ckpt_state_hasher,
-            )))),
+        Arc::new_cyclic(|checkpoint_service| {
+            let builder = CheckpointBuilder::new(
+                state,
+                checkpoint_store.clone(),
+                epoch_store,
+                notify_builder.clone(),
+                effects_store,
+                global_state_hasher,
+                send_to_hasher,
+                checkpoint_output,
+                checkpoint_service.clone(),
+                notify_aggregator.clone(),
+                highest_currently_built_seq_tx.clone(),
+                metrics.clone(),
+                max_transactions_per_checkpoint,
+                max_checkpoint_size_bytes,
+            );
+
+            Self {
+                tables: checkpoint_store,
+                notify_builder,
+                notify_aggregator,
+                last_signature_index,
+                highest_currently_built_seq_tx,
+                highest_previously_built_seq,
+                metrics,
+                state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
+                    builder,
+                    aggregator,
+                    ckpt_state_hasher,
+                )))),
+            }
         })
     }
 
@@ -3133,7 +3152,7 @@ mod checked {
         )
     }
 }
-// test helper
+/// Discards every notification.
 pub struct CheckpointServiceNoop {}
 impl CheckpointServiceNotify for CheckpointServiceNoop {
     fn notify_checkpoint_signature(
@@ -3222,6 +3241,7 @@ mod tests {
         ops::Deref,
     };
 
+    use fastcrypto::traits::KeyPair as _;
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -3232,12 +3252,16 @@ mod tests {
     use iota_types::{
         effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::SignedCheckpointSummary,
+        messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
         transaction::VerifiedTransaction,
     };
     use tokio::sync::mpsc;
 
     use super::*;
-    use crate::authority::test_authority_builder::TestAuthorityBuilder;
+    use crate::{
+        authority::test_authority_builder::TestAuthorityBuilder,
+        consensus_adapter::SubmitToConsensus, epoch::reconfiguration::ReconfigurationInitiator,
+    };
 
     #[tokio::test]
     async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {
@@ -3514,6 +3538,208 @@ mod tests {
             .expect("the checkpoint builder should stop")
             .unwrap()
             .unwrap();
+    }
+
+    // A validator does not verify its own consensus blocks, so under
+    // deterministic validation its own signature must reach its aggregator
+    // when it is submitted, without waiting for the consensus handler to
+    // process the commit that includes it. The copy that the handler delivers
+    // later, and a signature made again for the same summary after a restart,
+    // must be the same bytes and be ignored.
+    #[tokio::test]
+    async fn own_checkpoint_signature_reaches_aggregator_without_consensus() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(std::num::NonZeroUsize::new(4).unwrap())
+                .build();
+        let validator_key = |i: usize| network_config.validator_configs()[i].authority_key_pair();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+
+        let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let digest = *tx.digest();
+        state
+            .database_for_testing()
+            .perpetual_tables
+            .transactions
+            .insert(&digest, tx.serializable_ref())
+            .unwrap();
+
+        let mut effects_map = HashMap::new();
+        commit_cert_for_test(
+            &mut effects_map,
+            state.clone(),
+            digest,
+            vec![],
+            GasCostSummary::new(1, 1, 1, 1, 1),
+        );
+        let effects = effects_map[&digest].clone();
+
+        let signature = iota_types::crypto::zero_ed25519_signature().into();
+        state
+            .epoch_store_for_testing()
+            .test_insert_user_signature(digest, vec![signature]);
+
+        let (submitted_tx, mut submitted) = mpsc::channel::<ConsensusTransaction>(10);
+        let output = SubmitCheckpointToConsensus {
+            sender: submitted_tx,
+            signer: state.secret.clone(),
+            authority: state.name,
+            next_reconfiguration_timestamp_ms: u64::MAX,
+            metrics: CheckpointMetrics::new_for_tests(),
+        };
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let epoch_store = state.epoch_store_for_testing();
+
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            Arc::new(effects_map),
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let (builder, mut aggregator, _hasher) = checkpoint_service.state.lock().take_unstarted();
+
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![digest], 0))
+            .unwrap();
+        let details = PendingCheckpointInfo {
+            timestamp_ms: 0,
+            last_of_epoch: false,
+            checkpoint_height: 0,
+        };
+        let new_checkpoints = builder
+            .create_checkpoints(vec![effects], &details, &HashSet::from([digest]))
+            .await
+            .unwrap();
+        let summary = new_checkpoints.first().summary.clone();
+        builder
+            .write_checkpoints(details.checkpoint_height, new_checkpoints)
+            .await
+            .unwrap();
+
+        // The signature was submitted to consensus, but nothing delivers it back
+        // yet. Take the copy the consensus handler would see after the round trip.
+        let submitted = submitted.try_recv().unwrap();
+        let submitted: ConsensusTransaction =
+            bcs::from_bytes(&bcs::to_bytes(&submitted).unwrap()).unwrap();
+        let ConsensusTransactionKind::CheckpointSignature(handler_copy) = submitted.kind else {
+            panic!("expected a checkpoint signature, got {submitted:?}");
+        };
+        assert_eq!(handler_copy.summary.auth_sig().authority, state.name);
+
+        let local_copies = epoch_store
+            .tables()
+            .unwrap()
+            .pending_checkpoint_signatures
+            .safe_iter()
+            .map(|item| item.unwrap().1)
+            .collect::<Vec<_>>();
+        assert_eq!(local_copies.len(), 1);
+        assert_eq!(
+            bcs::to_bytes(&local_copies[0]).unwrap(),
+            bcs::to_bytes(&*handler_copy).unwrap(),
+        );
+
+        // Signing the same summary again, as after a restart, gives the same
+        // signature.
+        let signed_again = SignedCheckpointSummary::new(
+            summary.epoch,
+            summary.clone(),
+            &*state.secret,
+            state.name,
+        );
+        assert_eq!(signed_again.auth_sig(), handler_copy.summary.auth_sig());
+
+        let signed_by = |i: usize| {
+            let key = validator_key(i);
+            CheckpointSignatureMessage {
+                summary: SignedCheckpointSummary::new(
+                    summary.epoch,
+                    summary.clone(),
+                    key,
+                    key.public().into(),
+                ),
+            }
+        };
+        checkpoint_service
+            .notify_checkpoint_signature(&epoch_store, &signed_by(1))
+            .unwrap();
+        assert!(aggregator.run_inner().unwrap().is_empty());
+        let votes_before = aggregator
+            .current
+            .as_ref()
+            .unwrap()
+            .signatures_by_digest
+            .get_all_unique_values();
+        assert_eq!(votes_before[&summary.digest()].0.len(), 2);
+
+        // A repeated signature from this validator, whether the handler's copy or
+        // one made again, is a repeat of the same signature, which is ignored
+        // without a warning or a split-brain check.
+        for repeat in [
+            (*handler_copy).clone(),
+            CheckpointSignatureMessage {
+                summary: signed_again,
+            },
+        ] {
+            let current = aggregator.current.as_mut().unwrap();
+            let envelope = SignedCheckpointSummary::new_from_data_and_sig(
+                summary.clone(),
+                repeat.summary.auth_sig().clone(),
+            );
+            assert!(matches!(
+                current
+                    .signatures_by_digest
+                    .insert(summary.digest(), envelope),
+                InsertResult::Failed {
+                    error: IotaError::StakeAggregatorRepeatedSigner {
+                        conflicting_sig: false,
+                        ..
+                    }
+                }
+            ));
+            checkpoint_service
+                .notify_checkpoint_signature(&epoch_store, &repeat)
+                .unwrap();
+            assert!(aggregator.run_inner().unwrap().is_empty());
+            assert_eq!(
+                aggregator
+                    .current
+                    .as_ref()
+                    .unwrap()
+                    .signatures_by_digest
+                    .get_all_unique_values(),
+                votes_before
+            );
+        }
+
+        // Two peer signatures and the local one certify the checkpoint; the peer
+        // signatures alone would not reach a quorum of four validators.
+        checkpoint_service
+            .notify_checkpoint_signature(&epoch_store, &signed_by(2))
+            .unwrap();
+        let certified = aggregator.run_inner().unwrap();
+        assert_eq!(certified.len(), 1);
+        assert_eq!(certified[0].digest(), &summary.digest());
     }
 
     #[sim_test]
@@ -4026,10 +4252,28 @@ mod tests {
             contents: &CheckpointContents,
             _epoch_store: &Arc<AuthorityPerEpochStore>,
             _checkpoint_store: &Arc<CheckpointStore>,
+            _checkpoint_service: &(dyn CheckpointServiceNotify + Sync),
         ) -> IotaResult {
             self.try_send((contents.clone(), summary.clone())).unwrap();
             Ok(())
         }
+    }
+
+    impl SubmitToConsensus for mpsc::Sender<ConsensusTransaction> {
+        fn submit_to_consensus(
+            &self,
+            transactions: &[ConsensusTransaction],
+            _epoch_store: &Arc<AuthorityPerEpochStore>,
+        ) -> IotaResult {
+            for transaction in transactions {
+                self.try_send(transaction.clone()).unwrap();
+            }
+            Ok(())
+        }
+    }
+
+    impl ReconfigurationInitiator for mpsc::Sender<ConsensusTransaction> {
+        fn close_epoch(&self, _epoch_store: &Arc<AuthorityPerEpochStore>) {}
     }
 
     #[async_trait::async_trait]
