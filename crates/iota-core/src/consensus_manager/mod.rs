@@ -218,6 +218,9 @@ pub(crate) fn replay_target(
 
 /// Receives, through the `consensus-replay-target` fail point, the commit the
 /// replay waits for (every stored commit without deterministic validation)
+/// and the highest commit consensus had stored at startup.
+pub type ConsensusReplayTargetReport = Arc<dyn Fn(CommitIndex, CommitIndex) + Send + Sync>;
+
 /// Waits for consensus to finish replaying at consensus handler.
 pub struct ReplayWaiter {
     consumer_monitor_receiver: broadcast::Receiver<StartedConsumer>,
