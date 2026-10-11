@@ -6091,7 +6091,7 @@ impl AuthorityState {
     ) -> IotaResult<ValidationInputsAtCommit> {
         let input_objects = match self.input_loader.read_objects_at_commit(
             reader,
-            &transaction.collect_all_input_object_kind_for_reading()?,
+            &transaction.collect_all_input_object_kind_for_reading_in_order()?,
         )? {
             InputResolution::Loaded(input_objects) => input_objects,
             InputResolution::Drop(kind, reason) => {
