@@ -29,11 +29,6 @@ use crate::{
     execution_cache::ObjectCacheRead,
 };
 
-/// How many commits behind the commit being validated, `C`, the object state
-/// is read. Validation at `C` reads the state as of commit `C - K`, the
-/// horizon.
-pub const K: CommitIndex = 2;
-
 /// Reads inputs as of one consensus commit. Built once per commit and passed
 /// to every transition that touches a store.
 pub struct CommitIndexedReader {
@@ -49,10 +44,13 @@ impl CommitIndexedReader {
         epoch_store: Arc<AuthorityPerEpochStore>,
         commit_index: CommitIndex,
     ) -> Self {
+        let horizon_distance = epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation_horizon_distance_or_default();
         Self {
             cache,
             epoch_store,
-            horizon: commit_index.saturating_sub(K),
+            horizon: commit_index.saturating_sub(horizon_distance),
         }
     }
 
