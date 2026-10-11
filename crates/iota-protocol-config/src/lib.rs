@@ -2395,6 +2395,13 @@ impl ProtocolConfig {
                 || (ret.feature_flags.enable_pcool_flow && ret.feature_flags.deny_rule_governance),
             "pcool_deterministic_validation requires enable_pcool_flow and deny_rule_governance"
         );
+        // For the same reason, publish verdicts must not depend on each
+        // validator's own verifier signing limits.
+        assert!(
+            !ret.feature_flags.pcool_deterministic_validation
+                || ret.feature_flags.pcool_verifier_limits_from_protocol_config,
+            "pcool_deterministic_validation requires pcool_verifier_limits_from_protocol_config"
+        );
         // For the same reason, the consensus handler must not skip a message
         // as a duplicate of one that was dropped without being recorded, as
         // its cache of such messages differs between validators.
@@ -4062,9 +4069,14 @@ impl ProtocolConfig {
         self.feature_flags.pcool_deterministic_validation = val;
     }
 
+    /// Turning the limits off also turns off `pcool_deterministic_validation`,
+    /// which requires them.
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config = val;
+        if !val {
+            self.feature_flags.pcool_deterministic_validation = false;
+        }
     }
 
     pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
@@ -4088,6 +4100,12 @@ impl ProtocolConfig {
     pub fn enable_pcool_deterministic_validation_for_testing(&mut self) {
         self.feature_flags.enable_pcool_flow = true;
         self.feature_flags.deny_rule_governance = true;
+        self.feature_flags
+            .pcool_verifier_limits_from_protocol_config = true;
+        // The limits flag requires this budget; versions before it leave it
+        // unset.
+        self.max_meter_ticks_regex_reference_safety
+            .get_or_insert(2_200_000);
         self.feature_flags.consensus_dedup_only_recorded_messages = true;
         self.feature_flags.pcool_deterministic_validation = true;
     }
@@ -4550,9 +4568,6 @@ mod test {
     /// Turning deterministic validation on for a test also takes the verifier
     /// limits from the protocol config, as a version that turns it on must,
     /// whatever the version the test starts from.
-    ///
-    /// Currently fails: the setter turns on only the pcool flow, deny-rule
-    /// governance and deterministic validation.
     #[test]
     fn enabling_deterministic_validation_for_testing_takes_verifier_limits_from_the_config() {
         let mut config = ProtocolConfig::get_for_version(
