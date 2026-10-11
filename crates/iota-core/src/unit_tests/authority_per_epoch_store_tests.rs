@@ -481,21 +481,35 @@ fn reopen_with_config(
 ) -> Arc<AuthorityPerEpochStore> {
     store.release_db_handles();
     wait_for_epoch_db_to_close();
-    AuthorityPerEpochStore::new(
-        store.name,
-        store.committee().clone(),
-        &store.parent_path,
-        store.db_options.clone(),
-        store.metrics.clone(),
-        epoch_start_configuration,
-        authority_state.get_backing_package_store().clone(),
-        store.execution_component.metrics(),
-        store.signature_verifier.metrics.clone(),
-        &ExpensiveSafetyCheckConfig::default(),
-        store.chain,
-        0,
-    )
-    .unwrap()
+    // The closed DB's RocksDB file lock is occasionally still held when the
+    // open starts, which panics; over thousands of reopens in one process
+    // that happens, so the open is tried a few times.
+    const ATTEMPTS: u32 = 5;
+    for attempt in 1..=ATTEMPTS {
+        let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            AuthorityPerEpochStore::new(
+                store.name,
+                store.committee().clone(),
+                &store.parent_path,
+                store.db_options.clone(),
+                store.metrics.clone(),
+                epoch_start_configuration.clone(),
+                authority_state.get_backing_package_store().clone(),
+                store.execution_component.metrics(),
+                store.signature_verifier.metrics.clone(),
+                &ExpensiveSafetyCheckConfig::default(),
+                store.chain,
+                0,
+            )
+            .unwrap()
+        }));
+        match opened {
+            Ok(reopened) => return reopened,
+            Err(panic) if attempt == ATTEMPTS => std::panic::resume_unwind(panic),
+            Err(_) => std::thread::sleep(Duration::from_millis(100)),
+        }
+    }
+    unreachable!("the last attempt returns or resumes its panic")
 }
 
 /// Blocks until no epoch DB is open in this process. Releasing the store's
