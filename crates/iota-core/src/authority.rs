@@ -3396,6 +3396,15 @@ impl AuthorityState {
             .database_for_testing()
     }
 
+    /// Drops the committed versions of `id` the execution cache holds in
+    /// memory, so the next read of a committed version goes to the database.
+    #[cfg(test)]
+    pub fn evict_committed_object_for_testing(&self, id: &ObjectId) {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .evict_committed_object_for_testing(id)
+    }
+
     pub async fn prune_checkpoints_for_eligible_epochs_for_testing(
         &self,
         config: NodeConfig,

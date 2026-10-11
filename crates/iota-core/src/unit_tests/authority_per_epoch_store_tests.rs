@@ -2315,6 +2315,139 @@ mod handler_object_state_storage {
         );
     }
 
+    /// The highest row of an id is found in the overlay alone, in the table
+    /// alone, and across both from whichever holds the higher version, never
+    /// from a neighbouring id.
+    #[tokio::test]
+    async fn highest_handler_processed_row_reads_across_overlay_and_table() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let mut ids = [ObjectId::random(), ObjectId::random()];
+        ids.sort();
+        let [low, high] = ids;
+        let key = |id, version: u64| ObjectKey(id, Version::from_u64(version));
+        let highest = |id| epoch_store.highest_handler_processed_row(&id).unwrap();
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        assert_eq!(highest(low), None);
+
+        // Overlay only.
+        let low_v3 = generate_live_entry(1);
+        let high_v9 = generate_live_entry(1);
+        let commit_1_rows = vec![(key(low, 3), low_v3), (key(high, 9), high_v9)];
+        complete_commit(1, &commit_1_rows);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(highest(low), Some((key(low, 3), low_v3)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+
+        // Table only.
+        epoch_store
+            .flush_commit_rows_for_testing(1, commit_1_rows)
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        assert_eq!(highest(low), Some((key(low, 3), low_v3)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+
+        // Both, the overlay holding the higher version.
+        let low_v5 = generate_live_entry(2);
+        complete_commit(2, &[(key(low, 5), low_v5)]);
+        assert_eq!(highest(low), Some((key(low, 5), low_v5)));
+
+        // Both, the table holding the higher version.
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(low, 5), low_v5)])
+            .unwrap();
+        let low_v4 = generate_live_entry(3);
+        complete_commit(3, &[(key(low, 4), low_v4)]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(highest(low), Some((key(low, 5), low_v5)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+    }
+
+    /// The lowest row of an id above a version is found in the overlay alone,
+    /// in the table alone, and across both from whichever holds the lower
+    /// version, never at the version itself or from a neighbouring id.
+    #[tokio::test]
+    async fn lowest_handler_processed_row_above_reads_across_overlay_and_table() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let mut ids = [ObjectId::random(), ObjectId::random()];
+        ids.sort();
+        let [low, high] = ids;
+        let key = |id, version: u64| ObjectKey(id, Version::from_u64(version));
+        let lowest_above = |id, version: u64| {
+            epoch_store
+                .lowest_handler_processed_row_above(&id, Version::from_u64(version))
+                .unwrap()
+        };
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        assert_eq!(lowest_above(high, 0), None);
+
+        // Overlay only.
+        let low_v9 = generate_live_entry(1);
+        let high_v5 = generate_live_entry(1);
+        let commit_1_rows = vec![(key(low, 9), low_v9), (key(high, 5), high_v5)];
+        complete_commit(1, &commit_1_rows);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 5), high_v5)));
+        assert_eq!(lowest_above(high, 5), None);
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+
+        // Table only.
+        epoch_store
+            .flush_commit_rows_for_testing(1, commit_1_rows)
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 5), high_v5)));
+        assert_eq!(lowest_above(high, 5), None);
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+
+        // Both, the overlay holding the lower version.
+        let high_v4 = generate_live_entry(2);
+        complete_commit(2, &[(key(high, 4), high_v4)]);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 4), high_v4)));
+        assert_eq!(lowest_above(high, 4), Some((key(high, 5), high_v5)));
+
+        // Both, the table holding the lower version.
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(high, 4), high_v4)])
+            .unwrap();
+        let high_v7 = generate_live_entry(3);
+        complete_commit(3, &[(key(high, 7), high_v7)]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 4), high_v4)));
+        assert_eq!(lowest_above(high, 5), Some((key(high, 7), high_v7)));
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+    }
+
+    /// A handler-known execution puts its rows in the overlay, produced at
+    /// the commit the handler assigned.
     #[tokio::test]
     async fn map_hit_writes_handler_rows_at_the_assigned_commit() {
         let _guard =

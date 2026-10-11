@@ -7,9 +7,10 @@
 //!
 //! The bookkeeping is one epoch table of handler-processed rows plus an
 //! in-memory overlay holding the rows not yet durable: every version a commit
-//! the handler has processed produced, one row per (object, version), read by
-//! the exact version a transaction names, so writes need no ordering among
-//! themselves.
+//! the handler has processed produced, one row per (object, version), so
+//! writes need no ordering among themselves. Rows are read by the exact
+//! version a transaction names or, for a shared object that is gone, at the
+//! object's highest version.
 //!
 //! On a committee validator every execution belongs to a commit the handler
 //! has processed: the checkpoint executor runs a transaction only after the
@@ -60,6 +61,7 @@
 
 use std::{
     collections::{BTreeMap, btree_map::Entry},
+    ops::Bound,
     sync::Arc,
 };
 
@@ -597,6 +599,77 @@ impl HandlerObjectState {
             self.handler_processed_cache.insert(*key, row);
         }
         Ok(row)
+    }
+
+    /// The handler-processed row of `id` at its highest version, from the
+    /// overlay or the durable table, whichever holds the higher version. A
+    /// key present in both carries the same row. Like
+    /// [`Self::handler_processed_object`], it returns the row
+    /// unconditionally.
+    ///
+    /// The read-through cache is not consulted, here or in
+    /// [`Self::lowest_handler_processed_row_above`]: it is keyed by exact
+    /// version, so it cannot tell which versions of `id` have a row.
+    pub fn highest_handler_processed_row(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let overlay_row = self
+            .handler_processed_overlay
+            .read()
+            .range(ObjectKey::min_for_id(id)..=ObjectKey::max_for_id(id))
+            .next_back()
+            .map(|(key, row)| (*key, *row));
+        let durable_row = tables
+            .handler_processed_objects
+            .safe_iter_with_prefix_reversed(id)
+            .next()
+            .transpose()?;
+        Ok(match (overlay_row, durable_row) {
+            (Some(overlay), Some(durable)) => Some(if overlay.0 >= durable.0 {
+                overlay
+            } else {
+                durable
+            }),
+            (overlay, durable) => overlay.or(durable),
+        })
+    }
+
+    /// The handler-processed row of `id` at its lowest version above
+    /// `version`, from the overlay or the durable table, whichever holds the
+    /// lower version. A key present in both carries the same row. Returns
+    /// the row unconditionally and, like
+    /// [`Self::highest_handler_processed_row`], bypasses the read-through
+    /// cache.
+    pub fn lowest_handler_processed_row_above(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let overlay_row = self
+            .handler_processed_overlay
+            .read()
+            .range((
+                Bound::Excluded(ObjectKey(*id, version)),
+                Bound::Included(ObjectKey::max_for_id(id)),
+            ))
+            .next()
+            .map(|(key, row)| (*key, *row));
+        let durable_row = tables
+            .handler_processed_objects
+            .safe_iter_with_prefix_from(id, Bound::Excluded(&version))
+            .next()
+            .transpose()?;
+        Ok(match (overlay_row, durable_row) {
+            (Some(overlay), Some(durable)) => Some(if overlay.0 <= durable.0 {
+                overlay
+            } else {
+                durable
+            }),
+            (overlay, durable) => overlay.or(durable),
+        })
     }
 
     /// Stages a commit's handler-processed rows into `batch`, the quarantine
