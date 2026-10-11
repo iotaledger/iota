@@ -6583,3 +6583,121 @@ async fn object_pruning_limit_is_off_outside_the_committee() {
     let s = setup_bookkeeping_outside_committee(vec![]).await;
     assert_eq!(s.epoch_store.object_pruning_limit(), None);
 }
+
+/// A kept transaction holds the version it receives as it holds its owned
+/// inputs, so a later transaction of the same commit naming that version as
+/// an owned input drops on the lock. Without the lock, a sender that is the
+/// receiving parent's address, as an account's is, would pass every later
+/// check, and execution would consume the version a second time.
+#[tokio::test]
+async fn received_version_is_locked_for_the_rest_of_the_commit() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let second_gas_id = ObjectId::random();
+    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    s.authority
+        .insert_genesis_object(Object::with_id_owner_for_testing(second_gas_id, sender));
+
+    let start_effects =
+        s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 5);
+    let (parent, child) = parent_and_child(start_effects.created());
+    let child_ref = *child.reference();
+
+    let receive = s.build_move_call(
+        "M1",
+        "receiver",
+        vec![
+            CallArg::ImmutableOrOwned(*parent.reference()),
+            CallArg::Receiving(child_ref),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    let owned_use = s
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            child_ref,
+            s.latest_ref(&second_gas_id),
+            sender,
+            &sender_key,
+            sender,
+            s.rgp,
+        ))
+        .unwrap();
+
+    let result = s
+        .validate_at(7, &[receive.clone(), owned_use.clone()])
+        .await;
+    assert_eq!(result.kept, vec![*receive.digest()]);
+    assert_eq!(result.locks.get(&child_ref), Some(receive.digest()));
+    assert_eq!(result.dropped.len(), 1);
+    assert_eq!(result.dropped[0].0, *owned_use.digest());
+    assert_eq!(
+        result.dropped[0].1,
+        IotaError::ObjectLockConflict {
+            obj_ref: child_ref,
+            pending_transaction: *receive.digest(),
+        }
+    );
+}
+
+/// The lock a receive takes outlives its commit, like an owned input's, so a
+/// transaction of a later commit, above the horizon of the receive, that
+/// receives the same version again drops on every validator, whether or not
+/// it has executed the first receive.
+#[tokio::test]
+async fn received_version_stays_locked_in_later_commits() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+
+    let start_effects =
+        s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 5);
+    let (parent, child) = parent_and_child(start_effects.created());
+    let parent_id = *parent.reference().object_id();
+    let child_ref = *child.reference();
+
+    let receive = s.build_move_call(
+        "M1",
+        "receiver",
+        vec![
+            CallArg::ImmutableOrOwned(*parent.reference()),
+            CallArg::Receiving(child_ref),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    let first = s.validate_at(7, std::slice::from_ref(&receive)).await;
+    assert_eq!(first.kept, vec![*receive.digest()]);
+    let mut output = ConsensusCommitOutput::default();
+    output.set_owned_object_locks(first.locks);
+    output.set_default_commit_stats_for_testing();
+    s.epoch_store.push_consensus_output_for_tests(output);
+    s.execute_as_handler_known(vec![receive.clone()], 7);
+
+    let receive_again = s.build_move_call(
+        "M1",
+        "send_back",
+        vec![
+            CallArg::ImmutableOrOwned(s.latest_ref(&parent_id)),
+            CallArg::Receiving(child_ref),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    let second = s.validate_at(8, std::slice::from_ref(&receive_again)).await;
+    assert!(second.kept.is_empty(), "kept {:?}", second.kept);
+    assert_eq!(
+        second.dropped,
+        vec![(
+            *receive_again.digest(),
+            IotaError::ObjectLockConflict {
+                obj_ref: child_ref,
+                pending_transaction: *receive.digest(),
+            }
+        )]
+    );
+}
