@@ -23,6 +23,7 @@ use crate::authority::{
         AuthorityPerEpochStore, compute_deny_rule_update_chunks,
         consensus_quarantine::ConsensusCommitOutput,
     },
+    epoch_start_configuration::EpochStartConfiguration,
     test_authority_builder::TestAuthorityBuilder,
 };
 
@@ -35,7 +36,7 @@ fn flush_overload_notification(
     authority: AuthorityName,
     percentage: u8,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_overload_notification(authority, percentage);
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();
@@ -456,7 +457,18 @@ fn reopen_with_deny_rules_object(
     let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
     epoch_start_configuration
         .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    reopen_with_config(authority_state, store, epoch_start_configuration)
+}
+
+/// [`reopen`], starting from `epoch_start_configuration` instead of the
+/// store's own.
+fn reopen_with_config(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+    epoch_start_configuration: EpochStartConfiguration,
+) -> Arc<AuthorityPerEpochStore> {
     store.release_db_handles();
+    wait_for_epoch_db_to_close();
     AuthorityPerEpochStore::new(
         store.name,
         store.committee().clone(),
@@ -474,8 +486,28 @@ fn reopen_with_deny_rules_object(
     .unwrap()
 }
 
+/// Blocks until no epoch DB is open in this process. Releasing the store's
+/// handles does not close the DB at once: each column family's metrics task
+/// holds it while a report is queued or running on a blocking thread, and
+/// opening it again before then fails on the RocksDB lock. The count is per
+/// process, which holds under nextest, one process per test.
+fn wait_for_epoch_db_to_close() {
+    let open_epoch_dbs = typed_store::DBMetrics::get()
+        .op_metrics
+        .rocksdb_num_active_db_handles
+        .with_label_values(&["epoch"]);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while open_epoch_dbs.get() > 0 {
+        assert!(
+            Instant::now() < deadline,
+            "the epoch DB should close once its metrics reports finish"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(proposal.clone());
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();
@@ -1079,7 +1111,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     let address = Address::new([1u8; 32]);
 
     // The object does not exist this epoch: nothing to update.
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
@@ -1341,7 +1373,7 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
     // The epoch is closing: no transaction is accepted any more.
     store.get_reconfig_state_write_lock_guard().close_all_tx();
 
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
@@ -1432,7 +1464,7 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
             &mut output,
             &mut transactions,
             &mut roots,
-            &ConsensusCommitInfo::new_for_test(1, 0, false),
+            &ConsensusCommitInfo::new_for_test(1, 1, 0, false),
         )
         .unwrap();
 
@@ -2057,7 +2089,9 @@ mod handler_object_state_storage {
 
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
-            epoch_store.record_commit_fully_executed(index, rows);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
         };
 
         let v5 = generate_live_entry(1);
@@ -2075,7 +2109,7 @@ mod handler_object_state_storage {
         // Flushing the newer commit moves only its row out of the overlay,
         // without a read gap.
         epoch_store
-            .flush_commit_rows_for_testing(vec![(key(5), v5)])
+            .flush_commit_rows_for_testing(1, vec![(key(5), v5)])
             .unwrap();
         assert_eq!(state.overlay_size_for_testing(), 1);
         assert_eq!(read_processed_object(3), Some(v3));
@@ -2084,7 +2118,7 @@ mod handler_object_state_storage {
         // The earlier commit flushing afterwards (out of commit order) adds
         // its row to the table beside the newer one.
         epoch_store
-            .flush_commit_rows_for_testing(vec![(key(3), v3)])
+            .flush_commit_rows_for_testing(0, vec![(key(3), v3)])
             .unwrap();
         assert_eq!(state.overlay_size_for_testing(), 0);
         let tables = epoch_store.tables().unwrap();
@@ -2126,17 +2160,21 @@ mod handler_object_state_storage {
         let v3 = generate_live_entry(1);
         let v5 = generate_live_entry(2);
         epoch_store.assign_commit_to_transactions(1, vec![]);
-        epoch_store.record_commit_fully_executed(1, &[(key(3), v3)]);
+        epoch_store
+            .record_commit_fully_executed(1, &[(key(3), v3)])
+            .unwrap();
         epoch_store.assign_commit_to_transactions(2, vec![]);
-        epoch_store.record_commit_fully_executed(2, &[(key(5), v5)]);
+        epoch_store
+            .record_commit_fully_executed(2, &[(key(5), v5)])
+            .unwrap();
 
         // Commit 2's row for the same id lands beside commit 1's rather than
         // replacing it: both versions stay durable and readable by their key.
         epoch_store
-            .flush_commit_rows_for_testing(vec![(key(3), v3)])
+            .flush_commit_rows_for_testing(1, vec![(key(3), v3)])
             .unwrap();
         epoch_store
-            .flush_commit_rows_for_testing(vec![(key(5), v5)])
+            .flush_commit_rows_for_testing(2, vec![(key(5), v5)])
             .unwrap();
         assert_eq!(state.overlay_size_for_testing(), 0);
         let tables = epoch_store.tables().unwrap();

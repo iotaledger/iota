@@ -1866,7 +1866,7 @@ fn activate_deny_rules(
     rules: iota_sdk_types::DenyRuleSet,
     generation: u64,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(
         iota_types::messages_consensus::TransactionDenyRuleProposal {
             authority: epoch_store.name,
@@ -2178,9 +2178,9 @@ impl BookkeepingSetup {
     }
 
     /// Executes `tx` directly (`new_from_checkpoint` merely avoids needing a
-    /// certificate). Unless the handler assigned the transaction's commit
-    /// first, as [`Self::execute_as_handler_known`] does, the hook records
-    /// nothing.
+    /// certificate). With the bookkeeping on, the handler must have assigned
+    /// the transaction's commit first, as [`Self::execute_as_handler_known`]
+    /// does; otherwise the execution hook reports it.
     fn execute(&self, tx: VerifiedTransaction) -> TransactionEffects {
         let effects = self.execute_unchecked(tx);
         assert!(effects.status().is_success(), "{:?}", effects.status());

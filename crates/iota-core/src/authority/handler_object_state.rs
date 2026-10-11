@@ -11,33 +11,54 @@
 //! the exact version a transaction names, so writes need no ordering among
 //! themselves.
 //!
+//! On a committee validator every execution belongs to a commit the handler
+//! has processed: the checkpoint executor runs a transaction only after the
+//! handler has assigned its commit, until the node switches to executing
+//! synced checkpoints for the rest of the epoch, which stops the handler.
+//! The change-epoch transaction and genesis run outside any commit and write
+//! no rows; what they write is the next epoch's start state.
+//!
 //! [`HandlerObjectState`] owns the overlay, the transaction-key ->
 //! commit-index map, and every invariant on them: overlay-first reads, and
 //! eviction only after the corresponding table row is durable.
 //!
-//! The in-memory state changes at four points: the handler registers a
-//! commit's kept transaction keys before they can be scheduled
-//! ([`HandlerObjectState::assign_commit_to_transactions`], via the epoch
-//! store); each execution of a registered key puts its rows in the overlay
-//! before its outputs become readable
-//! ([`HandlerObjectState::record_executed_transaction`]); a commit is
-//! completed once, when it is fully executed
-//! ([`HandlerObjectState::record_commit_fully_executed`]) or by its quarantine
-//! flush when that comes first
-//! ([`HandlerObjectState::complete_commit_at_flush`]), and either way puts its
-//! rows in the overlay and drops its map entries; and the eviction method
-//! below clears overlay entries once their rows are durable.
+//! The in-memory state changes at these points:
+//! - the handler registers a commit's kept transaction keys before they can be scheduled
+//!   ([`HandlerObjectState::assign_commit_to_transactions`], via the epoch store);
+//! - each execution of a registered key puts its rows in the overlay before its outputs become
+//!   readable ([`HandlerObjectState::record_executed_transaction`]);
+//! - a commit is completed, by the watcher once it is fully executed
+//!   ([`HandlerObjectState::record_commit_fully_executed`]) or by its quarantine flush when that
+//!   comes first ([`HandlerObjectState::complete_commit_at_flush`]). Either way the commit's rows
+//!   go into the overlay and its map entries are dropped;
+//! - the two eviction methods below clear overlay entries once their rows are durable.
 //!
-//! Durable writes happen at exactly one trigger point, the quarantine flush
-//! of a commit's output (once its checkpoint is certified and executed): it
-//! inserts the commit's rows atomically with `last_consensus_stats`
-//! ([`HandlerObjectState::write_commit_rows_to_batch`]). Everything else the
-//! module does is in-memory plus point reads.
+//! Completing a commit also raises the highest fully executed commit
+//! ([`HandlerObjectState::wait_for_fully_executed_commit`]), the one value
+//! this module publishes outward: validation of a commit waits on it, so that
+//! it reads rows no execution can still add to.
+//!
+//! Durable writes happen at exactly one trigger point; everything else the
+//! module does is in-memory plus point reads:
+//! - the quarantine flush of a commit's output (once its checkpoint is certified and executed):
+//!   inserts the commit's rows, derived from its effects, atomically with `last_consensus_stats`
+//!   ([`HandlerObjectState::write_commit_rows_to_batch`]).
+//!
+//! The batch goes through `DBBatch::write`, which does not fsync. Every
+//! ordering this module relies on between a durable write and what follows
+//! it - write-then-evict, the effects in the perpetual store before the rows
+//! derived from them - holds across a process crash, where the operating
+//! system keeps the written data, and not across a power loss or kernel
+//! crash, where either store may lose its tail independently of the other.
 
-use std::collections::{BTreeMap, btree_map::Entry};
+use std::{
+    collections::{BTreeMap, btree_map::Entry},
+    sync::Arc,
+};
 
 use dashmap::DashMap;
 use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use iota_sdk_types::{ObjectDigest, ObjectId, Owner, TransactionEffects, Version, WriteKind};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -49,9 +70,12 @@ use itertools::chain;
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use tokio::sync::watch;
 use typed_store::{Map, rocks::DBBatch};
 
-use crate::authority::authority_per_epoch_store::AuthorityEpochTables;
+use crate::{
+    authority::authority_per_epoch_store::AuthorityEpochTables, epoch::epoch_metrics::EpochMetrics,
+};
 
 /// Position of a consensus commit in the epoch's commit sequence: dense,
 /// starting at 1, identical on every validator. The node-side counterpart of
@@ -89,6 +113,19 @@ pub struct HandlerProcessedObject {
     /// input of a mutation, deletion or wrap. `None` for a creation or an
     /// unwrap.
     pub replaced_version: Option<Version>,
+}
+
+/// The rows a commit's executed transactions produce. Both writers of durable
+/// rows - the execution watcher and the quarantine flush - derive them here,
+/// so the two cannot drift apart.
+pub fn handler_rows_for_commit<'a>(
+    effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    index: CommitIndex,
+) -> Vec<(ObjectKey, HandlerProcessedObject)> {
+    effects
+        .into_iter()
+        .flat_map(|effects| handler_processed_upserts(effects, index))
+        .collect()
 }
 
 /// Derives the handler-processed upserts for one executed transaction of the
@@ -172,6 +209,24 @@ pub fn handler_processed_upserts(
     rows
 }
 
+/// A commit the handler has processed, handed to the execution watcher so it
+/// can mark the commit fully executed once every root has effects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedCommit {
+    pub index: CommitIndex,
+    /// The commit's roots: the same keys written to its pending checkpoints,
+    /// cancelled transactions included.
+    pub roots: Vec<TransactionKey>,
+}
+
+/// A commit whose rows a quarantine flush staged into its batch. The flush
+/// cannot evict the matching overlay entries itself - its caller writes the
+/// batch - so it hands them back to be evicted once the write is durable.
+pub(super) struct FlushedCommitRows {
+    pub index: CommitIndex,
+    pub rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+}
+
 /// In-memory side of the bookkeeping plus every operation composing it with
 /// the durable tables. Overlays hold entries of commits whose rows are not
 /// yet durable; an entry leaves only after the corresponding table row is
@@ -190,6 +245,17 @@ pub struct HandlerObjectState {
     /// The keys assigned per commit index, so a fully executed commit can drop
     /// its map entries.
     keys_by_commit: Mutex<BTreeMap<CommitIndex, Vec<TransactionKey>>>,
+    /// Hands each assigned commit to the execution watcher in processing
+    /// order. Unbounded so commit processing never blocks on execution lag;
+    /// the backlog is one entry per commit not yet fully executed.
+    assigned_commits: UnboundedSender<AssignedCommit>,
+    /// The watcher's end of `assigned_commits`, taken once when the watcher
+    /// starts.
+    assigned_commits_receiver: Mutex<Option<UnboundedReceiver<AssignedCommit>>>,
+    /// Highest commit index whose commit, and every commit below it, is fully
+    /// executed. Seeded from the durable resume point: a commit at or below it
+    /// has its rows on disk, hence executed.
+    highest_fully_executed_commit: watch::Sender<CommitIndex>,
     handler_processed_overlay: RwLock<BTreeMap<ObjectKey, HandlerProcessedObject>>,
 
     /// Read-through cache over the durable handler-processed table, so the cold
@@ -199,6 +265,8 @@ pub struct HandlerObjectState {
     /// so a flush has nothing to refresh or expire and a plain cache is
     /// enough.
     handler_processed_cache: MokaCache<ObjectKey, HandlerProcessedObject>,
+
+    metrics: Arc<EpochMetrics>,
 }
 
 fn new_handler_processed_cache(capacity: u64) -> MokaCache<ObjectKey, HandlerProcessedObject> {
@@ -209,30 +277,82 @@ fn new_handler_processed_cache(capacity: u64) -> MokaCache<ObjectKey, HandlerPro
 }
 
 impl HandlerObjectState {
-    pub(super) fn new() -> Self {
+    /// `resume_point` is the commit index the handler resumes from, which is
+    /// also the highest commit known to be fully executed: everything at or
+    /// below it has its rows on disk.
+    pub fn new(resume_point: CommitIndex, metrics: Arc<EpochMetrics>) -> Self {
+        let (assigned_commits, assigned_commits_receiver) =
+            unbounded_channel("handler_assigned_commits");
+        // The gauges outlive the epoch; the overlays start empty.
+        metrics
+            .handler_object_state_highest_fully_executed_commit
+            .set(resume_point as i64);
+        metrics
+            .handler_object_state_handler_processed_overlay_entries
+            .set(0);
         Self {
             commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
+            assigned_commits,
+            assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
+            highest_fully_executed_commit: watch::Sender::new(resume_point),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100_000),
+            metrics,
         }
     }
 
     /// Records the roots of commit `index`, before any of them can be
-    /// scheduled for execution. Called exactly once per commit; a second call
-    /// for the same index is reported and leaves the first assignment in
+    /// scheduled for execution, and hands the commit to the execution
+    /// watcher. Called exactly once per commit: the watcher marks the commit
+    /// fully executed after awaiting the roots it was handed, so a second
+    /// call for the same index would let it drop entries it never awaited. A
+    /// second call is therefore reported and leaves the first assignment in
     /// place.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         match self.keys_by_commit.lock().entry(index) {
             Entry::Occupied(_) => {
                 debug_fatal!("commit index {index} assigned twice");
+                return;
             }
             Entry::Vacant(entry) => {
-                for key in &roots {
-                    self.commit_index_by_key.insert(*key, index);
-                }
-                entry.insert(roots);
+                entry.insert(roots.clone());
             }
+        }
+        for key in &roots {
+            self.commit_index_by_key.insert(*key, index);
+        }
+        // A closed receiver means the watcher has exited with the epoch;
+        // nothing is left to complete.
+        self.assigned_commits
+            .send(AssignedCommit { index, roots })
+            .ok();
+    }
+
+    /// The watcher's end of the assigned-commit channel; `None` once a
+    /// watcher has taken it.
+    pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
+        self.assigned_commits_receiver.lock().take()
+    }
+
+    /// Receiver of the highest fully executed commit; see the field's docs.
+    /// Callers that wait for a specific commit want
+    /// [`Self::wait_for_fully_executed_commit`] instead.
+    pub fn subscribe_highest_fully_executed_commit(&self) -> watch::Receiver<CommitIndex> {
+        self.highest_fully_executed_commit.subscribe()
+    }
+
+    /// Waits until commit `index` and everything below it is fully executed,
+    /// returning immediately when that already holds. The caller bounds the
+    /// wait with `within_alive_epoch`: at epoch end the last commits may never
+    /// complete.
+    pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
+        let mut highest = self.highest_fully_executed_commit.subscribe();
+        while *highest.borrow_and_update() < index {
+            highest
+                .changed()
+                .await
+                .expect("the sender is owned by this epoch's state and outlives every waiter");
         }
     }
 
@@ -254,8 +374,8 @@ impl HandlerObjectState {
 
     /// Puts one executed transaction's rows in the overlay when the handler
     /// has assigned its commit, and returns whether it had. Must be called by
-    /// the execution hook before the outputs become readable, so no object of
-    /// an assigned transaction is ever readable without its row.
+    /// the execution hook before the outputs become readable, so no object is
+    /// ever readable without its row.
     ///
     /// `key` is the executed transaction's [`TransactionKey`], the identity
     /// the handler registered for it; a digest lookup would miss a
@@ -279,8 +399,8 @@ impl HandlerObjectState {
     ///
     /// Does nothing once the quarantine flush has completed the commit: its
     /// rows are durable already, and an overlay upsert now would leave entries
-    /// no flush is left to evict. The caller must hold the quarantine lock, so
-    /// the flush cannot complete the commit between the check and the upserts.
+    /// no flush is left to evict. The caller holds the quarantine lock, so the
+    /// flush cannot complete the commit between the check and the upserts.
     pub fn record_commit_fully_executed(
         &self,
         index: CommitIndex,
@@ -291,18 +411,20 @@ impl HandlerObjectState {
         }
         self.upsert_handler_processed_rows(upserts);
         self.drop_commit_assignments(index);
+        // Strictly after the upserts: a validation released by this value
+        // must find this commit's rows already readable.
+        self.advance_highest_fully_executed_commit(index);
     }
 
     /// Completes commit `index` from the quarantine flush, when the flush
-    /// reaches it before the commit is fully executed, as in a replay after a
-    /// restart. Does nothing once [`Self::record_commit_fully_executed`] has
-    /// completed it.
+    /// reaches it before the watcher does, as in a replay after a restart.
+    /// Does nothing once the watcher has completed it.
     ///
     /// Like [`Self::record_commit_fully_executed`], this puts `rows` in the
     /// overlay and drops the commit's map entries. The caller writes `rows`
     /// with [`Self::write_commit_rows_to_batch`] right after, and passes the
     /// same rows to [`Self::evict_flushed_commit_rows`] once that batch is
-    /// durable.
+    /// durable; the completion signal moves there.
     pub fn complete_commit_at_flush(
         &self,
         index: CommitIndex,
@@ -348,8 +470,8 @@ impl HandlerObjectState {
 
     /// Stages a commit's handler-processed rows into `batch`, the quarantine
     /// flush of the commit's own output, atomic with `last_consensus_stats`.
-    /// After the batch is durably written - never before - pass the same rows
-    /// to [`Self::evict_flushed_commit_rows`].
+    /// After the batch is durably written - never before - pass the same
+    /// commit index and rows to [`Self::evict_flushed_commit_rows`].
     ///
     /// Rows are keyed per version, so flushes of different commits may land
     /// in any order without one overwriting another.
@@ -369,11 +491,25 @@ impl HandlerObjectState {
     /// Evicts a commit's handler-processed overlay entries once their rows are
     /// durable; the caller's write-then-evict order is what keeps a concurrent
     /// reader from finding a row in neither the overlay nor the table.
-    pub fn evict_flushed_commit_rows(&self, handler_rows: &[(ObjectKey, HandlerProcessedObject)]) {
-        let mut overlay = self.handler_processed_overlay.write();
-        for (key, _) in handler_rows {
-            overlay.remove(key);
+    ///
+    /// A flushed commit's checkpoint has executed, so this also raises the
+    /// highest fully executed commit.
+    pub fn evict_flushed_commit_rows(
+        &self,
+        commit_index: CommitIndex,
+        handler_rows: &[(ObjectKey, HandlerProcessedObject)],
+    ) {
+        {
+            let mut overlay = self.handler_processed_overlay.write();
+            for (key, _) in handler_rows {
+                overlay.remove(key);
+            }
+            self.metrics
+                .handler_object_state_handler_processed_overlay_entries
+                .set(overlay.len() as i64);
         }
+        // Last, so a validation released by the signal finds the rows.
+        self.advance_highest_fully_executed_commit(commit_index);
     }
 
     /// The number of entries in the handler-processed overlay, for asserting
@@ -383,16 +519,40 @@ impl HandlerObjectState {
         self.handler_processed_overlay.read().len()
     }
 
+    /// Raises the highest fully executed commit to `index`; a repeated or late
+    /// completion of an earlier commit never lowers it.
+    fn advance_highest_fully_executed_commit(&self, index: CommitIndex) {
+        let advanced = self
+            .highest_fully_executed_commit
+            .send_if_modified(|highest| {
+                let advanced = index > *highest;
+                if advanced {
+                    *highest = index;
+                }
+                advanced
+            });
+        if advanced {
+            self.metrics
+                .handler_object_state_highest_fully_executed_commit
+                .set(index as i64);
+        }
+    }
+
     /// Inserts rows into the overlay. Rows are keyed per version, so an
     /// insert never shadows a newer row of the same object, whatever order
-    /// the hook and the completion of the commit arrive in.
+    /// the hook and the watcher arrive in. A watcher completing a commit that
+    /// already flushed must not reach here - its rows would sit in the overlay
+    /// with no flush left to evict them - which is what the caller's check of
+    /// the commit against the quarantine rules out.
     fn upsert_handler_processed_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
         if rows.is_empty() {
             return;
         }
-        self.handler_processed_overlay
-            .write()
-            .extend(rows.iter().copied());
+        let mut overlay = self.handler_processed_overlay.write();
+        overlay.extend(rows.iter().copied());
+        self.metrics
+            .handler_object_state_handler_processed_overlay_entries
+            .set(overlay.len() as i64);
     }
 }
 
@@ -403,6 +563,7 @@ mod tests {
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{effects::TestEffectsBuilder, transaction::TransactionAPI};
+    use prometheus_filtered::Registry;
 
     use super::*;
 
@@ -577,11 +738,16 @@ mod tests {
 
     /// A state with empty overlays, built without the epoch tables.
     fn empty_state() -> HandlerObjectState {
+        let (assigned_commits, assigned_commits_receiver) = unbounded_channel("test");
         HandlerObjectState {
             commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
+            assigned_commits,
+            assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
+            highest_fully_executed_commit: watch::Sender::new(0),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100),
+            metrics: EpochMetrics::new(&Registry::new()),
         }
     }
 
@@ -604,12 +770,15 @@ mod tests {
         assert_eq!(state.commit_index_of(&key_c), None);
     }
 
-    /// A second assignment of the same commit keeps the first root list. In
-    /// test builds `debug_fatal!` panics, so the second call runs under
-    /// `catch_unwind`.
+    /// A second assignment of the same commit keeps the first root list and
+    /// sends the watcher nothing more. In test builds `debug_fatal!` panics,
+    /// so the second call runs under `catch_unwind`.
     #[test]
     fn commit_assigned_twice_keeps_the_first_assignment() {
         let state = empty_state();
+        let mut receiver = state
+            .take_assigned_commits_receiver()
+            .expect("a new state holds the watcher's receiver");
         let first = TransactionKey::Digest(TransactionDigest::random());
         let second = TransactionKey::Digest(TransactionDigest::random());
 
@@ -623,6 +792,11 @@ mod tests {
         assert_eq!(state.commit_index_of(&second), None);
         state.drop_commit_assignments(3);
         assert_eq!(state.commit_index_of(&first), None);
+        let assigned = receiver
+            .try_recv()
+            .expect("the first assignment reaches the watcher");
+        assert_eq!((assigned.index, assigned.roots), (3, vec![first]));
+        assert!(receiver.try_recv().is_err());
     }
 
     /// A commit is completed once: whichever of full execution and the
