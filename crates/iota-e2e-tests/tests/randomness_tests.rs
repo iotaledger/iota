@@ -125,7 +125,7 @@ async fn test_randomness_using_transaction_reaches_finality_execution_scheduler(
 #[sim_test]
 async fn test_validator_catches_up_across_randomness_rounds() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     });
     let test_cluster = TestClusterBuilder::new()

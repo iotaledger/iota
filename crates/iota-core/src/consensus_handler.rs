@@ -1337,7 +1337,7 @@ mod tests {
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_for_testing(true);
+            config.enable_pcool_deterministic_validation_for_testing();
             config
         });
         let network_config =
@@ -1413,7 +1413,7 @@ mod tests {
     async fn test_consensus_handler_restarted_after_the_switch_stops_after_the_same_commit() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_for_testing(true);
+            config.enable_pcool_deterministic_validation_for_testing();
             config
         });
         let network_config =
