@@ -2403,6 +2403,15 @@ impl ProtocolConfig {
                 || ret.feature_flags.consensus_dedup_only_recorded_messages,
             "pcool_deterministic_validation requires consensus_dedup_only_recorded_messages"
         );
+        // With a distance of 0 the handler at a commit waits for that same
+        // commit to be fully executed, which cannot happen before the handler
+        // finishes it.
+        assert!(
+            !ret.feature_flags.pcool_deterministic_validation
+                || ret.pcool_deterministic_validation_horizon_distance != Some(0),
+            "pcool_deterministic_validation requires a positive \
+                pcool_deterministic_validation_horizon_distance"
+        );
         // The injection cannot chunk updates or gate removals without its
         // knobs.
         assert!(
@@ -4458,8 +4467,6 @@ mod test {
     /// same commit to be fully executed, which cannot happen before the
     /// handler finishes it, so the network halts. The configuration is
     /// rejected at startup.
-    ///
-    /// Currently fails: no startup check covers the distance.
     #[test]
     #[should_panic(expected = "pcool_deterministic_validation_horizon_distance")]
     fn horizon_distance_of_zero_with_deterministic_validation_is_rejected() {
