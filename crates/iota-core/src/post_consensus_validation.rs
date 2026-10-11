@@ -54,6 +54,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
 };
+use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
 use crate::{
@@ -69,6 +70,21 @@ use crate::{
     },
     post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
 };
+
+/// The post-consensus validation decision for one transaction at one
+/// consensus commit, saved so a replay of the commit after a restart reaches
+/// the same decision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PostConsensusVerdict {
+    /// The transaction stayed in the commit.
+    Kept,
+    /// The transaction was dropped with this error.
+    Dropped(IotaError),
+    /// The transaction was dropped because an input is not visible at the
+    /// commit's horizon yet. The digest can be kept when sequenced again, so
+    /// the drop is not its final status.
+    Missing(IotaError),
+}
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
 /// conflicts in a single pass.

@@ -134,7 +134,7 @@ use crate::{
     overload_monitor::should_reject_tx,
     post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
-    post_consensus_validation,
+    post_consensus_validation::{self, PostConsensusVerdict},
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
 };
@@ -904,6 +904,17 @@ pub struct AuthorityEpochTables {
     /// that we won't receive another handle_consensus_transaction call for
     /// the given digest. This probably means at epoch change.
     consensus_message_processed: DBMap<SequencedConsensusTransactionKey, bool>,
+
+    /// The post-consensus validation decision of every candidate of a
+    /// consensus commit, keyed by commit and transaction digest. Written when
+    /// the handler first validates the commit and deleted when the commit's
+    /// output flushes, so a commit replayed after a restart finds them.
+    pub(crate) post_consensus_verdicts:
+        DBMap<(CommitIndex, TransactionDigest), PostConsensusVerdict>,
+    /// The candidates of a consensus commit in consensus order, written in
+    /// the same batch as their rows in `post_consensus_verdicts`, so its
+    /// presence means every candidate of the commit has a decision.
+    pub(crate) post_consensus_verdict_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
 
     /// The last commit the consensus handler processed before this node
     /// switched to executing synced checkpoints for the rest of the epoch,
