@@ -101,6 +101,10 @@ mod package;
 pub mod reader;
 mod shared;
 
+#[cfg(test)]
+#[path = "../unit_tests/post_consensus_determinism_tests.rs"]
+mod post_consensus_determinism_tests;
+
 /// The reader's result for one owned or immutable input. The module doc
 /// says what keep, drop and missing mean.
 #[must_use]

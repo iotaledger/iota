@@ -5829,7 +5829,10 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
         )
     }
     let (dropped, kept) = run(&s, &consumer, &produced).await;
-    assert!(matches!(dropped, Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))));
+    assert!(matches!(
+        dropped,
+        Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
+    ));
     assert_eq!(kept, Some(PostConsensusDecision::Kept));
 
     s.restart_epoch_store().await;

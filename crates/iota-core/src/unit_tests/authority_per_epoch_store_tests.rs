@@ -11,7 +11,7 @@ use std::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
+    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits, error::IotaResult,
     messages_consensus::TransactionDenyRuleProposal, transaction::TransactionKey,
 };
 use tokio::time::timeout;
@@ -530,6 +530,29 @@ fn wait_for_epoch_db_to_close() {
         );
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+/// Empties every table a run of P-COOL deterministic validation writes: the
+/// bookkeeping, the saved validation decisions, the owned-object locks, the
+/// processed consensus messages, the resume point and the commit the node
+/// switched to synced checkpoints after. A [`reopen`] after it
+/// starts from an empty epoch.
+pub(crate) fn clear_pcool_validation_tables(store: &AuthorityPerEpochStore) -> IotaResult {
+    let tables = store.tables()?;
+    tables.handler_processed_objects.schedule_delete_all()?;
+    tables.post_consensus_decisions.schedule_delete_all()?;
+    tables
+        .post_consensus_decision_candidates
+        .schedule_delete_all()?;
+    tables
+        .owned_object_locked_transactions
+        .schedule_delete_all()?;
+    tables.consensus_message_processed.schedule_delete_all()?;
+    tables.last_consensus_stats.schedule_delete_all()?;
+    tables
+        .last_commit_before_synced_checkpoint_execution
+        .schedule_delete_all()?;
+    Ok(())
 }
 
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
