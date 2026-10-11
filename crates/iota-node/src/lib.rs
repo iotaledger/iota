@@ -1458,10 +1458,18 @@ impl IotaNode {
         let replay_waiter = consensus_manager.replay_waiter();
 
         info!("Spawning checkpoint service");
-        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_ok() {
-            None
-        } else {
+        // With deterministic validation, a checkpoint built before a restart
+        // has to be rebuilt from the replayed commits before it is executed.
+        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_err() {
             Some(replay_waiter)
+        } else if epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+        {
+            warn!("DISABLE_REPLAY_WAITER is ignored with deterministic validation");
+            Some(replay_waiter)
+        } else {
+            None
         };
         let checkpoint_service_tasks = checkpoint_service.spawn(replay_waiter).await;
 
