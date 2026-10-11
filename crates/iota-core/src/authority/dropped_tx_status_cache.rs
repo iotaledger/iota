@@ -76,6 +76,15 @@ impl DroppedTxStatusCache {
         }
     }
 
+    /// Notify the current waiters of transactions dropped from one commit
+    /// only, without recording the drops: the same digests can still be kept
+    /// when sequenced again, so a later request must wait for that outcome.
+    pub(crate) fn notify_without_recording(&self, dropped: &[(TransactionDigest, IotaError)]) {
+        for (digest, error) in dropped {
+            self.notify_read.notify(digest, error);
+        }
+    }
+
     /// Wait for a transaction to be dropped, or return immediately if it was
     /// already dropped. Uses the register-then-check pattern to avoid the
     /// race where `notify()` fires before the caller registers.

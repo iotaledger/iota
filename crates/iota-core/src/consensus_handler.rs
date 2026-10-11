@@ -1677,6 +1677,124 @@ mod tests {
         );
     }
 
+    /// With deterministic validation on, a dropped user transaction does not
+    /// enter the processed-transaction cache, so a retry is validated at every
+    /// commit it appears in. Once kept, the transaction is cached and a later
+    /// copy is skipped before validation.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn retries_of_a_dropped_transaction_reach_validation_until_it_is_kept() {
+        use iota_types::transaction::TransactionKey;
+
+        use crate::{
+            authority::authority_per_epoch_store::handler_object_state::{
+                HandlerProcessedObject, HandlerProcessedObjectKind,
+            },
+            post_consensus_validation::PostConsensusVerdict,
+        };
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .with_objects(vec![object.clone(), gas.clone()])
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch = state.epoch_store_for_testing().clone();
+        let rgp = epoch.reference_gas_price();
+        let object = state.get_object(&object.id()).unwrap();
+        let gas = state.get_object(&gas.id()).unwrap();
+        let transaction = to_sender_signed_transaction(
+            Transaction::new_transfer(
+                Address::random(),
+                object.object_ref(),
+                sender,
+                gas.object_ref(),
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            ),
+            &key,
+        );
+        let digest = *transaction.digest();
+        let consensus_tx = ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            tracking_id: Default::default(),
+        };
+        // An input produced at commit 1: with the horizon two commits back,
+        // validation at commits 1 and 2 drops the transaction and validation
+        // at commit 3 keeps it.
+        epoch
+            .flush_commit_rows_for_testing(
+                0,
+                vec![(
+                    iota_types::storage::ObjectKey::from(object.object_ref()),
+                    HandlerProcessedObject {
+                        produced_at: 1,
+                        digest: object.digest(),
+                        kind: HandlerProcessedObjectKind::Live,
+                        initial_shared_version: None,
+                        replaced_version: None,
+                    },
+                )],
+            )
+            .unwrap();
+        let backpressure = BackpressureManager::new_for_tests();
+        let mut handler = ConsensusHandler::new(
+            epoch.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch.epoch_start_state()),
+            state.metrics.clone(),
+            backpressure.subscribe(),
+        );
+        let bytes = bcs::to_bytes(&consensus_tx).unwrap();
+        let cache_key = SequencedConsensusTransactionKey::External(consensus_tx.key());
+        for index in 1..=4 {
+            let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(index, 0).build());
+            let batch = CommitmentVerifiedTransactions::new_for_test(
+                &header,
+                vec![starfish_core::Transaction::new(bytes.clone())],
+            );
+            let subdag = CommittedSubDag::new(
+                header.reference(),
+                vec![header.clone()],
+                vec![header.reference()],
+                vec![batch],
+                header.timestamp_ms(),
+                CommitRef::new(index, CommitDigest::MIN),
+                vec![],
+                vec![],
+            );
+            handler.handle_consensus_output_for_test(subdag).await;
+            let verdict = epoch.post_consensus_verdict(index as u64, digest).unwrap();
+            match index {
+                1 | 2 => assert!(matches!(verdict, Some(PostConsensusVerdict::Missing(_)))),
+                3 => assert_eq!(verdict, Some(PostConsensusVerdict::Kept)),
+                4 => assert_eq!(verdict, None),
+                _ => unreachable!(),
+            }
+            assert_eq!(handler.processed_cache.contains(&cache_key), index >= 3);
+        }
+        let roots = epoch.get_pending_checkpoints(None).unwrap();
+        assert_eq!(
+            roots
+                .iter()
+                .flat_map(|(_, checkpoint)| checkpoint.roots())
+                .filter(|root| **root == TransactionKey::Digest(digest))
+                .count(),
+            1
+        );
+    }
+
     /// A transaction dropped because an input is not visible at the commit's
     /// horizon yet can succeed when sequenced again. The submitter waiting at
     /// the time of the drop learns about it, but the drop is not kept as the

@@ -4648,7 +4648,25 @@ impl AuthorityPerEpochStore {
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
-                self.dropped_tx_status_cache.insert_and_notify(&dropped);
+                // A drop for an input not visible at the horizon yet is not
+                // final for the digest, so it is not recorded as its status.
+                let mut final_drops = Vec::new();
+                let mut not_final = Vec::new();
+                for drop in &dropped {
+                    let missing = deterministic_validation
+                        && matches!(
+                            self.post_consensus_verdict(consensus_commit_info.index, drop.0)?,
+                            Some(PostConsensusVerdict::Missing(_))
+                        );
+                    if missing {
+                        not_final.push(drop.clone());
+                    } else {
+                        final_drops.push(drop.clone());
+                    }
+                }
+                self.dropped_tx_status_cache.insert_and_notify(&final_drops);
+                self.dropped_tx_status_cache
+                    .notify_without_recording(&not_final);
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
