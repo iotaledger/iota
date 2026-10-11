@@ -1677,6 +1677,122 @@ mod tests {
         );
     }
 
+    /// A transaction dropped because an input is not visible at the commit's
+    /// horizon yet can succeed when sequenced again. The submitter waiting at
+    /// the time of the drop learns about it, but the drop is not kept as the
+    /// digest's status: a later status request or resubmission waits for the
+    /// retry's outcome instead of getting the old error back at once.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn drop_for_an_input_not_yet_at_the_horizon_does_not_answer_later_status_requests() {
+        use crate::authority::authority_per_epoch_store::handler_object_state::{
+            HandlerProcessedObject, HandlerProcessedObjectKind,
+        };
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .with_objects(vec![object.clone(), gas.clone()])
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch = state.epoch_store_for_testing().clone();
+        let rgp = epoch.reference_gas_price();
+        let object = state.get_object(&object.id()).unwrap();
+        let gas = state.get_object(&gas.id()).unwrap();
+        let transaction = to_sender_signed_transaction(
+            Transaction::new_transfer(
+                Address::random(),
+                object.object_ref(),
+                sender,
+                gas.object_ref(),
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            ),
+            &key,
+        );
+        let digest = *transaction.digest();
+        let consensus_tx = ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            tracking_id: Default::default(),
+        };
+        // An input produced at commit 1: with the horizon two commits back,
+        // validation at commit 1 answers that the input is not visible yet.
+        epoch
+            .flush_commit_rows_for_testing(
+                0,
+                vec![(
+                    iota_types::storage::ObjectKey::from(object.object_ref()),
+                    HandlerProcessedObject {
+                        produced_at: 1,
+                        digest: object.digest(),
+                        kind: HandlerProcessedObjectKind::Live,
+                        initial_shared_version: None,
+                        replaced_version: None,
+                    },
+                )],
+            )
+            .unwrap();
+        let backpressure = BackpressureManager::new_for_tests();
+        let mut handler = ConsensusHandler::new(
+            epoch.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch.epoch_start_state()),
+            state.metrics.clone(),
+            backpressure.subscribe(),
+        );
+        // Polled once so it is registered before the commit is processed.
+        let waiting_submitter = epoch.notify_read_dropped_digests(digest);
+        pin_mut!(waiting_submitter);
+        assert!(futures::poll!(&mut waiting_submitter).is_pending());
+
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
+        let batch = CommitmentVerifiedTransactions::new_for_test(
+            &header,
+            vec![starfish_core::Transaction::new(
+                bcs::to_bytes(&consensus_tx).unwrap(),
+            )],
+        );
+        let subdag = CommittedSubDag::new(
+            header.reference(),
+            vec![header.clone()],
+            vec![header.reference()],
+            vec![batch],
+            header.timestamp_ms(),
+            CommitRef::new(1, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+        handler.handle_consensus_output_for_test(subdag).await;
+
+        let notified = tokio::time::timeout(Duration::from_secs(5), waiting_submitter)
+            .await
+            .expect("the submitter waiting at the drop must be told about it");
+        assert!(
+            matches!(notified, IotaError::UserInput { .. }),
+            "{notified:?}"
+        );
+        assert!(
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                epoch.notify_read_dropped_digests(digest)
+            )
+            .await
+            .is_err(),
+            "a status request after the drop must wait for the retry's outcome"
+        );
+    }
+
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_user_transaction_v1() {
         // GIVEN
