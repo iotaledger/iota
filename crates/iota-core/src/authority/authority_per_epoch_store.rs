@@ -2290,8 +2290,11 @@ impl AuthorityPerEpochStore {
 
     /// Durably writes `handler_rows`, then evicts them from the overlay - the
     /// quarantine flush's locking and write-then-evict order, without its row
-    /// derivation or its completion of the commit. Tests of the flush itself
-    /// use [`Self::flush_commit_through_quarantine_for_testing`].
+    /// derivation or its completion of the commit. Like the flush's
+    /// `last_consensus_stats`, the same batch raises the resume point a
+    /// reopened epoch store starts from to `commit_index`, unless it is
+    /// already higher. Tests of the flush itself use
+    /// [`Self::flush_commit_through_quarantine_for_testing`].
     #[cfg(test)]
     pub fn flush_commit_rows_for_testing(
         &self,
@@ -2316,6 +2319,25 @@ impl AuthorityPerEpochStore {
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state_for_testing()
             .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+        let resume_point = tables
+            .get_last_consensus_index()?
+            .map_or(0, |index| index.sub_dag_index);
+        if commit_index > resume_point {
+            batch.insert_batch(
+                &tables.last_consensus_stats,
+                [(
+                    LAST_CONSENSUS_STATS_ADDR,
+                    ExecutionIndicesWithStats {
+                        index: ExecutionIndices {
+                            last_committed_round: commit_index,
+                            sub_dag_index: commit_index,
+                            transaction_index: 0,
+                        },
+                        ..Default::default()
+                    },
+                )],
+            )?;
+        }
         between();
         batch.write()?;
         self.handler_object_state_for_testing()
