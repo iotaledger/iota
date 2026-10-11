@@ -2472,6 +2472,11 @@ impl AuthorityPerEpochStore {
             .expect("soft_locks should only be set once");
     }
 
+    /// Wires the effects reader of the quarantine flush and the execution
+    /// watcher.
+    ///
+    /// # Panics
+    /// Panics if called more than once on the same instance.
     pub fn set_effects_store(&self, effects_store: Arc<dyn TransactionCacheRead>) {
         assert!(
             self.effects_store.set(effects_store).is_ok(),
