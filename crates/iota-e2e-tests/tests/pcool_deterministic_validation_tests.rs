@@ -1148,22 +1148,28 @@ async fn test_aggressive_pruning_across_epoch_changes_does_not_fork() {
 }
 
 /// With one validator stopped and another executing every transaction up to
-/// one second late, the three running validators must keep committing and
-/// change epochs.
+/// 0.7 s late, the three running validators must keep certifying and executing
+/// checkpoints.
 ///
-/// Currently fails: the running validators stop for good. The handler of the
-/// late validator waits, before validating commit C, until commit C − 2 is
-/// fully executed, and that commit holds a randomness round. No validator
-/// signs a new randomness round while the maximum number of rounds is already
-/// in flight, and a slot frees only when a checkpoint holding a later round is
-/// executed. That checkpoint needs the late validator's signature, which
-/// reaches its own aggregator only through its waiting handler, so neither
-/// side moves.
+/// The late validator's handler waits, before validating commit C, until commit
+/// C − 2 is fully executed, so it falls behind the other two. Their handlers
+/// then wait for randomness rounds that no validator starts while the maximum
+/// number of rounds is in flight, until a checkpoint holding a later round is
+/// executed. With three of four validators running, certifying that checkpoint
+/// needs each running validator's own signature, so each must give its own
+/// signature to its aggregator without waiting for its handler. Randomness
+/// rounds are made every 50 ms, so the running validators reach this point
+/// within about 30 s and well below checkpoint 100; a validator that only got
+/// its own signature through its handler would stop there for good.
 #[sim_test]
 async fn test_stopped_and_late_validator_do_not_halt_the_cluster() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
-    let test_cluster = build_cluster(15_000).await;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_random_beacon_min_round_interval_ms_for_testing(50);
+        config
+    });
+    let test_cluster = build_cluster(600_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let (late, stopped) = (names[1], names[3]);
     let late_sim_id = sim_node_id(&test_cluster, &late);
@@ -1171,20 +1177,40 @@ async fn test_stopped_and_late_validator_do_not_halt_the_cluster() {
         let late = iota_simulator::current_simnode_id() == late_sim_id;
         async move {
             if late {
-                let delay = Uniform::new(0, 1_000).unwrap().sample(&mut rand::rng());
+                let delay = Uniform::new(0, 700).unwrap().sample(&mut rand::rng());
                 sleep(Duration::from_millis(delay)).await;
             }
         }
     });
 
     test_cluster.stop_node(&stopped);
-    let stop = Arc::new(AtomicBool::new(false));
     let traffic = spawn_transfer_traffic_with_double_spends(
         test_cluster.clone(),
         test_cluster.get_addresses(),
-        stop.clone(),
+        Arc::new(AtomicBool::new(false)),
     );
-    wait_for_validators_to_reach_epoch(&test_cluster, &names[..3], 4).await;
-    stop_traffic(traffic, &stop).await;
+    let target = 100;
+    let running = &names[..3];
+    timeout(Duration::from_secs(90), async {
+        while running
+            .iter()
+            .any(|name| highest_executed_checkpoint(&test_cluster, name) < target)
+        {
+            sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "every running validator must execute checkpoint {target}: executed {:?}",
+            running
+                .iter()
+                .map(|name| highest_executed_checkpoint(&test_cluster, name))
+                .collect::<Vec<_>>(),
+        )
+    });
+    // Awaiting the traffic would also wait out the timeouts of double spends
+    // still in flight.
+    traffic.abort();
     clear_fail_point("transaction_execution_delay");
 }
