@@ -2819,6 +2819,29 @@ async fn flush_first_completion_leaves_the_watcher_a_no_op() {
     assert_eq!(state.overlay_size_for_testing(), 0);
 }
 
+/// A flush that derives a commit's rows from effects fails when a root has
+/// none, so the batch is never written without that root's rows and the
+/// commit stays waiting to be completed.
+#[tokio::test]
+async fn flush_fails_when_a_root_has_no_effects() {
+    let s = setup_bookkeeping(vec![], true).await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let missing = TransactionDigest::random();
+    let key = TransactionKey::Digest(missing);
+    s.epoch_store.assign_commit_to_transactions(1, vec![key]);
+    let result = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![missing]);
+
+    assert!(
+        matches!(result, Err(IotaError::TransactionEffectsNotFound { digest }) if digest == missing),
+        "{result:?}"
+    );
+    assert_eq!(state.commit_index_of(&key), Some(1));
+    assert_eq!(s.highest_fully_executed_commit(), 0);
+}
+
 /// The checkpoint batch makes a completed commit's rows durable before the
 /// commit flushes, so the flush has none of them left to write.
 #[tokio::test]
