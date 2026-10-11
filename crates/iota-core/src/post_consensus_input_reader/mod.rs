@@ -7,10 +7,11 @@
 //!
 //! Terms used here and in the submodules:
 //! - `C` is the commit being validated.
-//! - `K` ([`reader::K`]) is how many commits behind `C` the object state is read. Validation at `C`
-//!   reads the state as of commit `C - K`, called the horizon. Every validator has executed the
-//!   commits at or below the horizon before it validates `C`, while a commit above the horizon may
-//!   be executed on some validators and not yet on others.
+//! - `K` is how many commits behind `C` the object state is read: the protocol config's
+//!   `pcool_deterministic_validation_horizon_distance`. Validation at `C` reads the state as of
+//!   commit `C - K`, called the horizon. Every validator has executed the commits at or below the
+//!   horizon before it validates `C`, while a commit above the horizon may be executed on some
+//!   validators and not yet on others.
 //! - A row is one entry of the handler object state (`handler_object_state`). It records that a
 //!   transaction in some commit produced version `V` of object `id`: the commit, the digest, and
 //!   whether the object is live, deleted or wrapped at that version. "The row at `(id, V)`" is that

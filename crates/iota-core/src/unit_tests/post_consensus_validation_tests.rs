@@ -2189,14 +2189,22 @@ async fn setup_bookkeeping(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
 ) -> BookkeepingSetup {
-    let _config_guard = validation_enabled.then(|| {
+    let config_guard = validation_enabled.then(|| {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_for_testing(true);
             config
         })
     });
+    setup_bookkeeping_with_config_guard(genesis_objects, config_guard).await
+}
 
+/// Like [`setup_bookkeeping`], under the protocol config override the caller
+/// installed. The guard lives as long as the setup.
+async fn setup_bookkeeping_with_config_guard(
+    genesis_objects: Vec<Object>,
+    _config_guard: Option<OverrideGuard>,
+) -> BookkeepingSetup {
     let (authority, package) = init_state_with_objects_and_object_basics(genesis_objects).await;
     let epoch_store = (*authority.epoch_store_for_testing()).clone();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
@@ -3422,8 +3430,9 @@ async fn bookkeeping_disabled_writes_nothing() {
 // ---------------------------------------------------------------------------
 
 // Validation at commit `C` reads the object state as of commit `C - K`, the
-// horizon, where `K` is `reader::K` (2). So commit 12 reads the state as of
-// commit 10, and a row produced by commit 11 is above its horizon.
+// horizon, where `K` is the protocol config's horizon distance (2 unless a
+// test sets it). So commit 12 reads the state as of commit 10, and a row
+// produced by commit 11 is above its horizon.
 
 #[track_caller]
 fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
@@ -4109,6 +4118,38 @@ async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
     assert_keeps(s.read_owned(12, produced), produced);
     assert_owned_missing(
         s.read_owned(11, produced),
+        MissingKind::HandlerRowAboveHorizon,
+    );
+}
+
+/// The horizon is the protocol config's distance below the commit being
+/// validated.
+#[tokio::test]
+async fn owned_row_horizon_follows_the_protocol_config_distance() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
+        config
+    });
+    let s = setup_bookkeeping_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        Some(config_guard),
+    )
+    .await;
+
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+    s.execute_as_handler_known(vec![tx], 10);
+    let produced = s.latest_ref(&obj_id);
+
+    assert_keeps(s.read_owned(15, produced), produced);
+    assert_owned_missing(
+        s.read_owned(14, produced),
         MissingKind::HandlerRowAboveHorizon,
     );
 }
