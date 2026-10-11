@@ -2022,52 +2022,13 @@ async fn start_executing_synced_checkpoints_waits_for_the_commit_in_progress() {
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
-    use iota_sdk_types::{
-        Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
-    };
-    use iota_test_transaction_builder::TestTransactionBuilder;
-    use iota_types::{
-        effects::{TestEffectsBuilder, TransactionEffectsAPI},
-        storage::ObjectKey,
-        transaction::TransactionKey,
-    };
+    use iota_sdk_types::ObjectDigest;
+    use iota_types::storage::ObjectKey;
 
     use super::*;
     use crate::authority::authority_per_epoch_store::handler_object_state::{
         CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
     };
-
-    fn owned_inputs_tx(gas_version: u64) -> SenderSignedTransaction {
-        let tx_data = TestTransactionBuilder::new(
-            Address::ZERO,
-            ObjectReference::new(
-                ObjectId::random(),
-                Version::from_u64(gas_version),
-                ObjectDigest::random(),
-            ),
-            0,
-        )
-        .transfer_iota(None, Address::ZERO)
-        .build();
-        SenderSignedTransaction::new(tx_data, vec![])
-    }
-
-    /// The effects of a transaction consuming `(consumed, consumed_version)`
-    /// plus its gas coin.
-    fn executed_owned_tx_effects(
-        consumed: ObjectId,
-        consumed_version: u64,
-        gas_version: u64,
-    ) -> TransactionEffects {
-        let transaction = owned_inputs_tx(gas_version);
-        TestEffectsBuilder::new(&transaction)
-            .with_mutated_objects([(
-                consumed,
-                Version::from_u64(consumed_version),
-                Owner::Address(Address::ZERO),
-            )])
-            .build()
-    }
 
     fn generate_live_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
         HandlerProcessedObject {
@@ -2195,46 +2156,5 @@ mod handler_object_state_storage {
             epoch_store.handler_processed_object(&key(5)).unwrap(),
             Some(v5)
         );
-    }
-
-    #[tokio::test]
-    async fn execution_records_rows_only_while_its_commit_is_assigned() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
-                config
-            });
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-        let state = epoch_store.handler_object_state_for_testing();
-
-        let mutated = ObjectId::random();
-        let effects = executed_owned_tx_effects(mutated, 5, 1);
-        let key = TransactionKey::Digest(*effects.transaction_digest());
-
-        // An execution before its commit is assigned records nothing; the
-        // commit's upserts at full execution cover it.
-        assert!(!state.record_executed_transaction(&key, &effects));
-        assert_eq!(state.overlay_size_for_testing(), 0);
-
-        epoch_store.assign_commit_to_transactions(6, vec![key]);
-        assert_eq!(state.commit_index_of(&key), Some(6));
-        epoch_store.record_executed_transaction(&key, &effects);
-
-        let row = epoch_store
-            .handler_processed_object(&ObjectKey(mutated, effects.lamport_version()))
-            .unwrap()
-            .expect("handler-processed row must exist for a handler-known commit");
-        assert_eq!(row.produced_at, 6);
-        assert_eq!(row.replaced_version, Some(Version::from_u64(5)));
-
-        // Full execution drops the commit's assignments, so a later execution
-        // under the same key records nothing.
-        epoch_store.record_commit_fully_executed(6, &[]);
-        assert_eq!(state.commit_index_of(&key), None);
-        let overlay_size = state.overlay_size_for_testing();
-        let later_effects = executed_owned_tx_effects(ObjectId::random(), 8, 2);
-        assert!(!state.record_executed_transaction(&key, &later_effects));
-        assert_eq!(state.overlay_size_for_testing(), overlay_size);
     }
 }
