@@ -160,6 +160,9 @@ pub enum DropKind {
     HandlerRowTombstone,
     /// The row at `(id, V)` is live, with another digest.
     HandlerRowDigestMismatch,
+    /// A row of `id` at a version above `V`, produced at or below the horizon:
+    /// a commit every validator has executed consumed `V`.
+    HandlerRowSuperseded,
     /// No row, and the store's latest reference is a newer version or a
     /// tombstone.
     StoreSuperseded,
