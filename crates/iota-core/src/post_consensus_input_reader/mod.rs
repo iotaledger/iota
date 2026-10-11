@@ -80,8 +80,11 @@
 //! by itself, as the owned module explains. A version that a transaction in
 //! the last `K` commits consumed without a lock (a received object or a
 //! dynamic-field child) can be pruned here while a validation still keeps
-//! it. If this validator has already pruned it, the load fails with a
-//! storage error and commit processing stops.
+//! it. If this validator has already pruned it, the consuming commit's row
+//! above `V` drops the input. That is also the result on a validator that
+//! still holds the object: the input checks reject a child named as an owned
+//! input, and a received object unless the sender is the address of the
+//! object it was sent to.
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
@@ -181,6 +184,9 @@ pub enum DropKind {
     /// The row at `(id, V)` is a shared object's creation row, but the
     /// transaction names the object as owned.
     HandlerRowSharedObject,
+    /// A row of `id` above `V` while this validator has already pruned `V`:
+    /// `V` was consumed without a lock.
+    HandlerRowAbovePrunedVersion,
     /// No row at `(id, V)`, and `V` was replaced before this epoch: the store
     /// holds a newer version or a tombstone, and the lowest row of `id` above
     /// `V`, if there is one, replaced another version.
@@ -209,8 +215,8 @@ pub enum MissingKind {
     StoreNotFound,
     /// The shared object's creation row was produced above the horizon.
     SharedCreationAboveHorizon,
-    /// No creation row, the store has no live object and no deletion this
-    /// epoch.
+    /// No creation row, the store has no live object and no handler row
+    /// shows a deletion.
     SharedNotFound,
     /// The package is not in the store.
     PackageNotFound,

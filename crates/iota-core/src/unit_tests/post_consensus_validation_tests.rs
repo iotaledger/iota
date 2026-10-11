@@ -6022,7 +6022,7 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
 /// drops, whether or not this validator still holds its bytes, and the
 /// loader drops a transaction naming it. Above the horizon it is kept, as on
 /// a validator that has not executed the receive, and once its bytes are
-/// pruned here the load fails with a storage error.
+/// pruned here the receive's row drops it.
 #[tokio::test]
 async fn owned_received_version_drops_from_the_receive_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -6085,10 +6085,10 @@ async fn owned_received_version_drops_from_the_receive_row() {
     )
     .await;
     assert_owned_drops(s.read_owned(9, child_ref), DropKind::HandlerRowSuperseded);
-    assert!(matches!(
-        s.reader_at(8).read_owned(child_ref),
-        Err(IotaError::Storage(_))
-    ));
+    assert_owned_drops(
+        s.read_owned(8, child_ref),
+        DropKind::HandlerRowAbovePrunedVersion,
+    );
 }
 
 /// A dynamic-field child is consumed through its parent without a lock. The
@@ -7913,10 +7913,6 @@ fn consume_a_dynamic_field_child_without_a_lock(
 /// executing commit 6, the other has not. Both must reach the same verdict:
 /// the validator that still holds the bytes drops the transaction, since a
 /// child cannot be an owned input.
-///
-/// Currently fails: the reader keeps the version from its row at the horizon
-/// on both validators, and on the pruning one the bytes are not in the
-/// object store, so validation returns a storage error.
 #[tokio::test]
 async fn pruned_dynamic_field_child_gets_the_verdict_of_a_validator_that_kept_it() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
