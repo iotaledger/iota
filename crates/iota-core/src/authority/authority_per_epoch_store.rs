@@ -2188,6 +2188,33 @@ impl AuthorityPerEpochStore {
         handler_object_state.handler_processed_object(&tables, key)
     }
 
+    /// The handler-processed row of `id` at its highest version, with its
+    /// key.
+    pub fn highest_handler_processed_row(
+        &self,
+        id: &ObjectId,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(None);
+        };
+        let tables = self.tables()?;
+        handler_object_state.highest_handler_processed_row(&tables, id)
+    }
+
+    /// The handler-processed row of `id` at its lowest version above
+    /// `version`, with its key.
+    pub fn lowest_handler_processed_row_above(
+        &self,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(None);
+        };
+        let tables = self.tables()?;
+        handler_object_state.lowest_handler_processed_row_above(&tables, id, version)
+    }
+
     #[cfg(test)]
     pub fn handler_object_state_for_testing(&self) -> &HandlerObjectState {
         self.handler_object_state

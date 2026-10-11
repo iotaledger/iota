@@ -68,10 +68,23 @@
 //! horizon, because validation at `C` starts only once every commit at or
 //! below the horizon is executed. If the second read sees that write's row,
 //! the row answers missing. If it does not, the store answer is the state
-//! that every validator which has not executed that commit also sees. A
-//! version such a commit consumed is caught by the lock conflict check,
-//! which runs before the reader. So one more read is enough, and a third
-//! would only face the same window again.
+//! that every validator which has not executed that commit also sees. So one
+//! more read is enough, and a third would only face the same window again.
+//!
+//! # Loading the object of a kept version
+//!
+//! A kept owned input is loaded by exact key, and this validator may already
+//! have consumed and pruned that version. A version consumed by a commit at
+//! or below the horizon drops, from the consuming commit's row, before any
+//! load. A version consumed above the horizon is kept, as on a validator that
+//! has not executed that commit, unless the consuming transaction holds a
+//! lock that the lock conflict check finds first. That holds for a version
+//! the epoch started with too: a newer version in the store does not drop it
+//! by itself, as the owned module explains. A version that a transaction in
+//! the last `K` commits consumed without a lock (a received object or a
+//! dynamic-field child) can be pruned here while a validation still keeps
+//! it. If this validator has already pruned it, the load fails with a
+//! storage error and commit processing stops.
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
@@ -105,8 +118,10 @@ pub enum SharedVerdict {
     /// depend on it.
     Exists(Object),
     /// Deleted by a commit above the horizon. The input is kept and passed
-    /// on as `DeletedSharedObject`, with the deleted version and the deleting
-    /// transaction.
+    /// on as `DeletedSharedObject`. The version is that of the tombstone row
+    /// when one decided, otherwise that of this epoch's latest deletion
+    /// record in the store, and the digest is the deletion record's. Neither
+    /// decides anything at the commit.
     Deleted(Version, TransactionDigest),
     Drop(DropReason),
     Missing(MissingReason),
@@ -163,13 +178,14 @@ pub enum DropKind {
     /// A row of `id` at a version above `V`, produced at or below the horizon:
     /// a commit every validator has executed consumed `V`.
     HandlerRowSuperseded,
+    /// The row at `(id, V)` is a shared object's creation row, but the
+    /// transaction names the object as owned.
+    HandlerRowSharedObject,
     /// No row, and the store's latest reference is a newer version or a
     /// tombstone.
     StoreSuperseded,
     /// No row, and the store's latest reference is `V` with another digest.
     StoreDigestMismatch,
-    /// No row, and the store has nothing for `id`.
-    StoreNotFound,
     /// Named as shared, but the row or the store object is not shared at the
     /// declared initial version.
     SharedNotCreatedShared,
@@ -177,8 +193,6 @@ pub enum DropKind {
     SharedInitialVersionMismatch,
     /// A shared object deleted by a commit at or below the horizon.
     SharedDeletedAtOrBelowHorizon,
-    /// No live shared object, and no deletion this epoch.
-    SharedNotFound,
 }
 
 /// Which read decided a missing. `V` is the version the transaction names.
@@ -189,8 +203,13 @@ pub enum MissingKind {
     /// No row, and the store's latest reference is below `V`: this validator
     /// has not produced the version yet.
     StoreBelowVersion,
+    /// No row at `(id, V)`, and the store has nothing for `id`.
+    StoreNotFound,
     /// The shared object's creation row was produced above the horizon.
     SharedCreationAboveHorizon,
+    /// No creation row, the store has no live object and no deletion this
+    /// epoch.
+    SharedNotFound,
     /// The package is not in the store.
     PackageNotFound,
     /// The package's row was produced above the horizon.
