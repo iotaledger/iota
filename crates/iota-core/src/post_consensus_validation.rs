@@ -60,7 +60,9 @@ use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
-    transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
+    transaction::{
+        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
+    },
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
@@ -318,18 +320,23 @@ pub async fn validate_and_resolve_conflicts(
             } else {
                 owned_inputs
             };
-            for obj_ref in &owned_inputs {
+            // Unfiltered: the main path locks every receiving reference the
+            // bytes name, received or not, so a replay must lock the same set.
+            let receiving_inputs = extract_receiving_objects(tx)?;
+            for obj_ref in owned_inputs.iter().chain(&receiving_inputs) {
                 // A winner cannot be out-locked: after the effects filter,
-                // every reference here was consumed by this transaction, so a
-                // lock held by a different tx is a consistency violation, not
-                // a conflict. (Flag off, immutable references stay in the set
-                // and weaken this invariant — issue #12602.)
+                // every owned reference here was consumed by this transaction,
+                // and the main path dropped any transaction whose receiving
+                // reference another one held, so a lock held by a different
+                // tx is a consistency violation, not a conflict. (Flag off,
+                // immutable references stay in the set and weaken this
+                // invariant — issue #12602.)
                 if let Some(other) =
                     find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
                 {
                     if other != digest {
                         fatal!(
-                            "already-executed transaction {:?} has owned input {:?} \
+                            "already-executed transaction {:?} has input {:?} \
                              locked by a different transaction {:?}",
                             digest,
                             obj_ref,
@@ -342,6 +349,7 @@ pub async fn validate_and_resolve_conflicts(
             debug!(
                 ?digest,
                 num_owned_inputs = owned_inputs.len(),
+                num_receiving_inputs = receiving_inputs.len(),
                 "Transaction already executed; retained as checkpoint root, skipping re-validation"
             );
             // keep[i] stays true so the transaction remains in the sequence.
@@ -361,8 +369,11 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #3: Extract owned input objects for lock conflict detection.
-        let owned_inputs = match extract_owned_input_objects(tx) {
+        // Check #3: Extract owned input objects and receiving references for
+        // lock conflict detection.
+        let inputs = extract_owned_input_objects(tx)
+            .and_then(|owned| Ok((owned, extract_receiving_objects(tx)?)));
+        let (owned_inputs, receiving_inputs) = match inputs {
             Ok(inputs) => inputs,
             Err(e) => {
                 warn!(
@@ -387,16 +398,29 @@ pub async fn validate_and_resolve_conflicts(
         // later in Check #5 (deny checks load objects from DB and verify
         // that the transaction's input refs match the current state).
         //
+        // With deterministic validation, the reader in Check #5 also drops a
+        // version that a commit at or below the horizon consumed, from that
+        // commit's handler row. For a version consumed in the last K commits
+        // this lock check remains the only guard.
+        //
         // Probing the raw set is safe though immutable inputs are never
         // locked: acquisition never inserts one, and the lock tables are
         // epoch-scoped while the protocol config is fixed per epoch, so no
         // tier can hold a stale immutable lock.
         //
+        // Receiving references are probed and locked like owned inputs. A
+        // receive consumes the version it names without the owner's
+        // signature, and execution loads an owned input by its exact
+        // version, so without the lock a later transaction naming the
+        // received version as an owned input, from a sender that is the
+        // receiving parent's address as an account's is, would consume it a
+        // second time.
+        //
         // Tier 1: Local HashMap (current commit).
         // Tier 2: Consensus quarantine (previous uncommitted commits).
         // Tier 3: Persistent DB (committed data).
         let mut conflict: Option<IotaError> = None;
-        for obj_ref in &owned_inputs {
+        for obj_ref in owned_inputs.iter().chain(&receiving_inputs) {
             if let Some(locked_by) =
                 find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
             {
@@ -543,13 +567,14 @@ pub async fn validate_and_resolve_conflicts(
         // The validated set comes from loaded objects, so unlike the
         // byte-derived `owned_inputs` it excludes immutable inputs, which must
         // never be locked (issue #12602). It is a subset of `owned_inputs`,
-        // so every reference locked here was probed by Check #4 first.
+        // so every reference locked here was probed by Check #4 first, as was
+        // every receiving reference.
         let locked_inputs: Vec<ObjectReference> = if skip_immutable_locks {
             validated_owned_objects
         } else {
             owned_inputs
         };
-        for obj_ref in &locked_inputs {
+        for obj_ref in locked_inputs.iter().chain(&receiving_inputs) {
             current_commit_locks.insert(*obj_ref, digest);
         }
         // Log the acquired refs, not just their count, so the winner's locks
@@ -558,6 +583,7 @@ pub async fn validate_and_resolve_conflicts(
             ?digest,
             num_owned_inputs = locked_inputs.len(),
             owned_inputs = ?locked_inputs,
+            receiving_inputs = ?receiving_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
     }
@@ -723,6 +749,25 @@ fn extract_owned_input_objects(
         .collect();
 
     Ok(owned_objects)
+}
+
+/// Extracts the `Receiving` references of a `UserTransactionV1` consensus
+/// transaction's programmable transaction. A Move authenticator's arguments
+/// are not included: the authenticator verifier rejects a `Receiving`
+/// parameter, so an authenticator never receives.
+fn extract_receiving_objects(
+    tx: &VerifiedSequencedConsensusTransaction,
+) -> IotaResult<Vec<ObjectReference>> {
+    match &tx.0.transaction {
+        SequencedConsensusTransactionKind::External(ext) => ext
+            .kind
+            .as_user_transaction()
+            .map(|transaction| transaction.data().transaction().receiving_objects()),
+        SequencedConsensusTransactionKind::System(_) => None,
+    }
+    .ok_or_else(|| IotaError::GenericAuthority {
+        error: "Expected UserTransactionV1 in extract_receiving_objects".to_string(),
+    })
 }
 
 #[cfg(test)]
