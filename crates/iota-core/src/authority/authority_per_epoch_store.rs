@@ -1939,6 +1939,61 @@ impl AuthorityPerEpochStore {
             .await
     }
 
+    /// The saved post-consensus validation decision for `digest` at commit
+    /// `index`, if the handler validated that commit and its output has not
+    /// flushed yet.
+    pub(crate) fn post_consensus_verdict(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<PostConsensusVerdict>> {
+        Ok(self
+            .tables()?
+            .post_consensus_verdicts
+            .get(&(index, digest))?)
+    }
+
+    /// Whether a post-consensus validation decision for `digest` at commit
+    /// `index` is saved; see [`Self::post_consensus_verdict`]. For cluster
+    /// tests.
+    #[cfg(msim)]
+    pub fn has_post_consensus_verdict_for_testing(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<bool> {
+        Ok(self.post_consensus_verdict(index, digest)?.is_some())
+    }
+
+    /// Saves the decisions of every candidate of commit `index`, in consensus
+    /// order, together with the commit's candidate list, in one batch.
+    pub(crate) fn persist_post_consensus_verdicts(
+        &self,
+        index: CommitIndex,
+        verdicts: &[(TransactionDigest, PostConsensusVerdict)],
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let mut batch = tables.post_consensus_verdicts.batch();
+        batch.insert_batch(
+            &tables.post_consensus_verdicts,
+            verdicts
+                .iter()
+                .map(|(digest, verdict)| ((index, *digest), verdict)),
+        )?;
+        batch.insert_batch(
+            &tables.post_consensus_verdict_candidates,
+            [(
+                index,
+                verdicts
+                    .iter()
+                    .map(|(digest, _)| *digest)
+                    .collect::<Vec<_>>(),
+            )],
+        )?;
+        batch.write()?;
+        Ok(())
+    }
+
     /// Records one executed transaction's object writes for the P-COOL
     /// deterministic-validation bookkeeping; see
     /// [`HandlerObjectState::record_executed_transaction`]. The caller skips
