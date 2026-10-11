@@ -41,8 +41,10 @@
 //! Durable writes happen at exactly two trigger points; everything else the
 //! module does is in-memory plus point reads:
 //! - the quarantine flush of a commit's output (once its checkpoint is certified and executed):
-//!   inserts the commit's rows, derived from its effects, atomically with `last_consensus_stats`
-//!   ([`HandlerObjectState::write_commit_rows_to_batch`]);
+//!   inserts the commit's rows not yet durable atomically with `last_consensus_stats`
+//!   ([`HandlerObjectState::write_commit_rows_to_batch`]). For a commit the watcher completed these
+//!   are the rows still in the overlay ([`HandlerObjectState::take_completed_commit_rows`]);
+//!   otherwise all of the commit's rows, derived from its effects;
 //! - the checkpoint executor's batch for every executed checkpoint, durable before the checkpoint's
 //!   outputs and its watermark bump: inserts the rows its executions left in the overlay
 //!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]), so an object is never durable
@@ -301,6 +303,11 @@ pub struct HandlerObjectState {
     /// The keys assigned per commit index, so a fully executed commit can drop
     /// its map entries.
     keys_by_commit: Mutex<BTreeMap<CommitIndex, Vec<TransactionKey>>>,
+    /// The handler-processed row keys of every commit the watcher completed and
+    /// the flush has not reached yet, so the flush finds the commit's rows
+    /// without reading its effects. Holds no entry for a commit the flush
+    /// completed itself.
+    row_keys_by_completed_commit: Mutex<BTreeMap<CommitIndex, Vec<ObjectKey>>>,
     /// Hands each assigned commit to the execution watcher in processing
     /// order. Unbounded so commit processing never blocks on execution lag;
     /// the backlog is one entry per commit not yet fully executed.
@@ -349,6 +356,7 @@ impl HandlerObjectState {
         Self {
             commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
+            row_keys_by_completed_commit: Mutex::new(BTreeMap::new()),
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
             highest_fully_executed_commit: watch::Sender::new(resume_point),
@@ -449,9 +457,9 @@ impl HandlerObjectState {
     }
 
     /// Marks commit `index` fully executed: applies the commit's
-    /// handler-processed upserts (covering executions that raced the map
-    /// registration), and drops the transaction key -> commit index map
-    /// entries.
+    /// handler-processed upserts, keeps their keys for the commit's flush
+    /// ([`Self::take_completed_commit_rows`]), and drops the transaction key
+    /// -> commit index map entries.
     ///
     /// Does nothing once the quarantine flush has completed the commit: its
     /// rows are durable already, and an overlay upsert now would leave entries
@@ -466,6 +474,9 @@ impl HandlerObjectState {
             return;
         }
         self.upsert_handler_processed_rows(upserts);
+        self.row_keys_by_completed_commit
+            .lock()
+            .insert(index, upserts.iter().map(|(key, _)| *key).collect());
         self.drop_commit_assignments(index);
         // Strictly after the upserts: a validation released by this value
         // must find this commit's rows already readable.
@@ -491,6 +502,30 @@ impl HandlerObjectState {
         }
         self.upsert_handler_processed_rows(rows);
         self.drop_commit_assignments(index);
+    }
+
+    /// The rows of commit `index` its flush must write, when the watcher
+    /// completed the commit: those still in the overlay. `None` when the
+    /// watcher has not completed it, in which case the flush derives the rows
+    /// from effects and completes the commit itself through
+    /// [`Self::complete_commit_at_flush`]. Forgets the commit's row keys, and
+    /// those of any earlier commit, so call only from the commit's flush.
+    ///
+    /// A row missing from the overlay is already durable: when the watcher
+    /// completed the commit every one of these rows was in the overlay or
+    /// durable, and only a durable write evicts a row - here, the batch of
+    /// the row's checkpoint, written before the commit's flush.
+    pub fn take_completed_commit_rows(
+        &self,
+        index: CommitIndex,
+    ) -> Option<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let keys = {
+            let mut row_keys = self.row_keys_by_completed_commit.lock();
+            let keys = row_keys.remove(&index);
+            row_keys.retain(|&completed, _| completed > index);
+            keys?
+        };
+        Some(present_entries(&self.handler_processed_overlay, keys))
     }
 
     /// Whether commit `index` is still waiting to be completed. False once
@@ -880,6 +915,7 @@ mod tests {
         HandlerObjectState {
             commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
+            row_keys_by_completed_commit: Mutex::new(BTreeMap::new()),
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
             highest_fully_executed_commit: watch::Sender::new(0),
