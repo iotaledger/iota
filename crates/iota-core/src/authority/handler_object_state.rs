@@ -38,13 +38,17 @@
 //! this module publishes outward: validation of a commit waits on it, so that
 //! it reads rows no execution can still add to.
 //!
-//! Durable writes happen at exactly one trigger point; everything else the
+//! Durable writes happen at exactly two trigger points; everything else the
 //! module does is in-memory plus point reads:
 //! - the quarantine flush of a commit's output (once its checkpoint is certified and executed):
 //!   inserts the commit's rows, derived from its effects, atomically with `last_consensus_stats`
-//!   ([`HandlerObjectState::write_commit_rows_to_batch`]).
+//!   ([`HandlerObjectState::write_commit_rows_to_batch`]);
+//! - the checkpoint executor's batch for every executed checkpoint, durable before the checkpoint's
+//!   outputs and its watermark bump: inserts the rows its executions left in the overlay
+//!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]), so an object is never durable
+//!   without its row. Rows never change once written for a key, so this batch takes no lock.
 //!
-//! The batch goes through `DBBatch::write`, which does not fsync. Every
+//! Both batches go through `DBBatch::write`, which does not fsync. Every
 //! ordering this module relies on between a durable write and what follows
 //! it - write-then-evict, the effects in the perpetual store before the rows
 //! derived from them - holds across a process crash, where the operating
@@ -59,7 +63,9 @@ use std::{
 use dashmap::DashMap;
 use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use iota_sdk_types::{ObjectDigest, ObjectId, Owner, TransactionEffects, Version, WriteKind};
+use iota_sdk_types::{
+    ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionEffects, Version, WriteKind,
+};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
@@ -152,21 +158,14 @@ pub fn handler_processed_upserts(
 
     let mut rows = Vec::with_capacity(changed.len());
     for (owned_ref, write_kind) in changed {
-        let initial_shared_version = match (write_kind, *owned_ref.owner()) {
-            // A shared object's creation row carries its initial shared
-            // version - the created-shared flag the shared-input checks read.
-            (WriteKind::Create, Owner::Shared(initial)) => Some(initial),
-            // Shared-object mutations write nothing: no check consults shared
-            // state beyond existence, creation, and deletion, and hot shared
-            // objects (the Clock) would churn the row every commit.
-            (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => continue,
-            (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => None,
-            // `WriteKind` is non-exhaustive; a kind this code does not know
-            // cannot be classified, so it is a bug here rather than a guess.
-            _ => fatal!(
-                "unknown write kind {write_kind:?} for {}",
-                owned_ref.reference().object_id
-            ),
+        if !needs_handler_row(write_kind, &owned_ref) {
+            continue;
+        }
+        // A shared object's creation row carries its initial shared version -
+        // the created-shared flag the shared-input checks read.
+        let initial_shared_version = match *owned_ref.owner() {
+            Owner::Shared(initial) => Some(initial),
+            _ => None,
         };
         let replaced_version = match write_kind {
             WriteKind::Mutate => old_objects
@@ -215,6 +214,46 @@ pub fn handler_processed_upserts(
     rows
 }
 
+/// The keys of the rows [`handler_processed_upserts`] derives for `effects`,
+/// in the same order, without building the rows.
+pub fn handler_processed_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
+    let live = effects
+        .all_changed_objects()
+        .into_iter()
+        .filter(|(owned_ref, write_kind)| needs_handler_row(*write_kind, owned_ref))
+        .map(|(owned_ref, _)| {
+            ObjectKey(
+                owned_ref.reference().object_id,
+                owned_ref.reference().version,
+            )
+        });
+    let tombstones = chain!(
+        effects.deleted(),
+        effects.unwrapped_then_deleted(),
+        effects.wrapped()
+    )
+    .map(|reference| ObjectKey(reference.object_id, reference.version));
+    live.chain(tombstones).collect()
+}
+
+/// Whether a created, mutated or unwrapped object needs a handler-processed
+/// row; if so, the row is `Live`.
+fn needs_handler_row(write_kind: WriteKind, owned_ref: &OwnedObjectReference) -> bool {
+    match (write_kind, owned_ref.owner()) {
+        // Shared-object mutations write nothing: no check consults shared
+        // state beyond existence, creation, and deletion, and hot shared
+        // objects (the Clock) would churn the row every commit.
+        (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => false,
+        (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => true,
+        // `WriteKind` is non-exhaustive; a kind this code does not know
+        // cannot be classified, so it is a bug here rather than a guess.
+        _ => fatal!(
+            "unknown write kind {write_kind:?} for {}",
+            owned_ref.reference().object_id
+        ),
+    }
+}
+
 /// A commit the handler has processed, handed to the execution watcher so it
 /// can mark the commit fully executed once every root has effects.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -223,6 +262,17 @@ pub struct AssignedCommit {
     /// The commit's roots: the same keys written to its pending checkpoints,
     /// cancelled transactions included.
     pub roots: Vec<TransactionKey>,
+}
+
+/// The entries of `overlay` at `keys`, skipping absent ones.
+fn present_entries<K: Ord, V: Clone>(
+    overlay: &RwLock<BTreeMap<K, V>>,
+    keys: impl IntoIterator<Item = K>,
+) -> Vec<(K, V)> {
+    let overlay = overlay.read();
+    keys.into_iter()
+        .filter_map(|key| overlay.get(&key).cloned().map(|value| (key, value)))
+        .collect()
 }
 
 /// A commit whose rows a quarantine flush staged into its batch. The flush
@@ -505,17 +555,68 @@ impl HandlerObjectState {
         commit_index: CommitIndex,
         handler_rows: &[(ObjectKey, HandlerProcessedObject)],
     ) {
-        {
-            let mut overlay = self.handler_processed_overlay.write();
-            for (key, _) in handler_rows {
-                overlay.remove(key);
-            }
-            self.metrics
-                .handler_object_state_handler_processed_overlay_entries
-                .set(overlay.len() as i64);
-        }
+        self.remove_handler_overlay_rows(handler_rows);
         // Last, so a validation released by the signal finds the rows.
         self.advance_highest_fully_executed_commit(commit_index);
+    }
+
+    /// The handler rows the executions behind `effects` left in the overlay,
+    /// at every key the execution hook could have written. `effects` are the
+    /// transactions of one checkpoint whose outputs are not yet durable.
+    pub fn checkpoint_rows<'a>(
+        &self,
+        effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    ) -> Vec<(ObjectKey, HandlerProcessedObject)> {
+        if self.handler_processed_overlay.read().is_empty() {
+            return Vec::new();
+        }
+        let keys: Vec<ObjectKey> = effects
+            .into_iter()
+            .flat_map(handler_processed_keys)
+            .collect();
+        present_entries(&self.handler_processed_overlay, keys)
+    }
+
+    /// Stages a checkpoint's handler rows into `batch`, the checkpoint
+    /// executor's batch. After the batch is durably written (never before),
+    /// pass the same rows to [`Self::evict_flushed_checkpoint_rows`]. Rows
+    /// never change once written for a key, so checkpoints may write in any
+    /// order and concurrently with a commit's flush.
+    pub fn write_checkpoint_rows_to_batch(
+        &self,
+        tables: &AuthorityEpochTables,
+        batch: &mut DBBatch,
+        rows: &[(ObjectKey, HandlerProcessedObject)],
+    ) -> IotaResult {
+        batch.insert_batch(
+            &tables.handler_processed_objects,
+            rows.iter().map(|(key, row)| (key, row)),
+        )?;
+        Ok(())
+    }
+
+    /// Evicts a checkpoint's handler rows from the overlay once they are
+    /// durable.
+    ///
+    /// A handler row evicted here may be inserted again by its commit's
+    /// completion, with the same value; the commit's flush evicts it then. A
+    /// replay after a crash re-inserts entries whose rows are already durable,
+    /// and re-running this for the re-executed checkpoint clears them.
+    pub fn evict_flushed_checkpoint_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
+        self.remove_handler_overlay_rows(rows);
+    }
+
+    fn remove_handler_overlay_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
+        if rows.is_empty() {
+            return;
+        }
+        let mut overlay = self.handler_processed_overlay.write();
+        for (key, _) in rows {
+            overlay.remove(key);
+        }
+        self.metrics
+            .handler_object_state_handler_processed_overlay_entries
+            .set(overlay.len() as i64);
     }
 
     /// The number of entries in the handler-processed overlay, for asserting
@@ -654,6 +755,13 @@ mod tests {
         let fixture = effects_fixture();
         let lamport = fixture.effects.lamport_version();
         let index: CommitIndex = 9;
+        assert_eq!(
+            handler_processed_keys(&fixture.effects),
+            handler_processed_upserts(&fixture.effects, index)
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect::<Vec<_>>()
+        );
         // Every id in the fixture is written once, so keying by id is exact.
         let rows: BTreeMap<ObjectId, (Version, HandlerProcessedObject)> =
             handler_processed_upserts(&fixture.effects, index)

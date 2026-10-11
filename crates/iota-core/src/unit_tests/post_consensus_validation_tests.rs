@@ -2921,6 +2921,146 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     }
 }
 
+/// A checkpoint's handler rows become durable with the checkpoint, before
+/// its commit flushes: a restart in between finds every row on disk,
+/// although the overlay is gone.
+#[tokio::test]
+async fn checkpoint_bookkeeping_is_durable_before_its_commit_flushes() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    // One checkpoint holding the roots of commits 1 and 2.
+    let first = s.build_transfer(
+        &obj1_id,
+        &gas1_id,
+        address_1,
+        &address_1_key,
+        Address::random(),
+    );
+    let second = s.build_transfer(
+        &obj2_id,
+        &gas2_id,
+        address_2,
+        &address_2_key,
+        Address::random(),
+    );
+    let first_key = TransactionKey::Digest(*first.digest());
+    let second_key = TransactionKey::Digest(*second.digest());
+    let first = s.execute_as_handler_known(vec![first], 1).remove(0);
+    let second = s.execute_as_handler_known(vec![second], 2).remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&first, &second])
+        .unwrap();
+
+    // The rows left the overlay once durable.
+    assert_eq!(state.overlay_size_for_testing(), 0);
+
+    // The node crashes before either commit flushes.
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    let reopened_state = reopened.handler_object_state_for_testing();
+    assert_eq!(reopened_state.overlay_size_for_testing(), 0);
+    for (effects, index, ids) in [
+        (&first, 1, [obj1_id, gas1_id]),
+        (&second, 2, [obj2_id, gas2_id]),
+    ] {
+        for id in ids {
+            let row = reopened
+                .handler_processed_object(&ObjectKey(id, effects.lamport_version()))
+                .unwrap()
+                .expect("the handler row must be durable with its checkpoint");
+            assert_eq!(row.produced_at, index);
+        }
+    }
+
+    // The handler replays both commits. Re-executing the checkpoint's
+    // transactions re-inserts the same rows, and its batch writes them
+    // again and clears them.
+    reopened.assign_commit_to_transactions(1, vec![first_key]);
+    reopened.assign_commit_to_transactions(2, vec![second_key]);
+    reopened.record_executed_transaction(&first_key, &first);
+    reopened.record_executed_transaction(&second_key, &second);
+    assert_eq!(reopened_state.overlay_size_for_testing(), 4);
+    reopened
+        .persist_checkpoint_bookkeeping([&first, &second])
+        .unwrap();
+    assert_eq!(reopened_state.overlay_size_for_testing(), 0);
+}
+
+/// A checkpoint's handler rows are written without the consensus
+/// quarantine lock, so a commit push or a quarantine flush does not hold up
+/// checkpoint execution.
+#[tokio::test]
+async fn checkpoint_bookkeeping_does_not_wait_for_the_quarantine() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+
+    let (written, wait_written) = std::sync::mpsc::channel();
+    let mut bookkeeping_write = None;
+    s.epoch_store.hold_consensus_quarantine_for_testing(|| {
+        let epoch_store = s.epoch_store.clone();
+        let effects = effects.clone();
+        bookkeeping_write = Some(std::thread::spawn(move || {
+            epoch_store
+                .persist_checkpoint_bookkeeping([&effects])
+                .unwrap();
+            written.send(()).unwrap();
+        }));
+        wait_written
+            .recv_timeout(Duration::from_secs(5))
+            .expect("checkpoint bookkeeping must not wait for the quarantine lock");
+    });
+    bookkeeping_write.unwrap().join().unwrap();
+
+    for id in [obj_id, gas_id] {
+        assert!(
+            s.epoch_store
+                .durable_handler_processed_object_for_testing(&ObjectKey(
+                    id,
+                    effects.lamport_version()
+                ))
+                .unwrap()
+                .is_some()
+        );
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .overlay_size_for_testing(),
+        0
+    );
+}
+
 #[tokio::test]
 async fn bookkeeping_disabled_writes_nothing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -2937,6 +3077,10 @@ async fn bookkeeping_disabled_writes_nothing() {
     .await;
 
     let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
 
     s.assert_no_handler_row(&obj_id, effects.lamport_version());
 }
