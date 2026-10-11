@@ -2060,6 +2060,12 @@ pub trait SenderSignedTransactionAPI {
     /// the transaction checkers.
     fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>>;
 
+    /// Returns the inputs of [`Self::collect_all_input_object_kind_for_reading`]
+    /// in the order the transaction and then each authenticator name them.
+    fn collect_all_input_object_kind_for_reading_in_order(
+        &self,
+    ) -> IotaResult<Vec<InputObjectKind>>;
+
     /// Splits the provided input objects into groups:
     /// 1. Input objects required by the transaction itself; may contain duplicates if an IOTA coin
     ///    is used both as an input and a gas coin.
@@ -2197,6 +2203,23 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             });
 
         Ok(input_objects_set.into_iter().collect::<Vec<_>>())
+    }
+
+    fn collect_all_input_object_kind_for_reading_in_order(
+        &self,
+    ) -> IotaResult<Vec<InputObjectKind>> {
+        let mut seen = HashSet::new();
+        Ok(self
+            .transaction()
+            .input_objects()?
+            .into_iter()
+            .chain(
+                self.move_authenticators()
+                    .into_iter()
+                    .flat_map(|authenticator| authenticator.input_objects()),
+            )
+            .filter(|kind| seen.insert(*kind))
+            .collect())
     }
 
     fn split_input_objects_into_groups_for_reading(
