@@ -20,7 +20,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::AuthorityName,
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
@@ -551,6 +551,18 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         {
             Ok(result) => result,
             Err(AdvanceDkgError::RuntimeShutdown) => return Err(RuntimeShutdown),
+            // The wait for the execution frontier was cut short by the end of
+            // the epoch. Nothing in this commit is scheduled: the epoch is
+            // over and reconfiguration drops this handler.
+            Err(AdvanceDkgError::Iota(IotaError::EpochEnded(epoch)))
+                if self.epoch_store.pcool_bookkeeping_enabled() =>
+            {
+                info!(
+                    epoch,
+                    "consensus commit abandoned: the epoch ended during validation"
+                );
+                return Ok(());
+            }
             Err(AdvanceDkgError::Iota(e)) => {
                 panic!("Unrecoverable error in consensus handler: {e:?}")
             }
