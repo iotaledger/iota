@@ -1929,13 +1929,32 @@ impl AuthorityPerEpochStore {
 
     /// Records one executed transaction's object writes for the P-COOL
     /// deterministic-validation bookkeeping; see
-    /// [`HandlerObjectState::record_executed_transaction`]. An execution the
-    /// handler has not assigned to a commit records nothing.
+    /// [`HandlerObjectState::record_executed_transaction`]. The caller skips
+    /// genesis and the change-epoch transaction, which run outside any
+    /// commit.
+    ///
+    /// Every other execution belongs to a commit the handler has assigned,
+    /// unless this node executes synced checkpoints for the rest of the
+    /// epoch; then the handler processes no further commit and nothing is
+    /// recorded.
+    ///
+    /// # Panics
+    ///
+    /// On any other execution the handler has not assigned. Its outputs would
+    /// become readable without rows, and validation would then read state the
+    /// rows do not describe. The panic comes before the outputs are written,
+    /// so after a restart the handler replays the commit and assigns it before
+    /// the transaction executes again.
     pub fn record_executed_transaction(&self, key: &TransactionKey, effects: &TransactionEffects) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
         };
-        handler_object_state.record_executed_transaction(key, effects);
+        if handler_object_state.record_executed_transaction(key, effects)
+            || self.is_executing_synced_checkpoints()
+        {
+            return;
+        }
+        fatal!("transaction {key:?} executed without its commit assigned by the consensus handler");
     }
 
     /// Marks commit `index` fully executed, or does nothing once the quarantine
