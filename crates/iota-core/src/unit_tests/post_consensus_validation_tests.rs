@@ -11,8 +11,8 @@ use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner, Transaction,
-    TransactionDigest, TransactionEffects, Version,
+    Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
@@ -2296,6 +2296,57 @@ impl BookkeepingSetup {
         self.epoch_store.verify_transaction(tx).unwrap()
     }
 
+    /// Builds a call into the `object_basics` module taking shared-object
+    /// inputs and executes it as a root of commit `index`, with the shared
+    /// versions assigned directly rather than through consensus.
+    fn handler_known_shared_object_basics_call(
+        &self,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
+        self.execute_with_assigned_shared_versions(tx)
+    }
+
+    /// Executes `tx` with its shared input versions assigned directly rather
+    /// than through consensus.
+    fn execute_with_assigned_shared_versions(&self, tx: VerifiedTransaction) -> TransactionEffects {
+        let executable = self.executable(tx);
+        let assigned_versions = self
+            .epoch_store
+            .assign_shared_object_versions_for_tests(
+                self.authority.get_object_cache_reader().as_ref(),
+                std::slice::from_ref(&executable),
+            )
+            .unwrap()
+            .into_map()
+            .remove(&executable.key())
+            .expect("version assignment must cover the transaction it was given");
+        let effects = self.execute_executable(
+            &executable,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        );
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        effects
+    }
+
+    /// The argument naming the shared object `id` as a mutable input.
+    fn shared_arg(&self, id: &ObjectId) -> CallArg {
+        let initial_shared_version =
+            initial_shared_version(&self.authority.get_object(id).unwrap().owner);
+        CallArg::Shared(SharedObjectReference::new(
+            *id,
+            initial_shared_version,
+            true,
+        ))
+    }
+
     /// Creates a fresh `object_basics::Object` owned by `sender` at commit
     /// `index`; returns the created reference and the effects.
     fn create_object(
@@ -2580,6 +2631,45 @@ async fn handler_known_share_records_the_initial_shared_version() {
             produced_at: 5,
             initial_shared_version: Some(initial_shared_version(shared.owner())),
             replaced_version: None,
+        }
+    );
+}
+
+#[tokio::test]
+async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tombstone_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference().object_id();
+    let initial = initial_shared_version(shared.owner());
+
+    // Once the object is gone, the tombstone row is the only place this
+    // validator can still read the initial shared version a transaction
+    // declares against.
+    let delete_effects = s.handler_known_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    assert_eq!(
+        s.handler_processed_object(shared_id, delete_effects.lamport_version()),
+        HandlerProcessedObject {
+            digest: ObjectDigest::OBJECT_DELETED,
+            kind: HandlerProcessedObjectKind::Deleted,
+            produced_at: 6,
+            initial_shared_version: Some(initial),
+            replaced_version: Some(shared.reference().version),
         }
     );
 }
