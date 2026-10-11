@@ -11,8 +11,9 @@ use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, GasCostSummary, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner,
-    SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, Version,
+    Address, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
+    MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    Transaction, TransactionDigest, TransactionEffects, UserSignature, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
@@ -20,7 +21,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
@@ -31,7 +32,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionEnvelope, TransactionKey,
         VerifiedTransaction,
     },
-    utils::to_sender_signed_transaction,
+    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
 use crate::{
@@ -2408,6 +2409,17 @@ impl BookkeepingSetup {
     /// Executes `tx` with its shared input versions assigned directly rather
     /// than through consensus.
     fn execute_with_assigned_shared_versions(&self, tx: VerifiedTransaction) -> TransactionEffects {
+        let effects = self.execute_with_assigned_shared_versions_unchecked(tx);
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        effects
+    }
+
+    /// [`Self::execute_with_assigned_shared_versions`] without asserting
+    /// execution success, for scenarios exercising failed transactions.
+    fn execute_with_assigned_shared_versions_unchecked(
+        &self,
+        tx: VerifiedTransaction,
+    ) -> TransactionEffects {
         let executable = self.executable(tx);
         let assigned_versions = self
             .epoch_store
@@ -2419,12 +2431,47 @@ impl BookkeepingSetup {
             .into_map()
             .remove(&executable.key())
             .expect("version assignment must cover the transaction it was given");
-        let effects = self.execute_executable(
+        self.execute_executable(
             &executable,
             ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        )
+    }
+
+    /// A verified sponsored `object_basics::create` call: the sender is the
+    /// account `authenticator` names, with the authenticator in place of its
+    /// signature, and `sponsor` pays the gas from `gas_id`. The call takes no
+    /// owned inputs, so the gas coin is its only owned object.
+    fn build_account_authenticated_call(
+        &self,
+        authenticator: MoveAuthenticatorV1,
+        gas_id: &ObjectId,
+        sponsor: Address,
+        sponsor_key: &AccountPrivateKey,
+    ) -> VerifiedTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .move_call(
+                self.package_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
+                vec![],
+                create_object_args(sponsor),
+            )
+            .unwrap();
+        let tx = Transaction::new_programmable_allow_sponsor(
+            authenticator.address(),
+            vec![self.latest_ref(gas_id)],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.rgp,
+            self.rgp,
+            sponsor,
         );
-        assert!(effects.status().is_success(), "{:?}", effects.status());
-        effects
+        let tx = to_sender_signed_transaction_with_optional_sponsor(
+            tx,
+            UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator)),
+            Some(sponsor_key),
+        );
+        self.epoch_store.verify_transaction(tx).unwrap()
     }
 
     /// The commit-indexed reader as of `commit_index`.
@@ -4007,6 +4054,317 @@ async fn denied_packages_leave_a_package_above_the_horizon_missing() {
         }
         other => panic!("expected missing on the package, got {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation checks at a commit: the Move authenticator
+// ---------------------------------------------------------------------------
+
+/// Post-consensus validation no longer resolves a Move authenticator's
+/// account. A transaction whose account has no authenticator function never
+/// leaves an honest validator: the checks it runs before submitting to
+/// consensus reject it. A faulty validator can still propose it, and then
+/// post-consensus validation keeps it and execution fails it with
+/// `AuthenticatorFunctionNotFound`.
+#[tokio::test]
+async fn validation_at_commit_keeps_an_account_without_authenticator_function() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sponsor)],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    // A shared object that was never made an account.
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sponsor, &sponsor_key, 5);
+    let account_id = *share_effects.created()[0].reference().object_id();
+    let account_start_version =
+        initial_shared_version(&s.authority.get_object(&account_id).unwrap().owner);
+    let tx = s.build_account_authenticated_call(
+        MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(account_id, account_start_version, false),
+        ),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+    let gas_ref = s.latest_ref(&gas_id);
+
+    // The checks a validator runs before submitting to consensus, called with
+    // the arguments of its submission path, resolve the account and reject
+    // the transaction.
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            false,
+            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
+        )
+        .await
+        .expect_err("a validator must reject an account without a function before submission");
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::MoveAuthenticatorNotFound { .. }
+            }
+        ),
+        "{error:?}"
+    );
+
+    // A faulty validator skips those checks and proposes the transaction
+    // anyway. Post-consensus validation does not resolve the account, so
+    // every validator keeps the transaction and locks its gas coin.
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Keep(owned) => assert_eq!(
+            owned,
+            vec![gas_ref],
+            "the gas coin must be the only object the handler locks"
+        ),
+        other => panic!("expected keep, got {other:?}"),
+    }
+
+    // Execution resolves the account at its assigned version and fails the
+    // transaction with effects that name the account.
+    s.epoch_store
+        .assign_commit_to_transactions(12, vec![TransactionKey::Digest(*tx.digest())]);
+    let effects = s.execute_with_assigned_shared_versions_unchecked(tx);
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::MoveAuthentication {
+                error: Box::new(ExecutionErrorKind::AuthenticatorFunctionNotFound {
+                    object_id: account_id,
+                }),
+            },
+            command: None,
+        },
+        "execution must fail the kept transaction with the status that names the account"
+    );
+}
+
+/// A Move authenticator needs its account to be a shared object, but a
+/// transaction can still name an object owned by an address as its account.
+/// Post-consensus validation drops such a transaction when reading the account
+/// finds an object that is not shared, so it never reaches execution.
+#[tokio::test]
+async fn validation_at_commit_drops_an_account_owned_by_an_address() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (owner, _): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            Object::with_id_owner_for_testing(account_id, owner),
+        ],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let tx = s.build_account_authenticated_call(
+        MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(account_id, s.latest_ref(&account_id).version(), false),
+        ),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Drop(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(id, account_id);
+            assert_eq!(reason.kind(), DropKind::SharedNotCreatedShared);
+        }
+        other => panic!("expected a drop on the account, got {other:?}"),
+    }
+}
+
+/// A Move authenticator needs its account to be a shared object, but a
+/// transaction can still name an immutable object as its account. A validator
+/// rejects such a transaction before submission, and post-consensus validation
+/// drops it when reading the account finds an object that is not shared, so
+/// it never reaches execution.
+#[tokio::test]
+async fn validation_at_commit_drops_an_immutable_account() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account = Object::immutable_for_testing();
+    let account_id = account.id();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sponsor), account],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let tx = s.build_account_authenticated_call(
+        MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(account_id, s.latest_ref(&account_id).version(), false),
+        ),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            false,
+            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
+        )
+        .await
+        .expect_err("a validator must reject an immutable account before submission");
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+            } if object_id == account_id
+        ),
+        "{error:?}"
+    );
+
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Drop(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(id, account_id);
+            assert_eq!(reason.kind(), DropKind::SharedNotCreatedShared);
+        }
+        other => panic!("expected a drop on the account, got {other:?}"),
+    }
+}
+
+/// Post-consensus validation keeps a transaction whose account object was
+/// deleted by a commit that not every validator has executed yet. Those
+/// validators that have not executed yet cannot see the deletion, so keeping
+/// it is the only verdict every validator can reach. The check of the Move
+/// authenticator's input objects skips a deleted shared object, and execution
+/// fails the transaction with `InputObjectDeleted`.
+#[tokio::test]
+async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let setup_gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            Object::with_id_owner_for_testing(setup_gas_id, sponsor),
+        ],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    // The account is shared and deleted with a second gas coin. Had commit 15
+    // written the call's gas coin, that coin would be missing at commit 16.
+    let share_effects = s.handler_known_object_basics_call(
+        "share",
+        vec![],
+        &setup_gas_id,
+        sponsor,
+        &sponsor_key,
+        5,
+    );
+    let shared = share_effects.created()[0];
+    let account_id = *shared.reference().object_id();
+    let account_start_version = initial_shared_version(shared.owner());
+    s.handler_known_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(&account_id)],
+        &setup_gas_id,
+        sponsor,
+        &sponsor_key,
+        15,
+    );
+    let tx = s.build_account_authenticated_call(
+        MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(account_id, account_start_version, false),
+        ),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+    let gas_ref = s.latest_ref(&gas_id);
+
+    // Commit 16, horizon 14: the deletion at 15 is not yet visible to every
+    // validator.
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(16),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Keep(owned) => assert_eq!(
+            owned,
+            vec![gas_ref],
+            "the gas coin must be the only object the handler locks"
+        ),
+        other => panic!("expected keep, got {other:?}"),
+    }
+
+    s.epoch_store
+        .assign_commit_to_transactions(16, vec![TransactionKey::Digest(*tx.digest())]);
+    let effects = s.execute_with_assigned_shared_versions_unchecked(tx);
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::InputObjectDeleted,
+            command: None,
+        },
+        "execution must fail the kept transaction because its account was deleted"
+    );
 }
 
 // ---------------------------------------------------------------------------
