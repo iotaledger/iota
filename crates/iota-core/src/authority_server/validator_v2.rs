@@ -115,6 +115,19 @@ use crate::{
     execution_scheduler::ExecutionSchedulerAPI,
 };
 
+/// Whether admission checks the transaction's inputs against local state: that
+/// they load at the declared versions, pass the deny checks and get their soft
+/// locks.
+///
+/// Tests can register the `admit-without-input-checks` fail point to have a
+/// validator submit to consensus a transaction it would otherwise reject, as a
+/// faulty validator can.
+fn checks_admitted_inputs() -> bool {
+    let checks = std::cell::Cell::new(true);
+    iota_macros::fail_point_if!("admit-without-input-checks", || checks.set(false));
+    checks.get()
+}
+
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
@@ -314,26 +327,30 @@ impl ValidatorService {
             } else {
                 local_deny_config
             };
-        let owned_objects = match state
-            .handle_transaction_validation_checks(
-                &verified_tx,
-                epoch_store,
-                deny_config,
-                // Latest-value coin deny-list read: admission is validator-local,
-                // and denials should take effect immediately. This deliberately
-                // differs from the epoch-gated post-consensus read; see the
-                // read-mode notes on `handle_transaction_validation_checks`.
-                false,
-                iota_transaction_checks::VerifierLimitsSource::NodeConfig(
-                    &state.config.verifier_signing_config,
-                ),
-            )
-            .await
-        {
-            Ok(objs) => objs,
-            Err(e) => {
-                let weight = normalize(&e);
-                return (TxStatusUpdate::Rejected { error: e }, weight);
+        let owned_objects = if !checks_admitted_inputs() {
+            Vec::new()
+        } else {
+            match state
+                .handle_transaction_validation_checks(
+                    &verified_tx,
+                    epoch_store,
+                    deny_config,
+                    // Latest-value coin deny-list read: admission is validator-local,
+                    // and denials should take effect immediately. This deliberately
+                    // differs from the epoch-gated post-consensus read; see the
+                    // read-mode notes on `handle_transaction_validation_checks`.
+                    false,
+                    iota_transaction_checks::VerifierLimitsSource::NodeConfig(
+                        &state.config.verifier_signing_config,
+                    ),
+                )
+                .await
+            {
+                Ok(objs) => objs,
+                Err(e) => {
+                    let weight = normalize(&e);
+                    return (TxStatusUpdate::Rejected { error: e }, weight);
+                }
             }
         };
         if let Err(e) = state
