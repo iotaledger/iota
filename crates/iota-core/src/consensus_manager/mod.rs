@@ -16,7 +16,7 @@ use iota_metrics::RegistryService;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
 use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
-use starfish_core::CommitConsumerMonitor;
+use starfish_core::{CommitConsumerMonitor, CommitIndex};
 use tokio::{
     sync::{Mutex, MutexGuard, broadcast},
     time::{sleep, timeout},
@@ -184,15 +184,47 @@ impl ConsensusClient for UpdatableConsensusClient {
     }
 }
 
+/// The commit consumer of a started consensus run, with the commit the replay
+/// waits for, as [`replay_target`] computes it.
+pub(crate) type StartedConsumer = (Arc<CommitConsumerMonitor>, Option<CommitIndex>);
+
+/// The commit the checkpoint builder waits for the consensus handler to
+/// handle before it starts building, after a start at `resume_point` with
+/// deterministic validation. Without it, the builder waits for every commit
+/// consensus had stored at startup.
+///
+/// This is `last_validated_commit`, the last
+/// commit the handler validated before the restart, or the resume point when
+/// it validated none above it. Every checkpoint built before the restart comes
+/// from these commits. A later commit is validated for the first time, which
+/// can wait for execution that needs the checkpoint executor, and node startup
+/// creates that executor only once the rebuild is done. When the node switched
+/// to executing synced checkpoints before the restart, the target is at most
+/// `last_commit_before_switch`, the last commit the handler processes again.
+pub(crate) fn replay_target(
+    last_validated_commit: Option<u64>,
+    resume_point: CommitIndex,
+    last_commit_before_switch: Option<u64>,
+) -> CommitIndex {
+    let target = match last_validated_commit {
+        Some(index) => CommitIndex::try_from(index).unwrap_or(CommitIndex::MAX),
+        None => resume_point,
+    };
+    match last_commit_before_switch {
+        Some(last) => target.min(CommitIndex::try_from(last).unwrap_or(CommitIndex::MAX)),
+        None => target,
+    }
+}
+
+/// Receives, through the `consensus-replay-target` fail point, the commit the
+/// replay waits for (every stored commit without deterministic validation)
 /// Waits for consensus to finish replaying at consensus handler.
 pub struct ReplayWaiter {
-    consumer_monitor_receiver: broadcast::Receiver<Arc<CommitConsumerMonitor>>,
+    consumer_monitor_receiver: broadcast::Receiver<StartedConsumer>,
 }
 
 impl ReplayWaiter {
-    pub(crate) fn new(
-        consumer_monitor_receiver: broadcast::Receiver<Arc<CommitConsumerMonitor>>,
-    ) -> Self {
+    pub(crate) fn new(consumer_monitor_receiver: broadcast::Receiver<StartedConsumer>) -> Self {
         Self {
             consumer_monitor_receiver,
         }
@@ -201,11 +233,16 @@ impl ReplayWaiter {
     pub(crate) async fn wait_for_replay(mut self) {
         loop {
             info!("Waiting for consensus to start replaying ...");
-            let Ok(monitor) = self.consumer_monitor_receiver.recv().await else {
+            let Ok((monitor, target)) = self.consumer_monitor_receiver.recv().await else {
                 continue;
             };
-            info!("Waiting for consensus handler to finish replaying ...");
-            monitor.replay_complete().await;
+            let highest_observed = monitor.highest_observed_commit_at_startup();
+            let target = target.map_or(highest_observed, |target| target.min(highest_observed));
+            info!(
+                target,
+                highest_observed, "Waiting for consensus handler to finish replaying ..."
+            );
+            monitor.wait_until_handled(target).await;
             break;
         }
     }
