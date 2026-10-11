@@ -677,7 +677,7 @@ async fn test_reconfig_with_committee_change_basic() {
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic_skipping_synced_checkpoint_execution() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     });
     run_reconfig_with_committee_change_basic().await;
@@ -1508,7 +1508,7 @@ async fn execute_add_validator_transactions(
 #[sim_test]
 async fn validator_far_behind_catches_up_across_epoch_end() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     });
     let test_cluster = TestClusterBuilder::new()
@@ -1556,7 +1556,7 @@ async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
     use iota_macros::register_fail_point;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     });
     let test_cluster = TestClusterBuilder::new()

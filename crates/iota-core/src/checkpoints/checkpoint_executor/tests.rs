@@ -215,7 +215,7 @@ pub async fn test_notify_read_epoch_last_checkpoint() {
 #[tokio::test]
 pub async fn test_validator_waits_for_local_build_until_epoch_end() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     });
     let checkpoint_store = CheckpointStore::new_for_tests();
@@ -269,7 +269,7 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
 #[tokio::test]
 pub async fn test_switched_validator_executes_synced_data_of_locally_built_checkpoint() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     });
     let checkpoint_store = CheckpointStore::new_for_tests();

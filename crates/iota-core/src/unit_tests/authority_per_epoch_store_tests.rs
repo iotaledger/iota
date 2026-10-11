@@ -2196,7 +2196,7 @@ mod handler_object_state_storage {
     async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2266,7 +2266,7 @@ mod handler_object_state_storage {
     async fn flushed_rows_for_one_id_keep_every_version() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2320,7 +2320,7 @@ mod handler_object_state_storage {
     async fn map_hit_writes_handler_rows_at_the_assigned_commit() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
