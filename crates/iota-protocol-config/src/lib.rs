@@ -4454,6 +4454,78 @@ mod test {
         );
     }
 
+    /// With a horizon distance of 0, the handler at a commit waits for that
+    /// same commit to be fully executed, which cannot happen before the
+    /// handler finishes it, so the network halts. The configuration is
+    /// rejected at startup.
+    ///
+    /// Currently fails: no startup check covers the distance.
+    #[test]
+    #[should_panic(expected = "pcool_deterministic_validation_horizon_distance")]
+    fn horizon_distance_of_zero_with_deterministic_validation_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(0);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Every version and chain that turns deterministic validation on sets a
+    /// positive horizon distance in the version table.
+    #[test]
+    fn every_version_with_deterministic_validation_sets_a_positive_horizon_distance() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config.pcool_deterministic_validation() {
+                    assert!(
+                        config
+                            .pcool_deterministic_validation_horizon_distance_as_option()
+                            .is_some_and(|distance| distance > 0),
+                        "version {version} on {chain:?} enables deterministic validation \
+                         without a positive horizon distance"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Every version and chain that turns deterministic validation on also
+    /// takes the verifier limits from the protocol config, so publish
+    /// verdicts do not depend on node-local signing limits.
+    #[test]
+    fn every_version_with_deterministic_validation_takes_verifier_limits_from_the_config() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert!(
+                    !config.pcool_deterministic_validation()
+                        || config.pcool_verifier_limits_from_protocol_config(),
+                    "version {version} on {chain:?} enables deterministic validation with \
+                     node-local verifier limits"
+                );
+            }
+        }
+    }
+
+    /// Turning deterministic validation on for a test also takes the verifier
+    /// limits from the protocol config, as a version that turns it on must,
+    /// whatever the version the test starts from.
+    ///
+    /// Currently fails: the setter turns on only the pcool flow, deny-rule
+    /// governance and deterministic validation.
+    #[test]
+    fn enabling_deterministic_validation_for_testing_takes_verifier_limits_from_the_config() {
+        let mut config = ProtocolConfig::get_for_version(
+            ProtocolVersion::new(MIN_PROTOCOL_VERSION),
+            Chain::Unknown,
+        );
+        assert!(!config.pcool_verifier_limits_from_protocol_config());
+        config.enable_pcool_deterministic_validation_for_testing();
+        assert!(config.pcool_verifier_limits_from_protocol_config());
+    }
+
     /// Deterministic validation without governance would judge transactions
     /// by node-local deny rules, so the combination is rejected at startup.
     #[test]
