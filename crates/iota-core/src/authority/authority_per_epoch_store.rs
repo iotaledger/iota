@@ -4464,6 +4464,11 @@ impl AuthorityPerEpochStore {
         AdvanceDkgError,
     > {
         let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+        // Only `process_consensus_transactions` below moves the reconfig
+        // state to `RejectAllTx`, so this value holds until it runs. Only
+        // deterministic validation reads it.
+        let accepts_tx = deterministic_validation
+            && self.get_reconfig_state_read_lock_guard().should_accept_tx();
 
         // Validation reads rows produced at or below the horizon, so every
         // commit up to it must be fully executed before any input is read.
@@ -4472,9 +4477,7 @@ impl AuthorityPerEpochStore {
         // checkpoint and are never assigned, so the highest fully executed
         // commit cannot reach them. They admit no user transaction either, so
         // they do not wait.
-        if self.pcool_bookkeeping_enabled
-            && self.get_reconfig_state_read_lock_guard().should_accept_tx()
-        {
+        if self.pcool_bookkeeping_enabled && accepts_tx {
             self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
                 &self.protocol_config,
                 consensus_commit_info.index,
@@ -4729,6 +4732,28 @@ impl AuthorityPerEpochStore {
             // during it. Rows produced above the horizon can still appear, but
             // they answer missing. Validating before that wait would make the
             // result depend on how far this validator's execution has got.
+            //
+            // After the final round no user transaction executes or reaches a
+            // checkpoint, so they are all ignored here. Validating them
+            // without the wait would save decisions that no checkpoint retires
+            // and that a replay after a restart could contradict.
+            if deterministic_validation && !accepts_tx {
+                sequenced_transactions.retain(|tx| {
+                    let user_transaction = match &tx.0.transaction {
+                        SequencedConsensusTransactionKind::External(ext) => {
+                            ext.kind.as_user_transaction()
+                        }
+                        SequencedConsensusTransactionKind::System(_) => None,
+                    };
+                    match user_transaction {
+                        Some(transaction) => {
+                            soft_lock_release_tx_digests.push(*transaction.digest());
+                            false
+                        }
+                        None => true,
+                    }
+                });
+            }
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -4739,7 +4764,7 @@ impl AuthorityPerEpochStore {
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
-            soft_lock_release_tx_digests = soft_lock_digests;
+            soft_lock_release_tx_digests.extend(soft_lock_digests);
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
