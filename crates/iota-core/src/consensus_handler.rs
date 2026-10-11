@@ -10,7 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use iota_common::{debug_fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{
     monitored_mpsc, monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task,
@@ -677,7 +677,9 @@ const EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME: &str =
 /// Receives commits from the epoch store in processing order and completes
 /// them in that order, so a completed commit implies every earlier commit is
 /// complete. Lives for one epoch: the wait ends when the epoch is terminated,
-/// and the task is aborted when the handler drops.
+/// and the task is aborted when the handler drops. An error stops the node:
+/// without the watcher, a commit waited on would complete only once its
+/// checkpoint is certified.
 pub(crate) struct ExecutionWatcher {
     handle: JoinHandle<()>,
 }
@@ -702,7 +704,10 @@ impl ExecutionWatcher {
                 .await
             {
                 Ok(Ok(())) => debug!("ExecutionWatcher finished: assigned-commit channel closed"),
-                Ok(Err(e)) => debug_fatal!("ExecutionWatcher stopping on error: {e}"),
+                Ok(Err(e)) => {
+                    epoch_store.record_execution_watcher_error(&e);
+                    fatal!("ExecutionWatcher stopping on error: {e}");
+                }
                 Err(_) => debug!(
                     epoch = epoch_store.epoch(),
                     "ExecutionWatcher stopping: epoch ended"
