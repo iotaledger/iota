@@ -6420,3 +6420,121 @@ async fn epoch_end_releases_a_pending_wait() {
         Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()
     ));
 }
+
+/// Commits the outputs of `executed` and executes them as one certified
+/// checkpoint, followed by an empty one, then runs the object pruner over the
+/// executed checkpoints as the node does with aggressive pruning.
+async fn execute_checkpoint_and_prune(
+    s: &BookkeepingSetup,
+    executed: Vec<(VerifiedTransaction, TransactionEffects)>,
+) {
+    use iota_types::{
+        base_types::ExecutionData,
+        messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
+    };
+
+    use crate::authority::authority_store_pruner::{
+        AuthorityStorePruner, AuthorityStorePruningMetrics,
+    };
+
+    let epoch = s.epoch_store.epoch();
+    let digests: Vec<_> = executed.iter().map(|(tx, _)| *tx.digest()).collect();
+    let cache_commit = s.authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 1, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    let consumed: Vec<ObjectId> = executed
+        .iter()
+        .flat_map(|(_, effects)| effects.modified_at_versions())
+        .map(|modified| *modified.object_id())
+        .collect();
+    let contents = VerifiedCheckpointContents::new_unchecked(
+        FullCheckpointContents::new_with_causally_ordered_transactions(
+            executed
+                .into_iter()
+                .map(|(tx, effects)| ExecutionData::new(tx.into_inner(), effects)),
+        ),
+    );
+    let checkpoint_store = s.authority.get_checkpoint_store();
+    checkpoint_store
+        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
+        .unwrap();
+    let fixture = iota_swarm_config::test_utils::CommitteeFixture::generate(
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+        epoch,
+        4,
+    );
+    // The fixture's first checkpoint is its own genesis; checkpoint 1 holds
+    // the transactions and checkpoint 2, executed after it, lets the pruner
+    // reach checkpoint 1.
+    let (checkpoints, ..) = fixture.make_checkpoints(3, None, || contents.clone());
+    for checkpoint in checkpoints.iter().skip(1) {
+        checkpoint_store
+            .insert_certified_checkpoint(checkpoint)
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(checkpoint)
+            .unwrap();
+    }
+
+    let config = iota_config::node::AuthorityStorePruningConfig {
+        num_epochs_to_retain: 0,
+        ..Default::default()
+    };
+    AuthorityStorePruner::prune_objects_for_eligible_epochs(
+        &s.authority.database_for_testing().perpetual_tables,
+        checkpoint_store,
+        None,
+        config,
+        AuthorityStorePruningMetrics::new_for_test(),
+        0,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    for id in consumed {
+        s.authority.evict_committed_object_for_testing(&id);
+    }
+}
+
+/// A version that a commit above the horizon consumed keeps its bytes after
+/// the pruner runs over the consumer's executed checkpoint. A validation at a
+/// commit less than the horizon distance above the consumer, or a replay of
+/// any commit after a restart before the consumer's output flushed, keeps the
+/// version, as on a validator that has not executed the consumer, and needs
+/// its bytes for that.
+#[tokio::test]
+async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let produce = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+    let produce_effects = s
+        .execute_as_handler_known(vec![produce.clone()], 3)
+        .remove(0);
+    let named = s.latest_ref(&obj_id);
+    let consume = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let consume_effects = s
+        .execute_as_handler_known(vec![consume.clone()], 5)
+        .remove(0);
+    // Commit 6 reads at horizon 4: the row of commit 3 keeps the version, the
+    // consumer's row at commit 5 is above the horizon.
+    assert_keeps(s.read_owned(6, named), named);
+
+    execute_checkpoint_and_prune(
+        &s,
+        vec![(produce, produce_effects), (consume, consume_effects)],
+    )
+    .await;
+    assert_keeps(s.read_owned(6, named), named);
+}
