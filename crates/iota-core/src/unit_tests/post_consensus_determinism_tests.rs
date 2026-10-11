@@ -2747,7 +2747,8 @@ impl<'a> Validator<'a> {
     }
 
     /// The bytes at exactly the kept reference, as the reader loads them: a
-    /// stored version with another digest drops.
+    /// stored version with another digest drops, and with no bytes, a handler
+    /// row of the id above the version drops.
     fn load_bytes(
         &self,
         need_bytes: owned::OwnedReader<owned::NeedBytes>,
@@ -2762,8 +2763,20 @@ impl<'a> Validator<'a> {
             }
             return Ok(OwnedVerdict::Keep(KeptObject(object)));
         }
+        if self
+            .storage(
+                self.epoch_store
+                    .lowest_handler_processed_row_above(&key.0, key.1),
+            )?
+            .is_some()
+        {
+            return Ok(OwnedVerdict::Drop(DropReason(
+                DropKind::HandlerRowAbovePrunedVersion,
+            )));
+        }
         self.fail(format!(
-            "storage error: kept input {key:?} has no bytes in the object store"
+            "storage error: kept input {key:?} has no bytes in the object store and no handler \
+             row above it"
         ))
     }
 
