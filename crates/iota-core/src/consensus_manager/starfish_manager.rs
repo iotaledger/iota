@@ -246,6 +246,16 @@ impl ConsensusManagerTrait for StarfishManager {
         // Initialize the client to send transactions to this Starfish instance.
         self.client.set(client);
 
+        // Lets a test see whether the handler meets stored commits only after
+        // the replay wait.
+        iota_macros::fail_point_arg!(
+            "consensus-replay-target",
+            |report: crate::consensus_manager::ConsensusReplayTargetReport| {
+                let highest_observed = monitor.highest_observed_commit_at_startup();
+                report(target.unwrap_or(highest_observed), highest_observed)
+            }
+        );
+
         // Send the consumer monitor to the replay waiter.
         let _ = self.consumer_monitor_sender.send((monitor, target));
     }
