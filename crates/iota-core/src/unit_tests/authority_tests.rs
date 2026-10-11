@@ -8292,9 +8292,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
 async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-    }
+    protocol_config.set_deny_rule_governance_for_testing(enabled);
     TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
