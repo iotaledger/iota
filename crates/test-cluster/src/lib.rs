@@ -678,11 +678,9 @@ impl TestCluster {
     pub async fn execute_transaction(&self, tx: TransactionEnvelope) -> TransactionEffects {
         let executed = self
             .grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap_or_else(|e| panic!("Transaction submission failed: {e}"))
             .into_inner();
@@ -718,11 +716,9 @@ impl TestCluster {
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
         self.grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap();
         Ok(results)

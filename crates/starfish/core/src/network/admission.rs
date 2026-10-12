@@ -152,7 +152,7 @@ impl CommitFetchSlots {
         };
         // The counters guard nothing else, so relaxed ordering is enough.
         let Ok(held_before) =
-            held_by_peer.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
+            held_by_peer.try_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
                 (self.per_peer_cap == 0 || held < self.per_peer_cap).then_some(held + 1)
             })
         else {
@@ -160,7 +160,7 @@ impl CommitFetchSlots {
         };
         let taken = self
             .held_total
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
                 (held_before == 0 || self.total_cap == 0 || held < self.total_cap)
                     .then_some(held + 1)
             });

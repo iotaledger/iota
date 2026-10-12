@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
+    metrics::{RequestMetrics, ResponseItemKind},
     types::GrpcReader,
     validation::{
         decode_page_token, encode_page_token, page_token_mismatch, require_object_id,
@@ -221,9 +222,10 @@ fn load_dynamic_field(
     Ok(())
 }
 
-#[tracing::instrument(skip(reader))]
+#[tracing::instrument(skip(reader, metrics))]
 pub(crate) fn list_dynamic_fields(
     reader: Arc<GrpcReader>,
+    metrics: &RequestMetrics,
     ListDynamicFieldsRequest {
         parent,
         page_size,
@@ -233,6 +235,7 @@ pub(crate) fn list_dynamic_fields(
         ..
     }: ListDynamicFieldsRequest,
 ) -> Result<ListDynamicFieldsResponse, RpcError> {
+    metrics.record_requested_max_message_size(max_message_size_bytes);
     let parent_id = require_object_id(&parent, "parent")?;
     let read_mask = validate_read_mask::<DynamicField>(read_mask, LIST_DYNAMIC_FIELDS_READ_MASK)?;
     let page_size = validate_page_size(page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
@@ -264,6 +267,7 @@ pub(crate) fn list_dynamic_fields(
         };
 
         let item_size = df.encoded_len();
+        metrics.record_response_item(ResponseItemKind::DynamicField, item_size);
 
         // If adding this item would exceed the message size limit, stop.
         // Always include at least one item to guarantee forward progress.

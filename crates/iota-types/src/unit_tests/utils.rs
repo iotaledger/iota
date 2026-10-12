@@ -240,12 +240,11 @@ mod move_authenticator {
     /// TODO: if it is necessary, AA accounts need to be supported properly in
     /// the `AuthorityState` used for testing.
     pub fn make_move_authenticator_sig(address: Address) -> (UserSignature, MoveAuthenticator) {
-        let authenticator =
-            MoveAuthenticator::from(MoveAuthenticatorV1::new_with_shared_account_object(
-                vec![],
-                vec![],
-                SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
-            ));
+        let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
+        ));
         let sig = UserSignature::MoveAuthenticator(authenticator.clone());
         (sig, authenticator)
     }

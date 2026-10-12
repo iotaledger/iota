@@ -4,8 +4,8 @@
 //! Unit tests for failing a transaction with effects when a check before
 //! execution fails, instead of halting the validator. They cover a Move
 //! authenticator whose account cannot be resolved, both when a sponsor pays gas
-//! and when the account pays its own, an immutable account, and the executor
-//! handling a resolution failure.
+//! and when the account pays its own, and the executor handling a resolution
+//! failure.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -32,8 +32,7 @@ use crate::authority::{
 
 /// An authority and a transaction whose Move authenticator names an object
 /// the account check rejects: a shared object with no authenticator function
-/// field, which fails with `MoveAuthenticatorNotFound`, or an immutable
-/// object, which fails with `ImmutableAccountObjectNotSupported`.
+/// field, which fails with `MoveAuthenticatorNotFound`.
 ///
 /// The P-COOL consensus handler cannot keep this check because it answers from
 /// its own load of the account, which can differ between validators. Once the
@@ -46,7 +45,6 @@ use crate::authority::{
 struct UnresolvedAccountSetup {
     authority: Arc<AuthorityState>,
     account_id: ObjectId,
-    account_is_shared: bool,
     transfer_id: ObjectId,
     sender: Address,
     executable: VerifiedExecutableTransaction,
@@ -63,8 +61,6 @@ impl UnresolvedAccountSetup {
         sponsor: Option<&(Address, AccountPrivateKey)>,
     ) -> Self {
         let account_id = account.id();
-        let account_is_shared = account.is_shared();
-        let account_ref = account.object_ref();
         let sender: Address = account_id.into();
         let gas_owner = sponsor.map_or(sender, |(address, _)| *address);
         let objects = vec![
@@ -92,16 +88,11 @@ impl UnresolvedAccountSetup {
             rgp,
             gas_owner,
         );
-        // The authenticator names the account the way its owner requires.
-        let authenticator = if account_is_shared {
-            MoveAuthenticatorV1::new_with_shared_account_object(
-                vec![],
-                vec![],
-                SharedObjectReference::new(account_id, OBJECT_START_VERSION, false),
-            )
-        } else {
-            MoveAuthenticatorV1::new_with_immutable_account_object(vec![], vec![], account_ref)
-        };
+        let authenticator = MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(account_id, OBJECT_START_VERSION, false),
+        );
         let authenticator =
             UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator));
         let tx = to_sender_signed_transaction_with_optional_sponsor(
@@ -116,7 +107,6 @@ impl UnresolvedAccountSetup {
         Self {
             authority,
             account_id,
-            account_is_shared,
             transfer_id,
             sender,
             executable,
@@ -127,14 +117,10 @@ impl UnresolvedAccountSetup {
     fn execute(&self) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         // A shared account is a shared input, so execution needs the version
         // consensus would have assigned it.
-        let env = if self.account_is_shared {
-            ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
-                self.account_id,
-                OBJECT_START_VERSION,
-            )])
-        } else {
-            ExecutionEnv::new()
-        };
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            self.account_id,
+            OBJECT_START_VERSION,
+        )]);
 
         self.authority.try_execute_immediately(
             &self.executable,
@@ -273,42 +259,6 @@ async fn unresolved_gas_payer_account_fails_with_effects() {
         effects.gas_object().owner(),
         &Owner::Address(setup.sender),
         "the account must be the one charged"
-    );
-}
-
-/// An immutable account fails the transaction with a status that says the
-/// account is not a shared object and names it, with gas charged to the
-/// sponsor.
-#[tokio::test]
-async fn immutable_account_fails_with_effects() {
-    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
-    let sponsor: (Address, AccountPrivateKey) = get_key_pair();
-    let setup = UnresolvedAccountSetup::new(
-        Object::immutable_for_testing(),
-        ObjectId::random(),
-        ObjectId::random(),
-        recipient,
-        Some(&sponsor),
-    )
-    .await;
-
-    let (effects, _) = setup.execute().unwrap();
-
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionErrorKind::MoveAuthentication {
-                error: Box::new(ExecutionErrorKind::AccountNotSharedObject {
-                    object_id: setup.account_id,
-                }),
-            },
-            command: None,
-        },
-    );
-    assert_eq!(
-        effects.gas_object().owner(),
-        &Owner::Address(sponsor.0),
-        "the sponsor must be the one charged"
     );
 }
 

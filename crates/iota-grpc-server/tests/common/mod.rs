@@ -6,8 +6,9 @@
 #![allow(dead_code)]
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
@@ -20,11 +21,15 @@ use iota_grpc_types::v1::{
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
-    MoveStruct, ObjectId, Owner, StructTag, TransactionDigest, TransactionEffects,
-    TransactionEvents, Version,
+    Event, Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEvents, Version,
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::AuthorityStrongQuorumSignInfo,
+    base_types::random_object_ref,
+    crypto::{AccountPrivateKey, AuthorityStrongQuorumSignInfo, get_key_pair},
+    effects::{TestEffectsBuilder, TransactionEffectsAPI as _, TransactionEffectsExt as _},
+    error::IotaError,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GasCoin,
     messages_checkpoint::{
@@ -32,9 +37,13 @@ use iota_types::{
         VerifiedCheckpoint,
     },
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
+    quorum_driver_types::{
+        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
+    },
     storage::error::Result as StorageResult,
     traffic_control::ClientIdSource,
     transaction::VerifiedTransaction,
+    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 use tonic::transport::Channel;
 
@@ -106,6 +115,141 @@ pub fn mock_summary(
         signers_map: Default::default(),
     };
     CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig)
+}
+
+// ---------------------------------------------------------------------------
+// Checkpoint transaction builders
+// ---------------------------------------------------------------------------
+
+/// Input/output object sets matching `effects` (all plain gas coins owned by
+/// `sender`). Checkpoint transactions must carry complete object sets — a
+/// wildcard read mask derives change fields from them and errors on gaps.
+pub fn objects_for_effects(
+    sender: Address,
+    effects: &TransactionEffects,
+) -> (Vec<Object>, Vec<Object>) {
+    let owner = Owner::Address(sender);
+    let input_objects = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| {
+            Object::with_id_owner_version_for_testing(
+                *modified.object_id(),
+                modified.version(),
+                owner,
+            )
+        })
+        .collect();
+    let output_objects = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(changed, _)| {
+            Object::with_id_owner_version_for_testing(
+                changed.reference().object_id,
+                changed.reference().version,
+                owner,
+            )
+        })
+        .collect();
+    (input_objects, output_objects)
+}
+
+/// Build checkpoint transactions, each optionally carrying `events_per_tx`
+/// events.
+pub fn build_checkpoint_transactions_with_events(
+    count: usize,
+    events_per_tx: usize,
+) -> Vec<CheckpointTransaction> {
+    let mut transactions = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let gas = random_object_ref();
+        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
+            .transfer(random_object_ref(), sender)
+            .build_and_sign(&key);
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let events = if events_per_tx > 0 {
+            let mut data = Vec::with_capacity(events_per_tx);
+            for _ in 0..events_per_tx {
+                data.push(Event {
+                    package_id: ObjectId::ZERO,
+                    module: Identifier::from_static("test_module"),
+                    sender,
+                    struct_tag: StructTag::new(
+                        Address::ZERO,
+                        Identifier::from_static("test_module"),
+                        Identifier::from_static("TestEvent"),
+                        vec![],
+                    ),
+                    contents: vec![0u8; 64], // 64 bytes of dummy content
+                });
+            }
+            Some(TransactionEvents(data))
+        } else {
+            None
+        };
+        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
+        transactions.push(CheckpointTransaction {
+            transaction,
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        });
+    }
+    transactions
+}
+
+/// Create a transaction and its effects so `get_transactions` can return it.
+pub fn create_test_transaction() -> (
+    TransactionDigest,
+    Arc<VerifiedTransaction>,
+    TransactionEffects,
+) {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = random_object_ref();
+    let tx = TestTransactionBuilder::new(sender, gas, 1000)
+        .transfer(random_object_ref(), sender)
+        .build_and_sign(&key);
+    let effects = TestEffectsBuilder::new(tx.data()).build();
+    let digest = *tx.digest();
+    (
+        digest,
+        Arc::new(VerifiedTransaction::new_unchecked(tx)),
+        effects,
+    )
+}
+
+/// A `TransactionExecutor` for tests whose requests fail validation before
+/// reaching the executor.
+pub struct UnreachableExecutor;
+
+#[async_trait::async_trait]
+impl TransactionExecutor for UnreachableExecutor {
+    async fn execute_transaction(
+        &self,
+        _request: ExecuteTransactionRequestV1,
+        _skip_certification: bool,
+        _client_addr: Option<std::net::SocketAddr>,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        unreachable!("test requests must fail validation before execution")
+    }
+
+    fn simulate_transaction(
+        &self,
+        _transaction: Transaction,
+        _checks: VmChecks,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        unreachable!("test requests must fail validation before simulation")
+    }
+
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        _digests: &[TransactionDigest],
+        _timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        unreachable!("test requests must fail validation before execution")
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -545,11 +689,12 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 ///
 /// Returns the server handle and the `GrpcReader` (callers may need it to
 /// create different client types).
-async fn start_test_server_with(
+pub async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
     client_id_source: Option<ClientIdSource>,
+    metrics: Option<iota_grpc_server::GrpcServerMetrics>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
@@ -568,7 +713,7 @@ async fn start_test_server_with(
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
-        None,
+        metrics,
         traffic_controller,
         client_id_source,
     )
@@ -586,7 +731,20 @@ pub async fn start_test_server(
     state_reader: Arc<MockGrpcStateReader>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    start_test_server_with(state_reader, None, None, None, config_customizer).await
+    start_test_server_with(
+        state_reader,
+        None,
+        None,
+        None,
+        Some(test_metrics()),
+        config_customizer,
+    )
+    .await
+}
+
+/// The metrics a test server has, as the node gives them to the server.
+fn test_metrics() -> iota_grpc_server::GrpcServerMetrics {
+    iota_grpc_server::GrpcServerMetrics::new(&prometheus_filtered::Registry::new())
 }
 
 /// Like [`start_test_server`], but with the given traffic controller wired
@@ -604,6 +762,7 @@ pub async fn start_test_server_with_traffic_controller(
         executor,
         Some(traffic_controller),
         Some(client_id_source),
+        Some(test_metrics()),
         |_| {},
     )
     .await

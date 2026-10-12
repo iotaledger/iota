@@ -93,16 +93,14 @@ async fn test_transaction_filter_scenarios() {
         let client = client.clone();
         async move {
             let mut stream = client
-                .checkpoints_stream(
-                    Some(0),
-                    Some(latest_seq),
-                    Some(tx_filter),
-                    None,
-                    [
-                        CheckpointResponseField::TRANSACTIONS_TRANSACTION_BCS,
-                        CheckpointResponseField::TRANSACTIONS_EFFECTS_BCS,
-                    ],
-                )
+                .checkpoints_stream()
+                .start_sequence_number(0)
+                .end_sequence_number(latest_seq)
+                .transactions_filter(tx_filter)
+                .read_mask([
+                    CheckpointResponseField::TRANSACTIONS_TRANSACTION_BCS,
+                    CheckpointResponseField::TRANSACTIONS_EFFECTS_BCS,
+                ])
                 .await
                 .expect("Failed to create stream");
 

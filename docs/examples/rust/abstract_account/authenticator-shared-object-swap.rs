@@ -416,7 +416,7 @@ pub async fn create_test_transaction(
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
     let signature = UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             vec![signature_call_arg, blacklist_call_arg],
             vec![],
             SharedObjectReference::new(account_ref.object_id, account_ref.version, false),
@@ -452,8 +452,7 @@ pub fn swap_blacklist_in_transaction(
             let CallArg::Shared(shared) = move_authenticator.object_to_authenticate() else {
                 panic!("Expected a shared object");
             };
-            let authenticator =
-                MoveAuthenticatorV1::new_with_shared_account_object(call_args, vec![], *shared);
+            let authenticator = MoveAuthenticatorV1::new(call_args, vec![], *shared);
 
             UserSignature::MoveAuthenticator(authenticator.into())
         }

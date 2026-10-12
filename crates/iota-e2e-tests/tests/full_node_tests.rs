@@ -120,6 +120,40 @@ async fn test_json_rpc_and_validator_listeners_are_measured() -> Result<(), anyh
     Ok(())
 }
 
+/// Guards the call in the node that gives the metrics to the gRPC API. The
+/// test is `cfg(msim)` because only the simulator has `IotaNode::gather_metrics`.
+#[cfg(msim)]
+#[sim_test]
+async fn test_grpc_api_responses_are_measured() -> Result<(), anyhow::Error> {
+    use iota_grpc_types::v1::ledger_service::GetServiceInfoRequest;
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    test_cluster
+        .grpc_client()
+        .ledger_service_client()
+        .get_service_info(GetServiceInfoRequest::default())
+        .await?;
+
+    let families = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.gather_metrics());
+    let response_messages = families
+        .iter()
+        .filter(|family| family.name() == "node_grpc_response_message_bytes")
+        .flat_map(|family| family.get_metric())
+        .map(|metric| metric.get_histogram().sample_count())
+        .sum::<u64>();
+    assert!(response_messages > 0, "no response message was measured");
+    assert!(
+        families
+            .iter()
+            .any(|family| family.name() == "node_grpc_response_item_bytes_peak"),
+        "the item peaks are not registered"
+    );
+    Ok(())
+}
+
 #[sim_test]
 async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;

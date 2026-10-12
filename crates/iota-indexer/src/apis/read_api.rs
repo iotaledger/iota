@@ -165,7 +165,8 @@ impl ReadApi {
     ) -> IndexerResult<bool> {
         let result = self
             .fullnode_grpc_client
-            .transactions([digest], TransactionField::TRANSACTION_DIGEST)
+            .transactions([digest])
+            .read_mask(TransactionField::TRANSACTION_DIGEST)
             .await?
             .into_inner()
             .pop()
@@ -370,6 +371,7 @@ impl ReadApiServer for ReadApi {
         descending_order: bool,
     ) -> RpcResult<CheckpointPage> {
         let cursor = cursor.map(BigInt::into_inner);
+        common::validate_cursor(cursor)?;
         let limit = iota_json_rpc_api::validate_limit(
             limit,
             iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,

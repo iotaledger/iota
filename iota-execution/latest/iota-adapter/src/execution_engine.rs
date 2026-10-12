@@ -1048,25 +1048,24 @@ mod checked {
                 gas_charger.reset(temporary_store);
                 gas_charger.charge_gas(temporary_store, &mut result);
                 // check conservation once more
-                if let Err(recovery_err) = {
-                    temporary_store
-                        .check_iota_conserved(cost_summary)
-                        .and_then(|()| {
-                            if enable_expensive_checks {
-                                // ensure that this transaction did not create or destroy IOTA, try
-                                // to recover if the check fails
-                                let mut layout_resolver =
-                                    TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
-                                temporary_store.check_iota_conserved_expensive(
-                                    cost_summary,
-                                    advance_epoch_gas_summary,
-                                    &mut layout_resolver,
-                                )
-                            } else {
-                                Ok(())
-                            }
-                        })
-                } {
+                if let Err(recovery_err) = temporary_store
+                    .check_iota_conserved(cost_summary)
+                    .and_then(|()| {
+                        if enable_expensive_checks {
+                            // ensure that this transaction did not create or destroy IOTA, try
+                            // to recover if the check fails
+                            let mut layout_resolver =
+                                TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
+                            temporary_store.check_iota_conserved_expensive(
+                                cost_summary,
+                                advance_epoch_gas_summary,
+                                &mut layout_resolver,
+                            )
+                        } else {
+                            Ok(())
+                        }
+                    })
+                {
                     // if we still fail, it's a problem with gas
                     // charging that happens even in the "aborted" case--no other option but panic.
                     // we will create or destroy IOTA otherwise

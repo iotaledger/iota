@@ -2404,20 +2404,21 @@ impl DagState {
     }
 
     /// Takes at most `limit` acknowledgments from `pending_acknowledgments`
-    /// from rounds below `clock_round`. Refs in `deferred` are skipped over and
-    /// stay pending so they can be acked later.
+    /// from rounds below `block_round`, the round of the block that carries
+    /// them. Refs in `deferred` are skipped over and stay pending so they can
+    /// be acked later.
     pub(crate) fn take_acknowledgments(
         &mut self,
+        block_round: Round,
         limit: usize,
         deferred: &BTreeSet<BlockRef>,
     ) -> Vec<BlockRef> {
         self.evict_pending_acknowledgments();
-        let clock_round = self.threshold_clock_round();
         let mut taken = Vec::with_capacity(limit);
 
         if deferred.is_empty() {
             for ack in self.pending_acknowledgments.iter() {
-                if taken.len() >= limit || ack.round >= clock_round {
+                if taken.len() >= limit || ack.round >= block_round {
                     break;
                 }
                 taken.push(*ack);
@@ -2429,7 +2430,7 @@ impl DagState {
         } else {
             let mut deferred_count: u64 = 0;
             for ack in self.pending_acknowledgments.iter() {
-                if taken.len() >= limit || ack.round >= clock_round {
+                if taken.len() >= limit || ack.round >= block_round {
                     break;
                 }
                 if deferred.contains(ack) {
@@ -4821,7 +4822,7 @@ mod test {
         let deferred: BTreeSet<BlockRef> = (1..=4u32)
             .flat_map(|round| [block_ref(round, 1), block_ref(round, 3)])
             .collect();
-        let taken = dag_state.take_acknowledgments(1024, &deferred);
+        let taken = dag_state.take_acknowledgments(5, 1024, &deferred);
         assert_eq!(taken.len(), 8, "2 authors × 4 eligible rounds");
         assert!(
             taken
@@ -4851,12 +4852,12 @@ mod test {
         }
 
         // Nothing deferred + capped limit: exactly `limit` returned.
-        let taken_limited = dag_state.take_acknowledgments(3, &BTreeSet::new());
+        let taken_limited = dag_state.take_acknowledgments(5, 3, &BTreeSet::new());
         assert_eq!(taken_limited.len(), 3);
 
         // Nothing deferred, no cap: drains the remaining 5 deferred refs;
         // round-6 refs stay pending (above clock_round).
-        let taken_rest = dag_state.take_acknowledgments(1024, &BTreeSet::new());
+        let taken_rest = dag_state.take_acknowledgments(5, 1024, &BTreeSet::new());
         assert_eq!(taken_rest.len(), 5);
         for author in 0..4u8 {
             assert!(
