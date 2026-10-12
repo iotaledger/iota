@@ -86,6 +86,7 @@ use crate::{
         AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
         AuthContextTxDataBytesCostParams, AuthContextTxInputsCostParams,
     },
+    builtin_authenticator_functions::BuiltinAuthenticatorFunctionsCostParams,
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
@@ -98,6 +99,7 @@ use crate::{
 mod address;
 mod auth_context;
 pub mod authentication_context;
+mod builtin_authenticator_functions;
 mod config;
 mod crypto;
 mod dynamic_field;
@@ -211,6 +213,9 @@ pub struct NativesCostTable {
 
     // public_key
     pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
+
+    // builtin_authenticator_functions
+    pub builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams,
 
     // groth16
     pub groth16_prepare_verifying_key_cost_params: Groth16PrepareVerifyingKeyCostParams,
@@ -394,6 +399,11 @@ impl NativesCostTable {
             public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams {
                 public_key_to_iota_address_impl_cost_base: protocol_config
                     .public_key_to_iota_address_impl_cost_base_as_option()
+                    .map(Into::into),
+            },
+            builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams {
+                builtin_move_authenticator_cost_base: protocol_config
+                    .builtin_move_authenticator_cost_base_as_option()
                     .map(Into::into),
             },
             // hash
@@ -1148,6 +1158,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "public_key",
             "to_iota_address_impl",
             make_native!(public_key::to_iota_address_impl),
+        ),
+        (
+            "builtin_authenticator_functions",
+            "borrow_account_uid",
+            make_native!(object::borrow_uid),
+        ),
+        (
+            "builtin_authenticator_functions",
+            "verify_builtin_signature",
+            make_native!(builtin_authenticator_functions::verify_builtin_signature),
         ),
         ("event", "emit", make_native!(event::emit)),
         (
