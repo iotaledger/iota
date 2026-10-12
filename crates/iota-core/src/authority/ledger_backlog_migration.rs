@@ -11,7 +11,14 @@
 //! that closed it, since that epoch decides when the row expires. Rows of
 //! epochs the node's retention has already left behind are deleted instead.
 
-use std::{collections::BTreeMap, ops::Bound, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    ops::Bound,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+};
 
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEffectsDigest,
@@ -24,19 +31,19 @@ use iota_types::{
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     transaction::{TransactionAPI, TrustedTransaction},
 };
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info};
 use typed_store::{
     DbIterator,
-    rocks::{DBMap, TaggedDBMap},
+    rocks::{DBBatch, DBMap},
     traits::Map,
 };
 
 use crate::{
     authority::{
-        AuthorityStore,
-        authority_store_tables::AuthorityPerpetualTables,
-        historic_ledger::{HistoricLedger, HistoricLedgerBucket},
+        AuthorityStore, authority_store_tables::AuthorityPerpetualTables,
+        historic_ledger::HistoricLedger,
     },
     checkpoints::{CheckpointStore, EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents},
     progress_logger::ProgressLogger,
@@ -46,28 +53,42 @@ use crate::{
 /// run repeats.
 const KEYS_PER_SLICE: usize = 5_000;
 
-const LEDGER_PASS: &str = "ledger backlog migration";
+/// How many key ranges each of the large flat tables is split into by the
+/// first byte of its key; each range is drained by its own thread.
+const KEY_RANGES: usize = 8;
+
+const BACKLOG_PASS: &str = "ledger and checkpoint backlog migration";
 const CHECKPOINT_PASS: &str = "checkpoint backlog migration";
 
-/// How far the migration has got through the flat perpetual ledger tables.
-///
-/// `Transactions` covers the four tables keyed by transaction digest, which
-/// are walked together; `Effects` the table keyed by effects digest. The
-/// digest is the last key moved, `None` if none has been yet.
+/// How far one key range of a flat table has been drained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RangeProgress<K> {
+    /// The last key moved, `None` before the first slice.
+    At(Option<K>),
+    Done,
+}
+
+/// How far the migration has got through the flat perpetual ledger tables,
+/// per key range. `transactions` covers the four tables keyed by transaction
+/// digest, which are walked together; `effects` the table keyed by effects
+/// digest.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LedgerBacklogMigrationProgress {
-    Transactions(Option<TransactionDigest>),
-    Effects(Option<TransactionEffectsDigest>),
+    Draining {
+        transactions: Vec<RangeProgress<TransactionDigest>>,
+        effects: Vec<RangeProgress<TransactionEffectsDigest>>,
+    },
     Done,
 }
 
 /// How far the migration has got through the checkpoint store's flat tables.
 ///
-/// Summaries are drained first and take the contents row they name with them;
-/// the contents rows left afterwards belong to no flat summary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Summaries are drained first, per key range, and take the contents row they
+/// name with them; the contents rows left afterwards belong to no flat
+/// summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointBacklogMigrationProgress {
-    Summaries(Option<CheckpointDigest>),
+    Summaries(Vec<RangeProgress<CheckpointDigest>>),
     ContentsWithoutSummary(Option<CheckpointContentsDigest>),
     Done,
 }
@@ -125,6 +146,81 @@ impl MigrationCounts {
     }
 }
 
+/// The latest position of every key range of the ledger drain.
+#[derive(Clone)]
+struct LedgerRanges {
+    transactions: Vec<RangeProgress<TransactionDigest>>,
+    effects: Vec<RangeProgress<TransactionEffectsDigest>>,
+}
+
+/// What the drain threads share: one progress log over all of them, the
+/// totals, and whether one has failed, which stops the others.
+struct ParallelProgress {
+    logger: Mutex<ProgressLogger>,
+    moved: AtomicUsize,
+    expired: AtomicUsize,
+    failed: AtomicBool,
+    /// The runtime of the calling thread, since the database starts tasks on
+    /// it, e.g. to sample iterator metrics.
+    runtime: Option<tokio::runtime::Handle>,
+}
+
+impl ParallelProgress {
+    /// Runs one thread's drain, stopping the others if it fails.
+    fn watch(&self, drain: impl FnOnce() -> IotaResult<()>) -> IotaResult<()> {
+        let _runtime = self.runtime.as_ref().map(|runtime| runtime.enter());
+        let result = drain();
+        if result.is_err() {
+            self.failed.store(true, Ordering::Relaxed);
+        }
+        result
+    }
+
+    fn stopped(&self) -> bool {
+        self.failed.load(Ordering::Relaxed)
+    }
+
+    fn record(&self, counts: &MigrationCounts, read: usize) {
+        self.moved.fetch_add(counts.moved, Ordering::Relaxed);
+        self.expired.fetch_add(counts.expired, Ordering::Relaxed);
+        self.logger.lock().advance(read as u64);
+    }
+}
+
+/// One slice of a key range, ready to be written.
+struct SliceBatch<K> {
+    batch: DBBatch,
+    counts: MigrationCounts,
+    /// Keys read from the flat table.
+    read: usize,
+    /// Where the key range stands once the batch is written.
+    next: RangeProgress<K>,
+}
+
+/// The keys of key range `range` above `from`; range `i` holds the keys whose
+/// first byte is in its share of `0..=255`.
+fn key_range<K>(
+    range: usize,
+    from: Option<K>,
+    key: impl Fn([u8; 32]) -> K,
+) -> (Bound<K>, Bound<K>) {
+    let first_key = |range: usize| {
+        let mut bytes = [0; 32];
+        bytes[0] = u8::try_from(range * 256 / KEY_RANGES).expect("below 256");
+        key(bytes)
+    };
+    let lower = match from {
+        Some(from) => Bound::Excluded(from),
+        None => Bound::Included(first_key(range)),
+    };
+    let upper = if range + 1 < KEY_RANGES {
+        Bound::Excluded(first_key(range + 1))
+    } else {
+        Bound::Unbounded
+    };
+    (lower, upper)
+}
+
 /// Rows read from a flat table in one batch.
 struct Slice<K, V> {
     /// The rows to move, grouped by the epoch whose bucket they belong in.
@@ -147,6 +243,17 @@ impl<K, V> Slice<K, V> {
             keys: Vec::new(),
             watermark: None,
             sliced: false,
+        }
+    }
+
+    /// Where its key range stands after this slice.
+    fn range_progress(&self) -> RangeProgress<K>
+    where
+        K: Copy,
+    {
+        match self.watermark {
+            Some(key) if self.sliced => RangeProgress::At(Some(key)),
+            _ => RangeProgress::Done,
         }
     }
 
@@ -191,8 +298,8 @@ impl LedgerBacklogMigration {
             self.pin_floor()?;
             self.rewind_synced_watermark()?;
         }
-        let mut counts = self.drain_ledger()?;
-        counts.add(&self.drain_checkpoints()?);
+        let mut counts = self.drain_in_parallel()?;
+        counts.add(&self.drain_contents_without_summary()?);
         if counts.moved > 0 || counts.expired > 0 {
             info!(
                 moved = counts.moved,
@@ -240,44 +347,248 @@ impl LedgerBacklogMigration {
         Ok(())
     }
 
-    fn drain_ledger(&self) -> IotaResult<MigrationCounts> {
-        use LedgerBacklogMigrationProgress as Progress;
+    /// Drains the flat ledger tables and the flat checkpoint summaries, each
+    /// table in [`KEY_RANGES`] key ranges with a thread per range. None of
+    /// these passes deletes what it reads, so they do not depend on each
+    /// other. Each slice records its range's progress in the same write
+    /// batch; the writes are serialized, so the single progress row of each
+    /// store always holds every range's latest position.
+    fn drain_in_parallel(&self) -> IotaResult<MigrationCounts> {
+        let ledger = match self
+            .perpetual_tables
+            .ledger_backlog_migration_progress
+            .get(&())?
+        {
+            Some(LedgerBacklogMigrationProgress::Done) => None,
+            Some(LedgerBacklogMigrationProgress::Draining {
+                transactions,
+                effects,
+            }) if transactions.len() == KEY_RANGES && effects.len() == KEY_RANGES => {
+                Some((transactions, effects))
+            }
+            // A different number of ranges restarts the drain, which is safe
+            // since nothing has been deleted yet.
+            _ => Some((
+                vec![RangeProgress::At(None); KEY_RANGES],
+                vec![RangeProgress::At(None); KEY_RANGES],
+            )),
+        };
+        let summaries = match self
+            .checkpoint_store
+            .tables
+            .checkpoint_backlog_migration_progress
+            .get(&())?
+        {
+            Some(CheckpointBacklogMigrationProgress::Summaries(ranges))
+                if ranges.len() == KEY_RANGES =>
+            {
+                Some(ranges)
+            }
+            None | Some(CheckpointBacklogMigrationProgress::Summaries(_)) => {
+                Some(vec![RangeProgress::At(None); KEY_RANGES])
+            }
+            Some(_) => None,
+        };
+        if ledger.is_none() && summaries.is_none() {
+            return Ok(MigrationCounts::default());
+        }
 
-        let mut counts = MigrationCounts::default();
-        let mut logger = None;
-        loop {
-            // Read from disk so a resumed run takes the same path as an
-            // uninterrupted one.
-            let progress = self
-                .perpetual_tables
+        let tables = &self.perpetual_tables;
+        let mut total = 0;
+        if ledger.is_some() {
+            total += tables.transactions.estimated_len()? + tables.effects.estimated_len()?;
+        }
+        if summaries.is_some() {
+            total += self
+                .checkpoint_store
+                .tables
+                .checkpoint_by_digest
+                .estimated_len()?;
+        }
+        let progress = ParallelProgress {
+            logger: Mutex::new(ProgressLogger::new(BACKLOG_PASS, "rows", total)),
+            moved: AtomicUsize::new(0),
+            expired: AtomicUsize::new(0),
+            failed: AtomicBool::new(false),
+            runtime: tokio::runtime::Handle::try_current().ok(),
+        };
+        let ledger = ledger.map(|(transactions, effects)| {
+            Mutex::new(LedgerRanges {
+                transactions,
+                effects,
+            })
+        });
+        let summaries = summaries.map(Mutex::new);
+
+        let results: Vec<IotaResult<()>> = std::thread::scope(|scope| {
+            let mut workers = Vec::new();
+            for range in 0..KEY_RANGES {
+                let progress = &progress;
+                if let Some(ledger) = &ledger {
+                    workers.push(scope.spawn(move || {
+                        progress.watch(|| self.drain_transactions_range(range, ledger, progress))
+                    }));
+                    workers.push(scope.spawn(move || {
+                        progress.watch(|| self.drain_effects_range(range, ledger, progress))
+                    }));
+                }
+                if let Some(summaries) = &summaries {
+                    workers.push(scope.spawn(move || {
+                        progress.watch(|| self.drain_summaries_range(range, summaries, progress))
+                    }));
+                }
+            }
+            workers
+                .into_iter()
+                .map(|worker| {
+                    worker.join().unwrap_or_else(|_| {
+                        Err(IotaError::Storage(
+                            "a backlog migration thread panicked".to_string(),
+                        ))
+                    })
+                })
+                .collect()
+        });
+        results.into_iter().collect::<IotaResult<Vec<()>>>()?;
+        let ParallelProgress {
+            logger,
+            moved,
+            expired,
+            ..
+        } = progress;
+        logger.into_inner().finish();
+
+        // Every range finished, as an error would have returned above.
+        if ledger.is_some() {
+            self.perpetual_tables
                 .ledger_backlog_migration_progress
-                .get(&())?
-                .unwrap_or(Progress::Transactions(None));
-            let tables = &self.perpetual_tables;
-            let (step, total) = match &progress {
-                Progress::Transactions(_) => ("transactions", tables.transactions.estimated_len()?),
-                Progress::Effects(_) => ("effects", tables.effects.estimated_len()?),
-                Progress::Done => {
-                    Self::close_step(&mut logger);
-                    return Ok(counts);
-                }
+                .insert(&(), &LedgerBacklogMigrationProgress::Done)?;
+        }
+        if summaries.is_some() {
+            self.checkpoint_store
+                .tables
+                .checkpoint_backlog_migration_progress
+                .insert(
+                    &(),
+                    &CheckpointBacklogMigrationProgress::ContentsWithoutSummary(None),
+                )?;
+        }
+        Ok(MigrationCounts {
+            moved: moved.into_inner(),
+            expired: expired.into_inner(),
+        })
+    }
+
+    /// Drains key range `range` of the four tables keyed by transaction digest.
+    fn drain_transactions_range(
+        &self,
+        range: usize,
+        ledger: &Mutex<LedgerRanges>,
+        progress: &ParallelProgress,
+    ) -> IotaResult<()> {
+        loop {
+            let RangeProgress::At(from) = ledger.lock().transactions[range] else {
+                return Ok(());
             };
-            let logger = Self::open_step(&mut logger, LEDGER_PASS, step, total);
-            let (slice, read) = match progress {
-                Progress::Transactions(from) => self.move_transactions(from)?,
-                Progress::Effects(from) => {
-                    let slice = self.move_effects(from)?;
-                    let read = slice.moved + slice.expired;
-                    (slice, read)
-                }
-                Progress::Done => unreachable!("the step match above returns on Done"),
-            };
-            logger.advance(read as u64);
-            counts.add(&slice);
+            if progress.stopped() {
+                return Ok(());
+            }
+            let slice = self.transactions_slice(range, from)?;
+            let mut ranges = ledger.lock();
+            let mut written = ranges.clone();
+            written.transactions[range] = slice.next;
+            self.write_ledger_slice(slice.batch, &written)?;
+            *ranges = written;
+            drop(ranges);
+            progress.record(&slice.counts, slice.read);
         }
     }
 
-    fn drain_checkpoints(&self) -> IotaResult<MigrationCounts> {
+    /// Drains key range `range` of the effects table.
+    fn drain_effects_range(
+        &self,
+        range: usize,
+        ledger: &Mutex<LedgerRanges>,
+        progress: &ParallelProgress,
+    ) -> IotaResult<()> {
+        loop {
+            let RangeProgress::At(from) = ledger.lock().effects[range] else {
+                return Ok(());
+            };
+            if progress.stopped() {
+                return Ok(());
+            }
+            let slice = self.effects_slice(range, from)?;
+            let mut ranges = ledger.lock();
+            let mut written = ranges.clone();
+            written.effects[range] = slice.next;
+            self.write_ledger_slice(slice.batch, &written)?;
+            *ranges = written;
+            drop(ranges);
+            progress.record(&slice.counts, slice.read);
+        }
+    }
+
+    /// Drains key range `range` of the flat checkpoint summaries.
+    fn drain_summaries_range(
+        &self,
+        range: usize,
+        summaries: &Mutex<Vec<RangeProgress<CheckpointDigest>>>,
+        progress: &ParallelProgress,
+    ) -> IotaResult<()> {
+        loop {
+            let RangeProgress::At(from) = summaries.lock()[range] else {
+                return Ok(());
+            };
+            if progress.stopped() {
+                return Ok(());
+            }
+            let mut slice = self.summaries_slice(range, from)?;
+            let mut ranges = summaries.lock();
+            let mut written = ranges.clone();
+            written[range] = slice.next;
+            slice.batch.insert_batch(
+                &self
+                    .checkpoint_store
+                    .tables
+                    .checkpoint_backlog_migration_progress,
+                [(
+                    (),
+                    CheckpointBacklogMigrationProgress::Summaries(written.clone()),
+                )],
+            )?;
+            slice.batch.write()?;
+            // Only once written, or another range could record a position
+            // whose rows a failed write left behind.
+            *ranges = written;
+            drop(ranges);
+            progress.record(&slice.counts, slice.read);
+        }
+    }
+
+    /// Writes a ledger slice together with every range's latest position. The
+    /// caller holds the ranges' lock, which serializes these writes, and
+    /// stores `ranges` as the latest positions only once this succeeds: before
+    /// that, another range could record a position whose rows a failed write
+    /// left behind.
+    fn write_ledger_slice(&self, mut batch: DBBatch, ranges: &LedgerRanges) -> IotaResult<()> {
+        batch.insert_batch(
+            &self.perpetual_tables.ledger_backlog_migration_progress,
+            [(
+                (),
+                LedgerBacklogMigrationProgress::Draining {
+                    transactions: ranges.transactions.clone(),
+                    effects: ranges.effects.clone(),
+                },
+            )],
+        )?;
+        batch.write()?;
+        Ok(())
+    }
+
+    /// Moves the contents rows the summaries left behind, once the summaries
+    /// and the ledger are drained.
+    fn drain_contents_without_summary(&self) -> IotaResult<MigrationCounts> {
         use CheckpointBacklogMigrationProgress as Progress;
 
         let mut counts = MigrationCounts::default();
@@ -287,29 +598,21 @@ impl LedgerBacklogMigration {
                 .checkpoint_store
                 .tables
                 .checkpoint_backlog_migration_progress
-                .get(&())?
-                .unwrap_or(Progress::Summaries(None));
-            let tables = &self.checkpoint_store.tables;
-            let (step, total) = match &progress {
-                Progress::Summaries(_) => {
-                    ("summaries", tables.checkpoint_by_digest.estimated_len()?)
-                }
-                Progress::ContentsWithoutSummary(_) => {
-                    ("contents", tables.checkpoint_content.estimated_len()?)
-                }
-                Progress::Done => {
+                .get(&())?;
+            let from = match progress {
+                Some(Progress::ContentsWithoutSummary(from)) => from,
+                _ => {
                     Self::close_step(&mut logger);
                     return Ok(counts);
                 }
             };
-            let logger = Self::open_step(&mut logger, CHECKPOINT_PASS, step, total);
-            let slice = match progress {
-                Progress::Summaries(from) => self.move_checkpoint_summaries(from)?,
-                Progress::ContentsWithoutSummary(from) => {
-                    self.move_contents_without_summary(from)?
-                }
-                Progress::Done => unreachable!("the step match above returns on Done"),
-            };
+            let total = self
+                .checkpoint_store
+                .tables
+                .checkpoint_content
+                .estimated_len()?;
+            let logger = Self::open_step(&mut logger, CHECKPOINT_PASS, "contents", total);
+            let slice = self.move_contents_without_summary(from)?;
             logger.advance((slice.moved + slice.expired) as u64);
             counts.add(&slice);
         }
@@ -389,24 +692,20 @@ impl LedgerBacklogMigration {
         Ok(())
     }
 
-    /// Reads up to [`Self::keys_per_slice`] rows of `flat` above
-    /// `resume_above`, grouped by the epoch `epoch_of` gives them.
+    /// Reads up to [`Self::keys_per_slice`] rows of `flat` within `range`,
+    /// grouped by the epoch `epoch_of` gives them.
     fn read_slice<K, V>(
         &self,
         flat: &DBMap<K, V>,
-        resume_above: Option<K>,
+        range: (Bound<K>, Bound<K>),
         epoch_of: impl Fn(&K, &V) -> IotaResult<Option<EpochId>>,
     ) -> IotaResult<Slice<K, V>>
     where
         K: Serialize + DeserializeOwned + Copy,
         V: Serialize + DeserializeOwned,
     {
-        let lower_bound = resume_above.map_or(Bound::Unbounded, Bound::Excluded);
         let mut slice = Slice::new();
-        for (read, row) in flat
-            .safe_range_iter((lower_bound, Bound::Unbounded))
-            .enumerate()
-        {
+        for (read, row) in flat.safe_range_iter(range).enumerate() {
             if read == self.keys_per_slice {
                 // This row is left for the next slice to read again.
                 slice.sliced = true;
@@ -426,48 +725,8 @@ impl LedgerBacklogMigration {
         Ok(slice)
     }
 
-    /// Moves one slice of a flat perpetual ledger table into the buckets and
-    /// records `progress`, all in one write batch.
-    fn move_ledger_slice<K, V, W>(
-        &self,
-        flat: &DBMap<K, V>,
-        slice: Slice<K, V>,
-        bucket_table: impl Fn(&HistoricLedgerBucket) -> &TaggedDBMap<K, W>,
-        into_row: impl Fn(V) -> W,
-        progress: LedgerBacklogMigrationProgress,
-    ) -> IotaResult<MigrationCounts>
-    where
-        K: Serialize + DeserializeOwned + Copy,
-        V: Serialize + DeserializeOwned,
-        W: Serialize + DeserializeOwned,
-    {
-        let mut batch = flat.batch();
-        let mut moved = 0;
-        for (epoch, rows) in slice.by_epoch {
-            let bucket = self.historic_ledger.ensure(epoch)?;
-            moved += rows.len();
-            batch.insert_batch_tagged(
-                bucket_table(bucket.as_ref()),
-                rows.into_iter().map(|(key, value)| (key, into_row(value))),
-            )?;
-        }
-        batch.insert_batch(
-            &self.perpetual_tables.ledger_backlog_migration_progress,
-            [((), progress)],
-        )?;
-        batch.write()?;
-
-        let expired = slice.expired.len();
-        debug!(
-            moved,
-            expired, "migrated a slice of the flat ledger history"
-        );
-        Ok(MigrationCounts { moved, expired })
-    }
-
-    /// Moves one slice of the four tables keyed by transaction digest into the
-    /// buckets and records how far it got, in one write batch. Returns the
-    /// rows moved and expired, and the number of transactions read.
+    /// Builds the write batch moving the next slice of key range `range` of
+    /// the four tables keyed by transaction digest into the buckets.
     ///
     /// The tables are walked together, so each transaction's epoch is
     /// resolved once for all of its rows: from its finalizing checkpoint, or
@@ -477,17 +736,13 @@ impl LedgerBacklogMigration {
     /// dropped. The exception is a randomness state update a validator stored
     /// before executing it, since its signature cannot always be built again;
     /// it is filed under the epoch it names.
-    fn move_transactions(
+    fn transactions_slice(
         &self,
+        range: usize,
         from: Option<TransactionDigest>,
-    ) -> IotaResult<(MigrationCounts, usize)> {
-        use LedgerBacklogMigrationProgress as Progress;
-
+    ) -> IotaResult<SliceBatch<TransactionDigest>> {
         let tables = &self.perpetual_tables;
-        let range = (
-            from.map_or(Bound::Unbounded, Bound::Excluded),
-            Bound::Unbounded,
-        );
+        let range = key_range(range, from, TransactionDigest::new);
         let mut transactions = tables.transactions.safe_range_iter(range).peekable();
         let mut events = tables.events_2.safe_range_iter(range).peekable();
         let mut executed = tables.executed_effects.safe_range_iter(range).peekable();
@@ -583,47 +838,68 @@ impl LedgerBacklogMigration {
                     .filter_map(|row| Some((row.digest, row.finalized?.1))),
             )?;
         }
-        let progress = match rows.last() {
-            Some(last) if sliced => Progress::Transactions(Some(last.digest)),
-            _ => Progress::Effects(None),
+        let next = match rows.last() {
+            Some(last) if sliced => RangeProgress::At(Some(last.digest)),
+            _ => RangeProgress::Done,
         };
-        batch.insert_batch(&tables.ledger_backlog_migration_progress, [((), progress)])?;
-        batch.write()?;
-
-        debug!(
-            moved = counts.moved,
-            expired = counts.expired,
-            "migrated a slice of the flat transaction rows"
-        );
-        Ok((counts, rows.len()))
+        Ok(SliceBatch {
+            batch,
+            counts,
+            read: rows.len(),
+            next,
+        })
     }
 
-    fn move_effects(&self, from: Option<TransactionEffectsDigest>) -> IotaResult<MigrationCounts> {
-        use LedgerBacklogMigrationProgress as Progress;
-
+    /// Builds the write batch moving the next slice of key range `range` of
+    /// the effects table into the buckets.
+    fn effects_slice(
+        &self,
+        range: usize,
+        from: Option<TransactionEffectsDigest>,
+    ) -> IotaResult<SliceBatch<TransactionEffectsDigest>> {
         let flat = &self.perpetual_tables.effects;
-        let slice = self.read_slice(flat, from, |_, effects| Ok(Some(effects.epoch())))?;
-        let progress = slice.progress(Progress::Effects, Progress::Done);
-        self.move_ledger_slice(flat, slice, |bucket| &bucket.effects, |row| row, progress)
+        let slice = self.read_slice(
+            flat,
+            key_range(range, from, TransactionEffectsDigest::new),
+            |_, effects| Ok(Some(effects.epoch())),
+        )?;
+        let mut batch = flat.batch();
+        let mut moved = 0;
+        for (epoch, rows) in slice.by_epoch.iter() {
+            let bucket = self.historic_ledger.ensure(*epoch)?;
+            moved += rows.len();
+            batch.insert_batch_tagged(&bucket.effects, rows.iter().map(|(k, v)| (k, v)))?;
+        }
+        Ok(SliceBatch {
+            batch,
+            counts: MigrationCounts {
+                moved,
+                expired: slice.expired.len(),
+            },
+            read: slice.keys.len(),
+            next: slice.range_progress(),
+        })
     }
 
-    /// Moves one slice of the flat digest-keyed checkpoint summaries into the
-    /// buckets, each with the contents row it names, and records how far it
-    /// got.
+    /// Builds the write batch moving the next slice of key range `range` of
+    /// the flat digest-keyed checkpoint summaries into the buckets, each with
+    /// the contents row it names.
     ///
     /// Checkpoints in different epochs can share one contents row (every empty
     /// checkpoint does), so each epoch's bucket gets its own copy; expiring one
     /// epoch then cannot leave another's checkpoint without contents.
-    fn move_checkpoint_summaries(
+    fn summaries_slice(
         &self,
+        range: usize,
         from: Option<CheckpointDigest>,
-    ) -> IotaResult<MigrationCounts> {
-        use CheckpointBacklogMigrationProgress as Progress;
-
+    ) -> IotaResult<SliceBatch<CheckpointDigest>> {
         let tables = &self.checkpoint_store.tables;
         let flat = &tables.checkpoint_by_digest;
-        let slice = self.read_slice(flat, from, |_, summary| Ok(Some(summary.inner().epoch)))?;
-        let progress = slice.progress(Progress::Summaries, Progress::ContentsWithoutSummary(None));
+        let slice = self.read_slice(
+            flat,
+            key_range(range, from, CheckpointDigest::new),
+            |_, summary| Ok(Some(summary.inner().epoch)),
+        )?;
 
         let mut batch = flat.batch();
         let mut moved = 0;
@@ -674,18 +950,15 @@ impl LedgerBacklogMigration {
         // retained summary in a later slice may share them; the rest go to
         // `move_contents_without_summary`.
         batch.delete_batch(&tables.checkpoint_content, &contents_keys)?;
-        batch.insert_batch(
-            &tables.checkpoint_backlog_migration_progress,
-            [((), progress)],
-        )?;
-        batch.write()?;
-
-        let expired = slice.expired.len();
-        debug!(
-            moved,
-            expired, "migrated a slice of the flat checkpoint summaries"
-        );
-        Ok(MigrationCounts { moved, expired })
+        Ok(SliceBatch {
+            batch,
+            counts: MigrationCounts {
+                moved,
+                expired: slice.expired.len(),
+            },
+            read: slice.keys.len(),
+            next: slice.range_progress(),
+        })
     }
 
     /// Moves one slice of the contents rows the summary pass left behind into
@@ -707,7 +980,11 @@ impl LedgerBacklogMigration {
 
         let tables = &self.checkpoint_store.tables;
         let flat = &tables.checkpoint_content;
-        let slice = self.read_slice(flat, from, |_, contents| {
+        let range = (
+            from.map_or(Bound::Unbounded, Bound::Excluded),
+            Bound::Unbounded,
+        );
+        let slice = self.read_slice(flat, range, |_, contents| {
             let Some(first) = contents.iter().next() else {
                 return Ok(Some(self.epoch));
             };

@@ -22,7 +22,8 @@ use prometheus_filtered::Registry;
 use typed_store::{database::wait_for_database_close, traits::Map};
 
 use super::{
-    CheckpointBacklogMigrationProgress, LedgerBacklogMigration, LedgerBacklogMigrationProgress,
+    CheckpointBacklogMigrationProgress, KEY_RANGES, LedgerBacklogMigration,
+    LedgerBacklogMigrationProgress, LedgerRanges, RangeProgress,
 };
 use crate::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
@@ -253,6 +254,27 @@ fn migration(
         LedgerBacklogMigration::new(store, checkpoint_store, RUNNING_EPOCH, epochs_to_retain);
     migration.keys_per_slice = keys_per_slice;
     migration
+}
+
+/// Writes the first slice of the key range holding the lowest seeded
+/// transaction digest, as a run stopped after that write leaves it, and
+/// returns that range.
+fn move_first_transactions_slice(migration: &LedgerBacklogMigration, seeded: &Seeded) -> usize {
+    let lowest = seeded
+        .transactions
+        .iter()
+        .map(|transaction| transaction.digest)
+        .min()
+        .expect("the seed holds transactions");
+    let range = usize::from(lowest.bytes()[0]) * KEY_RANGES / 256;
+    let slice = migration.transactions_slice(range, None).unwrap();
+    let mut ranges = LedgerRanges {
+        transactions: vec![RangeProgress::At(None); KEY_RANGES],
+        effects: vec![RangeProgress::At(None); KEY_RANGES],
+    };
+    ranges.transactions[range] = slice.next;
+    migration.write_ledger_slice(slice.batch, &ranges).unwrap();
+    range
 }
 
 fn ledger_progress(store: &AuthorityStore) -> Option<LedgerBacklogMigrationProgress> {
@@ -632,11 +654,26 @@ async fn the_migration_resumes_from_its_watermark() {
     // One slice of one row stops the run inside the first table. The flat
     // table keeps every row until all passes are done.
     let interrupted = migration(&store, checkpoint_store.clone(), None, 1);
-    interrupted.move_transactions(None).unwrap();
-    let watermark = match ledger_progress(&store) {
-        Some(LedgerBacklogMigrationProgress::Transactions(Some(digest))) => digest,
-        other => panic!("the interrupted run must have recorded a watermark, got {other:?}"),
-    };
+    let range = move_first_transactions_slice(&interrupted, &seeded);
+    let watermark = seeded
+        .transactions
+        .iter()
+        .map(|transaction| transaction.digest)
+        .min()
+        .unwrap();
+    match ledger_progress(&store) {
+        Some(LedgerBacklogMigrationProgress::Draining { transactions, .. }) => {
+            assert!(
+                transactions
+                    .iter()
+                    .enumerate()
+                    .all(|(other, progress)| (other == range)
+                        != (*progress == RangeProgress::At(None))),
+                "only the interrupted range may have moved, got {transactions:?}"
+            );
+        }
+        other => panic!("the interrupted run must have recorded its progress, got {other:?}"),
+    }
     assert_eq!(
         store.perpetual_tables.transactions.safe_iter().count(),
         5,
@@ -953,7 +990,7 @@ async fn a_resumed_run_keeps_the_floor_the_migration_started_with() {
         1,
     );
     interrupted.pin_floor().unwrap();
-    interrupted.move_transactions(None).unwrap();
+    move_first_transactions_slice(&interrupted, &seeded);
 
     migration(&store, checkpoint_store.clone(), None, 5_000)
         .run()
