@@ -1011,3 +1011,30 @@ async fn an_unexecuted_randomness_update_is_kept() {
         "the update must be filed under the epoch it names"
     );
 }
+
+/// A transaction's other rows are filed even when the flat table holds no
+/// body for it, since the four tables keyed by transaction digest are walked
+/// together rather than from the bodies alone.
+#[tokio::test]
+async fn rows_without_a_body_are_still_filed() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let without_body = seed_transaction(&store, WATERMARK_EPOCH, 20, EpochSource::Effects);
+    store
+        .perpetual_tables
+        .transactions
+        .remove(&without_body.digest)
+        .unwrap();
+
+    migration(&store, checkpoint_store, None, 5_000)
+        .run()
+        .unwrap();
+
+    let bucket = store.get_historic_ledger().ensure(WATERMARK_EPOCH).unwrap();
+    assert_eq!(
+        bucket.executed_effects.get(&without_body.digest).unwrap(),
+        without_body.effects_digest
+    );
+    assert!(bucket.events.get(&without_body.digest).unwrap().is_some());
+}
