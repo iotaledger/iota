@@ -150,7 +150,6 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     let (addr, kp): (_, AuthorityKeyPair) = get_key_pair();
-    let (s_addr, s_kp): (_, fastcrypto::ed25519::Ed25519KeyPair) = get_key_pair();
     let pk: AuthorityPublicKeyBytes = kp.public().into();
     tracer.trace_value(&mut samples, &addr).unwrap();
     tracer.trace_value(&mut samples, &kp).unwrap();
@@ -164,9 +163,6 @@ fn get_registry() -> Result<Registry> {
         stake: 1,
     };
     tracer.trace_value(&mut samples, &committee_member).unwrap();
-
-    tracer.trace_value(&mut samples, &s_addr).unwrap();
-    tracer.trace_value(&mut samples, &s_kp).unwrap();
 
     // We have two signature types: one for Authority Signatures, which don't
     // include the PubKey ...

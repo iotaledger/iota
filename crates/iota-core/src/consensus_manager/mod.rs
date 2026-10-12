@@ -10,7 +10,6 @@ use std::{
 
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
-use fastcrypto::traits::KeyPair as _;
 use iota_config::{ConsensusConfig, NodeConfig};
 use iota_metrics::RegistryService;
 use iota_protocol_config::ProtocolVersion;
@@ -75,8 +74,8 @@ impl ConsensusManager {
         let starfish_client = Arc::new(LazyStarfishClient::new());
         consensus_client.set(starfish_client.clone());
         let starfish_manager = StarfishManager::new(
-            node_config.protocol_key_pair().copy(),
-            node_config.network_key_pair().copy(),
+            node_config.protocol_key_pair(),
+            node_config.network_key_pair(),
             consensus_config.db_path().to_path_buf(),
             registry_service.clone(),
             metrics,

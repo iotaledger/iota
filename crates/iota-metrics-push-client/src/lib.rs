@@ -18,8 +18,6 @@ pub fn start_metrics_push_task(
     metrics_key_pair: NetworkKeyPair,
     registry: RegistryService,
 ) {
-    use fastcrypto::traits::KeyPair;
-
     const DEFAULT_METRICS_PUSH_INTERVAL: Duration = Duration::from_secs(60);
 
     let interval = push_interval_seconds
@@ -27,7 +25,7 @@ pub fn start_metrics_push_task(
         .unwrap_or(DEFAULT_METRICS_PUSH_INTERVAL);
     let url = reqwest::Url::parse(&push_url).expect("unable to parse metrics push url");
 
-    let mut client = MetricsPushClient::new(metrics_key_pair.copy());
+    let mut client = MetricsPushClient::new(metrics_key_pair.clone());
 
     tokio::spawn(async move {
         tracing::info!(push_url =% url, interval =? interval, "Started Metrics Push Service");
@@ -48,7 +46,7 @@ pub fn start_metrics_push_task(
                     tracing::warn!("unable to push metrics: {error}; new client will be created");
                 }
                 // aggressively recreate our client connection if we hit an error
-                client = MetricsPushClient::new(metrics_key_pair.copy());
+                client = MetricsPushClient::new(metrics_key_pair.clone());
             } else {
                 errors = 0;
             }

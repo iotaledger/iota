@@ -10,10 +10,9 @@ use std::{
 
 use anyhow::Result;
 use bcs;
-use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaObjectDataOptions};
 use iota_sdk_move_types::iota_framework::dynamic_field::Field;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Ed25519PublicKey, ObjectId, crypto::PublicKeyExt as _};
 use iota_tls::Allower;
 use iota_types::iota_system_state::{
     iota_system_state_inner_v1::ValidatorV1,
@@ -72,7 +71,7 @@ impl IotaNodeProvider {
         // binary startup.
         let static_nodes: HashMap<Ed25519PublicKey, AllowedPeer> = static_peers
             .into_iter()
-            .map(|v| (v.public_key.clone(), v))
+            .map(|v| (v.public_key, v))
             .collect();
         let static_nodes = Arc::new(RwLock::new(static_nodes));
         let active_validator_nodes = Arc::new(RwLock::new(HashMap::new()));
@@ -279,7 +278,7 @@ fn extract_validators_from_summaries(
                     public_key, vm.name
                 );
                 Some((
-                    public_key.clone(),
+                    public_key,
                     AllowedPeer {
                         name: vm.name.to_owned(),
                         public_key,
