@@ -1162,14 +1162,14 @@ impl ConnectionKnowledge {
         taken
     }
 
-    /// Take useful header block refs from the given authorities up to the given
-    /// round (exclusive).
+    /// Take at most `max_take` useful header block refs from the given
+    /// authorities up to the given round (exclusive).
     fn take_useful_header_block_refs_round(
         &mut self,
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
+        max_take: usize,
     ) -> Vec<BlockRef> {
-        let max_take = self.context.parameters.max_headers_per_bundle;
         Self::take_useful_refs_round(
             &mut self.headers_not_known,
             round_upper_bound_exclusive,
@@ -1336,13 +1336,19 @@ impl ConnectionKnowledge {
             .map(|(authority_index, _opt_round)| authority_index)
             .collect();
 
-        let mut useful_headers_block_refs_to_peer =
-            self.take_useful_header_block_refs_round(block_round, &useful_headers_authors_to_peer);
-        if let Some(leader_ref) =
-            self.take_voted_leader_header(&block, &useful_headers_authors_to_peer)
-        {
-            useful_headers_block_refs_to_peer.push(leader_ref);
-        }
+        // The voted leader header comes first and the ordinary headers fill the
+        // rest of the cap, as the receiver drops the headers beyond its cap.
+        let mut useful_headers_block_refs_to_peer: Vec<BlockRef> = self
+            .take_voted_leader_header(&block, &useful_headers_authors_to_peer)
+            .into_iter()
+            .collect();
+        let max_take = self.context.parameters.max_headers_per_bundle
+            - useful_headers_block_refs_to_peer.len();
+        useful_headers_block_refs_to_peer.extend(self.take_useful_header_block_refs_round(
+            block_round,
+            &useful_headers_authors_to_peer,
+            max_take,
+        ));
 
         let useful_headers_to_peer: Vec<VerifiedBlockHeader> = {
             let dag_state_read = self.dag_state.read();
@@ -2862,5 +2868,90 @@ mod tests {
         assert!(headers_sent(past_window + 2, false).is_empty());
         // Past the long window nothing is sent.
         assert!(headers_sent(MAX_ROUND_GAP_FOR_LEADER_HEADERS + 5, true).is_empty());
+    }
+
+    /// When the ordinary headers alone fill the bundle cap, the voted leader
+    /// header still fits within it, and the ordinary header it displaces goes
+    /// out with the next bundle.
+    #[tokio::test]
+    async fn test_voted_leader_header_fits_within_saturated_bundle_cap() {
+        telemetry_subscribers::init_for_testing();
+        let our_index = AuthorityIndex::new_for_test(0);
+        let peer_index = AuthorityIndex::new_for_test(1);
+        let leader_index = AuthorityIndex::new_for_test(2);
+        let ordinary_indices = [
+            AuthorityIndex::new_for_test(3),
+            AuthorityIndex::new_for_test(4),
+        ];
+        let (mut context, _) = Context::new_for_test(5);
+        context.parameters.max_headers_per_bundle = ordinary_indices.len();
+        let context = Arc::new(context);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let cordial_knowledge = CordialKnowledge::start(context, dag_state.clone());
+        let connection_knowledge = cordial_knowledge.connection_knowledges[peer_index].clone();
+
+        // The peer reported the ordinary authors useful just now and the leader
+        // only past the ordinary window.
+        let leader_round = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 5;
+        let mut useful_headers_to_peer = BTreeMap::from([(leader_index, 1)]);
+        useful_headers_to_peer.extend(ordinary_indices.map(|index| (index, leader_round)));
+        connection_knowledge.write().process_one_message(
+            ConnectionKnowledgeMessage::UsefulAuthors {
+                useful_headers_to_peer,
+                useful_shards_to_peer: BTreeMap::new(),
+            },
+        );
+
+        let ancestors: Vec<VerifiedBlockHeader> = std::iter::once(leader_index)
+            .chain(ordinary_indices)
+            .map(|index| {
+                VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(leader_round, index.value() as u8).build(),
+                )
+            })
+            .collect();
+        for ancestor in &ancestors {
+            dag_state
+                .write()
+                .accept_block_header(ancestor.clone(), DataSource::Test);
+        }
+        let headers_sent = |own_block: VerifiedBlock| {
+            connection_knowledge
+                .write()
+                .create_bundle(own_block)
+                .verified_headers
+                .iter()
+                .map(|header| (header.round(), header.author()))
+                .collect::<Vec<_>>()
+        };
+
+        let voting_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(leader_round + 1, our_index.value() as u8)
+                .set_version(TestBlockHeaderVersion::V2)
+                .set_ancestors(ancestors.iter().map(|header| header.reference()).collect())
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority: leader_index,
+                    missing: AuthoritySet::new(),
+                }))
+                .build(),
+        );
+        assert_eq!(
+            headers_sent(voting_block),
+            vec![
+                (leader_round, leader_index),
+                (leader_round, ordinary_indices[0])
+            ]
+        );
+
+        let next_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(leader_round + 2, our_index.value() as u8).build(),
+        );
+        assert_eq!(
+            headers_sent(next_block),
+            vec![(leader_round, ordinary_indices[1])]
+        );
     }
 }
