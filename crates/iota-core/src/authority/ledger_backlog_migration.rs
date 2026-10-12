@@ -134,7 +134,7 @@ struct Slice<K, V> {
     by_epoch: BTreeMap<EpochId, Vec<(K, V)>>,
     /// The rows to delete: below the floor, or with no epoch.
     expired: Vec<(K, V)>,
-    /// Every key read; all are deleted from the flat table.
+    /// Every key read, for the passes that delete what they read.
     keys: Vec<K>,
     /// The last key read, `None` when nothing was left above the resume point.
     watermark: Option<K>,
@@ -205,6 +205,8 @@ impl LedgerBacklogMigration {
             );
         }
 
+        self.clear_flat_tables()?;
+
         // Stops state sync from advertising checkpoints below the floor. Based
         // on the floor rather than on what this run deleted, since a resumed
         // run may have deleted nothing itself. Logged rather than returned, so
@@ -217,6 +219,27 @@ impl LedgerBacklogMigration {
                 error!("failed to record the checkpoint range the migration deleted: {e}");
             }
         }
+        Ok(())
+    }
+
+    /// Deletes the flat tables the passes left their rows in, once all of them
+    /// are done. The passes read rows without deleting them, so that every
+    /// pass resolving a transaction's epoch sees the same tables; one range
+    /// deletion per table then replaces a deletion per row. Does nothing
+    /// once the tables are empty.
+    fn clear_flat_tables(&self) -> IotaResult<()> {
+        let tables = &self.perpetual_tables;
+        tables.transactions.schedule_delete_all()?;
+        tables.events_2.schedule_delete_all()?;
+        tables.executed_effects.schedule_delete_all()?;
+        tables.effects.schedule_delete_all()?;
+        tables
+            .executed_transactions_to_checkpoint
+            .schedule_delete_all()?;
+        self.checkpoint_store
+            .tables
+            .checkpoint_by_digest
+            .schedule_delete_all()?;
         Ok(())
     }
 
@@ -456,7 +479,6 @@ impl LedgerBacklogMigration {
                 rows.into_iter().map(|(key, value)| (key, into_row(value))),
             )?;
         }
-        batch.delete_batch(flat, &slice.keys)?;
         batch.insert_batch(
             &self.perpetual_tables.ledger_backlog_migration_progress,
             [((), progress)],
@@ -619,7 +641,6 @@ impl LedgerBacklogMigration {
         // retained summary in a later slice may share them; the rest go to
         // `move_contents_without_summary`.
         batch.delete_batch(&tables.checkpoint_content, &contents_keys)?;
-        batch.delete_batch(flat, &slice.keys)?;
         batch.insert_batch(
             &tables.checkpoint_backlog_migration_progress,
             [((), progress)],
