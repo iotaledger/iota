@@ -629,8 +629,8 @@ async fn the_migration_resumes_from_its_watermark() {
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
     let seeded = seed(&store, &checkpoint_store);
 
-    // One slice of one row stops the run inside the first table, leaving four
-    // of the five seeded bodies.
+    // One slice of one row stops the run inside the first table. The flat
+    // table keeps every row until all passes are done.
     let interrupted = migration(&store, checkpoint_store.clone(), None, 1);
     interrupted.move_transactions(None).unwrap();
     let watermark = match ledger_progress(&store) {
@@ -639,8 +639,8 @@ async fn the_migration_resumes_from_its_watermark() {
     };
     assert_eq!(
         store.perpetual_tables.transactions.safe_iter().count(),
-        4,
-        "one row moved and four left, or the slice size is not being honoured"
+        5,
+        "the flat table must keep its rows until every pass is done"
     );
     // Which row the slice took depends on digest order, so the seed says
     // whether it should have been bucketed or deleted.
@@ -661,14 +661,21 @@ async fn the_migration_resumes_from_its_watermark() {
         "the row the watermark names must be in a bucket when an execution \
          record places it, and gone when none does"
     );
-    assert!(
-        store
-            .perpetual_tables
-            .transactions
-            .get(&watermark)
-            .unwrap()
-            .is_none(),
-        "the row the watermark names must have left the flat table either way"
+    let bucketed_rows = seeded
+        .transactions
+        .iter()
+        .filter(|transaction| {
+            store
+                .get_historic_ledger()
+                .get_transaction(&transaction.digest)
+                .unwrap()
+                .is_some()
+        })
+        .count();
+    assert_eq!(
+        bucketed_rows,
+        usize::from(attributable),
+        "one slice of one row moves at most that row, or the slice size is not being honoured"
     );
 
     // Release every handle on both databases before reopening the same paths,
@@ -689,9 +696,10 @@ async fn the_migration_resumes_from_its_watermark() {
     assert_migrated(&resumed_store, &resumed_checkpoints, &seeded, 0);
 }
 
-/// Once both stores' flat tables are drained, a later start does nothing.
+/// Once both stores' flat tables are drained, a later start moves nothing
+/// more into the buckets; it only clears what a flat table still holds.
 #[tokio::test]
-async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
+async fn a_finished_migration_moves_nothing_on_later_starts() {
     let store_dir = iota_common::tempdir();
     let checkpoint_dir = iota_common::tempdir();
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
@@ -720,14 +728,16 @@ async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
             .transactions
             .get(stray.digest())
             .unwrap()
-            .is_some()
+            .is_none(),
+        "a later start must clear the flat table"
     );
     assert!(
         store
             .get_historic_ledger()
             .get_transaction(stray.digest())
             .unwrap()
-            .is_none()
+            .is_none(),
+        "a later start must not move anything into a bucket"
     );
 }
 
