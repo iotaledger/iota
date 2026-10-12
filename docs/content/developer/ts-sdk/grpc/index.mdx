@@ -1,0 +1,77 @@
+---
+description: 'What the @iota/grpc TypeScript client is, what it covers, and how to make a first call to a node over gRPC.'
+tags:
+  - explanation
+  - ts-sdk
+  - typescript
+  - grpc
+teams:
+  - iotaledger/tooling
+---
+
+# gRPC Client
+
+`@iota/grpc` is a TypeScript client for the gRPC API of IOTA full nodes. With `IotaGrpcClient` you can read objects, transactions, checkpoints and epochs, list owned objects, coins, dynamic fields and package versions, follow new checkpoints as a stream, and simulate and execute transactions.
+
+It ships separately from `@iota/iota-sdk` and works next to `IotaClient`. You still build and sign transactions with `@iota/iota-sdk`, and `IotaClient` (JSON-RPC) still covers much more of the API.
+
+## When to use it
+
+`@iota/grpc` is a good fit when you want to:
+
+- follow the chain checkpoint by checkpoint, filtered by sender, object or event, from a long-running process such as an indexer or a monitor
+- read many objects or transactions in one call, where a missing item fails on its own instead of failing the whole call
+- know exactly which chain, epoch and checkpoint height every answer was read at
+- work with compact binary payloads (protobuf around BCS) instead of JSON
+
+For anything the gRPC API does not cover yet, such as balances, event queries, staking, the system state, protocol config, normalized Move modules or name resolution, use [`IotaClient`](../typescript/iota-client.mdx) or [GraphQL](../typescript/graphql.mdx).
+
+## Runtime support
+
+The client speaks plain gRPC over HTTP/2, which works in Node, Bun and Deno but not in browsers. Browsers need gRPC-Web, which the public endpoints do not serve yet, so `createGrpcWebTransport` throws for now. In a browser app, use `IotaClient`.
+
+## Install
+
+```sh npm2yarn
+npm i @iota/grpc
+```
+
+Add `@iota/iota-sdk` as well if you plan to build and sign transactions:
+
+```sh npm2yarn
+npm i @iota/iota-sdk
+```
+
+## First call
+
+```ts
+import { IotaGrpcClient } from '@iota/grpc';
+
+const client = new IotaGrpcClient({ network: 'testnet' });
+
+const { body: epoch, metadata } = await client.getEpoch();
+
+console.log(`epoch ${epoch.epoch}, reference gas price ${epoch.referenceGasPrice}`);
+console.log(`read at checkpoint ${metadata.checkpointHeight} on ${metadata.chain}`);
+```
+
+Every method returns the answer as `body`, along with the `metadata` the node sent with it. [How Responses Work](responses.mdx) covers this and the other conventions all methods share.
+
+## What it covers
+
+The methods map to four services on the node:
+
+| Service               | Methods                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Ledger                | `getHealth`, `getServiceInfo`, `getEpoch`, `getReferenceGasPrice`, `getObjects`, `getTransactions`, `getCheckpoint`, `streamCheckpoints` |
+| State                 | `listOwnedObjects`, `listCoins`, `listDynamicFields`, `getCoinInfo`, and the `listAll*` form of each list                                |
+| Move packages         | `listPackageVersions`, `listAllPackageVersions`                                                                                          |
+| Transaction execution | `executeTransaction`, `executeTransactions`, `simulateTransaction`, `simulateTransactions`, `viewFunctionCall`, `viewFunctionCalls`      |
+
+## Where to go next
+
+- [Connect to a Node](connect.mdx): networks, custom URLs and transports, message size, health checks and cancellation.
+- [How Responses Work](responses.mdx): metadata, batch results, read masks and BCS decoding.
+- How-to guides for [reading the ledger](how-tos/read-ledger.mdx), [listing owned objects and coins](how-tos/query-state.mdx), [executing transactions](how-tos/transactions.mdx), [calling view functions](how-tos/view-functions.mdx) and [streaming checkpoints](how-tos/stream-checkpoints.mdx).
+- [Errors](errors.mdx): what each error means and when you get it.
+- [API Reference](api/index.md): every exported class, function and type.

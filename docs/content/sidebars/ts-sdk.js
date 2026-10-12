@@ -153,7 +153,22 @@ const tsSDK = [
     {
         type: 'category',
         label: '@iota/grpc',
+        link: { type: 'doc', id: 'developer/ts-sdk/grpc/index' },
         items: [
+            'developer/ts-sdk/grpc/connect',
+            'developer/ts-sdk/grpc/responses',
+            {
+                type: 'category',
+                label: 'How To',
+                items: [
+                    'developer/ts-sdk/grpc/how-tos/read-ledger',
+                    'developer/ts-sdk/grpc/how-tos/query-state',
+                    'developer/ts-sdk/grpc/how-tos/transactions',
+                    'developer/ts-sdk/grpc/how-tos/view-functions',
+                    'developer/ts-sdk/grpc/how-tos/stream-checkpoints',
+                ],
+            },
+            'developer/ts-sdk/grpc/errors',
             {
                 type: 'category',
                 label: 'API Reference',
