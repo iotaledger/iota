@@ -30,18 +30,13 @@ fun builder_v1_builds_shared_account() {
 }
 
 #[test]
-fun builder_v1_accepts_any_authenticator() {
+#[expected_failure(abort_code = iota::smart_account::EBuiltinAuthWithoutPublicKey)]
+fun build_v1_aborts_for_the_builtin_authenticator_without_a_key() {
     let mut scenario = test_scenario::begin(@0x0);
 
-    let framework_authenticator = framework_test_authenticator();
-    smart_account::builder_v1(framework_authenticator, scenario.ctx()).build_v1();
+    smart_account::builder_v1(builtin_test_authenticator(), scenario.ctx()).build_v1();
 
-    scenario.next_tx(@0x0);
-    let account = scenario.take_shared<SmartAccount>();
-    assert_ref_eq(account.borrow_auth_function_ref_v1(), &framework_authenticator);
-
-    test_scenario::return_shared(account);
-    scenario.end();
+    abort
 }
 
 // === with_field ===
@@ -216,13 +211,10 @@ fun rotate_auth_function_ref_v1_aborts_if_sender_not_account() {
 }
 
 #[test]
-fun rotate_auth_function_ref_v1_accepts_any_authenticator() {
+#[expected_failure(abort_code = iota::smart_account::EBuiltinAuthWithoutPublicKey)]
+fun rotate_auth_function_ref_v1_aborts_for_the_builtin_authenticator_without_a_key() {
     account_test_mut!(|account, scenario| {
-        let framework_authenticator = framework_test_authenticator();
-
-        account.rotate_auth_function_ref_v1(framework_authenticator, scenario.ctx());
-
-        assert_ref_eq(account.borrow_auth_function_ref_v1(), &framework_authenticator);
+        account.rotate_auth_function_ref_v1(builtin_test_authenticator(), scenario.ctx());
     });
 }
 
@@ -249,7 +241,7 @@ fun other_test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
     )
 }
 
-fun framework_test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
+fun builtin_test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
     authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x2,
         ascii::string(b"builtin_authenticator_functions"),
