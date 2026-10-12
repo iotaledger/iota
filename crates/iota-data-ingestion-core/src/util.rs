@@ -22,22 +22,18 @@ use crate::IngestionResult;
 ///
 /// # Arguments
 ///
-/// * `url`: The URL of the remote store. The scheme of the URL determines the
-///   storage provider:
+/// * `url`: The URL of the remote store. The scheme of the URL determines the storage provider:
 ///     * `http://` or `https://`: HTTP-based store.
 ///     * `gs://`: Google Cloud Storage.
 ///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
-/// * `remote_store_options`: A vector of key-value pairs representing
-///   provider-specific options.
+/// * `remote_store_options`: A vector of key-value pairs representing provider-specific options.
 ///     * For GCS: See [`object_store::gcp::GoogleConfigKey`] for valid keys.
 ///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
-///     * For HTTP: No options are currently supported. This parameter should be
-///       empty.
-/// * `request_timeout_secs`: The timeout duration (in seconds) for individual
-///   requests. This timeout is used to set a slightly longer retry timeout
-///   (request_timeout_secs + 1) internally, even though retries are disabled.
-///   This is done to ensure that the overall operation doesn't hang
-///   indefinitely.
+///     * For HTTP: No options are currently supported. This parameter should be empty.
+/// * `request_timeout_secs`: The timeout duration (in seconds) for individual requests. This
+///   timeout is used to set a slightly longer retry timeout (request_timeout_secs + 1) internally,
+///   even though retries are disabled. This is done to ensure that the overall operation doesn't
+///   hang indefinitely.
 ///
 /// # Examples
 ///
@@ -106,23 +102,18 @@ pub fn create_remote_store_client(
 ///
 /// # Arguments
 ///
-/// * `url`: The URL of the remote store.  The scheme of the URL determines the
-///   storage provider:
+/// * `url`: The URL of the remote store.  The scheme of the URL determines the storage provider:
 ///     * `http://` or `https://`:  HTTP-based store.
 ///     * `gs://`: Google Cloud Storage.
 ///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
-/// * `remote_store_options`: A vector of key-value pairs representing
-///   provider-specific options.
+/// * `remote_store_options`: A vector of key-value pairs representing provider-specific options.
 ///     * For GCS:  See [`object_store::gcp::GoogleConfigKey`] for valid keys.
 ///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
-///     * For HTTP: No options are currently supported. This parameter should be
-///       empty.
-/// * `request_timeout_secs`: The timeout duration (in seconds) for individual
-///   requests.
-/// * `retry_config`: A [`RetryConfig`] struct defining the retry strategy. This
-///   allows fine-grained control over the number of retries, backoff behavior,
-///   and retry timeouts.  See the documentation for
-///   [`object_store::RetryConfig`] for details.
+///     * For HTTP: No options are currently supported. This parameter should be empty.
+/// * `request_timeout_secs`: The timeout duration (in seconds) for individual requests.
+/// * `retry_config`: A [`RetryConfig`] struct defining the retry strategy. This allows fine-grained
+///   control over the number of retries, backoff behavior, and retry timeouts.  See the
+///   documentation for [`object_store::RetryConfig`] for details.
 ///
 /// # Examples
 ///

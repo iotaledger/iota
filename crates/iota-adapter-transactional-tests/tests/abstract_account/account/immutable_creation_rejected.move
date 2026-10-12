@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// an immutable abstract account cannot authenticate a transaction
+// an immutable abstract account can no longer be created, a mutable one still can
 
 //# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
 
@@ -15,10 +15,8 @@ use simple_abstract_account::abstract_account::AbstractAccount;
 #[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-account --sender A --package-metadata object(3,5) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create_immutable --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# programmable --sender A --inputs object(3,5) "authenticate" "authenticate"
+//> 0: simple_abstract_account::abstract_account::create_immutable(Input(0), Input(1), Input(2));
 
-//# view-object 4,2
-
-//# abstract --account object(4,2) --ptb-inputs 100 @A
-//> 0: SplitCoins(Gas, [Input(0)]);
-//> 1: TransferObjects([Result(0)], Input(1));
+//# programmable --sender A --inputs object(3,5) "authenticate" "authenticate"
+//> 0: simple_abstract_account::abstract_account::create(Input(0), Input(1), Input(2));

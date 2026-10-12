@@ -168,10 +168,10 @@ pub struct OwnerIndexInfo {
 /// Type filter for `owner_iter`.
 ///
 /// - `None` — all objects for the owner.
-/// - `BaseType` — all objects whose `address::module::name` matches (e.g. all
-///   `Coin<*>`). Post-filters hash collisions via `tag`.
-/// - `ExactType` — only objects of the exact `StructTag` (e.g. `Coin<IOTA>`).
+/// - `BaseType` — all objects whose `address::module::name` matches (e.g. all `Coin<*>`).
 ///   Post-filters hash collisions via `tag`.
+/// - `ExactType` — only objects of the exact `StructTag` (e.g. `Coin<IOTA>`). Post-filters hash
+///   collisions via `tag`.
 #[derive(Clone)]
 pub enum OwnerTypeFilter {
     None,
@@ -338,10 +338,10 @@ struct IndexStoreTables {
     /// A singleton that store metadata information on the DB.
     ///
     /// A few uses for this singleton:
-    /// - determining if the DB has been initialized (as some tables will still
-    ///   be empty post initialization)
-    /// - version of the DB. Everytime a new table or schema is changed the
-    ///   version number needs to be incremented.
+    /// - determining if the DB has been initialized (as some tables will still be empty post
+    ///   initialization)
+    /// - version of the DB. Everytime a new table or schema is changed the version number needs to
+    ///   be incremented.
     meta: DBMap<(), MetadataInfo>,
 
     /// Table used to track watermark for the highest indexed checkpoint
@@ -997,9 +997,9 @@ impl GrpcIndexesStore {
     ///
     /// Invariants:
     /// - `index_checkpoint` must have been called for the provided checkpoint
-    /// - Callers of this function must ensure that it is called for each
-    ///   checkpoint in sequential order. This will panic if the provided
-    ///   checkpoint does not match the expected next checkpoint to commit.
+    /// - Callers of this function must ensure that it is called for each checkpoint in sequential
+    ///   order. This will panic if the provided checkpoint does not match the expected next
+    ///   checkpoint to commit.
     #[tracing::instrument(skip(self))]
     pub fn commit_update_for_checkpoint(&self, checkpoint: u64) -> Result<(), StorageError> {
         let next_batch = self.pending_updates.lock().unwrap().pop_first();
@@ -1381,6 +1381,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_move_types::iota_framework::dynamic_field::Field;
     use iota_sdk_types::{CheckpointSummary, GasCostSummary, MovePackage};
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
@@ -1515,8 +1516,8 @@ mod tests {
     /// A `0x2::dynamic_field::Field<u64, u64>` object owned by `parent`, as
     /// the dynamic-field index sees one.
     fn dynamic_field_object(parent: ObjectId, field_id: ObjectId) -> Object {
-        let field = iota_types::dynamic_field::Field {
-            id: iota_types::id::UID::new(field_id),
+        let field = Field {
+            id: field_id.into(),
             name: 0u64,
             value: 0u64,
         };

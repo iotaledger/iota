@@ -80,21 +80,20 @@ pub struct ProtocolConfigResponse {
 
 impl From<&ProtocolConfigResponse> for ProtocolBuildConfig {
     fn from(response: &ProtocolConfigResponse) -> Self {
-        let max_move_package_size =
-            response
-                .attributes
-                .get("max_move_package_size")
-                .and_then(|value| match value {
-                    Some(IotaProtocolConfigValue::U64(max)) => Some(*max),
-                    _ => None,
-                });
+        let u64_attribute = |name: &str| {
+            response.attributes.get(name).and_then(|value| match value {
+                Some(IotaProtocolConfigValue::U64(value)) => Some(*value),
+                _ => None,
+            })
+        };
         Self {
             allow_view_function: response
                 .feature_flags
                 .get(PACKAGE_METADATA_WITH_DYNAMIC_MODULE_METADATA)
                 .copied()
                 .unwrap_or(false),
-            max_move_package_size,
+            max_move_package_size: u64_attribute("max_move_package_size"),
+            max_move_system_package_size: u64_attribute("max_move_system_package_size"),
         }
     }
 }

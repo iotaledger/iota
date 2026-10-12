@@ -1204,9 +1204,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.extract_shards_from_bundle(peer, peer_hostname, serialized_shards, block_ref)?
         };
 
-        // 7. Reject blocks when local commit index is lagging too far from quorum
-        //    commit index, or when local commits run too far ahead of the last solid
-        //    commit.
+        // 7. Reject blocks when local commit index is lagging too far from quorum commit index, or
+        //    when local commits run too far ahead of the last solid commit.
         //
         // IMPORTANT: this must be done after observing votes from the block, otherwise
         // observed quorum commit will no longer progress.
@@ -1245,8 +1244,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 );
         }
 
-        // 8. Add digests to filter. Exclude from the vector those that are already
-        //    inserted
+        // 8. Add digests to filter. Exclude from the vector those that are already inserted
         self.add_digests_to_filter(
             peer_hostname,
             &mut additional_block_headers,
@@ -1561,8 +1559,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 *entry = (*entry).min(block_ref.round);
             }
             // Retrieve additional blocks per authority, from peer's highest accepted round
-            // + 1 to lowest missing round (exclusive) per requested authority. Start with
-            //   own blocks.
+            // + 1 to lowest missing round (exclusive) per requested authority. Start with own
+            //   blocks.
             let own_index = self.context.own_index;
 
             // Collect and sort so own_index comes first

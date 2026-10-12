@@ -91,6 +91,7 @@ impl FaucetClient for RemoteFaucetClient {
             _ => "".to_string(),
         };
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let response = reqwest::Client::new()
             .post(&gas_url)
             .header("Authorization", auth_header)
@@ -120,6 +121,7 @@ impl FaucetClient for RemoteFaucetClient {
             _ => "".to_string(),
         };
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let response = reqwest::Client::new()
             .post(&gas_url)
             .header("Authorization", auth_header)
@@ -150,6 +152,7 @@ impl FaucetClient for RemoteFaucetClient {
             _ => "".to_string(),
         };
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let response = reqwest::Client::new()
             .get(&status_url)
             .header("Authorization", auth_header)

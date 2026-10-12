@@ -86,8 +86,8 @@ impl CommitSolidifier {
     /// # Returns
     /// A tuple containing:
     /// - `Vec<CommittedSubDag>`: Successfully committed sub-dags.
-    /// - `Vec<BlockRef>`: References to blocks with missing transactions
-    ///   preventing further commits.
+    /// - `Vec<BlockRef>`: References to blocks with missing transactions preventing further
+    ///   commits.
     pub(crate) fn try_get_solid_sub_dags(
         &mut self,
         subdags: &[PendingSubDag],
@@ -270,10 +270,9 @@ mod tests {
         /// specified rounds
         ///
         /// # Arguments
-        /// * `included_rounds` - Vector of round numbers whose transactions
-        ///   should be included
-        /// * `excluded_transactions` - Vector of (round, block_index) pairs to
-        ///   exclude transactions from specific blocks
+        /// * `included_rounds` - Vector of round numbers whose transactions should be included
+        /// * `excluded_transactions` - Vector of (round, block_index) pairs to exclude transactions
+        ///   from specific blocks
         fn create_selective_dag_state(
             &self,
             included_rounds: Vec<u32>,

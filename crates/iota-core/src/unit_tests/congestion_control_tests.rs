@@ -324,8 +324,8 @@ async fn commit_and_execute_transaction(
 // Tests that a transaction exceeding the deferral limit due to shared object
 // congestion is cancelled:
 //   1. Cancelled transaction should return correct error status.
-//   2. Executing cancelled transaction with effects should result in the same
-//      transaction cancellation.
+//   2. Executing cancelled transaction with effects should result in the same transaction
+//      cancellation.
 //
 // Run against both schedulers: a congestion-cancelled transaction is only
 // "ready" because the availability check treats its cancelled sentinel input

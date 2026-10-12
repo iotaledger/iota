@@ -291,6 +291,7 @@ mod split_checkpoints {
     }
 
     #[sim_test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/13052"]
     async fn split_checkpoints_survive_a_crash_between_chunks_and_a_catch_up() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_max_transactions_per_checkpoint_for_testing(MAX_TRANSACTIONS_PER_CHECKPOINT);

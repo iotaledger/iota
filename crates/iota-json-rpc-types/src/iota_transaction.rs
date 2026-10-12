@@ -543,7 +543,7 @@ impl IotaTransactionBlockKind {
                     consensus_commit_digest: p.consensus_commit_digest,
                     consensus_determined_version_assignments: p
                         .consensus_determined_version_assignments
-                        .into(),
+                        .try_into()?,
                 },
             )),
             TransactionKind::Programmable(_) => {
@@ -590,32 +590,30 @@ impl IotaTransactionBlockKind {
                 Ok(Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
                     transactions: end_of_epoch_tx
                         .into_iter()
-                        .map(|tx| match tx {
-                            EndOfEpochTransactionKind::ChangeEpoch(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV2(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV3(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV4(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::TransactionDenyRulesCreate => {
-                                IotaEndOfEpochTransactionKind::TransactionDenyRulesCreate
-                            }
-                            _ => unimplemented!(
-                                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
-                            ),
+                        .map(|tx| {
+                            Ok(match tx {
+                                EndOfEpochTransactionKind::ChangeEpoch(e) => {
+                                    IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
+                                }
+                                EndOfEpochTransactionKind::ChangeEpochV2(e) => {
+                                    IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                                }
+                                EndOfEpochTransactionKind::ChangeEpochV3(e) => {
+                                    IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                                }
+                                EndOfEpochTransactionKind::ChangeEpochV4(e) => {
+                                    IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                                }
+                                EndOfEpochTransactionKind::TransactionDenyRulesCreate => {
+                                    IotaEndOfEpochTransactionKind::TransactionDenyRulesCreate
+                                }
+                                _ => anyhow::bail!("unknown EndOfEpochTransactionKind variant"),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, anyhow::Error>>()?,
                 }))
             }
-            _ => unimplemented!(
-                "a new TransactionKind enum variant was added and needs to be handled"
-            )
+            _ => Err(anyhow::anyhow!("unknown TransactionKind variant")),
         }
     }
 
@@ -1029,19 +1027,18 @@ impl IotaTransactionBlockEffects {
     pub async fn from_native_with_clever_error<S: PackageStore>(
         native: TransactionEffects,
         resolver: &Resolver<S>,
-    ) -> Self {
+    ) -> Result<Self, anyhow::Error> {
         let clever_status =
             IotaExecutionStatus::from_native_with_clever_error(native.status().clone(), resolver)
-                .await;
+                .await?;
         match native {
             TransactionEffects::V1(inner) => {
-                let mut inner = IotaTransactionBlockEffectsV1::from(TransactionEffects::V1(inner));
+                let mut inner =
+                    IotaTransactionBlockEffectsV1::try_from(TransactionEffects::V1(inner))?;
                 inner.status = clever_status;
-                inner.into()
+                Ok(inner.into())
             }
-            _ => unimplemented!(
-                "a new TransactionEffects enum variant was added and needs to be handled"
-            ),
+            _ => Err(anyhow::anyhow!("unknown TransactionEffects variant")),
         }
     }
 }
@@ -1050,14 +1047,18 @@ impl TryFrom<TransactionEffects> for IotaTransactionBlockEffects {
     type Error = IotaError;
 
     fn try_from(native: TransactionEffects) -> Result<Self, Self::Error> {
-        Ok(IotaTransactionBlockEffects::V1(native.into()))
+        let effects = IotaTransactionBlockEffectsV1::try_from(native)
+            .map_err(|e| IotaError::Unknown(e.to_string()))?;
+        Ok(IotaTransactionBlockEffects::V1(effects))
     }
 }
 
-impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
-    fn from(native: T) -> Self {
-        Self {
-            status: native.status().clone().into(),
+impl TryFrom<TransactionEffects> for IotaTransactionBlockEffectsV1 {
+    type Error = anyhow::Error;
+
+    fn try_from(native: TransactionEffects) -> Result<Self, Self::Error> {
+        Ok(Self {
+            status: native.status().clone().try_into()?,
             executed_epoch: native.epoch(),
             modified_at_versions: native
                 .modified_at_versions()
@@ -1086,7 +1087,7 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             },
             events_digest: native.events_digest().copied(),
             dependencies: native.dependencies().to_vec(),
-        }
+        })
     }
 }
 
@@ -1451,18 +1452,21 @@ impl DevInspectResults {
                             let (mutable_reference_outputs, return_values) = srv;
                             let mutable_reference_outputs = mutable_reference_outputs
                                 .into_iter()
-                                .map(|(a, bytes, tag)| (a.into(), bytes, IotaTypeTag::from(tag)))
-                                .collect();
+                                .map(|(a, bytes, tag)| {
+                                    Ok((IotaArgument::try_from(a)?, bytes, IotaTypeTag::from(tag)))
+                                })
+                                .collect::<Result<_, anyhow::Error>>()?;
                             let return_values = return_values
                                 .into_iter()
                                 .map(|(bytes, tag)| (bytes, IotaTypeTag::from(tag)))
                                 .collect();
-                            IotaExecutionResult {
+                            Ok(IotaExecutionResult {
                                 mutable_reference_outputs,
                                 return_values,
-                            }
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, anyhow::Error>>()
+                        .map_err(|e| IotaError::Unknown(e.to_string()))?,
                 )
             }
         };
@@ -1498,13 +1502,13 @@ pub enum IotaExecutionStatus {
 impl IotaExecutionStatus {
     /// Construct the RPC view of the execution status.
     ///
-    /// This differs from the `From<ExecutionStatus>` implementation
+    /// This differs from the `TryFrom<ExecutionStatus>` implementation
     /// in that it tries to convert Move abort errors into human-readable form.
     /// This is referred to as clever error.
     pub async fn from_native_with_clever_error<S: PackageStore>(
         native: ExecutionStatus,
         resolver: &Resolver<S>,
-    ) -> Self {
+    ) -> Result<Self, anyhow::Error> {
         match native {
             ExecutionStatus::Failure {
                 error,
@@ -1583,11 +1587,11 @@ impl IotaExecutionStatus {
                     3 if command_index % 100 != 13 => "rd",
                     _ => "th",
                 };
-                IotaExecutionStatus::Failure {
+                Ok(IotaExecutionStatus::Failure {
                     error: format!("Error in {command_index}{suffix} command, {error}"),
-                }
+                })
             }
-            _ => native.into(),
+            _ => native.try_into(),
         }
     }
 }
@@ -1610,9 +1614,11 @@ impl IotaExecutionStatus {
     }
 }
 
-impl From<ExecutionStatus> for IotaExecutionStatus {
-    fn from(status: ExecutionStatus) -> Self {
-        match status {
+impl TryFrom<ExecutionStatus> for IotaExecutionStatus {
+    type Error = anyhow::Error;
+
+    fn try_from(status: ExecutionStatus) -> Result<Self, Self::Error> {
+        Ok(match status {
             ExecutionStatus::Success => Self::Success,
             ExecutionStatus::Failure {
                 error,
@@ -1626,10 +1632,8 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
             } => Self::Failure {
                 error: format!("{error} in command {idx}"),
             },
-            _ => unimplemented!(
-                "a new ExecutionStatus enum variant was added and needs to be handled"
-            ),
-        }
+            _ => anyhow::bail!("unknown ExecutionStatus variant"),
+        })
     }
 }
 
@@ -1918,11 +1922,13 @@ pub enum IotaConsensusDeterminedVersionAssignments {
     ),
 }
 
-impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVersionAssignments {
-    fn from(
+impl TryFrom<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVersionAssignments {
+    type Error = anyhow::Error;
+
+    fn try_from(
         consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
-    ) -> Self {
-        match consensus_determined_version_assignments {
+    ) -> Result<Self, Self::Error> {
+        Ok(match consensus_determined_version_assignments {
             ConsensusDeterminedVersionAssignments::CanceledTransactions {
                 canceled_transactions,
             } => IotaConsensusDeterminedVersionAssignments::CancelledTransactions(
@@ -1940,10 +1946,8 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                     })
                     .collect(),
             ),
-            _ => unimplemented!(
-                "a new ConsensusDeterminedVersionAssignments enum variant was added and needs to be handled"
-            ),
-        }
+            _ => anyhow::bail!("unknown ConsensusDeterminedVersionAssignments variant"),
+        })
     }
 }
 
@@ -2106,7 +2110,10 @@ impl IotaProgrammableTransactionBlock {
                 .zip(input_types)
                 .map(|(arg, layout)| IotaCallArg::try_from(arg, layout.as_ref()))
                 .collect::<Result<_, _>>()?,
-            commands: commands.into_iter().map(IotaCommand::from).collect(),
+            commands: commands
+                .into_iter()
+                .map(IotaCommand::try_from)
+                .collect::<Result<_, _>>()?,
         })
     }
 
@@ -2131,7 +2138,10 @@ impl IotaProgrammableTransactionBlock {
                 .zip(input_types)
                 .map(|(arg, layout)| IotaCallArg::try_from(arg, layout.as_ref()))
                 .collect::<Result<_, _>>()?,
-            commands: commands.into_iter().map(IotaCommand::from).collect(),
+            commands: commands
+                .into_iter()
+                .map(IotaCommand::try_from)
+                .collect::<Result<_, _>>()?,
         })
     }
 
@@ -2294,37 +2304,48 @@ impl Display for IotaCommand {
     }
 }
 
-impl From<Command> for IotaCommand {
-    fn from(value: Command) -> Self {
-        match value {
-            Command::MoveCall(cmd) => IotaCommand::MoveCall(Box::new((cmd).into())),
+impl TryFrom<Command> for IotaCommand {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Command) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Command::MoveCall(cmd) => IotaCommand::MoveCall(Box::new(cmd.try_into()?)),
             Command::TransferObjects(cmd) => IotaCommand::TransferObjects(
-                cmd.objects.into_iter().map(IotaArgument::from).collect(),
-                cmd.address.into(),
+                cmd.objects
+                    .into_iter()
+                    .map(IotaArgument::try_from)
+                    .collect::<Result<_, _>>()?,
+                cmd.address.try_into()?,
             ),
             Command::SplitCoins(cmd) => IotaCommand::SplitCoins(
-                cmd.coin.into(),
-                cmd.amounts.into_iter().map(IotaArgument::from).collect(),
+                cmd.coin.try_into()?,
+                cmd.amounts
+                    .into_iter()
+                    .map(IotaArgument::try_from)
+                    .collect::<Result<_, _>>()?,
             ),
             Command::MergeCoins(cmd) => IotaCommand::MergeCoins(
-                cmd.coin.into(),
+                cmd.coin.try_into()?,
                 cmd.coins_to_merge
                     .into_iter()
-                    .map(IotaArgument::from)
-                    .collect(),
+                    .map(IotaArgument::try_from)
+                    .collect::<Result<_, _>>()?,
             ),
             Command::Publish(cmd) => IotaCommand::Publish(cmd.dependencies),
             Command::MakeMoveVector(cmd) => IotaCommand::MakeMoveVec(
                 cmd.type_tag.map(|tag| tag.to_string()),
-                cmd.elements.into_iter().map(IotaArgument::from).collect(),
+                cmd.elements
+                    .into_iter()
+                    .map(IotaArgument::try_from)
+                    .collect::<Result<_, _>>()?,
             ),
             Command::Upgrade(cmd) => IotaCommand::Upgrade(
                 cmd.dependencies,
                 cmd.package,
-                IotaArgument::from(cmd.ticket),
+                IotaArgument::try_from(cmd.ticket)?,
             ),
-            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
-        }
+            _ => anyhow::bail!("unknown Command variant"),
+        })
     }
 }
 
@@ -2357,15 +2378,17 @@ impl Display for IotaArgument {
     }
 }
 
-impl From<Argument> for IotaArgument {
-    fn from(value: Argument) -> Self {
-        match value {
+impl TryFrom<Argument> for IotaArgument {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Argument) -> Result<Self, Self::Error> {
+        Ok(match value {
             Argument::Gas => Self::GasCoin,
             Argument::Input(i) => Self::Input(i),
             Argument::Result(i) => Self::Result(i),
             Argument::NestedResult(i, j) => Self::NestedResult(i, j),
-            _ => unimplemented!("a new Argument enum variant was added and needs to be handled"),
-        }
+            _ => anyhow::bail!("unknown Argument variant"),
+        })
     }
 }
 
@@ -2445,8 +2468,10 @@ impl Display for IotaProgrammableMoveCall {
     }
 }
 
-impl From<MoveCall> for IotaProgrammableMoveCall {
-    fn from(value: MoveCall) -> Self {
+impl TryFrom<MoveCall> for IotaProgrammableMoveCall {
+    type Error = anyhow::Error;
+
+    fn try_from(value: MoveCall) -> Result<Self, Self::Error> {
         let MoveCall {
             package,
             module,
@@ -2454,13 +2479,16 @@ impl From<MoveCall> for IotaProgrammableMoveCall {
             type_arguments,
             arguments,
         } = value;
-        Self {
+        Ok(Self {
             package,
             module: module.to_string(),
             function: function.to_string(),
             type_arguments: type_arguments.into_iter().map(|t| t.to_string()).collect(),
-            arguments: arguments.into_iter().map(IotaArgument::from).collect(),
-        }
+            arguments: arguments
+                .into_iter()
+                .map(IotaArgument::try_from)
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 
@@ -2645,7 +2673,7 @@ impl IotaCallArg {
                 version: object_ref.version,
                 digest: object_ref.digest,
             }),
-            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
+            _ => anyhow::bail!("unknown CallArg variant"),
         })
     }
 
@@ -2842,6 +2870,19 @@ impl TransactionFilter {
     }
 }
 
+impl TransactionFilter {
+    fn transaction_kind(item: &EffectsWithInput) -> Option<IotaTransactionKind> {
+        IotaTransactionKind::try_from(item.input.kind())
+            .inspect_err(|e| {
+                tracing::warn!(
+                    digest = %item.effects.transaction_digest(),
+                    "transaction kind filter skipped: {e}"
+                )
+            })
+            .ok()
+    }
+}
+
 impl Filter<EffectsWithInput> for TransactionFilter {
     fn matches(&self, item: &EffectsWithInput) -> bool {
         match self {
@@ -2879,11 +2920,11 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
             TransactionFilter::TransactionKind(kind) => {
-                kind == &IotaTransactionKind::from(item.input.kind())
+                Self::transaction_kind(item).is_some_and(|k| k == *kind)
             }
-            TransactionFilter::TransactionKindIn(kinds) => kinds
-                .iter()
-                .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
+            TransactionFilter::TransactionKindIn(kinds) => {
+                Self::transaction_kind(item).is_some_and(|k| kinds.contains(&k))
+            }
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
         }
@@ -3047,9 +3088,11 @@ impl IotaTransactionKind {
     }
 }
 
-impl From<&TransactionKind> for IotaTransactionKind {
-    fn from(kind: &TransactionKind) -> Self {
-        match kind {
+impl TryFrom<&TransactionKind> for IotaTransactionKind {
+    type Error = anyhow::Error;
+
+    fn try_from(kind: &TransactionKind) -> Result<Self, Self::Error> {
+        Ok(match kind {
             TransactionKind::Genesis(_) => Self::Genesis,
             TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
             #[allow(deprecated)]
@@ -3058,9 +3101,7 @@ impl From<&TransactionKind> for IotaTransactionKind {
             TransactionKind::TransactionDenyRulesUpdate(_) => Self::TransactionDenyRulesUpdate,
             TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
             TransactionKind::Programmable(_) => Self::ProgrammableTransaction,
-            _ => unimplemented!(
-                "a new TransactionKind enum variant was added and needs to be handled"
-            ),
-        }
+            _ => anyhow::bail!("unknown TransactionKind variant"),
+        })
     }
 }

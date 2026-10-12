@@ -14,13 +14,12 @@ pub(crate) type RawSqlQuery = BoxedSqlQuery<'static, DieselBackend, SqlQuery>;
 /// `RawQuery` is a utility for building and managing
 /// `diesel::query_builder::BoxedSqlQuery` queries dynamically.
 ///
-/// 1. **Dynamic Value Binding**: Allows binding string values dynamically to
-///    the query, bypassing the need to specify types explicitly, as is
-///    typically required with Diesel's `sql_query.bind`.
+/// 1. **Dynamic Value Binding**: Allows binding string values dynamically to the query, bypassing
+///    the need to specify types explicitly, as is typically required with Diesel's
+///    `sql_query.bind`.
 ///
-/// 2. **Query String Merging**: Can be used to represent and merge query
-///    strings and their associated bindings. Placeholder strings and bindings
-///    are applied in sequential order.
+/// 2. **Query String Merging**: Can be used to represent and merge query strings and their
+///    associated bindings. Placeholder strings and bindings are applied in sequential order.
 ///
 /// Note: `RawQuery` only supports binding string values, as interpolating raw
 /// strings directly increases exposure to SQL injection attacks.

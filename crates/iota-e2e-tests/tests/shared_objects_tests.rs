@@ -23,7 +23,7 @@ use iota_types::{
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
     transaction::CallArg,
 };
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
@@ -204,8 +204,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
 /// object is deleted. The test strategy is:
 /// 0. Inject a random delay just before execution of a transaction.
 /// 1. Create a shared object
-/// 2. Create a delete cert and two increment certs, but do not execute any of
-///    them yet.
+/// 2. Create a delete cert and two increment certs, but do not execute any of them yet.
 /// 3. Execute the delete cert.
 /// 4. Execute the two increment certs.
 ///
@@ -220,8 +219,8 @@ async fn shared_object_deletion_multi_certs() {
     // cause random delay just before tx is executed
     register_fail_point_async("transaction_execution_delay", move || async move {
         let delay = {
-            let dist = rand::distributions::Uniform::new(0, 1000);
-            let mut rng = rand::thread_rng();
+            let dist = rand::distr::Uniform::new(0, 1000).unwrap();
+            let mut rng = rand::rng();
             dist.sample(&mut rng)
         };
         sleep(Duration::from_millis(delay)).await;

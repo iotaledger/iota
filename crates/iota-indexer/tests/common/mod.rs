@@ -5,6 +5,7 @@ pub mod backward_history;
 pub mod object_versions;
 
 use std::{
+    future::Future,
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -56,6 +57,7 @@ use tokio::{
     runtime::Runtime,
     sync::{Mutex, OnceCell},
     task::JoinHandle,
+    time::error::Elapsed,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -178,6 +180,36 @@ pub async fn start_test_cluster_with_read_write_indexer(
     (cluster, pg_store, rpc_client)
 }
 
+/// Calls `f` every 100 ms until it returns `Some`, returning an error if
+/// the given `timeout` is reached first.
+///
+/// Returns `Ok(value)` upon success, or `Err(Elapsed)` if the timeout expires.
+///
+/// # Example
+///
+/// ```ignore
+/// let first_row = retry_with_timeout(Duration::from_secs(60), || async move {
+///     read_first_row(store).await
+/// })
+/// .await
+/// .expect("timeout waiting for the first row");
+/// ```
+pub async fn retry_with_timeout<T, F, Fut>(timeout: Duration, mut f: F) -> Result<T, Elapsed>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Option<T>>,
+{
+    tokio::time::timeout(timeout, async {
+        loop {
+            if let Some(value) = f().await {
+                return value;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+}
+
 /// Wait for the indexer to catch up to the given checkpoint sequence number
 ///
 /// Indexer starts storing data after checkpoint 0
@@ -185,16 +217,12 @@ pub async fn indexer_wait_for_checkpoint(
     pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        while {
-            let cp_opt = pg_store
-                .get_latest_checkpoint_sequence_number()
-                .await
-                .unwrap();
-            cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
-        } {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    retry_with_timeout(Duration::from_secs(30), || async move {
+        pg_store
+            .get_latest_checkpoint_sequence_number()
+            .await
+            .unwrap()
+            .filter(|latest| *latest >= checkpoint_sequence_number)
     })
     .await
     .expect("timeout waiting for indexer to catchup to checkpoint");
@@ -215,28 +243,20 @@ pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, clust
 
 /// Wait for the indexer to index a checkpoint from the specified epoch or later
 pub async fn indexer_wait_for_epoch(pg_store: &PgIndexerStore, expected_epoch: u64) {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let blocking_cp = pg_store.blocking_cp();
-            let result = spawn_blocking_task(move || {
-                read_only_blocking!(&blocking_cp, |conn| {
-                    checkpoints::table
-                        .order(checkpoints::sequence_number.desc())
-                        .first::<StoredCheckpoint>(conn)
-                        .optional()
-                })
+    retry_with_timeout(Duration::from_secs(30), || async move {
+        let blocking_cp = pg_store.blocking_cp();
+        spawn_blocking_task(move || {
+            read_only_blocking!(&blocking_cp, |conn| {
+                checkpoints::table
+                    .order(checkpoints::sequence_number.desc())
+                    .first::<StoredCheckpoint>(conn)
+                    .optional()
             })
-            .await
-            .expect("task join failed")
-            .expect("failed to get latest checkpoint");
-
-            if let Some(checkpoint) = result {
-                if checkpoint.epoch as u64 >= expected_epoch {
-                    break;
-                }
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        })
+        .await
+        .expect("task join failed")
+        .expect("failed to get latest checkpoint")
+        .filter(|checkpoint| checkpoint.epoch as u64 >= expected_epoch)
     })
     .await
     .expect("timeout waiting for indexer to index epoch");
@@ -261,26 +281,17 @@ async fn wait_for_object(
     object_id: ObjectId,
     version: Version,
 ) -> anyhow::Result<()> {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let Ok(obj_res) = client.get_object(object_id, None).await else {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-                continue;
-            };
-
-            if obj_res
-                .data
-                .map(|obj| obj.version == version)
-                .unwrap_or_default()
-            {
-                break;
-            }
-
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
+    retry_with_timeout(Duration::from_secs(30), || async move {
+        client
+            .get_object(object_id, None)
+            .await
+            .ok()?
+            .data
+            .filter(|obj| obj.version == version)
     })
-    .await?;
-    Ok(())
+    .await
+    .map_err(Into::into)
+    .map(|_| ())
 }
 
 /// Wait for the indexer to catch up to the given object sequence number
@@ -314,14 +325,9 @@ pub async fn indexer_wait_for_optimistic_transactions_count(
     pg_store: &PgIndexerStore,
     expected_transactions_count: u64,
 ) {
-    if tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
-        loop {
-            let count = get_optimistic_transactions_count(pg_store).await;
-            if count == expected_transactions_count {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+    if retry_with_timeout(PRUNING_WAIT_TIMEOUT, || async move {
+        (get_optimistic_transactions_count(pg_store).await == expected_transactions_count)
+            .then_some(())
     })
     .await
     .is_err()
@@ -345,19 +351,13 @@ pub async fn indexer_wait_for_checkpoint_pruned(
     pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,
 ) {
-    tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
-        loop {
-            let (min, _max) = pg_store
-                .get_available_checkpoint_range()
-                .await
-                .expect("failed to get available checkpoint range");
+    retry_with_timeout(PRUNING_WAIT_TIMEOUT, || async move {
+        let (min, _max) = pg_store
+            .get_available_checkpoint_range()
+            .await
+            .expect("failed to get available checkpoint range");
 
-            if min > checkpoint_sequence_number {
-                break;
-            }
-
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+        (min > checkpoint_sequence_number).then_some(())
     })
     .await
     .expect("timeout waiting for indexer to prune checkpoint");
@@ -368,22 +368,17 @@ pub async fn indexer_wait_for_transaction(
     pg_store: &PgIndexerStore,
     indexer_client: &HttpClient,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            if let Ok(tx) = indexer_client
-                .get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new()))
-                .await
-            {
-                if let Some(checkpoint) = tx.checkpoint {
-                    indexer_wait_for_checkpoint(pg_store, checkpoint).await;
-                    break;
-                }
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    let checkpoint = retry_with_timeout(Duration::from_secs(30), || async move {
+        indexer_client
+            .get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new()))
+            .await
+            .ok()?
+            .checkpoint
     })
     .await
     .expect("timeout waiting for indexer to catchup to given transaction");
+
+    indexer_wait_for_checkpoint(pg_store, checkpoint).await;
 }
 
 pub async fn execute_tx_and_wait_for_indexer_checkpoint(
@@ -578,10 +573,7 @@ pub async fn publish_test_move_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", test_package_name]);
 
-    let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
-        .build(&path)
-        .unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let with_unpublished_deps = false;
     let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

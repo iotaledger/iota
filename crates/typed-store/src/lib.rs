@@ -15,6 +15,7 @@
 pub use rocksdb;
 
 pub mod database;
+pub use database::DbSnapshot;
 pub mod traits;
 pub use traits::{DbIterator, Map};
 pub mod memstore;
@@ -30,8 +31,7 @@ pub type StoreError = typed_store_error::TypedStoreError;
 /// A helper macro to simplify common operations for opening and debugging
 /// TypedStore (currently internally structs of DBMaps) It operates on a struct
 /// where all the members are DBMap<K, V> The main features are:
-/// 1. Flexible configuration of each table (column family) via defaults and
-///    overrides
+/// 1. Flexible configuration of each table (column family) via defaults and overrides
 /// 2. Auto-generated `open` routine
 /// 3. Auto-generated `read_only_mode` handle
 /// 4. Auto-generated memory stats method
@@ -75,13 +75,12 @@ pub type StoreError = typed_store_error::TypedStoreError;
 /// }
 /// ```
 ///
-/// 2. Auto-generated `open` routine The function `open_tables_read_write` is
-///    generated which allows for specifying DB wide options and custom table
-///    configs as mentioned above
+/// 2. Auto-generated `open` routine The function `open_tables_read_write` is generated which
+///    allows for specifying DB wide options and custom table configs as mentioned above
 ///
-/// 3. Auto-generated `read_only_mode` handle This mode provides handle struct
-///    which opens the DB in read only mode and has certain features like
-///    dumping and counting the keys in the tables
+/// 3. Auto-generated `read_only_mode` handle This mode provides handle struct which opens the
+///    DB in read only mode and has certain features like dumping and counting the keys in the
+///    tables
 ///
 /// Use the function `Tables::get_read_only_handle` which returns a handle that
 /// only allows read only features
@@ -135,11 +134,11 @@ pub type StoreError = typed_store_error::TypedStoreError;
 ///     Ok(())
 /// }
 /// ```
-/// 4. Auto-generated memory stats method `self.get_memory_usage` is derived to
-///    provide memory and cache usage
+/// 4. Auto-generated memory stats method `self.get_memory_usage` is derived to provide memory
+///    and cache usage
 ///
-/// 5. Other convenience features `Tables::describe_tables` is used to get a
-///    list of the table names and key-value types as string in a BTreeMap
+/// 5. Other convenience features `Tables::describe_tables` is used to get a list of the table
+///    names and key-value types as string in a BTreeMap
 ///
 /// // Bad usage example
 /// // Structs fields most only be of type Store<K, V> or DMBap<K, V>

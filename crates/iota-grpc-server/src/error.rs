@@ -54,14 +54,14 @@ impl RpcError {
     }
 
     pub fn into_status_proto(self) -> iota_grpc_types::google::rpc::Status {
-        iota_grpc_types::google::rpc::Status {
-            code: self.code.into(),
-            message: self.message.unwrap_or_default(),
-            details: self
-                .details
-                .map(ErrorDetails::into_status_details)
-                .unwrap_or_default(),
-        }
+        let mut status = iota_grpc_types::google::rpc::Status::default();
+        status.code = self.code.into();
+        status.message = self.message.unwrap_or_default();
+        status.details = self
+            .details
+            .map(ErrorDetails::into_status_details)
+            .unwrap_or_default();
+        status
     }
 }
 
@@ -107,6 +107,12 @@ impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for Rp
 
 impl From<bcs::Error> for RpcError {
     fn from(value: bcs::Error) -> Self {
+        Self::internal().with_context(value)
+    }
+}
+
+impl From<iota_sdk_types::BcsError> for RpcError {
+    fn from(value: iota_sdk_types::BcsError) -> Self {
         Self::internal().with_context(value)
     }
 }
@@ -309,11 +315,10 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     };
                     format!("Invalid transaction: {err}")
                 };
-                let details = ErrorDetails::new().with_error_info(ErrorInfo {
-                    reason,
-                    domain: "iota.grpc".to_string(),
-                    ..Default::default()
-                });
+                let mut error_info = ErrorInfo::default();
+                error_info.reason = reason;
+                error_info.domain = "iota.grpc".to_string();
+                let details = ErrorDetails::new().with_error_info(error_info);
                 RpcError {
                     code: Code::InvalidArgument,
                     message: Some(message),
@@ -380,12 +385,12 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
             SystemOverloadRetryAfter {
                 retry_after_secs, ..
             } => {
-                let details = ErrorDetails::new().with_retry_info(RetryInfo {
-                    retry_delay: Some(prost_types::Duration {
-                        seconds: retry_after_secs as i64,
-                        nanos: 0,
-                    }),
+                let mut retry_info = RetryInfo::default();
+                retry_info.retry_delay = Some(prost_types::Duration {
+                    seconds: retry_after_secs as i64,
+                    nanos: 0,
                 });
+                let details = ErrorDetails::new().with_retry_info(retry_info);
                 RpcError {
                     code: Code::Unavailable,
                     message: Some("system is overloaded".to_string()),

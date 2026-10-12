@@ -30,15 +30,11 @@ An abstract account is a Move object, that is, any Move struct with the `key` ab
 
 The account's **ObjectID** becomes its on-chain address. Objects that are owned by an abstract account use the "ordinary" ownership model, with the ObjectID serving as the address owning those objects. From the protocol's perspective, abstract accounts are indistinguishable from traditional EOAs at the address level.
 
-Abstract accounts exist in two forms:
-
-- **Mutable shared** (created in Move with [`iota::account::create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1)): the main account object use case, that can be modified by anyone on the basis of an access control implemented in Move code. This is the form used when the account holds mutable state. For example: member lists, approval records, or key stores.
-
-- **Immutable** (created in Move with [`iota::account::create_immutable_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_immutable_account_v1)): the account object that can never change state, but that can own other objects. This is appropriate when authentication logic is fully self-contained (or "static") and the account holds no mutable state.
+The account object is a **mutable shared object**, created in Move with [`iota::account::create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1). It can be modified by anyone on the basis of an access control implemented in Move code, which is what lets the account hold mutable state. For example: member lists, approval records, or key stores.
 
 What's worth repeating here, is that **any Move object type can become an account**, even object types already existing today in the ledger (through a Move package upgrade).
 
-The IOTA Move bytecode verifier enforces a critical invariant: the account Move object type passed to [`create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1) or [`create_immutable_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_immutable_account_v1) must be defined in the **same module** as the call site. This prevents one module from registering an unauthorized abstract accounts using another module's object type.
+The IOTA Move bytecode verifier enforces a critical invariant: the account Move object type passed to [`create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1) must be defined in the **same module** as the call site. This prevents one module from registering an unauthorized abstract accounts using another module's object type.
 
 ---
 

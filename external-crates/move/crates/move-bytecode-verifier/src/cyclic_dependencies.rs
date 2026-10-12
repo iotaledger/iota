@@ -26,8 +26,7 @@ where
 }
 
 /// This function performs a depth-first traversal in the module graph, starting
-/// at `module` and recursively exploring immediate dependencies.  During the
-/// DFS,
+/// at `module` and exploring immediate dependencies.  During the DFS,
 /// - If `module.self_id()` is encountered (again), a dependency cycle is
 ///   detected and an error is returned.
 /// - Otherwise terminates without an error.
@@ -42,18 +41,19 @@ fn verify_module_impl<D>(
 where
     D: Fn(&ModuleId) -> PartialVMResult<Vec<ModuleId>>,
 {
-    fn detect_cycles<D>(
-        config: &VerifierConfig,
-        target: &ModuleId,
-        cursor: &ModuleId,
-        visited: &mut BTreeSet<ModuleId>,
-        deps: &D,
-    ) -> PartialVMResult<bool>
-    where
-        D: Fn(&ModuleId) -> PartialVMResult<Vec<ModuleId>>,
-    {
-        if cursor == target {
-            return Ok(true);
+    let self_id = module.self_id();
+    let mut visited = BTreeSet::new();
+    // The walk is as deep as the longest dependency chain a publisher can
+    // build, so it keeps its own stack rather than recursing.
+    let mut stack = vec![module.immediate_dependencies().into_iter()];
+    while let Some(frame) = stack.last_mut() {
+        let Some(cursor) = frame.next() else {
+            stack.pop();
+            continue;
+        };
+
+        if cursor == self_id {
+            return Err(PartialVMError::new(StatusCode::CYCLIC_MODULE_DEPENDENCY));
         }
 
         // Kept for protocol versions before `check_cyclic_dependencies`, which
@@ -65,21 +65,7 @@ where
         };
 
         if is_new {
-            for dep in deps(cursor)? {
-                if detect_cycles(config, target, &dep, visited, deps)? {
-                    return Ok(true);
-                }
-            }
-        }
-
-        Ok(false)
-    }
-
-    let self_id = module.self_id();
-    let mut visited = BTreeSet::new();
-    for dep in module.immediate_dependencies() {
-        if detect_cycles(config, &self_id, &dep, &mut visited, &imm_deps)? {
-            return Err(PartialVMError::new(StatusCode::CYCLIC_MODULE_DEPENDENCY));
+            stack.push(imm_deps(&cursor)?.into_iter());
         }
     }
 

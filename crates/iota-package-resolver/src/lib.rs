@@ -129,12 +129,11 @@ pub struct CleverError {
 /// information that can be returned from a clever error when looking at the
 /// constant values for the clever error. These values are either:
 /// * `None` - No constant information is available, only a line number.
-/// * `Rendered` - The error is a complete error, with an error identifier and
-///   constant that can be rendered in a human-readable format (see in-line doc
-///   comments for exact types of values supported).
-/// * `Raw` - If there is an error constant value, but it is not a renderable
-///   type (e.g., a `vector<address>`), then it is treated as opaque and the
-///   bytes are returned.
+/// * `Rendered` - The error is a complete error, with an error identifier and constant that can be
+///   rendered in a human-readable format (see in-line doc comments for exact types of values
+///   supported).
+/// * `Raw` - If there is an error constant value, but it is not a renderable type (e.g., a
+///   `vector<address>`), then it is treated as opaque and the bytes are returned.
 #[derive(Clone, Debug)]
 pub enum ErrorConstants {
     /// No constant information is available, only a line number.
@@ -596,11 +595,9 @@ impl<S: PackageStore> Resolver<S> {
     /// Resolves a runtime address in a `ModuleId` to a storage `ModuleId`
     /// according to the linkage table in the `context` which must refer to
     /// a package.
-    /// * Will fail if the wrong context is provided, i.e., is not a package, or
-    ///   does not exist.
-    /// * Will fail if an invalid `context` is provided for the `location`,
-    ///   i.e., the package at `context` does not contain the module that
-    ///   `location` refers to.
+    /// * Will fail if the wrong context is provided, i.e., is not a package, or does not exist.
+    /// * Will fail if an invalid `context` is provided for the `location`, i.e., the package at
+    ///   `context` does not contain the module that `location` refers to.
     pub async fn resolve_module_id(
         &self,
         module_id: ModuleId,

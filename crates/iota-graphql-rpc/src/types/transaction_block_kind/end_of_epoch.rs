@@ -203,7 +203,8 @@ impl EndOfEpochTransaction {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let tx = EndOfEpochTransactionKind::from(self.native[c.ix].clone(), c.c.into());
+            let tx = EndOfEpochTransactionKind::try_from(self.native[c.ix].clone(), c.c.into())
+                .extend()?;
             connection.edges.push(Edge::new(c.encode_cursor(), tx));
         }
 
@@ -441,11 +442,14 @@ impl ChangeEpochTransactionV2 {
 }
 
 impl EndOfEpochTransactionKind {
-    fn from(kind: NativeEndOfEpochTransactionKind, checkpoint_viewed_at: u64) -> Self {
+    fn try_from(
+        kind: NativeEndOfEpochTransactionKind,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
         use EndOfEpochTransactionKind as K;
         use NativeEndOfEpochTransactionKind as N;
 
-        match kind {
+        Ok(match kind {
             N::ChangeEpoch(ce) => K::ChangeEpoch(ChangeEpochTransaction {
                 native: ce,
                 checkpoint_viewed_at,
@@ -465,9 +469,11 @@ impl EndOfEpochTransactionKind {
             N::TransactionDenyRulesCreate => {
                 K::TransactionDenyRulesCreate(TransactionDenyRulesCreateTransaction)
             }
-            _ => unimplemented!(
-                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
-            ),
-        }
+            _ => {
+                return Err(Error::Internal(
+                    "unknown EndOfEpochTransactionKind variant".to_string(),
+                ));
+            }
+        })
     }
 }

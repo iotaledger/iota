@@ -286,9 +286,7 @@ async fn test_view_function_call() -> Result<(), anyhow::Error> {
     // Publish the test package containing a #[view] function.
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", "view_functions"]);
-    let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
-        .build(&path)?;
+    let compiled_package = BuildConfig::new_for_testing().build(&path)?;
     let compiled_modules_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

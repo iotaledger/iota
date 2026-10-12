@@ -33,14 +33,14 @@ use crate::{
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
     make_committee_key_num(4, rand)
 }
 
 pub fn make_committee_key_num<R>(num: usize, rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     let mut keys = Vec::new();
@@ -240,12 +240,11 @@ mod move_authenticator {
     /// TODO: if it is necessary, AA accounts need to be supported properly in
     /// the `AuthorityState` used for testing.
     pub fn make_move_authenticator_sig(address: Address) -> (UserSignature, MoveAuthenticator) {
-        let authenticator =
-            MoveAuthenticator::from(MoveAuthenticatorV1::new_with_shared_account_object(
-                vec![],
-                vec![],
-                SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
-            ));
+        let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
+        ));
         let sig = UserSignature::MoveAuthenticator(authenticator.clone());
         (sig, authenticator)
     }

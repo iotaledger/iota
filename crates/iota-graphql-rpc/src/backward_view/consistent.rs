@@ -44,13 +44,11 @@ pub(crate) fn query(
 ///
 /// Two alternatives to avoid:
 ///
-/// - A join on a `SELECT DISTINCT` subquery: the full list of changed objects
-///   must be built first, and in the worst plans it is then scanned for every
-///   row.
-/// - Filtering directly on `superseded_at_checkpoint > checkpoint_viewed_at`
-///   (e.g. `NOT EXISTS`) without ordering by version: it scans all objects
-///   version in the table, forwards, meaning that query cost grows with
-///   retention period.
+/// - A join on a `SELECT DISTINCT` subquery: the full list of changed objects must be built first,
+///   and in the worst plans it is then scanned for every row.
+/// - Filtering directly on `superseded_at_checkpoint > checkpoint_viewed_at` (e.g. `NOT EXISTS`)
+///   without ordering by version: it scans all objects version in the table, forwards, meaning that
+///   query cost grows with retention period.
 fn consistent_checkpointed_objects(
     checkpoint_viewed_at: i64,
     page: &Page<Cursor>,

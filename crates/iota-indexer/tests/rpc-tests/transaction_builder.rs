@@ -443,60 +443,54 @@ fn batch_transaction() {
         .unwrap();
 }
 
-#[test]
-fn request_add_stake() {
-    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn request_add_stake() -> Result<(), anyhow::Error> {
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("transaction_builder_request_add_stake"),
+        None,
+        None,
+    )
+    .await;
+    let (address, key): (_, AccountPrivateKey) = get_key_pair();
+    let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
+    let gas = coins[3];
+    let coins_to_stake = coins[..3].to_vec();
+    let validator = get_validator(client).await;
+    // subtracting some amount to see if it is possible to stake smaller amount than
+    // is provided in the input coins
+    let stake_amount = FUNDED_BALANCE_PER_COIN * 3 - 10_000;
 
-    runtime
-        .block_on(async move {
-            let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
-                Some("transaction_builder_request_add_stake"),
-                None,
-                None,
-            )
-            .await;
-            let (address, key): (_, AccountPrivateKey) = get_key_pair();
-            let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
-            let gas = coins[3];
-            let coins_to_stake = coins[..3].to_vec();
-            let validator = get_validator(client).await;
-            // subtracting some amount to see if it is possible to stake smaller amount than
-            // is provided in the input coins
-            let stake_amount = FUNDED_BALANCE_PER_COIN * 3 - 10_000;
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_add_stake(
-                    address,
-                    coins_to_stake,
-                    Some(stake_amount.into()),
-                    validator,
-                    Some(gas),
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &key).await;
-
-            let staked_iota = client.get_stakes(address).await.unwrap();
-
-            assert_eq!(1, staked_iota.len());
-            let staked_iota = &staked_iota[0];
-            assert_eq!(validator, staked_iota.validator_address);
-
-            assert_eq!(1, staked_iota.stakes.len());
-            let stake = &staked_iota.stakes[0];
-            assert!(matches!(stake.status, StakeStatus::Pending));
-            assert_eq!(stake.principal, stake_amount);
-
-            cluster.force_new_epoch().await;
-            indexer_wait_for_latest_checkpoint(store, cluster).await;
-            let staked_iota = client.get_stakes(address).await.unwrap();
-            let stake = &staked_iota[0].stakes[0];
-            assert!(matches!(stake.status, StakeStatus::Active { .. }));
-
-            Ok::<(), anyhow::Error>(())
-        })
+    let tx_bytes: TransactionBlockBytes = client
+        .request_add_stake(
+            address,
+            coins_to_stake,
+            Some(stake_amount.into()),
+            validator,
+            Some(gas),
+            100_000_000.into(),
+        )
+        .await
         .unwrap();
+    execute_tx_must_succeed(client, tx_bytes, &key).await;
+
+    let staked_iota = client.get_stakes(address).await.unwrap();
+
+    assert_eq!(1, staked_iota.len());
+    let staked_iota = &staked_iota[0];
+    assert_eq!(validator, staked_iota.validator_address);
+
+    assert_eq!(1, staked_iota.stakes.len());
+    let stake = &staked_iota.stakes[0];
+    assert!(matches!(stake.status, StakeStatus::Pending));
+    assert_eq!(stake.principal, stake_amount);
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_latest_checkpoint(store, cluster).await;
+    let staked_iota = client.get_stakes(address).await.unwrap();
+    let stake = &staked_iota[0].stakes[0];
+    assert!(matches!(stake.status, StakeStatus::Active { .. }));
+
+    Ok(())
 }
 
 #[test]
@@ -555,225 +549,190 @@ fn request_withdraw_stake_from_pending() {
         .unwrap();
 }
 
-#[test]
-fn request_withdraw_stake_from_active() {
-    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn request_withdraw_stake_from_active() -> Result<(), anyhow::Error> {
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("transaction_builder_request_withdraw_stake_from_active"),
+        None,
+        None,
+    )
+    .await;
+    let (address, key): (_, AccountPrivateKey) = get_key_pair();
+    let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
+    let gas = coins[3];
+    let coins_to_stake = coins[..3].to_vec();
+    let validator = get_validator(client).await;
+    // subtracting some amount to see if it is possible to stake smaller amount than
+    // is provided in the input coins
+    let stake_amount = FUNDED_BALANCE_PER_COIN * 3 - 10_000;
 
-    runtime
-        .block_on(async move {
-            let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
-                Some("transaction_builder_request_withdraw_stake_from_active"),
-                None,
-                None,
-            )
-            .await;
-            let (address, key): (_, AccountPrivateKey) = get_key_pair();
-            let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
-            let gas = coins[3];
-            let coins_to_stake = coins[..3].to_vec();
-            let validator = get_validator(client).await;
-            // subtracting some amount to see if it is possible to stake smaller amount than
-            // is provided in the input coins
-            let stake_amount = FUNDED_BALANCE_PER_COIN * 3 - 10_000;
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_add_stake(
-                    address,
-                    coins_to_stake,
-                    Some(stake_amount.into()),
-                    validator,
-                    Some(gas),
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &key).await;
-
-            cluster.force_new_epoch().await;
-            indexer_wait_for_latest_checkpoint(store, cluster).await;
-            let staked_iota = client.get_stakes(address).await.unwrap();
-            let stake = &staked_iota[0].stakes[0];
-            assert!(matches!(stake.status, StakeStatus::Active { .. }));
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_withdraw_stake(
-                    address,
-                    stake.staked_iota_id,
-                    Some(gas),
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &key).await;
-
-            let staked_iota = client.get_stakes(address).await.unwrap();
-            assert!(staked_iota.is_empty());
-
-            Ok::<(), anyhow::Error>(())
-        })
+    let tx_bytes: TransactionBlockBytes = client
+        .request_add_stake(
+            address,
+            coins_to_stake,
+            Some(stake_amount.into()),
+            validator,
+            Some(gas),
+            100_000_000.into(),
+        )
+        .await
         .unwrap();
+    execute_tx_must_succeed(client, tx_bytes, &key).await;
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_latest_checkpoint(store, cluster).await;
+    let staked_iota = client.get_stakes(address).await.unwrap();
+    let stake = &staked_iota[0].stakes[0];
+    assert!(matches!(stake.status, StakeStatus::Active { .. }));
+
+    let tx_bytes: TransactionBlockBytes = client
+        .request_withdraw_stake(address, stake.staked_iota_id, Some(gas), 100_000_000.into())
+        .await
+        .unwrap();
+    execute_tx_must_succeed(client, tx_bytes, &key).await;
+
+    let staked_iota = client.get_stakes(address).await.unwrap();
+    assert!(staked_iota.is_empty());
+
+    Ok(())
 }
 
-#[test]
-fn request_add_timelocked_stake() {
-    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn request_add_timelocked_stake() -> Result<(), anyhow::Error> {
+    let (address, key): (_, AccountPrivateKey) = get_key_pair();
+    let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
+        address,
+        "transaction_builder_request_add_timelocked_stake",
+    )
+    .await;
+    indexer_wait_for_checkpoint(&store, 1).await;
 
-    runtime
-        .block_on(async move {
-            let (address, key): (_, AccountPrivateKey) = get_key_pair();
-            let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
-                address,
-                "transaction_builder_request_add_timelocked_stake",
-            )
-            .await;
-            indexer_wait_for_checkpoint(&store, 1).await;
+    let coin = get_gas_object_id(&client, address).await;
+    let validator = get_validator(&client).await;
 
-            let coin = get_gas_object_id(&client, address).await;
-            let validator = get_validator(&client).await;
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_add_timelocked_stake(
-                    address,
-                    timelocked_balance,
-                    validator,
-                    coin,
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_must_succeed(&client, tx_bytes, &key).await;
-
-            let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
-
-            assert_eq!(1, staked_iota.len());
-            let staked_iota = &staked_iota[0];
-            assert_eq!(validator, staked_iota.validator_address);
-
-            assert_eq!(1, staked_iota.stakes.len());
-            let stake = &staked_iota.stakes[0];
-            assert!(matches!(stake.status, StakeStatus::Pending));
-
-            cluster.force_new_epoch().await;
-            indexer_wait_for_latest_checkpoint(&store, &cluster).await;
-            let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
-            let stake = &staked_iota[0].stakes[0];
-            assert!(matches!(stake.status, StakeStatus::Active { .. }));
-
-            Ok::<(), anyhow::Error>(())
-        })
+    let tx_bytes: TransactionBlockBytes = client
+        .request_add_timelocked_stake(
+            address,
+            timelocked_balance,
+            validator,
+            coin,
+            100_000_000.into(),
+        )
+        .await
         .unwrap();
+    execute_tx_must_succeed(&client, tx_bytes, &key).await;
+
+    let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
+
+    assert_eq!(1, staked_iota.len());
+    let staked_iota = &staked_iota[0];
+    assert_eq!(validator, staked_iota.validator_address);
+
+    assert_eq!(1, staked_iota.stakes.len());
+    let stake = &staked_iota.stakes[0];
+    assert!(matches!(stake.status, StakeStatus::Pending));
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+    let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
+    let stake = &staked_iota[0].stakes[0];
+    assert!(matches!(stake.status, StakeStatus::Active { .. }));
+
+    Ok(())
 }
 
-#[test]
-fn request_withdraw_timelocked_stake_from_pending() {
-    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn request_withdraw_timelocked_stake_from_pending() -> Result<(), anyhow::Error> {
+    let (address, key): (_, AccountPrivateKey) = get_key_pair();
+    let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
+        address,
+        "transaction_builder_request_withdraw_timelocked_stake_from_pending",
+    )
+    .await;
+    indexer_wait_for_checkpoint(&store, 1).await;
 
-    runtime
-        .block_on(async move {
-            let (address, key): (_, AccountPrivateKey) = get_key_pair();
-            let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
-                address,
-                "transaction_builder_request_withdraw_timelocked_stake_from_pending",
-            )
-            .await;
-            indexer_wait_for_checkpoint(&store, 1).await;
+    let coin = get_gas_object_id(&client, address).await;
+    let validator = get_validator(&client).await;
 
-            let coin = get_gas_object_id(&client, address).await;
-            let validator = get_validator(&client).await;
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_add_timelocked_stake(
-                    address,
-                    timelocked_balance,
-                    validator,
-                    coin,
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_and_wait_for_indexer_checkpoint(
-                cluster.rpc_client(),
-                &store,
-                tx_bytes,
-                &key,
-            )
-            .await;
-
-            let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
-            let stake = &staked_iota[0].stakes[0];
-            assert!(matches!(stake.status, StakeStatus::Pending));
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_withdraw_timelocked_stake(
-                    address,
-                    stake.timelocked_staked_iota_id,
-                    coin,
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_and_wait_for_indexer_checkpoint(&client, &store, tx_bytes, &key).await;
-
-            let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
-            assert!(staked_iota.is_empty());
-
-            Ok::<(), anyhow::Error>(())
-        })
+    let tx_bytes: TransactionBlockBytes = client
+        .request_add_timelocked_stake(
+            address,
+            timelocked_balance,
+            validator,
+            coin,
+            100_000_000.into(),
+        )
+        .await
         .unwrap();
+    execute_tx_and_wait_for_indexer_checkpoint(cluster.rpc_client(), &store, tx_bytes, &key).await;
+
+    let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
+    let stake = &staked_iota[0].stakes[0];
+    assert!(matches!(stake.status, StakeStatus::Pending));
+
+    let tx_bytes: TransactionBlockBytes = client
+        .request_withdraw_timelocked_stake(
+            address,
+            stake.timelocked_staked_iota_id,
+            coin,
+            100_000_000.into(),
+        )
+        .await
+        .unwrap();
+    execute_tx_and_wait_for_indexer_checkpoint(&client, &store, tx_bytes, &key).await;
+
+    let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
+    assert!(staked_iota.is_empty());
+
+    Ok(())
 }
 
-#[test]
-fn request_withdraw_timelocked_stake_from_active() {
-    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn request_withdraw_timelocked_stake_from_active() -> Result<(), anyhow::Error> {
+    let (address, key): (_, AccountPrivateKey) = get_key_pair();
+    let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
+        address,
+        "transaction_builder_request_withdraw_timelocked_stake_from_active",
+    )
+    .await;
+    indexer_wait_for_checkpoint(&store, 1).await;
 
-    runtime
-        .block_on(async move {
-            let (address, key): (_, AccountPrivateKey) = get_key_pair();
-            let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
-                address,
-                "transaction_builder_request_withdraw_timelocked_stake_from_active",
-            )
-            .await;
-            indexer_wait_for_checkpoint(&store, 1).await;
+    let coin = get_gas_object_id(&client, address).await;
+    let validator = get_validator(&client).await;
 
-            let coin = get_gas_object_id(&client, address).await;
-            let validator = get_validator(&client).await;
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_add_timelocked_stake(
-                    address,
-                    timelocked_balance,
-                    validator,
-                    coin,
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_must_succeed(&client, tx_bytes, &key).await;
-
-            cluster.force_new_epoch().await;
-            indexer_wait_for_latest_checkpoint(&store, &cluster).await;
-            let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
-            let stake = &staked_iota[0].stakes[0];
-            assert!(matches!(stake.status, StakeStatus::Active { .. }));
-
-            let tx_bytes: TransactionBlockBytes = client
-                .request_withdraw_timelocked_stake(
-                    address,
-                    stake.timelocked_staked_iota_id,
-                    coin,
-                    100_000_000.into(),
-                )
-                .await
-                .unwrap();
-            execute_tx_must_succeed(&client, tx_bytes, &key).await;
-
-            let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
-            assert!(staked_iota.is_empty());
-
-            Ok::<(), anyhow::Error>(())
-        })
+    let tx_bytes: TransactionBlockBytes = client
+        .request_add_timelocked_stake(
+            address,
+            timelocked_balance,
+            validator,
+            coin,
+            100_000_000.into(),
+        )
+        .await
         .unwrap();
+    execute_tx_must_succeed(&client, tx_bytes, &key).await;
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+    let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
+    let stake = &staked_iota[0].stakes[0];
+    assert!(matches!(stake.status, StakeStatus::Active { .. }));
+
+    let tx_bytes: TransactionBlockBytes = client
+        .request_withdraw_timelocked_stake(
+            address,
+            stake.timelocked_staked_iota_id,
+            coin,
+            100_000_000.into(),
+        )
+        .await
+        .unwrap();
+    execute_tx_must_succeed(&client, tx_bytes, &key).await;
+
+    let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
+    assert!(staked_iota.is_empty());
+
+    Ok(())
 }
 
 async fn get_address_balances(indexer_client: &HttpClient, address: Address) -> Vec<u64> {

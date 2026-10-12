@@ -1,19 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier, ObjectData};
+use iota_sdk_types::ObjectData;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    StructTag,
     coin::{CoinMetadata, TreasuryCap},
     error::IotaError,
     id::UID,
     object::Object,
 };
-
-pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: Identifier =
-    Identifier::from_static("CoinManagerTreasuryCap");
 
 /// The purpose of a CoinManager is to allow access to all
 /// properties of a Coin on-chain from within a single shared object
@@ -65,22 +61,6 @@ pub struct ImmutableCoinMetadata {
     pub description: String,
     /// URL for the token logo
     pub icon_url: Option<String>,
-}
-
-/// Like `TreasuryCap`, but for dealing with `TreasuryCap` inside `CoinManager`
-/// objects
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct CoinManagerTreasuryCap {
-    /// The unique identifier of the object.
-    pub id: UID,
-}
-
-impl CoinManagerTreasuryCap {
-    pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
-        object_type.address() == Address::FRAMEWORK
-            && object_type.module() == &Identifier::COIN_MANAGER_MODULE
-            && object_type.name() == &COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
-    }
 }
 
 impl TryFrom<Object> for CoinManager {

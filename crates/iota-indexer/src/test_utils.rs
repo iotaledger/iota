@@ -219,9 +219,9 @@ pub async fn start_test_indexer_impl(
         IndexerTypeConfig::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(store.blocking_cp());
 
-            tokio::spawn(
-                async move { Indexer::start_analytical_worker(store, indexer_metrics).await },
-            )
+            tokio::spawn(async move {
+                Indexer::start_analytical_worker(store, indexer_metrics, cancel).await
+            })
         }
     };
 

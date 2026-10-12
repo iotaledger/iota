@@ -274,8 +274,6 @@ mod tests {
 
     use super::*;
 
-    const MAX_PACKAGE_SIZE: u64 = 100 * 1024;
-
     /// A package store holding only the packages a test puts in it; anything
     /// else reads back as missing.
     #[derive(Default)]
@@ -312,11 +310,9 @@ mod tests {
                 id,
                 Version::OBJECT_START,
                 BTreeMap::new(),
-                MAX_PACKAGE_SIZE,
                 vec![],
                 linkage_table,
-            )
-            .unwrap();
+            );
             self.0.insert(
                 id,
                 PackageObject::new(Object::new_from_package(

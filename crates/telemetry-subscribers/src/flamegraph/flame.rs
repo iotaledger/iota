@@ -102,16 +102,14 @@ pub(super) struct Graph<S> {
 ///
 /// # Important Note
 ///
-/// 1. Internally different call graphs are stored in a hash map indexed by the
-///    current Tid. It means that the call graph must only be accessed either
-///    from the same tokio task, or from the same thread. Trying to access a
-///    call graph (entering/exiting frames) from different tasks/threads will
-///    result in undefined behavior.
+/// 1. Internally different call graphs are stored in a hash map indexed by the current Tid. It
+///    means that the call graph must only be accessed either from the same tokio task, or from the
+///    same thread. Trying to access a call graph (entering/exiting frames) from different
+///    tasks/threads will result in undefined behavior.
 ///
-/// 2. Hash map indexed by Tid serves as a mutex guard itself preventing
-///    different threads from accessing the same call graph making inner Mutex
-///    unnecessary. Currently, the implementation uses Mutex to avoid unsafe
-///    code.
+/// 2. Hash map indexed by Tid serves as a mutex guard itself preventing different threads from
+///    accessing the same call graph making inner Mutex unnecessary. Currently, the implementation
+///    uses Mutex to avoid unsafe code.
 pub struct Flames<S> {
     /// Each call graph is associated with a thread/task.
     /// This way the graphs can be stored in a global static and accessed via

@@ -123,8 +123,8 @@ pub fn verify_sender_signed_data_message_signatures(
 ) -> IotaResult {
     let tx = txn.transaction();
 
-    // 1. System transactions do not require signatures. User-submitted transactions
-    //    are verified not to
+    // 1. System transactions do not require signatures. User-submitted transactions are verified
+    //    not to
     // be system transactions before this point
     if tx.is_system_tx() {
         return Ok(());
