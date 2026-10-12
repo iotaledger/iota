@@ -15,18 +15,19 @@ use std::{collections::BTreeMap, ops::Bound, sync::Arc};
 
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEffectsDigest,
-    TransactionKind,
+    TransactionEvents, TransactionKind,
 };
 use iota_types::{
     committee::EpochId,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
-    messages_checkpoint::CheckpointContentsExt,
-    transaction::TransactionAPI,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
+    transaction::{TransactionAPI, TrustedTransaction},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info};
 use typed_store::{
+    DbIterator,
     rocks::{DBMap, TaggedDBMap},
     traits::Map,
 };
@@ -50,17 +51,13 @@ const CHECKPOINT_PASS: &str = "checkpoint backlog migration";
 
 /// How far the migration has got through the flat perpetual ledger tables.
 ///
-/// The variants are in drain order: `executed_effects`, `effects` and
-/// `executed_transactions_to_checkpoint` give the earlier tables their epoch,
-/// so they are drained last. The digest is the last key moved out of that
-/// table, `None` if none has been yet.
+/// `Transactions` covers the four tables keyed by transaction digest, which
+/// are walked together; `Effects` the table keyed by effects digest. The
+/// digest is the last key moved, `None` if none has been yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LedgerBacklogMigrationProgress {
     Transactions(Option<TransactionDigest>),
-    Events(Option<TransactionDigest>),
-    ExecutedEffects(Option<TransactionDigest>),
     Effects(Option<TransactionEffectsDigest>),
-    TransactionCheckpoints(Option<TransactionDigest>),
     Done,
 }
 
@@ -259,32 +256,23 @@ impl LedgerBacklogMigration {
             let tables = &self.perpetual_tables;
             let (step, total) = match &progress {
                 Progress::Transactions(_) => ("transactions", tables.transactions.estimated_len()?),
-                Progress::Events(_) => ("events", tables.events_2.estimated_len()?),
-                Progress::ExecutedEffects(_) => {
-                    ("executed effects", tables.executed_effects.estimated_len()?)
-                }
                 Progress::Effects(_) => ("effects", tables.effects.estimated_len()?),
-                Progress::TransactionCheckpoints(_) => (
-                    "transaction checkpoints",
-                    tables.executed_transactions_to_checkpoint.estimated_len()?,
-                ),
                 Progress::Done => {
                     Self::close_step(&mut logger);
                     return Ok(counts);
                 }
             };
             let logger = Self::open_step(&mut logger, LEDGER_PASS, step, total);
-            let slice = match progress {
+            let (slice, read) = match progress {
                 Progress::Transactions(from) => self.move_transactions(from)?,
-                Progress::Events(from) => self.move_events(from)?,
-                Progress::ExecutedEffects(from) => self.move_executed_effects(from)?,
-                Progress::Effects(from) => self.move_effects(from)?,
-                Progress::TransactionCheckpoints(from) => {
-                    self.move_transaction_checkpoints(from)?
+                Progress::Effects(from) => {
+                    let slice = self.move_effects(from)?;
+                    let read = slice.moved + slice.expired;
+                    (slice, read)
                 }
                 Progress::Done => unreachable!("the step match above returns on Done"),
             };
-            logger.advance((slice.moved + slice.expired) as u64);
+            logger.advance(read as u64);
             counts.add(&slice);
         }
     }
@@ -401,22 +389,6 @@ impl LedgerBacklogMigration {
         Ok(())
     }
 
-    /// The epoch that executed `digest`, or `None` when this node has no
-    /// record of executing it, as for a transaction state sync fetched but
-    /// execution has not reached (see [`Self::rewind_synced_watermark`]).
-    fn transaction_epoch(&self, digest: &TransactionDigest) -> IotaResult<Option<EpochId>> {
-        let tables = &self.perpetual_tables;
-        if let Some((epoch, _)) = tables.executed_transactions_to_checkpoint.get(digest)? {
-            return Ok(Some(epoch));
-        }
-        if let Some(effects_digest) = tables.executed_effects.get(digest)? {
-            if let Some(effects) = tables.effects.get(&effects_digest)? {
-                return Ok(Some(effects.epoch()));
-            }
-        }
-        Ok(None)
-    }
-
     /// Reads up to [`Self::keys_per_slice`] rows of `flat` above
     /// `resume_above`, grouped by the epoch `epoch_of` gives them.
     fn read_slice<K, V>(
@@ -493,56 +465,137 @@ impl LedgerBacklogMigration {
         Ok(MigrationCounts { moved, expired })
     }
 
-    fn move_transactions(&self, from: Option<TransactionDigest>) -> IotaResult<MigrationCounts> {
-        use LedgerBacklogMigrationProgress as Progress;
-
-        let flat = &self.perpetual_tables.transactions;
-        let slice = self.read_slice(flat, from, |digest, transaction| {
-            if let Some(epoch) = self.transaction_epoch(digest)? {
-                return Ok(Some(epoch));
-            }
-            // A validator stores a randomness state update before executing it,
-            // since its signature cannot always be built again after a restart.
-            Ok(match transaction.inner().transaction().kind() {
-                TransactionKind::RandomnessStateUpdate(update) => Some(update.epoch),
-                _ => None,
-            })
-        })?;
-        let progress = slice.progress(Progress::Transactions, Progress::Events(None));
-        self.move_ledger_slice(
-            flat,
-            slice,
-            |bucket| &bucket.transactions,
-            |row| row,
-            progress,
-        )
-    }
-
-    fn move_events(&self, from: Option<TransactionDigest>) -> IotaResult<MigrationCounts> {
-        use LedgerBacklogMigrationProgress as Progress;
-
-        let flat = &self.perpetual_tables.events_2;
-        let slice = self.read_slice(flat, from, |digest, _| self.transaction_epoch(digest))?;
-        let progress = slice.progress(Progress::Events, Progress::ExecutedEffects(None));
-        self.move_ledger_slice(flat, slice, |bucket| &bucket.events, |row| row, progress)
-    }
-
-    fn move_executed_effects(
+    /// Moves one slice of the four tables keyed by transaction digest into the
+    /// buckets and records how far it got, in one write batch. Returns the
+    /// rows moved and expired, and the number of transactions read.
+    ///
+    /// The tables are walked together, so each transaction's epoch is
+    /// resolved once for all of its rows: from its finalizing checkpoint, or
+    /// else from its effects. A transaction with neither has no record of
+    /// being executed here, as for one state sync fetched but execution has
+    /// not reached (see [`Self::rewind_synced_watermark`]), and its rows are
+    /// dropped. The exception is a randomness state update a validator stored
+    /// before executing it, since its signature cannot always be built again;
+    /// it is filed under the epoch it names.
+    fn move_transactions(
         &self,
         from: Option<TransactionDigest>,
-    ) -> IotaResult<MigrationCounts> {
+    ) -> IotaResult<(MigrationCounts, usize)> {
         use LedgerBacklogMigrationProgress as Progress;
 
-        let flat = &self.perpetual_tables.executed_effects;
-        let slice = self.read_slice(flat, from, |digest, _| self.transaction_epoch(digest))?;
-        let progress = slice.progress(Progress::ExecutedEffects, Progress::Effects(None));
-        self.move_ledger_slice(
-            flat,
-            slice,
-            |bucket| &bucket.executed_effects,
-            |row| row,
-            progress,
-        )
+        let tables = &self.perpetual_tables;
+        let range = (
+            from.map_or(Bound::Unbounded, Bound::Excluded),
+            Bound::Unbounded,
+        );
+        let mut transactions = tables.transactions.safe_range_iter(range).peekable();
+        let mut events = tables.events_2.safe_range_iter(range).peekable();
+        let mut executed = tables.executed_effects.safe_range_iter(range).peekable();
+        let mut finalized = tables
+            .executed_transactions_to_checkpoint
+            .safe_range_iter(range)
+            .peekable();
+
+        let mut rows = Vec::new();
+        let mut sliced = false;
+        while let Some(digest) = [
+            next_key(&mut transactions)?,
+            next_key(&mut events)?,
+            next_key(&mut executed)?,
+            next_key(&mut finalized)?,
+        ]
+        .into_iter()
+        .flatten()
+        .min()
+        {
+            if rows.len() == self.keys_per_slice {
+                sliced = true;
+                break;
+            }
+            rows.push(TransactionRows {
+                digest,
+                transaction: take_row(&mut transactions, &digest)?,
+                events: take_row(&mut events, &digest)?,
+                executed: take_row(&mut executed, &digest)?,
+                finalized: take_row(&mut finalized, &digest)?,
+            });
+        }
+
+        // Effects only for the transactions no checkpoint has finalized, as on
+        // a validator, which never writes `executed_transactions_to_checkpoint`.
+        let effects_digests: Vec<_> = rows
+            .iter()
+            .filter(|row| row.finalized.is_none())
+            .filter_map(|row| row.executed)
+            .collect();
+        let effects_epochs: BTreeMap<TransactionEffectsDigest, EpochId> = effects_digests
+            .iter()
+            .copied()
+            .zip(tables.effects.multi_get(&effects_digests)?)
+            .filter_map(|(digest, effects)| Some((digest, effects?.epoch())))
+            .collect();
+
+        let mut batch = tables.transactions.batch();
+        let mut counts = MigrationCounts::default();
+        let mut by_epoch: BTreeMap<EpochId, Vec<TransactionRows>> = BTreeMap::new();
+        for row in rows.iter() {
+            let epoch = match (&row.finalized, &row.executed, &row.transaction) {
+                (Some((epoch, _)), _, _) => Some(*epoch),
+                (None, Some(effects), _) if effects_epochs.contains_key(effects) => {
+                    effects_epochs.get(effects).copied()
+                }
+                (None, _, Some(transaction)) => match transaction.inner().transaction().kind() {
+                    TransactionKind::RandomnessStateUpdate(update) => Some(update.epoch),
+                    _ => None,
+                },
+                _ => None,
+            };
+            match epoch {
+                Some(epoch) if epoch >= self.floor => {
+                    counts.moved += row.len();
+                    by_epoch.entry(epoch).or_default().push(row.clone());
+                }
+                _ => counts.expired += row.len(),
+            }
+        }
+        for (epoch, rows) in by_epoch {
+            let bucket = self.historic_ledger.ensure(epoch)?;
+            batch.insert_batch_tagged(
+                &bucket.transactions,
+                rows.iter()
+                    .filter_map(|row| Some((row.digest, row.transaction.clone()?))),
+            )?;
+            batch.insert_batch_tagged(
+                &bucket.events,
+                rows.iter()
+                    .filter_map(|row| Some((row.digest, row.events.clone()?))),
+            )?;
+            batch.insert_batch_tagged(
+                &bucket.executed_effects,
+                rows.iter()
+                    .filter_map(|row| Some((row.digest, row.executed?))),
+            )?;
+            // The bucket's epoch is the checkpoint's epoch, so only the
+            // sequence number is kept.
+            batch.insert_batch_tagged(
+                &bucket.tx_to_checkpoint,
+                rows.iter()
+                    .filter_map(|row| Some((row.digest, row.finalized?.1))),
+            )?;
+        }
+        let progress = match rows.last() {
+            Some(last) if sliced => Progress::Transactions(Some(last.digest)),
+            _ => Progress::Effects(None),
+        };
+        batch.insert_batch(&tables.ledger_backlog_migration_progress, [((), progress)])?;
+        batch.write()?;
+
+        debug!(
+            moved = counts.moved,
+            expired = counts.expired,
+            "migrated a slice of the flat transaction rows"
+        );
+        Ok((counts, rows.len()))
     }
 
     fn move_effects(&self, from: Option<TransactionEffectsDigest>) -> IotaResult<MigrationCounts> {
@@ -550,28 +603,8 @@ impl LedgerBacklogMigration {
 
         let flat = &self.perpetual_tables.effects;
         let slice = self.read_slice(flat, from, |_, effects| Ok(Some(effects.epoch())))?;
-        let progress = slice.progress(Progress::Effects, Progress::TransactionCheckpoints(None));
+        let progress = slice.progress(Progress::Effects, Progress::Done);
         self.move_ledger_slice(flat, slice, |bucket| &bucket.effects, |row| row, progress)
-    }
-
-    fn move_transaction_checkpoints(
-        &self,
-        from: Option<TransactionDigest>,
-    ) -> IotaResult<MigrationCounts> {
-        use LedgerBacklogMigrationProgress as Progress;
-
-        let flat = &self.perpetual_tables.executed_transactions_to_checkpoint;
-        let slice = self.read_slice(flat, from, |_, (epoch, _)| Ok(Some(*epoch)))?;
-        let progress = slice.progress(Progress::TransactionCheckpoints, Progress::Done);
-        // The bucket's epoch is the checkpoint's epoch, so only the sequence
-        // number is kept.
-        self.move_ledger_slice(
-            flat,
-            slice,
-            |bucket| &bucket.tx_to_checkpoint,
-            |(_, sequence)| sequence,
-            progress,
-        )
     }
 
     /// Moves one slice of the flat digest-keyed checkpoint summaries into the
@@ -707,6 +740,51 @@ impl LedgerBacklogMigration {
         );
         Ok(MigrationCounts { moved, expired })
     }
+}
+
+/// One transaction's rows in the four flat tables keyed by its digest.
+#[derive(Clone)]
+struct TransactionRows {
+    digest: TransactionDigest,
+    transaction: Option<TrustedTransaction>,
+    events: Option<TransactionEvents>,
+    executed: Option<TransactionEffectsDigest>,
+    finalized: Option<(EpochId, CheckpointSequenceNumber)>,
+}
+
+impl TransactionRows {
+    /// How many of the four tables hold a row for the transaction.
+    fn len(&self) -> usize {
+        usize::from(self.transaction.is_some())
+            + usize::from(self.events.is_some())
+            + usize::from(self.executed.is_some())
+            + usize::from(self.finalized.is_some())
+    }
+}
+
+/// The key of the row `rows` yields next, `None` once it is exhausted.
+fn next_key<V>(
+    rows: &mut std::iter::Peekable<DbIterator<'_, (TransactionDigest, V)>>,
+) -> IotaResult<Option<TransactionDigest>> {
+    match rows.peek() {
+        Some(Ok((key, _))) => Ok(Some(*key)),
+        Some(Err(_)) => match rows.next() {
+            Some(Err(e)) => Err(e.into()),
+            _ => unreachable!("the peeked row is an error"),
+        },
+        None => Ok(None),
+    }
+}
+
+/// Takes the next row of `rows` if it is keyed by `digest`.
+fn take_row<V>(
+    rows: &mut std::iter::Peekable<DbIterator<'_, (TransactionDigest, V)>>,
+    digest: &TransactionDigest,
+) -> IotaResult<Option<V>> {
+    if next_key(rows)?.as_ref() != Some(digest) {
+        return Ok(None);
+    }
+    Ok(rows.next().transpose()?.map(|(_, value)| value))
 }
 
 #[cfg(test)]
