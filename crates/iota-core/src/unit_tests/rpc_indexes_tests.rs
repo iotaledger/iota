@@ -4,11 +4,17 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_json_rpc_types::IotaObjectDataFilter;
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, simple::SimpleKeypair,
+};
 use iota_sdk_types::{
     Address, Event, Identifier, MovePackage, MoveStruct, ObjectData, ObjectId, Owner, StructTag,
     TransactionDigest, TypeTag, Version,
 };
 use iota_types::{
+    account_abstraction::{
+        builtin_authenticator_functions::PublicKeyFieldName, public_key::MovePublicKey,
+    },
     base_types::ObjectInfo,
     effects::TransactionEffectsAPI,
     error::IotaError,
@@ -25,7 +31,10 @@ use super::{
     IndexGroup, RpcIndexesStore,
     jsonrpc_api::CachingLayoutResolver,
     live_scan::RpcIndexesRestorer,
-    schema::{CoinIndexInfo, CoinIndexKey, OwnerIndexKey},
+    schema::{
+        ACCOUNT_PUBLIC_KEY_FIELD_TYPE, AccountKeyIndexKey, CoinIndexInfo, CoinIndexKey,
+        OwnerIndexKey, account_key_id, try_create_account_key,
+    },
 };
 use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
@@ -2277,12 +2286,21 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
         Owner::Address(owner),
     );
     let package_object = package_object_for_testing();
+    let account = ObjectId::random();
+    let account_key = ed25519_public_key_for_testing(1);
+    let account_key_field = account_key_field_object(
+        ObjectId::random(),
+        account,
+        &account_key,
+        Version::MIN_VALID_INCL,
+    );
     let objects = [
         gas_object.clone(),
         field_object.clone(),
         coin_metadata.clone(),
         treasury_cap.clone(),
         package_object.clone(),
+        account_key_field,
     ];
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
 
@@ -2362,6 +2380,11 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
                 },
             )],
             "the package version must be indexed"
+        );
+        assert_eq!(
+            accounts_with_key(store, &account_key),
+            vec![account],
+            "the account's public key must be indexed"
         );
     }
 }
@@ -2640,11 +2663,22 @@ async fn test_live_scan_gates_the_grpc_tables() {
         Owner::Immutable,
     );
     let package_object = package_object_for_testing();
+    let account_key_field = account_key_field_object(
+        ObjectId::random(),
+        ObjectId::random(),
+        &ed25519_public_key_for_testing(1),
+        Version::MIN_VALID_INCL,
+    );
 
     let restorer =
         RpcIndexesRestorer::open(index_dir.clone(), BTreeSet::from([IndexGroup::JsonRpc])).unwrap();
     let mut partition = restorer.partition_indexer();
-    for object in [&gas_object, &coin_metadata, &package_object] {
+    for object in [
+        &gas_object,
+        &coin_metadata,
+        &package_object,
+        &account_key_field,
+    ] {
         partition.index_object(object).unwrap();
     }
     partition.finish().unwrap();
@@ -2664,6 +2698,10 @@ async fn test_live_scan_gates_the_grpc_tables() {
     assert!(
         store.tables.package_version.safe_iter().next().is_none(),
         "the gRPC group's package table must stay empty"
+    );
+    assert!(
+        store.tables.account_key.safe_iter().next().is_none(),
+        "the gRPC group's account key table must stay empty"
     );
 }
 
@@ -3585,5 +3623,219 @@ async fn test_a_query_of_a_dropped_bucket_skips_its_rows() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+fn ed25519_public_key_for_testing(seed: u8) -> MovePublicKey {
+    MovePublicKey::from(&SimpleKeypair::from(Ed25519PrivateKey::new([seed; 32])))
+}
+
+fn secp256k1_public_key_for_testing(seed: u8) -> MovePublicKey {
+    MovePublicKey::from(&SimpleKeypair::from(
+        Secp256k1PrivateKey::new([seed; 32]).unwrap(),
+    ))
+}
+
+fn account_key_id_of(key: &MovePublicKey) -> [u8; 32] {
+    account_key_id(key.scheme_flag(), key.raw_bytes())
+}
+
+/// The field that holds `key` as the built-in authenticator public key of
+/// `account`.
+fn account_key_field_object(
+    field_id: ObjectId,
+    account: ObjectId,
+    key: &MovePublicKey,
+    version: Version,
+) -> Object {
+    let mut contents = field_id.into_bytes().to_vec();
+    contents.extend(bcs::to_bytes(&PublicKeyFieldName::default()).unwrap());
+    contents.extend(bcs::to_bytes(key).unwrap());
+    Object::new_move(
+        MoveStruct::new_from_execution_with_limit(
+            ACCOUNT_PUBLIC_KEY_FIELD_TYPE.clone(),
+            version,
+            contents,
+            1024,
+        )
+        .unwrap(),
+        Owner::Object(account),
+        TransactionDigest::ZERO,
+    )
+}
+
+/// Turns the copies of object `object_idx` in `checkpoint` into the public
+/// key field of `account`, holding `old_key` in the transactions' inputs and
+/// `new_key` in their outputs. Each copy keeps its version.
+fn make_account_key_field(
+    checkpoint: &mut CheckpointData,
+    object_idx: u64,
+    account: ObjectId,
+    old_key: Option<&MovePublicKey>,
+    new_key: Option<&MovePublicKey>,
+) {
+    let field_id = TestCheckpointDataBuilder::derive_object_id(object_idx);
+    for tx in &mut checkpoint.transactions {
+        for (objects, key) in [
+            (&mut tx.input_objects, old_key),
+            (&mut tx.output_objects, new_key),
+        ] {
+            for object in objects.iter_mut().filter(|o| o.id() == field_id) {
+                let key = key.expect("a copy of the field has no key to hold");
+                *object = account_key_field_object(field_id, account, key, object.version());
+            }
+        }
+    }
+}
+
+/// The objects the index lists for `key`.
+fn accounts_with_key(index_store: &RpcIndexesStore, key: &MovePublicKey) -> Vec<ObjectId> {
+    index_store
+        .account_key_iter(account_key_id_of(key), None)
+        .unwrap()
+        .map(|row| row.unwrap().account_id)
+        .collect()
+}
+
+/// Attaching, rotating and detaching an account's public key keep exactly
+/// one row, for the key the account holds now.
+#[tokio::test]
+async fn test_account_key_rows_follow_attach_rotate_and_detach() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let account = ObjectId::random();
+    let first_key = ed25519_public_key_for_testing(1);
+    let second_key = secp256k1_public_key_for_testing(2);
+
+    let mut builder = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_owned_object(1)
+        .finish_transaction();
+    let mut checkpoint = builder.build_checkpoint();
+    make_account_key_field(&mut checkpoint, 1, account, None, Some(&first_key));
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert_eq!(accounts_with_key(&index_store, &first_key), vec![account]);
+
+    builder = builder
+        .start_transaction(0)
+        .mutate_owned_object(1)
+        .finish_transaction();
+    let mut checkpoint = builder.build_checkpoint();
+    make_account_key_field(
+        &mut checkpoint,
+        1,
+        account,
+        Some(&first_key),
+        Some(&second_key),
+    );
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert!(
+        accounts_with_key(&index_store, &first_key).is_empty(),
+        "a rotation must drop the row of the previous key"
+    );
+    assert_eq!(accounts_with_key(&index_store, &second_key), vec![account]);
+
+    builder = builder
+        .start_transaction(0)
+        .delete_object(1)
+        .finish_transaction();
+    let mut checkpoint = builder.build_checkpoint();
+    make_account_key_field(&mut checkpoint, 1, account, Some(&second_key), None);
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert!(
+        index_store.tables.account_key.safe_iter().next().is_none(),
+        "detaching the key must drop its row"
+    );
+}
+
+/// A store without the gRPC group does not fill the `account_key` table
+/// from checkpoints.
+#[tokio::test]
+async fn test_account_key_rows_need_the_grpc_group() {
+    let index_store = RpcIndexesStore::new_without_init(
+        iota_common::tempdir().path().to_path_buf(),
+        None,
+        BTreeSet::from([IndexGroup::JsonRpc]),
+    );
+    let mut builder = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_owned_object(1)
+        .finish_transaction();
+    let mut checkpoint = builder.build_checkpoint();
+    make_account_key_field(
+        &mut checkpoint,
+        1,
+        ObjectId::random(),
+        None,
+        Some(&ed25519_public_key_for_testing(1)),
+    );
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+
+    assert!(index_store.tables.account_key.safe_iter().next().is_none());
+}
+
+/// A key attached to several objects lists all of them, in object id order,
+/// and only them; the cursor bound is exclusive.
+#[tokio::test]
+async fn test_account_key_iter_lists_every_object_holding_the_key() {
+    let dir = iota_common::tempdir();
+    let shared_key = ed25519_public_key_for_testing(1);
+    let other_key = ed25519_public_key_for_testing(2);
+    let mut accounts = [ObjectId::random(), ObjectId::random()];
+    accounts.sort();
+    let other_account = ObjectId::random();
+
+    let restorer =
+        RpcIndexesRestorer::open(dir.path().to_path_buf(), BTreeSet::from([IndexGroup::Grpc]))
+            .unwrap();
+    let mut partition = restorer.partition_indexer();
+    for (account, key) in [
+        (accounts[0], &shared_key),
+        (accounts[1], &shared_key),
+        (other_account, &other_key),
+    ] {
+        let field =
+            account_key_field_object(ObjectId::random(), account, key, Version::MIN_VALID_INCL);
+        partition.index_object(&field).unwrap();
+    }
+    partition.finish().unwrap();
+    restorer.finalize(0).await.unwrap();
+    let index_store = RpcIndexesStore::new_without_init(
+        dir.path().to_path_buf(),
+        None,
+        BTreeSet::from([IndexGroup::Grpc]),
+    );
+
+    assert_eq!(
+        accounts_with_key(&index_store, &shared_key),
+        accounts.to_vec()
+    );
+    assert_eq!(
+        accounts_with_key(&index_store, &other_key),
+        vec![other_account]
+    );
+    let after_cursor: Vec<_> = index_store
+        .account_key_iter(account_key_id_of(&shared_key), Some(accounts[0]))
+        .unwrap()
+        .map(|row| row.unwrap().account_id)
+        .collect();
+    assert_eq!(after_cursor, vec![accounts[1]]);
+}
+
+/// A dynamic field of another type under an account is not mistaken for its
+/// public key.
+#[test]
+fn test_only_the_public_key_field_is_an_account_key() {
+    let account = ObjectId::random();
+    assert!(try_create_account_key(&dynamic_field_object(account, ObjectId::random())).is_none());
+
+    let key = ed25519_public_key_for_testing(1);
+    let field =
+        account_key_field_object(ObjectId::random(), account, &key, Version::MIN_VALID_INCL);
+    assert_eq!(
+        try_create_account_key(&field),
+        Some(AccountKeyIndexKey {
+            key_id: account_key_id_of(&key),
+            account_id: account,
+        })
     );
 }

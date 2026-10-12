@@ -64,8 +64,8 @@ use self::{
         CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX,
         HistoryBucket, IndexStoreTables, IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey,
         history_cf_epoch, history_cf_name, is_dynamic_field, merge_coin_into,
-        transaction_index_data, try_create_coin_index_info, try_create_package_version_info,
-        try_create_regulated_coin_info,
+        transaction_index_data, try_create_account_key, try_create_coin_index_info,
+        try_create_package_version_info, try_create_regulated_coin_info,
     },
 };
 use crate::{
@@ -442,6 +442,11 @@ impl IndexStoreTables {
                             &self.dynamic_field,
                             [DynamicFieldKey::new(object_id, removed_object.id())],
                         )?;
+                        if index_grpc {
+                            if let Some(key) = try_create_account_key(removed_object) {
+                                batch.delete_batch(&self.account_key, [key])?;
+                            }
+                        }
                     }
                     Owner::Shared(_) | Owner::Immutable => {}
                     _ => {
@@ -470,6 +475,13 @@ impl IndexStoreTables {
                                     [DynamicFieldKey::new(object_id, old_object.id())],
                                 )?;
                             }
+                            // The key is part of the row, so a rotation
+                            // replaces the row even under the same owner.
+                            if index_grpc {
+                                if let Some(key) = try_create_account_key(old_object) {
+                                    batch.delete_batch(&self.account_key, [key])?;
+                                }
+                            }
                         }
                         Owner::Shared(_) | Owner::Immutable => {}
                         _ => unimplemented!(
@@ -495,6 +507,11 @@ impl IndexStoreTables {
                                 &self.dynamic_field,
                                 [(DynamicFieldKey::new(parent, object.id()), ())],
                             )?;
+                        }
+                        if index_grpc {
+                            if let Some(key) = try_create_account_key(object) {
+                                batch.insert_batch(&self.account_key, [(key, ())])?;
+                            }
                         }
                     }
                     Owner::Shared(_) | Owner::Immutable => {}
@@ -912,6 +929,7 @@ impl RpcIndexesStore {
             dynamic_field: map(&db, "dynamic_field", &db_options.rw_options)?,
             coin: map(&db, "coin", &db_options.rw_options)?,
             package_version: map(&db, "package_version", &db_options.rw_options)?,
+            account_key: map(&db, "account_key", &db_options.rw_options)?,
         };
 
         let mut history = BTreeMap::new();

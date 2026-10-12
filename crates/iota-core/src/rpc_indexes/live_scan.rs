@@ -30,8 +30,9 @@ use super::{
     RpcIndexesStore,
     schema::{
         CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, IndexGroup, IndexStoreTables,
-        MetadataInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into, try_create_coin_index_info,
-        try_create_package_version_info, try_create_regulated_coin_info,
+        MetadataInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into, try_create_account_key,
+        try_create_coin_index_info, try_create_package_version_info,
+        try_create_regulated_coin_info,
     },
 };
 
@@ -147,6 +148,10 @@ impl<'a> RpcIndexesPartitionIndexer<'a> {
             if let Some((key, info)) = try_create_package_version_info(object) {
                 self.batch
                     .insert_batch(&self.tables.package_version, [(key, info)])?;
+            }
+            if let Some(key) = try_create_account_key(object) {
+                self.batch
+                    .insert_batch(&self.tables.account_key, [(key, ())])?;
             }
         }
 

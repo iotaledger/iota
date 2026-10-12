@@ -13,7 +13,9 @@ use typed_store::{TypedStoreError, traits::Map};
 
 use super::{
     RpcIndexesStore,
-    schema::{CoinIndexInfo, CoinIndexKey, IndexGroup, OwnerIndexKey, OwnerTypeFilter},
+    schema::{
+        AccountKeyIndexKey, CoinIndexInfo, CoinIndexKey, IndexGroup, OwnerIndexKey, OwnerTypeFilter,
+    },
 };
 
 impl From<CoinIndexInfo> for iota_types::storage::CoinInfo {
@@ -50,6 +52,27 @@ impl RpcIndexesStore {
             .tables
             .dynamic_field
             .safe_iter_with_prefix_after(&parent, cursor.as_ref())
+            .map(|r| r.map(|(key, ())| key)))
+    }
+
+    /// The objects the public key with id `key_id` (see
+    /// [`super::schema::account_key_id`]) is attached to, ordered by object
+    /// id and starting after `cursor`.
+    ///
+    /// A row only says the key was attached when the store last indexed the
+    /// object; load the object to check that it is an account and still
+    /// holds the key.
+    pub fn account_key_iter(
+        &self,
+        key_id: [u8; 32],
+        cursor: Option<ObjectId>,
+    ) -> Result<impl Iterator<Item = Result<AccountKeyIndexKey, TypedStoreError>> + '_, StorageError>
+    {
+        self.require_grpc()?;
+        Ok(self
+            .tables
+            .account_key
+            .safe_iter_with_prefix_after(&key_id, cursor.as_ref())
             .map(|r| r.map(|(key, ())| key)))
     }
 

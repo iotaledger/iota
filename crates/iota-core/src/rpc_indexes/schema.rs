@@ -9,16 +9,22 @@ use std::{
     collections::{BTreeSet, HashMap, hash_map::Entry},
     hash::Hasher,
     ops::Bound,
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 
+use fastcrypto::hash::HashFunction;
+use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TransactionEffects,
     TransactionEvents, TransactionEventsDigest, TypeTag, Version,
 };
 use iota_types::{
+    account_abstraction::{
+        builtin_authenticator_functions::PublicKeyFieldName, public_key::MovePublicKey,
+    },
     base_types::TxSequenceNumber,
     committee::EpochId,
+    crypto::DefaultHash,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -31,6 +37,7 @@ use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use tracing::error;
 use typed_store::{
     DBMapUtils, TypedStoreError,
     database::Database,
@@ -427,6 +434,67 @@ pub(super) fn try_create_package_version_info(
     ))
 }
 
+/// Key of the `account_key` table: a built-in authenticator public key and
+/// an object it is attached to.
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct AccountKeyIndexKey {
+    /// The key's [`account_key_id`].
+    pub key_id: [u8; 32],
+    /// The object the key is attached to. Usually an account, but the row
+    /// does not check the object's type.
+    pub account_id: ObjectId,
+}
+
+/// `0x2::dynamic_field::Field<PublicKeyFieldName, PublicKey>`, the field
+/// that holds the public key of an account's built-in authenticator.
+pub(super) static ACCOUNT_PUBLIC_KEY_FIELD_TYPE: LazyLock<StructTag> = LazyLock::new(|| {
+    StructTag::new_dynamic_field(
+        TypeTag::Struct(Box::new(PublicKeyFieldName::tag())),
+        TypeTag::Struct(Box::new(MovePublicKey::tag())),
+    )
+});
+
+/// The id the `account_key` table keys a public key on: the Blake2b-256 hash
+/// of the scheme flag followed by the raw key bytes, as stored in a Move
+/// `public_key::PublicKey`. For MultiSig the raw bytes are the BCS-encoded
+/// committee.
+///
+/// This is not the address of the key: an Ed25519 address hashes the key
+/// without the flag.
+pub fn account_key_id(scheme_flag: u8, raw_bytes: &[u8]) -> [u8; 32] {
+    let mut hasher = DefaultHash::default();
+    hasher.update([scheme_flag]);
+    hasher.update(raw_bytes);
+    hasher.finalize().digest
+}
+
+/// The `account_key` row of `object`, when it is the field holding the public
+/// key of a built-in authenticator.
+pub(super) fn try_create_account_key(object: &Object) -> Option<AccountKeyIndexKey> {
+    let Owner::Object(account_id) = object.owner else {
+        return None;
+    };
+    let move_object = object.data.as_opt_struct()?;
+    if move_object.struct_tag() != &*ACCOUNT_PUBLIC_KEY_FIELD_TYPE {
+        return None;
+    }
+    let field: Field<PublicKeyFieldName, MovePublicKey> =
+        match bcs::from_bytes(move_object.contents()) {
+            Ok(field) => field,
+            Err(e) => {
+                error!(
+                    object_id = %object.id(),
+                    "cannot decode the public key field of an account: {e}"
+                );
+                return None;
+            }
+        };
+    Some(AccountKeyIndexKey {
+        key_id: account_key_id(field.value.scheme_flag(), field.value.raw_bytes()),
+        account_id,
+    })
+}
+
 pub(super) type EventId = (TxSequenceNumber, usize);
 pub(super) type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
 
@@ -693,8 +761,8 @@ impl HistoryBucket {
 /// tables live in per-epoch column families of the same database
 /// ([`HistoryBucket`]).
 ///
-/// `owner` and `dynamic_field` are shared by both API groups; `coin` and
-/// `package_version` are gRPC-only. JSON-RPC reads coin balances from
+/// `owner` and `dynamic_field` are shared by both API groups; `coin`,
+/// `package_version` and `account_key` are gRPC-only. JSON-RPC reads coin balances from
 /// `owner`.
 #[derive(DBMapUtils)]
 pub struct IndexStoreTables {
@@ -743,4 +811,10 @@ pub struct IndexStoreTables {
     /// version, allowing efficient listing of all versions of a package.
     /// gRPC-only.
     pub package_version: DBMap<PackageVersionKey, PackageVersionInfo>,
+
+    /// The objects each built-in authenticator public key is attached to,
+    /// keyed by the key's [`account_key_id`] and the object's id. Only the
+    /// key is stored, and rows are written whatever the object's type, so a
+    /// reader loads the object and checks its type. gRPC-only.
+    pub account_key: DBMap<AccountKeyIndexKey, ()>,
 }
