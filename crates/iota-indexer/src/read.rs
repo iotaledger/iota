@@ -202,12 +202,6 @@ impl IndexerReader {
     /// Table consulted when a checkpoint is looked up.
     const CHECKPOINT_TABLES: &[CommitterTables] = &[CommitterTables::Checkpoints];
 
-    /// Tables consulted when a past object is looked up.
-    const PAST_OBJECT_TABLES: &[CommitterTables] = &[
-        CommitterTables::ObjectsVersion,
-        CommitterTables::ObjectsBackwardHistory,
-    ];
-
     /// Tables consulted when transactions are looked up by their checkpoint.
     const TRANSACTIONS_BY_CHECKPOINT_TABLES: &[CommitterTables] = &[
         CommitterTables::Transactions,
@@ -572,7 +566,7 @@ impl IndexerReader {
                     object_version_info.object_version
                 ),
                 oldest_available_checkpoint: self.oldest_available_cp(
-                    Self::PAST_OBJECT_TABLES,
+                    &[CommitterTables::ObjectsBackwardHistory],
                     false, // the fallback has not been consulted yet
                 ),
             }),
@@ -640,14 +634,18 @@ impl IndexerReader {
             .get_past_object_read(object_id, object_version, before_version)
             .await;
 
-        let Some(fallback) = self.fallback_reader().filter(|_| {
-            matches!(
-                past_object_read_result,
-                Err(IndexerError::DataPruned { .. })
-                    | Ok(PastObjectRead::ObjectNotExists(_))
-                    | Ok(PastObjectRead::VersionNotFound(..))
-            )
-        }) else {
+        let Some(fallback) = self
+            .fallback_reader()
+            .filter(|_| match &past_object_read_result {
+                Err(IndexerError::DataPruned { .. }) => true,
+                Ok(PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..)) => {
+                    // we need to consult fallback only if objects_version is pruned, otherwise the
+                    // "not found" answer is definitive
+                    self.oldest_available_cp(&[CommitterTables::ObjectsVersion], false) > 0
+                }
+                _ => false,
+            })
+        else {
             return past_object_read_result;
         };
 
