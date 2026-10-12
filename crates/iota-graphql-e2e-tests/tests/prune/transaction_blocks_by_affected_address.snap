@@ -118,7 +118,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
@@ -208,7 +209,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
@@ -231,7 +233,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
@@ -254,7 +257,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]

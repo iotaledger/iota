@@ -1425,15 +1425,6 @@ impl FallbackObjectKey for ParentVersionKey {
     }
 }
 
-/// Checks if `objects_version` table covers the whole chain history.
-///
-/// This function currently returns false for indexer restored from snapshot.
-fn objects_version_complete(db: &Db) -> bool {
-    db.inner
-        .ensure_data_not_pruned_for_checkpoint(0, &[CommitterTables::ObjectsVersion])
-        .is_ok()
-}
-
 /// Fills the missing `results` entries with objects fetched from the
 /// historical fallback.
 ///
@@ -1462,12 +1453,22 @@ async fn fill_missing_objects_from_fallback<K: FallbackObjectKey>(
             .map(Ok)
             .collect()
     } else {
+        // The keys are either pruned from `objects_backward_history` or missing
+        // from a pruned `objects_version`, so the bound covers both tables.
+        let oldest_available_checkpoint = db.inner.oldest_available_cp(
+            &[
+                CommitterTables::ObjectsVersion,
+                CommitterTables::ObjectsBackwardHistory,
+            ],
+            false,
+        );
         object_refs
             .iter()
             .map(|(id, _)| {
-                Err(Error::DataPruned(format!(
-                    "data for object {id} potentially pruned"
-                )))
+                Err(Error::DataPruned {
+                    message: format!("data for object {id} potentially pruned"),
+                    oldest_available_checkpoint,
+                })
             })
             .collect()
     };
@@ -1611,7 +1612,11 @@ impl Loader<HistoricalKey> for Db {
         // When version history is complete, unresolved key = nonexisting object
         // version. When history is incomplete we have to query the KV to know
         // if object exists or not.
-        if !objects_version_complete(self) {
+        if self
+            .inner
+            .oldest_available_cp(&[CommitterTables::ObjectsVersion], false)
+            > 0
+        {
             fallback_keys.append(&mut unresolved_keys);
         }
 
@@ -1873,14 +1878,32 @@ impl Loader<ParentVersionKey> for Db {
         // cases, since this cannot be handled by KV currently: before_version
         // query will not work properly since we don't store wrapped-or-deleted
         // version in the KV.
-        if !objects_version_complete(self) {
+        let objects_version_oldest_cp = self
+            .inner
+            .oldest_available_cp(&[CommitterTables::ObjectsVersion], false);
+        if objects_version_oldest_cp > 0 {
+            // Without a fallback, a version found later may still have its
+            // content pruned from `objects_backward_history`, so the bound
+            // covers that too.
+            let oldest_available_checkpoint = if self.inner.is_fallback_enabled() {
+                objects_version_oldest_cp
+            } else {
+                self.inner.oldest_available_cp(
+                    &[
+                        CommitterTables::ObjectsVersion,
+                        CommitterTables::ObjectsBackwardHistory,
+                    ],
+                    false,
+                )
+            };
             for key in unresolved_keys {
                 let id = key.id;
                 results.insert(
                     key,
-                    Err(Error::DataPruned(format!(
-                        "data for object {id} potentially pruned"
-                    ))),
+                    Err(Error::DataPruned {
+                        message: format!("data for object {id} potentially pruned"),
+                        oldest_available_checkpoint,
+                    }),
                 );
             }
         }

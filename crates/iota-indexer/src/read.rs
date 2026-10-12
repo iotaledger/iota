@@ -181,7 +181,7 @@ impl IndexerReader {
     /// The reader raises [`IndexerError::DataPruned`] when a requested
     /// `tx_sequence_number` is below the `min_available_tx` across these
     /// tables.
-    const TRANSACTIONS_BY_ADDRESS_TABLES: &[CommitterTables] = &[
+    pub const TRANSACTIONS_BY_ADDRESS_TABLES: &[CommitterTables] = &[
         CommitterTables::TxSenders,
         CommitterTables::TxRecipients,
         CommitterTables::Transactions,
@@ -200,7 +200,7 @@ impl IndexerReader {
     ];
 
     /// Table consulted when a checkpoint is looked up.
-    const CHECKPOINT_TABLES: &[CommitterTables] = &[CommitterTables::Checkpoints];
+    pub const CHECKPOINT_TABLES: &[CommitterTables] = &[CommitterTables::Checkpoints];
 
     /// Tables consulted when transactions are looked up by their checkpoint.
     const TRANSACTIONS_BY_CHECKPOINT_TABLES: &[CommitterTables] = &[
@@ -373,7 +373,7 @@ impl IndexerReader {
     /// been pruned either: it is skipped, and when no table has a watermark the
     /// result is 0. This relies on the cache being filled before the RPC server
     /// starts serving.
-    fn oldest_available_cp(
+    pub fn oldest_available_cp(
         &self,
         tables: &[CommitterTables],
         served_by_fallback: bool,
