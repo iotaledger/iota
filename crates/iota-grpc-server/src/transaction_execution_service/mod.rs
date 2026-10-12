@@ -250,7 +250,7 @@ fn parse_transaction_proto(
 /// ## Read Mask
 ///
 /// The read mask paths apply directly to
-/// [`ExecutedTransaction`](iota_grpc_types::v1::transaction::ExecutedTransaction)
+/// [`ExecutedTransaction`]
 /// fields (e.g. `"effects"`, not `"executed_transaction.effects"`).
 ///
 /// ## Available Read Mask Fields
