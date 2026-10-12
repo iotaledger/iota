@@ -14,7 +14,7 @@ use iota_open_rpc::Module;
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::read::IndexerReader;
+use crate::{apis::common, read::IndexerReader};
 
 pub(crate) struct ExtendedApi {
     inner: IndexerReader,
@@ -34,16 +34,14 @@ impl ExtendedApiServer for ExtendedApi {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EpochPage> {
+        let cursor = cursor.map(BigInt::into_inner);
+        common::validate_cursor(cursor)?;
         let limit =
             validate_limit(limit, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS).map_err(internal_error)?;
         let mut epochs = self
             .inner
             .spawn_blocking(move |this| {
-                this.get_epochs(
-                    cursor.map(|x| *x),
-                    limit + 1,
-                    descending_order.unwrap_or(false),
-                )
+                this.get_epochs(cursor, limit + 1, descending_order.unwrap_or(false))
             })
             .await?;
 
@@ -63,16 +61,14 @@ impl ExtendedApiServer for ExtendedApi {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EpochMetricsPage> {
+        let cursor = cursor.map(BigInt::into_inner);
+        common::validate_cursor(cursor)?;
         let limit =
             validate_limit(limit, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS).map_err(internal_error)?;
         let epochs = self
             .inner
             .spawn_blocking(move |this| {
-                this.get_epochs(
-                    cursor.map(|x| *x),
-                    limit + 1,
-                    descending_order.unwrap_or(false),
-                )
+                this.get_epochs(cursor, limit + 1, descending_order.unwrap_or(false))
             })
             .await?;
 
