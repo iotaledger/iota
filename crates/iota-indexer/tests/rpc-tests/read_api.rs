@@ -7,8 +7,9 @@ use hex::FromHex;
 use iota_indexer::{
     config::RetentionConfig,
     models::transactions::StoredTransaction,
+    pruning::CommitterTables,
     store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
-    test_utils::{TestDatabase, db_url},
+    test_utils::{TestDatabase, db_url, update_watermarks_lower_bound},
 };
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
@@ -34,6 +35,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     digests::ChainIdentifier,
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
@@ -2828,6 +2830,16 @@ async fn point_lookups_report_the_oldest_available_cp() {
         .first()
         .expect("the genesis checkpoint holds the genesis transaction");
 
+    // We execute a tx to have an object version from epoch 0 that will be pruned.
+    let transfer = cluster
+        .test_transaction_builder()
+        .await
+        .transfer_iota(Some(1_000), Address::random())
+        .build();
+    let effects = cluster.sign_and_execute_transaction(&transfer).await;
+    wait_for_objects_history(*effects.transaction_digest(), &store, &client).await;
+    let epoch_0_gas_coin = &effects.modified_at_versions()[0];
+
     cluster.force_new_epoch().await;
     indexer_wait_for_checkpoint_pruned(&store, 0).await;
 
@@ -2855,7 +2867,26 @@ async fn point_lookups_report_the_oldest_available_cp() {
     })
     .await;
 
-    // A past object the lookup cannot find may just as well have been pruned.
+    // The gas coin's previous version is still in `objects_version`, but its
+    // content was pruned from `objects_backward_history`.
+    assert_reports_data_pruned("iota_tryGetPastObject", || {
+        client.try_get_past_object(
+            *epoch_0_gas_coin.object_id(),
+            epoch_0_gas_coin.version().into(),
+            None,
+        )
+    })
+    .await;
+
+    // Simulate a restore: the pruner never touches `objects_version`, so an
+    // object missing from it is reported as pruned only after a restore.
+    let current_epoch = 1;
+    update_watermarks_lower_bound(
+        &store,
+        vec![(CommitterTables::ObjectsVersion, current_epoch)],
+    )
+    .await
+    .expect("the watermark lower bound is updated");
     assert_reports_data_pruned("iota_tryGetPastObject", || {
         client.try_get_past_object(ObjectId::random(), Version::from_u64(1).into(), None)
     })

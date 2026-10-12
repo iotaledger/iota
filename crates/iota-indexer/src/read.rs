@@ -595,24 +595,23 @@ impl IndexerReader {
             .get_past_object_read_with_fallback(object_id, object_version, before_version)
             .await?;
 
-        // A fallback holds the full history, so its answer is final, and only a
-        // missing object could have been pruned in the first place.
-        if self.is_fallback_enabled()
-            || !matches!(
-                past_object_read,
-                PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..)
-            )
-        {
-            return Ok(past_object_read);
-        }
-
-        let oldest_available_checkpoint =
-            self.oldest_available_cp(Self::PAST_OBJECT_TABLES, false /* no fallback here */);
-        if oldest_available_checkpoint > 0 {
-            return Err(IndexerError::DataPruned {
-                message: format!("object {object_id} version {object_version} not found"),
-                oldest_available_checkpoint,
-            });
+        let object_missing_from_versions = matches!(
+            past_object_read,
+            PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..)
+        );
+        if object_missing_from_versions {
+            // If we have full versions history then the answer is final. Otherwise the
+            // object may have been pruned.
+            let oldest_available_checkpoint = self.oldest_available_cp(
+                &[CommitterTables::ObjectsVersion],
+                true, // we read versions from fallback
+            );
+            if oldest_available_checkpoint > 0 {
+                return Err(IndexerError::DataPruned {
+                    message: format!("object {object_id} version {object_version} not found"),
+                    oldest_available_checkpoint,
+                });
+            }
         }
 
         Ok(past_object_read)
