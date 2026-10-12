@@ -27,7 +27,7 @@ use jsonrpsee::{
 };
 use tap::TapFallible;
 
-use crate::{errors::IndexerError, read::IndexerReader};
+use crate::{apis::common, errors::IndexerError, read::IndexerReader};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
@@ -286,6 +286,7 @@ impl IndexerApiServer for IndexerApi {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage> {
+        common::validate_cursor(cursor.map(|c| c.event_seq))?;
         let limit = cap_page_limit(limit);
         if limit == 0 {
             return Ok(EventPage::empty());
