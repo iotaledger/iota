@@ -42,6 +42,10 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
+    account_abstraction::builtin_authenticator_functions::{
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    },
     base_types::AuthorityName,
     crypto::PublicKey,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -97,13 +101,7 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 // Built-in authenticator module / function names (used by the new
 // builtin_keyed_aa Move module).
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
-const AA_BUILTIN_ED25519_CREATE_FN: &str = "create_with_ed25519";
-const AA_BUILTIN_SECP256K1_CREATE_FN: &str = "create_with_secp256k1";
-const AA_BUILTIN_SECP256R1_CREATE_FN: &str = "create_with_secp256r1";
-const AA_BUILTIN_MULTISIG_CREATE_FN: &str = "create_with_multisig";
-const AA_BUILTIN_PASSKEY_CREATE_FN: &str = "create_with_passkey";
-const AA_BUILTIN_ED25519_AUTH_SECP256K1_KEY_CREATE_FN: &str =
-    "create_with_ed25519_auth_and_secp256k1_key";
+const AA_BUILTIN_CREATE_FN: &str = "create";
 
 // ------------------------------
 // --- Abstract Account tests ---
@@ -2401,11 +2399,7 @@ async fn test_builtin_ed25519_authenticator() -> Result<(), anyhow::Error> {
     let pk = kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_ED25519_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2440,11 +2434,7 @@ async fn test_builtin_secp256k1_authenticator() -> Result<(), anyhow::Error> {
     let pk = kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_SECP256K1_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2479,11 +2469,7 @@ async fn test_builtin_secp256r1_authenticator() -> Result<(), anyhow::Error> {
     let pk = kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_SECP256R1_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2524,11 +2510,7 @@ async fn test_builtin_multisig_authenticator() -> Result<(), anyhow::Error> {
     )?;
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::Multisig,
-            bcs::to_bytes(&multisig_pk)?,
-            AA_BUILTIN_MULTISIG_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2624,11 +2606,7 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
     pk_bytes.extend_from_slice(ep.x().unwrap());
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::PasskeyAuthenticator,
-            pk_bytes.clone(),
-            AA_BUILTIN_PASSKEY_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes.clone())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2715,7 +2693,6 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
-            AA_BUILTIN_ED25519_CREATE_FN,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2743,13 +2720,11 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Ed25519 key, got: {err:?}");
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Value was not signed by the correct sender"),
-        "Expected 'Value was not signed by the correct sender' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -2771,7 +2746,6 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
-            AA_BUILTIN_SECP256K1_CREATE_FN,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2799,13 +2773,11 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256k1 key, got: {err:?}");
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Value was not signed by the correct sender"),
-        "Expected 'Value was not signed by the correct sender' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -2827,7 +2799,6 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
-            AA_BUILTIN_SECP256R1_CREATE_FN,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2855,13 +2826,11 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256r1 key, got: {err:?}");
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Value was not signed by the correct sender"),
-        "Expected 'Value was not signed by the correct sender' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -2888,11 +2857,7 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
     )?;
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::Multisig,
-            bcs::to_bytes(&multisig_pk)?,
-            AA_BUILTIN_MULTISIG_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2933,13 +2898,11 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
              {err:?}"
         );
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Insufficient weight"),
-        "Expected 'Insufficient weight' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -3004,11 +2967,7 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     pk_bytes_a.extend_from_slice(ep_a.x().unwrap());
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::PasskeyAuthenticator,
-            pk_bytes_a,
-            AA_BUILTIN_PASSKEY_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes_a)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -3100,20 +3059,18 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
             "Expected MoveAuthenticatorExecutionFailure for wrong Passkey credential, got: {err:?}"
         );
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Invalid author"),
-        "Expected 'Invalid author' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
 
-/// Test that the built-in Ed25519 authenticator rejects a transaction signed
-/// with a Secp256k1 key: the submitted signature's scheme does not match the
-/// Ed25519 authenticator function ref.
+/// Test that the built-in authenticator rejects a transaction signed with a
+/// Secp256k1 key for an account whose attached public key is Ed25519: the
+/// submitted signature's scheme does not match the attached key's scheme.
 #[sim_test]
 async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Result<(), anyhow::Error>
 {
@@ -3134,11 +3091,7 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
     let pk = ed25519_kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_ED25519_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -3154,7 +3107,7 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
 
-    // Sign with a Secp256k1 key — wrong scheme for an Ed25519 authenticator.
+    // Sign with a Secp256k1 key — wrong scheme for the attached Ed25519 key.
     let secp256k1_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
         [50u8; 32],
     )));
@@ -3168,83 +3121,11 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
              got: {err:?}"
         );
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Signature scheme mismatch"),
-        "Expected 'Signature scheme mismatch' in error, got: {error}"
-    );
-    Ok(())
-}
-
-/// Test that the built-in Ed25519 authenticator rejects a transaction when
-/// the on-chain public key was registered with a Secp256k1 scheme.
-///
-/// The account is deliberately misconfigured:
-/// `ed25519_authenticator_function_ref_v1` is used but a Secp256k1 public key
-/// is attached. The signature is Ed25519 (so the signature scheme check
-/// passes), but `verify_builtin_signature` catches the mismatch between the
-/// authenticator's expected scheme (Ed25519) and the stored key's scheme
-/// (Secp256k1).
-#[sim_test]
-async fn test_builtin_ed25519_authenticator_public_key_scheme_mismatch() -> Result<(), anyhow::Error>
-{
-    telemetry_subscribers::init_for_testing();
-
-    let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
-
-    let secp256k1_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
-        [60u8; 32],
-    )));
-    let secp256k1_pk = secp256k1_kp.public_key();
-
-    test_env
-        .setup_builtin_account(
-            secp256k1_pk.scheme(),
-            secp256k1_pk.as_ref().to_vec(),
-            AA_BUILTIN_ED25519_AUTH_SECP256K1_KEY_CREATE_FN,
-        )
-        .await?;
-    let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: Address = aa_ref.object_id.into();
-
-    let rgp = test_env.test_cluster.get_reference_gas_price().await;
-    let aa_gas = test_env
-        .test_cluster
-        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
-        .await;
-
-    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
-    let tx_data = test_env
-        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
-        .await?;
-
-    // Sign with an Ed25519 key so the signature scheme check passes. The failure
-    // comes next: the on-chain public key's scheme (Secp256k1) does not match the
-    // Ed25519 authenticator function ref.
-    let ed25519_kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
-        [61u8; 32],
-    )));
-    let sig = builtin_sig_for_keypair(&ed25519_kp, &tx_data, aa_ref)?;
-    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
-
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
-    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
-        panic!(
-            "Expected MoveAuthenticatorExecutionFailure for public key scheme mismatch, \
-             got: {err:?}"
-        );
-    };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Public key scheme mismatch"),
-        "Expected 'Public key scheme mismatch' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
     );
     Ok(())
 }
@@ -3303,14 +3184,81 @@ async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(
     // The custom authenticator calls `iota::hex::decode` on the raw wire bytes.
     // The wire format is 97 bytes (odd), so `hex::decode` aborts immediately with
     // `EInvalidHexLength` (code 0) before any signature verification is attempted.
-    assert!(
-        error.contains("MoveAbort"),
-        "Expected a MoveAbort (not a builtin verification error), got: {error}"
-    );
-    assert!(
-        error.contains("hex"),
-        "Expected abort to originate in the `hex` module, got: {error}"
-    );
+    assert_move_authentication_abort(error, "hex", "decode", 0);
+    Ok(())
+}
+
+/// Test that the built-in authenticator rejects a `MoveAuthenticator` that
+/// carries a type argument, even with a valid signature: the built-in function
+/// takes the account type as its only type argument.
+#[sim_test]
+async fn test_builtin_authenticator_rejects_type_argument() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let (test_env, kp, tx_data, aa_ref) = setup_builtin_ed25519_tx([70u8; 32]).await?;
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let signature = builtin_signature_arg(&kp, &tx_data)?;
+
+    let err = test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature.clone()], vec![TypeTag::U8]),
+        )
+        .await
+        .unwrap_err();
+    assert_move_authentication_failure(&err, "NUMBER_OF_TYPE_ARGUMENTS_MISMATCH");
+
+    // The same authenticator without the type argument is accepted.
+    test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Test that the built-in authenticator rejects malformed signature arguments:
+/// none, one too many, bytes that are not a BCS `vector<u8>`, and an object in
+/// place of the signature bytes.
+#[sim_test]
+async fn test_builtin_authenticator_rejects_malformed_signature_argument()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let (test_env, kp, tx_data, aa_ref) = setup_builtin_ed25519_tx([71u8; 32]).await?;
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let signature = builtin_signature_arg(&kp, &tx_data)?;
+
+    for (call_args, expected) in [
+        (vec![], "Arity mismatch"),
+        (vec![signature.clone(), signature.clone()], "Arity mismatch"),
+        (
+            vec![CallArg::Pure(vec![])],
+            "FAILED_TO_DESERIALIZE_ARGUMENT",
+        ),
+        (
+            vec![CallArg::CLOCK_IMMUTABLE],
+            "Invalid command argument at 1",
+        ),
+    ] {
+        let err = test_env
+            .handle_tx_in_process(
+                &validator,
+                builtin_authenticated_tx(&tx_data, aa_ref, call_args, vec![]),
+            )
+            .await
+            .unwrap_err();
+        assert_move_authentication_failure(&err, expected);
+    }
+
+    // The same transaction with a well-formed signature argument is accepted.
+    test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
+        )
+        .await?;
     Ok(())
 }
 
@@ -3318,7 +3266,7 @@ async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(
 /// `enable_builtin_move_authenticators` is disabled in the protocol config.
 /// Ed25519 is used as a representative scheme.
 ///
-/// Each `*_authenticator_function_ref_v1` function calls
+/// `builtin_authenticator_function_ref_v1` calls
 /// `check_builtin_authenticators_enabled()` and aborts with
 /// `EBuiltinAuthenticatorsNotEnabled` (code 0) before an
 /// `AuthenticatorFunctionRefV1` is ever produced, so the account creation
@@ -3346,10 +3294,10 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
         .clone();
     let pk = kp.public_key();
 
-    // With the feature disabled, `ed25519_authenticator_function_ref_v1` aborts
+    // With the feature disabled, `builtin_authenticator_function_ref_v1` aborts
     // with EBuiltinAuthenticatorsNotEnabled (code 0) inside account creation.
     let transaction = test_env
-        .craft_create_builtin_account(pk.scheme(), pk.as_ref(), AA_BUILTIN_ED25519_CREATE_FN)
+        .craft_create_builtin_account(pk.scheme(), pk.as_ref())
         .await?;
     let (effects, _) = test_env
         .test_cluster
@@ -3366,7 +3314,7 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
         matches!(
             status.unwrap_err().0,
             ExecutionError::MoveAbort{location: MoveLocation { module, .. }, code: abort_code}
-            if module.as_str() == "builtin_authenticator_functions"
+            if module.as_str() == BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
                 && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected MoveAbort in builtin_authenticator_functions with code 0 \
@@ -4297,16 +4245,14 @@ impl TestEnvironment {
     /// shared object backed by a built-in authenticator.
     ///
     /// `scheme` and `raw_bytes` are passed directly to Move's
-    /// `public_key::create`. `create_fn_name` is one of the functions defined
-    /// in `builtin_keyed_aa`.
+    /// `public_key::create`.
     async fn setup_builtin_account(
         &mut self,
         scheme: SignatureScheme,
         raw_bytes: Vec<u8>,
-        create_fn_name: &str,
     ) -> anyhow::Result<()> {
         let transaction = self
-            .craft_create_builtin_account(scheme, &raw_bytes, create_fn_name)
+            .craft_create_builtin_account(scheme, &raw_bytes)
             .await?;
         let (effects, _) = self
             .test_cluster
@@ -4319,12 +4265,11 @@ impl TestEnvironment {
     }
 
     /// Craft a signed transaction that calls
-    /// `builtin_keyed_aa::<create_fn_name>` with the given public key.
+    /// `builtin_keyed_aa::create` with the given public key.
     async fn craft_create_builtin_account(
         &self,
         scheme: SignatureScheme,
         raw_bytes: &[u8],
-        create_fn_name: &str,
     ) -> anyhow::Result<TransactionEnvelope> {
         let Some(aa_package_id) = self.aa_package_id else {
             anyhow::bail!("AA package id not set — call init_abstract_account_state first");
@@ -4361,7 +4306,7 @@ impl TestEnvironment {
             builder.programmable_move_call(
                 aa_package_id,
                 Identifier::new(AA_BUILTIN_MODULE_NAME)?,
-                Identifier::new(create_fn_name)?,
+                Identifier::new(AA_BUILTIN_CREATE_FN)?,
                 vec![],
                 vec![public_key],
             );
@@ -4396,6 +4341,33 @@ impl TestEnvironment {
 // ---------------------------------------------------
 // --- Utilities -------------------------------------
 // ---------------------------------------------------
+
+/// Asserts that `error` is a `MoveAuthentication` failure wrapping an abort
+/// with `error_code` raised in `module::function`. For an abort raised with a
+/// `#[error]` constant, `error_code` is the code encoded in the abort code.
+fn assert_move_authentication_abort(error: &str, module: &str, function: &str, error_code: u64) {
+    assert!(
+        error.starts_with("MoveAuthentication: Move authentication failed: Move Runtime Abort."),
+        "Expected a MoveAuthentication error wrapping a Move abort, got: {error}"
+    );
+    assert!(
+        error.contains(&format!("::{module}::{function} ")),
+        "Expected an abort in `{module}::{function}`, got: {error}"
+    );
+    let abort_code = error
+        .split("Abort Code: ")
+        .nth(1)
+        .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|code| code.parse::<u64>().ok())
+        .unwrap_or_else(|| panic!("Expected an abort code in error, got: {error}"));
+    let actual_error_code = ErrorBitset::from_u64(abort_code)
+        .and_then(|bitset| bitset.error_code())
+        .map_or(abort_code, u64::from);
+    assert_eq!(
+        actual_error_code, error_code,
+        "Unexpected abort code in error: {error}"
+    );
+}
 
 fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
@@ -4450,6 +4422,79 @@ fn builtin_sig_for_keypair(
             object_arg,
         )
         .into(),
+    ))
+}
+
+/// Asserts that `err` is a `MoveAuthentication` failure whose message contains
+/// `expected`.
+fn assert_move_authentication_failure(err: &IotaError, expected: &str) {
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
+    };
+    assert!(
+        error.starts_with("MoveAuthentication: Move authentication failed: ")
+            && error.contains(expected),
+        "Expected a MoveAuthentication error containing `{expected}`, got: {error}"
+    );
+}
+
+/// Creates a built-in Ed25519 account for a key drawn from `seed` and a funded
+/// transaction sent by it.
+async fn setup_builtin_ed25519_tx(
+    seed: [u8; 32],
+) -> anyhow::Result<(TestEnvironment, SimpleKeypair, Transaction, ObjectReference)> {
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(seed)));
+    test_env
+        .setup_builtin_account(kp.public_key().scheme(), kp.public_key().as_ref().to_vec())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    Ok((test_env, kp, tx_data, aa_ref))
+}
+
+/// Returns the signature call argument of a built-in authenticator: the
+/// BCS-encoded `UserSignature` wire bytes of `kp`'s signature of `tx_data`.
+fn builtin_signature_arg(kp: &SimpleKeypair, tx_data: &Transaction) -> anyhow::Result<CallArg> {
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let sig: SimpleSignature = kp.sign(&intent_msg.signing_digest());
+    Ok(CallArg::Pure(bcs::to_bytes(
+        &UserSignature::Simple(sig).to_bytes(),
+    )?))
+}
+
+/// Returns `tx_data` authenticated by a `MoveAuthenticator` for the shared
+/// account `aa_ref` with the given call and type arguments.
+fn builtin_authenticated_tx(
+    tx_data: &Transaction,
+    aa_ref: ObjectReference,
+    call_args: Vec<CallArg>,
+    type_args: Vec<TypeTag>,
+) -> TransactionEnvelope {
+    let authenticator = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            call_args,
+            type_args,
+            SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false),
+        )
+        .into(),
+    );
+    TransactionEnvelope::new(SenderSignedTransaction::new(
+        tx_data.clone(),
+        vec![authenticator],
     ))
 }
 

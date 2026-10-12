@@ -24,13 +24,10 @@ use iota_sdk_types::{
 };
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
-    account_abstraction::{
-        authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            authenticator_function_ref_v1_from_dynamic_field_object,
-            derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
-        },
-        builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefForExecution,
+        authenticator_function_ref_v1_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
     base_types::VersionNumber,
@@ -2182,45 +2179,11 @@ fn load_authenticator_function_ref(
         }
     })?;
 
-    let mut auth_ref = authenticator_function_ref_v1_from_dynamic_field_object(
+    authenticator_function_ref_v1_from_dynamic_field_object(
         account_object_id,
         &authenticator_function_ref_field_obj,
     )
-    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
-
-    let expected_scheme = match &auth_ref.authenticator_function_ref {
-        AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-            builtin_authenticator_functions::resolve_builtin_signature_scheme(
-                authenticator_function_ref_v1,
-            )
-        }
-    };
-
-    if let Some(expected_scheme) = expected_scheme {
-        let (public_key_field_id, loaded_data) =
-            builtin_authenticator_functions::load_builtin_public_key(
-                account_object_id,
-                |public_key_field_id| Ok(get_object(&public_key_field_id)),
-            )
-            .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
-
-        let (public_key, public_key_loaded_metadata) =
-            loaded_data.ok_or_else(|| ReplayEngineError::GeneralError {
-                err: format!(
-                    "Public key dynamic field {public_key_field_id} not found in storage \
-                     for account object {account_object_id} at version {account_object_version}"
-                ),
-            })?;
-
-        auth_ref.builtin_authenticator_data = Some(PreloadedBuiltinAuthenticatorData {
-            expected_scheme,
-            public_key,
-        });
-        auth_ref.builtin_public_key_loaded_object =
-            Some((public_key_field_id, public_key_loaded_metadata));
-    }
-
-    Ok(auth_ref)
+    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
 }
 
 // <---------------------  Implement necessary traits for LocalExec to work with

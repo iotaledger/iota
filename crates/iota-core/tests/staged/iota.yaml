@@ -502,10 +502,6 @@ ExecutionError:
         STRUCT:
           - value_size: U64
           - max_scaled_size: U64
-    43:
-      BuiltinAuthenticatorVerificationError:
-        STRUCT:
-          - reason: STR
 ExecutionStatus:
   ENUM:
     0:
