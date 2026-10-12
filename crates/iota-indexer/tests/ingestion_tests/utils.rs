@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use iota_common::random_util::TempDir;
 use iota_indexer::{
-    models::obj_indices::StoredObjectVersion, store::PgIndexerStore, test_utils::DBInitHook,
+    ingestion::OperationalLevel, models::obj_indices::StoredObjectVersion, store::PgIndexerStore,
+    test_utils::DBInitHook,
 };
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, OwnedObjectReference, Transaction, TransactionEffects,
@@ -42,20 +43,23 @@ pub(crate) use read_only_blocking;
 pub(crate) struct TestSim {
     pub(crate) inner: Arc<Simulacrum>,
     data_dir: TempDir,
+    operational_level: OperationalLevel,
     database_name: String,
 }
 
 impl TestSim {
     /// Creates a simulacrum with an indexer writer.
     ///
-    /// The indexer writes to the database `database_name`.
-    pub(crate) fn new(database_name: &str) -> Self {
+    /// The indexer ingests the tables of `operational_level` into the database
+    /// `database_name_{operational_level}`.
+    pub(crate) fn new(operational_level: OperationalLevel, database_name: &str) -> Self {
         let data_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
         sim.set_data_ingestion_path(data_dir.path().to_path_buf());
         Self {
             inner: Arc::new(sim),
             data_dir,
+            operational_level,
             database_name: database_name.to_string(),
         }
     }
@@ -68,6 +72,7 @@ impl TestSim {
             None,
             Some(&self.database_name),
             db_init_hook,
+            self.operational_level,
         )
         .await;
         pg_store

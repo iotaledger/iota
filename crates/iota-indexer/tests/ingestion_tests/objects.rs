@@ -5,7 +5,7 @@
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use iota_indexer::{
     errors::{Context, IndexerError},
-    ingestion::common::prepare::CheckpointObjectChanges,
+    ingestion::{OperationalLevel, common::prepare::CheckpointObjectChanges},
     models::objects::{StoredCheckpointedObject, StoredObject},
     schema::{checkpointed_objects, objects},
     store::{PgIndexerStore, indexer_store::IndexerStore},
@@ -32,7 +32,7 @@ use crate::{
 
 #[tokio::test]
 pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_checkpoint_objects");
+    let sim = TestSim::new(OperationalLevel::default(), "ingestion_checkpoint_objects");
     let pg_store = sim.start_indexer(None).await;
 
     let checkpoint_objects = (0..1000)
@@ -44,7 +44,7 @@ pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
 
 #[tokio::test]
 pub async fn object_type() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_object_type");
+    let sim = TestSim::new(OperationalLevel::default(), "ingestion_object_type");
     let (transaction, ..) = sim.execute_transfer();
     sim.inner.create_checkpoint();
 
@@ -79,7 +79,10 @@ pub async fn object_type() -> Result<(), IndexerError> {
 
 #[tokio::test]
 pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_checkpoint_objects_are_finalized");
+    let sim = TestSim::new(
+        OperationalLevel::default(),
+        "ingestion_checkpoint_objects_are_finalized",
+    );
     sim.execute_transfer();
     sim.inner.create_checkpoint();
 
@@ -113,7 +116,10 @@ pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
 /// deletions.
 #[tokio::test]
 pub async fn checkpointed_objects_match_objects() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_checkpointed_objects_match_objects");
+    let sim = TestSim::new(
+        OperationalLevel::default(),
+        "ingestion_checkpointed_objects_match_objects",
+    );
 
     // Execute several transfers to create mutations on the gas object.
     for _ in 0..3 {
@@ -259,7 +265,7 @@ async fn assert_not_yet_created(
 ///   - a MUTATED gas   → ACTIVE backward entry with previous version/data
 #[tokio::test]
 pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_backward_history");
+    let sim = TestSim::new(OperationalLevel::default(), "ingestion_backward_history");
 
     // --- checkpoint 1: TWO transfers in the same checkpoint ---
     // This exercises the case where multiple transactions produce backward
@@ -338,7 +344,7 @@ pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
 /// single checkpoint.
 #[tokio::test]
 pub async fn object_versions_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_object_versions");
+    let sim = TestSim::new(OperationalLevel::default(), "ingestion_object_versions");
 
     // checkpoint 1: gas mutated twice + two coins created
     let mut cp1_expected = [
@@ -413,7 +419,10 @@ async fn assert_present(
 /// `unwrapped_then_deleted`.
 #[tokio::test]
 pub async fn objects_version_ingestion_wraps_and_removals() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_objects_version_wraps_and_removals");
+    let sim = TestSim::new(
+        OperationalLevel::default(),
+        "ingestion_objects_version_wraps_and_removals",
+    );
     let sender = sim.sender();
     let rgp = sim.inner.reference_gas_price();
 

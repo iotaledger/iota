@@ -5,6 +5,7 @@
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_indexer::{
     errors::{Context, IndexerError},
+    ingestion::OperationalLevel,
     models::checkpoints::StoredCheckpoint,
     schema::checkpoints,
 };
@@ -16,7 +17,7 @@ use crate::{
 
 #[tokio::test]
 pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
-    let sim = TestSim::new("ingestion_epoch_boundary");
+    let sim = TestSim::new(OperationalLevel::default(), "ingestion_epoch_boundary");
     sim.execute_transfer();
     sim.inner.create_checkpoint(); // checkpoint 1
     sim.inner.advance_epoch(false); // checkpoint 2 and epoch 1
