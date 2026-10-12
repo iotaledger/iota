@@ -36,10 +36,10 @@ use typed_store::{
 use super::{
     RpcIndexesStore,
     schema::{
-        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, IndexGroup, IndexStoreTables,
-        MetadataInfo, OwnerIndexInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into,
-        try_create_coin_index_info, try_create_package_version_info,
-        try_create_regulated_coin_info,
+        AccountKeyIndexKey, CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, IndexGroup,
+        IndexStoreTables, MetadataInfo, OwnerIndexInfo, OwnerIndexKey, is_dynamic_field,
+        merge_coin_into, try_create_account_key, try_create_coin_index_info,
+        try_create_package_version_info, try_create_regulated_coin_info,
     },
 };
 
@@ -118,6 +118,7 @@ pub(super) struct SstFiles {
     owner: Mutex<Vec<PathBuf>>,
     dynamic_field: Mutex<Vec<PathBuf>>,
     package_version: Mutex<Vec<PathBuf>>,
+    account_key: Mutex<Vec<PathBuf>>,
 }
 
 impl SstFiles {
@@ -161,6 +162,7 @@ impl SstFiles {
             owner: Mutex::new(Vec::new()),
             dynamic_field: Mutex::new(Vec::new()),
             package_version: Mutex::new(Vec::new()),
+            account_key: Mutex::new(Vec::new()),
         })
     }
 
@@ -216,6 +218,9 @@ impl SstFiles {
         tables
             .package_version
             .ingest_sst_files(&self.package_version.into_inner())?;
+        tables
+            .account_key
+            .ingest_sst_files(&self.account_key.into_inner())?;
         // Not an error: the index is complete by now, and the ingestion moved
         // the files into the database, so at most an empty directory is left.
         if let Err(e) = std::fs::remove_dir_all(&self.dir) {
@@ -234,6 +239,7 @@ struct SstBuffers {
     owner: SstFileBuffer<OwnerIndexKey, OwnerIndexInfo>,
     dynamic_field: SstFileBuffer<DynamicFieldKey, ()>,
     package_version: SstFileBuffer<PackageVersionKey, PackageVersionInfo>,
+    account_key: SstFileBuffer<AccountKeyIndexKey, ()>,
 }
 
 impl SstBuffers {
@@ -241,12 +247,14 @@ impl SstBuffers {
         self.owner.size_in_bytes()
             + self.dynamic_field.size_in_bytes()
             + self.package_version.size_in_bytes()
+            + self.account_key.size_in_bytes()
     }
 
     fn write(&mut self, files: &SstFiles) -> Result<(), TypedStoreError> {
         files.write(&mut self.owner, &files.owner)?;
         files.write(&mut self.dynamic_field, &files.dynamic_field)?;
-        files.write(&mut self.package_version, &files.package_version)
+        files.write(&mut self.package_version, &files.package_version)?;
+        files.write(&mut self.account_key, &files.account_key)
     }
 }
 
@@ -308,6 +316,9 @@ impl<'a> RpcIndexesPartitionIndexer<'a> {
         if self.groups.contains(&IndexGroup::Grpc) {
             if let Some((key, info)) = try_create_package_version_info(object) {
                 self.buffers.package_version.insert(&key, &info)?;
+            }
+            if let Some(key) = try_create_account_key(object) {
+                self.buffers.account_key.insert(&key, &())?;
             }
         }
 
