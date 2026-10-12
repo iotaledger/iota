@@ -3822,9 +3822,9 @@ impl AuthorityPerEpochStore {
             let randomness_manager = randomness_manager
                 .as_mut()
                 .expect("randomness manager should exist if randomness is enabled");
-            match randomness_manager.dkg_status() {
+            match randomness_manager.dkg_status_for_commit_round(consensus_commit_info.round) {
                 DkgStatus::Pending => None,
-                DkgStatus::Failed => {
+                DkgStatus::TimedOut => {
                     dkg_failed = true;
                     None
                 }
@@ -4869,10 +4869,13 @@ impl AuthorityPerEpochStore {
         // only runs on commits carrying fresh DKG traffic, so a validator that
         // sees no new inbound traffic (e.g. one that restarted) can stay Pending
         // forever -- deferring all randomness-using transactions and blocking
-        // epoch close.
-        let dkg_pending = randomness_manager
-            .as_ref()
-            .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
+        // epoch close. Once timeout failure is derived per commit, merge and
+        // completion can only make progress when new consensus material
+        // arrives.
+        let dkg_pending = !self.protocol_config().allow_dkg_completion_after_timeout()
+            && randomness_manager
+                .as_ref()
+                .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
         if randomness_state_updated || dkg_pending {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager
