@@ -3235,7 +3235,7 @@ async fn test_builtin_authenticator_rejects_malformed_signature_argument()
         (vec![signature.clone(), signature.clone()], "Arity mismatch"),
         (
             vec![CallArg::Pure(vec![])],
-            "FAILED_TO_DESERIALIZE_ARGUMENT",
+            "Invalid command argument at 1. The argument cannot be deserialized",
         ),
         (
             vec![CallArg::CLOCK_IMMUTABLE],
