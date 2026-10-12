@@ -153,20 +153,41 @@ const CF_METRICS_REPORT_PERIOD_SECS: u64 = 30;
 pub struct Database {
     pub(crate) storage: Storage,
     pub(crate) metric_conf: MetricConf,
+    // Must stay after `storage`: fields are dropped in declaration order, so the
+    // count of open databases goes down only after RocksDB has closed and
+    // released its lock file.
+    _active_handle: ActiveDbHandle,
 }
 
-impl Drop for Database {
+/// Adds one to the `rocksdb_num_active_db_handles` metric for `db_name` when
+/// created, and subtracts one when dropped.
+#[derive(Debug)]
+struct ActiveDbHandle {
+    db_name: String,
+}
+
+impl ActiveDbHandle {
+    fn new(db_name: &str) -> Self {
+        DBMetrics::get().increment_num_active_dbs(db_name);
+        Self {
+            db_name: db_name.to_string(),
+        }
+    }
+}
+
+impl Drop for ActiveDbHandle {
     fn drop(&mut self) {
-        DBMetrics::get().decrement_num_active_dbs(&self.metric_conf.db_name);
+        DBMetrics::get().decrement_num_active_dbs(&self.db_name);
     }
 }
 
 impl Database {
     pub(crate) fn new(storage: Storage, metric_conf: MetricConf) -> Self {
-        DBMetrics::get().increment_num_active_dbs(&metric_conf.db_name);
+        let active_handle = ActiveDbHandle::new(&metric_conf.db_name);
         Self {
             storage,
             metric_conf,
+            _active_handle: active_handle,
         }
     }
 
