@@ -3826,10 +3826,10 @@ rotate_field
 rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
-new_claim_builder
+claim_builder
 	public(package) fun
 	0x2::smart_account
-borrow_uid_mut
+account_uid_mut
 	public(package) fun
 	0x2::smart_account
 uid

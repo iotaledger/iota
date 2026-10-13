@@ -241,7 +241,7 @@ public fun rotate_auth_function_ref_v1(
 /// Creates a `SmartAccountBuilder` whose account ID is the claimed sender address.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
-public(package) fun new_claim_builder(
+public(package) fun claim_builder(
     public_key: PublicKey,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
@@ -253,7 +253,7 @@ public(package) fun new_claim_builder(
 }
 
 /// Borrows the `UID` of the account being built.
-public(package) fun borrow_uid_mut(self: &mut SmartAccountBuilder): &mut UID {
+public(package) fun account_uid_mut(self: &mut SmartAccountBuilder): &mut UID {
     &mut self.account.id
 }
 

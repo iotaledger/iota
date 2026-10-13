@@ -165,7 +165,7 @@ public fun rotate_public_key(
 /// Aborts if `public_key` does not derive the sender's address.
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    let builder = smart_account::new_claim_builder(
+    let builder = smart_account::claim_builder(
         public_key,
         builtin_authenticator_function_ref_v1(),
         ctx,
@@ -175,7 +175,7 @@ fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
 
 /// Attaches `public_key` to the account being built.
 fun with_public_key(mut builder: SmartAccountBuilder, public_key: PublicKey): SmartAccountBuilder {
-    builtin_authenticator_functions::attach_public_key(builder.borrow_uid_mut(), public_key);
+    builtin_authenticator_functions::attach_public_key(builder.account_uid_mut(), public_key);
     builder
 }
 
