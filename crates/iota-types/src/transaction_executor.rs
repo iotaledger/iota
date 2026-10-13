@@ -204,3 +204,12 @@ impl InputCheckRules {
         skip_package_verification: true,
     };
 }
+
+impl From<VmChecks> for InputCheckRules {
+    fn from(checks: VmChecks) -> Self {
+        match checks {
+            VmChecks::Enabled => Self::STRICT,
+            VmChecks::Disabled => Self::RELAXED_UNSAFE,
+        }
+    }
+}

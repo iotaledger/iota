@@ -2091,39 +2091,27 @@ async fn check_under_all_entry_points(
 #[tokio::test]
 async fn test_input_checks_agree_across_entry_points() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
-    let (validator, fullnode, object_basics) =
-        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
-    let max_tx_gas = validator
-        .epoch_store_for_testing()
-        .protocol_config()
-        .max_tx_gas();
-    let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
-    let parent_id = ObjectId::random();
-    let child = object_basics_object(object_basics.object_id, Owner::Object(parent_id));
-    let foreign = object_basics_object(object_basics.object_id, Owner::Address(Address::random()));
-    let shared = object_basics_object(object_basics.object_id, Owner::Shared(OBJECT_START_VERSION));
-    let sender_owned = object_basics_object(object_basics.object_id, Owner::Address(sender));
-    // The two nodes have separate genesis, so a system object taken from one of
-    // them has a digest the other rejects. Insert a shared object under the
-    // authenticator state's id instead, since the check matches on the id.
-    let authenticator_state = object_basics_object_with_id(
-        object_basics.object_id,
-        ObjectId::AUTHENTICATOR_STATE,
-        Owner::Shared(OBJECT_START_VERSION),
-    );
-    for object in [
-        gas_coin.clone(),
-        child.clone(),
-        foreign.clone(),
-        shared.clone(),
-        sender_owned.clone(),
-        authenticator_state.clone(),
-    ] {
-        validator.insert_genesis_object(object.clone());
-        fullnode.insert_genesis_object(object);
-    }
-    let package = fullnode.get_object(&object_basics.object_id).unwrap();
-    let gas = gas_coin.object_ref();
+    let (validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![
+            object_basics_object(package, Owner::Object(ObjectId::random())),
+            object_basics_object(package, Owner::Address(Address::random())),
+            object_basics_object(package, Owner::Shared(OBJECT_START_VERSION)),
+            object_basics_object(package, Owner::Address(sender)),
+            // The two nodes have separate genesis, so a system object taken
+            // from one of them has a digest the other rejects. Insert a shared
+            // object under the authenticator state's id instead, since the
+            // check matches on the id.
+            object_basics_object_with_id(
+                package,
+                ObjectId::AUTHENTICATOR_STATE,
+                Owner::Shared(OBJECT_START_VERSION),
+            ),
+        ]
+    })
+    .await;
+    let [child, foreign, shared, sender_owned, authenticator_state] =
+        <[Object; 5]>::try_from(extra).unwrap();
+    let package = fullnode.get_object(&object_basics).unwrap();
 
     let owned_pt = |object_ref: ObjectReference| ProgrammableTransaction {
         inputs: vec![
@@ -2131,7 +2119,7 @@ async fn test_input_checks_agree_across_entry_points() {
             CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
             CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
         ],
-        commands: vec![create_object_command(object_basics.object_id, 1)],
+        commands: vec![create_object_command(object_basics, 1)],
     };
     let shared_pt = |shared_ref: SharedObjectReference| ProgrammableTransaction {
         inputs: vec![
@@ -2139,7 +2127,7 @@ async fn test_input_checks_agree_across_entry_points() {
             CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
             CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
         ],
-        commands: vec![create_object_command(object_basics.object_id, 1)],
+        commands: vec![create_object_command(object_basics, 1)],
     };
 
     let cases: [EntryPointCase; 7] = [
