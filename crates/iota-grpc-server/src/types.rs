@@ -1255,7 +1255,7 @@ impl GrpcReader {
                 pending.set_transaction(&transaction, &needs.fields);
             }
         }
-        if needs.effects || (needs.checkpoint && self.transaction_fallback.is_some()) {
+        if needs.effects || (needs.checkpoint && self.has_transaction_fallback()) {
             pending.data.effects = self.state_reader.try_get_transaction_effects(digest)?;
         }
         Ok(pending)
@@ -1340,7 +1340,7 @@ impl GrpcReader {
                 .try_get_checkpoint_by_sequence_number(checkpoint_seq)
             {
                 Ok(Some(summary)) => pending.data.timestamp_ms = Some(summary.data().timestamp_ms),
-                Ok(None) if self.transaction_fallback.is_some() => {
+                Ok(None) if self.has_transaction_fallback() => {
                     missing.push((index, checkpoint_seq))
                 }
                 // A node keeps the summary of every transaction it holds, so without a
@@ -1428,7 +1428,7 @@ impl GrpcReader {
             }
             match self.state_reader.try_get_events(&pending.data.digest) {
                 Ok(Some(events)) => pending.data.events = Some(events),
-                Ok(None) if self.transaction_fallback.is_some() => missing.push(index),
+                Ok(None) if self.has_transaction_fallback() => missing.push(index),
                 Ok(None) => *read = Err(events_unavailable(&pending.data.digest, false)),
                 Err(error) => *read = Err(error.into()),
             }
@@ -1586,8 +1586,7 @@ impl GrpcReader {
                 .iter()
                 .zip(found)
                 .map(|(key, object)| {
-                    object
-                        .ok_or_else(|| object_unavailable(key, self.transaction_fallback.is_some()))
+                    object.ok_or_else(|| object_unavailable(key, self.has_transaction_fallback()))
                 })
                 .collect::<Result<Vec<_>, _>>()
             {
@@ -1636,7 +1635,7 @@ impl GrpcReader {
             let object = self
                 .state_reader
                 .try_get_object_by_key(&key.object_id, key.version)?;
-            if object.is_none() && self.transaction_fallback.is_none() {
+            if object.is_none() && !self.has_transaction_fallback() {
                 return Err(object_unavailable(key, false));
             }
             found.push(object);
