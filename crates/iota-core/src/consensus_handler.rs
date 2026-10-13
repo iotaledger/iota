@@ -406,6 +406,10 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 );
         }
 
+        let cache_only_recorded_messages = self
+            .epoch_store
+            .protocol_config()
+            .consensus_handler_cache_only_recorded_messages();
         let mut all_transactions = Vec::new();
         {
             // We need a set here as well, since the processed_cache is a LRU cache and can
@@ -440,6 +444,19 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     transaction,
                 };
 
+                // With the flag on, the cache holds only keys recorded as processed, so a hit
+                // means the processed-message table would skip this message too, whatever
+                // its payload.
+                if cache_only_recorded_messages
+                    && self
+                        .processed_cache
+                        .get(&sequenced_transaction.transaction.key())
+                        .is_some()
+                {
+                    self.metrics.skipped_consensus_txns_cache_hit.inc();
+                    continue;
+                }
+
                 // Verify before deduplicating. The key is derived from identities the
                 // payload claims, so a rejected transaction must not be able to shadow a
                 // later valid one carrying the same key.
@@ -452,7 +469,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
                 let key = verified_transaction.0.key();
                 let in_set = !processed_set.insert(key.clone());
-                let in_cache = self.processed_cache.put(key, ()).is_some();
+                let in_cache =
+                    !cache_only_recorded_messages && self.processed_cache.put(key, ()).is_some();
 
                 if in_set || in_cache {
                     self.metrics.skipped_consensus_txns_cache_hit.inc();
@@ -463,7 +481,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             }
         }
 
-        let (transactions_to_schedule, assigned_versions) = self
+        let (transactions_to_schedule, assigned_versions, processed_keys) = self
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 all_transactions,
@@ -476,6 +494,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             )
             .await
             .expect("Unrecoverable error in consensus handler");
+        if cache_only_recorded_messages {
+            for key in processed_keys {
+                self.processed_cache.put(key, ());
+            }
+        }
 
         publish_scoring_gauges(&self.epoch_store, &self.committee, &self.metrics);
 
@@ -990,10 +1013,14 @@ mod tests {
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
     use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
+    use iota_swarm_config::network_config::NetworkConfig;
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
+        crypto::{
+            AccountPrivateKey, KeypairTraits, deterministic_random_account_private_key,
+            get_key_pair,
+        },
         effects::TransactionEffectsAPI,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
@@ -1585,9 +1612,26 @@ mod tests {
         ConsensusHandler<CheckpointServiceNoop>,
         AuthorityName,
     ) {
+        let (state, handler, impersonated, _) =
+            handler_with_impersonated_authority_and_objects(vec![]).await;
+        (state, handler, impersonated)
+    }
+
+    /// Same as [`handler_with_impersonated_authority`], with the given objects
+    /// in genesis. Also returns the network config, which holds the committee's
+    /// keys.
+    async fn handler_with_impersonated_authority_and_objects(
+        objects: Vec<Object>,
+    ) -> (
+        Arc<AuthorityState>,
+        ConsensusHandler<CheckpointServiceNoop>,
+        AuthorityName,
+        NetworkConfig,
+    ) {
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .committee_size(NonZeroUsize::new(4).unwrap())
+                .with_objects(objects)
                 .build();
         let state = TestAuthorityBuilder::new()
             .with_network_config(&network_config, 0)
@@ -1607,7 +1651,7 @@ mod tests {
             Arc::new(AuthorityMetrics::new(&Registry::new())),
             BackpressureManager::new_for_tests().subscribe(),
         );
-        (state, handler, impersonated)
+        (state, handler, impersonated, network_config)
     }
 
     /// An `EndOfPublish` naming authority B but committed in a block authored
@@ -1706,6 +1750,175 @@ mod tests {
             ))
             .await;
         assert!(epoch_store.is_consensus_message_processed(&key).unwrap());
+    }
+
+    /// Commits `transaction` from a block of committee member 1 after member 1
+    /// sent `EndOfPublish`, so the epoch store drops it without recording it as
+    /// processed, then commits the same transaction from member 2's block. The
+    /// second copy must be processed: a handler that ran continuously and one
+    /// that restarted in between must reach the same outcome.
+    async fn assert_copy_of_transaction_dropped_after_end_of_publish_is_processed(
+        state: &AuthorityState,
+        handler: &mut ConsensusHandler<CheckpointServiceNoop>,
+        eop_author: AuthorityName,
+        transaction: ConsensusTransaction,
+    ) {
+        let epoch_store = state.epoch_store_for_testing();
+        let key = SequencedConsensusTransactionKey::External(transaction.key());
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                10,
+                100,
+                vec![(1, ConsensusTransaction::new_end_of_publish(eop_author))],
+            ))
+            .await;
+        assert!(epoch_store.has_sent_end_of_publish(&eop_author).unwrap());
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                11,
+                101,
+                vec![(1, transaction.clone())],
+            ))
+            .await;
+        assert!(!epoch_store.is_consensus_message_processed(&key).unwrap());
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                12,
+                102,
+                vec![(2, transaction)],
+            ))
+            .await;
+        assert!(epoch_store.is_consensus_message_processed(&key).unwrap());
+    }
+
+    /// The [`handler_with_impersonated_authority_and_objects`] fixture plus a
+    /// transfer of an owned object that the fixture's genesis holds.
+    async fn handler_with_transfer() -> (
+        Arc<AuthorityState>,
+        ConsensusHandler<CheckpointServiceNoop>,
+        AuthorityName,
+        NetworkConfig,
+        VerifiedTransaction,
+    ) {
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let (state, handler, impersonated, network_config) =
+            handler_with_impersonated_authority_and_objects(vec![
+                owned_object.clone(),
+                gas_object.clone(),
+            ])
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
+        let rgp = epoch_store.reference_gas_price();
+        let transfer = Transaction::new_transfer(
+            Address::random(),
+            state.get_object(&owned_object.id()).unwrap().object_ref(),
+            sender,
+            state.get_object(&gas_object.id()).unwrap().object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let transfer = epoch_store
+            .verify_transaction(to_sender_signed_transaction(transfer, &sender_key))
+            .unwrap();
+        (state, handler, impersonated, network_config, transfer)
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_user_transaction_dropped_after_end_of_publish_does_not_shadow_later_copy() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_consensus_handler_cache_only_recorded_messages_for_testing(true);
+            config
+        });
+        let (state, mut handler, eop_author, _, transfer) = handler_with_transfer().await;
+
+        assert_copy_of_transaction_dropped_after_end_of_publish_is_processed(
+            &state,
+            &mut handler,
+            eop_author,
+            ConsensusTransaction::new_user_transaction(transfer.into()),
+        )
+        .await;
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_certificate_dropped_after_end_of_publish_does_not_shadow_later_copy() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(false);
+            config.set_consensus_handler_cache_only_recorded_messages_for_testing(true);
+            config
+        });
+        let (state, mut handler, eop_author, network_config, transfer) =
+            handler_with_transfer().await;
+        let keypairs: Vec<_> = network_config
+            .validator_configs()
+            .iter()
+            .map(|config| config.authority_key_pair().copy())
+            .collect();
+        let certificate = CertifiedTransaction::new_from_keypairs_for_testing(
+            transfer.into_message(),
+            &keypairs,
+            state.epoch_store_for_testing().committee(),
+        );
+
+        assert_copy_of_transaction_dropped_after_end_of_publish_is_processed(
+            &state,
+            &mut handler,
+            eop_author,
+            ConsensusTransaction::new_certificate_message(&state.name, certificate),
+        )
+        .await;
+    }
+
+    /// A message recorded as processed enters the processed-transaction cache,
+    /// so a later copy is skipped there. With the cache empty, as after a
+    /// restart or an eviction, the copy is skipped by the processed-message
+    /// table instead, with the same outcome.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_recorded_message_is_skipped_by_cache_or_by_table() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_consensus_handler_cache_only_recorded_messages_for_testing(true);
+            config
+        });
+        let (state, mut handler, b) = handler_with_impersonated_authority().await;
+        let end_of_publish = |index| {
+            commit_with_transactions(
+                index,
+                90 + index,
+                vec![(1, ConsensusTransaction::new_end_of_publish(b))],
+            )
+        };
+        let cache_hits = handler.metrics.skipped_consensus_txns_cache_hit.clone();
+        let table_skips = handler.metrics.skipped_consensus_txns.clone();
+
+        handler
+            .handle_consensus_output_for_test(end_of_publish(10))
+            .await;
+        assert!(
+            state
+                .epoch_store_for_testing()
+                .has_sent_end_of_publish(&b)
+                .unwrap()
+        );
+
+        handler
+            .handle_consensus_output_for_test(end_of_publish(11))
+            .await;
+        assert_eq!((cache_hits.get(), table_skips.get()), (1, 0));
+
+        handler.processed_cache.clear();
+        handler
+            .handle_consensus_output_for_test(end_of_publish(12))
+            .await;
+        assert_eq!((cache_hits.get(), table_skips.get()), (1, 1));
     }
 
     #[test]

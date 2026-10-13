@@ -1317,6 +1317,7 @@
                 "consensus_enable_absolute_score_leader_schedule": true,
                 "consensus_enable_sliding_window_leader_schedule": true,
                 "consensus_fast_commit_sync": true,
+                "consensus_handler_cache_only_recorded_messages": true,
                 "consensus_linearize_subdag_v2": true,
                 "consensus_median_timestamp_with_checkpoint_enforcement": true,
                 "consensus_round_prober": true,
