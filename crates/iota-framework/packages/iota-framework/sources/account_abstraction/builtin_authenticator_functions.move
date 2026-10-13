@@ -145,7 +145,7 @@ public fun builtin_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
 public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
     assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
 
-    df::add(account_id, public_key_field_name(), public_key);
+    add_public_key(account_id, public_key);
 
     let event = PublicKeyAttached {
         account_id: account_id.to_inner(),
@@ -163,7 +163,7 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
 public fun detach_public_key(account_id: &mut UID): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
-    let public_key = df::remove(account_id, public_key_field_name());
+    let public_key = remove_public_key(account_id);
 
     let event = PublicKeyDetached {
         account_id: account_id.to_inner(),
@@ -184,10 +184,8 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
 public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
-    let df_name = public_key_field_name();
-
-    let prev_public_key = df::remove(account_id, df_name);
-    df::add(account_id, df_name, public_key);
+    let prev_public_key = remove_public_key(account_id);
+    add_public_key(account_id, public_key);
 
     let event = PublicKeyRotated {
         account_id: account_id.to_inner(),
@@ -267,6 +265,16 @@ fun builtin_authenticator_v1<Account: key>(account: &Account, signature: vector<
 /// A utility function to construct the dynamic field name for the public key field.
 fun public_key_field_name(): PublicKeyFieldName {
     PublicKeyFieldName {}
+}
+
+/// Adds `public_key` to the account's public key field.
+fun add_public_key(account_id: &mut UID, public_key: PublicKey) {
+    df::add(account_id, public_key_field_name(), public_key);
+}
+
+/// Removes and returns the public key in the account's public key field.
+fun remove_public_key(account_id: &mut UID): PublicKey {
+    df::remove(account_id, public_key_field_name())
 }
 
 /// Aborts if the built-in Move authenticators feature is disabled in the protocol config.

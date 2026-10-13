@@ -2545,6 +2545,12 @@ builtin_authenticator_v1
 public_key_field_name
 	fun
 	0x2::builtin_authenticator_functions
+add_public_key
+	fun
+	0x2::builtin_authenticator_functions
+remove_public_key
+	fun
+	0x2::builtin_authenticator_functions
 check_builtin_authenticators_enabled
 	fun
 	0x2::builtin_authenticator_functions
