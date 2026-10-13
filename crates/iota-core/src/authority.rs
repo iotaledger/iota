@@ -2883,13 +2883,6 @@ impl AuthorityState {
         // `authenticator_gas_budget` to 0.
         let authenticator_gas_budget = 0;
 
-        // Checks enabled -> DRY-RUN, it means we are simulating a real TX
-        // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
-        let input_checks = if checks.enabled() {
-            InputCheckRules::STRICT
-        } else {
-            InputCheckRules::RELAXED_UNSAFE
-        };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             protocol_config,
             epoch_store.reference_gas_price(),
@@ -2900,7 +2893,7 @@ impl AuthorityState {
             VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
             authenticator_gas_budget,
             false,
-            input_checks,
+            InputCheckRules::from(checks),
         )?;
 
         // Create a new executor for the simulation
