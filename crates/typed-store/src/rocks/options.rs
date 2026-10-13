@@ -89,14 +89,6 @@ pub struct DBOptions {
     pub rw_options: ReadWriteOptions,
 }
 
-/// Write options tuned for one-shot bulk ingestion into a freshly created
-/// store.
-pub fn bulk_ingestion_write_options() -> rocksdb::WriteOptions {
-    let mut opts = rocksdb::WriteOptions::default();
-    opts.disable_wal(true);
-    opts
-}
-
 /// Write options for a record that must be on disk before the write returns,
 /// rather than in the operating system's cache until some later sync.
 pub fn synced_write_options() -> rocksdb::WriteOptions {
@@ -115,7 +107,6 @@ const MIN_SST_BUFFER_SIZE: usize = 64 << 20;
 pub struct BulkIngestionOptions {
     pub db_options: rocksdb::Options,
     pub column_family_options: DBOptions,
-    pub batch_size_limit: usize,
     /// The memtable memory one column family may take.
     cf_memory_budget: usize,
 }
@@ -217,24 +208,18 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
         .options
         .set_max_write_buffer_number(buffer_count);
 
-    // Calculate batch size limit: default to half the buffer size or 128MB,
-    // whichever is smaller
-    let batch_size_limit = (buffer_size / 2).min(1 << 27);
-
     debug!(
         total_memory_bytes,
         num_cpus,
         db_write_buffer_size,
         buffer_size,
         buffer_count,
-        batch_size_limit,
         "configured bulk ingestion options"
     );
 
     BulkIngestionOptions {
         db_options,
         column_family_options,
-        batch_size_limit,
         cf_memory_budget,
     }
 }

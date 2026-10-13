@@ -30,8 +30,8 @@ pub use crate::{
     rocks::{
         options::{
             BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
-            bulk_ingestion_options, bulk_ingestion_write_options, default_db_options,
-            disable_fallocate, list_tables, read_size_from_env, synced_write_options,
+            bulk_ingestion_options, default_db_options, disable_fallocate, list_tables,
+            read_size_from_env, synced_write_options,
         },
         sst_file::SstFileBuffer,
     },
