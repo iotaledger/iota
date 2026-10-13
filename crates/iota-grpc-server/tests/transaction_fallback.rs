@@ -1505,13 +1505,13 @@ async fn each_chunk_of_50_transactions_makes_its_own_calls() {
 
 #[tokio::test(start_paused = true)]
 async fn lookups_after_the_budget_is_spent_are_unavailable() {
-    // Each lookup times out after 10 s, so the third chunk's lookup spends the
-    // last of the 30 s budget.
+    // Each lookup takes 12 s, so the third chunk's lookup times out when the
+    // 30 s budget is spent.
     let digests = (0..101)
         .map(|_| TransactionDigest::random())
         .collect::<Vec<_>>();
     let store = MockFallbackStore {
-        lookup_delay: Some(std::time::Duration::from_secs(60)),
+        lookup_delay: Some(std::time::Duration::from_secs(12)),
         ..Default::default()
     };
     let handle = start(PRUNED.state(&test_transaction(false)), Some(store)).await;

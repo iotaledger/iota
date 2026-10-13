@@ -1884,8 +1884,6 @@ fn verify_object(
     )))
 }
 
-const STORE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-
 /// The time the key-value store reads of one request may take in total.
 const STORE_READ_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
@@ -1933,7 +1931,9 @@ async fn store_read<T>(
         return Err(store_budget_spent());
     }
     let start = tokio::time::Instant::now();
-    let result = tokio::time::timeout(remaining.min(STORE_READ_TIMEOUT), read).await;
+    // Only the budget limits a read: the store times out each of its requests, and a read of many
+    // keys can need several rounds of them.
+    let result = tokio::time::timeout(remaining, read).await;
     budget.spend(start.elapsed());
     match result {
         Ok(Ok(value)) => Ok(value),
@@ -2130,15 +2130,14 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn store_read_that_never_completes_is_unavailable() {
         let budget = StoreReadBudget::default();
-        let never = || std::future::pending::<iota_types::error::IotaResult<()>>();
+        let start = tokio::time::Instant::now();
 
-        for _ in 0..3 {
-            let start = tokio::time::Instant::now();
-            let error = store_read(never(), &budget).await.unwrap_err();
-            assert_eq!(Status::from(error).code(), tonic::Code::Unavailable);
-            assert_eq!(start.elapsed(), std::time::Duration::from_secs(10));
-        }
-        // Three reads of 10 s each spend the 30 s budget.
+        let never = std::future::pending::<iota_types::error::IotaResult<()>>();
+        let error = store_read(never, &budget).await.unwrap_err();
+
+        assert_eq!(Status::from(error).code(), tonic::Code::Unavailable);
+        // One read may take the whole 30 s budget.
+        assert_eq!(start.elapsed(), std::time::Duration::from_secs(30));
         assert!(budget.is_spent());
     }
 
