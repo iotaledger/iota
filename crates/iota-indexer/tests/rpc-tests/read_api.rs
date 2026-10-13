@@ -8,8 +8,10 @@ use iota_indexer::{
     config::RetentionConfig,
     models::transactions::StoredTransaction,
     pruning::CommitterTables,
-    store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
-    test_utils::{TestDatabase, db_url, update_watermarks_lower_bound},
+    store::{
+        PgIndexerStore, indexer_store::IndexerStore, package_resolver::IndexerStorePackageResolver,
+    },
+    test_utils::{TestDatabase, db_url},
 };
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
@@ -2881,12 +2883,10 @@ async fn point_lookups_report_the_oldest_available_cp() {
     // Simulate a restore: the pruner never touches `objects_version`, so an
     // object missing from it is reported as pruned only after a restore.
     let current_epoch = 1;
-    update_watermarks_lower_bound(
-        &store,
-        vec![(CommitterTables::ObjectsVersion, current_epoch)],
-    )
-    .await
-    .expect("the watermark lower bound is updated");
+    store
+        .update_watermarks_lower_bound(vec![(CommitterTables::ObjectsVersion, current_epoch)])
+        .await
+        .expect("the watermark lower bound is updated");
     assert_reports_data_pruned("iota_tryGetPastObject", || {
         client.try_get_past_object(ObjectId::random(), Version::from_u64(1).into(), None)
     })

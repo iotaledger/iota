@@ -20,7 +20,7 @@ use crate::{
     db::{ConnectionPool, ConnectionPoolConfig, DbUrl, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
-    store::{IndexerStore, PgIndexerAnalyticalStore, PgIndexerStore},
+    store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
 /// Shorter pruning delay used by the test indexer.
@@ -298,15 +298,6 @@ pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
     }
 
     PgIndexerStore::new(test_db.to_connection_pool(), indexer_metrics)
-}
-
-/// Raises the lower bound of each table's watermark to the start of the given
-/// epoch, as a snapshot restore does.
-pub async fn update_watermarks_lower_bound<Table: AsRef<str> + Send + 'static>(
-    store: &PgIndexerStore,
-    watermarks: Vec<(Table, u64)>,
-) -> Result<(), IndexerError> {
-    store.update_watermarks_lower_bound(watermarks).await
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
