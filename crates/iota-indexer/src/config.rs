@@ -13,7 +13,8 @@ use strum::IntoEnumIterator;
 use url::Url;
 
 use crate::{
-    backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
+    backfill::BackfillKind, db::ConnectionPoolConfig,
+    ingestion::common::orchestration::OperationalLevel, pruning::pruner::PrunableTable,
     restore::Network, types::IndexerResult,
 };
 
@@ -223,6 +224,14 @@ pub struct IngestionConfig {
         env = "CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT",
     )]
     pub checkpoint_download_queue_size_bytes: usize,
+
+    /// Determines what tables are ingested from the network.
+    ///
+    /// Switching levels without a database reset creates data gaps in disabled or newly enabled
+    /// tables. It should thus be avoided. Support for seamless switching from one level to another
+    /// will be provided in a future release.
+    #[arg(long, value_enum, default_value_t = Default::default())]
+    pub operational_level: OperationalLevel,
 }
 
 impl IngestionConfig {
@@ -239,6 +248,7 @@ impl Default for IngestionConfig {
             checkpoint_download_timeout: Self::DEFAULT_CHECKPOINT_DOWNLOAD_TIMEOUT,
             checkpoint_download_queue_size_bytes:
                 Self::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE_BYTES,
+            operational_level: Default::default(),
         }
     }
 }

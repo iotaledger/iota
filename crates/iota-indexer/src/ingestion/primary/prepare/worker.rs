@@ -1,13 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_sdk_types::ObjectId;
 use iota_types::{
-    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    full_checkpoint_content::CheckpointData,
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     object::Object,
 };
@@ -19,20 +19,18 @@ use super::{
 use crate::{
     errors::IndexerError,
     ingestion::{
-        common::prepare::ValidatedCheckpoint,
-        primary::persist::{CheckpointDataToCommit, EpochToCommit},
+        common::{orchestration::OperationalLevel, prepare::ValidatedCheckpoint},
+        primary::persist::{CheckpointDataToCommit, EpochToCommit, data},
     },
     metrics::IndexerMetrics,
-    models::{
-        display::StoredDisplay,
-        epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
-    },
-    types::{EventIndex, IndexedCheckpoint, IndexedEvent, IndexerResult},
+    models::epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
+    types::{IndexedCheckpoint, IndexerResult},
 };
 
 pub struct PrimaryWorker {
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+    operational_level: OperationalLevel,
 }
 
 #[async_trait]
@@ -69,7 +67,7 @@ impl Worker for PrimaryWorker {
         let validated_checkpoint = ValidatedCheckpoint::new(&checkpoint)?;
         let transformer = Transformer::new(validated_checkpoint, &self.metrics);
         self.indexed_checkpoint_sender
-            .send(transformer.transform().await?)
+            .send(transformer.transform(self.operational_level).await?)
             .await
             .map_err(|_| {
                 IndexerError::MpscChannel(
@@ -84,10 +82,12 @@ impl PrimaryWorker {
     pub(crate) fn new(
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+        operational_level: OperationalLevel,
     ) -> Self {
         Self {
             metrics,
             indexed_checkpoint_sender,
+            operational_level,
         }
     }
 }
@@ -96,9 +96,6 @@ impl PrimaryWorker {
 struct Transformer<'chk, 'm> {
     checkpoint: ValidatedCheckpoint<'chk>,
     metrics: &'m IndexerMetrics,
-    events: Vec<IndexedEvent>,
-    event_indices: Vec<EventIndex>,
-    displays: BTreeMap<String, StoredDisplay>,
 }
 
 impl<'chk, 'm> Transformer<'chk, 'm> {
@@ -106,27 +103,26 @@ impl<'chk, 'm> Transformer<'chk, 'm> {
         Self {
             checkpoint,
             metrics,
-            events: Default::default(),
-            event_indices: Default::default(),
-            displays: Default::default(),
         }
     }
 
-    async fn transform(mut self) -> IndexerResult<CheckpointDataToCommit> {
+    async fn transform(
+        self,
+        operational_level: OperationalLevel,
+    ) -> IndexerResult<CheckpointDataToCommit> {
         info!(
             checkpoint_seq = self.checkpoint.sequence_number(),
             "Indexing checkpoint data blob"
         );
 
         let transaction_data = TransactionTransformer::new(self.checkpoint)
-            .transform(self.metrics)
+            .transform(self.metrics, operational_level)
             .await?;
 
-        for (sequence_number, checkpoint_transaction) in self.checkpoint.enumerate_transactions() {
-            self.extend_event_data(checkpoint_transaction, sequence_number);
-        }
+        let event_data = EventsTransformer::new(self.checkpoint).transform(operational_level);
 
-        let object_data = ObjectsTransformer::new(self.checkpoint).transform(self.metrics);
+        let object_data =
+            ObjectsTransformer::new(self.checkpoint).transform(self.metrics, operational_level);
 
         let epoch = self.build_epoch()?;
 
@@ -151,19 +147,40 @@ impl<'chk, 'm> Transformer<'chk, 'm> {
             "Indexer lag: indexed checkpoint {time_now_ms} with time now {} and checkpoint time {}",
             checkpoint.sequence_number, checkpoint.timestamp_ms
         );
-
-        Ok(CheckpointDataToCommit {
+        let basic = data::Basic {
             checkpoint,
             transactions: transaction_data.transactions,
-            events: self.events,
-            event_indices: self.event_indices,
-            tx_indices: transaction_data.transaction_indices,
-            displays: self.displays,
+            displays: event_data.displays,
             object_changes: object_data.checkpoint_objects,
-            backward_history_changes: object_data.history_objects,
             object_versions: object_data.object_versions,
             packages: object_data.packages,
             epoch,
+        };
+        let objects_history = object_data
+            .history_objects
+            .map(|objects| data::ObjectsHistory {
+                history_objects: objects,
+            });
+        let filtered_queries = transaction_data
+            .transaction_indices
+            .zip(event_data.events)
+            .map(|(tx_indices, events)| data::FilteredQueries { tx_indices, events });
+        if filtered_queries.is_none()
+            && operational_level.includes(OperationalLevel::FilteredQueries)
+        {
+            return Err(IndexerError::DataTransformation(
+                "missing tx indices or events for the filtered queries level".to_string(),
+            ));
+        }
+        let combined_event_filters = event_data
+            .event_indices
+            .map(|event_indices| data::CombinedEventFilters { event_indices });
+
+        Ok(CheckpointDataToCommit {
+            basic,
+            objects_history,
+            filtered_queries,
+            combined_event_filters,
         })
     }
 
@@ -240,19 +257,6 @@ impl<'chk, 'm> Transformer<'chk, 'm> {
                 Some(&event),
             ),
         }))
-    }
-
-    fn extend_event_data(&mut self, transaction: &CheckpointTransaction, sequence_number: u64) {
-        let transformer = EventsTransformer::new(
-            transaction,
-            sequence_number,
-            self.checkpoint.sequence_number(),
-            self.checkpoint.timestamp_ms(),
-        );
-        let event_data = transformer.transform();
-        self.displays.extend(event_data.displays);
-        self.events.extend(event_data.events);
-        self.event_indices.extend(event_data.event_indices);
     }
 }
 
