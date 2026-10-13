@@ -3,6 +3,8 @@
 
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 /// Per-transaction breakdown of the physical resources that computation gas
 /// sums into a single number.
 ///
@@ -17,7 +19,7 @@ use std::collections::BTreeMap;
 /// up to the failure, and the write counters cover every mutable input, since
 /// a failed transaction still mutates them all, plus any extra gas coins
 /// smashed into the primary one.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceProfile {
     // CPU time.
     /// The charged instruction count. Past the native-call threshold this also
