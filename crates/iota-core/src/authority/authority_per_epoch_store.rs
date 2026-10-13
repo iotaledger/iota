@@ -3659,6 +3659,8 @@ impl AuthorityPerEpochStore {
             .expect("test should not be write past end of epoch")
     }
 
+    /// Processes one consensus commit. Returns the transactions to schedule,
+    /// their assigned versions, and the keys the commit recorded as processed.
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
@@ -3671,7 +3673,11 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
-    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+    ) -> IotaResult<(
+        Vec<Schedulable>,
+        AssignedTxAndVersions,
+        Vec<SequencedConsensusTransactionKey>,
+    )> {
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
@@ -4164,6 +4170,8 @@ impl AuthorityPerEpochStore {
             }
         }
 
+        let processed_keys = output.consensus_messages_processed().cloned().collect();
+
         // Write details of the this consensus commit to consensus output quarantine.
         self.consensus_quarantine
             .write()
@@ -4231,7 +4239,7 @@ impl AuthorityPerEpochStore {
         ]
         .concat();
 
-        Ok((all_txns, assigned_versions))
+        Ok((all_txns, assigned_versions, processed_keys))
     }
 
     fn calculate_pending_checkpoint_height(&self, consensus_round: u64) -> u64 {
@@ -4496,6 +4504,7 @@ impl AuthorityPerEpochStore {
             authority_state,
         )
         .await
+        .map(|(schedulables, assigned_versions, _)| (schedulables, assigned_versions))
     }
 
     pub fn assign_shared_object_versions_for_tests(
@@ -4735,11 +4744,12 @@ impl AuthorityPerEpochStore {
                     filter_roots = true;
                 }
                 // Note: ignored external transactions must not be recorded as processed. Otherwise
-                // they may not get reverted after restart during epoch change.
-                // TODO: once the P-COOL flow is rolled out there is no pre-consensus execution
-                // left to revert, so ignored transactions can be recorded as processed too. That
-                // keeps the consensus handler's duplicate cache and this table in agreement and
-                // lets waiters on `consensus_messages_processed_notify` learn about the drop.
+                // they may not get reverted after restart during epoch change. A later copy of
+                // an ignored transaction is then processed like a new one, so every validator
+                // must reach it: the consensus handler's processed-transaction cache must hold
+                // only recorded keys (see `consensus_handler_cache_only_recorded_messages`).
+                // TODO: waiters on `consensus_messages_processed_notify` do not learn about the
+                // drop.
                 ConsensusTransactionResult::Ignored => {
                     ignored = true;
                     filter_roots = true;
