@@ -150,9 +150,12 @@ pub struct InputCheckRules {
     /// report the declared digest as the object's input digest, so a wrong one
     /// is echoed back there.
     pub any_object_digest: bool,
-    /// Accept a shared object named as an owned input. Owned versus shared only
-    /// decides how validators order a transaction, which a simulation does not
-    /// do, and execution takes an input's mutability from the object itself.
+    /// Accept a shared object named as an owned input. Execution takes an
+    /// input's mutability from the object itself, so such an input is mutable.
+    /// The `shared_object_disabled` deny rule reads the declared kind, so it
+    /// does not see such an input as shared. The Clock, Random,
+    /// AuthenticatorState and TransactionDenyRules objects are not accepted
+    /// this way.
     pub shared_object_as_owned_input: bool,
     /// Skip the match between a shared input's declared initial shared version
     /// and the object's own. Only consensus reads the declared one.
@@ -166,6 +169,14 @@ pub struct InputCheckRules {
     /// object it names. Receiving does not read the digest; the effects leave
     /// the received object out of their dependencies when it does not match.
     pub any_receiving_object_digest: bool,
+    /// Skip the metered bytecode verifier on the packages the transaction
+    /// publishes. Execution verifies them again, without the signing limits.
+    ///
+    /// This differs from the other relaxations in two ways, and may be worth
+    /// reconsidering: a simulation then accepts a publish that signing would
+    /// reject, and nothing bounds how long verifying the modules takes on an
+    /// endpoint that needs no signature.
+    pub skip_package_verification: bool,
 }
 
 impl InputCheckRules {
@@ -178,6 +189,7 @@ impl InputCheckRules {
         any_initial_shared_version: false,
         any_receiving_object_version: false,
         any_receiving_object_digest: false,
+        skip_package_verification: false,
     };
 
     /// What a simulation with [`VmChecks::Disabled`] drops.
@@ -189,5 +201,6 @@ impl InputCheckRules {
         any_initial_shared_version: true,
         any_receiving_object_version: true,
         any_receiving_object_digest: true,
+        skip_package_verification: true,
     };
 }

@@ -8,7 +8,7 @@ use std::{collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, s
 use bcs;
 use fastcrypto::traits::KeyPair;
 use futures::{StreamExt, stream::FuturesUnordered};
-use iota_config::genesis::Genesis;
+use iota_config::{genesis::Genesis, verifier_signing_config::VerifierSigningConfig};
 use iota_framework::BuiltInFramework;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
@@ -28,12 +28,13 @@ use iota_sdk_types::{
     TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
     crypto::{Intent, IntentScope},
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
-        get_key_pair, random_committee_key_pairs_of_size,
+        get_authority_key_pair, get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
@@ -1706,11 +1707,13 @@ async fn test_simulate_rejects_a_gas_coin_listed_twice() {
 type SystemObjectCase = Case<CallArg, fn(&UserInputError) -> bool>;
 
 /// Clock and the Randomness state taken mutably, and the AuthenticatorState
-/// taken at all, are rejected by both check modes.
+/// taken at all, are rejected by both check modes. Naming one as an owned
+/// input is rejected too: `InputCheckRules::shared_object_as_owned_input` does
+/// not cover these objects.
 #[tokio::test]
 async fn test_simulate_rejects_a_system_object_misuse() {
     let sender = Address::random();
-    let (_validator, fullnode, object_basics, gas, _) = simulation_fixture(sender, |package| {
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
         // No test genesis creates the authenticator state object; insert a shared
         // object under its id instead, since the check matches on the id first.
         vec![object_basics_object_with_id(
@@ -1722,8 +1725,14 @@ async fn test_simulate_rejects_a_system_object_misuse() {
     .await;
     let random_initial_version =
         get_randomness_state_obj_initial_shared_version(fullnode.get_object_store()).unwrap();
+    let authenticator_state = extra[0].object_ref();
+    let clock = fullnode.get_object(&ObjectId::CLOCK).unwrap().object_ref();
+    let randomness_state = fullnode
+        .get_object(&ObjectId::RANDOMNESS_STATE)
+        .unwrap()
+        .object_ref();
 
-    let cases: [SystemObjectCase; 3] = [
+    let cases: [SystemObjectCase; 6] = [
         Case {
             label: "Clock taken mutably",
             input: CallArg::CLOCK_MUTABLE,
@@ -1762,6 +1771,21 @@ async fn test_simulate_rejects_a_system_object_misuse() {
                 )
             },
         },
+        Case {
+            label: "the Clock named as an owned input",
+            input: CallArg::ImmutableOrOwned(clock),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+        Case {
+            label: "the Randomness state named as an owned input",
+            input: CallArg::ImmutableOrOwned(randomness_state),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+        Case {
+            label: "the AuthenticatorState named as an owned input",
+            input: CallArg::ImmutableOrOwned(authenticator_state),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
     ];
 
     for case in cases {
@@ -1784,6 +1808,69 @@ async fn test_simulate_rejects_a_system_object_misuse() {
                 "unexpected error for {checks:?}, {}: {error:?}",
                 case.label
             );
+        }
+    }
+}
+
+/// A published package is metered by the signing-time bytecode verifier in a
+/// dry run, and not in a dev inspect, which sets
+/// `InputCheckRules::skip_package_verification`. Execution verifies the
+/// modules again either way, without those limits.
+#[tokio::test]
+async fn test_simulate_meters_a_published_package_only_with_checks_enabled() {
+    // A one-tick meter limit fails the first function it meters, as an operator
+    // could configure in the node YAML.
+    let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
+        "max-per-fun-meter-units: 1\n",
+        "max-per-mod-meter-units: 1\n",
+        "max-per-pkg-meter-units: 1\n",
+    ))
+    .unwrap();
+    // A key pair outside the committee makes this node a fullnode, which is
+    // where a simulation runs.
+    let fullnode_key_pair = get_authority_key_pair().1;
+    let fullnode = TestAuthorityBuilder::new()
+        .with_keypair(&fullnode_key_pair)
+        .with_verifier_signing_config(node_limits)
+        .build()
+        .await;
+
+    let sender = Address::random();
+    let max_tx_gas = fullnode
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_tx_gas();
+    let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
+    fullnode.insert_genesis_object(gas_coin.clone());
+
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/unit_tests/data/object_basics");
+    let reference_gas_price = fullnode.reference_gas_price_for_testing().unwrap();
+    let publish = TestTransactionBuilder::new(sender, gas_coin.object_ref(), reference_gas_price)
+        .publish(path)
+        .build();
+    let TransactionKind::Programmable(pt) = publish.kind().clone() else {
+        panic!("a publish is a programmable transaction");
+    };
+
+    for (checks, result) in
+        simulate_under_both_checks(&fullnode, sender, vec![gas_coin.object_ref()], &pt)
+    {
+        match checks {
+            VmChecks::Enabled => assert!(
+                matches!(
+                    &result,
+                    Err(IotaError::UserInput {
+                        error: UserInputError::PackageVerificationTimedout { .. }
+                    })
+                ),
+                "a dry run should meter the published package: {:?}",
+                result.as_ref().err()
+            ),
+            VmChecks::Disabled => assert!(
+                result.is_ok(),
+                "a dev inspect should not meter the published package: {:?}",
+                result.as_ref().err()
+            ),
         }
     }
 }
@@ -2016,12 +2103,21 @@ async fn test_input_checks_agree_across_entry_points() {
     let foreign = object_basics_object(object_basics.object_id, Owner::Address(Address::random()));
     let shared = object_basics_object(object_basics.object_id, Owner::Shared(OBJECT_START_VERSION));
     let sender_owned = object_basics_object(object_basics.object_id, Owner::Address(sender));
+    // The two nodes have separate genesis, so a system object taken from one of
+    // them has a digest the other rejects. Insert a shared object under the
+    // authenticator state's id instead, since the check matches on the id.
+    let authenticator_state = object_basics_object_with_id(
+        object_basics.object_id,
+        ObjectId::AUTHENTICATOR_STATE,
+        Owner::Shared(OBJECT_START_VERSION),
+    );
     for object in [
         gas_coin.clone(),
         child.clone(),
         foreign.clone(),
         shared.clone(),
         sender_owned.clone(),
+        authenticator_state.clone(),
     ] {
         validator.insert_genesis_object(object.clone());
         fullnode.insert_genesis_object(object);
@@ -2046,7 +2142,7 @@ async fn test_input_checks_agree_across_entry_points() {
         commands: vec![create_object_command(object_basics.object_id, 1)],
     };
 
-    let cases: [EntryPointCase; 6] = [
+    let cases: [EntryPointCase; 7] = [
         Case {
             label: "a package used as an object",
             input: owned_pt(package.object_ref()),
@@ -2081,6 +2177,13 @@ async fn test_input_checks_agree_across_entry_points() {
                     matches!(result, Err(error) if matches!(error, UserInputError::SharedObjectStartingVersionMismatch))
                 }
             },
+        },
+        Case {
+            // A dev inspect accepts a shared object named as an owned input,
+            // but not one of the system objects with their own input rules.
+            label: "the AuthenticatorState used as owned",
+            input: owned_pt(authenticator_state.object_ref()),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject)),
         },
         Case {
             // A dev inspect accepts a shared object named as an owned input.

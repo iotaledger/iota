@@ -150,13 +150,15 @@ mod checked {
             input_checks,
         )?;
         check_receiving_objects(&input_objects, receiving_objects, input_checks)?;
-        // Runs verifier, which could be expensive.
-        check_non_system_packages_to_be_published(
-            transaction,
-            protocol_config,
-            metrics,
-            verifier_limits_source,
-        )?;
+        if !input_checks.skip_package_verification {
+            // Runs verifier, which could be expensive.
+            check_non_system_packages_to_be_published(
+                transaction,
+                protocol_config,
+                metrics,
+                verifier_limits_source,
+            )?;
+        }
 
         Ok((gas_status, input_objects.into_checked()))
     }
@@ -710,8 +712,13 @@ mod checked {
                     Owner::Shared(_) => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
+                        //
+                        // The relaxation stays off for the system objects the arms below
+                        // restrict, since those arms match on the declared input kind and
+                        // an owned input would otherwise never reach them.
                         fp_ensure!(
-                            input_checks.shared_object_as_owned_input,
+                            input_checks.shared_object_as_owned_input
+                                && !is_restricted_system_object(object_ref.object_id),
                             UserInputError::NotSharedObject
                         );
                     }
@@ -808,6 +815,18 @@ mod checked {
             }
         };
         Ok(())
+    }
+
+    /// Whether [`check_one_object`] restricts how a user transaction may take
+    /// this object as an input.
+    fn is_restricted_system_object(id: ObjectId) -> bool {
+        matches!(
+            id,
+            ObjectId::CLOCK
+                | ObjectId::RANDOMNESS_STATE
+                | ObjectId::AUTHENTICATOR_STATE
+                | ObjectId::TRANSACTION_DENY_RULES
+        )
     }
 
     /// Check all the `MoveAuthenticator` related input objects against the
