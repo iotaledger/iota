@@ -59,7 +59,7 @@ use self::{
         BalanceCaches, CoinBalanceChanges, JsonRpcMetrics,
         invalidate_balance_caches_instead_of_updating,
     },
-    live_scan::LiveObjectSetIndexer,
+    live_scan::{LiveObjectSetIndexer, SstFiles},
     schema::{
         CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX,
         HistoryBucket, IndexStoreTables, IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey,
@@ -81,6 +81,11 @@ use crate::{
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
+
+/// Where a rebuild keeps its SST files inside the index database's
+/// directory until it ingests them. A rebuild that stops before that leaves
+/// them for the next one, which clears the whole directory.
+const BULK_INGESTION_SST_DIR: &str = "bulk_ingestion";
 
 /// The index database directories of earlier releases, superseded by
 /// [`schema::RPC_INDEXES_DIR`].
@@ -369,7 +374,7 @@ impl IndexStoreTables {
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         groups: &BTreeSet<IndexGroup>,
-        batch_size_limit: usize,
+        sst_files: SstFiles,
         cancelled: &AtomicBool,
     ) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
         info!("Initializing RPC indexes");
@@ -394,7 +399,7 @@ impl IndexStoreTables {
         )?;
 
         // The history tables are filled later, by `backfill_history`.
-        let indexer = LiveObjectSetIndexer::new(self, groups, batch_size_limit);
+        let indexer = LiveObjectSetIndexer::new(self, groups, sst_files);
         par_index_live_object_set(authority_store, &indexer, cancelled)?;
         indexer.finish()?;
 
@@ -647,7 +652,11 @@ impl RpcIndexesStore {
 
                 IndexStoreTables::open_for_bulk_ingestion(path.clone())
             };
-            let batch_size_limit = bulk_ingestion_options().batch_size_limit;
+            let bulk_options = bulk_ingestion_options();
+            let sst_options = bulk_options.column_family_options.options.clone();
+            let sst_buffer_limit =
+                bulk_options.sst_buffer_limit(crate::par_index_live_object_set::TASKS);
+            let sst_dir = path.join(BULK_INGESTION_SST_DIR);
 
             // The rebuild scans and writes RocksDB for a long time; keep it
             // off the async runtime's worker threads.
@@ -658,13 +667,16 @@ impl RpcIndexesStore {
                 let groups = groups.clone();
                 move || {
                     let mut init_tables = init_tables;
-                    let initialized = init_tables.init(
-                        &authority_store,
-                        &checkpoint_store,
-                        &groups,
-                        batch_size_limit,
-                        &cancelled,
-                    );
+                    let initialized = SstFiles::new(sst_dir, sst_options, sst_buffer_limit)
+                        .and_then(|sst_files| {
+                            init_tables.init(
+                                &authority_store,
+                                &checkpoint_store,
+                                &groups,
+                                sst_files,
+                                &cancelled,
+                            )
+                        });
                     (init_tables, initialized)
                 }
             })

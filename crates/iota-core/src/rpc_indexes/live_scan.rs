@@ -3,26 +3,33 @@
 
 //! Fills the RPC index store's live-state tables from a stream of live
 //! objects: during a rebuild from the local live object set
-//! ([`LiveObjectSetIndexer`]) and during a formal-snapshot restore
-//! ([`RpcIndexesRestorer`]). Both use one indexer per partition of the stream.
+//! ([`LiveObjectSetIndexer`]), through SST files, and during a
+//! formal-snapshot restore ([`RpcIndexesRestorer`]), through write batches.
+//! Both use one indexer per partition of the stream.
 
 use std::{
     collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use iota_sdk_types::Owner;
 use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{DynamicFieldKey, error::Error as StorageError},
+    storage::{
+        DynamicFieldKey, PackageVersionInfo, PackageVersionKey, error::Error as StorageError,
+    },
 };
 use parking_lot::Mutex;
+use serde::Serialize;
 use typed_store::{
     TypedStoreError,
     database::wait_for_database_close,
-    rocks::{DBBatch, bulk_ingestion_options, bulk_ingestion_write_options},
+    rocks::{DBBatch, DBMap, SstFileBuffer, bulk_ingestion_options, bulk_ingestion_write_options},
     traits::Map,
 };
 
@@ -30,8 +37,9 @@ use super::{
     RpcIndexesStore,
     schema::{
         CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, IndexGroup, IndexStoreTables,
-        MetadataInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into, try_create_coin_index_info,
-        try_create_package_version_info, try_create_regulated_coin_info,
+        MetadataInfo, OwnerIndexInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into,
+        try_create_coin_index_info, try_create_package_version_info,
+        try_create_regulated_coin_info,
     },
 };
 
@@ -41,31 +49,35 @@ use super::{
 type CoinMetadata = Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>;
 
 /// Indexes the live object set into the tables of `groups`, one indexer per
-/// scan partition. [`Self::finish`] must run once after every partition.
+/// scan partition. Each partition writes its rows to SST files of its own,
+/// which [`Self::finish`] ingests once every partition is done.
 pub(super) struct LiveObjectSetIndexer<'a> {
     tables: &'a IndexStoreTables,
     groups: &'a BTreeSet<IndexGroup>,
     coin_metadata: CoinMetadata,
-    batch_size_limit: usize,
+    sst_files: SstFiles,
 }
 
 impl<'a> LiveObjectSetIndexer<'a> {
     pub(super) fn new(
         tables: &'a IndexStoreTables,
         groups: &'a BTreeSet<IndexGroup>,
-        batch_size_limit: usize,
+        sst_files: SstFiles,
     ) -> Self {
         Self {
             tables,
             groups,
             coin_metadata: Mutex::new(HashMap::new()),
-            batch_size_limit,
+            sst_files,
         }
     }
 
-    /// Writes the coin metadata gathered across the partitions.
-    pub(super) fn finish(self) -> Result<(), TypedStoreError> {
-        write_coin_metadata(self.tables, self.coin_metadata)
+    /// Ingests the partitions' SST files and writes the coin metadata
+    /// gathered across them.
+    pub(super) fn finish(self) -> Result<(), StorageError> {
+        self.sst_files.ingest(self.tables)?;
+        write_coin_metadata(self.tables, self.coin_metadata)?;
+        Ok(())
     }
 }
 
@@ -76,53 +88,195 @@ impl crate::par_index_live_object_set::ParMakeLiveObjectIndexer for LiveObjectSe
         Self: 'a;
 
     fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
-        RpcIndexesPartitionIndexer::new(
-            self.tables,
-            self.groups,
-            &self.coin_metadata,
-            self.batch_size_limit,
-        )
+        RpcIndexesPartitionIndexer {
+            tables: self.tables,
+            groups: self.groups,
+            coin_metadata: &self.coin_metadata,
+            output: PartitionOutput::SstFiles {
+                buffers: SstBuffers::default(),
+                files: &self.sst_files,
+            },
+        }
     }
 }
 
-/// Indexes one partition, writing its rows out in batches of bounded size.
+/// The SST files the partitions of a rebuild write, kept in a directory of
+/// their own until [`Self::ingest`] moves them into the tables.
+pub(super) struct SstFiles {
+    dir: PathBuf,
+    /// The bulk ingestion options the tables are open with.
+    options: typed_store::rocksdb::Options,
+    /// How much memory a partition's buffered rows may take before they are
+    /// written out.
+    buffer_limit: usize,
+    next_file: AtomicUsize,
+    owner: Mutex<Vec<PathBuf>>,
+    dynamic_field: Mutex<Vec<PathBuf>>,
+    package_version: Mutex<Vec<PathBuf>>,
+}
+
+impl SstFiles {
+    /// Creates `dir`, which must be on the database's file system so the
+    /// files can be moved into it rather than copied.
+    pub(super) fn new(
+        dir: PathBuf,
+        options: typed_store::rocksdb::Options,
+        buffer_limit: usize,
+    ) -> Result<Self, StorageError> {
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            StorageError::custom(format!(
+                "unable to create the SST file directory {dir:?}: {e}"
+            ))
+        })?;
+        Ok(Self {
+            dir,
+            options,
+            buffer_limit,
+            next_file: AtomicUsize::new(0),
+            owner: Mutex::new(Vec::new()),
+            dynamic_field: Mutex::new(Vec::new()),
+            package_version: Mutex::new(Vec::new()),
+        })
+    }
+
+    /// Writes `buffer` to a new file of `table`'s list, if it holds any rows.
+    fn write<K: Serialize, V: Serialize>(
+        &self,
+        buffer: &mut SstFileBuffer<K, V>,
+        table: &Mutex<Vec<PathBuf>>,
+    ) -> Result<(), TypedStoreError> {
+        if buffer.is_empty() {
+            return Ok(());
+        }
+        let path = self.dir.join(format!(
+            "{}.sst",
+            self.next_file.fetch_add(1, Ordering::Relaxed)
+        ));
+        buffer.write_file(&path, &self.options)?;
+        table.lock().push(path);
+        Ok(())
+    }
+
+    /// Moves every written file into its table and removes the directory.
+    fn ingest(self, tables: &IndexStoreTables) -> Result<(), StorageError> {
+        tables.owner.ingest_sst_files(&self.owner.into_inner())?;
+        tables
+            .dynamic_field
+            .ingest_sst_files(&self.dynamic_field.into_inner())?;
+        tables
+            .package_version
+            .ingest_sst_files(&self.package_version.into_inner())?;
+        std::fs::remove_dir_all(&self.dir).map_err(|e| {
+            StorageError::custom(format!(
+                "unable to remove the SST file directory {:?}: {e}",
+                self.dir
+            ))
+        })
+    }
+}
+
+/// A partition's rows, one buffer per table.
+#[derive(Default)]
+struct SstBuffers {
+    owner: SstFileBuffer<OwnerIndexKey, OwnerIndexInfo>,
+    dynamic_field: SstFileBuffer<DynamicFieldKey, ()>,
+    package_version: SstFileBuffer<PackageVersionKey, PackageVersionInfo>,
+}
+
+impl SstBuffers {
+    fn size_in_bytes(&self) -> usize {
+        self.owner.size_in_bytes()
+            + self.dynamic_field.size_in_bytes()
+            + self.package_version.size_in_bytes()
+    }
+
+    fn write(&mut self, files: &SstFiles) -> Result<(), TypedStoreError> {
+        files.write(&mut self.owner, &files.owner)?;
+        files.write(&mut self.dynamic_field, &files.dynamic_field)?;
+        files.write(&mut self.package_version, &files.package_version)
+    }
+}
+
+/// Where a partition indexer writes its rows.
+enum PartitionOutput<'a> {
+    /// Into the tables, in write batches of bounded size.
+    Batches { batch: DBBatch, size_limit: usize },
+    /// Into SST files, ingested once every partition is done.
+    SstFiles {
+        buffers: SstBuffers,
+        files: &'a SstFiles,
+    },
+}
+
+impl PartitionOutput<'_> {
+    fn insert<K: Serialize, V: Serialize>(
+        &mut self,
+        table: &DBMap<K, V>,
+        buffer: impl FnOnce(&mut SstBuffers) -> &mut SstFileBuffer<K, V>,
+        key: K,
+        value: V,
+    ) -> Result<(), TypedStoreError> {
+        match self {
+            Self::Batches { batch, .. } => {
+                batch.insert_batch(table, [(key, value)])?;
+            }
+            Self::SstFiles { buffers, .. } => buffer(buffers).insert(&key, &value)?,
+        }
+        Ok(())
+    }
+
+    /// Writes the rows out if they have reached their size limit.
+    fn write_if_full(&mut self, tables: &IndexStoreTables) -> Result<(), TypedStoreError> {
+        match self {
+            Self::Batches { batch, size_limit } => {
+                if batch.size_in_bytes() >= *size_limit {
+                    std::mem::replace(batch, tables.owner.batch())
+                        .write_opt(&bulk_ingestion_write_options())?;
+                }
+            }
+            Self::SstFiles { buffers, files } => {
+                if buffers.size_in_bytes() >= files.buffer_limit {
+                    buffers.write(files)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> Result<(), TypedStoreError> {
+        match self {
+            Self::Batches { batch, .. } => batch.write_opt(&bulk_ingestion_write_options()),
+            Self::SstFiles { mut buffers, files } => buffers.write(files),
+        }
+    }
+}
+
+/// Indexes one partition, writing its rows out in pieces of bounded size.
 pub struct RpcIndexesPartitionIndexer<'a> {
     tables: &'a IndexStoreTables,
     groups: &'a BTreeSet<IndexGroup>,
     coin_metadata: &'a CoinMetadata,
-    batch: DBBatch,
-    batch_size_limit: usize,
+    output: PartitionOutput<'a>,
 }
 
-impl<'a> RpcIndexesPartitionIndexer<'a> {
-    fn new(
-        tables: &'a IndexStoreTables,
-        groups: &'a BTreeSet<IndexGroup>,
-        coin_metadata: &'a CoinMetadata,
-        batch_size_limit: usize,
-    ) -> Self {
-        Self {
-            tables,
-            groups,
-            coin_metadata,
-            batch: tables.owner.batch(),
-            batch_size_limit,
-        }
-    }
-
+impl RpcIndexesPartitionIndexer<'_> {
     /// Stages `object`'s rows in every table the store's groups maintain.
     pub fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
+        let tables = self.tables;
         match object.owner {
             Owner::Address(owner) => {
                 if let Some((key, info)) = OwnerIndexKey::for_object(owner, object) {
-                    self.batch.insert_batch(&self.tables.owner, [(key, info)])?;
+                    self.output
+                        .insert(&tables.owner, |buffers| &mut buffers.owner, key, info)?;
                 }
             }
             Owner::Object(parent) => {
                 if is_dynamic_field(object) {
-                    self.batch.insert_batch(
-                        &self.tables.dynamic_field,
-                        [(DynamicFieldKey::new(parent, object.id()), ())],
+                    self.output.insert(
+                        &tables.dynamic_field,
+                        |buffers| &mut buffers.dynamic_field,
+                        DynamicFieldKey::new(parent, object.id()),
+                        (),
                     )?;
                 }
             }
@@ -145,22 +299,22 @@ impl<'a> RpcIndexesPartitionIndexer<'a> {
                 );
             }
             if let Some((key, info)) = try_create_package_version_info(object) {
-                self.batch
-                    .insert_batch(&self.tables.package_version, [(key, info)])?;
+                self.output.insert(
+                    &tables.package_version,
+                    |buffers| &mut buffers.package_version,
+                    key,
+                    info,
+                )?;
             }
         }
 
-        if self.batch.size_in_bytes() >= self.batch_size_limit {
-            std::mem::replace(&mut self.batch, self.tables.owner.batch())
-                .write_opt(&bulk_ingestion_write_options())?;
-        }
-
+        self.output.write_if_full(tables)?;
         Ok(())
     }
 
     /// Writes this partition's remaining rows.
     pub fn finish(self) -> Result<(), StorageError> {
-        self.batch.write_opt(&bulk_ingestion_write_options())?;
+        self.output.finish()?;
         Ok(())
     }
 }
@@ -220,12 +374,15 @@ impl RpcIndexesRestorer {
 
     /// Returns an indexer for one partition of the snapshot's live objects.
     pub fn partition_indexer(&self) -> RpcIndexesPartitionIndexer<'_> {
-        RpcIndexesPartitionIndexer::new(
-            &self.tables,
-            &self.groups,
-            &self.coin_metadata,
-            self.batch_size_limit,
-        )
+        RpcIndexesPartitionIndexer {
+            tables: &self.tables,
+            groups: &self.groups,
+            coin_metadata: &self.coin_metadata,
+            output: PartitionOutput::Batches {
+                batch: self.tables.owner.batch(),
+                size_limit: self.batch_size_limit,
+            },
+        }
     }
 
     /// Writes the markers at `restore_checkpoint`, the restore's highest
