@@ -1190,10 +1190,10 @@ impl GrpcReader {
     /// node lacks, are read from the key-value store set with
     /// [`Self::with_transaction_fallback`], if any.
     ///
-    /// The store is read with one call for each kind of data, for all the digests that need it, so
-    /// a call that fails fails every digest that needed it; a failed checkpoint lookup counts as a
-    /// miss while `store_budget` lasts. The calls draw on `store_budget`, which callers share
-    /// across the calls of one request.
+    /// The store is read once for each kind of data, for all the digests that need it. If a read
+    /// fails, every digest that needed it fails, except for the checkpoint lookup: until
+    /// `store_budget` is spent, a failed lookup is treated as "not in the store". Every read draws
+    /// on `store_budget`, which callers share across one request.
     #[tracing::instrument(skip_all, fields(transactions = digests.len()))]
     pub async fn get_transaction_reads(
         &self,
