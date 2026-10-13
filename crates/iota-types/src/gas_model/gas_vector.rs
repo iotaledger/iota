@@ -8,7 +8,8 @@
 //! Every validator must compute the same values, so all arithmetic is
 //! integer and checked, and divisions round up.
 
-use iota_protocol_config::GasVectorCoefficientsV1;
+use iota_protocol_config::{GasVectorCoefficientsV1, ProtocolConfig};
+use serde::{Deserialize, Serialize};
 
 use super::resource_profile::ResourceProfile;
 
@@ -137,6 +138,87 @@ pub fn cpu_time_covers_moved_bytes(
 ) -> bool {
     // u64 × u64 (and u64 × NS_PER_SEC) cannot overflow u128.
     (moved_bytes as u128) * NS_PER_SEC <= (cpu_time_ns as u128) * (bandwidth_bytes_per_sec as u128)
+}
+
+/// The shortest `cpu_time` in nanoseconds that covers `moved_bytes` at the
+/// given bandwidth. `None` if the bandwidth is zero or the result overflows.
+pub fn min_cpu_time_ns(moved_bytes: u64, bandwidth_bytes_per_sec: u64) -> Option<u64> {
+    if bandwidth_bytes_per_sec == 0 {
+        return None;
+    }
+    // u64 × NS_PER_SEC cannot overflow u128.
+    let floor_ns = ((moved_bytes as u128) * NS_PER_SEC).div_ceil(bandwidth_bytes_per_sec as u128);
+    u64::try_from(floor_ns).ok()
+}
+
+/// Carried in `AttestationData::V2`; changing its fields changes that
+/// variant's BCS encoding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GasVector {
+    pub cpu_time: u64,
+    pub moved_bytes: u64,
+    pub write_bytes: u64,
+}
+
+/// The gas vector for `profile` under `config`. `cpu_time` is raised to
+/// [`min_cpu_time_ns`] when a memory bandwidth is configured.
+///
+/// `None` if the config has no coefficient table, the table cannot price the
+/// profile, or the arithmetic overflows.
+pub fn declared_gas_vector(
+    profile: &ResourceProfile,
+    config: &ProtocolConfig,
+) -> Option<GasVector> {
+    let table = config.gas_vector_coefficients()?;
+    let moved_bytes = self::moved_bytes(profile, table)?;
+    let mut cpu_time = predicted_cpu_time_ns(profile, table)?;
+    // Zero bandwidth means no ceiling is configured.
+    let bandwidth = table.memory_bandwidth_bytes_per_sec;
+    if bandwidth != 0 {
+        cpu_time = cpu_time.max(min_cpu_time_ns(moved_bytes, bandwidth)?);
+    }
+    let write_bytes = profile.written_bytes.checked_add(profile.event_bytes)?;
+    Some(GasVector {
+        cpu_time,
+        moved_bytes,
+        write_bytes,
+    })
+}
+
+/// The result of comparing the attested gas vector with the one recomputed
+/// from the actual execution counters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GasVectorComparison {
+    Match,
+    Divergent {
+        recomputed: GasVector,
+    },
+    /// The actual profile cannot be priced by the coefficient table.
+    Unpriceable,
+}
+
+impl GasVectorComparison {
+    pub fn metric_label(&self) -> &'static str {
+        match self {
+            Self::Match => "match",
+            Self::Divergent { .. } => "divergent",
+            Self::Unpriceable => "unpriceable",
+        }
+    }
+}
+
+/// Recomputes the gas vector from `actual_profile` and compares it with
+/// `attested`.
+pub fn compare_attested_gas_vector(
+    attested: GasVector,
+    actual_profile: &ResourceProfile,
+    config: &ProtocolConfig,
+) -> GasVectorComparison {
+    match declared_gas_vector(actual_profile, config) {
+        None => GasVectorComparison::Unpriceable,
+        Some(recomputed) if recomputed == attested => GasVectorComparison::Match,
+        Some(recomputed) => GasVectorComparison::Divergent { recomputed },
+    }
 }
 
 #[cfg(test)]
@@ -279,11 +361,176 @@ mod tests {
         );
     }
 
+    fn config_with(
+        table: Option<GasVectorCoefficientsV1>,
+        bandwidth: Option<u64>,
+    ) -> ProtocolConfig {
+        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+        if let Some(mut table) = table {
+            if let Some(bandwidth) = bandwidth {
+                table.memory_bandwidth_bytes_per_sec = bandwidth;
+            }
+            config.set_gas_vector_coefficients_for_testing(table);
+        }
+        config
+    }
+
+    #[test]
+    fn declared_gas_vector_matches_its_components() {
+        let profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            written_bytes: 700,
+            event_bytes: 44,
+            ..Default::default()
+        };
+        let table = table_pricing_instructions_and_one_hash();
+        let config = config_with(Some(table.clone()), Some(1_000_000_000));
+        let vector = declared_gas_vector(&profile, &config).unwrap();
+        assert_eq!(
+            Some(vector.cpu_time),
+            predicted_cpu_time_ns(&profile, &table)
+        );
+        assert_eq!(Some(vector.moved_bytes), moved_bytes(&profile, &table));
+        assert_eq!(vector.write_bytes, 744);
+    }
+
+    #[test]
+    fn declared_cpu_time_is_raised_to_the_bandwidth_floor() {
+        // 1 MB at 1 GB/s needs 1 ms, above the ~38 µs prediction.
+        let profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            input_object_bytes: 1_000_000,
+            ..Default::default()
+        };
+        let config = config_with(
+            Some(table_pricing_instructions_and_one_hash()),
+            Some(1_000_000_000),
+        );
+        let vector = declared_gas_vector(&profile, &config).unwrap();
+        assert_eq!(
+            vector.cpu_time,
+            min_cpu_time_ns(vector.moved_bytes, 1_000_000_000).unwrap()
+        );
+        assert!(cpu_time_covers_moved_bytes(
+            vector.cpu_time,
+            vector.moved_bytes,
+            1_000_000_000
+        ));
+        let config = config_with(Some(table_pricing_instructions_and_one_hash()), None);
+        let raw = declared_gas_vector(&profile, &config).unwrap();
+        assert!(raw.cpu_time < vector.cpu_time);
+    }
+
+    #[test]
+    fn declared_gas_vector_requires_the_table() {
+        let profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            ..Default::default()
+        };
+        assert_eq!(
+            declared_gas_vector(&profile, &config_with(None, Some(1_000_000_000))),
+            None
+        );
+    }
+
+    #[test]
+    fn min_cpu_time_rounds_up_and_rejects_zero_bandwidth() {
+        // 3 bytes at 2 B/s = 1.5 s, rounded up to 1_500_000_000 ns.
+        assert_eq!(min_cpu_time_ns(3, 2), Some(1_500_000_000));
+        assert_eq!(min_cpu_time_ns(0, 5), Some(0));
+        assert_eq!(min_cpu_time_ns(1, 0), None);
+    }
+
     #[test]
     fn rate_comparison_is_exact_at_the_boundary() {
         assert!(cpu_time_covers_moved_bytes(1_000, 1_000, 1_000_000_000));
         assert!(!cpu_time_covers_moved_bytes(1_000, 1_001, 1_000_000_000));
         assert!(cpu_time_covers_moved_bytes(0, 0, 1_000_000_000));
         assert!(!cpu_time_covers_moved_bytes(0, 1, 1_000_000_000));
+    }
+
+    #[test]
+    fn comparison_matches_when_the_actual_profile_equals_the_attested_one() {
+        let profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            written_bytes: 700,
+            event_bytes: 44,
+            ..Default::default()
+        };
+        let config = config_with(
+            Some(table_pricing_instructions_and_one_hash()),
+            Some(1_000_000_000),
+        );
+        let attested = declared_gas_vector(&profile, &config).unwrap();
+        assert_eq!(
+            compare_attested_gas_vector(attested, &profile, &config),
+            GasVectorComparison::Match
+        );
+    }
+
+    #[test]
+    fn comparison_reports_divergence_with_the_recomputed_vector() {
+        let attested_profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            ..Default::default()
+        };
+        let actual_profile = ResourceProfile {
+            interp_instruction_count: 2_000,
+            written_bytes: 10,
+            ..Default::default()
+        };
+        let config = config_with(
+            Some(table_pricing_instructions_and_one_hash()),
+            Some(1_000_000_000),
+        );
+        let attested = declared_gas_vector(&attested_profile, &config).unwrap();
+        let recomputed = declared_gas_vector(&actual_profile, &config).unwrap();
+        assert_ne!(attested, recomputed);
+        assert_eq!(
+            compare_attested_gas_vector(attested, &actual_profile, &config),
+            GasVectorComparison::Divergent { recomputed }
+        );
+    }
+
+    #[test]
+    fn comparison_reports_unpriceable_actual_profiles() {
+        let actual_profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            native_calls_by_function: BTreeMap::from([(
+                "0x2::ed25519::ed25519_verify".to_owned(),
+                1,
+            )]),
+            ..Default::default()
+        };
+        let config = config_with(
+            Some(table_pricing_instructions_and_one_hash()),
+            Some(1_000_000_000),
+        );
+        let attested = GasVector {
+            cpu_time: 50_000,
+            moved_bytes: 0,
+            write_bytes: 0,
+        };
+        assert_eq!(
+            compare_attested_gas_vector(attested, &actual_profile, &config),
+            GasVectorComparison::Unpriceable
+        );
+    }
+
+    #[test]
+    fn comparison_metric_labels_are_distinct() {
+        let labels = [
+            GasVectorComparison::Match.metric_label(),
+            GasVectorComparison::Divergent {
+                recomputed: GasVector {
+                    cpu_time: 1,
+                    moved_bytes: 0,
+                    write_bytes: 0,
+                },
+            }
+            .metric_label(),
+            GasVectorComparison::Unpriceable.metric_label(),
+        ];
+        assert_eq!(labels, ["match", "divergent", "unpriceable"]);
     }
 }

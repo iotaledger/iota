@@ -27,9 +27,10 @@
 //! - Check #2: `validity_check()` — drop with error.
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
 //!   the claimed attestor matches the block author and that the attested
-//!   computation units fall within the valid range (cost floor and ceiling).
-//!   Drop with error on mismatch, out-of-range cost, or unsupported attestation
-//!   variant.
+//!   payload is within its bounds (V1: the computation-unit floor and ceiling;
+//!   V2: nonzero cpu_time, and the declared rate against the memory-bandwidth
+//!   ceiling when that constant is configured). Drop with error on mismatch,
+//!   out-of-bounds payload, or unsupported attestation variant.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -62,11 +63,12 @@ use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestationData},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     gas::check_gas_bounds,
+    gas_model::gas_vector::{GasVector, cpu_time_covers_moved_bytes},
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
     },
@@ -264,41 +266,86 @@ pub async fn validate_and_resolve_conflicts(
         if let Some(attestation) = attestation {
             let block_author = tx.0.certificate_author_index as u8;
             let protocol_config = epoch_store.protocol_config();
-            let min_attested_units = protocol_config
-                .base_tx_cost_fixed()
-                .min(protocol_config.gas_rounding_step());
-            let attested_units = attestation.computation_units();
             let txn = transaction.data().transaction();
-            let max_attested_units = txn
-                .gas_budget()
-                .checked_div(txn.gas_price())
-                .unwrap_or(u64::MAX);
+            // Attestor and payload are checked separately so that a new payload
+            // version cannot bypass the attestor check.
             let error = match attestation {
-                Attestation::Validator { attestor_index, .. } => {
-                    if *attestor_index != block_author {
-                        Some(IotaError::AttestationAuthorMismatch {
-                            expected: *attestor_index,
-                            actual: block_author,
-                        })
-                    } else if attested_units < min_attested_units {
+                Attestation::Validator { attestor_index, .. }
+                    if *attestor_index != block_author =>
+                {
+                    Some(IotaError::AttestationAuthorMismatch {
+                        expected: *attestor_index,
+                        actual: block_author,
+                    })
+                }
+                Attestation::Validator { .. } => None,
+                // Reject Explicit variant as not yet implemented.
+                Attestation::Explicit { .. } => Some(IotaError::UnsupportedFeature {
+                    error: "Explicit attestation not yet supported".into(),
+                }),
+            }
+            .or_else(|| match attestation.payload() {
+                AttestationData::V1 {
+                    computation_units, ..
+                } => {
+                    let min_attested_units = protocol_config
+                        .base_tx_cost_fixed()
+                        .min(protocol_config.gas_rounding_step());
+                    let max_attested_units = txn
+                        .gas_budget()
+                        .checked_div(txn.gas_price())
+                        .unwrap_or(u64::MAX);
+                    if *computation_units < min_attested_units {
                         Some(IotaError::AttestationUnitsBelowMinimum {
-                            actual: attested_units,
+                            actual: *computation_units,
                             minimum: min_attested_units,
                         })
-                    } else if attested_units > max_attested_units {
+                    } else if *computation_units > max_attested_units {
                         Some(IotaError::AttestationUnitsAboveBudget {
-                            actual: attested_units,
+                            actual: *computation_units,
                             maximum: max_attested_units,
                         })
                     } else {
                         None
                     }
                 }
-                // Reject Explicit variant as not yet implemented.
-                Attestation::Explicit { .. } => Some(IotaError::UnsupportedFeature {
-                    error: "Explicit attestation not yet supported".into(),
+                AttestationData::V2 {
+                    gas_vector:
+                        GasVector {
+                            cpu_time,
+                            moved_bytes,
+                            ..
+                        },
+                    ..
+                } => {
+                    if !protocol_config.attestation_gas_vector() {
+                        Some(IotaError::AttestationGasVectorNotEnabled)
+                    } else if *cpu_time == 0 {
+                        Some(IotaError::AttestationCpuTimeZero)
+                    } else if protocol_config
+                        .gas_vector_coefficients()
+                        .is_some_and(|table| {
+                            table.memory_bandwidth_bytes_per_sec != 0
+                                && !cpu_time_covers_moved_bytes(
+                                    *cpu_time,
+                                    *moved_bytes,
+                                    table.memory_bandwidth_bytes_per_sec,
+                                )
+                        })
+                    {
+                        Some(IotaError::AttestationRateAboveBandwidth {
+                            cpu_time: *cpu_time,
+                            moved_bytes: *moved_bytes,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                // Unreachable in practice: an unknown variant fails BCS decoding.
+                _ => Some(IotaError::UnsupportedFeature {
+                    error: "unknown attestation payload version".into(),
                 }),
-            };
+            });
             if let Some(e) = error {
                 warn!(
                     ?digest,

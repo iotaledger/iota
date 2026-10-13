@@ -28,6 +28,7 @@ use fastcrypto::{
 use iota_core::authority_client::validator_v2::ValidatorV2API;
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
+use iota_protocol_config::{GasVectorCoefficientsV1, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, Identifier, MoveAuthenticator, MoveAuthenticatorV1, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
@@ -240,6 +241,53 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
             TxStatusUpdate::Submitted | TxStatusUpdate::Executed { .. }
         ),
         "normal tx with a body abort must still be attested, got: {status:?}"
+    );
+
+    Ok(())
+}
+
+/// A cluster with the gas vector enabled accepts a plain transfer. Uses the
+/// process-wide override because env variables cannot set the coefficient
+/// table.
+#[sim_test]
+async fn test_tx_accepted_with_gas_vector_active() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_global_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_attestation_gas_vector_for_testing(true);
+        config.set_gas_vector_coefficients_for_testing(GasVectorCoefficientsV1 {
+            memory_bandwidth_bytes_per_sec: 1_000_000_000,
+            input_object_bytes_fs: 5_000_000,
+            written_bytes_fs: 5_000_000,
+            moved_bytes_per_read_op: 5_000,
+            fixed_overhead_fs: 20_000_000_000,
+            safety_multiplier_bps: 15_000,
+            ..Default::default()
+        });
+        config
+    });
+
+    let test_env = TestEnvironment::new().await;
+    let recipient: Address = ObjectId::random().into();
+    let tx_data = test_env
+        .test_cluster
+        .test_transaction_builder()
+        .await
+        .transfer_iota(Some(1_000_000), recipient)
+        .build();
+    let tx = test_env.test_cluster.wallet.sign_transaction(&tx_data);
+
+    let results = test_env.submit_tx_v2(tx).await?;
+    assert!(!results.is_empty(), "expected at least one status update");
+    let (_, status) = &results[0];
+    assert!(
+        matches!(
+            status,
+            TxStatusUpdate::Submitted | TxStatusUpdate::Executed { .. }
+        ),
+        "transfer with the gas vector active must be accepted, got: {status:?}"
     );
 
     Ok(())

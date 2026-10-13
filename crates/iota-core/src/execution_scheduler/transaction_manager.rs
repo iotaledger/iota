@@ -97,9 +97,19 @@ impl VerifiedExecutableAttestedTransaction {
     }
 
     /// Returns the attestor's estimated computation units, or `None` if the
-    /// transaction was not attested.
+    /// transaction was not attested or was attested with `AttestationData::V2`.
     pub fn attested_computation_units(&self) -> Option<u64> {
-        self.attestation.as_ref().map(|a| a.computation_units())
+        self.attestation
+            .as_ref()
+            .and_then(|a| a.computation_units())
+    }
+
+    /// Returns the attested `cpu_time` in nanoseconds, or `None` if the
+    /// transaction was not attested with `AttestationData::V2`.
+    pub fn attested_cpu_time(&self) -> Option<u64> {
+        self.attestation
+            .as_ref()
+            .and_then(|a| a.declared_cpu_time())
     }
 
     /// Consume the wrapper and return its parts.
