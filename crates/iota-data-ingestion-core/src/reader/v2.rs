@@ -279,6 +279,13 @@ impl CheckpointReaderActor {
             .enumerate()
             .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
         {
+            // We check capacity before downloading the file. This way, once its
+            // checkpoints are collected into memory we ensure that all will be
+            // sent through the channel.
+            if self.exceeds_capacity(self.current_checkpoint_number) {
+                return Err(IngestionError::MaxCheckpointsCapacityReached);
+            }
+
             let checkpoints = timeout(
                 Duration::from_secs(self.reader_options.timeout_secs),
                 historical_reader.iter_for_file(metadata.file_path()),
@@ -295,7 +302,8 @@ impl CheckpointReaderActor {
 
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
-                self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
+                self.data_limiter.add(&checkpoint, size);
+                self.send_checkpoint_to_channel(Arc::new(checkpoint))
                     .await?;
             }
         }
