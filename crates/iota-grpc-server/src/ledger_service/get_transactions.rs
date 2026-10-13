@@ -69,8 +69,8 @@ pub(crate) fn validate_get_transaction_requests(
 /// each kind of data (checkpoint lookup, transactions and effects, checkpoint summaries, events,
 /// objects) for up to [`TRANSACTION_READ_CHUNK_SIZE`] transactions of a request at a time. The
 /// result of a transaction is:
-/// - `UNAVAILABLE` if a store call it needs fails or times out, or once the request's store calls
-///   have taken 30 s in total. A failed checkpoint lookup counts as a miss while that budget lasts.
+/// - `UNAVAILABLE` if a store call it needs fails, or once the store calls of the request have
+///   taken 30 s in total. A failed checkpoint lookup counts as a miss while that budget lasts.
 /// - `UNAVAILABLE` if the store returns the checkpoint of a pruned transaction but lacks its
 ///   transaction, effects or events.
 /// - `INTERNAL` if the store returns data that does not match the effects.
