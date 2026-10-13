@@ -77,6 +77,10 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
+#[cfg(test)]
+#[path = "unit_tests/claim_account_validity_tests.rs"]
+mod claim_account_validity_tests;
+
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
 
@@ -1510,12 +1514,14 @@ impl TransactionAPI for Transaction {
                 input_object_version_validity_check(gas_object.version)?;
             }
         }
+        check_claim_account_gas_budget(self, config)?;
         self.validity_check_no_gas_check(config)
     }
 
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        check_claimed_key_derives_sender(self)?;
         self.check_sponsorship()
     }
 
@@ -2611,6 +2617,106 @@ impl VerifiedSignedTransaction {
             authority,
         ))
     }
+}
+
+/// Requires a `ClaimAccount`'s public key to derive the transaction sender,
+/// the address the claim mints the account object at. A no-op for every
+/// other transaction kind.
+///
+/// This is the authoritative check: a claim that fails it is rejected at
+/// validation, before it is signed, sequenced or paid for.
+/// `claim::claim_address` asserts the same in Move, but only at execution.
+/// Must run after `TransactionKind::validity_check`, which already rejects a
+/// disabled claim kind, an unknown scheme and malformed key bytes.
+fn check_claimed_key_derives_sender(data: &Transaction) -> UserInputResult {
+    let TransactionKind::ClaimAccount(claim) = data.kind() else {
+        return Ok(());
+    };
+    let AccountClaimKind::SmartAccount(smart) = &claim.kind else {
+        unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+    };
+
+    // Infallible here: the kind-level check has already validated both.
+    let scheme = SignatureScheme::from_byte(smart.public_key_scheme).map_err(|error| {
+        UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        }
+    })?;
+    let public_key =
+        MovePublicKey::new(scheme, smart.public_key_raw_bytes.clone()).map_err(|error| {
+            UserInputError::IncorrectUserSignature {
+                error: format!("invalid claimed public key: {error}"),
+            }
+        })?;
+    let derived = public_key
+        .address()
+        .map_err(|error| UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        })?;
+    fp_ensure!(
+        derived == data.sender(),
+        UserInputError::IncorrectUserSignature {
+            error: format!(
+                "claimed public key derives {} but the sender is {}",
+                derived,
+                data.sender()
+            ),
+        }
+    );
+    Ok(())
+}
+
+/// Smallest gas budget a `ClaimAccount` carrying `public_key_len` raw key
+/// bytes may declare at `gas_price`: the pipeline's computation bound charged
+/// at that price plus the storage it creates, from the protocol parameters
+/// `claim_account_max_computation_units` and
+/// `claim_account_storage_bytes_bound`. Requires
+/// `enable_claim_account_transaction`.
+pub fn claim_account_min_gas_budget(
+    config: &ProtocolConfig,
+    gas_price: u64,
+    public_key_len: u64,
+) -> u64 {
+    let computation = config
+        .claim_account_max_computation_units()
+        .saturating_mul(gas_price);
+    let storage = config
+        .claim_account_storage_bytes_bound()
+        .saturating_add(public_key_len)
+        .saturating_mul(config.obj_data_cost_refundable())
+        .saturating_mul(config.storage_gas_price());
+    computation.saturating_add(storage)
+}
+
+/// Requires a `ClaimAccount`'s gas budget to cover the claim pipeline at the
+/// transaction's own gas price and key size, so a claim that is accepted
+/// cannot run out of gas at execution. A no-op for every other transaction
+/// kind, and when the claim kind is disabled.
+fn check_claim_account_gas_budget(data: &Transaction, config: &ProtocolConfig) -> UserInputResult {
+    if !config.enable_claim_account_transaction() {
+        return Ok(());
+    }
+    let TransactionKind::ClaimAccount(claim) = data.kind() else {
+        return Ok(());
+    };
+    let AccountClaimKind::SmartAccount(smart) = &claim.kind else {
+        unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+    };
+    // The cost scales with the declared gas price and the key bytes the claim
+    // stores, so the floor does too.
+    let min_budget = claim_account_min_gas_budget(
+        config,
+        data.gas_price(),
+        smart.public_key_raw_bytes.len() as u64,
+    );
+    fp_ensure!(
+        data.gas_budget() >= min_budget,
+        UserInputError::GasBudgetTooLow {
+            gas_budget: data.gas_budget(),
+            min_budget,
+        }
+    );
+    Ok(())
 }
 
 /// A transaction that is signed by a sender but not yet by an authority.
