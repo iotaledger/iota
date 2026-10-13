@@ -815,21 +815,21 @@ impl RandomnessManager {
     /// When `allow_dkg_completion_after_timeout` is enabled, an incomplete DKG
     /// reports `TimedOut` for commits past the timeout round while the protocol
     /// keeps running, so a later commit may observe `Successful`.
-    pub fn dkg_status_for_commit_round(&mut self, round: CommitRound) -> DkgStatus {
+    ///
+    /// Returns `IotaError::EpochEnded` if the epoch store is already gone.
+    pub fn dkg_status_for_commit_round(&mut self, round: CommitRound) -> IotaResult<DkgStatus> {
         let status = self.dkg_status();
         if status != DkgStatus::Pending {
-            return status;
+            return Ok(status);
         }
 
-        let epoch_store = self
-            .epoch_store()
-            .expect("epoch store must be alive while computing DKG status for a commit");
+        let epoch_store = self.epoch_store()?;
         if !epoch_store
             .protocol_config()
             .allow_dkg_completion_after_timeout()
             || !Self::is_past_dkg_timeout_round(round, epoch_store.protocol_config())
         {
-            return status;
+            return Ok(status);
         }
 
         if !self.dkg_timeout_reported {
@@ -839,7 +839,7 @@ impl RandomnessManager {
             epoch_store.metrics.epoch_random_beacon_dkg_failed.set(1);
             self.dkg_timeout_reported = true;
         }
-        DkgStatus::TimedOut
+        Ok(DkgStatus::TimedOut)
     }
 
     /// Generates a new RandomnessReporter for reporting observed rounds to this
@@ -1204,7 +1204,9 @@ mod tests {
         // through the raw status; timeout failure is only marked by `advance_dkg`.
         assert_eq!(
             DkgStatus::Pending,
-            randomness_managers[0].dkg_status_for_commit_round(u64::MAX)
+            randomness_managers[0]
+                .dkg_status_for_commit_round(u64::MAX)
+                .unwrap()
         );
 
         for i in 0..randomness_managers.len() {
@@ -1258,7 +1260,9 @@ mod tests {
     /// Rebuilds a `RandomnessManager` from an existing (already-persisted)
     /// epoch store, simulating a validator restart. Only on-disk DKG state
     /// is carried over: the in-memory state machine starts fresh and must
-    /// be restored from the persisted tables by `try_new`.
+    /// be restored from the persisted tables by `try_new`. Like node startup,
+    /// it then re-sends the consensus transactions still pending in the epoch
+    /// store through `ConsensusAdapter::submit_recovered`.
     async fn recover_randomness_manager(
         epoch_store: &Arc<AuthorityPerEpochStore>,
         authority_key_pair: &AuthorityKeyPair,
@@ -1288,14 +1292,16 @@ mod tests {
             ConsensusAdapterMetrics::new_test(),
             50,
         ));
-        RandomnessManager::try_new(
+        let randomness_manager = RandomnessManager::try_new(
             Arc::downgrade(epoch_store),
-            Box::new(consensus_adapter),
+            Box::new(consensus_adapter.clone()),
             iota_network::randomness::Handle::new_stub(),
             authority_key_pair,
         )
         .await
-        .unwrap()
+        .unwrap();
+        consensus_adapter.submit_recovered(epoch_store);
+        randomness_manager
     }
 
     /// Distributes DKG messages (but no confirmations) so DKG is still pending,
@@ -1303,8 +1309,8 @@ mod tests {
     /// and asserts the in-progress state (processed and used messages) is
     /// restored and DKG is still reported as pending. This exercises the
     /// no-output (`None`) load branch in `try_new`. The messages are applied
-    /// past the timeout round, and the restarted managers then complete DKG
-    /// from the confirmations sent before the restart.
+    /// past the timeout round. The restart sends each validator's confirmation
+    /// again, and the restarted managers then complete DKG from them.
     #[tokio::test]
     async fn test_dkg_recovers_processed_messages_after_restart() {
         telemetry_subscribers::init_for_testing();
@@ -1449,14 +1455,27 @@ mod tests {
             assert!(recovered.used_messages.initialized());
             assert_eq!(
                 DkgStatus::Pending,
-                recovered.dkg_status_for_commit_round(timeout)
+                recovered.dkg_status_for_commit_round(timeout).unwrap()
             );
             assert_eq!(
                 DkgStatus::TimedOut,
-                recovered.dkg_status_for_commit_round(timeout + 1)
+                recovered.dkg_status_for_commit_round(timeout + 1).unwrap()
             );
             recovered_managers.push(recovered);
         }
+
+        // The confirmations were never processed by consensus, so they are still
+        // pending in each epoch store and are sent again on restart.
+        let mut resent_confirmations = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            collect_dkg_confirmations(&mut rx_consensus, network_config.validator_configs.len()),
+        )
+        .await
+        .expect("restart should send the pending DKG confirmations again");
+        let mut sent_confirmations = dkg_confirmations.clone();
+        resent_confirmations.sort_by_key(|conf| conf.sender());
+        sent_confirmations.sort_by_key(|conf| conf.sender());
+        assert_eq!(sent_confirmations, resent_confirmations);
 
         // DKG completes after its timeout once the confirmations are sequenced.
         for i in 0..recovered_managers.len() {
@@ -1486,21 +1505,23 @@ mod tests {
         }
     }
 
-    /// Receives one DKG confirmation from each of `num_validators` validators.
+    /// Receives one DKG confirmation from each of `num_validators` validators,
+    /// skipping any DKG messages sent in between.
     async fn collect_dkg_confirmations(
         rx_consensus: &mut mpsc::Receiver<Vec<ConsensusTransaction>>,
         num_validators: usize,
     ) -> Vec<VersionedDkgConfirmation> {
         let mut dkg_confirmations = Vec::new();
-        for _ in 0..num_validators {
-            let mut dkg_confirmation = rx_consensus.recv().await.unwrap();
-            assert!(dkg_confirmation.len() == 1);
-            match dkg_confirmation.remove(0).kind {
+        while dkg_confirmations.len() < num_validators {
+            let mut transactions = rx_consensus.recv().await.unwrap();
+            assert!(transactions.len() == 1);
+            match transactions.remove(0).kind {
                 ConsensusTransactionKind::RandomnessDkgConfirmation(_, bytes) => {
                     let msg: VersionedDkgConfirmation = bcs::from_bytes(&bytes)
                         .expect("DKG confirmation deserialization should not fail");
                     dkg_confirmations.push(msg);
                 }
+                ConsensusTransactionKind::RandomnessDkgMessage(..) => {}
                 _ => panic!("wrong type of message sent"),
             }
         }
