@@ -142,20 +142,10 @@ pub(super) fn prepare_transaction(
         );
     }
 
-    // Snapshot the received objects for the coin deny-list check below: the
-    // simulation branch consumes `receiving_objects`, which is not `Clone`.
-    let coin_deny_receiving = check_coin_deny_list.then(|| {
-        receiving_objects
-            .objects
-            .iter()
-            .map(|r| ReceivingObjectReadResult::new(r.object_ref, r.object.clone()))
-            .collect::<Vec<_>>()
-    });
-
-    // Dev-inspect meters against the transaction's budget, which the fill-in
-    // above resolves to `max_tx_gas` when the caller declares none, matching the
-    // node's dev-inspect entry point, and drops the input checks a simulation
-    // does not need. Every other mode runs what a validator runs.
+    // Dev-inspect meters against the transaction's budget, as filled in above
+    // when the caller declares none, matching the node's dev-inspect entry
+    // point, and drops the input checks a simulation does not need. Every other
+    // mode runs the full input checks.
     let (input_checks, check_name) = if matches!(mode, ExecutionMode::DevInspect) {
         (InputCheckRules::RELAXED_UNSAFE, "simulation input check")
     } else {
@@ -187,16 +177,15 @@ pub(super) fn prepare_transaction(
     )
     .map_err(|e| ValidationError::new(check_name, e))?;
 
-    if let Some(receiving) = coin_deny_receiving {
+    if check_coin_deny_list {
         // Regulated-coin deny-list check over the transaction's own inputs and
         // received objects. Authenticator inputs are checked separately in
         // `execute_with_move_authenticators`, where they are resolved.
-        let receiving: ReceivingObjects = receiving.into();
         run_coin_deny_list_check(
             store,
             transaction.sender(),
             &checked_input_objects,
-            &receiving,
+            &receiving_objects,
             &[],
         )?;
     }

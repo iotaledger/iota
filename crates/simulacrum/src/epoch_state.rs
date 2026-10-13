@@ -251,13 +251,6 @@ impl EpochState {
         // `authenticator_gas_budget` to 0.
         let authenticator_gas_budget = 0;
 
-        // Checks enabled -> DRY-RUN (simulating a real TX)
-        // Checks disabled -> DEV-INSPECT (more relaxed Move VM checks)
-        let input_checks = if checks.enabled() {
-            InputCheckRules::STRICT
-        } else {
-            InputCheckRules::RELAXED_UNSAFE
-        };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &self.protocol_config,
             self.epoch_start_state.reference_gas_price(),
@@ -267,7 +260,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
-            input_checks,
+            InputCheckRules::from(checks),
         )?;
 
         // Execute the simulation

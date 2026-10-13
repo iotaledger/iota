@@ -95,9 +95,10 @@ mod checked {
     /// signing, to run before any object is loaded.
     ///
     /// Rejects a system transaction, then runs the transaction's own validity
-    /// checks except the one requiring a gas payment, so a caller can supply
-    /// the gas payment itself. The limit on the number of gas payment objects
-    /// still applies.
+    /// checks except the two on the gas payment objects: that there is at least
+    /// one, and the version check on each of them. A caller can then supply the
+    /// gas payment itself. The limit on the number of gas payment objects still
+    /// applies.
     ///
     /// Signing rejects a system transaction before [`check_transaction_input`]
     /// runs, and [`check_transaction_input`] itself accepts one, so a caller
@@ -117,8 +118,8 @@ mod checked {
         Ok(())
     }
 
-    /// Checks whether a transaction may run, for signing, for a certificate, or
-    /// for a simulation.
+    /// Checks whether a transaction may be signed or simulated. Certificates go
+    /// through [`check_certificate_input`] instead.
     ///
     /// `input_checks` names the checks the caller drops: a simulation with
     /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled)
@@ -430,10 +431,10 @@ mod checked {
             // admitting the references it would have rejected makes that arm
             // reachable, which panics in a debug build.
             if !(object.owner.is_address()
-                && (object.version() == object_ref.version
-                    || input_checks.any_receiving_object_version)
-                && (object.digest() == object_ref.digest
-                    || input_checks.any_receiving_object_digest))
+                && (input_checks.any_receiving_object_version
+                    || object.version() == object_ref.version)
+                && (input_checks.any_receiving_object_digest
+                    || object.digest() == object_ref.digest))
             {
                 if !input_checks.any_receiving_object_version {
                     // Version mismatch
