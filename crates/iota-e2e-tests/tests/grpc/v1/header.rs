@@ -17,6 +17,7 @@ pub fn verify_iota_headers(metadata: &MetadataMap, operation_name: &str) {
         headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT,
         headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
         headers::X_IOTA_SERVER,
+        headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_INDEXES,
     ];
 
     for header_name in &required_headers {
