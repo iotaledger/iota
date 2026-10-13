@@ -5,6 +5,7 @@
 module iota::smart_account_builtin_auth_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
+use iota::builtin_authenticator_functions;
 use iota::public_key::{Self, PublicKey};
 use iota::signature_scheme;
 use iota::smart_account::{Self, SmartAccount};
@@ -86,7 +87,7 @@ fun custom_account_has_no_public_key_or_builtin_auth() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+#[expected_failure(abort_code = builtin_authenticator_functions::EPublicKeyMissing)]
 fun borrow_public_key_aborts_without_a_key() {
     custom_account_view_test!(|account| {
         smart_account_builtin_auth::borrow_public_key(account);
@@ -259,7 +260,7 @@ fun rotate_public_key_aborts_if_sender_not_account() {
 // === Core rotation ===
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account::EBuiltinAuthWithoutPublicKey)]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
 fun core_rotation_refuses_builtin_auth_without_a_key() {
     custom_account_test!(|account, scenario| {
         account.rotate_auth_function_ref_v1(builtin_authenticator(), scenario.ctx());
@@ -267,7 +268,7 @@ fun core_rotation_refuses_builtin_auth_without_a_key() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account::EPublicKeyWithoutBuiltinAuth)]
+#[expected_failure(abort_code = builtin_authenticator_functions::EPublicKeyWithoutBuiltinAuth)]
 fun core_rotation_refuses_a_custom_authenticator_while_the_key_is_attached() {
     builtin_account_test!(|account, scenario| {
         account.rotate_auth_function_ref_v1(custom_authenticator(), scenario.ctx());

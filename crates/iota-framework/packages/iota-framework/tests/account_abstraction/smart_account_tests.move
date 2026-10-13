@@ -5,6 +5,7 @@
 module iota::smart_account_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
+use iota::builtin_authenticator_functions;
 use iota::smart_account::{Self, SmartAccount};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
@@ -30,7 +31,7 @@ fun builder_v1_builds_shared_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account::EBuiltinAuthWithoutPublicKey)]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
 fun build_v1_aborts_for_the_builtin_authenticator_without_a_key() {
     let mut scenario = test_scenario::begin(@0x0);
 
@@ -211,7 +212,7 @@ fun rotate_auth_function_ref_v1_aborts_if_sender_not_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account::EBuiltinAuthWithoutPublicKey)]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
 fun rotate_auth_function_ref_v1_aborts_for_the_builtin_authenticator_without_a_key() {
     account_test_mut!(|account, scenario| {
         account.rotate_auth_function_ref_v1(builtin_test_authenticator(), scenario.ctx());

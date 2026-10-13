@@ -2527,6 +2527,9 @@ detach_public_key
 rotate_public_key
 	public fun
 	0x2::builtin_authenticator_functions
+ensure_builtin_auth_and_public_key_together
+	public fun
+	0x2::builtin_authenticator_functions
 is_builtin_authenticator
 	public fun
 	0x2::builtin_authenticator_functions
@@ -3837,9 +3840,6 @@ uid
 	0x2::smart_account
 uid_mut
 	public(package) fun
-	0x2::smart_account
-ensure_builtin_auth_and_public_key_together
-	fun
 	0x2::smart_account
 builder_v1
 	public fun

@@ -57,6 +57,13 @@ const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
 #[error(code = 20)]
 const EInvalidSignature: vector<u8> = b"Invalid signature.";
 
+#[error(code = 30)]
+const EBuiltinAuthWithoutPublicKey: vector<u8> =
+    b"The built-in authenticator needs the account's public key.";
+#[error(code = 31)]
+const EPublicKeyWithoutBuiltinAuth: vector<u8> =
+    b"The account's public key is attached, so the authenticator must be the built-in one.";
+
 // === Constants ===
 
 const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME: vector<u8> = b"builtin_authenticator_functions";
@@ -190,6 +197,26 @@ public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): Publi
     event::emit(event);
 
     prev_public_key
+}
+
+/// Aborts unless the account has a public key attached exactly when `authenticator` is the
+/// built-in one.
+///
+/// Call this before creating an account with `authenticator` or rotating the account to it, to
+/// keep the built-in authenticator and its public key together.
+///
+/// Aborts if `authenticator` is the built-in one and no public key is attached.
+/// Aborts if `authenticator` is not the built-in one and a public key is attached.
+public fun ensure_builtin_auth_and_public_key_together<Account: key>(
+    account_id: &UID,
+    authenticator: &AuthenticatorFunctionRefV1<Account>,
+) {
+    let public_key_attached = has_public_key(account_id);
+    if (is_builtin_authenticator(authenticator)) {
+        assert!(public_key_attached, EBuiltinAuthWithoutPublicKey);
+    } else {
+        assert!(!public_key_attached, EPublicKeyWithoutBuiltinAuth);
+    }
 }
 
 // === View Functions ===

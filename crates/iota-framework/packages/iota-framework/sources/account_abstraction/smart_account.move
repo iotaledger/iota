@@ -13,9 +13,10 @@
 ///
 /// The exception: an account has the built-in authenticator and that public key together, or
 /// neither. `build_v1` and `rotate_auth_function_ref_v1` abort if the built-in authenticator
-/// would be set without the key, or a custom one while the key is attached. The key can only be
-/// attached and detached by `smart_account_builtin_auth`, so switching between the built-in
-/// authenticator and a custom one goes through it.
+/// would be set without the key, or a custom one while the key is attached; the check is
+/// `builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together`. The key can
+/// only be attached and detached by `smart_account_builtin_auth`, so switching between the
+/// built-in authenticator and a custom one goes through it.
 ///
 /// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
 /// object ID for the supplied authenticator. After optionally adding fields with `with_field`,
@@ -37,12 +38,6 @@ use iota::public_key::PublicKey;
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
-#[error(code = 1)]
-const EBuiltinAuthWithoutPublicKey: vector<u8> =
-    b"The built-in authenticator needs the account's public key; use smart_account_builtin_auth.";
-#[error(code = 2)]
-const EPublicKeyWithoutBuiltinAuth: vector<u8> =
-    b"The account's public key is attached; use smart_account_builtin_auth to detach it.";
 
 // === Structs ===
 
@@ -106,7 +101,10 @@ public fun with_field<Name: copy + drop + store, Value: store>(
 /// one and a public key is attached.
 public fun build_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
-    ensure_builtin_auth_and_public_key_together(&account.id, &authenticator);
+    builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+        &account.id,
+        &authenticator,
+    );
     let account_address = account.account_address();
 
     account::create_account_v1(account, authenticator);
@@ -231,7 +229,10 @@ public fun rotate_auth_function_ref_v1(
     ctx: &TxContext,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
     ensure_tx_sender_is_smart_account(self, ctx);
-    ensure_builtin_auth_and_public_key_together(&self.id, &authenticator);
+    builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+        &self.id,
+        &authenticator,
+    );
 
     account::rotate_auth_function_ref_v1(self, authenticator)
 }
@@ -265,20 +266,4 @@ public(package) fun uid(self: &SmartAccount): &UID {
 /// Borrows the account's `UID` mutably.
 public(package) fun uid_mut(self: &mut SmartAccount): &mut UID {
     &mut self.id
-}
-
-// === Private Functions ===
-
-/// Aborts unless the account with `account_id` has a public key attached exactly when
-/// `authenticator` is the built-in one.
-fun ensure_builtin_auth_and_public_key_together(
-    account_id: &UID,
-    authenticator: &AuthenticatorFunctionRefV1<SmartAccount>,
-) {
-    let has_public_key = builtin_authenticator_functions::has_public_key(account_id);
-    if (builtin_authenticator_functions::is_builtin_authenticator(authenticator)) {
-        assert!(has_public_key, EBuiltinAuthWithoutPublicKey);
-    } else {
-        assert!(!has_public_key, EPublicKeyWithoutBuiltinAuth);
-    }
 }
