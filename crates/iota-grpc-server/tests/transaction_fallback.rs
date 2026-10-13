@@ -1258,48 +1258,56 @@ async fn local_and_store_input_objects_keep_the_effects_order() {
 #[tokio::test]
 async fn failing_store_only_fails_its_own_item() {
     let local = test_transaction(true);
-    let objects_missing = test_transaction(true);
+    let objects_missing = [test_transaction(true), test_transaction(true)];
     let local_state = Node {
         objects: true,
         ..LOCAL
     }
     .state(&local);
-    let objects_missing_state = LOCAL.state(&objects_missing);
-    let state = MockGrpcStateReader {
-        transactions: local_state
-            .transactions
-            .into_iter()
-            .chain(objects_missing_state.transactions)
-            .collect(),
-        effects: local_state
-            .effects
-            .into_iter()
-            .chain(objects_missing_state.effects)
-            .collect(),
+    let mut state = MockGrpcStateReader {
+        transactions: local_state.transactions,
+        effects: local_state.effects,
         object_versions: local_state.object_versions,
         ..Default::default()
     };
+    for test in &objects_missing {
+        let part = LOCAL.state(test);
+        state.transactions.extend(part.transactions);
+        state.effects.extend(part.effects);
+    }
     let store = MockFallbackStore {
         failing: HashSet::from([READ_OBJECTS]),
         ..Default::default()
     };
+    let requests = store.requests.clone();
     let handle = start(state, Some(store)).await;
 
     let results = get_transactions(
         &handle,
-        &[local.digest(), objects_missing.digest()],
+        &[
+            local.digest(),
+            objects_missing[0].digest(),
+            objects_missing[1].digest(),
+        ],
         "transaction,input_objects",
     )
     .await;
 
-    assert_eq!(results.len(), 2);
-    assert!(results[0].executed_transaction().unwrap().is_some());
+    assert_eq!(results.len(), 3);
+    assert_eq!(served_digest(&results[0]), local.digest().bytes().to_vec());
+    let executed = results[0].executed_transaction().unwrap().unwrap();
     assert_eq!(
-        results[1].error_code(),
-        Some(tonic::Code::Unavailable as i32)
+        served_object_keys(&executed.input_objects).len(),
+        local.input_objects.len(),
+        "the transaction whose objects are on the node lost them"
     );
-    let message = results[1].error_message().unwrap();
-    assert!(message.contains("key-value store unavailable"));
+    // The one failed objects call fails every transaction that needed it.
+    for result in &results[1..] {
+        assert_eq!(error_code(result), Some(tonic::Code::Unavailable));
+        let message = result.error_message().unwrap();
+        assert!(message.contains("key-value store unavailable"));
+    }
+    assert_eq!(*requests.lock().unwrap(), [READ_OBJECTS]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1493,46 +1501,6 @@ async fn each_chunk_of_50_transactions_makes_its_own_calls() {
         *requested_digests.lock().unwrap(),
         [digests[..50].to_vec(), digests[50..].to_vec()]
     );
-}
-
-#[tokio::test]
-async fn a_failed_call_fails_every_transaction_that_needed_it() {
-    let tests = (0..3).map(|_| test_transaction(false)).collect::<Vec<_>>();
-    let mut state = MockGrpcStateReader::default();
-    for (index, test) in tests.iter().enumerate() {
-        let node = Node {
-            // Only the first transaction's objects are on the node.
-            objects: index == 0,
-            ..LOCAL
-        };
-        let part = node.state(test);
-        state.transactions.extend(part.transactions);
-        state.effects.extend(part.effects);
-        state.object_versions.extend(part.object_versions);
-    }
-    let store = MockFallbackStore {
-        failing: HashSet::from([READ_OBJECTS]),
-        ..Default::default()
-    };
-    let requests = store.requests.clone();
-    let handle = start(state, Some(store)).await;
-    let digests = tests
-        .iter()
-        .map(TestTransaction::digest)
-        .collect::<Vec<_>>();
-
-    let results = get_transactions(&handle, &digests, "transaction,input_objects").await;
-
-    assert_eq!(served_digest(&results[0]), digests[0].bytes().to_vec());
-    let executed = results[0].executed_transaction().unwrap().unwrap();
-    assert_eq!(
-        served_object_keys(&executed.input_objects).len(),
-        tests[0].input_objects.len(),
-        "the transaction whose objects are on the node lost them"
-    );
-    assert_eq!(error_code(&results[1]), Some(tonic::Code::Unavailable));
-    assert_eq!(error_code(&results[2]), Some(tonic::Code::Unavailable));
-    assert_eq!(*requests.lock().unwrap(), [READ_OBJECTS]);
 }
 
 #[tokio::test(start_paused = true)]
