@@ -22,9 +22,9 @@ pub(crate) static MIN_SDK_VERSION_HEADER: HeaderName =
 /// Lowest `iota-sdk-graphql-client` version able to decode this service's
 /// responses, sent in the [`MIN_SDK_VERSION_HEADER`] of every response.
 ///
-/// Raise it to the SDK release that ships a wire-visible change (a new enum
-/// variant, a renamed field, etc..) once that release is out, so clients on an
-/// older SDK fail their calls instead of choking on values they cannot decode.
+/// Bump this alongside SDK releases containing wire-visible changes (e.g., new enum variants or
+/// renamed fields) to force older clients to reject the service and fail safely rather than
+/// panicking on un-decodable values.
 pub(crate) const MIN_SDK_VERSION: &str = "1.0.0-rc.1";
 
 #[expect(unused)]
