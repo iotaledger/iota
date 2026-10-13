@@ -397,22 +397,22 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     transaction,
                 };
 
-                // With the flag on, the cache holds only keys recorded as processed, so a hit
-                // means the processed-message table would skip this message too, whatever
-                // its payload.
-                if cache_only_recorded_messages
-                    && self
-                        .processed_cache
-                        .get(&sequenced_transaction.transaction.key())
-                        .is_some()
+                // The set holds only keys of messages accepted earlier in this commit and,
+                // with the flag on, the cache only keys recorded as processed. A hit in
+                // either means this message would be skipped after verification too,
+                // whatever its payload.
+                let claimed_key = sequenced_transaction.transaction.key();
+                if processed_set.contains(&claimed_key)
+                    || (cache_only_recorded_messages
+                        && self.processed_cache.get(&claimed_key).is_some())
                 {
                     self.metrics.skipped_consensus_txns_cache_hit.inc();
                     continue;
                 }
 
-                // Verify before deduplicating. The key is derived from identities the
-                // payload claims, so a rejected transaction must not be able to shadow a
-                // later valid one carrying the same key.
+                // Verify before adding the key to the set or the cache. The key is derived
+                // from identities the payload claims, so a rejected transaction must not be
+                // able to shadow a later valid one carrying the same key.
                 let Some(verified_transaction) = self
                     .epoch_store
                     .verify_consensus_transaction(sequenced_transaction, skipped_consensus_txns)
@@ -421,11 +421,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 };
 
                 let key = verified_transaction.0.key();
-                let in_set = !processed_set.insert(key.clone());
+                processed_set.insert(key.clone());
                 let in_cache =
                     !cache_only_recorded_messages && self.processed_cache.put(key, ()).is_some();
 
-                if in_set || in_cache {
+                if in_cache {
                     self.metrics.skipped_consensus_txns_cache_hit.inc();
                     continue;
                 }
