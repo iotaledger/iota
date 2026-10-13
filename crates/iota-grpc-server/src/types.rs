@@ -328,7 +328,7 @@ impl GrpcReader {
         self
     }
 
-    /// Whether data the node has pruned is read from a key-value store.
+    /// Whether a key-value store fallback exists.
     pub(crate) fn has_transaction_fallback(&self) -> bool {
         self.transaction_fallback.is_some()
     }
