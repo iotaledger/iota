@@ -2115,6 +2115,53 @@ async fn a_dropped_column_family_fails_a_batch_write_by_default() {
     );
 }
 
+/// Rows written through SST files read back as if inserted directly: sorted,
+/// with a repeated key keeping its last value, across files whose key ranges
+/// overlap.
+#[tokio::test]
+async fn sst_files_ingest_into_the_table() {
+    let tmp_dir = iota_common::tempdir();
+    let files_dir = iota_common::tempdir();
+    let db = open_map::<_, u32, String>(tmp_dir.path(), Some("table"));
+    let options = rocksdb::Options::default();
+
+    let mut first = SstFileBuffer::<u32, String>::new();
+    for key in [5, 1, 9, 3] {
+        first.insert(&key, &format!("first {key}")).unwrap();
+    }
+    first.insert(&1, &"first 1 again".to_string()).unwrap();
+    let mut second = SstFileBuffer::<u32, String>::new();
+    for key in [4, 2, 8] {
+        second.insert(&key, &format!("second {key}")).unwrap();
+    }
+    let paths = [
+        files_dir.path().join("1.sst"),
+        files_dir.path().join("2.sst"),
+    ];
+    first.write_file(&paths[0], &options).unwrap();
+    second.write_file(&paths[1], &options).unwrap();
+    assert!(first.is_empty(), "writing a file must empty the buffer");
+
+    db.ingest_sst_files(&paths).unwrap();
+
+    assert_eq!(
+        get_iter(&db).collect::<Vec<_>>(),
+        vec![
+            (1, "first 1 again".to_string()),
+            (2, "second 2".to_string()),
+            (3, "first 3".to_string()),
+            (4, "second 4".to_string()),
+            (5, "first 5".to_string()),
+            (8, "second 8".to_string()),
+            (9, "first 9".to_string()),
+        ]
+    );
+    assert!(
+        paths.iter().all(|path| !path.exists()),
+        "ingestion must move the files into the database"
+    );
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(

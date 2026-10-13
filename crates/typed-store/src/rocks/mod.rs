@@ -6,6 +6,7 @@ pub mod errors;
 pub(crate) mod options;
 pub(crate) mod rocks_util;
 pub(crate) mod safe_iter;
+mod sst_file;
 
 use std::{
     collections::HashSet,
@@ -26,10 +27,13 @@ use typed_store_error::TypedStoreError;
 
 pub use crate::{
     database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
-    rocks::options::{
-        BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
-        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options,
-        disable_fallocate, list_tables, read_size_from_env, synced_write_options,
+    rocks::{
+        options::{
+            BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
+            bulk_ingestion_options, bulk_ingestion_write_options, default_db_options,
+            disable_fallocate, list_tables, read_size_from_env, synced_write_options,
+        },
+        sst_file::SstFileBuffer,
     },
 };
 use crate::{
