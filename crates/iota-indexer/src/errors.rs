@@ -4,16 +4,20 @@
 
 use fastcrypto::error::FastCryptoError;
 use iota_data_ingestion_core::IngestionError;
-use iota_json_rpc_api::{error_object_from_rpc, internal_error};
-use iota_json_rpc_types::IotaObjectResponseError;
+use iota_json_rpc_api::internal_error;
+use iota_json_rpc_types::{DataPrunedErrorData, IotaObjectResponseError};
 use iota_names::error::IotaNamesError;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
     base_types::ObjectIdParseError,
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::SdkTypeConversionError,
+    messages_checkpoint::CheckpointSequenceNumber,
 };
-use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
+use jsonrpsee::{
+    core::ClientError as RpcError,
+    types::{ErrorObjectOwned, error::INTERNAL_ERROR_CODE},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -168,8 +172,14 @@ pub enum IndexerError {
     #[error("historical fallback input error: {0}")]
     HistoricalFallbackInput(String),
 
-    #[error("Missing data due to pruning: `{0}`")]
-    DataPruned(String),
+    #[error("Missing data due to pruning: `{message}`")]
+    DataPruned {
+        message: String,
+        /// The oldest checkpoint the request could have found data in.
+        ///
+        /// Anything before it has been pruned and is no longer served.
+        oldest_available_checkpoint: CheckpointSequenceNumber,
+    },
 
     #[error("grpc error: `{0}`")]
     Grpc(String),
@@ -198,13 +208,25 @@ impl<T> Context<T> for Result<T, IndexerError> {
 
 impl From<IndexerError> for RpcError {
     fn from(e: IndexerError) -> Self {
-        RpcError::Call(internal_error(e))
+        RpcError::Call(e.into())
     }
 }
 
 impl From<IndexerError> for ErrorObjectOwned {
     fn from(value: IndexerError) -> Self {
-        error_object_from_rpc(value.into())
+        if let IndexerError::DataPruned {
+            oldest_available_checkpoint,
+            ..
+        } = &value
+        {
+            return ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                value.to_string(),
+                Some(DataPrunedErrorData::new(*oldest_available_checkpoint)),
+            );
+        }
+
+        internal_error(value)
     }
 }
 

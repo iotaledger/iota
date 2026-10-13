@@ -307,7 +307,7 @@ impl ReadApiServer for ReadApi {
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read_with_fallback(object_id, version.into(), false)
+            .get_past_object_read_with_fallback_or_data_pruned(object_id, version.into(), false)
             .await?;
 
         self.past_object_read_to_response(options, past_object_read)
@@ -321,7 +321,7 @@ impl ReadApiServer for ReadApi {
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read_with_fallback(object_id, version, true)
+            .get_past_object_read_with_fallback_or_data_pruned(object_id, version, true)
             .await?;
 
         self.past_object_read_to_response(

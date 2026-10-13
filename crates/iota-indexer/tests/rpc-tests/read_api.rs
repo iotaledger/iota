@@ -1,13 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc};
+use std::{fs::File, future::Future, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
     config::RetentionConfig,
     models::transactions::StoredTransaction,
-    store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
+    pruning::CommitterTables,
+    store::{
+        PgIndexerStore, indexer_store::IndexerStore, package_resolver::IndexerStorePackageResolver,
+    },
     test_utils::{TestDatabase, db_url},
 };
 use iota_json::{IotaJsonValue, call_args, type_args};
@@ -16,9 +19,9 @@ use iota_json_rpc_api::{
     WriteApiClient,
 };
 use iota_json_rpc_types::{
-    CheckpointId, ExecuteTransactionRequestType, IotaGetPastObjectRequest, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    CheckpointId, DataPrunedErrorData, ExecuteTransactionRequestType, IotaGetPastObjectRequest,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
+    IotaPastObjectResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
     TransactionBlockBytes, TransactionFilterV2,
 };
@@ -34,12 +37,13 @@ use iota_test_transaction_builder::{
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     digests::ChainIdentifier,
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::{http_client::HttpClient, types::ErrorObjectOwned};
 use rand::{SeedableRng, rngs::StdRng};
 use serde_json::Value;
 
@@ -1128,7 +1132,7 @@ fn get_events_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Missing data due to pruning: `requested events not available`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Transaction 11111111111111111111111111111111 not found`"}"#,
         ))
     });
 }
@@ -2817,4 +2821,129 @@ fn try_multi_get_past_objects_at_and_above_limit() {
             &input_size_limit_exceeded_msg()
         ));
     });
+}
+
+/// Reads the oldest available checkpoint `error` reports, when it reports one.
+fn oldest_available_cp_in(error: &ErrorObjectOwned) -> Option<u64> {
+    serde_json::from_str::<DataPrunedErrorData>(error.data()?.get())
+        .ok()
+        .map(|data| data.oldest_available_checkpoint.into_inner())
+}
+
+/// Asserts that `call` reports its data as pruned, along with a checkpoint
+/// above the pruned genesis one.
+async fn assert_reports_data_pruned<F, Fut, T>(method: &str, mut call: F)
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, jsonrpsee::core::ClientError>>,
+{
+    let error = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        // Called here so the returned future borrows nothing from `call`.
+        let lookup = call();
+        async move {
+            match lookup.await {
+                Err(jsonrpsee::core::ClientError::Call(error))
+                    if oldest_available_cp_in(&error).is_some_and(|cp| cp > 0) =>
+                {
+                    Some(error)
+                }
+                _ => None,
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!("timeout waiting for {method} to report a checkpoint above the pruned genesis one")
+    });
+
+    assert!(
+        error.message().contains("Missing data due to pruning"),
+        "expected {method} to report the pruned data as such, got {error}"
+    );
+}
+
+#[tokio::test]
+async fn point_lookups_report_the_oldest_available_cp() {
+    let (cluster, store, client) = start_test_cluster_with_read_write_indexer(
+        Some("test_point_lookups_report_the_oldest_available_cp"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(&store, 1).await;
+
+    // The genesis checkpoint is the one pruned below, and the transaction it
+    // holds goes with it. Both digests are read now, since pruning deletes the
+    // rows they resolve through.
+    let genesis_checkpoint = CheckpointId::SequenceNumber(0);
+    let genesis = client
+        .get_checkpoint(genesis_checkpoint)
+        .await
+        .expect("the genesis checkpoint is still there");
+    let genesis_checkpoint_by_digest = CheckpointId::Digest(genesis.digest);
+    let genesis_tx_digest = *genesis
+        .transactions
+        .first()
+        .expect("the genesis checkpoint holds the genesis transaction");
+
+    // We execute a tx to have an object version from epoch 0 that will be pruned.
+    let transfer = cluster
+        .test_transaction_builder()
+        .await
+        .transfer_iota(Some(1_000), Address::random())
+        .build();
+    let effects = cluster.sign_and_execute_transaction(&transfer).await;
+    wait_for_objects_history(*effects.transaction_digest(), &store, &client).await;
+    let epoch_0_gas_coin = &effects.modified_at_versions()[0];
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(&store, 0).await;
+
+    // A lookup that fails because the data it asks for is pruned reports how
+    // far back the data goes, in the error.
+    assert_reports_data_pruned("iota_getCheckpoint", || {
+        client.get_checkpoint(genesis_checkpoint)
+    })
+    .await;
+    assert_reports_data_pruned("iota_getEvents", || client.get_events(genesis_tx_digest)).await;
+    assert_reports_data_pruned("iota_getTransactionBlock", || {
+        client.get_transaction_block(genesis_tx_digest, None)
+    })
+    .await;
+    // Ascending from the start, so the pruned genesis checkpoint is the first
+    // one the page asks for.
+    assert_reports_data_pruned("iota_getCheckpoints", || {
+        client.get_checkpoints(None, Some(5), false)
+    })
+    .await;
+    // Pruning deleted the row this digest resolves through, so the lookup
+    // cannot tell the checkpoint apart from one that never existed.
+    assert_reports_data_pruned("iota_getCheckpoint by digest", || {
+        client.get_checkpoint(genesis_checkpoint_by_digest)
+    })
+    .await;
+
+    // The gas coin's previous version is still in `objects_version`, but its
+    // content was pruned from `objects_backward_history`.
+    assert_reports_data_pruned("iota_tryGetPastObject", || {
+        client.try_get_past_object(
+            *epoch_0_gas_coin.object_id(),
+            epoch_0_gas_coin.version().into(),
+            None,
+        )
+    })
+    .await;
+
+    // Simulate a restore: the pruner never touches `objects_version`, so an
+    // object missing from it is reported as pruned only after a restore.
+    let current_epoch = 1;
+    store
+        .update_watermarks_lower_bound(vec![(CommitterTables::ObjectsVersion, current_epoch)])
+        .await
+        .expect("the watermark lower bound is updated");
+    assert_reports_data_pruned("iota_tryGetPastObject", || {
+        client.try_get_past_object(ObjectId::random(), Version::from_u64(1).into(), None)
+    })
+    .await;
 }
