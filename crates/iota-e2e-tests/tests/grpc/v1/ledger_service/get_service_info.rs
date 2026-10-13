@@ -42,15 +42,16 @@ async fn get_service_info_readmask_scenarios() {
 
     let mut ledger_client = client.ledger_service_client();
 
-    // Test 1: Default readmask (None) should return only default fields:
-    // chain_id, epoch, executed_checkpoint_height
-    assert_service_info_request(
+    // Test 1: Default readmask (None) should return only default fields, so
+    // not lowest_available_checkpoint_indexes
+    let response = assert_service_info_request(
         &mut ledger_client,
         None,
         &comma_separated_field_mask_to_paths(GET_SERVICE_INFO_READ_MASK),
         "default readmask",
     )
     .await;
+    assert!(response.lowest_available_checkpoint_indexes.is_none());
 
     // Test 2: Empty readmask should return no fields
     assert_service_info_request(
@@ -62,7 +63,7 @@ async fn get_service_info_readmask_scenarios() {
     .await;
 
     // Test 3: Full readmask should return all fields
-    assert_service_info_request(
+    let response = assert_service_info_request(
         &mut ledger_client,
         Some(FieldMask::from_paths([
             "chain_id",
@@ -73,6 +74,7 @@ async fn get_service_info_readmask_scenarios() {
             "lowest_available_checkpoint",
             "lowest_available_checkpoint_objects",
             "server",
+            "lowest_available_checkpoint_indexes",
         ])),
         &[
             "chain_id",
@@ -83,10 +85,15 @@ async fn get_service_info_readmask_scenarios() {
             "lowest_available_checkpoint",
             "lowest_available_checkpoint_objects",
             "server",
+            "lowest_available_checkpoint_indexes",
         ],
         "full readmask",
     )
     .await;
+    assert!(
+        response.lowest_available_checkpoint_indexes.unwrap()
+            >= response.lowest_available_checkpoint.unwrap()
+    );
 
     // Test 4: Partial readmask should return only requested fields
     assert_service_info_request(
