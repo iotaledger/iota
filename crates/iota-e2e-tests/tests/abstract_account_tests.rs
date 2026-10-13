@@ -5056,6 +5056,7 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
 /// by a key that does not match the account's registered public key.
 #[sim_test]
 async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5109,6 +5110,7 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
 /// by a key that does not match the account's registered public key.
 #[sim_test]
 async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5162,6 +5164,7 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
 /// by a key that does not match the account's registered public key.
 #[sim_test]
 async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5216,6 +5219,7 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
 /// provided for a 2-of-2 scheme).
 #[sim_test]
 async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5288,6 +5292,7 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
 /// the account.
 #[sim_test]
 async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5450,6 +5455,7 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
 #[sim_test]
 async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Result<(), anyhow::Error>
 {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -5516,6 +5522,7 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
 /// Move authenticator aborts.
 #[sim_test]
 async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
