@@ -93,6 +93,7 @@ impl Indexer {
             metrics.clone(),
             config.checkpoint_download_queue_size,
             cancel.clone(),
+            config.operational_level,
         )
         .await?;
 
