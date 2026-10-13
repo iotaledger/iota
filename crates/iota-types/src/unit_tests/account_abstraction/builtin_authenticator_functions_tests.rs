@@ -1,6 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::borrow::Cow;
+
 use fastcrypto::{
     hash::{HashFunction, Sha256},
     rsa::{Base64UrlUnpadded, Encoding as _},
@@ -15,7 +17,7 @@ use iota_sdk_types::{
     SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature, Version,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
-        PasskeyAuthenticator,
+        PasskeyAuthenticator, PersonalMessage,
     },
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -27,7 +29,7 @@ use crate::{
         builtin_authenticator_functions::{
             BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
             builtin_authenticator_function_ref_v1, is_builtin_authenticator_function_ref,
-            verify_builtin_signature,
+            verify_builtin_signature, verify_personal_message_signature,
         },
         public_key::MovePublicKey,
     },
@@ -282,7 +284,180 @@ fn verify_builtin_signature_error_invalid_tx_data_bytes() {
     ));
 }
 
+// === verify_personal_message_signature() ===
+
+const PERSONAL_MESSAGE: &[u8] = b"public key: 00ab\naccount: 0x01";
+
+#[test]
+fn verify_personal_message_signature_ok_ed25519() {
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
+    let signature = sign_personal_message(&key_pair, PERSONAL_MESSAGE);
+    assert!(
+        verify_personal_message(
+            &MovePublicKey::from(&key_pair),
+            &signature,
+            PERSONAL_MESSAGE
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn verify_personal_message_signature_ok_secp256k1() {
+    let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(seeded_rng()));
+    let signature = sign_personal_message(&key_pair, PERSONAL_MESSAGE);
+    assert!(
+        verify_personal_message(
+            &MovePublicKey::from(&key_pair),
+            &signature,
+            PERSONAL_MESSAGE
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn verify_personal_message_signature_ok_secp256r1() {
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(seeded_rng()));
+    let signature = sign_personal_message(&key_pair, PERSONAL_MESSAGE);
+    assert!(
+        verify_personal_message(
+            &MovePublicKey::from(&key_pair),
+            &signature,
+            PERSONAL_MESSAGE
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn verify_personal_message_signature_ok_multisig() {
+    let mut rng = seeded_rng();
+    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
+    let multisig_public_key = MultisigCommittee::new(
+        vec![
+            MultisigMember::new(kp1.public_key(), 1),
+            MultisigMember::new(kp2.public_key(), 1),
+        ],
+        1,
+    )
+    .unwrap();
+
+    let sig1: SimpleSignature =
+        kp1.sign(&personal_intent_message(PERSONAL_MESSAGE).signing_digest());
+    let multisig = UserSignature::Multisig(
+        MultisigAggregatedSignature::new(vec![sig1.into()], multisig_public_key.clone()).unwrap(),
+    );
+
+    let public_key = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        bcs::to_bytes(&multisig_public_key).unwrap(),
+    )
+    .unwrap();
+    assert!(verify_personal_message(&public_key, &multisig.to_bytes(), PERSONAL_MESSAGE).is_ok());
+}
+
+#[test]
+fn verify_personal_message_signature_ok_passkey() {
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(seeded_rng()));
+    let raw_public_key = key_pair.public_key().as_ref().to_vec();
+
+    // Challenge = Blake2b256 hash of the BCS-encoded personal intent message.
+    let challenge = personal_intent_message(PERSONAL_MESSAGE).signing_digest();
+    let challenge_b64 = Base64UrlUnpadded::encode_string(challenge.as_ref());
+    let client_data_json = format!(
+        r#"{{"type":"webauthn.get","challenge":"{challenge_b64}","origin":"https://iota.org","crossOrigin":false}}"#
+    );
+    let authenticator_data = vec![0xAB];
+
+    let client_data_hash = Sha256::digest(client_data_json.as_bytes()).digest;
+    let mut webauthn_msg = authenticator_data.clone();
+    webauthn_msg.extend_from_slice(&client_data_hash);
+    let user_sig: SimpleSignature = key_pair.sign(&webauthn_msg);
+    let passkey =
+        PasskeyAuthenticator::new(authenticator_data, client_data_json, user_sig).unwrap();
+
+    let public_key =
+        MovePublicKey::new(SignatureScheme::PasskeyAuthenticator, raw_public_key).unwrap();
+    let signature = UserSignature::PasskeyAuthenticator(passkey).to_bytes();
+    assert!(verify_personal_message(&public_key, &signature, PERSONAL_MESSAGE).is_ok());
+}
+
+#[test]
+fn verify_personal_message_signature_error_other_message() {
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
+    let signature = sign_personal_message(&key_pair, PERSONAL_MESSAGE);
+    assert!(
+        verify_personal_message(
+            &MovePublicKey::from(&key_pair),
+            &signature,
+            b"public key: 00ab"
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn verify_personal_message_signature_error_other_public_key() {
+    let mut rng = seeded_rng();
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
+    let other_key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
+    let signature = sign_personal_message(&key_pair, PERSONAL_MESSAGE);
+    assert!(
+        verify_personal_message(
+            &MovePublicKey::from(&other_key_pair),
+            &signature,
+            PERSONAL_MESSAGE
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn verify_personal_message_signature_error_transaction_signature() {
+    // A transaction signature over the same bytes is not a personal message
+    // signature: the intents differ.
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
+    let verifier = builtin_signature_verifier(&key_pair);
+    assert!(
+        verify_personal_message(
+            &verifier.public_key,
+            &verifier.signature,
+            &verifier.tx_data_bytes
+        )
+        .is_err()
+    );
+}
+
 // === Helpers ===
+
+fn verify_personal_message(
+    public_key: &MovePublicKey,
+    signature: &[u8],
+    message: &[u8],
+) -> Result<(), IotaError> {
+    verify_personal_message_signature(
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        public_key,
+        signature,
+        message,
+    )
+}
+
+fn personal_intent_message(message: &[u8]) -> IntentMessage<PersonalMessage<'_>> {
+    IntentMessage::new(
+        Intent::personal_message(),
+        PersonalMessage(Cow::Borrowed(message)),
+    )
+}
+
+/// Signs `message` as a personal message with `key_pair` and returns the
+/// signature in wire format.
+fn sign_personal_message(key_pair: &SimpleKeypair, message: &[u8]) -> Vec<u8> {
+    let sig: SimpleSignature = key_pair.sign(&personal_intent_message(message).signing_digest());
+    UserSignature::Simple(sig).to_bytes()
+}
 
 /// Calls `verify_builtin_signature` with the arguments for a signed
 /// transaction.

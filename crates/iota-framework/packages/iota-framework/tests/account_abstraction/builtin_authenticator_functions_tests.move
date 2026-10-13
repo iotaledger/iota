@@ -6,7 +6,8 @@ module iota::builtin_authenticator_functions_tests;
 
 use iota::authenticator_function;
 use iota::builtin_authenticator_functions;
-use iota::public_key;
+use iota::public_key::{Self, PublicKey};
+use iota::public_key_proof::{Self, VerifiedPublicKey};
 use iota::signature_scheme;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
@@ -100,7 +101,10 @@ fun attach_borrow_detach_lifecycle() {
         let public_key = ed25519_public_key();
         assert_eq(builtin_authenticator_functions::has_public_key(account.id()), false);
 
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), public_key);
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(public_key),
+        );
 
         assert_eq(builtin_authenticator_functions::has_public_key(account.id()), true);
         assert_ref_eq(
@@ -119,8 +123,12 @@ fun attach_borrow_detach_lifecycle() {
 #[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyAlreadyAttached)]
 fun attach_twice_aborts() {
     account_test_mut!(|account| {
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(ed25519_public_key()),
+        );
+        let proof = account_proof(account.id(), ed25519_public_key());
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), proof);
     });
 }
 
@@ -148,11 +156,12 @@ fun rotate_returns_old_key_and_stores_new() {
         let old_public_key = ed25519_public_key();
         let new_public_key = secp256k1_public_key();
 
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), old_public_key);
-        let returned = builtin_authenticator_functions::rotate_public_key(
+        builtin_authenticator_functions::attach_public_key(
             account.id_mut(),
-            new_public_key,
+            new_account_proof(old_public_key),
         );
+        let proof = account_proof(account.id(), new_public_key);
+        let returned = builtin_authenticator_functions::rotate_public_key(account.id_mut(), proof);
 
         assert_eq(returned, old_public_key);
         assert_ref_eq(
@@ -166,7 +175,112 @@ fun rotate_returns_old_key_and_stores_new() {
 #[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
 fun rotate_without_attach_aborts() {
     account_test_mut!(|account| {
-        builtin_authenticator_functions::rotate_public_key(account.id_mut(), ed25519_public_key());
+        let proof = account_proof(account.id(), ed25519_public_key());
+        builtin_authenticator_functions::rotate_public_key(account.id_mut(), proof);
+    });
+}
+
+// === Public key proofs and the key change count ===
+
+#[test]
+fun key_change_count_rises_on_attach_rotate_and_detach() {
+    account_test_mut!(|account| {
+        assert_eq(builtin_authenticator_functions::public_key_change_count(account.id()), 0);
+
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(ed25519_public_key()),
+        );
+        assert_eq(builtin_authenticator_functions::public_key_change_count(account.id()), 1);
+
+        let proof = account_proof(account.id(), secp256k1_public_key());
+        builtin_authenticator_functions::rotate_public_key(account.id_mut(), proof);
+        assert_eq(builtin_authenticator_functions::public_key_change_count(account.id()), 2);
+
+        builtin_authenticator_functions::detach_public_key(account.id_mut());
+        assert_eq(builtin_authenticator_functions::public_key_change_count(account.id()), 3);
+
+        let proof = account_proof(account.id(), ed25519_public_key());
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), proof);
+        assert_eq(builtin_authenticator_functions::public_key_change_count(account.id()), 4);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EProofForAnotherAccount)]
+fun attach_with_a_proof_for_another_account_aborts() {
+    account_test_mut!(|account| {
+        let proof = public_key_proof::verified_for_account_for_testing(
+            ed25519_public_key(),
+            @0xA,
+            0,
+        );
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), proof);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EStaleKeyChangeCount)]
+fun rotate_with_a_stale_key_change_count_aborts() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(ed25519_public_key()),
+        );
+        // Made at count 1; the first rotation raises it to 2, so the same proof is stale.
+        let first = account_proof(account.id(), secp256k1_public_key());
+        let replay = account_proof(account.id(), secp256k1_public_key());
+        builtin_authenticator_functions::rotate_public_key(account.id_mut(), first);
+        builtin_authenticator_functions::rotate_public_key(account.id_mut(), replay);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EStaleKeyChangeCount)]
+fun detach_makes_earlier_proofs_stale() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(ed25519_public_key()),
+        );
+        let proof = account_proof(account.id(), secp256k1_public_key());
+        builtin_authenticator_functions::detach_public_key(account.id_mut());
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), proof);
+    });
+}
+
+#[test]
+#[expected_failure(
+    abort_code = iota::builtin_authenticator_functions::ENewAccountProofForUsedAccount,
+)]
+fun new_account_proof_on_an_account_that_had_a_key_aborts() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(ed25519_public_key()),
+        );
+        builtin_authenticator_functions::detach_public_key(account.id_mut());
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(ed25519_public_key()),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(
+    abort_code = iota::builtin_authenticator_functions::ENewAccountProofForUsedAccount,
+)]
+fun rotate_with_a_new_account_proof_aborts() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(
+            account.id_mut(),
+            new_account_proof(ed25519_public_key()),
+        );
+        builtin_authenticator_functions::rotate_public_key(
+            account.id_mut(),
+            new_account_proof(secp256k1_public_key()),
+        );
     });
 }
 
@@ -731,7 +845,7 @@ macro fun authenticator_test(
     let mut account = TestAccount { id: object::new(scenario.ctx()) };
     builtin_authenticator_functions::attach_public_key(
         account.id_mut(),
-        public_key::create($scheme, $raw_public_key),
+        new_account_proof(public_key::create($scheme, $raw_public_key)),
     );
     set_tx_data_bytes($tx_data_bytes);
 
@@ -784,7 +898,7 @@ macro fun rotation_test($f: |&TestAccount|) {
     let mut account = TestAccount { id: object::new(scenario.ctx()) };
     builtin_authenticator_functions::attach_public_key(
         account.id_mut(),
-        public_key::create(signature_scheme::ed25519(), ED25519_PUBLIC_KEY),
+        new_account_proof(public_key::create(signature_scheme::ed25519(), ED25519_PUBLIC_KEY)),
     );
     set_tx_data_bytes(TX_DATA_BYTES);
     builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
@@ -792,12 +906,28 @@ macro fun rotation_test($f: |&TestAccount|) {
         ED25519_SIGNATURE,
     );
 
-    builtin_authenticator_functions::rotate_public_key(
-        account.id_mut(),
+    let proof = account_proof(
+        account.id(),
         public_key::create(signature_scheme::secp256k1(), SECP256K1_PUBLIC_KEY),
     );
+    builtin_authenticator_functions::rotate_public_key(account.id_mut(), proof);
     $f(&account);
 
     iota::test_utils::destroy(account);
     scenario.end();
+}
+
+/// A proof for a new account, without a signature.
+fun new_account_proof(public_key: PublicKey): VerifiedPublicKey {
+    public_key_proof::verified_for_new_account_for_testing(public_key)
+}
+
+/// A proof for the account with `account_id` at its current key change count, without a
+/// signature.
+fun account_proof(account_id: &UID, public_key: PublicKey): VerifiedPublicKey {
+    public_key_proof::verified_for_account_for_testing(
+        public_key,
+        account_id.to_address(),
+        builtin_authenticator_functions::public_key_change_count(account_id),
+    )
 }

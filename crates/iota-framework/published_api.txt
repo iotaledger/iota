@@ -2503,6 +2503,66 @@ is_feature_enabled
 get_attr
 	public(package) fun
 	0x2::protocol_config
+VerifiedPublicKey
+	public struct
+	0x2::public_key_proof
+AccountFactory
+	public struct
+	0x2::public_key_proof
+NonceKey
+	public struct
+	0x2::public_key_proof
+new_owned_factory
+	public fun
+	0x2::public_key_proof
+new_shared_factory
+	public fun
+	0x2::public_key_proof
+destroy_owned_factory
+	public fun
+	0x2::public_key_proof
+skip_sequence
+	public fun
+	0x2::public_key_proof
+verify_for_account
+	public fun
+	0x2::public_key_proof
+verify_for_new_account
+	public fun
+	0x2::public_key_proof
+account_proof_message
+	public fun
+	0x2::public_key_proof
+creation_proof_message
+	public fun
+	0x2::public_key_proof
+is_shared
+	public fun
+	0x2::public_key_proof
+next_sequence
+	public fun
+	0x2::public_key_proof
+public_key
+	public fun
+	0x2::public_key_proof
+verified_by_claim
+	public(package) fun
+	0x2::public_key_proof
+unpack
+	public(package) fun
+	0x2::public_key_proof
+consume_sequence
+	fun
+	0x2::public_key_proof
+message_head
+	fun
+	0x2::public_key_proof
+verify_signature
+	fun
+	0x2::public_key_proof
+verify_personal_message
+	fun
+	0x2::public_key_proof
 PublicKeyAttached
 	public struct
 	0x2::builtin_authenticator_functions
@@ -2513,6 +2573,9 @@ PublicKeyRotated
 	public struct
 	0x2::builtin_authenticator_functions
 PublicKeyFieldName
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyChangeCountKey
 	public struct
 	0x2::builtin_authenticator_functions
 builtin_authenticator_function_ref_v1
@@ -2535,6 +2598,15 @@ has_public_key
 	0x2::builtin_authenticator_functions
 borrow_public_key
 	public fun
+	0x2::builtin_authenticator_functions
+public_key_change_count
+	public fun
+	0x2::builtin_authenticator_functions
+consume_proof
+	fun
+	0x2::builtin_authenticator_functions
+count_key_change
+	fun
 	0x2::builtin_authenticator_functions
 builtin_authenticator_v1
 	fun
@@ -3851,6 +3923,9 @@ has_public_key
 	public fun
 	0x2::smart_account_builtin_auth
 borrow_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+public_key_change_count
 	public fun
 	0x2::smart_account_builtin_auth
 rotate_to_builtin_auth_v1

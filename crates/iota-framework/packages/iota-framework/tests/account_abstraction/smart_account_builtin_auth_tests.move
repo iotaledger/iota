@@ -6,6 +6,7 @@ module iota::smart_account_builtin_auth_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::public_key::{Self, PublicKey};
+use iota::public_key_proof::{Self, VerifiedPublicKey};
 use iota::signature_scheme;
 use iota::smart_account::{Self, SmartAccount};
 use iota::smart_account_builtin_auth;
@@ -31,7 +32,7 @@ fun builder_v1_attaches_public_key_and_builtin_auth() {
 fun builder_v1_accepts_extra_fields() {
     let mut scenario = test_scenario::begin(@0x0);
 
-    smart_account_builtin_auth::builder_v1(ed25519_public_key(), scenario.ctx())
+    smart_account_builtin_auth::builder_v1(new_account_proof(ed25519_public_key()), scenario.ctx())
         .with_field(b"answer", 42u64)
         .build_v1();
 
@@ -98,11 +99,8 @@ fun borrow_public_key_aborts_without_a_key() {
 #[test]
 fun rotate_to_builtin_auth_v1_attaches_key_and_sets_builtin_auth() {
     custom_account_test!(|account, scenario| {
-        let previous = smart_account_builtin_auth::rotate_to_builtin_auth_v1(
-            account,
-            multisig_public_key(),
-            scenario.ctx(),
-        );
+        let proof = account_proof(account, multisig_public_key());
+        let previous = smart_account_builtin_auth::rotate_to_builtin_auth_v1(account, proof, scenario.ctx());
 
         assert_eq(previous, custom_authenticator());
         assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
@@ -117,11 +115,8 @@ fun rotate_to_builtin_auth_v1_attaches_key_and_sets_builtin_auth() {
 #[expected_failure(abort_code = iota::smart_account_builtin_auth::EBuiltinAuthAlreadySet)]
 fun rotate_to_builtin_auth_v1_aborts_if_builtin_auth_already_set() {
     builtin_account_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
-            account,
-            multisig_public_key(),
-            scenario.ctx(),
-        );
+        let proof = account_proof(account, multisig_public_key());
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(account, proof, scenario.ctx());
     });
 }
 
@@ -129,11 +124,8 @@ fun rotate_to_builtin_auth_v1_aborts_if_builtin_auth_already_set() {
 #[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun rotate_to_builtin_auth_v1_aborts_if_sender_not_account() {
     custom_account_wrong_sender_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
-            account,
-            ed25519_public_key(),
-            scenario.ctx(),
-        );
+        let proof = account_proof(account, ed25519_public_key());
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(account, proof, scenario.ctx());
     });
 }
 
@@ -200,11 +192,8 @@ fun rotating_to_custom_and_back_to_builtin_auth_takes_a_new_key() {
             custom_authenticator(),
             scenario.ctx(),
         );
-        smart_account_builtin_auth::rotate_to_builtin_auth_v1(
-            account,
-            multisig_public_key(),
-            scenario.ctx(),
-        );
+        let proof = account_proof(account, multisig_public_key());
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(account, proof, scenario.ctx());
 
         assert_eq(smart_account_builtin_auth::has_builtin_auth(account), true);
         assert_ref_eq(
@@ -219,11 +208,8 @@ fun rotating_to_custom_and_back_to_builtin_auth_takes_a_new_key() {
 #[test]
 fun rotate_public_key_replaces_the_key_with_another_scheme() {
     builtin_account_test!(|account, scenario| {
-        let previous = smart_account_builtin_auth::rotate_public_key(
-            account,
-            multisig_public_key(),
-            scenario.ctx(),
-        );
+        let proof = account_proof(account, multisig_public_key());
+        let previous = smart_account_builtin_auth::rotate_public_key(account, proof, scenario.ctx());
 
         assert_eq(previous, ed25519_public_key());
         assert_ref_eq(
@@ -238,11 +224,8 @@ fun rotate_public_key_replaces_the_key_with_another_scheme() {
 #[expected_failure(abort_code = iota::smart_account_builtin_auth::EBuiltinAuthNotSet)]
 fun rotate_public_key_aborts_without_builtin_auth() {
     custom_account_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_public_key(
-            account,
-            multisig_public_key(),
-            scenario.ctx(),
-        );
+        let proof = account_proof(account, multisig_public_key());
+        smart_account_builtin_auth::rotate_public_key(account, proof, scenario.ctx());
     });
 }
 
@@ -250,12 +233,80 @@ fun rotate_public_key_aborts_without_builtin_auth() {
 #[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun rotate_public_key_aborts_if_sender_not_account() {
     builtin_account_wrong_sender_test!(|account, scenario| {
-        smart_account_builtin_auth::rotate_public_key(
+        let proof = account_proof(account, multisig_public_key());
+        smart_account_builtin_auth::rotate_public_key(account, proof, scenario.ctx());
+    });
+}
+
+// === Public key proofs ===
+
+#[test]
+fun public_key_change_count_follows_attach_rotate_and_detach() {
+    builtin_account_test!(|account, scenario| {
+        assert_eq(smart_account_builtin_auth::public_key_change_count(account), 1);
+
+        let proof = account_proof(account, multisig_public_key());
+        smart_account_builtin_auth::rotate_public_key(account, proof, scenario.ctx());
+        assert_eq(smart_account_builtin_auth::public_key_change_count(account), 2);
+
+        smart_account_builtin_auth::rotate_to_custom_auth_v1(
             account,
-            multisig_public_key(),
+            custom_authenticator(),
             scenario.ctx(),
         );
+        assert_eq(smart_account_builtin_auth::public_key_change_count(account), 3);
     });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EProofForAnotherAccount)]
+fun rotate_public_key_aborts_for_a_proof_for_another_account() {
+    builtin_account_test!(|account, scenario| {
+        let proof = public_key_proof::verified_for_account_for_testing(
+            multisig_public_key(),
+            @0xA,
+            smart_account_builtin_auth::public_key_change_count(account),
+        );
+        smart_account_builtin_auth::rotate_public_key(account, proof, scenario.ctx());
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EStaleKeyChangeCount)]
+fun rotate_to_builtin_auth_v1_aborts_for_a_proof_made_before_the_key_was_detached() {
+    builtin_account_test!(|account, scenario| {
+        let proof = account_proof(account, multisig_public_key());
+        smart_account_builtin_auth::rotate_to_custom_auth_v1(
+            account,
+            custom_authenticator(),
+            scenario.ctx(),
+        );
+        smart_account_builtin_auth::rotate_to_builtin_auth_v1(account, proof, scenario.ctx());
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EProofForAnotherAccount)]
+fun builder_v1_aborts_for_a_proof_for_an_existing_account() {
+    let mut scenario = test_scenario::begin(@0x0);
+    let proof = public_key_proof::verified_for_account_for_testing(ed25519_public_key(), @0xA, 0);
+    smart_account_builtin_auth::builder_v1(proof, scenario.ctx()).build_v1();
+
+    abort
+}
+
+#[test]
+fun claim_account_v1_counts_the_claimed_key() {
+    let public_key = ed25519_public_key();
+    let sender = public_key.to_iota_address();
+    let mut scenario = test_scenario::begin(sender);
+    smart_account_builtin_auth::claim_account_v1_for_testing(public_key, scenario.ctx());
+
+    scenario.next_tx(sender);
+    let account = scenario.take_shared<SmartAccount>();
+    assert_eq(smart_account_builtin_auth::public_key_change_count(&account), 1);
+    test_scenario::return_shared(account);
+    scenario.end();
 }
 
 // === Core rotation ===
@@ -332,7 +383,7 @@ fun builtin_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
 macro fun builtin_account_test($f: |&mut SmartAccount, &mut Scenario|) {
     let mut scenario = test_scenario::begin(@0x0);
 
-    let addr = smart_account_builtin_auth::builder_v1(ed25519_public_key(), scenario.ctx())
+    let addr = smart_account_builtin_auth::builder_v1(new_account_proof(ed25519_public_key()), scenario.ctx())
         .build_v1();
 
     scenario.next_tx(addr);
@@ -349,7 +400,7 @@ macro fun builtin_account_test($f: |&mut SmartAccount, &mut Scenario|) {
 macro fun builtin_account_wrong_sender_test($f: |&mut SmartAccount, &mut Scenario|) {
     let mut scenario = test_scenario::begin(@0x0);
 
-    smart_account_builtin_auth::builder_v1(ed25519_public_key(), scenario.ctx()).build_v1();
+    smart_account_builtin_auth::builder_v1(new_account_proof(ed25519_public_key()), scenario.ctx()).build_v1();
 
     scenario.next_tx(@0x1);
     let mut account = scenario.take_shared<SmartAccount>();
@@ -364,7 +415,7 @@ macro fun builtin_account_wrong_sender_test($f: |&mut SmartAccount, &mut Scenari
 /// Ed25519 key.
 macro fun builtin_account_view_test($f: |&SmartAccount|) {
     let mut scenario = test_scenario::begin(@0x0);
-    smart_account_builtin_auth::builder_v1(ed25519_public_key(), scenario.ctx()).build_v1();
+    smart_account_builtin_auth::builder_v1(new_account_proof(ed25519_public_key()), scenario.ctx()).build_v1();
 
     scenario.next_tx(@0x0);
     let account = scenario.take_shared<SmartAccount>();
@@ -419,4 +470,18 @@ macro fun custom_account_wrong_sender_test($f: |&mut SmartAccount, &mut Scenario
 
     test_scenario::return_shared(account);
     scenario.end();
+}
+
+/// A proof for a new account, without a signature.
+fun new_account_proof(public_key: PublicKey): VerifiedPublicKey {
+    public_key_proof::verified_for_new_account_for_testing(public_key)
+}
+
+/// A proof for `account` at its current key change count, without a signature.
+fun account_proof(account: &SmartAccount, public_key: PublicKey): VerifiedPublicKey {
+    public_key_proof::verified_for_account_for_testing(
+        public_key,
+        account.account_address(),
+        smart_account_builtin_auth::public_key_change_count(account),
+    )
 }

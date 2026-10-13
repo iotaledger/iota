@@ -12,7 +12,7 @@
 //! inspired by the `examples/move/iotaccount` implementation. This is needed in
 //! order to not depend on an external folder and to enable easier changes to
 //! the Move code.
-use std::{net::SocketAddr, str::FromStr};
+use std::{borrow::Cow, net::SocketAddr, str::FromStr};
 
 use fastcrypto::{
     ed25519::Ed25519Signature,
@@ -36,15 +36,18 @@ use iota_sdk_types::{
     UserSignature, WriteKind,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
-        PasskeyAuthenticator, SimpleSignature,
+        PasskeyAuthenticator, PersonalMessage, SimpleSignature,
     },
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    account_abstraction::builtin_authenticator_functions::{
-        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
-        INVALID_SIGNATURE_ERROR_CODE,
+    account_abstraction::{
+        builtin_authenticator_functions::{
+            BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
+            INVALID_SIGNATURE_ERROR_CODE,
+        },
+        public_key_proof::creation_proof_message,
     },
     base_types::AuthorityName,
     crypto::PublicKey,
@@ -68,10 +71,11 @@ use passkey_types::{
     ctap2::{Aaguid, Ctap2Error},
     rand::random_vec,
     webauthn::{
-        AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
-        PublicKeyCredentialCreationOptions, PublicKeyCredentialParameters,
-        PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
-        PublicKeyCredentialUserEntity, UserVerificationRequirement,
+        AttestationConveyancePreference, AuthenticatedPublicKeyCredential,
+        CredentialCreationOptions, CredentialRequestOptions, PublicKeyCredentialCreationOptions,
+        PublicKeyCredentialParameters, PublicKeyCredentialRequestOptions,
+        PublicKeyCredentialRpEntity, PublicKeyCredentialType, PublicKeyCredentialUserEntity,
+        UserVerificationRequirement,
     },
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -102,6 +106,11 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 // builtin_keyed_aa Move module).
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
 const AA_BUILTIN_CREATE_FN: &str = "create";
+
+// The framework module that checks a key holder's approval of attaching a key.
+const PUBLIC_KEY_PROOF_MODULE_NAME: &str = "public_key_proof";
+// The last epoch in which the key proofs these tests make are valid.
+const PROOF_VALID_UNTIL_EPOCH: u64 = u64::MAX;
 
 // ------------------------------
 // --- Abstract Account tests ---
@@ -2398,8 +2407,14 @@ async fn test_builtin_ed25519_authenticator() -> Result<(), anyhow::Error> {
         .clone();
     let pk = kp.public_key();
 
+    let proof = personal_message_signature(
+        &kp,
+        &test_env
+            .creation_proof_message(pk.scheme(), pk.as_ref())
+            .await?,
+    );
     test_env
-        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec(), proof)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2433,8 +2448,14 @@ async fn test_builtin_secp256k1_authenticator() -> Result<(), anyhow::Error> {
     )));
     let pk = kp.public_key();
 
+    let proof = personal_message_signature(
+        &kp,
+        &test_env
+            .creation_proof_message(pk.scheme(), pk.as_ref())
+            .await?,
+    );
     test_env
-        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec(), proof)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2468,8 +2489,14 @@ async fn test_builtin_secp256r1_authenticator() -> Result<(), anyhow::Error> {
     )));
     let pk = kp.public_key();
 
+    let proof = personal_message_signature(
+        &kp,
+        &test_env
+            .creation_proof_message(pk.scheme(), pk.as_ref())
+            .await?,
+    );
     test_env
-        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec(), proof)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2509,8 +2536,16 @@ async fn test_builtin_multisig_authenticator() -> Result<(), anyhow::Error> {
         2,
     )?;
 
+    let multisig_bytes = bcs::to_bytes(&multisig_pk)?;
+    let proof = multisig_personal_message_signature(
+        &[&kp1, &kp2],
+        &multisig_pk,
+        &test_env
+            .creation_proof_message(SignatureScheme::Multisig, &multisig_bytes)
+            .await?,
+    )?;
     test_env
-        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
+        .setup_builtin_account(SignatureScheme::Multisig, multisig_bytes, proof)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2605,8 +2640,23 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
     let mut pk_bytes = vec![prefix];
     pk_bytes.extend_from_slice(ep.x().unwrap());
 
+    let message = test_env
+        .creation_proof_message(SignatureScheme::PasskeyAuthenticator, &pk_bytes)
+        .await?;
+    let proof_credential = my_client
+        .authenticate(
+            &origin,
+            passkey_request(&origin, personal_message_digest(&message)),
+            None,
+        )
+        .await
+        .expect("passkey authentication of the key proof failed");
     test_env
-        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes.clone())
+        .setup_builtin_account(
+            SignatureScheme::PasskeyAuthenticator,
+            pk_bytes.clone(),
+            passkey_signature_bytes(&proof_credential, &pk_bytes)?,
+        )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2689,10 +2739,17 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
     let kp1 = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
         [10u8; 32],
     )));
+    let proof = personal_message_signature(
+        &kp1,
+        &test_env
+            .creation_proof_message(kp1.public_key().scheme(), kp1.public_key().as_ref())
+            .await?,
+    );
     test_env
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
+            proof,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2742,10 +2799,17 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
     let kp1 = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
         [20u8; 32],
     )));
+    let proof = personal_message_signature(
+        &kp1,
+        &test_env
+            .creation_proof_message(kp1.public_key().scheme(), kp1.public_key().as_ref())
+            .await?,
+    );
     test_env
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
+            proof,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2795,10 +2859,17 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
     let kp1 = SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed(
         [30u8; 32],
     )));
+    let proof = personal_message_signature(
+        &kp1,
+        &test_env
+            .creation_proof_message(kp1.public_key().scheme(), kp1.public_key().as_ref())
+            .await?,
+    );
     test_env
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
+            proof,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2856,8 +2927,16 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
         2,
     )?;
 
+    let multisig_bytes = bcs::to_bytes(&multisig_pk)?;
+    let proof = multisig_personal_message_signature(
+        &[&kp1, &kp2],
+        &multisig_pk,
+        &test_env
+            .creation_proof_message(SignatureScheme::Multisig, &multisig_bytes)
+            .await?,
+    )?;
     test_env
-        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
+        .setup_builtin_account(SignatureScheme::Multisig, multisig_bytes, proof)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2966,8 +3045,20 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     let mut pk_bytes_a = vec![prefix_a];
     pk_bytes_a.extend_from_slice(ep_a.x().unwrap());
 
+    let message = test_env
+        .creation_proof_message(SignatureScheme::PasskeyAuthenticator, &pk_bytes_a)
+        .await?;
+    let proof_credential = client_a
+        .authenticate(
+            &origin,
+            passkey_request(&origin, personal_message_digest(&message)),
+            None,
+        )
+        .await
+        .expect("passkey A authentication of the key proof failed");
+    let proof = passkey_signature_bytes(&proof_credential, &pk_bytes_a)?;
     test_env
-        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes_a)
+        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes_a, proof)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -3090,8 +3181,14 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
         .clone();
     let pk = ed25519_kp.public_key();
 
+    let proof = personal_message_signature(
+        &ed25519_kp,
+        &test_env
+            .creation_proof_message(pk.scheme(), pk.as_ref())
+            .await?,
+    );
     test_env
-        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec(), proof)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -3266,11 +3363,11 @@ async fn test_builtin_authenticator_rejects_malformed_signature_argument()
 /// `enable_builtin_move_authenticators` is disabled in the protocol config.
 /// Ed25519 is used as a representative scheme.
 ///
-/// `builtin_authenticator_function_ref_v1` calls
-/// `check_builtin_authenticators_enabled()` and aborts with
-/// `EBuiltinAuthenticatorsNotEnabled` (code 0) before an
-/// `AuthenticatorFunctionRefV1` is ever produced, so the account creation
-/// transaction itself fails — it never reaches the authentication step.
+/// `public_key_proof::verify_for_new_account` checks the feature first and
+/// aborts with `EBuiltinAuthenticatorsNotEnabled` (code 0) before the key is
+/// attached or an `AuthenticatorFunctionRefV1` is produced, so the account
+/// creation transaction itself fails — it never reaches the authentication
+/// step.
 #[sim_test]
 async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -3294,10 +3391,18 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
         .clone();
     let pk = kp.public_key();
 
-    // With the feature disabled, `builtin_authenticator_function_ref_v1` aborts
-    // with EBuiltinAuthenticatorsNotEnabled (code 0) inside account creation.
+    // With the feature disabled, `public_key_proof::verify_for_new_account`
+    // aborts with EBuiltinAuthenticatorsNotEnabled (code 0) inside account
+    // creation, before it checks the proof.
+    let message = test_env
+        .creation_proof_message(pk.scheme(), pk.as_ref())
+        .await?;
     let transaction = test_env
-        .craft_create_builtin_account(pk.scheme(), pk.as_ref())
+        .craft_create_builtin_account(
+            pk.scheme(),
+            pk.as_ref(),
+            &personal_message_signature(&kp, &message),
+        )
         .await?;
     let (effects, _) = test_env
         .test_cluster
@@ -3314,10 +3419,10 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
         matches!(
             status.unwrap_err().0,
             ExecutionError::MoveAbort{location: MoveLocation { module, .. }, code: abort_code}
-            if module.as_str() == BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
+            if module.as_str() == PUBLIC_KEY_PROOF_MODULE_NAME
                 && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
-        "Expected MoveAbort in builtin_authenticator_functions with code 0 \
+        "Expected MoveAbort in public_key_proof with code 0 \
          (EBuiltinAuthenticatorsNotEnabled)"
     );
 
@@ -3337,6 +3442,8 @@ struct TestEnvironment {
     aa_package_metadata_ref: Option<ObjectReference>,
     aa_ref: Option<ObjectReference>,
     aa_create_transaction: Option<TransactionEnvelope>,
+    account_factory: Option<(ObjectId, Address)>,
+    account_factory_sequence: u64,
 }
 
 impl TestEnvironment {
@@ -3368,6 +3475,8 @@ impl TestEnvironment {
             aa_package_metadata_ref: None,
             aa_ref: None,
             aa_create_transaction: None,
+            account_factory: None,
+            account_factory_sequence: 0,
         }
     }
 
@@ -4245,14 +4354,16 @@ impl TestEnvironment {
     /// shared object backed by a built-in authenticator.
     ///
     /// `scheme` and `raw_bytes` are passed directly to Move's
-    /// `public_key::create`.
+    /// `public_key::create`. `proof` is the key's signature of the message
+    /// `creation_proof_message` returns, in `UserSignature` wire format.
     async fn setup_builtin_account(
         &mut self,
         scheme: SignatureScheme,
         raw_bytes: Vec<u8>,
+        proof: Vec<u8>,
     ) -> anyhow::Result<()> {
         let transaction = self
-            .craft_create_builtin_account(scheme, &raw_bytes)
+            .craft_create_builtin_account(scheme, &raw_bytes, &proof)
             .await?;
         let (effects, _) = self
             .test_cluster
@@ -4261,19 +4372,87 @@ impl TestEnvironment {
         self.aa_ref = Some(abstract_account_from_all_changed_objects(
             &effects.all_changed_objects(),
         ));
+        self.account_factory_sequence += 1;
         Ok(())
     }
 
-    /// Craft a signed transaction that calls
-    /// `builtin_keyed_aa::create` with the given public key.
+    /// Returns the message the holder of the `scheme` key `raw_bytes` signs, as
+    /// a personal message, to approve the next built-in account this
+    /// environment creates. The account is created under nonce key 0 of this
+    /// environment's owned `AccountFactory`, which is created on first use.
+    async fn creation_proof_message(
+        &mut self,
+        scheme: SignatureScheme,
+        raw_bytes: &[u8],
+    ) -> anyhow::Result<Vec<u8>> {
+        let (factory, sender) = self.account_factory().await?;
+        Ok(creation_proof_message(
+            scheme,
+            raw_bytes,
+            factory,
+            sender,
+            0,
+            self.account_factory_sequence,
+            PROOF_VALID_UNTIL_EPOCH,
+        ))
+    }
+
+    /// Returns the ID of this environment's owned `AccountFactory` and its
+    /// owner, the sender of the creation transactions, creating it on first
+    /// use.
+    async fn account_factory(&mut self) -> anyhow::Result<(ObjectId, Address)> {
+        if let Some(factory) = self.account_factory {
+            return Ok(factory);
+        }
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::new(PUBLIC_KEY_PROOF_MODULE_NAME)?,
+            Identifier::new("new_owned_factory")?,
+            vec![],
+            vec![],
+        );
+        let tx_data = self
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(builder.finish())
+            .build();
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(
+                self.test_cluster.wallet.sign_transaction(&tx_data),
+            )
+            .await?;
+        let created = effects.created();
+        let factory = created
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("the factory transaction created no object"))?;
+        let Owner::Address(sender) = *factory.owner() else {
+            anyhow::bail!("the account factory is not owned by an address");
+        };
+        let factory = (factory.reference().object_id, sender);
+        self.account_factory = Some(factory);
+        Ok(factory)
+    }
+
+    /// Craft a signed transaction that checks `proof` with
+    /// `public_key_proof::verify_for_new_account` and calls
+    /// `builtin_keyed_aa::create` with the verified public key.
     async fn craft_create_builtin_account(
         &self,
         scheme: SignatureScheme,
         raw_bytes: &[u8],
+        proof: &[u8],
     ) -> anyhow::Result<TransactionEnvelope> {
         let Some(aa_package_id) = self.aa_package_id else {
             anyhow::bail!("AA package id not set — call init_abstract_account_state first");
         };
+        let Some((factory, _)) = self.account_factory else {
+            anyhow::bail!("Account factory not set — call creation_proof_message first");
+        };
+        let factory_ref = self.test_cluster.wallet.get_object_ref(factory).await?;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -4303,12 +4482,26 @@ impl TestEnvironment {
                 vec![],
                 vec![scheme_arg, raw_arg],
             );
+            let verify_args = vec![
+                public_key,
+                builder.obj(CallArg::ImmutableOrOwned(factory_ref))?,
+                builder.pure(0u64)?,
+                builder.pure(PROOF_VALID_UNTIL_EPOCH)?,
+                builder.pure(proof.to_vec())?,
+            ];
+            let verified = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::new(PUBLIC_KEY_PROOF_MODULE_NAME)?,
+                Identifier::new("verify_for_new_account")?,
+                vec![],
+                verify_args,
+            );
             builder.programmable_move_call(
                 aa_package_id,
                 Identifier::new(AA_BUILTIN_MODULE_NAME)?,
                 Identifier::new(AA_BUILTIN_CREATE_FN)?,
                 vec![],
-                vec![public_key],
+                vec![verified],
             );
             builder.finish()
         };
@@ -4425,6 +4618,82 @@ fn builtin_sig_for_keypair(
     ))
 }
 
+/// Returns the digest a key signs to sign `message` as an IOTA personal
+/// message.
+fn personal_message_digest(message: &[u8]) -> Vec<u8> {
+    IntentMessage::new(
+        Intent::personal_message(),
+        PersonalMessage(Cow::Borrowed(message)),
+    )
+    .signing_digest()
+    .to_vec()
+}
+
+/// Signs `message` as an IOTA personal message with `kp` and returns the
+/// `UserSignature` wire bytes.
+fn personal_message_signature(kp: &SimpleKeypair, message: &[u8]) -> Vec<u8> {
+    let sig: SimpleSignature = kp.sign(&personal_message_digest(message));
+    UserSignature::Simple(sig).to_bytes()
+}
+
+/// Signs `message` as an IOTA personal message with each of `signers`, members
+/// of `committee`, and returns the combined MultiSig `UserSignature` wire
+/// bytes.
+fn multisig_personal_message_signature(
+    signers: &[&Ed25519PrivateKey],
+    committee: &MultisigCommittee,
+    message: &[u8],
+) -> anyhow::Result<Vec<u8>> {
+    let digest = personal_message_digest(message);
+    let signatures = signers
+        .iter()
+        .map(|kp| {
+            let sig: SimpleSignature = kp.sign(&digest);
+            sig.into()
+        })
+        .collect();
+    let multisig = MultisigAggregatedSignature::new(signatures, committee.clone())?;
+    Ok(UserSignature::Multisig(multisig).to_bytes())
+}
+
+/// Returns the WebAuthn request that asks a passkey credential at `origin` to
+/// sign `challenge`.
+fn passkey_request(origin: &Url, challenge: Vec<u8>) -> CredentialRequestOptions {
+    CredentialRequestOptions {
+        public_key: PublicKeyCredentialRequestOptions {
+            challenge: challenge.into(),
+            timeout: None,
+            rp_id: Some(origin.domain().unwrap().into()),
+            allow_credentials: None,
+            user_verification: UserVerificationRequirement::default(),
+            attestation: Default::default(),
+            attestation_formats: None,
+            extensions: None,
+            hints: None,
+        },
+    }
+}
+
+/// Returns the `UserSignature` wire bytes of `credential`, an assertion by the
+/// passkey whose compressed Secp256r1 key is `public_key`.
+fn passkey_signature_bytes(
+    credential: &AuthenticatedPublicKeyCredential,
+    public_key: &[u8],
+) -> anyhow::Result<Vec<u8>> {
+    let sig = p256::ecdsa::Signature::from_der(credential.response.signature.as_slice())?;
+    let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
+    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.to_u8()];
+    user_sig_bytes.extend_from_slice(&sig_bytes);
+    user_sig_bytes.extend_from_slice(public_key);
+
+    let passkey = PasskeyAuthenticator::new(
+        credential.response.authenticator_data.as_slice().to_vec(),
+        String::from_utf8_lossy(credential.response.client_data_json.as_slice()).into(),
+        SimpleSignature::from_bytes(&user_sig_bytes)?,
+    )?;
+    Ok(UserSignature::PasskeyAuthenticator(passkey).to_bytes())
+}
+
 /// Asserts that `err` is a `MoveAuthentication` failure whose message contains
 /// `expected`.
 fn assert_move_authentication_failure(err: &IotaError, expected: &str) {
@@ -4447,8 +4716,18 @@ async fn setup_builtin_ed25519_tx(
     test_env.init_abstract_account_state("").await;
 
     let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(seed)));
+    let proof = personal_message_signature(
+        &kp,
+        &test_env
+            .creation_proof_message(kp.public_key().scheme(), kp.public_key().as_ref())
+            .await?,
+    );
     test_env
-        .setup_builtin_account(kp.public_key().scheme(), kp.public_key().as_ref().to_vec())
+        .setup_builtin_account(
+            kp.public_key().scheme(),
+            kp.public_key().as_ref().to_vec(),
+            proof,
+        )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();

@@ -9,7 +9,7 @@ use iota::builtin_authenticator_functions;
 use iota::coin::Coin;
 use iota::dynamic_field;
 use iota::iota::IOTA;
-use iota::public_key::PublicKey;
+use iota::public_key_proof::VerifiedPublicKey;
 
 // === Errors ===
 
@@ -70,14 +70,14 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
     self
 }
 
-/// Attach a public key using the built-in authenticator dynamic field key.
+/// Attach the public key of `verified` using the built-in authenticator dynamic field key.
 /// Delegates to `builtin_authenticator_functions::attach_public_key` so that the correct
 /// `PublicKeyFieldName` key (which can only be constructed inside the framework module) is used.
 public fun attach_builtin_public_key(
     mut self: AbstractAccountBuilder,
-    public_key: PublicKey,
+    verified: VerifiedPublicKey,
 ): AbstractAccountBuilder {
-    builtin_authenticator_functions::attach_public_key(&mut self.account.id, public_key);
+    builtin_authenticator_functions::attach_public_key(&mut self.account.id, verified);
     self
 }
 
