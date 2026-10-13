@@ -359,6 +359,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 );
         }
 
+        // TODO(#13170): once `consensus_handler_cache_only_recorded_messages` is enabled on
+        // all networks, remove the flag and the old caching it replaces below.
         let cache_only_recorded_messages = self
             .epoch_store
             .protocol_config()
@@ -422,6 +424,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
                 let key = verified_transaction.0.key();
                 processed_set.insert(key.clone());
+                // TODO(#13170): remove with the flag. Caches a key before the epoch store
+                // decides whether to record it.
                 let in_cache =
                     !cache_only_recorded_messages && self.processed_cache.put(key, ()).is_some();
 
