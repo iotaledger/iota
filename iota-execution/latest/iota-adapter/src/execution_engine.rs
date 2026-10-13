@@ -393,10 +393,10 @@ mod checked {
         // chain. A resolution failure skips the run and carries its error
         // instead.
         let authentication_execution_result = match authenticators {
-            MoveAuthenticatorsForExecution::Resolved(authenticators) => {
+            MoveAuthenticatorsForExecution::Resolved(resolved) => {
                 // Store each loaded function-ref field object's metadata
                 // in the `TemporaryStore` before any authenticator runs.
-                let authenticators: Vec<_> = authenticators
+                let to_run: Vec<_> = resolved
                     .into_iter()
                     .map(|authenticator| {
                         let AuthenticatorFunctionRefForExecution {
@@ -415,7 +415,7 @@ mod checked {
                         )
                     })
                     .collect();
-                let result = authenticators.into_iter().try_for_each(
+                let result = to_run.into_iter().try_for_each(
                     |(authenticator, authenticator_function_ref, input_objects)| {
                         match authenticator_function_ref {
                             AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
