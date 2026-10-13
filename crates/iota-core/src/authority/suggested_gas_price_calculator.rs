@@ -387,7 +387,7 @@ pub mod suggested_gas_price_calculator_test_utils {
     use crate::authority::{
         authority_per_epoch_store::CongestionControlParameters,
         shared_object_congestion_tracker::{
-            ExecutionTime, SharedObjectCongestionTracker,
+            ExecutionTime, ResourceSlots, SharedObjectCongestionTracker,
             shared_object_test_utils::{
                 build_transaction, initialize_tracker_and_compute_tx_start_time,
             },
@@ -401,7 +401,7 @@ pub mod suggested_gas_price_calculator_test_utils {
     ) -> SuggestedGasPriceCalculator {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             vec![],
-            Vec::new(),
+            ResourceSlots::default(),
             congestion_control_parameters.clone(),
         );
 
@@ -412,7 +412,8 @@ pub mod suggested_gas_price_calculator_test_utils {
 
         for (object_id, duration, gas_price) in init_values {
             match congestion_control_parameters.per_object_congestion_control_mode_for_test() {
-                PerObjectCongestionControlMode::None => {}
+                PerObjectCongestionControlMode::None
+                | PerObjectCongestionControlMode::GasVectorV1 => {}
                 PerObjectCongestionControlMode::TotalGasBudget
                 | PerObjectCongestionControlMode::TotalComputationUnits => {
                     let transaction =
@@ -476,13 +477,14 @@ mod tests {
         authority::{
             authority_per_epoch_store::CongestionControlParameters,
             shared_object_congestion_tracker::{
-                BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
+                BumpObjectExecutionSlotsResult, ExecutionTime, ResourceSlots, SequencingResult,
                 SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
             },
             suggested_gas_price_calculator::{
                 PerCommitCongestionInfo, PerObjectCongestionInfo,
                 ScheduledTransactionCongestionInfo,
             },
+            transaction_deferral::DeferralReason,
         },
         execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
     };
@@ -602,7 +604,11 @@ mod tests {
     ) -> Option<(Vec<ObjectId>, u64)> {
         let (transaction, sequencing_result) =
             build_and_try_sequencing_transaction(tx, shared_object_congestion_tracker);
-        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+        if let SequencingResult::Defer(_key, reason) = sequencing_result {
+            let congested_objects = match reason {
+                DeferralReason::SharedObjectCongestion(congested_objects) => congested_objects,
+                _ => Vec::new(),
+            };
             Some((
                 congested_objects,
                 suggested_gas_price_calculator.calculate_suggested_gas_price(&transaction),
@@ -850,8 +856,8 @@ mod tests {
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            [],         // initial_object_debts
-            Vec::new(), // initial_worker_debt
+            [],                       // initial_object_debts
+            ResourceSlots::default(), // initial_resource_debt
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1129,8 +1135,8 @@ mod tests {
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            [],         // initial_object_debts
-            Vec::new(), // initial_worker_debt
+            [],                       // initial_object_debts
+            ResourceSlots::default(), // initial_resource_debt
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1572,7 +1578,7 @@ mod tests {
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 1), (object_2, 2)], // initial_object_debts
-            Vec::new(),                     // initial_worker_debt
+            ResourceSlots::default(),       // initial_resource_debt
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1906,7 +1912,7 @@ mod tests {
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 2_000_000), (object_2, 1_000_000)], // initial_object_debts
-            Vec::new(),                                     // initial_worker_debt
+            ResourceSlots::default(),                       // initial_resource_debt
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2381,7 +2387,9 @@ mod tests {
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let max_execution_duration_per_commit = match per_object_congestion_control_mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::None | PerObjectCongestionControlMode::GasVectorV1 => {
+                unreachable!()
+            }
             PerObjectCongestionControlMode::TotalTxCount => 0,
             PerObjectCongestionControlMode::TotalGasBudget
             | PerObjectCongestionControlMode::TotalComputationUnits => 2_999_999,
@@ -2398,8 +2406,8 @@ mod tests {
 
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            [],         // initial_object_debts
-            Vec::new(), // initial_worker_debt
+            [],                       // initial_object_debts
+            ResourceSlots::default(), // initial_resource_debt
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2466,7 +2474,8 @@ mod tests {
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let (max_execution_duration_per_commit, max_congestion_limit_overshoot_per_commit) =
             match per_object_congestion_control_mode {
-                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::None
+                | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => (1, 2),
                 PerObjectCongestionControlMode::TotalGasBudget
                 | PerObjectCongestionControlMode::TotalComputationUnits => (1_000_000, 2_000_000),
@@ -2484,7 +2493,7 @@ mod tests {
         // Initialize `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 3), (object_2, 3)], // initial_object_debts
-            Vec::new(),                     // initial_worker_debt
+            ResourceSlots::default(),       // initial_resource_debt
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2570,8 +2579,11 @@ mod tests {
     #[test]
     fn worker_clearing_with_single_worker() {
         let parameters = worker_test_parameters(1, 1);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut tracker = SharedObjectCongestionTracker::new(
+            vec![],
+            ResourceSlots::default(),
+            parameters.clone(),
+        );
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], 2_000);
@@ -2586,8 +2598,11 @@ mod tests {
     #[test]
     fn worker_clearing_takes_nth_largest_gas_price() {
         let parameters = worker_test_parameters(1, 2);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut tracker = SharedObjectCongestionTracker::new(
+            vec![],
+            ResourceSlots::default(),
+            parameters.clone(),
+        );
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
@@ -2610,8 +2625,11 @@ mod tests {
     #[test]
     fn worker_clearing_ignores_transactions_outside_tail_window() {
         let parameters = worker_test_parameters(3, 1);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut tracker = SharedObjectCongestionTracker::new(
+            vec![],
+            ResourceSlots::default(),
+            parameters.clone(),
+        );
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Occupies [0, 1); the shed transaction's imaginary start is
@@ -2631,13 +2649,16 @@ mod tests {
     fn mixed_congestion_takes_maximum_of_object_and_worker_clearing() {
         let object = ObjectId::random();
         let parameters = worker_test_parameters(2, 2);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut tracker = SharedObjectCongestionTracker::new(
+            vec![],
+            ResourceSlots::default(),
+            parameters.clone(),
+        );
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Descending gas-price order, as in the consensus handler.
         // Object slots: [0, 1) at 5000, [1, 2) at 4000.
-        // Worker slots (two workers): [0, 1) at 5000+3000, [1, 2) at 4000+2500.
+        // Resource slots (two workers): [0, 1) at 5000+3000, [1, 2) at 4000+2500.
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 5_000);
         schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 4_000);
@@ -2661,8 +2682,11 @@ mod tests {
     #[test]
     fn worker_clearing_with_tied_gas_price_suggests_one_more() {
         let parameters = worker_test_parameters(1, 1);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut tracker = SharedObjectCongestionTracker::new(
+            vec![],
+            ResourceSlots::default(),
+            parameters.clone(),
+        );
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], REFERENCE_GAS_PRICE);
@@ -2722,8 +2746,11 @@ mod tests {
         // is 2500. The suggestion must clear the object: 3001.
         let object = ObjectId::random();
         let parameters = worker_test_parameters(1, 2);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut tracker = SharedObjectCongestionTracker::new(
+            vec![],
+            ResourceSlots::default(),
+            parameters.clone(),
+        );
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 3_000);
         schedule_transaction(&mut tracker, &mut calculator, &[], 2_500);
@@ -2731,8 +2758,14 @@ mod tests {
         let shed = build_transaction(&[(object, true)], 1, 900);
         tracker.initialize_object_execution_slots(&shed.shared_input_objects());
         match tracker.try_schedule(&shed, &PreviouslyDeferredTransactions::new(), 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) => {
                 assert_eq!(congested_objects, vec![object]);
+            }
+            SequencingResult::Defer(_, reason) => {
+                panic!("expected object congestion, got {reason:?}")
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
         }
@@ -2756,8 +2789,11 @@ mod tests {
             false,
         );
         parameters.set_max_concurrent_execution_workers_for_test(1);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut tracker = SharedObjectCongestionTracker::new(
+            vec![],
+            ResourceSlots::default(),
+            parameters.clone(),
+        );
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Descending price order; gas budget = duration in this mode.
@@ -2784,8 +2820,14 @@ mod tests {
         let shed = build_transaction(&[(object, true)], 2, 900);
         tracker.initialize_object_execution_slots(&shed.shared_input_objects());
         match tracker.try_schedule(&shed, &PreviouslyDeferredTransactions::new(), 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) => {
                 assert_eq!(congested_objects, vec![object]);
+            }
+            SequencingResult::Defer(_, reason) => {
+                panic!("expected object congestion, got {reason:?}")
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
         }

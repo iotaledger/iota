@@ -28,9 +28,10 @@
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
 //!   the claimed attestor matches the block author and that the attested
 //!   payload is within its bounds (V1: the computation-unit floor and ceiling;
-//!   V2: nonzero cpu_time, and the declared rate against the memory-bandwidth
-//!   ceiling when that constant is configured). Drop with error on mismatch,
-//!   out-of-bounds payload, or unsupported attestation variant.
+//!   V2: nonzero cpu_time, and the declared memory rate against the
+//!   memory-bandwidth ceiling when that constant is configured). Drop with
+//!   error on mismatch, out-of-bounds payload, or unsupported attestation
+//!   variant.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -60,6 +61,7 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
@@ -288,6 +290,13 @@ pub async fn validate_and_resolve_conflicts(
                 AttestationData::V1 {
                     computation_units, ..
                 } => {
+                    if matches!(
+                        protocol_config.per_object_congestion_control_mode(),
+                        PerObjectCongestionControlMode::GasVectorV1
+                    ) {
+                        // Without cpu_time it could never be scheduled.
+                        return Some(IotaError::AttestationGasVectorRequired);
+                    }
                     let min_attested_units = protocol_config
                         .base_tx_cost_fixed()
                         .min(protocol_config.gas_rounding_step());
@@ -356,6 +365,22 @@ pub async fn validate_and_resolve_conflicts(
                 keep[i] = false;
                 continue;
             }
+        } else if matches!(
+            epoch_store
+                .protocol_config()
+                .per_object_congestion_control_mode(),
+            PerObjectCongestionControlMode::GasVectorV1
+        ) {
+            // Without cpu_time it could never be scheduled.
+            let e = IotaError::AttestationGasVectorRequired;
+            warn!(
+                ?digest,
+                error = ?e,
+                "unattested transaction dropped: the congestion mode requires the gas vector"
+            );
+            dropped.push((digest, e));
+            keep[i] = false;
+            continue;
         }
 
         // Check #4: Extract owned input objects for lock conflict detection.

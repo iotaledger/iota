@@ -727,6 +727,8 @@ pub enum PerObjectCongestionControlMode {
     TotalGasBudget,        // Use txn gas budget as execution cost.
     TotalTxCount,          // Use total txn count as execution cost.
     TotalComputationUnits, // Use attested computation units as execution cost.
+    GasVectorV1,           /* Use the attested gas vector with cpu time and moved bytes
+                            * dimensions. */
 }
 
 impl PerObjectCongestionControlMode {
@@ -1789,7 +1791,25 @@ impl ProtocolConfig {
     }
 
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
-        self.feature_flags.per_object_congestion_control_mode
+        let mode = self.feature_flags.per_object_congestion_control_mode;
+        if matches!(mode, PerObjectCongestionControlMode::GasVectorV1) {
+            // Without these, no transaction could be scheduled.
+            assert!(
+                self.attestation_gas_vector(),
+                "GasVectorV1 congestion control requires attestation_gas_vector to be set"
+            );
+            assert!(
+                self.gas_vector_coefficients()
+                    .is_some_and(|table| table.memory_bandwidth_bytes_per_sec != 0),
+                "GasVectorV1 congestion control requires the gas-vector coefficient \
+                 table with a nonzero memory bandwidth"
+            );
+            assert!(
+                self.concurrent_execution_workers().is_some(),
+                "GasVectorV1 congestion control requires max_concurrent_execution_workers"
+            );
+        }
+        mode
     }
 
     pub fn consensus_choice(&self) -> ConsensusChoice {
