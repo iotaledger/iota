@@ -1273,14 +1273,7 @@ impl GrpcReader {
         needs: &ReadNeeds,
         store_budget: &StoreReadBudget,
     ) {
-        // A transaction the node has effects for is not pruned, even when it is
-        // not in a checkpoint yet.
-        let indexes = pending_indexes(reads, |pending| {
-            pending.data.effects.is_none()
-                && (needs.effects
-                    || needs.checkpoint
-                    || (needs.transaction && !pending.has_transaction))
-        });
+        let indexes = pending_indexes(reads, |pending| pending.needs_checkpoint_lookup(needs));
         if indexes.is_empty() {
             return;
         }
@@ -1323,6 +1316,50 @@ impl GrpcReader {
         Ok(())
     }
 
+    /// Reads from the store, with one call, the data the node lacks: `missing` holds each key with
+    /// the index of the read that needs it. Returns what the store has, by key, and nothing without
+    /// a store. A failed call fails every read in `missing`.
+    async fn read_missing<K, V>(
+        &self,
+        reads: &mut [Result<PendingRead, RpcError>],
+        missing: &[(usize, K)],
+        store_budget: &StoreReadBudget,
+        read: impl for<'a> FnOnce(
+            &'a Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+            &'a [K],
+        ) -> futures::future::BoxFuture<
+            'a,
+            iota_types::error::IotaResult<Vec<Option<V>>>,
+        >,
+    ) -> std::collections::HashMap<K, V>
+    where
+        K: Copy + Ord + std::hash::Hash,
+    {
+        let Some(store) = self
+            .transaction_fallback
+            .as_ref()
+            .filter(|_| !missing.is_empty())
+        else {
+            return std::collections::HashMap::new();
+        };
+        let mut keys = missing.iter().map(|&(_, key)| key).collect::<Vec<_>>();
+        keys.sort_unstable();
+        keys.dedup();
+        match store_read(read(store, &keys), store_budget).await {
+            // A reply shorter than the request leaves the rest missing.
+            Ok(values) => keys
+                .into_iter()
+                .zip(values)
+                .filter_map(|(key, value)| Some((key, value?)))
+                .collect(),
+            Err(error) => {
+                let indexes = missing.iter().map(|&(index, _)| index).collect::<Vec<_>>();
+                fail_reads(reads, &indexes, &error);
+                std::collections::HashMap::new()
+            }
+        }
+    }
+
     async fn read_timestamps(
         &self,
         reads: &mut [Result<PendingRead, RpcError>],
@@ -1340,70 +1377,32 @@ impl GrpcReader {
                 .try_get_checkpoint_by_sequence_number(checkpoint_seq)
             {
                 Ok(Some(summary)) => pending.data.timestamp_ms = Some(summary.data().timestamp_ms),
-                Ok(None) if self.has_transaction_fallback() => {
-                    missing.push((index, checkpoint_seq))
-                }
-                // A node keeps the summary of every transaction it holds, so without a
-                // store a miss is a broken invariant.
-                Ok(None) => {
-                    *read = Err(RpcError::new(
-                        tonic::Code::Internal,
-                        format!(
-                            "Checkpoint summary {checkpoint_seq} not found for transaction {}",
-                            pending.data.digest
-                        ),
-                    ))
-                }
+                Ok(None) => missing.push((index, checkpoint_seq)),
                 Err(error) => *read = Err(error.into()),
             }
         }
-        let Some(store) = self
-            .transaction_fallback
-            .as_ref()
-            .filter(|_| !missing.is_empty())
-        else {
-            return;
-        };
-
-        let mut checkpoints = missing
-            .iter()
-            .map(|&(_, checkpoint)| checkpoint)
-            .collect::<Vec<_>>();
-        checkpoints.sort_unstable();
-        checkpoints.dedup();
-        let summaries = match store_read(
-            store.multi_get_checkpoints(&checkpoints, &[], &[]),
-            store_budget,
-        )
-        .await
-        {
-            Ok((summaries, _, _)) => summaries,
-            Err(error) => {
-                let indexes = missing.iter().map(|&(index, _)| index).collect::<Vec<_>>();
-                return fail_reads(reads, &indexes, &error);
-            }
-        };
-        let timestamps = checkpoints
-            .iter()
-            .zip(summaries)
-            .filter_map(|(&checkpoint, summary)| Some((checkpoint, summary?.data().timestamp_ms)))
-            .collect::<std::collections::HashMap<_, _>>();
+        let summaries = self
+            .read_missing(reads, &missing, store_budget, |store, checkpoints| {
+                Box::pin(async move {
+                    let (summaries, _, _) =
+                        store.multi_get_checkpoints(checkpoints, &[], &[]).await?;
+                    Ok(summaries)
+                })
+            })
+            .await;
         for (index, checkpoint_seq) in missing {
             let Ok(pending) = &mut reads[index] else {
                 continue;
             };
-            match timestamps.get(&checkpoint_seq) {
-                Some(&timestamp_ms) => pending.data.timestamp_ms = Some(timestamp_ms),
+            match summaries.get(&checkpoint_seq) {
+                Some(summary) => pending.data.timestamp_ms = Some(summary.data().timestamp_ms),
                 None => {
                     let digest = pending.data.digest;
-                    reads[index] = Err(RpcError::new(
-                        tonic::Code::FailedPrecondition,
-                        format!(
-                            "checkpoint summary {checkpoint_seq} of transaction {digest} required \
-                             by the requested fields is unavailable {}narrow the read_mask",
-                            unavailable_reason(true)
-                        ),
-                    ))
+                    reads[index] = Err(summary_unavailable(
+                        checkpoint_seq,
+                        &digest,
+                        self.has_transaction_fallback(),
+                    ));
                 }
             }
         }
@@ -1428,42 +1427,28 @@ impl GrpcReader {
             }
             match self.state_reader.try_get_events(&pending.data.digest) {
                 Ok(Some(events)) => pending.data.events = Some(events),
-                Ok(None) if self.has_transaction_fallback() => missing.push(index),
-                Ok(None) => *read = Err(events_unavailable(&pending.data.digest, false)),
+                Ok(None) => missing.push((index, pending.data.digest)),
                 Err(error) => *read = Err(error.into()),
             }
         }
-        let Some(store) = self
-            .transaction_fallback
-            .as_ref()
-            .filter(|_| !missing.is_empty())
-        else {
-            return;
-        };
-
-        let digests = digests_at(reads, &missing);
-        let fetched =
-            match store_read(store.multi_get_events_by_tx_digests(&digests), store_budget).await {
-                Ok(fetched) => fetched,
-                Err(error) => return fail_reads(reads, &missing, &error),
-            };
+        let fetched = self
+            .read_missing(reads, &missing, store_budget, |store, digests| {
+                store.multi_get_events_by_tx_digests(digests)
+            })
+            .await;
         let mut mismatched = Vec::new();
-        // A reply shorter than the request leaves the rest missing.
-        let mut fetched = fetched.into_iter();
-        for &index in &missing {
-            let events = fetched.next().flatten();
+        for (index, digest) in missing {
             let Ok(pending) = &mut reads[index] else {
                 continue;
             };
-            let digest = pending.data.digest;
             let expected = pending
                 .data
                 .effects
                 .as_ref()
                 .and_then(|effects| effects.events_digest().copied());
-            match events {
+            match fetched.get(&digest) {
                 Some(events) if Some(events.digest()) == expected => {
-                    pending.data.events = Some(events)
+                    pending.data.events = Some(events.clone())
                 }
                 Some(_) => {
                     mismatched.push(digest);
@@ -1478,10 +1463,16 @@ impl GrpcReader {
                         "events of transaction {digest} missing after its checkpoint lookup"
                     )))
                 }
-                None => reads[index] = Err(events_unavailable(&digest, true)),
+                None => {
+                    reads[index] = Err(events_unavailable(&digest, self.has_transaction_fallback()))
+                }
             }
         }
-        if !mismatched.is_empty() {
+        if let Some(store) = self
+            .transaction_fallback
+            .as_ref()
+            .filter(|_| !mismatched.is_empty())
+        {
             store.evict_events_by_tx_digests(&mismatched).await;
         }
     }
@@ -1504,9 +1495,12 @@ impl GrpcReader {
             };
             match found {
                 Ok(Some((keys, found))) => {
-                    if found.iter().any(Option::is_none) {
-                        missing.push(index);
-                    }
+                    missing.extend(
+                        keys.iter()
+                            .zip(&found)
+                            .filter(|(_, object)| object.is_none())
+                            .map(|(key, _)| (index, ObjectKey::from(key))),
+                    );
                     objects.push(Some((keys, found)));
                 }
                 Ok(None) => objects.push(None),
@@ -1517,64 +1511,42 @@ impl GrpcReader {
             }
         }
 
+        let fetched = self
+            .read_missing(reads, &missing, store_budget, |store, keys| {
+                store.multi_get_objects(keys)
+            })
+            .await;
+        let mut mismatched = std::collections::BTreeSet::new();
+        for (index, read_objects) in objects.iter_mut().enumerate() {
+            let Some((keys, found)) = read_objects else {
+                continue;
+            };
+            for (key, object) in keys.iter().zip(found.iter_mut()) {
+                if object.is_some() {
+                    continue;
+                }
+                let Some(fetched) = fetched.get(&ObjectKey::from(key)) else {
+                    continue;
+                };
+                if let Err(error) = verify_object(key, fetched) {
+                    mismatched.insert(ObjectKey::from(key));
+                    if reads[index].is_ok() {
+                        reads[index] = Err(error);
+                    }
+                }
+                *object = Some(fetched.clone());
+            }
+        }
         if let Some(store) = self
             .transaction_fallback
             .as_ref()
-            .filter(|_| !missing.is_empty())
+            .filter(|_| !mismatched.is_empty())
         {
-            let mut missing_keys = missing
-                .iter()
-                .filter_map(|&index| objects[index].as_ref())
-                .flat_map(|(keys, found)| {
-                    keys.iter()
-                        .zip(found)
-                        .filter(|(_, object)| object.is_none())
-                        .map(|(key, _)| ObjectKey::from(key))
-                })
-                .collect::<Vec<_>>();
-            missing_keys.sort_unstable();
-            missing_keys.dedup();
-            let fetched =
-                match store_read(store.multi_get_objects(&missing_keys), store_budget).await {
-                    Ok(fetched) => missing_keys
-                        .into_iter()
-                        .zip(fetched)
-                        .filter_map(|(key, object)| Some((key, object?)))
-                        .collect::<std::collections::HashMap<_, _>>(),
-                    Err(error) => {
-                        fail_reads(reads, &missing, &error);
-                        std::collections::HashMap::new()
-                    }
-                };
-
-            let mut mismatched = std::collections::BTreeSet::new();
-            for &index in &missing {
-                let Some((keys, found)) = &mut objects[index] else {
-                    continue;
-                };
-                for (key, object) in keys.iter().zip(found.iter_mut()) {
-                    if object.is_some() {
-                        continue;
-                    }
-                    let Some(fetched) = fetched.get(&ObjectKey::from(key)) else {
-                        continue;
-                    };
-                    if let Err(error) = verify_object(key, fetched) {
-                        mismatched.insert(ObjectKey::from(key));
-                        if reads[index].is_ok() {
-                            reads[index] = Err(error);
-                        }
-                    }
-                    *object = Some(fetched.clone());
-                }
-            }
-            if !mismatched.is_empty() {
-                // Every rejected object is read again, so one request clears
-                // them all from the store's cache.
-                store
-                    .evict_objects(&mismatched.into_iter().collect::<Vec<_>>())
-                    .await;
-            }
+            // Every rejected object is read again, so one request clears
+            // them all from the store's cache.
+            store
+                .evict_objects(&mismatched.into_iter().collect::<Vec<_>>())
+                .await;
         }
 
         for (read, objects) in reads.iter_mut().zip(objects) {
@@ -1601,7 +1573,7 @@ impl GrpcReader {
     }
 
     /// The object keys a read needs and the objects the node holds of them; `None` without
-    /// effects. Without a store, a missing object fails the read.
+    /// effects.
     fn local_objects(
         &self,
         pending: &mut PendingRead,
@@ -1630,16 +1602,13 @@ impl GrpcReader {
                     .map(|written| *written.reference()),
             );
         }
-        let mut found = Vec::with_capacity(keys.len());
-        for key in &keys {
-            let object = self
-                .state_reader
-                .try_get_object_by_key(&key.object_id, key.version)?;
-            if object.is_none() && !self.has_transaction_fallback() {
-                return Err(object_unavailable(key, false));
-            }
-            found.push(object);
-        }
+        let found = keys
+            .iter()
+            .map(|key| {
+                self.state_reader
+                    .try_get_object_by_key(&key.object_id, key.version)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Some((keys, found)))
     }
 }
@@ -1769,6 +1738,14 @@ impl PendingRead {
             .then(|| transaction.signatures().to_owned());
     }
 
+    /// Whether the store must say if the transaction is pruned: the node lacks its effects, and the
+    /// read needs data that a pruned transaction reads from the store. A transaction the node has
+    /// effects for is not pruned, even when it is not in a checkpoint yet.
+    fn needs_checkpoint_lookup(&self, needs: &ReadNeeds) -> bool {
+        self.data.effects.is_none()
+            && (needs.effects || needs.checkpoint || (needs.transaction && !self.has_transaction))
+    }
+
     fn check_found(&self, needs: &ReadNeeds) -> Result<(), RpcError> {
         if (!needs.transaction || self.has_transaction)
             && (!needs.effects || self.data.effects.is_some())
@@ -1839,6 +1816,29 @@ fn unavailable_reason(store_read: bool) -> &'static str {
     } else {
         "(possibly pruned); "
     }
+}
+
+fn summary_unavailable(
+    checkpoint_seq: u64,
+    digest: &TransactionDigest,
+    store_read: bool,
+) -> RpcError {
+    if !store_read {
+        // A node keeps the summary of every transaction it holds, so without a store a miss is a
+        // broken invariant.
+        return RpcError::new(
+            tonic::Code::Internal,
+            format!("Checkpoint summary {checkpoint_seq} not found for transaction {digest}"),
+        );
+    }
+    RpcError::new(
+        tonic::Code::FailedPrecondition,
+        format!(
+            "checkpoint summary {checkpoint_seq} of transaction {digest} required by the \
+             requested fields is unavailable {}narrow the read_mask",
+            unavailable_reason(true)
+        ),
+    )
 }
 
 fn events_unavailable(digest: &TransactionDigest, store_read: bool) -> RpcError {
