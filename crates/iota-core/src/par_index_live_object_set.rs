@@ -38,6 +38,12 @@ pub trait LiveObjectIndexer {
     fn finish(self) -> Result<(), StorageError>;
 }
 
+const BITS: u8 = 5;
+
+/// How many indexers [`par_index_live_object_set`] runs at once, each over its
+/// own range of object ids.
+pub const TASKS: usize = 1 << BITS;
+
 /// Utility for iterating over, and indexing, the live object set in parallel
 ///
 /// This is done by dividing the addressable ObjectId space into smaller,
@@ -56,9 +62,6 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
 ) -> Result<(), StorageError> {
     info!("Indexing Live Object Set");
     let start_time = Instant::now();
-
-    const BITS: u8 = 5;
-    const TASKS: usize = 1 << BITS;
 
     // Object ids are hash-derived and uniformly distributed, so each task's
     // position within its id range doubles as its fraction of work done.
