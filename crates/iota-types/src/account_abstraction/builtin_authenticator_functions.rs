@@ -1,10 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::borrow::Cow;
+
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Identifier, SignatureScheme, StructTag, Transaction, UserSignature,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use serde::{Deserialize, Serialize};
 
@@ -87,6 +89,50 @@ pub fn verify_builtin_signature(
     signature_bytes: &[u8],
     tx_data_bytes: &[u8],
 ) -> IotaResult<()> {
+    let (signature, address) = decode_signature(public_key, signature_bytes)?;
+
+    // TODO: it would be nice to avoid this deserialization.
+    let tx_data: Transaction =
+        bcs::from_bytes(tx_data_bytes).map_err(|e| IotaError::InvalidSignature {
+            error: format!("Failed to deserialize transaction data: {e}"),
+        })?;
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
+
+    signature.verify_claims(&intent_msg, address, &verify_params(protocol_config))
+}
+
+/// Verifies that `signature_bytes` is a signature, by `public_key`, of the
+/// personal message `message`, signed as
+/// `IntentMessage(Intent::personal_message(), PersonalMessage(message))`.
+///
+/// `signature_bytes` follows the same format and scheme rules as in
+/// [`verify_builtin_signature`], and the multisig and passkey verification
+/// rules are taken from `protocol_config`.
+pub fn verify_personal_message_signature(
+    protocol_config: &ProtocolConfig,
+    public_key: &MovePublicKey,
+    signature_bytes: &[u8],
+    message: &[u8],
+) -> IotaResult<()> {
+    let (signature, address) = decode_signature(public_key, signature_bytes)?;
+
+    let intent_msg = IntentMessage::new(
+        Intent::personal_message(),
+        PersonalMessage(Cow::Borrowed(message)),
+    );
+
+    signature.verify_claims(&intent_msg, address, &verify_params(protocol_config))
+}
+
+/// Decodes `signature_bytes` and returns it together with the address of
+/// `public_key`, the address the signature is verified against.
+///
+/// Fails if the signature is malformed, of an unsupported scheme, of a scheme
+/// other than the key's, or if the key bytes are invalid.
+fn decode_signature(
+    public_key: &MovePublicKey,
+    signature_bytes: &[u8],
+) -> IotaResult<(UserSignature, Address)> {
     let expected_scheme = public_key.scheme();
 
     let signature =
@@ -120,19 +166,14 @@ pub fn verify_builtin_signature(
             error: format!("Invalid public key bytes in built-in authenticator: {e}"),
         })?;
 
-    // TODO: it would be nice to avoid this deserialization.
-    let tx_data: Transaction =
-        bcs::from_bytes(tx_data_bytes).map_err(|e| IotaError::InvalidSignature {
-            error: format!("Failed to deserialize transaction data: {e}"),
-        })?;
-    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
+    Ok((signature, address))
+}
 
-    let verify_params = VerifyParams::new(
+fn verify_params(protocol_config: &ProtocolConfig) -> VerifyParams {
+    VerifyParams::new(
         protocol_config.accept_passkey_in_multisig(),
         protocol_config.additional_multisig_checks(),
-    );
-
-    signature.verify_claims(&intent_msg, address, &verify_params)
+    )
 }
 
 #[cfg(test)]

@@ -108,6 +108,7 @@ mod object;
 pub mod object_runtime;
 pub mod protocol_config;
 mod public_key;
+mod public_key_proof;
 mod random;
 pub mod test_scenario;
 mod test_utils;
@@ -1158,6 +1159,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "public_key",
             "to_iota_address_impl",
             make_native!(public_key::to_iota_address_impl),
+        ),
+        (
+            "public_key_proof",
+            "verify_personal_message",
+            make_native!(public_key_proof::verify_personal_message),
         ),
         (
             "builtin_authenticator_functions",

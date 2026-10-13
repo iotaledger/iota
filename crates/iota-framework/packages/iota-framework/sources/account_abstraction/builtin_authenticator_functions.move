@@ -8,22 +8,31 @@
 /// The built-in authenticator verifies a signature with the public key attached to the account,
 /// using that key's signature scheme.
 ///
+/// A key is attached or rotated only with a `public_key_proof::VerifiedPublicKey`, the proof that
+/// its holder approved it. Every attach, rotate and detach raises the account's key change count,
+/// which proofs for existing accounts name, so each proof works once.
+///
 /// # Account creation
-/// To create a new account backed by the built-in authenticator, attach the public key and obtain
-/// the authenticator function ref, then pass it to `account::create_account_v1`:
+/// To create a new account backed by the built-in authenticator, attach the public key with a
+/// proof for a new account and obtain the authenticator function ref, then pass it to
+/// `account::create_account_v1`:
 ///
 /// ```move
-/// builtin_authenticator_functions::attach_public_key(&mut account.id, public_key::create(scheme, raw_pk_bytes));
+/// let verified = public_key_proof::verify_for_new_account(public_key, &mut factory, nonce_key, valid_until_epoch, signature, ctx);
+/// builtin_authenticator_functions::attach_public_key(&mut account.id, verified);
 /// let authenticator_function_ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<Account>();
 /// account::create_account_v1(account, authenticator_function_ref);
 /// ```
 ///
 /// # Public key rotation
 /// To replace the public key, including switching to a different signature scheme, rotate the
-/// stored key. The authenticator function ref stays the same:
+/// stored key with a proof for the account at its current key change count. The authenticator
+/// function ref stays the same:
 ///
 /// ```move
-/// let old_public_key = builtin_authenticator_functions::rotate_public_key(&mut account.id, public_key::create(new_scheme, new_raw_pk_bytes));
+/// let count = builtin_authenticator_functions::public_key_change_count(&account.id);
+/// let verified = public_key_proof::verify_for_account(new_public_key, account_address, count, valid_until_epoch, signature, ctx);
+/// let old_public_key = builtin_authenticator_functions::rotate_public_key(&mut account.id, verified);
 /// ```
 ///
 /// # Switching to a custom authenticator
@@ -42,6 +51,7 @@ use iota::dynamic_field as df;
 use iota::event;
 use iota::protocol_config;
 use iota::public_key::PublicKey;
+use iota::public_key_proof::VerifiedPublicKey;
 use std::ascii;
 
 // === Errors ===
@@ -56,6 +66,15 @@ const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
 
 #[error(code = 20)]
 const EInvalidSignature: vector<u8> = b"Invalid signature.";
+
+#[error(code = 30)]
+const EProofForAnotherAccount: vector<u8> = b"The public key proof was made for another account.";
+#[error(code = 31)]
+const EStaleKeyChangeCount: vector<u8> =
+    b"The public key proof was made for another key change count of the account.";
+#[error(code = 32)]
+const ENewAccountProofForUsedAccount: vector<u8> =
+    b"A proof for a new account only attaches a key to an account that never had one.";
 
 // === Constants ===
 
@@ -88,6 +107,10 @@ public struct PublicKeyRotated has copy, drop {
 
 /// Dynamic field key, where the system will look for a potential public key.
 public struct PublicKeyFieldName has copy, drop, store {}
+
+/// Dynamic field key of the number of times the account's public key was attached, rotated or
+/// detached.
+public struct PublicKeyChangeCountKey has copy, drop, store {}
 
 // === Public Functions ===
 
@@ -129,16 +152,22 @@ public fun builtin_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
     )
 }
 
-/// Attaches `public_key` to the account. Aborts if a public key is already attached.
+/// Attaches the public key of `verified` to the account and raises its key change count.
 ///
 /// Call this before obtaining an authenticator function ref and passing it to
 /// `account::create_account_v1`.
 ///
 /// Emits a `PublicKeyAttached` event on success.
-public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
+///
+/// Aborts if `verified` was made for another account, or for another key change count.
+/// Aborts if `verified` was made for a new account and the account has ever had a key.
+/// Aborts if a public key is already attached.
+public fun attach_public_key(account_id: &mut UID, verified: VerifiedPublicKey) {
+    let public_key = consume_proof(account_id, verified);
     assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
 
     df::add(account_id, public_key_field_name(), public_key);
+    count_key_change(account_id);
 
     let event = PublicKeyAttached {
         account_id: account_id.to_inner(),
@@ -147,8 +176,8 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
     event::emit(event);
 }
 
-/// Detaches and returns the public key attached to the account. Aborts if no public key is
-/// currently attached.
+/// Detaches and returns the public key attached to the account, and raises its key change count,
+/// so proofs made before no longer work. Aborts if no public key is currently attached.
 ///
 /// Use this when migrating away from a built-in authenticator to a custom one.
 ///
@@ -157,6 +186,7 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
     let public_key = df::remove(account_id, public_key_field_name());
+    count_key_change(account_id);
 
     let event = PublicKeyDetached {
         account_id: account_id.to_inner(),
@@ -167,20 +197,26 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
     public_key
 }
 
-/// Replaces the existing public key with `public_key` and returns the previous key.
-/// Aborts if no public key is currently attached.
+/// Replaces the existing public key with the public key of `verified`, raises the account's key
+/// change count and returns the previous key.
 ///
 /// Call this before obtaining a new authenticator function ref and passing it to
 /// `account::rotate_auth_function_ref_v1`.
 ///
 /// Emits a `PublicKeyRotated` event on success.
-public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): PublicKey {
+///
+/// Aborts if no public key is currently attached.
+/// Aborts if `verified` was made for another account, for another key change count, or for a
+/// new account.
+public fun rotate_public_key(account_id: &mut UID, verified: VerifiedPublicKey): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
+    let public_key = consume_proof(account_id, verified);
 
     let df_name = public_key_field_name();
 
     let prev_public_key = df::remove(account_id, df_name);
     df::add(account_id, df_name, public_key);
+    count_key_change(account_id);
 
     let event = PublicKeyRotated {
         account_id: account_id.to_inner(),
@@ -219,11 +255,53 @@ public fun borrow_public_key(account_id: &UID): &PublicKey {
     df::borrow(account_id, public_key_field_name())
 }
 
+/// Returns the number of times the account's public key was attached, rotated or detached. A
+/// proof for this account must name this number.
+public fun public_key_change_count(account_id: &UID): u64 {
+    if (df::exists_(account_id, PublicKeyChangeCountKey {})) {
+        *df::borrow(account_id, PublicKeyChangeCountKey {})
+    } else {
+        0
+    }
+}
+
 // === Admin Functions ===
 
 // === Package Functions ===
 
 // === Private Functions ===
+
+/// Checks that `verified` can attach a key to the account and returns that key.
+///
+/// A proof for an existing account must name this account and its current key change count. A
+/// proof for a new account is accepted only by an account that has never had a key.
+fun consume_proof(account_id: &UID, verified: VerifiedPublicKey): PublicKey {
+    let (public_key, account, key_change_count) = verified.unpack();
+    let current_count = public_key_change_count(account_id);
+
+    if (account.is_some()) {
+        assert!(account.destroy_some() == account_id.to_address(), EProofForAnotherAccount);
+        assert!(key_change_count == current_count, EStaleKeyChangeCount);
+    } else {
+        assert!(
+            current_count == 0 && !has_public_key(account_id),
+            ENewAccountProofForUsedAccount,
+        );
+    };
+
+    public_key
+}
+
+/// Raises the account's key change count by one.
+fun count_key_change(account_id: &mut UID) {
+    let name = PublicKeyChangeCountKey {};
+    if (df::exists_(account_id, name)) {
+        let count: &mut u64 = df::borrow_mut(account_id, name);
+        *count = *count + 1;
+    } else {
+        df::add(account_id, name, 1u64);
+    }
+}
 
 #[allow(unused_function)]
 /// Authenticates a transaction sent by `account` with the public key attached to it.
