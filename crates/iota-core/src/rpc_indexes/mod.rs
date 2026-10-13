@@ -82,10 +82,9 @@ use crate::{
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
 
-/// Where a rebuild keeps its SST files inside the index database's
-/// directory until it ingests them. A rebuild that stops before that leaves
-/// them for the next one, which clears the whole directory.
-const BULK_INGESTION_SST_DIR: &str = "bulk_ingestion";
+/// How many threads one compaction of the index database may be split
+/// across.
+const MAX_SUBCOMPACTIONS: u32 = 8;
 
 /// The index database directories of earlier releases, superseded by
 /// [`schema::RPC_INDEXES_DIR`].
@@ -652,11 +651,6 @@ impl RpcIndexesStore {
 
                 IndexStoreTables::open_for_bulk_ingestion(path.clone())
             };
-            let bulk_options = bulk_ingestion_options();
-            let sst_options = bulk_options.column_family_options.options.clone();
-            let sst_buffer_limit =
-                bulk_options.sst_buffer_limit(crate::par_index_live_object_set::TASKS);
-            let sst_dir = path.join(BULK_INGESTION_SST_DIR);
 
             // The rebuild scans and writes RocksDB for a long time; keep it
             // off the async runtime's worker threads.
@@ -665,18 +659,18 @@ impl RpcIndexesStore {
                 let checkpoint_store = checkpoint_store.clone();
                 let cancelled = cancelled.clone();
                 let groups = groups.clone();
+                let path = path.clone();
                 move || {
                     let mut init_tables = init_tables;
-                    let initialized = SstFiles::new(sst_dir, sst_options, sst_buffer_limit)
-                        .and_then(|sst_files| {
-                            init_tables.init(
-                                &authority_store,
-                                &checkpoint_store,
-                                &groups,
-                                sst_files,
-                                &cancelled,
-                            )
-                        });
+                    let initialized = SstFiles::new(&path).and_then(|sst_files| {
+                        init_tables.init(
+                            &authority_store,
+                            &checkpoint_store,
+                            &groups,
+                            sst_files,
+                            &cancelled,
+                        )
+                    });
                     (init_tables, initialized)
                 }
             })
@@ -888,7 +882,14 @@ impl RpcIndexesStore {
     /// Opens the index database, with every existing per-epoch history
     /// column family under its tuned options.
     fn open_index_db(path: &Path, historic_root: &Path) -> IotaResult<OpenedIndexDb> {
-        let db_options = default_db_options().disable_write_throttling();
+        let mut db_options = default_db_options().disable_write_throttling();
+        // A rebuild or a restore leaves the `owner` table as many overlapping
+        // L0 files, which slow its reads until they are merged. Splitting
+        // that compaction lets it use the background threads RocksDB is
+        // given (`increase_parallelism` in `default_db_options`).
+        db_options
+            .options
+            .set_max_subcompactions(MAX_SUBCOMPACTIONS);
         let history_cf_options = epoch_buckets::history_cf_options(
             &db_options,
             read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)

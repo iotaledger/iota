@@ -240,14 +240,7 @@ async fn test_rebuild_is_not_adopted_before_the_flush() {
 
     let index_dir = dir.path().join("indexes");
     let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
-    let sst_files = super::SstFiles::new(
-        index_dir.join(super::BULK_INGESTION_SST_DIR),
-        typed_store::rocks::bulk_ingestion_options()
-            .column_family_options
-            .options,
-        1024,
-    )
-    .unwrap();
+    let sst_files = super::SstFiles::with_buffer_limit(&index_dir, 1024).unwrap();
     tables
         .init(
             &authority_store,
@@ -2375,6 +2368,67 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
     }
 }
 
+/// The partitions of a restore keep filling the same buffers instead of each
+/// writing files of its own, and a partition that fails part-way hands the
+/// buffers back with the rows the earlier partitions put in them.
+#[tokio::test]
+async fn test_restore_partitions_share_their_buffers() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let sst_dir = index_dir.join(super::live_scan::BULK_INGESTION_SST_DIR);
+    let restorer = RpcIndexesRestorer::open(
+        index_dir.clone(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+    )
+    .unwrap();
+
+    let objects: Vec<_> = (0..50u8)
+        .map(|index| {
+            Object::new_gas_with_balance_and_owner_for_testing(
+                100,
+                iota_types::base_types::dbg_addr(index % 5),
+            )
+        })
+        .collect();
+    for object in &objects {
+        let mut partition = restorer.partition_indexer();
+        partition.index_object(object).unwrap();
+        partition.finish().unwrap();
+    }
+    assert_eq!(
+        std::fs::read_dir(&sst_dir).unwrap().count(),
+        0,
+        "partitions must not write a file each while the buffers have room"
+    );
+    {
+        let mut failed = restorer.partition_indexer();
+        failed
+            .index_object(&Object::new_gas_with_balance_and_owner_for_testing(
+                100,
+                iota_types::base_types::dbg_addr(9),
+            ))
+            .unwrap();
+    }
+
+    restorer.finalize(5).await.unwrap();
+    assert!(
+        !sst_dir.exists(),
+        "the restore must remove its SST file directory once ingested"
+    );
+    let restored = open_index_store(index_dir);
+    for object in &objects {
+        let Owner::Address(owner) = object.owner else {
+            unreachable!("gas objects are address-owned");
+        };
+        let (key, info) = OwnerIndexKey::for_object(owner, object).unwrap();
+        assert_eq!(
+            restored.tables.owner.get(&key).unwrap(),
+            Some(info),
+            "a row indexed before the failed partition must survive it"
+        );
+    }
+}
+
 /// A rebuild whose partitions write their rows out after every object, into
 /// many SST files that overlap in key range, builds the same tables as one
 /// writing a single file per table and partition, and leaves no files behind.
@@ -2411,16 +2465,9 @@ async fn test_rebuild_from_many_small_sst_files() {
     let mut built = Vec::new();
     for (name, buffer_limit) in [("one_file", usize::MAX), ("small_files", 1)] {
         let index_dir = dir.path().join(name);
-        let sst_dir = index_dir.join(super::BULK_INGESTION_SST_DIR);
-        let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir);
-        let sst_files = super::SstFiles::new(
-            sst_dir.clone(),
-            typed_store::rocks::bulk_ingestion_options()
-                .column_family_options
-                .options,
-            buffer_limit,
-        )
-        .unwrap();
+        let sst_dir = index_dir.join(super::live_scan::BULK_INGESTION_SST_DIR);
+        let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+        let sst_files = super::SstFiles::with_buffer_limit(&index_dir, buffer_limit).unwrap();
         tables
             .init(
                 &authority_store,

@@ -2071,47 +2071,26 @@ async fn a_batch_staged_before_a_drop_still_writes() {
 /// column family was dropped after staging.
 #[tokio::test]
 async fn a_dropped_column_family_fails_a_batch_write_by_default() {
-    // A failed write leaves the database in an error state, so each set of
-    // write options is exercised on its own database.
-    let write_to_a_dropped_column_family =
-        |write: fn(DBBatch) -> Result<(), TypedStoreError>| -> Result<(), TypedStoreError> {
-            let tmp_dir = iota_common::tempdir();
-            let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
-            let doomed = DBMap::<u32, String>::reopen(
-                &db,
-                Some("doomed"),
-                &ReadWriteOptions::default(),
-                false,
-            )
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
+    let doomed =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
             .expect("the doomed map should open");
-            let kept = DBMap::<u32, String>::reopen(
-                &db,
-                Some("kept"),
-                &ReadWriteOptions::default(),
-                false,
-            )
-            .expect("the kept map should open");
+    let kept = DBMap::<u32, String>::reopen(&db, Some("kept"), &ReadWriteOptions::default(), false)
+        .expect("the kept map should open");
 
-            let mut batch = doomed.batch();
-            batch
-                .insert_batch(&doomed, [(1u32, "one".to_string())])
-                .unwrap();
-            batch
-                .insert_batch(&kept, [(1u32, "one".to_string())])
-                .unwrap();
+    let mut batch = doomed.batch();
+    batch
+        .insert_batch(&doomed, [(1u32, "one".to_string())])
+        .unwrap();
+    batch
+        .insert_batch(&kept, [(1u32, "one".to_string())])
+        .unwrap();
 
-            db.drop_cf("doomed").expect("the column family should drop");
-            write(batch)
-        };
-
+    db.drop_cf("doomed").expect("the column family should drop");
     assert!(
-        write_to_a_dropped_column_family(|batch| batch.write()).is_err(),
+        batch.write().is_err(),
         "the default write options should not discard the dropped entry"
-    );
-    assert!(
-        write_to_a_dropped_column_family(|batch| batch.write_opt(&bulk_ingestion_write_options()))
-            .is_err(),
-        "the bulk ingestion write options should not discard the dropped entry"
     );
 }
 
