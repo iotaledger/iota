@@ -17,8 +17,11 @@ use tracing::info;
 
 use crate::{
     ingestion::{
-        common::orchestration::{ShimIndexerProgressStore, new_executor},
-        primary::{persist::PrimaryWriter, prepare::PrimaryWorker},
+        common::orchestration::{OperationalLevel, ShimIndexerProgressStore, new_executor},
+        primary::{
+            persist::{CheckpointBatch, PrimaryWriter},
+            prepare::PrimaryWorker,
+        },
     },
     metrics::IndexerMetrics,
     spawn_monitored_task,
@@ -41,6 +44,7 @@ impl PrimaryPipeline {
         metrics: IndexerMetrics,
         checkpoint_download_queue_size: usize,
         cancel: CancellationToken,
+        operational_level: OperationalLevel,
     ) -> IndexerResult<PrimaryPipeline> {
         let watermark = state
             .get_latest_checkpoint_sequence_number()
@@ -62,7 +66,11 @@ impl PrimaryPipeline {
                     .with_label_values(&["checkpoint_indexing"]),
             );
         let worker_pool = WorkerPool::new(
-            PrimaryWorker::new(metrics.clone(), indexed_checkpoint_sender),
+            PrimaryWorker::new(
+                metrics.clone(),
+                indexed_checkpoint_sender,
+                operational_level,
+            ),
             "primary".to_string(),
             checkpoint_download_queue_size,
             Default::default(),
@@ -136,7 +144,7 @@ async fn start_writer_task(
 
     info!("Indexer checkpoint commit task started...");
     let mut unprocessed = HashMap::new();
-    let mut batch = vec![];
+    let mut batch = CheckpointBatch::default();
 
     while let Some(indexed_checkpoint_batch) = writer.stream.next().await {
         if cancel.is_cancelled() {
@@ -145,22 +153,22 @@ async fn start_writer_task(
 
         // split the batch into smaller batches per epoch to handle partitioning
         for checkpoint in indexed_checkpoint_batch {
-            unprocessed.insert(checkpoint.checkpoint.sequence_number, checkpoint);
+            unprocessed.insert(checkpoint.basic.checkpoint.sequence_number, checkpoint);
         }
-        while let Some(checkpoint) = unprocessed.remove(&next_checkpoint_sequence_number) {
-            let epoch = checkpoint.epoch.clone();
-            batch.push(checkpoint);
+        while let Some(data) = unprocessed.remove(&next_checkpoint_sequence_number) {
+            let epoch = data.basic.epoch.clone();
+            batch.push(data);
             next_checkpoint_sequence_number += 1;
             // The batch will consist of contiguous checkpoints and at most one epoch
             // boundary at the end.
             if batch.len() == writer.checkpoint_commit_batch_size || epoch.is_some() {
                 writer.commit_checkpoints(batch, epoch).await;
-                batch = vec![];
+                batch = Default::default();
             }
         }
         if !batch.is_empty() {
             writer.commit_checkpoints(batch, None).await;
-            batch = vec![];
+            batch = Default::default();
         }
     }
     Ok(())
