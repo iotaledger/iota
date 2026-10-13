@@ -1174,6 +1174,11 @@ impl GrpcReader {
     /// transaction fetch (for the sender). Over-fetched data never leaks into
     /// the response — the `Merge` impls only populate mask-requested fields.
     ///
+    /// Errors with `FAILED_PRECONDITION` if a required object is unavailable
+    /// (e.g. pruned and not in the key-value store): a silently incomplete
+    /// object set would be undetectable by the client and would corrupt
+    /// derived change fields.
+    ///
     /// A transaction is pruned when the node lacks its effects and its
     /// checkpoint is below the node's lowest available checkpoint. The data of
     /// a pruned transaction, and any events, objects or checkpoint summary the
