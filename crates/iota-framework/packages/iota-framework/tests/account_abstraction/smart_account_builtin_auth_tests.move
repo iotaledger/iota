@@ -148,23 +148,21 @@ fun rotate_to_custom_auth_v1_detaches_the_key() {
             scenario.ctx(),
         );
 
-        assert_eq(detached, option::some(ed25519_public_key()));
+        assert_eq(detached, ed25519_public_key());
         assert_eq(smart_account_builtin_auth::has_public_key(account), false);
         assert_ref_eq(account.borrow_auth_function_ref_v1(), &custom_authenticator());
     });
 }
 
 #[test]
-fun rotate_to_custom_auth_v1_without_a_key_returns_none() {
+#[expected_failure(abort_code = iota::smart_account_builtin_auth::EBuiltinAuthNotSet)]
+fun rotate_to_custom_auth_v1_aborts_without_the_builtin_authenticator() {
     custom_account_test!(|account, scenario| {
-        let detached = smart_account_builtin_auth::rotate_to_custom_auth_v1(
+        smart_account_builtin_auth::rotate_to_custom_auth_v1(
             account,
             other_custom_authenticator(),
             scenario.ctx(),
         );
-
-        assert_eq(detached, option::none());
-        assert_ref_eq(account.borrow_auth_function_ref_v1(), &other_custom_authenticator());
     });
 }
 

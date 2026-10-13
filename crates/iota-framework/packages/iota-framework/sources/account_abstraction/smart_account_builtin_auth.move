@@ -10,7 +10,8 @@
 ///
 /// - `builder_v1` and the `ClaimAccount` pipeline create an account with both;
 /// - `rotate_to_builtin_auth_v1` attaches a key and sets the built-in authenticator in one call;
-/// - `rotate_to_custom_auth_v1` sets a custom authenticator and detaches the key in one call;
+/// - `rotate_to_custom_auth_v1` replaces the built-in authenticator with a custom one and detaches
+///   the key in one call;
 /// - `rotate_public_key` replaces the key, with one of any supported scheme, while the built-in
 ///   authenticator is set. The built-in authenticator uses the scheme of the attached key, so it
 ///   stays as it is.
@@ -34,8 +35,7 @@ use iota::smart_account::{Self, SmartAccount, SmartAccountBuilder};
 const EBuiltinAuthAlreadySet: vector<u8> =
     b"The built-in authenticator is already set; use `rotate_public_key` to replace its key.";
 #[error(code = 1)]
-const EBuiltinAuthNotSet: vector<u8> =
-    b"The built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.";
+const EBuiltinAuthNotSet: vector<u8> = b"The built-in authenticator is not set.";
 #[error(code = 2)]
 const EAuthenticatorIsBuiltin: vector<u8> =
     b"Rotate to the built-in authenticator with `rotate_to_builtin_auth_v1`.";
@@ -100,30 +100,32 @@ public fun rotate_to_builtin_auth_v1(
     account.rotate_auth_function_ref_v1(builtin_authenticator_function_ref_v1(), ctx)
 }
 
-/// Rotates the account's authenticator to the custom `authenticator`, detaching the public key if
-/// one is attached, and returns that key.
+/// Rotates the account's authenticator from the built-in one to the custom `authenticator`,
+/// detaching the public key, and returns that key.
 ///
-/// Emits an `account::AuthenticatorFunctionRefV1Rotated` event, and a
-/// `builtin_authenticator_functions::PublicKeyDetached` event if a key was attached, on success.
+/// To rotate from one custom authenticator to another, use
+/// `smart_account::rotate_auth_function_ref_v1`.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyDetached` event and an
+/// `account::AuthenticatorFunctionRefV1Rotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if `authenticator` is the built-in one; use `rotate_to_builtin_auth_v1`.
+/// Aborts if the built-in authenticator is not set; use
+/// `smart_account::rotate_auth_function_ref_v1`.
 public fun rotate_to_custom_auth_v1(
     account: &mut SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &TxContext,
-): Option<PublicKey> {
+): PublicKey {
     account.ensure_tx_sender_is_smart_account(ctx);
     assert!(
         !builtin_authenticator_functions::is_builtin_authenticator(&authenticator),
         EAuthenticatorIsBuiltin,
     );
+    assert!(has_builtin_auth(account), EBuiltinAuthNotSet);
 
-    let public_key = if (has_public_key(account)) {
-        option::some(builtin_authenticator_functions::detach_public_key(account.uid_mut()))
-    } else {
-        option::none()
-    };
+    let public_key = builtin_authenticator_functions::detach_public_key(account.uid_mut());
     account.rotate_auth_function_ref_v1(authenticator, ctx);
     public_key
 }
