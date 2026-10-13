@@ -6,7 +6,7 @@ mod objects;
 mod transactions;
 mod worker;
 
-pub(crate) use events::EventsTransformer;
+pub(crate) use events::TransactionEventsTransformer;
 pub(crate) use objects::ObjectsTransformer;
 pub(crate) use transactions::index_transaction;
 pub use worker::PrimaryWorker;

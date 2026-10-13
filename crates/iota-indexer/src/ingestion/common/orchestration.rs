@@ -11,6 +11,27 @@ use tokio_util::sync::CancellationToken;
 
 use crate::IndexerError;
 
+/// Selects the tables that the writer ingests.
+///
+/// A level includes the tables of every level with a lower value. E.g.
+/// `ObjectsHistory` ingests the tables that serve consistent object views, in
+/// addition to the tables of `Basic`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, clap::ValueEnum)]
+pub enum OperationalLevel {
+    Basic = 0,
+    ObjectsHistory = 1,
+    FilteredQueries = 2,
+    #[default]
+    CombinedEventFilters = 3,
+}
+
+impl OperationalLevel {
+    /// Returns `true` if this level includes tables from the `other` level.
+    pub fn includes(self, other: OperationalLevel) -> bool {
+        self >= other
+    }
+}
+
 pub(crate) struct ShimIndexerProgressStore {
     watermarks: HashMap<String, CheckpointSequenceNumber>,
 }
