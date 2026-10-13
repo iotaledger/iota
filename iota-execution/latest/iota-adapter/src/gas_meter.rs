@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_move_natives::resource_profile::abstract_input_size;
 use iota_types::gas_model::{
     gas_predicates::native_function_threshold_exceeded,
     tables::{GasStatus, REFERENCE_SIZE, STRUCT_SIZE, VEC_SIZE},
@@ -102,7 +103,10 @@ impl GasMeter for IotaGasMeter<'_> {
             })
             .unwrap_or_else(AbstractMemorySize::zero);
         self.0.record_native_call();
-        if native_function_threshold_exceeded(self.0.gas_model_version, self.0.num_native_calls) {
+        let gas_before = self.0.gas_left;
+        let threshold_exceeded =
+            native_function_threshold_exceeded(self.0.gas_model_version, self.0.num_native_calls);
+        let result = if threshold_exceeded {
             // Charge for the stack operations. We don't count this as an "instruction"
             // since we already accounted for the `Call` instruction in the
             // `charge_native_function_before_execution` call.
@@ -116,10 +120,16 @@ impl GasMeter for IotaGasMeter<'_> {
             // Charge for the stack operations. We don't count this as an "instruction"
             // since we already accounted for the `Call` instruction in the
             // `charge_native_function_before_execution` call.
-            self.0.charge(0, pushes, 0, size_increase.into(), 0)?;
-            // Now charge the gas that the native function told us to charge.
-            self.0.deduct_gas(amount)
-        }
+            self.0
+                .charge(0, pushes, 0, size_increase.into(), 0)
+                // Now charge the gas that the native function told us to charge.
+                .and_then(|()| self.0.deduct_gas(amount))
+        };
+        self.0.record_native_gas_deducted(gas_before);
+        let native_instructions = if threshold_exceeded { amount.into() } else { 0 };
+        self.0
+            .discount_native_flows(native_instructions, pushes, size_increase.into());
+        result
     }
 
     fn charge_native_function_before_execution(
@@ -130,14 +140,23 @@ impl GasMeter for IotaGasMeter<'_> {
         // Determine the number of pops that are going to be needed for this function
         // call, and charge for them.
         let pops = args.len() as u64;
+        let mut input_bytes = AbstractMemorySize::zero();
         // Calculate the size decrease of the stack from the above pops.
         let stack_reduction_size = args.fold(AbstractMemorySize::new(pops), |acc, elem| {
+            input_bytes += abstract_input_size(&elem);
             acc + abstract_memory_size(elem)
         });
+        self.0.discard_native_call_frame();
+        self.0.record_native_input_bytes(input_bytes.into());
         // Track that this is going to be popping from the operand stack. We also
         // increment the instruction count as we need to account for the `Call`
         // bytecode that initiated this native call.
         self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
+    }
+
+    fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
+        self.0
+            .record_native_function_identity(module_id, function_name);
     }
 
     fn charge_call(
@@ -155,6 +174,7 @@ impl GasMeter for IotaGasMeter<'_> {
         let stack_reduction_size = args.fold(AbstractMemorySize::new(0), |acc, elem| {
             acc + abstract_memory_size(elem)
         });
+        self.0.record_call_frame(stack_reduction_size.into());
         self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
     }
 
@@ -173,6 +193,7 @@ impl GasMeter for IotaGasMeter<'_> {
         let stack_reduction_size = args.fold(AbstractMemorySize::new(0), |acc, elem| {
             acc + abstract_memory_size(elem)
         });
+        self.0.record_call_frame(stack_reduction_size.into());
         // Charge for the pops, no pushes, and account for the stack size decrease. Also
         // track the `CallGeneric` instruction we must have encountered for
         // this.
@@ -199,17 +220,17 @@ impl GasMeter for IotaGasMeter<'_> {
     }
 
     fn charge_move_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the move of the local on to the stack. Note that we charge here
-        // since we aren't tracking the local size (at least not yet). If we
-        // were, this should be a net-zero operation in terms of memory usage.
-        self.0.charge(1, 1, 0, abstract_memory_size(val).into(), 0)
+        // Charge for the move of the local on to the stack.
+        let size = abstract_memory_size(val);
+        self.0.record_move_loc(size.into());
+        self.0.charge(1, 1, 0, size.into(), 0)
     }
 
     fn charge_store_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the storing of the value on the stack into a local. Note here that
-        // if we were also accounting for the size of the locals that this would
-        // be a net-zero operation in terms of memory.
-        self.0.charge(1, 0, 1, 0, abstract_memory_size(val).into())
+        // Charge for the storing of the value on the stack into a local.
+        let size = abstract_memory_size(val);
+        self.0.record_store_loc(size.into());
+        self.0.charge(1, 0, 1, 0, size.into())
     }
 
     fn charge_pack(
@@ -356,8 +377,12 @@ impl GasMeter for IotaGasMeter<'_> {
 
     fn charge_drop_frame(
         &mut self,
-        _locals: impl Iterator<Item = impl ValueView>,
+        locals: impl Iterator<Item = impl ValueView>,
     ) -> PartialVMResult<()> {
+        let dropped = locals.fold(AbstractMemorySize::zero(), |acc, val| {
+            acc + abstract_memory_size(val)
+        });
+        self.0.record_drop_frame(dropped.into());
         Ok(())
     }
 
@@ -379,4 +404,78 @@ impl GasMeter for IotaGasMeter<'_> {
 
 fn abstract_memory_size(val: impl ValueView) -> AbstractMemorySize {
     val.abstract_memory_size(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::gas_model::tables::initial_cost_schedule_v1;
+    use move_core_types::{
+        account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
+    };
+    use move_vm_types::values::Value;
+
+    use super::*;
+
+    struct NoTypeArgs;
+    impl TypeView for NoTypeArgs {
+        fn to_type_tag(&self) -> TypeTag {
+            unreachable!("the benchmarks pass no type arguments")
+        }
+    }
+
+    /// Run with: `cargo test --release -p iota-adapter-latest --lib
+    /// bench_native_call_hot_path -- --ignored --nocapture`
+    #[test]
+    #[ignore = "manual benchmark, run explicitly in release mode"]
+    fn bench_native_call_hot_path() {
+        let module_id = ModuleId::new(AccountAddress::TWO, Identifier::new("hash").unwrap());
+        let arg = Value::vector_u8(vec![7u8; 10_000]);
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        let iterations: u64 = 100_000;
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            meter.record_native_function_identity(&module_id, "blake2b256");
+            meter
+                .charge_native_function_before_execution(
+                    std::iter::empty::<NoTypeArgs>(),
+                    std::iter::once(&arg),
+                )
+                .unwrap();
+            meter
+                .charge_native_function(
+                    InternalGas::new(100),
+                    Option::<std::iter::Empty<&Value>>::None,
+                )
+                .unwrap();
+        }
+        let elapsed = start.elapsed();
+        println!(
+            "native call: {:.2} ns/call over {iterations} calls, one 10 KB vector argument \
+             (total {elapsed:?})",
+            elapsed.as_nanos() as f64 / iterations as f64,
+        );
+    }
+
+    /// Run with: `cargo test --release -p iota-adapter-latest --lib
+    /// bench_drop_frame_hot_path -- --ignored --nocapture`
+    #[test]
+    #[ignore = "manual benchmark, run explicitly in release mode"]
+    fn bench_drop_frame_hot_path() {
+        let local = Value::vector_u8(vec![7u8; 10_000]);
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        let iterations: u64 = 100_000;
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            meter.0.record_call_frame(0);
+            meter.charge_drop_frame(std::iter::once(&local)).unwrap();
+        }
+        let elapsed = start.elapsed();
+        println!(
+            "drop frame: {:.2} ns/call over {iterations} calls, one 10 KB vector local \
+             (total {elapsed:?})",
+            elapsed.as_nanos() as f64 / iterations as f64,
+        );
+    }
 }

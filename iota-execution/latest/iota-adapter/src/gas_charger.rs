@@ -228,17 +228,27 @@ pub mod checked {
             &mut self,
             temporary_store: &TemporaryStore<'_>,
         ) -> Result<(), ExecutionError> {
-            let objects = temporary_store.objects();
             // TODO: Charge input object count.
-            let _object_count = objects.len();
             // Charge bytes read
-            let total_size = temporary_store
-                .objects()
-                .iter()
+            let mut object_count = 0u64;
+            let mut object_bytes = 0u64;
+            let mut total_size = 0usize;
+            for (id, obj) in temporary_store.objects().iter() {
                 // don't charge for loading IOTA Framework or Move stdlib
-                .filter(|(id, _)| !id.is_system_package())
-                .map(|(_, obj)| obj.object_size_for_gas_metering())
-                .sum();
+                if id.is_system_package() {
+                    continue;
+                }
+                let size = obj.object_size_for_gas_metering();
+                total_size += size;
+                // Packages are counted separately by `packages_loaded`.
+                if !obj.is_package() {
+                    object_count += 1;
+                    object_bytes += size as u64;
+                }
+            }
+            self.gas_status
+                .move_gas_status_mut()
+                .record_input_objects(object_count, object_bytes);
             self.gas_status.charge_storage_read(total_size)
         }
 
@@ -257,7 +267,7 @@ pub mod checked {
                 protocol_config.dynamic_field_borrow_child_object_type_cost_per_byte() as usize;
             let cost_per_owner = bytes_read_per_owner * cost_per_byte;
             let owner_cost = cost_per_owner * (num_non_gas_coin_owners as usize);
-            self.gas_status.charge_storage_read(owner_cost)
+            self.gas_status.charge_coin_transfers(owner_cost)
         }
 
         /// Resets any mutations, deletions, and events recorded in the store,
