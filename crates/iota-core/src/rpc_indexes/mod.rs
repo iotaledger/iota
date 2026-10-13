@@ -791,6 +791,37 @@ impl RpcIndexesStore {
         self.next_sequence_number.load(Ordering::SeqCst)
     }
 
+    /// The lowest checkpoint from which the history tables are complete,
+    /// never below `ledger_lowest`, the lowest checkpoint the node holds.
+    /// `None` when the store does not serve [`IndexGroup::JsonRpc`]. Can be
+    /// above the highest executed checkpoint, for example while the history is
+    /// backfilled after a rebuild.
+    pub fn lowest_available_checkpoint(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        ledger_lowest: CheckpointSequenceNumber,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        if !self.serves(IndexGroup::JsonRpc) {
+            return Ok(None);
+        }
+        let history_watermark = self.tables.history_watermark.get(&())?;
+        let first_retained = match checkpoint_store
+            .get_epoch_first_checkpoint_seq_number(self.history.earliest_retained())?
+        {
+            Some(first_retained) => first_retained,
+            // The retained epoch's start is unknown, so claim no executed checkpoint.
+            None => checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()?
+                .map(|seq| seq + 1)
+                .unwrap_or(0),
+        };
+        Ok(Some(
+            ledger_lowest
+                .max(history_watermark.unwrap_or(0))
+                .max(first_retained),
+        ))
+    }
+
     /// The `max_type_length` this store was opened with, defaulting to 128.
     pub fn max_type_length(&self) -> u64 {
         self.max_type_length

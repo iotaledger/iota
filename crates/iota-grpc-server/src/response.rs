@@ -74,5 +74,15 @@ pub fn append_info_headers<T>(
         headers.insert(headers::X_IOTA_SERVER, server_version);
     }
 
+    // Add lowest available checkpoint indexes header
+    if let Ok(Some(lowest_indexes)) = grpc_reader.get_lowest_available_checkpoint_indexes() {
+        if let Ok(lowest_indexes_value) = lowest_indexes.to_string().parse() {
+            headers.insert(
+                headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_INDEXES,
+                lowest_indexes_value,
+            );
+        }
+    }
+
     response
 }
