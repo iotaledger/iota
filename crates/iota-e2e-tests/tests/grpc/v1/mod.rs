@@ -65,6 +65,7 @@ impl_field_presence_checker!(GetServiceInfoResponse {
     lowest_available_checkpoint,
     lowest_available_checkpoint_objects,
     server,
+    lowest_available_checkpoint_indexes,
 });
 
 impl_field_presence_checker!(Transaction { digest, bcs });
