@@ -7393,6 +7393,7 @@ dependencies = [
  "bcs 0.2.1",
  "bin-version",
  "clap",
+ "fdlimit",
  "futures",
  "humantime",
  "iota-common",

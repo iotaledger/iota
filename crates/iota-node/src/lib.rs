@@ -143,7 +143,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
-use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
+use tracing::{Instrument, Level, debug, error, error_span, info, trace_span, warn};
 use typed_store::{
     DBMetrics,
     rocks::{check_and_mark_db_corruption, default_db_options, unmark_db_corruption},
@@ -1573,39 +1573,26 @@ impl IotaNode {
         );
         let load_shed = config.grpc_load_shed.unwrap_or_default();
 
-        // HTTP/2 keepalive is the only mechanism that closes a connection whose
-        // peer has gone away without closing it: the server pings after this
-        // long without inbound frames and drops the connection when the ping
-        // goes unanswered for as long again.
-        const VALIDATOR_GRPC_KEEPALIVE: Duration = Duration::from_secs(60);
-        // Bounds the streams one connection may hold open, so a single peer
-        // cannot fill a service's admission slots on its own. A fullnode sends
-        // every request to this validator over one connection, so the cap must
-        // stay well above a busy fullnode's peak concurrency.
-        const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: u32 = 1000;
-
-        let mut server_conf = iota_network_stack::config::Config::new();
-        server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
-        server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
-        server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
-        let server_builder =
-            ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .listener_metrics(validator_server_listener_metrics(prometheus_registry))
-                .add_service_with_concurrency_limit(
-                    ValidatorServer::new(validator_service.clone()),
-                    concurrency_limit,
-                    load_shed,
-                )
-                .add_service_with_concurrency_limit(
-                    ValidatorV2Server::new(validator_service.clone()),
-                    concurrency_limit,
-                    load_shed,
-                )
-                .add_service_with_concurrency_limit(
-                    ValidatorPeerServer::new(validator_service),
-                    concurrency_limit,
-                    load_shed,
-                );
+        // Raises the soft file descriptor limit to the hard limit, as opening
+        // the databases already did; it panics only if `getrlimit` or
+        // `setrlimit` fails, which would have stopped the node there first.
+        let fd_limit = fdlimit::raise_fd_limit();
+        let server_builder = validator_grpc_server_builder(config, prometheus_registry, fd_limit)
+            .add_service_with_concurrency_limit(
+                ValidatorServer::new(validator_service.clone()),
+                concurrency_limit,
+                load_shed,
+            )
+            .add_service_with_concurrency_limit(
+                ValidatorV2Server::new(validator_service.clone()),
+                concurrency_limit,
+                load_shed,
+            )
+            .add_service_with_concurrency_limit(
+                ValidatorPeerServer::new(validator_service),
+                concurrency_limit,
+                load_shed,
+            );
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
@@ -2708,6 +2695,149 @@ fn validator_server_listener_metrics(prometheus_registry: &Registry) -> Listener
     ListenerMetrics::new("authority_grpc", prometheus_registry, MetricLevel::Warn)
 }
 
+/// The validator gRPC server with its listener settings and metrics, before
+/// its services are added. Logs the connection limit of the listener.
+/// `fd_limit` is as for [`validator_grpc_server_config`].
+fn validator_grpc_server_builder(
+    config: &NodeConfig,
+    prometheus_registry: &Registry,
+    fd_limit: Option<u64>,
+) -> ServerBuilder<GrpcMetrics> {
+    let server_conf = validator_grpc_server_config(config, fd_limit);
+    log_startup_message(validator_grpc_connection_limit_message(
+        config.grpc_max_connections,
+        server_conf.max_connections,
+        fd_limit,
+    ));
+    ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
+        .listener_metrics(validator_server_listener_metrics(prometheus_registry))
+}
+
+/// The settings of the validator gRPC listener. `fd_limit` is the file
+/// descriptor limit of the process, `None` where the platform reports none.
+/// The connection limit derives from it when `grpc-max-connections` is unset.
+fn validator_grpc_server_config(
+    config: &NodeConfig,
+    fd_limit: Option<u64>,
+) -> iota_network_stack::config::Config {
+    // HTTP/2 keepalive closes a connection whose peer has gone away without
+    // closing it: the server pings after this long without inbound frames and
+    // drops the connection when the ping goes unanswered for as long again.
+    // TCP keepalive, after the same idle time, also frees the place of a
+    // connection whose host is gone before HTTP/2 has started. Neither closes
+    // a live client that sends nothing.
+    const VALIDATOR_GRPC_KEEPALIVE: Duration = Duration::from_secs(60);
+    // Bounds the streams one connection may hold open, so a single peer
+    // cannot fill a service's admission slots on its own. A fullnode sends
+    // every request to this validator over one connection, so the cap must
+    // stay well above a busy fullnode's peak concurrency.
+    const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: u32 = 1000;
+
+    let mut server_conf = iota_network_stack::config::Config::new();
+    server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
+    server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
+    server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
+    server_conf.tcp_keepalive = Some(VALIDATOR_GRPC_KEEPALIVE);
+    server_conf.max_connections = match config.grpc_max_connections {
+        Some(0) => None,
+        Some(max_connections) => Some(max_connections),
+        None => Some(validator_grpc_connection_budget(fd_limit)),
+    };
+    server_conf
+}
+
+/// The file descriptor limit assumed where the platform reports none.
+const UNKNOWN_FD_LIMIT: u64 = 16384;
+/// The default connection limit of the validator gRPC listener is the file
+/// descriptor limit divided by this.
+const VALIDATOR_GRPC_FD_LIMIT_SHARE: u64 = 8;
+/// The most connections a default limit of the validator gRPC listener allows.
+const VALIDATOR_GRPC_MAX_DERIVED_CONNECTIONS: u64 = 32768;
+
+/// The default connection limit of the validator gRPC listener: 1/8 of
+/// `fd_limit`, the file descriptor limit of the process, from 1 to 32768.
+/// `None`, where the platform reports no limit, counts as a limit of 16384.
+fn validator_grpc_connection_budget(fd_limit: Option<u64>) -> usize {
+    (fd_limit.unwrap_or(UNKNOWN_FD_LIMIT) / VALIDATOR_GRPC_FD_LIMIT_SHARE)
+        .clamp(1, VALIDATOR_GRPC_MAX_DERIVED_CONNECTIONS) as usize
+}
+
+/// The startup log line about the connection limit of the validator gRPC
+/// listener, with its level. `configured` is `grpc-max-connections`,
+/// `max_connections` the limit in effect, and `fd_limit` the file descriptor
+/// limit it was derived from.
+fn validator_grpc_connection_limit_message(
+    configured: Option<usize>,
+    max_connections: Option<usize>,
+    fd_limit: Option<u64>,
+) -> (Level, String) {
+    // A derived limit this low usually means that the process kept a low
+    // default file descriptor limit.
+    const LOW_DERIVED_LIMIT: usize = 512;
+
+    let Some(max) = max_connections else {
+        return (
+            Level::INFO,
+            "The validator gRPC listener has no connection limit (`grpc-max-connections: 0`)"
+                .to_owned(),
+        );
+    };
+    if configured.is_some() {
+        return (
+            Level::INFO,
+            format!(
+                "The validator gRPC listener holds at most {max} connections \
+                 (`grpc-max-connections`)"
+            ),
+        );
+    }
+    let Some(fd_limit) = fd_limit else {
+        return (
+            Level::INFO,
+            format!(
+                "The validator gRPC listener holds at most {max} connections, 1/8 of \
+                 {UNKNOWN_FD_LIMIT}: the file descriptor limit of the process is unknown"
+            ),
+        );
+    };
+    if fd_limit / VALIDATOR_GRPC_FD_LIMIT_SHARE > VALIDATOR_GRPC_MAX_DERIVED_CONNECTIONS {
+        return (
+            Level::INFO,
+            format!(
+                "The validator gRPC listener holds at most {max} connections, the most a \
+                 derived limit allows (1/8 of the file descriptor limit {fd_limit} is more)"
+            ),
+        );
+    }
+    if max < LOW_DERIVED_LIMIT {
+        return (
+            Level::WARN,
+            format!(
+                "The file descriptor limit {fd_limit} is low: the validator gRPC listener gets \
+                 only {max} connections, 1/8 of it. Raise the limit, or set \
+                 `grpc-max-connections`"
+            ),
+        );
+    }
+    (
+        Level::INFO,
+        format!(
+            "The validator gRPC listener holds at most {max} connections, 1/8 of the file \
+             descriptor limit {fd_limit}"
+        ),
+    )
+}
+
+/// Logs a startup `message` at `warn` for `Level::WARN`, and at `info`
+/// otherwise.
+fn log_startup_message((level, message): (Level, String)) {
+    if level == Level::WARN {
+        warn!("{message}");
+    } else {
+        info!("{message}");
+    }
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Threshold {
     pub threshold_seconds: Option<u32>,
@@ -2865,11 +2995,18 @@ mod runtime_split_tests {
 
 #[cfg(test)]
 mod config_tests {
+    use std::{path::Path, time::Duration};
+
     use iota_config::NodeConfig;
     use iota_metrics::RegistryService;
     use prometheus_filtered::Registry;
+    use tracing::Level;
 
-    use super::{IotaNode, remove_legacy_db_checkpoints};
+    use super::{
+        IotaNode, remove_legacy_db_checkpoints, validator_grpc_connection_budget,
+        validator_grpc_connection_limit_message, validator_grpc_server_builder,
+        validator_grpc_server_config,
+    };
 
     /// A config whose `db-path` is `db_path`, with nothing else a node would
     /// need to start.
@@ -2921,6 +3058,183 @@ genesis:
         assert!(live.exists(), "the live database must be left alone");
     }
 
+    pub(super) fn config_with_grpc_max_connections(
+        grpc_max_connections: Option<usize>,
+    ) -> NodeConfig {
+        let mut config = config_with_db_path(Path::new("/nonexistent/db"));
+        config.grpc_max_connections = grpc_max_connections;
+        config
+    }
+
+    #[test]
+    fn the_validator_grpc_listener_keeps_its_settings() {
+        let server_conf =
+            validator_grpc_server_config(&config_with_grpc_max_connections(None), Some(8192));
+        assert_eq!(
+            server_conf.http2_keepalive_interval,
+            Some(Duration::from_secs(60))
+        );
+        assert_eq!(
+            server_conf.http2_keepalive_timeout,
+            Some(Duration::from_secs(60))
+        );
+        assert_eq!(server_conf.http2_max_concurrent_streams, Some(1000));
+        assert_eq!(
+            server_conf.tcp_keepalive,
+            Some(Duration::from_secs(60)),
+            "a connection whose host is gone must free its place in the limit"
+        );
+        assert_eq!(
+            server_conf.max_connections,
+            Some(1024),
+            "an unset limit derives from the file descriptor limit"
+        );
+
+        let server_conf =
+            validator_grpc_server_config(&config_with_grpc_max_connections(Some(100)), Some(8192));
+        assert_eq!(
+            server_conf.max_connections,
+            Some(100),
+            "a configured limit is used as given"
+        );
+    }
+
+    #[tokio::test]
+    async fn zero_turns_the_validator_connection_limit_off() {
+        let server_conf =
+            validator_grpc_server_config(&config_with_grpc_max_connections(Some(0)), Some(8192));
+        assert_eq!(server_conf.max_connections, None);
+
+        let server = server_conf
+            .server_builder()
+            .bind(&"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(), None)
+            .await
+            .expect("the listener starts with `grpc-max-connections: 0`");
+        server.trigger_shutdown();
+    }
+
+    /// The validator gRPC server resets a connection over
+    /// `grpc-max-connections` and counts the refusal.
+    #[tokio::test]
+    async fn the_validator_grpc_server_enforces_grpc_max_connections() {
+        use iota_metrics::test_utils::MetricsReader;
+        use tokio::io::AsyncReadExt as _;
+
+        let registry = Registry::new();
+        let server = validator_grpc_server_builder(
+            &config_with_grpc_max_connections(Some(1)),
+            &registry,
+            Some(8192),
+        )
+        .bind(&"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(), None)
+        .await
+        .unwrap();
+        let addr = *server.handle().local_addr();
+
+        let _held = tokio::net::TcpStream::connect(addr).await.unwrap();
+        // On loopback the reset can arrive before the connect completes.
+        let refused = match tokio::net::TcpStream::connect(addr).await {
+            Ok(mut stream) => {
+                let mut buf = [0u8; 1];
+                tokio::time::timeout(Duration::from_secs(10), stream.read(&mut buf))
+                    .await
+                    .expect("the server must refuse at once")
+            }
+            Err(e) => Err(e),
+        };
+        assert!(
+            matches!(&refused, Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset),
+            "the second connection must be reset, got {refused:?}"
+        );
+        assert_eq!(
+            MetricsReader::new(&registry).value(
+                "authority_grpc_inbound_connections_refused",
+                &[("reason", "max_connections")]
+            ),
+            1.0
+        );
+        server.trigger_shutdown();
+    }
+
+    #[test]
+    fn the_connection_budget_is_an_eighth_of_the_fd_limit_up_to_32768() {
+        assert_eq!(validator_grpc_connection_budget(Some(1024)), 128);
+        assert_eq!(validator_grpc_connection_budget(Some(8_000_000)), 32768);
+        assert_eq!(validator_grpc_connection_budget(Some(u64::MAX)), 32768);
+        assert_eq!(
+            validator_grpc_connection_budget(Some(7)),
+            1,
+            "the listener always gets at least one connection"
+        );
+        assert_eq!(
+            validator_grpc_connection_budget(None),
+            2048,
+            "an unknown file descriptor limit counts as 16384"
+        );
+    }
+
+    #[test]
+    fn the_startup_line_names_one_eighth_of_the_fd_limit() {
+        let (level, line) = validator_grpc_connection_limit_message(None, Some(1024), Some(8192));
+        assert_eq!(level, Level::INFO);
+        assert!(
+            line.contains("1024 connections, 1/8 of the file descriptor limit 8192"),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn the_startup_line_names_the_cap() {
+        let (level, line) =
+            validator_grpc_connection_limit_message(None, Some(32768), Some(1_048_576));
+        assert_eq!(level, Level::INFO);
+        assert!(
+            line.contains("32768 connections, the most a derived limit allows"),
+            "{line}"
+        );
+        assert!(line.contains("1048576"), "{line}");
+    }
+
+    #[test]
+    fn the_startup_line_names_the_fallback_for_an_unknown_fd_limit() {
+        let (level, line) = validator_grpc_connection_limit_message(None, Some(2048), None);
+        assert_eq!(level, Level::INFO);
+        assert!(line.contains("2048 connections"), "{line}");
+        assert!(
+            line.contains("the file descriptor limit of the process is unknown"),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn the_startup_line_warns_when_the_fd_limit_is_low() {
+        let (level, line) = validator_grpc_connection_limit_message(None, Some(511), Some(4095));
+        assert_eq!(level, Level::WARN);
+        assert!(
+            line.contains("The file descriptor limit 4095 is low"),
+            "{line}"
+        );
+        assert!(line.contains("only 511 connections"), "{line}");
+
+        let (level, _) = validator_grpc_connection_limit_message(None, Some(512), Some(4096));
+        assert_eq!(level, Level::INFO);
+    }
+
+    #[test]
+    fn the_startup_line_names_a_configured_limit() {
+        let (level, line) =
+            validator_grpc_connection_limit_message(Some(100), Some(100), Some(8192));
+        assert_eq!(level, Level::INFO, "a configured limit is not a warning");
+        assert!(
+            line.contains("100 connections (`grpc-max-connections`)"),
+            "{line}"
+        );
+
+        let (level, line) = validator_grpc_connection_limit_message(Some(0), None, Some(8192));
+        assert_eq!(level, Level::INFO);
+        assert!(line.contains("no connection limit"), "{line}");
+    }
+
     #[test]
     fn a_database_without_one_is_left_alone() {
         let dir = iota_common::tempdir();
@@ -2946,7 +3260,8 @@ mod listener_metrics_tests {
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
     use super::{
-        GrpcMetrics, ServerBuilder, json_rpc_listener_metrics, validator_server_listener_metrics,
+        config_tests::config_with_grpc_max_connections, json_rpc_listener_metrics,
+        validator_grpc_server_builder,
     };
 
     async fn get_health(handle: &iota_http::ServerHandle<std::net::SocketAddr>) {
@@ -2988,16 +3303,18 @@ mod listener_metrics_tests {
             "test".to_string(),
             None,
         );
-        let config = Config::new();
-        let validator = ServerBuilder::from_config(&config, GrpcMetrics::new(&registry))
-            .listener_metrics(validator_server_listener_metrics(&registry))
-            .bind(
-                &"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(),
-                Some(tls_config),
-            )
-            .await
-            .unwrap();
-        let channel = config
+        let validator = validator_grpc_server_builder(
+            &config_with_grpc_max_connections(None),
+            &registry,
+            Some(8192),
+        )
+        .bind(
+            &"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(),
+            Some(tls_config),
+        )
+        .await
+        .unwrap();
+        let channel = Config::new()
             .connect(validator.local_addr(), client_config)
             .await
             .unwrap();

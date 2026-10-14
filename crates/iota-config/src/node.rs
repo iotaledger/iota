@@ -111,6 +111,16 @@ pub struct NodeConfig {
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
+    /// The most connections the validator gRPC listener holds at once, TLS
+    /// handshakes included. A connection over the limit is reset right after
+    /// it is accepted. The limit bounds the file descriptors of the listener.
+    ///
+    /// Unset uses 1/8 of the file descriptor limit of the process, at most
+    /// 32768. `0` removes the limit, and with it the bound on the file
+    /// descriptors of the listener.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc_max_connections: Option<usize>,
+
     /// Maximum number of concurrent in-flight requests per CPU core, applied
     /// to each service of the validator gRPC server separately (`Validator`,
     /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction
