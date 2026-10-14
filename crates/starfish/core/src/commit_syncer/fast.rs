@@ -783,7 +783,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 // A cut stream explains the empty covered prefix: report the
                 // connection failure rather than transactions the peer was
                 // never able to send.
-                return Err(stream_error.unwrap_or(mismatch));
+                return Err(stream_error.unwrap_or_else(|| {
+                    inner
+                        .misbehavior_store
+                        .record_fetch_fault(target_authority, &mismatch);
+                    mismatch
+                }));
             }
             info!(
                 "[{}] Fetched transactions cover only {} out of {} commits received from {}, processing the covered prefix",
@@ -1141,8 +1146,7 @@ fn fill_missing_empty_transactions(
 /// so any prefix of them remains trusted on its own.
 ///
 /// Returns an error naming `peer` when even the first commit is missing
-/// transactions, since the response then allows no forward progress. Not
-/// recorded as misbehavior: an honest response can be cut to any prefix.
+/// transactions, since the response then allows no forward progress.
 fn truncate_to_fully_fetched_prefix<T>(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
@@ -1730,10 +1734,11 @@ mod tests {
             assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
-        /// A response with no transactions fails the fetch but records no
-        /// misbehavior, since an honest response can arrive incomplete.
+        /// A response that ends without covering the first commit is charged
+        /// to the serving peer: an honest server sends the first commit whole
+        /// or refuses the request.
         #[tokio::test]
-        async fn does_not_record_misbehavior_for_missing_transactions() {
+        async fn records_misbehavior_for_missing_transactions() {
             let context = fast_sync_context();
             let (commits, vote_headers, _) = two_commit_response(&context);
 
@@ -1743,7 +1748,7 @@ mod tests {
                 matches!(err, ConsensusError::FetchedTransactionsMismatch { .. }),
                 "unexpected error: {err:?}"
             );
-            assert_unprovable_faults(&inner, vec![0; 4]);
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
         /// When no commit is covered because the response stream was cut, the
