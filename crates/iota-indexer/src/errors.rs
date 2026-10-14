@@ -206,6 +206,24 @@ impl<T> Context<T> for Result<T, IndexerError> {
     }
 }
 
+impl IndexerError {
+    /// Raises the oldest available checkpoint a [`Self::DataPruned`] reports to
+    /// at least `checkpoint`, for a caller that reads more tables than the function that returned
+    /// the error.
+    pub fn raise_oldest_available_checkpoint(self, checkpoint: CheckpointSequenceNumber) -> Self {
+        match self {
+            Self::DataPruned {
+                message,
+                oldest_available_checkpoint,
+            } => Self::DataPruned {
+                message,
+                oldest_available_checkpoint: oldest_available_checkpoint.max(checkpoint),
+            },
+            other => other,
+        }
+    }
+}
+
 impl From<IndexerError> for RpcError {
     fn from(e: IndexerError) -> Self {
         RpcError::Call(e.into())

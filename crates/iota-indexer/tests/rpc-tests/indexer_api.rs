@@ -9,13 +9,15 @@ use std::{
 
 use iota_indexer::{config::RetentionConfig, errors::IndexerError, pruning::pruner::PrunableTable};
 use iota_json::{call_args, type_args};
-use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json_rpc_api::{
+    IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
 use iota_json_rpc_types::{
-    EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
-    IotaObjectResponseQuery, IotaTransactionBlockData, IotaTransactionBlockKind,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
-    TransactionFilterV2,
+    CheckpointId, EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter,
+    IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockData,
+    IotaTransactionBlockKind, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, IotaTransactionKind,
+    ObjectsPage, TransactionFilter, TransactionFilterV2,
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
@@ -37,7 +39,8 @@ use move_core_types::annotated_value::MoveValue;
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, WATERMARK_REFRESH_TIMEOUT, execute_tx_and_wait_for_indexer_checkpoint,
+        ApiTestSetup, WATERMARK_REFRESH_TIMEOUT, assert_reports_data_pruned,
+        execute_dummy_tx_and_wait_for_indexer, execute_tx_and_wait_for_indexer_checkpoint,
         execute_tx_must_succeed, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
         indexer_wait_for_object, indexer_wait_for_transaction, publish_test_move_package,
         retry_with_timeout, rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
@@ -339,6 +342,93 @@ async fn query_transaction_blocks_by_checkpoint_fails_when_tx_global_order_is_pr
     })
     .await
     .expect("timeout waiting for the pruned checkpoint query to fail");
+}
+
+/// A cursor digest pruned from `tx_global_order` is reported as pruned data,
+/// whichever other tables the query reads.
+#[tokio::test]
+async fn queries_report_a_pruned_cursor_as_data_pruned() {
+    // Only `tx_global_order` is pruned; every other table is retained.
+    let overrides = HashMap::from([(PrunableTable::TxGlobalOrder, 1)]);
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_queries_report_a_pruned_cursor_as_data_pruned"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+    let epoch_0_tx_digest = *client
+        .get_checkpoint(CheckpointId::SequenceNumber(0))
+        .await
+        .expect("the genesis checkpoint is still there")
+        .transactions
+        .first()
+        .expect("the genesis checkpoint holds the genesis transaction");
+
+    cluster.force_new_epoch().await;
+    let oldest_available_epoch = 1;
+    let epoch_1_tx_digest = execute_dummy_tx_and_wait_for_indexer(cluster, store, client).await;
+    let epoch_1_checkpoint = *client
+        .get_latest_checkpoint_sequence_number()
+        .await
+        .expect("the latest checkpoint is indexed");
+
+    let address = Address::ZERO;
+    for filter in [
+        TransactionFilter::FromOrToAddress { addr: address },
+        TransactionFilter::FromAddress(address),
+        TransactionFilter::Checkpoint(epoch_1_checkpoint),
+    ] {
+        let query = IotaTransactionBlockResponseQuery::new_with_filter(filter.clone());
+        assert_reports_data_pruned(
+            client,
+            &format!("iotax_queryTransactionBlocks {filter:?}"),
+            oldest_available_epoch,
+            || {
+                client.query_transaction_blocks(
+                    query.clone(),
+                    Some(epoch_0_tx_digest),
+                    None,
+                    Some(true),
+                )
+            },
+        )
+        .await;
+
+        client
+            .query_transaction_blocks(query, Some(epoch_1_tx_digest), None, Some(true))
+            .await
+            .expect("a cursor from the current epoch works");
+    }
+
+    let pruned_cursor = iota_types::event::EventID {
+        tx_digest: epoch_0_tx_digest,
+        event_seq: 0,
+    };
+    assert_reports_data_pruned(client, "iotax_queryEvents", oldest_available_epoch, || {
+        client.query_events(
+            EventFilter::Sender(address),
+            Some(pruned_cursor),
+            None,
+            Some(true),
+        )
+    })
+    .await;
+
+    let available_cursor = iota_types::event::EventID {
+        tx_digest: epoch_1_tx_digest,
+        event_seq: 0,
+    };
+    client
+        .query_events(
+            EventFilter::Sender(address),
+            Some(available_cursor),
+            None,
+            Some(true),
+        )
+        .await
+        .expect("a cursor from the current epoch works");
 }
 
 #[test]

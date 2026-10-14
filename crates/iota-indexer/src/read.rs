@@ -180,11 +180,12 @@ impl IndexerReader {
     ///
     /// The reader raises [`IndexerError::DataPruned`] when a requested
     /// `tx_sequence_number` is below the `min_available_tx` across these
-    /// tables.
+    /// tables. `tx_global_order` resolves the cursor digest.
     const TRANSACTIONS_BY_ADDRESS_TABLES: &[CommitterTables] = &[
         CommitterTables::TxSenders,
         CommitterTables::TxRecipients,
         CommitterTables::Transactions,
+        CommitterTables::TxGlobalOrder,
     ];
 
     /// Tables read when a transaction's events are looked up by its digest:
@@ -593,19 +594,27 @@ impl IndexerReader {
             past_object_read,
             PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..)
         );
-        if object_missing_from_versions {
-            // If we have full versions history then the answer is final. Otherwise the
-            // object may have been pruned.
-            let oldest_available_checkpoint = self.oldest_available_cp(
+        // If we have full versions history then the answer is final. Otherwise the
+        // object may have been pruned.
+        if object_missing_from_versions
+            && self.oldest_available_cp(
                 &[CommitterTables::ObjectsVersion],
                 true, // we read versions from fallback
+            ) > 0
+        {
+            // We reach this place only when the fallback is disabled, meaning that data needs to be
+            // read from both DB tables: `objects_version` and `objects_backward_history`
+            let oldest_available_checkpoint = self.oldest_available_cp(
+                &[
+                    CommitterTables::ObjectsVersion,
+                    CommitterTables::ObjectsBackwardHistory,
+                ],
+                true,
             );
-            if oldest_available_checkpoint > 0 {
-                return Err(IndexerError::DataPruned {
-                    message: format!("object {object_id} version {object_version} not found"),
-                    oldest_available_checkpoint,
-                });
-            }
+            return Err(IndexerError::DataPruned {
+                message: format!("object {object_id} version {object_version} not found"),
+                oldest_available_checkpoint,
+            });
         }
 
         Ok(past_object_read)
@@ -1726,7 +1735,8 @@ impl IndexerReader {
             let tx_seq = self
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(cursor)
-                .await?;
+                .await
+                .map_err(|e| e.raise_oldest_available_checkpoint(oldest_available_cp))?;
             self.ensure_data_not_pruned_for_tx(tx_seq, tx_tables)?;
             Some(tx_seq)
         } else {
@@ -1974,12 +1984,13 @@ impl IndexerReader {
     fn event_tables_for_filter(filter: &EventFilter) -> IndexerResult<&'static [CommitterTables]> {
         use CommitterTables::*;
 
+        // `tx_global_order` needed to resolve cursor.
         Ok(match filter {
-            EventFilter::Sender(_) => &[Events, TxSenders],
+            EventFilter::Sender(_) => &[Events, TxSenders, TxGlobalOrder],
             EventFilter::Package(_)
             | EventFilter::MoveModule { .. }
             | EventFilter::MoveEventType(_)
-            | EventFilter::MoveEventModule { .. } => &[Events],
+            | EventFilter::MoveEventModule { .. } => &[Events, TxGlobalOrder],
             EventFilter::Transaction(_) => Self::EVENTS_BY_DIGEST_TABLES,
             EventFilter::MoveEventField { .. }
             | EventFilter::All(_)
@@ -2303,8 +2314,9 @@ impl IndexerReader {
             return fallback.all_events(digest).await;
         }
 
+        // we read events from the `transactions` table
         let oldest_available_checkpoint = self.oldest_available_cp(
-            Self::EVENTS_BY_DIGEST_TABLES,
+            Self::TRANSACTIONS_BY_DIGEST_TABLES,
             false, // reached only when no fallback is configured
         );
         // If nothing has been pruned yet then the transaction does not exist.
@@ -2430,7 +2442,12 @@ impl IndexerReader {
             let tx_seq: i64 = self
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(tx_digest)
-                .await?;
+                .await
+                .map_err(|e| {
+                    e.raise_oldest_available_checkpoint(
+                        oldest_available_cp as CheckpointSequenceNumber,
+                    )
+                })?;
             self.ensure_data_not_pruned_for_tx(tx_seq, event_tables)?;
             (tx_seq, event_seq as i64)
         } else if descending_order {
@@ -3253,7 +3270,15 @@ impl<'a> DBReader<'a> {
     ) -> IndexerResult<Vec<StoredTransaction>> {
         let tx_seq_range = match cursor {
             Some(cursor) => {
-                let cursor_tx_seq = self.resolve_cursor_tx_digest_to_seq_num(cursor).await? as u64;
+                let cursor_tx_seq = self
+                    .resolve_cursor_tx_digest_to_seq_num(cursor)
+                    .await
+                    .map_err(|e| {
+                        e.raise_oldest_available_checkpoint(self.main_reader.oldest_available_cp(
+                            IndexerReader::TRANSACTIONS_BY_CHECKPOINT_TABLES,
+                            false,
+                        ))
+                    })? as u64;
                 if is_descending {
                     (Bound::Unbounded, Bound::Excluded(cursor_tx_seq))
                 } else {
@@ -3401,15 +3426,32 @@ impl<'a> DBReader<'a> {
             .map(|seq| seq.is_none())
     }
 
+    /// Resolves a cursor digest to its transaction sequence number.
+    ///
+    /// A digest missing from `tx_global_order` fails with [`IndexerError::InvalidArgument`] if the
+    /// table is complete or with [`IndexerError::DataPruned`] if the table has been pruned.
     pub async fn resolve_cursor_tx_digest_to_seq_num(
         &self,
         cursor: TransactionDigest,
     ) -> IndexerResult<i64> {
-        self.resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
+        if let Some(tx_seq) = self
+            .resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
             .await?
-            .ok_or_else(|| {
-                IndexerError::InvalidArgument(format!("transaction with digest {cursor} not found"))
-            })
+        {
+            return Ok(tx_seq);
+        }
+        let oldest_available_checkpoint = self
+            .main_reader
+            .oldest_available_cp(&[CommitterTables::TxGlobalOrder], false);
+        if oldest_available_checkpoint > 0 {
+            return Err(IndexerError::DataPruned {
+                message: format!("cursor digest {cursor} not found, potentially pruned"),
+                oldest_available_checkpoint,
+            });
+        }
+        Err(IndexerError::InvalidArgument(format!(
+            "transaction with digest {cursor} not found"
+        )))
     }
 
     async fn resolve_cursor_tx_digest_to_seq_num_maybe(
