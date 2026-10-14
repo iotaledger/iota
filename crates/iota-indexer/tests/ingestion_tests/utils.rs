@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use iota_common::random_util::TempDir;
 use iota_indexer::{
-    ingestion::OperationalLevel, models::obj_indices::StoredObjectVersion, store::PgIndexerStore,
-    test_utils::DBInitHook,
+    errors::IndexerError, ingestion::OperationalLevel, models::obj_indices::StoredObjectVersion,
+    store::PgIndexerStore, test_utils::DBInitHook,
 };
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, OwnedObjectReference, Transaction, TransactionEffects,
@@ -51,7 +51,7 @@ impl TestSim {
     /// Creates a simulacrum with an indexer writer.
     ///
     /// The indexer ingests the tables of `operational_level` into the database
-    /// `database_name_{operational_level}`.
+    /// `database_name_{operational_level as u8}`.
     pub(crate) fn new(operational_level: OperationalLevel, database_name: &str) -> Self {
         let data_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
@@ -60,7 +60,7 @@ impl TestSim {
             inner: Arc::new(sim),
             data_dir,
             operational_level,
-            database_name: database_name.to_string(),
+            database_name: format!("{database_name}_{}", operational_level as u8),
         }
     }
 
@@ -145,6 +145,31 @@ impl TestSim {
             object_version: r.version.as_u64() as i64,
             cp_sequence_number: cp,
         })
+    }
+}
+
+pub(crate) trait IngestionTest {
+    /// Any values produced through the setup phase to compare against the database.
+    type ExpectedState;
+
+    /// Sets up the test fixtures.
+    ///
+    /// Typically executes transactions, starts the indexer and constructs any state to compare
+    /// against the database.
+    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState);
+
+    /// Verifies the database tables, using also the given expected state if any.
+    async fn assert_ingested(
+        &self,
+        pg_store: &PgIndexerStore,
+        state: Self::ExpectedState,
+    ) -> Result<(), IndexerError>;
+
+    /// Runs the test on `level`, using `database_name` as the test database.
+    async fn run(&self, level: OperationalLevel, database_name: &str) -> Result<(), IndexerError> {
+        let sim = TestSim::new(level, database_name);
+        let (pg_store, state) = self.setup(&sim).await;
+        self.assert_ingested(&pg_store, state).await
     }
 }
 

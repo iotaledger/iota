@@ -18,13 +18,162 @@ use iota_indexer::{
     transactional_blocking_with_retry,
     types::TxIndex,
 };
-use iota_sdk_types::TransactionDigest;
-use iota_types::effects::TransactionEffectsAPI;
+use iota_sdk_types::{TransactionDigest, TransactionEffects};
+use iota_types::{
+    effects::TransactionEffectsAPI, messages_checkpoint::VerifiedCheckpoint,
+    transaction::TransactionEnvelope,
+};
 
 use crate::{
     common::indexer_wait_for_checkpoint,
-    utils::{TestSim, read_only_blocking},
+    utils::{IngestionTest, TestSim, read_only_blocking},
 };
+
+#[tokio::test]
+pub async fn transaction_table() -> Result<(), IndexerError> {
+    TransactionTable
+        .run(OperationalLevel::default(), "ingestion_transaction_table")
+        .await
+}
+
+#[tokio::test]
+pub async fn tx_global_order_table() -> Result<(), IndexerError> {
+    TxGlobalOrderTable::new(false)
+        .run(OperationalLevel::default(), "ingestion_tx_global_order")
+        .await
+}
+
+#[tokio::test]
+pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
+    TxGlobalOrderTable::new(true)
+        .run(
+            OperationalLevel::default(),
+            "ingestion_tx_global_order_on_conflict_do_nothing",
+        )
+        .await
+}
+
+/// This test case verifies that pg_store.persist_tx_indices correctly
+/// splits large vectors of TxIndex into smaller chunks of size
+/// PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
+///
+/// This prevents the Postgres error:
+/// ```text
+/// "error encoding message to server: value too large to transmit"
+/// ```
+#[tokio::test]
+pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
+    let sim = TestSim::new(
+        OperationalLevel::default(),
+        "indexer_ingestion_tx_indices_db",
+    );
+    let pg_store = sim.start_indexer(None).await;
+
+    // By creating 1000 random tx indices we ensure that the
+    // persist_event_indices function will flatten each TxIndex by
+    // extracting all field data and collecting each field type
+    // into its own separate vector (each field has one element or more
+    // elements). This will result in having n vectors with length
+    // greater than PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX, which will
+    // trigger the large vectors to be split into chunks of
+    // PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
+    let tx_indices = std::iter::repeat_with(TxIndex::random).take(1000).collect();
+    pg_store.persist_tx_indices(tx_indices).await?;
+    Ok(())
+}
+
+struct TransactionTable;
+
+impl IngestionTest for TransactionTable {
+    type ExpectedState = (TransactionEnvelope, TransactionEffects, VerifiedCheckpoint);
+
+    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+        let (transaction, effects, _) = sim.execute_transfer();
+        // Create a checkpoint which should include the transaction we executed.
+        let checkpoint = sim.inner.create_checkpoint();
+
+        let pg_store = sim.start_indexer(None).await;
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+        (pg_store, (transaction, effects, checkpoint))
+    }
+
+    async fn assert_ingested(
+        &self,
+        pg_store: &PgIndexerStore,
+        (transaction, effects, checkpoint): Self::ExpectedState,
+    ) -> Result<(), IndexerError> {
+        let digest = *effects.transaction_digest();
+
+        // Read the transaction from the database directly.
+        let db_txn: StoredTransaction = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            transactions::table
+                .filter(transactions::transaction_digest.eq(digest.bytes().to_vec()))
+                .first::<StoredTransaction>(conn)
+        })
+        .context("failed reading transaction from PostgresDB")?;
+
+        // Check that the transaction was stored correctly.
+        assert_eq!(db_txn.tx_sequence_number, 1);
+        assert_eq!(db_txn.transaction_digest, digest.bytes().to_vec());
+        assert_eq!(
+            db_txn.raw_transaction,
+            bcs::to_bytes(&transaction.data()).unwrap()
+        );
+        assert_eq!(db_txn.raw_effects, bcs::to_bytes(&effects).unwrap());
+        assert_eq!(db_txn.timestamp_ms, checkpoint.timestamp_ms as i64);
+        assert_eq!(db_txn.checkpoint_sequence_number, 1);
+        assert_eq!(db_txn.transaction_kind, 1);
+        assert_eq!(db_txn.success_command_count, 2); // split coin + transfer
+        Ok(())
+    }
+}
+
+struct TxGlobalOrderTable {
+    /// If `true`, a DB init hook inserts the `tx_global_order` row before the
+    /// indexer starts, as optimistic indexing does.
+    pre_inserted: bool,
+}
+
+impl TxGlobalOrderTable {
+    fn new(pre_inserted: bool) -> Self {
+        Self { pre_inserted }
+    }
+}
+
+impl IngestionTest for TxGlobalOrderTable {
+    type ExpectedState = TransactionDigest;
+
+    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+        let (_, effects, _) = sim.execute_transfer();
+        sim.inner.create_checkpoint();
+        let digest = *effects.transaction_digest();
+
+        let db_init_hook = self
+            .pre_inserted
+            .then(|| emulate_insertion_order_set_earlier_by_optimistic_indexing(digest));
+        let pg_store = sim.start_indexer(db_init_hook).await;
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+        (pg_store, digest)
+    }
+
+    async fn assert_ingested(
+        &self,
+        pg_store: &PgIndexerStore,
+        digest: Self::ExpectedState,
+    ) -> Result<(), IndexerError> {
+        let stored = read_tx_global_order(pg_store, digest).await?;
+
+        assert!(stored.tx_sequence_number.is_some());
+        // If pre_inserted the checkpoint upsert must fill in the sequence number without
+        // replacing the row inserted by the optimistic path.
+        let expected_optimistic_sequence_number = if self.pre_inserted { 1 } else { -1 };
+        assert_eq!(
+            stored.optimistic_sequence_number,
+            Some(expected_optimistic_sequence_number)
+        );
+        Ok(())
+    }
+}
 
 async fn read_tx_global_order(
     pg_store: &PgIndexerStore,
@@ -61,118 +210,4 @@ fn emulate_insertion_order_set_earlier_by_optimistic_indexing(
         )
         .unwrap()
     })
-}
-
-#[tokio::test]
-pub async fn transaction_table() -> Result<(), IndexerError> {
-    let sim = TestSim::new(OperationalLevel::default(), "ingestion_transaction_table");
-    let (transaction, effects, _) = sim.execute_transfer();
-    // Create a checkpoint which should include the transaction we executed.
-    let checkpoint = sim.inner.create_checkpoint();
-
-    let pg_store = sim.start_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 1).await;
-
-    let digest = *effects.transaction_digest();
-
-    // Read the transaction from the database directly.
-    let db_txn: StoredTransaction = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-        transactions::table
-            .filter(transactions::transaction_digest.eq(digest.bytes().to_vec()))
-            .first::<StoredTransaction>(conn)
-    })
-    .context("failed reading transaction from PostgresDB")?;
-
-    // Check that the transaction was stored correctly.
-    assert_eq!(db_txn.tx_sequence_number, 1);
-    assert_eq!(db_txn.transaction_digest, digest.bytes().to_vec());
-    assert_eq!(
-        db_txn.raw_transaction,
-        bcs::to_bytes(&transaction.data()).unwrap()
-    );
-    assert_eq!(db_txn.raw_effects, bcs::to_bytes(&effects).unwrap());
-    assert_eq!(db_txn.timestamp_ms, checkpoint.timestamp_ms as i64);
-    assert_eq!(db_txn.checkpoint_sequence_number, 1);
-    assert_eq!(db_txn.transaction_kind, 1);
-    assert_eq!(db_txn.success_command_count, 2); // split coin + transfer
-    Ok(())
-}
-
-#[tokio::test]
-pub async fn tx_global_order_table() -> Result<(), IndexerError> {
-    let sim = TestSim::new(OperationalLevel::default(), "ingestion_tx_global_order");
-    let (_, effects, _) = sim.execute_transfer();
-    sim.inner.create_checkpoint();
-
-    let pg_store = sim.start_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 1).await;
-
-    let stored = read_tx_global_order(&pg_store, *effects.transaction_digest()).await?;
-
-    assert!(stored.tx_sequence_number.is_some());
-    let expected_optimistic_sequence_number = -1;
-    assert_eq!(
-        stored.optimistic_sequence_number,
-        Some(expected_optimistic_sequence_number)
-    );
-    Ok(())
-}
-
-#[tokio::test]
-pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
-    let sim = TestSim::new(
-        OperationalLevel::default(),
-        "ingestion_tx_global_order_on_conflict_do_nothing",
-    );
-    let (_, effects, _) = sim.execute_transfer();
-    sim.inner.create_checkpoint();
-    let digest = *effects.transaction_digest();
-
-    let pg_store = sim
-        .start_indexer(Some(
-            emulate_insertion_order_set_earlier_by_optimistic_indexing(digest),
-        ))
-        .await;
-    indexer_wait_for_checkpoint(&pg_store, 1).await;
-
-    let stored = read_tx_global_order(&pg_store, digest).await?;
-
-    // The checkpoint upsert must fill in the sequence number without
-    // replacing the row inserted by the optimistic path.
-    assert!(stored.tx_sequence_number.is_some());
-    let expected_optimistic_sequence_number = 1;
-    assert_eq!(
-        stored.optimistic_sequence_number,
-        Some(expected_optimistic_sequence_number)
-    );
-    Ok(())
-}
-
-/// This test case verifies that pg_store.persist_tx_indices correctly
-/// splits large vectors of TxIndex into smaller chunks of size
-/// PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
-///
-/// This prevents the Postgres error:
-/// ```text
-/// "error encoding message to server: value too large to transmit"
-/// ```
-#[tokio::test]
-pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
-    let sim = TestSim::new(
-        OperationalLevel::default(),
-        "indexer_ingestion_tx_indices_db",
-    );
-    let pg_store = sim.start_indexer(None).await;
-
-    // By creating 1000 random tx indices we ensure that the
-    // persist_event_indices function will flatten each TxIndex by
-    // extracting all field data and collecting each field type
-    // into its own separate vector (each field has one element or more
-    // elements). This will result in having n vectors with length
-    // greater than PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX, which will
-    // trigger the large vectors to be split into chunks of
-    // PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
-    let tx_indices = std::iter::repeat_with(TxIndex::random).take(1000).collect();
-    pg_store.persist_tx_indices(tx_indices).await?;
-    Ok(())
 }
