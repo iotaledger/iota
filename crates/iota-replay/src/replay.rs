@@ -18,10 +18,6 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{
-    GasPayment, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    SenderSignedTransaction, TransactionDigest, TransactionKind, Version,
-};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::authenticator_function::{
@@ -55,6 +51,10 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use prometheus_filtered::Registry;
+use rust_sdk::types::{
+    GasPayment, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    SenderSignedTransaction, TransactionDigest, TransactionKind, Version,
+};
 use serde::{Deserialize, Serialize};
 use similar::{ChangeTag, TextDiff};
 use tracing::{error, info, trace, warn};

@@ -1,12 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_move_types::iota_framework::{
-    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
-};
-use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticator, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TypeTag,
+use rust_sdk::{
+    move_types::iota_framework::{account::AuthenticatorFunctionRefV1Key, dynamic_field::Field},
+    types::{
+        Address, Identifier, MoveAuthenticator, ObjectId, ObjectReference, Owner, StructTag,
+        TransactionDigest, TypeTag,
+    },
 };
 use serde::{Deserialize, Serialize};
 

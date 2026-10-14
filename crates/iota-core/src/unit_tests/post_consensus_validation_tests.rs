@@ -9,10 +9,6 @@ use std::{path::PathBuf, sync::Arc};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
-    Version,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
@@ -27,6 +23,10 @@ use iota_types::{
         TransactionKey, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
+};
+use rust_sdk::types::{
+    Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
+    Version,
 };
 
 use crate::{
@@ -1048,8 +1048,8 @@ async fn test_winner_blocks_multiple_losers() {
     let gas2 = authority.get_object(&gas2_id).unwrap();
     let gas3 = authority.get_object(&gas3_id).unwrap();
 
-    use iota_sdk_types::{Identifier, Transaction};
     use iota_types::transaction::{CallArg, TransactionAPI};
+    use rust_sdk::types::{Identifier, Transaction};
 
     let tx1 = Transaction::new_move_call(
         sender,
@@ -1854,7 +1854,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
 /// higher `generation` supersedes a previously activated set.
 fn activate_deny_rules(
     epoch_store: &Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
-    rules: iota_sdk_types::DenyRuleSet,
+    rules: rust_sdk::types::DenyRuleSet,
     generation: u64,
 ) {
     let mut output = ConsensusCommitOutput::new(0);
@@ -1892,7 +1892,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_sdk_types::DenyRuleSet {
+        rust_sdk::types::DenyRuleSet {
             denied_addresses: [sender].into(),
             ..Default::default()
         },
@@ -1950,7 +1950,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_sdk_types::DenyRuleSet {
+        rust_sdk::types::DenyRuleSet {
             denied_addresses: [Address::random()].into(),
             ..Default::default()
         },
@@ -2003,7 +2003,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_sdk_types::DenyRuleSet {
+        rust_sdk::types::DenyRuleSet {
             denied_addresses: [sender].into(),
             ..Default::default()
         },
@@ -2053,7 +2053,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_sdk_types::DenyRuleSet {
+        rust_sdk::types::DenyRuleSet {
             denied_addresses: [sender].into(),
             ..Default::default()
         },

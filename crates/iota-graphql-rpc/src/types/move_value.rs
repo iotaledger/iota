@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::{
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
     object::bounded_visitor::BoundedVisitor,
@@ -13,6 +12,7 @@ use move_core_types::{
     annotated_value as A, ident_str,
     identifier::{IdentStr, Identifier},
 };
+use rust_sdk::types::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{

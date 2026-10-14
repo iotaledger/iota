@@ -15,10 +15,6 @@ use iota_core::{
 use iota_json_rpc_types::{
     Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, Page, TransactionFilter,
 };
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag,
-    Transaction, TransactionDigest, TransactionEffects, TypeTag, Version,
-};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
@@ -41,6 +37,10 @@ use iota_types::{
 };
 #[cfg(test)]
 use mockall::automock;
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag,
+    Transaction, TransactionDigest, TransactionEffects, TypeTag, Version,
+};
 use thiserror::Error;
 use tokio::task::JoinError;
 use typed_store::TypedStoreError;

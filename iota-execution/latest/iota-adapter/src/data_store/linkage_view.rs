@@ -9,7 +9,6 @@ use std::{
     str::FromStr,
 };
 
-use iota_sdk_types::{MovePackage, ObjectId, TypeOrigin, UpgradeInfo};
 use iota_types::{
     error::{ExecutionError, IotaError, IotaResult},
     iota_sdk_types_conversions::identifier_core_to_sdk,
@@ -21,6 +20,7 @@ use move_core_types::{
     language_storage::ModuleId,
     resolver::{LinkageResolver, ModuleResolver},
 };
+use rust_sdk::types::{MovePackage, ObjectId, TypeOrigin, UpgradeInfo};
 
 use crate::data_store::PackageStore;
 

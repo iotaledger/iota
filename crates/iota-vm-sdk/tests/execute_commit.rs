@@ -6,10 +6,6 @@
 //! `DevInspect` / `DryRun` leave the store untouched. Self-contained — uses
 //! only the built-in framework, no Move compiler.
 
-use iota_sdk_types::{
-    GenesisTransaction, Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction,
-    TransactionDigest, TransactionKind,
-};
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -20,6 +16,10 @@ use iota_types::{
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
     TransactionDenyConfigBuilder, VmSdkError,
+};
+use rust_sdk::types::{
+    GenesisTransaction, Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction,
+    TransactionDigest, TransactionKind,
 };
 
 const GAS_PRICE: u64 = 1000;
@@ -540,8 +540,8 @@ fn deny_config_rejects_denied_sender() {
 /// replaces those versions in the store.
 #[test]
 fn execute_reports_runtime_loaded_inputs_at_their_pre_transaction_versions() {
-    use iota_sdk_types::{Argument, Command, ObjectChange, SplitCoins, TypeTag};
     use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
+    use rust_sdk::types::{Argument, Command, ObjectChange, SplitCoins, TypeTag};
 
     let sender = Address::ZERO;
     let gas = gas_coin(sender);

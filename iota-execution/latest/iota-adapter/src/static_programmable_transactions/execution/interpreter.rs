@@ -4,7 +4,6 @@
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use iota_sdk_types::{Address, Owner};
 use iota_types::{
     base_types::TxContext,
     error::{ExecutionError, ExecutionErrorKind},
@@ -13,6 +12,7 @@ use iota_types::{
 };
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::format::MoveTraceBuilder;
+use rust_sdk::types::{Address, Owner};
 use tracing::instrument;
 use web_time::Instant;
 

@@ -11,7 +11,6 @@ use std::{
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, Owner, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     committee::Committee,
@@ -26,6 +25,7 @@ use iota_types::{
     },
 };
 use itertools::Itertools;
+use rust_sdk::types::{Address, Owner, TransactionDigest, TransactionEffects};
 use tokio::{
     sync::mpsc::UnboundedReceiver,
     time::{sleep, timeout},

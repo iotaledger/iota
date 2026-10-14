@@ -7,9 +7,11 @@
 //! through a public API.
 
 use iota_macros::sim_test;
-use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderLedgerClient};
-use iota_sdk_types::{StructTag, Transaction};
 use iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT;
+use rust_sdk::{
+    transaction_builder::{TransactionBuilder, TransactionBuilderLedgerClient},
+    types::{StructTag, Transaction},
+};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]

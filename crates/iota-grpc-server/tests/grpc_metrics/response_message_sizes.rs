@@ -3,7 +3,8 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::v1::{
+use prost::Message;
+use rust_sdk::grpc_types::v1::{
     ledger_service::{
         GetEpochRequest, GetHealthRequest, GetServiceInfoRequest,
         ledger_service_client::LedgerServiceClient,
@@ -15,7 +16,6 @@ use iota_grpc_types::v1::{
         transaction_execution_service_client::TransactionExecutionServiceClient,
     },
 };
-use prost::Message;
 
 use crate::{
     common::{self, MockGrpcStateReader, UnreachableExecutor},

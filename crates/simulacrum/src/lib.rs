@@ -31,11 +31,6 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
-    EndOfEpochData, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage,
-    Transaction, TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
-};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
@@ -60,6 +55,11 @@ use iota_types::{
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
+    EndOfEpochData, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage,
+    Transaction, TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
+};
 
 pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
@@ -476,8 +476,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use iota_sdk_types::Address;
     /// use iota_types::gas_coin::NANOS_PER_IOTA;
+    /// use rust_sdk::types::Address;
     /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
@@ -527,7 +527,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let tx = iota_sdk_types::Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = rust_sdk::types::Transaction::new_with_gas_data(kind, sender, gas_data);
         let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
 
         self.execute_transaction(tx).map(|x| x.0)
@@ -889,8 +889,8 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn dynamic_field_iter(
         &self,
-        _parent: iota_sdk_types::ObjectId,
-        _cursor: Option<iota_sdk_types::ObjectId>,
+        _parent: rust_sdk::types::ObjectId,
+        _cursor: Option<rust_sdk::types::ObjectId>,
     ) -> iota_types::storage::error::Result<
         Box<
             dyn Iterator<
@@ -913,7 +913,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn package_versions_iter(
         &self,
-        _original_package_id: iota_sdk_types::ObjectId,
+        _original_package_id: rust_sdk::types::ObjectId,
         _cursor: Option<u64>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,
@@ -1065,10 +1065,10 @@ mod tests {
     fn walked_object_state_matches_applied_deltas() {
         use std::collections::BTreeSet;
 
-        use iota_sdk_types::TransactionDenyRulesUpdate;
         use iota_types::transaction_deny_rules::{
             get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
         };
+        use rust_sdk::types::TransactionDenyRulesUpdate;
 
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -1140,10 +1140,10 @@ mod tests {
     fn deny_rule_update_executes_at_the_chunk_ceiling() {
         use std::collections::BTreeSet;
 
-        use iota_sdk_types::TransactionDenyRulesUpdate;
         use iota_types::transaction_deny_rules::{
             get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
         };
+        use rust_sdk::types::TransactionDenyRulesUpdate;
 
         const CEILING: u64 = 2048;
 

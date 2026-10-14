@@ -23,12 +23,14 @@ use iota_sdk::{
         transaction::TransactionAPI,
     },
 };
-use iota_sdk_crypto::{
-    IotaVerifier as _, Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
-    secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{Address, Transaction, UserSignature, crypto::SimpleSignature};
 use rand::{SeedableRng, rngs::StdRng};
+use rust_sdk::{
+    crypto::{
+        IotaVerifier as _, Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
+        secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{Address, Transaction, UserSignature, crypto::SimpleSignature},
+};
 use utils::request_tokens_from_faucet;
 
 #[tokio::main]

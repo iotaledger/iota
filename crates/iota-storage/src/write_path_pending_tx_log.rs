@@ -10,13 +10,13 @@
 
 use std::path::PathBuf;
 
-use iota_sdk_types::{SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     crypto::EmptySignInfo,
     error::{IotaError, IotaResult},
     message_envelope::TrustedEnvelope,
     transaction::VerifiedTransaction,
 };
+use rust_sdk::types::{SenderSignedTransaction, TransactionDigest};
 use tracing::instrument;
 use typed_store::{
     DBMapUtils,

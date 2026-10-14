@@ -8,9 +8,6 @@ use either::Either;
 use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
 use futures::pin_mut;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{
-    CertificateDigest, SenderSignedDataDigest, SenderSignedTransaction, crypto::Intent,
-};
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
@@ -26,6 +23,9 @@ use iota_types::{
 use itertools::{Itertools as _, izip};
 use parking_lot::{Mutex, MutexGuard};
 use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
+use rust_sdk::types::{
+    CertificateDigest, SenderSignedDataDigest, SenderSignedTransaction, crypto::Intent,
+};
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,

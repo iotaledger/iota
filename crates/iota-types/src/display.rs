@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+use rust_sdk::move_types::iota_framework::vec_map::VecMap;
 use serde::Deserialize;
 
 use crate::id::{ID, UID};

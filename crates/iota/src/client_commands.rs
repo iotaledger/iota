@@ -19,7 +19,6 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::GrpcClient;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -48,17 +47,6 @@ use iota_sdk::{
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
-};
-use iota_sdk_move_types::iota_framework::{
-    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
-};
-use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
-use iota_sdk_types::{
-    Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
-    ObjectId, ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference,
-    SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version,
-    crypto::{Intent, IntentMessage},
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
@@ -89,6 +77,18 @@ use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manife
 use move_symbol_pool::Symbol;
 use prometheus_filtered::Registry;
 use reqwest::StatusCode;
+use rust_sdk::{
+    grpc_client::GrpcClient,
+    move_types::iota_framework::{account::AuthenticatorFunctionRefV1Key, dynamic_field::Field},
+    transaction_builder::{TransactionBuilderLedgerClient, unresolved},
+    types::{
+        Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
+        ObjectId, ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference,
+        SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
+        UserSignature, Version,
+        crypto::{Intent, IntentMessage},
+    },
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 use strum::{Display, EnumString};
@@ -3977,7 +3977,7 @@ async fn update_lock_file(
 
 #[cfg(test)]
 mod tests_process_auth_args {
-    use iota_sdk_types::Address;
+    use rust_sdk::types::Address;
     use serde_json::Value as JsonValue;
 
     use super::process_auth_args;

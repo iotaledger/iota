@@ -20,13 +20,13 @@ use effects_certifier::*;
 pub use error::{AggregatedEffectsDigests, AggregatedRequestErrors, TransactionDriverError};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
-use iota_sdk_types::{TransactionDigest, TransactionEvents};
 use iota_types::{
     committee::EpochId, messages_grpc::TxStatusUpdate, transaction::TransactionEnvelope,
 };
 pub use metrics::*;
 use parking_lot::Mutex;
 use rand::RngExt;
+use rust_sdk::types::{TransactionDigest, TransactionEvents};
 use tokio::{
     task::JoinSet,
     time::{interval, sleep},

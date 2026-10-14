@@ -10,8 +10,8 @@ use std::{
 
 use futures::{FutureExt, future::join_all};
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_sdk_types::TransactionDigest;
 use parking_lot::Mutex;
+use rust_sdk::types::TransactionDigest;
 use tokio::time::Instant;
 use tracing::{error, info};
 

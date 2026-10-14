@@ -5,7 +5,7 @@
 use std::fmt;
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::{ObjectDigest, ObjectReference, Owner, Version};
+use rust_sdk::types::{ObjectDigest, ObjectReference, Owner, Version};
 use serde::Deserialize;
 
 use crate::board::Board;

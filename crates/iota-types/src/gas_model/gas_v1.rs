@@ -8,8 +8,8 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use iota_protocol_config::*;
-    use iota_sdk_types::GasCostSummary;
     use move_core_types::vm_status::StatusCode;
+    use rust_sdk::types::GasCostSummary;
 
     use crate::{
         ObjectId,

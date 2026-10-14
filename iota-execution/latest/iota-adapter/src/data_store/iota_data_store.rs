@@ -4,7 +4,6 @@
 
 use std::rc::Rc;
 
-use iota_sdk_types::{MovePackage, ObjectId};
 use iota_types::{error::IotaResult, iota_sdk_types_conversions::identifier_core_to_sdk};
 use move_binary_format::errors::{Location, PartialVMError, PartialVMResult, VMResult};
 use move_core_types::{
@@ -12,6 +11,7 @@ use move_core_types::{
     resolver::ModuleResolver, vm_status::StatusCode,
 };
 use move_vm_types::data_store::DataStore;
+use rust_sdk::types::{MovePackage, ObjectId};
 
 use crate::data_store::{PackageStore, linkage_view::LinkageView};
 

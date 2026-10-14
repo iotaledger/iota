@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{
-    CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary, Digest,
-    EndOfEpochData, GasCostSummary, TransactionDigest, ValidatorCommitteeMember,
-};
 use iota_types::{
     base_types::AuthorityName,
     committee::{EpochId, StakeUnit},
@@ -16,6 +12,10 @@ use iota_types::{
         CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp,
         ECMHLiveObjectSetDigest,
     },
+};
+use rust_sdk::types::{
+    CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary, Digest,
+    EndOfEpochData, GasCostSummary, TransactionDigest, ValidatorCommitteeMember,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -9,10 +9,10 @@ use std::{
 
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
-use iota_sdk_types::TransactionDigest;
 use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
 };
+use rust_sdk::types::TransactionDigest;
 
 use crate::{
     RpcClient,

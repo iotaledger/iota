@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner, Version};
 use iota_types::{
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind},
@@ -12,6 +11,7 @@ use iota_types::{
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::identifier::IdentStr;
 use move_vm_types::loaded_data::runtime_types::Type;
+use rust_sdk::types::{Address, CommandArgumentError, ObjectId, Owner, Version};
 use serde::Deserialize;
 
 pub trait IotaResolver: BackingPackageStore {

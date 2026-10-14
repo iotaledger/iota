@@ -4,8 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::dynamic_field::DynamicFieldType;
+use rust_sdk::types::{StructTag, TypeTag};
 
 use crate::{
     data::Db,

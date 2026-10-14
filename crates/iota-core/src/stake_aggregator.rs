@@ -8,7 +8,6 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},
@@ -16,6 +15,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     message_envelope::{Envelope, Message},
 };
+use rust_sdk::types::crypto::Intent;
 use serde::Serialize;
 use tracing::warn;
 use typed_store::TypedStoreError;
@@ -346,13 +346,13 @@ mod stake_aggregator_insert_tests {
         hash::{HashFunction, Sha3_256},
         traits::KeyPair,
     };
-    use iota_sdk_types::crypto::IntentScope;
     use iota_types::{
         base_types::AuthorityName,
         committee::Committee,
         crypto::{AuthoritySignInfo, random_committee_key_pairs_of_size},
         message_envelope::{Envelope, Message},
     };
+    use rust_sdk::types::crypto::IntentScope;
     use serde::Serialize;
 
     use super::*;

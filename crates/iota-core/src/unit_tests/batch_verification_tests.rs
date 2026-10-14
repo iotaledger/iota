@@ -12,14 +12,6 @@ use fastcrypto::{
 use futures::future::join_all;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointSummary, GasCostSummary, PasskeyPublicKey,
-    SimpleSignature, Transaction, UserSignature,
-    crypto::{
-        MultisigAggregatedSignature, MultisigCommittee, MultisigMember, PasskeyAuthenticator,
-    },
-};
 use iota_types::{
     base_types::random_object_ref,
     committee::Committee,
@@ -33,6 +25,16 @@ use iota_types::{
 use itertools::Itertools as _;
 use prometheus_filtered::Registry;
 use rand::{RngExt, rng};
+use rust_sdk::{
+    crypto::{Signer, secp256r1::Secp256r1PrivateKey},
+    types::{
+        Address, CheckpointContents, CheckpointSummary, GasCostSummary, PasskeyPublicKey,
+        SimpleSignature, Transaction, UserSignature,
+        crypto::{
+            MultisigAggregatedSignature, MultisigCommittee, MultisigMember, PasskeyAuthenticator,
+        },
+    },
+};
 
 use crate::{
     signature_verifier::*,

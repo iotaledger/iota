@@ -56,10 +56,6 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_read::NotifyRead};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
-use iota_sdk_types::{
-    ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest, TransactionEffects,
-    TransactionEffectsDigest, TransactionEvents, Version,
-};
 use iota_types::{
     base_types::{EpochId, VerifiedExecutionData},
     error::{IotaError, IotaResult, UserInputError},
@@ -77,6 +73,10 @@ use iota_types::{
 };
 use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
+use rust_sdk::types::{
+    ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, Version,
+};
 use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
 

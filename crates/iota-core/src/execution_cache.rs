@@ -7,10 +7,6 @@ use std::{collections::HashSet, sync::Arc};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::ExecutionCacheConfig;
-use iota_sdk_types::{
-    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionEvents, Version,
-};
 use iota_types::{
     base_types::{EpochId, VerifiedExecutionData},
     error::{IotaError, IotaResult, UserInputError},
@@ -25,6 +21,10 @@ use iota_types::{
     transaction::{SenderSignedTransactionAPI, VerifiedSignedTransaction, VerifiedTransaction},
 };
 use prometheus_filtered::Registry;
+use rust_sdk::types::{
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents, Version,
+};
 use tracing::instrument;
 use typed_store::rocks::DBBatch;
 

@@ -6,27 +6,6 @@
 use std::{collections::BTreeMap, fs::File, io::Write};
 
 use clap::*;
-use iota_sdk_crypto::{
-    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey,
-};
-use iota_sdk_types::{
-    Address, Argument, ChangeEpoch, CheckpointCommitment, CheckpointContents,
-    CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, Command, CommandArgumentError,
-    ConsensusCommitDigest, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-    EndOfEpochTransactionKind, Event, ExecutionError, ExecutionStatus, GenesisObject,
-    GenesisTransaction, IdOperation, Identifier, MoveLocation, MoveObjectType, MovePackage,
-    MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn, ObjectOut, ObjectReference, Owner,
-    PackageUpgradeError, ProgrammableTransaction, RandomnessStateUpdate, SenderSignedTransaction,
-    SharedObjectReference, SimpleSignature, StructTag, Transaction, TransactionDigest,
-    TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionExpiration,
-    TransactionKind, TypeArgumentError, TypeOrigin, TypeTag, UnchangedSharedKind, UpgradeInfo,
-    UserSignature, ValidatorCommitteeMember,
-    crypto::{
-        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
-        PersonalMessage,
-    },
-};
 use iota_types::{
     base_types::{ExecutionData, ExecutionDigests},
     crypto::{
@@ -48,6 +27,29 @@ use move_core_types::{account_address::AccountAddress, language_storage::ModuleI
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
+use rust_sdk::{
+    crypto::{
+        Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey,
+    },
+    types::{
+        Address, Argument, ChangeEpoch, CheckpointCommitment, CheckpointContents,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, Command,
+        CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
+        ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
+        ExecutionStatus, GenesisObject, GenesisTransaction, IdOperation, Identifier, MoveLocation,
+        MoveObjectType, MovePackage, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn,
+        ObjectOut, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction,
+        RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference, SimpleSignature,
+        StructTag, Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+        TransactionEvents, TransactionExpiration, TransactionKind, TypeArgumentError, TypeOrigin,
+        TypeTag, UnchangedSharedKind, UpgradeInfo, UserSignature, ValidatorCommitteeMember,
+        crypto::{
+            Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+            PersonalMessage,
+        },
+    },
+};
 use serde_reflection::{ContainerFormat, Format, Registry, Result, Samples, Tracer, TracerConfig};
 use typed_store::TypedStoreError;
 
@@ -83,7 +85,7 @@ fn get_registry() -> Result<Registry> {
     // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
     // serde that requires valid sample values to be provided before types
     // containing them are traced.
-    let sdk_identifier = iota_sdk_types::Identifier::from_static("sample_identifier");
+    let sdk_identifier = rust_sdk::types::Identifier::from_static("sample_identifier");
     tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
     let struct_tag = StructTag::new_gas_coin();
     tracer.trace_value(&mut samples, &struct_tag).unwrap();
@@ -347,7 +349,7 @@ fn get_registry() -> Result<Registry> {
 
     // 2. Trace the main entry point(s) + every enum separately.
     tracer.trace_type::<Owner>(&samples).unwrap();
-    // Trace all CallArg (= iota_sdk_types::Input) variants
+    // Trace all CallArg (= rust_sdk::types::Input) variants
     tracer
         .trace_value(&mut samples, &CallArg::Pure(vec![0u8]))
         .unwrap();
@@ -622,7 +624,7 @@ fn get_registry() -> Result<Registry> {
         network_total_transactions: 0,
         contents_digest: CheckpointContentsDigest::default(),
         previous_digest: None,
-        epoch_rolling_gas_cost_summary: iota_sdk_types::GasCostSummary::new(0, 0, 0, 0, 0),
+        epoch_rolling_gas_cost_summary: rust_sdk::types::GasCostSummary::new(0, 0, 0, 0, 0),
         timestamp_ms: 0,
         checkpoint_commitments: vec![],
         end_of_epoch_data: None,

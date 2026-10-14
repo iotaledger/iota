@@ -4,7 +4,6 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     dynamic_field::derive_dynamic_field_id,
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
@@ -23,6 +22,7 @@ use move_vm_types::{
     pop_arg,
     values::{StructRef, Value},
 };
+use rust_sdk::types::{Address, ObjectId};
 use smallvec::smallvec;
 use tracing::instrument;
 

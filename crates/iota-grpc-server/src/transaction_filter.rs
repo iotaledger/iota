@@ -2,13 +2,15 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Address, Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
     transaction::TransactionAPI,
+};
+use rust_sdk::{
+    grpc_types::v1::filter as proto_filter,
+    types::{Address, Command, ExecutionStatus, ObjectId, Owner},
 };
 use serde::{Deserialize, Serialize};
 
@@ -29,25 +31,25 @@ pub enum TransactionKind {
     RandomnessStateUpdate = 6,
 }
 
-impl From<&iota_sdk_types::TransactionKind> for TransactionKind {
-    fn from(kind: &iota_sdk_types::TransactionKind) -> Self {
+impl From<&rust_sdk::types::TransactionKind> for TransactionKind {
+    fn from(kind: &rust_sdk::types::TransactionKind) -> Self {
         match kind {
-            iota_sdk_types::TransactionKind::Programmable(_) => TransactionKind::Programmable,
-            iota_sdk_types::TransactionKind::Genesis(_) => TransactionKind::Genesis,
-            iota_sdk_types::TransactionKind::ConsensusCommitPrologueV1(_) => {
+            rust_sdk::types::TransactionKind::Programmable(_) => TransactionKind::Programmable,
+            rust_sdk::types::TransactionKind::Genesis(_) => TransactionKind::Genesis,
+            rust_sdk::types::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
             }
             #[allow(deprecated)]
-            iota_sdk_types::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+            rust_sdk::types::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 TransactionKind::System
             }
-            iota_sdk_types::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
-            iota_sdk_types::TransactionKind::RandomnessStateUpdate(_) => {
+            rust_sdk::types::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
+            rust_sdk::types::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
             // The filter proto has no dedicated value for this kind yet; the
             // `System` filter still matches it.
-            iota_sdk_types::TransactionKind::TransactionDenyRulesUpdate(_) => {
+            rust_sdk::types::TransactionKind::TransactionDenyRulesUpdate(_) => {
                 TransactionKind::System
             }
             _ => unimplemented!(
@@ -367,7 +369,7 @@ impl TransactionFilter {
                 .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx.kind() {
-                iota_sdk_types::TransactionKind::Programmable(pt) => {
+                rust_sdk::types::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }
                 _ => false,
@@ -480,7 +482,7 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Argument, Command, Identifier};
+    use rust_sdk::types::{Argument, Command, Identifier};
 
     use super::*;
 
@@ -821,7 +823,7 @@ mod tests {
 
         assert!(filter.matches_status(&ExecutionStatus::Success));
         assert!(!filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_sdk_types::ExecutionError::InsufficientGas,
+            error: rust_sdk::types::ExecutionError::InsufficientGas,
             command: None,
         }));
     }
@@ -834,13 +836,13 @@ mod tests {
 
         // Regular failure
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_sdk_types::ExecutionError::InsufficientGas,
+            error: rust_sdk::types::ExecutionError::InsufficientGas,
             command: None,
         }));
 
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_sdk_types::ExecutionError::ExecutionCanceledDueToSharedObjectCongestion {
+            error: rust_sdk::types::ExecutionError::ExecutionCanceledDueToSharedObjectCongestion {
                 congested_objects: vec![],
             },
             command: None,
@@ -848,7 +850,7 @@ mod tests {
 
         // Cancelled due to randomness
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_sdk_types::ExecutionError::ExecutionCanceledDueToRandomnessUnavailable,
+            error: rust_sdk::types::ExecutionError::ExecutionCanceledDueToRandomnessUnavailable,
             command: None,
         }));
     }

@@ -11,7 +11,6 @@ use std::{
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use iota_types::{
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::{identifier_core_to_sdk, struct_tag_core_to_sdk},
@@ -25,6 +24,7 @@ use move_binary_format::{
     },
 };
 use move_core_types::annotated_value::{MoveStruct, MoveValue, MoveVariant};
+use rust_sdk::types::{Address, Identifier, ObjectId, StructTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

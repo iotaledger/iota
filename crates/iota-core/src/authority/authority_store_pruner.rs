@@ -12,7 +12,6 @@ use std::{
 use anyhow::anyhow;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{CheckpointContents, CheckpointDigest, ObjectId, TransactionEffects, Version};
 use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -23,6 +22,9 @@ use once_cell::sync::Lazy;
 use prometheus_filtered::{
     IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
+};
+use rust_sdk::types::{
+    CheckpointContents, CheckpointDigest, ObjectId, TransactionEffects, Version,
 };
 use tokio::{
     sync::{
@@ -972,9 +974,6 @@ impl AuthorityStorePruner {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::{
-        ObjectDigest, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, Version,
-    };
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
         effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
@@ -985,6 +984,9 @@ mod tests {
     use more_asserts as ma;
     use prometheus_filtered::Registry;
     use rand::rand_core::UnwrapErr;
+    use rust_sdk::types::{
+        ObjectDigest, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, Version,
+    };
     use tokio::sync::{oneshot, watch};
     use tracing::info;
     use typed_store::{

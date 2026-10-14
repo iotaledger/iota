@@ -15,7 +15,6 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
@@ -31,6 +30,7 @@ use iota_types::{
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
+use rust_sdk::types::{Address, ObjectId, StructTag, TypeTag};
 use tap::TapFallible;
 use tracing::{debug, instrument};
 
@@ -563,10 +563,6 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
-    use iota_sdk_types::{
-        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
-        TransactionEvents, TypeTag, Version,
-    };
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -585,6 +581,10 @@ mod tests {
         utils::create_fake_transaction,
     };
     use mockall::{mock, predicate};
+    use rust_sdk::types::{
+        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
+        TransactionEvents, TypeTag, Version,
+    };
 
     use super::*;
     use crate::authority_state::{MockStateRead, StateReadError};
@@ -974,7 +974,7 @@ mod tests {
     }
 
     mod get_all_coins_tests {
-        use iota_sdk_types::{MoveStruct, Owner};
+        use rust_sdk::types::{MoveStruct, Owner};
 
         use super::{super::*, *};
 
@@ -1436,10 +1436,6 @@ mod tests {
     }
 
     mod get_total_supply_tests {
-        use iota_sdk_move_types::{
-            iota_framework::{bag::Bag, vec_map::VecMap},
-            iota_system::iota_system_state_inner::SystemParametersV1,
-        };
         use iota_types::{
             coin::CoinMetadata,
             gas_coin::IotaTreasuryCap,
@@ -1451,6 +1447,10 @@ mod tests {
             },
         };
         use mockall::predicate;
+        use rust_sdk::move_types::{
+            iota_framework::{bag::Bag, vec_map::VecMap},
+            iota_system::iota_system_state_inner::SystemParametersV1,
+        };
 
         use super::{super::*, *};
 

@@ -14,11 +14,13 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, Transaction, crypto::Intent};
 use iota_types::{
     gas_coin::GasCoin,
     transaction::{TransactionAPI, TransactionEnvelope},
+};
+use rust_sdk::{
+    crypto::simple::SimpleKeypair,
+    types::{Address, ObjectId, ObjectReference, StructTag, Transaction, crypto::Intent},
 };
 use tokio::sync::RwLock;
 use tracing::warn;
@@ -36,7 +38,7 @@ pub struct WalletContext {
     config: PersistedConfig<IotaClientConfig>,
     request_timeout: Option<std::time::Duration>,
     client: Arc<RwLock<Option<IotaClient>>>,
-    grpc_client: Arc<RwLock<Option<iota_grpc_client::GrpcClient>>>,
+    grpc_client: Arc<RwLock<Option<rust_sdk::grpc_client::GrpcClient>>>,
     max_concurrent_requests: Option<u64>,
     env_override: Option<String>,
 }
@@ -127,7 +129,9 @@ impl WalletContext {
 
     /// Get the configured gRPC client, creating and caching it on first use.
     /// Errors if the active env has no `grpc` URL configured.
-    pub async fn get_grpc_client(&self) -> Result<iota_grpc_client::GrpcClient, anyhow::Error> {
+    pub async fn get_grpc_client(
+        &self,
+    ) -> Result<rust_sdk::grpc_client::GrpcClient, anyhow::Error> {
         let read = self.grpc_client.read().await;
 
         Ok(if let Some(client) = read.as_ref() {

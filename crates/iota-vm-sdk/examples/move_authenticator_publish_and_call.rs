@@ -34,10 +34,6 @@ use std::{
 use anyhow::{Context, Result, bail};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Identifier, MoveAuthenticatorV1, MoveStruct, ObjectId, Owner, SenderSignedTransaction,
-    SharedObjectReference, Transaction, TransactionDigest, Version,
-};
 use iota_types::{
     effects::TransactionEffectsAPI,
     move_package::{ProtocolBuildConfig, derive_package_metadata_id},
@@ -50,6 +46,10 @@ use iota_vm_sdk::{
     LocalVm, ProtocolVersion, Store, UserSignature,
 };
 use move_trace_format::format::{MoveTrace, MoveTraceReader, TraceEvent};
+use rust_sdk::types::{
+    Identifier, MoveAuthenticatorV1, MoveStruct, ObjectId, Owner, SenderSignedTransaction,
+    SharedObjectReference, Transaction, TransactionDigest, Version,
+};
 
 const GAS_PRICE: u64 = 1000;
 const GAS_BUDGET: u64 = 5_000_000_000;

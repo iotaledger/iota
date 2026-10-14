@@ -10,7 +10,7 @@ use diesel::{
     ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, dsl::count, sql_types::BigInt,
 };
 use downcast::Any;
-use iota_sdk_types::ObjectId;
+use rust_sdk::types::ObjectId;
 use tap::tap::TapFallible;
 use tracing::{error, info};
 

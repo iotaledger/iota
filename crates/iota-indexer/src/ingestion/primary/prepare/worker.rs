@@ -5,12 +5,12 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
-use iota_sdk_types::ObjectId;
 use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     object::Object,
 };
+use rust_sdk::types::ObjectId;
 use tracing::{info, warn};
 
 use super::{

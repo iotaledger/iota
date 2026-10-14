@@ -3,17 +3,19 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
-    google::rpc::bad_request::FieldViolation,
-    read_masks::LIST_OWNED_OBJECTS_READ_MASK,
-    v1::{
-        error_reason::ErrorReason,
-        object::Object,
-        state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},
-    },
-};
-use iota_sdk_types::{Address, StructTag};
 use prost::Message;
+use rust_sdk::{
+    grpc_types::{
+        google::rpc::bad_request::FieldViolation,
+        read_masks::LIST_OWNED_OBJECTS_READ_MASK,
+        v1::{
+            error_reason::ErrorReason,
+            object::Object,
+            state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},
+        },
+    },
+    types::{Address, StructTag},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{

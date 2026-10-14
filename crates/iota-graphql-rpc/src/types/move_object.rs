@@ -4,7 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_types::{MoveStruct as NativeMoveStruct, ObjectData};
+use rust_sdk::types::{MoveStruct as NativeMoveStruct, ObjectData};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,

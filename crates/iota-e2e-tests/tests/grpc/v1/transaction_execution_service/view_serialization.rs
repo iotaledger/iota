@@ -23,24 +23,26 @@
 
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
 
-use iota_grpc_types::v1::{
-    bcs::BcsData,
-    command::{CommandOutput, InputArgument},
-    transaction_execution_service::{
-        ViewFunctionCallItem, ViewFunctionCallResult, ViewFunctionCallsRequest,
-        ViewFunctionCallsResponse,
-        transaction_execution_service_client::TransactionExecutionServiceClient,
-        view_function_call_outputs::ExecutionResult,
-        view_function_call_result::Result as CallResult,
-    },
-    types::TypeTag as ProtoTypeTag,
-};
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, TypeTag};
 use iota_test_transaction_builder::PublishData;
 use iota_types::effects::TransactionEffectsAPI;
 use prost_types::{FieldMask, Struct, Value, value::Kind};
+use rust_sdk::{
+    grpc_types::v1::{
+        bcs::BcsData,
+        command::{CommandOutput, InputArgument},
+        transaction_execution_service::{
+            ViewFunctionCallItem, ViewFunctionCallResult, ViewFunctionCallsRequest,
+            ViewFunctionCallsResponse,
+            transaction_execution_service_client::TransactionExecutionServiceClient,
+            view_function_call_outputs::ExecutionResult,
+            view_function_call_result::Result as CallResult,
+        },
+        types::TypeTag as ProtoTypeTag,
+    },
+    types::{ObjectId, TypeTag},
+};
 use serde::Serialize;
 use test_cluster::TestCluster;
 
@@ -64,7 +66,7 @@ fn view_demo_package_path() -> PathBuf {
 /// land in a checkpoint, since the endpoint reads checkpoint-indexed state.
 async fn publish_view_demo(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::GrpcClient,
+    client: &rust_sdk::grpc_client::GrpcClient,
 ) -> ObjectId {
     let sender = first_sender(test_cluster);
     let compiled_package = BuildConfig::new_for_testing()
@@ -140,7 +142,7 @@ fn bcs_arg(bytes: Vec<u8>) -> InputArgument {
 
 /// Call one `#[view]` function (no type arguments) and return the response.
 async fn call(
-    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<rust_sdk::grpc_client::InterceptedChannel>,
     fq_function_name: String,
     inputs: Vec<InputArgument>,
 ) -> std::result::Result<ViewFunctionCallsResponse, tonic::Status> {
@@ -191,7 +193,7 @@ fn single_command_output(response: &ViewFunctionCallsResponse) -> &CommandOutput
 /// `CommandOutput` whose `bcs` equals `value_bcs` and whose `json` equals
 /// `expected_json`.
 async fn assert_round_trip(
-    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<rust_sdk::grpc_client::InterceptedChannel>,
     package_id: ObjectId,
     function: &str,
     json_input: Option<Value>,
@@ -415,7 +417,7 @@ fn type_tag(tag: &str) -> ProtoTypeTag {
 
 /// Call one `#[view]` function with a single-path read mask.
 async fn call_with_mask(
-    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<rust_sdk::grpc_client::InterceptedChannel>,
     fq_function_name: &str,
     inputs: Vec<InputArgument>,
     mask_path: &str,

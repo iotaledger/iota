@@ -32,14 +32,6 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1PublicKeyAsBytes},
     serde_helpers::BytesRepresentation,
 };
-use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
-    simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, SignatureScheme,
-    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
-};
 use rand::{
     SeedableRng,
     rand_core::UnwrapErr,
@@ -47,6 +39,16 @@ use rand::{
 };
 use rand08::SeedableRng as _;
 use roaring::RoaringBitmap;
+use rust_sdk::{
+    crypto::{
+        ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+        simple::SimpleKeypair,
+    },
+    types::{
+        Address, SignatureScheme,
+        crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+    },
+};
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 use tracing::{instrument, warn};
@@ -145,7 +147,7 @@ pub fn verify_proof_of_possession(
 /// type; this conversion lets those keys be stored in configs as
 /// [`SimpleKeypair`].
 pub fn network_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
-    use iota_sdk_crypto::ToFromBytes as _;
+    use rust_sdk::crypto::ToFromBytes as _;
 
     SimpleKeypair::from(
         Ed25519PrivateKey::from_bytes(kp.as_bytes()).expect("valid ed25519 private key bytes"),
@@ -167,13 +169,13 @@ pub fn simple_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, E
 impl From<&SimpleKeypair> for PublicKey {
     fn from(kp: &SimpleKeypair) -> Self {
         match kp.public_key() {
-            iota_sdk_types::PublicKey::Ed25519(pk) => {
+            rust_sdk::types::PublicKey::Ed25519(pk) => {
                 PublicKey::Ed25519(BytesRepresentation(pk.into_bytes()))
             }
-            iota_sdk_types::PublicKey::Secp256k1(pk) => {
+            rust_sdk::types::PublicKey::Secp256k1(pk) => {
                 PublicKey::Secp256k1(BytesRepresentation(pk.into_bytes()))
             }
-            iota_sdk_types::PublicKey::Secp256r1(pk) => {
+            rust_sdk::types::PublicKey::Secp256r1(pk) => {
                 PublicKey::Secp256r1(BytesRepresentation(pk.into_bytes()))
             }
             _ => unreachable!("SimpleKeypair keys use the three simple signature schemes"),
@@ -1045,15 +1047,15 @@ mod bcs_signable {
 
     pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
     impl BcsSignable for crate::committee::Committee {}
-    impl BcsSignable for iota_sdk_types::CheckpointSummary {}
-    impl BcsSignable for iota_sdk_types::CheckpointContents {}
+    impl BcsSignable for rust_sdk::types::CheckpointSummary {}
+    impl BcsSignable for rust_sdk::types::CheckpointContents {}
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
-    impl BcsSignable for iota_sdk_types::TransactionEffects {}
-    impl BcsSignable for iota_sdk_types::TransactionEvents {}
-    impl BcsSignable for iota_sdk_types::Transaction {}
-    impl BcsSignable for iota_sdk_types::SenderSignedTransaction {}
+    impl BcsSignable for rust_sdk::types::TransactionEffects {}
+    impl BcsSignable for rust_sdk::types::TransactionEvents {}
+    impl BcsSignable for rust_sdk::types::Transaction {}
+    impl BcsSignable for rust_sdk::types::SenderSignedTransaction {}
     impl BcsSignable for crate::object::ObjectInner {}
 
     impl BcsSignable for crate::global_state_hash::GlobalStateHash {}
@@ -1217,7 +1219,7 @@ pub mod bcs_signable_test {
     where
         T: super::bcs_signable::BcsSignable,
     {
-        use iota_sdk_types::crypto::{Intent, IntentScope};
+        use rust_sdk::types::crypto::{Intent, IntentScope};
 
         let mut obligation = VerificationObligation::default();
         // Add the obligation of the authority signature verifications.

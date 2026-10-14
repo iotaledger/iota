@@ -8,13 +8,13 @@ use anyhow::Result;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
-use iota_sdk_types::TransactionEffects;
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES,
     effects::TransactionEffectsExt,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
 };
+use rust_sdk::types::TransactionEffects;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -95,7 +95,7 @@ impl AnalyticsHandler<ObjectEntry> for ObjectHandler {
 }
 
 impl ObjectHandler {
-    pub fn new(store_path: &Path, client: iota_grpc_client::GrpcClient) -> Self {
+    pub fn new(store_path: &Path, client: rust_sdk::grpc_client::GrpcClient) -> Self {
         let package_store = LocalDBPackageStore::new(&store_path.join("object"), client);
         let state = State {
             objects: vec![],

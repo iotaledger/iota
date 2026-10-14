@@ -6,14 +6,14 @@ use std::collections::HashSet;
 
 use anyhow::{Error, anyhow, bail, ensure};
 use clap::{Args, ValueHint, arg, builder::StyledStr};
-use iota_grpc_client::GrpcClient;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{
-    Address, GasCostSummary, ProgrammableTransaction, TransactionDigest, TransactionKind,
-};
 use move_core_types::account_address::AccountAddress;
+use rust_sdk::{
+    grpc_client::GrpcClient,
+    types::{Address, GasCostSummary, ProgrammableTransaction, TransactionDigest, TransactionKind},
+};
 use serde::Serialize;
 
 use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};

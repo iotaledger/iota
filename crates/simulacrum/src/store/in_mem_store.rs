@@ -8,10 +8,6 @@ use std::{
 };
 
 use iota_config::genesis;
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId,
-    ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-};
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId},
@@ -29,6 +25,10 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId,
+    ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
+};
 
 use super::SimulatorStore;
 

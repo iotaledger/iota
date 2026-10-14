@@ -4,19 +4,21 @@
 use std::sync::Arc;
 
 use futures::Stream;
-use iota_grpc_types::{
-    field::FieldMaskTree,
-    google::rpc::bad_request::FieldViolation,
-    read_masks::GET_TRANSACTIONS_READ_MASK,
-    v1::{
-        error_reason::ErrorReason,
-        ledger_service::{GetTransactionsRequest, GetTransactionsResponse, TransactionResult},
-        transaction::ExecutedTransaction,
-    },
-};
-use iota_sdk_types::TransactionDigest;
 use prost::Message;
 use prost_types::FieldMask;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskTree,
+        google::rpc::bad_request::FieldViolation,
+        read_masks::GET_TRANSACTIONS_READ_MASK,
+        v1::{
+            error_reason::ErrorReason,
+            ledger_service::{GetTransactionsRequest, GetTransactionsResponse, TransactionResult},
+            transaction::ExecutedTransaction,
+        },
+    },
+    types::TransactionDigest,
+};
 
 use crate::{
     constants::validate_max_message_size,

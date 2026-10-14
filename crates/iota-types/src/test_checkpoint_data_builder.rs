@@ -5,12 +5,14 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_move_types::iota_system::iota_system_state_inner::SystemEpochInfoEventV2;
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointSummary, EndOfEpochData, EndOfEpochTransactionKind,
-    Event, Identifier, MoveStruct, ObjectId, ObjectReference, Owner, SenderSignedTransaction,
-    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionEffects,
-    TransactionEvents, TransactionKind, TypeTag, Version,
+use rust_sdk::{
+    move_types::iota_system::iota_system_state_inner::SystemEpochInfoEventV2,
+    types::{
+        Address, CheckpointContents, CheckpointSummary, EndOfEpochData, EndOfEpochTransactionKind,
+        Event, Identifier, MoveStruct, ObjectId, ObjectReference, Owner, SenderSignedTransaction,
+        SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionEffects,
+        TransactionEvents, TransactionKind, TypeTag, Version,
+    },
 };
 use tap::Pipe;
 
@@ -706,7 +708,7 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::Command;
+    use rust_sdk::types::Command;
 
     use super::*;
     use crate::{

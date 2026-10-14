@@ -13,11 +13,11 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use iota_sdk_types::{
+use once_cell::sync::OnceCell;
+use rust_sdk::types::{
     DenyRuleSet, Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction,
     TransactionDigest, crypto::IntentScope,
 };
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -999,7 +999,7 @@ mod tests {
     /// variants or `DenyRuleSet` fields breaks nodes on the old build.
     #[test]
     fn deny_rule_proposal_consensus_kind_wire_format_unchanged() {
-        use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+        use rust_sdk::types::{Address, DenyRuleSet, ObjectId};
 
         let authority = AuthorityName::default();
         let address = Address::new([7u8; 32]);
@@ -1062,7 +1062,7 @@ mod tests {
     /// The proposal round-trips through BCS unchanged.
     #[test]
     fn deny_rule_proposal_bcs_round_trip() {
-        use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+        use rust_sdk::types::{Address, DenyRuleSet, ObjectId};
 
         let proposal = TransactionDenyRuleProposal {
             authority: AuthorityName::default(),
@@ -1085,7 +1085,7 @@ mod tests {
     /// recorded proposal's generation even if the clock stepped backward.
     #[test]
     fn proposal_generation_supersedes_last_generation() {
-        use iota_sdk_types::DenyRuleSet;
+        use rust_sdk::types::DenyRuleSet;
 
         let authority = AuthorityName::default();
         let fresh = TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), None);

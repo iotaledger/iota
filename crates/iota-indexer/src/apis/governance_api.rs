@@ -14,7 +14,6 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{
     MoveTypeTagTrait,
     committee::EpochId,
@@ -29,6 +28,7 @@ use iota_types::{
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use rust_sdk::types::{Address, ObjectId, StructTag};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 

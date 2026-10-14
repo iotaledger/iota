@@ -17,9 +17,9 @@
 use std::{cell::RefCell, collections::HashSet};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use iota_sdk_types::{ObjectId, Version};
 use iota_types::object::Object;
 use js_sys::Function;
+use rust_sdk::types::{ObjectId, Version};
 use wasm_bindgen::JsValue;
 
 use crate::{

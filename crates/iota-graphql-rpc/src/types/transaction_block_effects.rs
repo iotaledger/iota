@@ -15,16 +15,16 @@ use iota_indexer::{
 };
 use iota_json_rpc_types::IotaExecutionStatus;
 use iota_package_resolver::CleverError;
-use iota_sdk_types::{
-    Event as NativeEvent, ExecutionError as ExecutionFailureStatus,
-    ExecutionStatus as NativeExecutionStatus, ObjectId, Transaction as NativeTransactionData,
-    TransactionEffects as NativeTransactionEffects,
-};
 use iota_types::{
     effects::TransactionEffectsAPI, iota_sdk_types_conversions::identifier_sdk_to_core,
     object::Object as NativeObject,
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
+use rust_sdk::types::{
+    Event as NativeEvent, ExecutionError as ExecutionFailureStatus,
+    ExecutionStatus as NativeExecutionStatus, ObjectId, Transaction as NativeTransactionData,
+    TransactionEffects as NativeTransactionEffects,
+};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,

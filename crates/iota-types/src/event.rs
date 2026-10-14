@@ -5,10 +5,12 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use iota_sdk_move_types::iota_system::iota_system_state_inner::{
-    SystemEpochInfoEventV1, SystemEpochInfoEventV2,
+use rust_sdk::{
+    move_types::iota_system::iota_system_state_inner::{
+        SystemEpochInfoEventV1, SystemEpochInfoEventV2,
+    },
+    types::{Event, TransactionDigest},
 };
-use iota_sdk_types::{Event, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::serde_as;

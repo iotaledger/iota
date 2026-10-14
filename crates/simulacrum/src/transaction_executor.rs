@@ -11,7 +11,6 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaError,
@@ -25,6 +24,7 @@ use iota_types::{
         SimulateTransactionResult, TransactionExecutor as TransactionExecutorTrait, VmChecks,
     },
 };
+use rust_sdk::types::{Transaction, TransactionDigest};
 
 use crate::Simulacrum;
 

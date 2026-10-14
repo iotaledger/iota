@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     base_types::{AuthorityName, EpochId},
     committee::{Committee, StakeUnit},
 };
+use rust_sdk::types::{Address, ObjectId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};

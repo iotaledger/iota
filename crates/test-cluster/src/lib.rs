@@ -23,7 +23,6 @@ use iota_config::{
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
-use iota_grpc_client::read_mask_fields::TransactionField;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
@@ -38,12 +37,6 @@ use iota_sdk::{
     apis::QuorumDriverApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
-};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_transaction_builder::TransactionBuilder;
-use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectId, ObjectReference, Transaction, TransactionDigest,
-    TransactionEffects, TransactionEvents,
 };
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
@@ -76,6 +69,15 @@ use iota_types::{
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use rand::{distr::*, rand_core::UnwrapErr, rngs::SysRng, seq::IndexedRandom};
+use rust_sdk::{
+    crypto::simple::SimpleKeypair,
+    grpc_client::read_mask_fields::TransactionField,
+    transaction_builder::TransactionBuilder,
+    types::{
+        Address, ExecutionStatus, ObjectId, ObjectReference, Transaction, TransactionDigest,
+        TransactionEffects, TransactionEvents,
+    },
+};
 use tokio::{
     task::JoinHandle,
     time::{Instant, sleep, timeout},
@@ -183,8 +185,9 @@ impl TestCluster {
     }
 
     /// Create a gRPC client connected to the fullnode's gRPC API.
-    pub fn grpc_client(&self) -> iota_grpc_client::GrpcClient {
-        iota_grpc_client::GrpcClient::new(self.grpc_url()).expect("failed to create gRPC client")
+    pub fn grpc_client(&self) -> rust_sdk::grpc_client::GrpcClient {
+        rust_sdk::grpc_client::GrpcClient::new(self.grpc_url())
+            .expect("failed to create gRPC client")
     }
 
     /// Create a gRPC-driven [`TransactionBuilder`] for `sender`, resolving
@@ -192,7 +195,7 @@ impl TestCluster {
     pub fn grpc_transaction_builder(
         &self,
         sender: Address,
-    ) -> TransactionBuilder<iota_grpc_client::GrpcClient> {
+    ) -> TransactionBuilder<rust_sdk::grpc_client::GrpcClient> {
         TransactionBuilder::new(sender).with_client(self.grpc_client())
     }
 

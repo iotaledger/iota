@@ -15,12 +15,12 @@ use iota_light_client::{
     construct::construct_proof,
     proof::{Proof, ProofTargets, verify_proof},
 };
-use iota_sdk_types::Event;
 use iota_types::{
     committee::Committee, effects::TransactionEffectsAPI, event::EventID,
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
 };
+use rust_sdk::types::Event;
 
 const FIXTURES_DIR: &str = "tests/fixtures";
 

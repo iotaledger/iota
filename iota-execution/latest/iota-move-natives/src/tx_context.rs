@@ -4,13 +4,13 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{ObjectId, TransactionDigest};
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
+use rust_sdk::types::{ObjectId, TransactionDigest};
 use smallvec::smallvec;
 
 use crate::{

@@ -14,8 +14,8 @@ use std::{
 use anyhow::Result;
 use clap::Parser;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
 use payload::AddressQueryType;
+use rust_sdk::crypto::{ToFromBech32, simple::SimpleKeypair};
 use tracing::info;
 
 use crate::{

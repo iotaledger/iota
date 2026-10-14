@@ -9,10 +9,6 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_sdk_types::{
-    Address, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1, ObjectId, Owner,
-    SharedObjectReference, Transaction, TransactionEffects, UserSignature, VersionAssignment,
-};
 use iota_types::{
     account_abstraction::authenticator_function::MoveAuthenticatorsForExecution,
     auth_context::AuthContextData,
@@ -24,6 +20,10 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
+};
+use rust_sdk::types::{
+    Address, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1, ObjectId, Owner,
+    SharedObjectReference, Transaction, TransactionEffects, UserSignature, VersionAssignment,
 };
 
 use crate::authority::{

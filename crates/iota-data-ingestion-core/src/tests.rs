@@ -13,11 +13,6 @@ use std::{
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointSummary, GasCostSummary, ObjectDigest, ObjectId,
-    ObjectReference, RandomnessStateUpdate, Transaction, TransactionEffects, TransactionKind,
-    Version,
-};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId,
@@ -33,6 +28,11 @@ use iota_types::{
 };
 use prometheus_filtered::Registry;
 use rand::{SeedableRng, prelude::StdRng};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointSummary, GasCostSummary, ObjectDigest, ObjectId,
+    ObjectReference, RandomnessStateUpdate, Transaction, TransactionEffects, TransactionKind,
+    Version,
+};
 use tempfile::NamedTempFile;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;

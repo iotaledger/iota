@@ -6,10 +6,10 @@ use std::path::PathBuf;
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{Transaction, TransactionKind};
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };
+use rust_sdk::types::{Transaction, TransactionKind};
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]

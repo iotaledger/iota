@@ -8,10 +8,10 @@ use std::time::Duration;
 #[cfg(msim)]
 use iota_macros::register_fail_point_async;
 use iota_macros::sim_test;
-use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
 #[cfg(msim)]
 use rand::distr::Distribution;
+use rust_sdk::types::ObjectId;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]

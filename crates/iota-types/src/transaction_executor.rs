@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::{
+use rust_sdk::types::{
     GasPayment, ObjectId, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
 };
 

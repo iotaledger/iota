@@ -4,8 +4,8 @@
 
 use std::{cell::OnceCell, collections::BTreeMap, fmt};
 
-use iota_sdk_types::ObjectId;
 use move_vm_types::values::VectorSpecialization;
+use rust_sdk::types::ObjectId;
 
 use crate::static_programmable_transactions::{loading::ast as L, spanned::Spanned};
 

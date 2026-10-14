@@ -25,10 +25,6 @@ use iota_open_rpc::Module;
 use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
-use iota_sdk_types::{
-    Address, GasPayment, ObjectId, Transaction, TransactionDigest, TransactionExpiration,
-    TransactionKind, TransactionV1, UserSignature,
-};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -46,6 +42,10 @@ use iota_types::{
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use rust_sdk::types::{
+    Address, GasPayment, ObjectId, Transaction, TransactionDigest, TransactionExpiration,
+    TransactionKind, TransactionV1, UserSignature,
+};
 use tracing::{Instrument, instrument};
 
 use crate::{

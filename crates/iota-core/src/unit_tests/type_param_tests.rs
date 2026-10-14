@@ -4,11 +4,11 @@
 
 use std::str::FromStr;
 
-use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
 };
+use rust_sdk::types::{ObjectId, TypeTag};
 
 use crate::authority::{
     authority_tests::{TestCallArg, call_move, init_state_with_ids},

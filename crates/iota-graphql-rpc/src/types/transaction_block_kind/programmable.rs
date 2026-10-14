@@ -7,12 +7,12 @@ use async_graphql::{
     *,
 };
 use iota_json_rpc_types::IotaArgument;
-use iota_sdk_types::{
+use iota_types::transaction::CallArg as NativeCallArg;
+use rust_sdk::types::{
     Argument as NativeArgument, Command as NativeProgrammableTransaction,
     MoveCall as NativeMoveCallTransaction,
     ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedObjectReference,
 };
-use iota_types::transaction::CallArg as NativeCallArg;
 
 use crate::{
     consistency::ConsistentIndexCursor,

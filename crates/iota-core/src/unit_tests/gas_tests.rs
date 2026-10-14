@@ -5,10 +5,6 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
-    ObjectReference, Owner, Transaction, TransactionEffects, TransactionEvents, TransactionKind,
-};
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
@@ -23,6 +19,10 @@ use iota_types::{
 };
 use move_core_types::account_address::AccountAddress;
 use once_cell::sync::Lazy;
+use rust_sdk::types::{
+    Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
+    ObjectReference, Owner, Transaction, TransactionEffects, TransactionEvents, TransactionKind,
+};
 
 use super::{
     authority_tests::{init_state_with_ids, send_and_confirm_transaction},

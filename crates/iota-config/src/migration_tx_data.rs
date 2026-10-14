@@ -9,12 +9,12 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use iota_sdk_types::{
-    CheckpointContents, CheckpointSummary, TransactionDigest, TransactionEffects, TransactionEvents,
-};
 use iota_types::{
     effects::TransactionEffectsAPI, message_envelope::Message,
     messages_checkpoint::CheckpointContentsExt, transaction::TransactionEnvelope,
+};
+use rust_sdk::types::{
+    CheckpointContents, CheckpointSummary, TransactionDigest, TransactionEffects, TransactionEvents,
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;

@@ -20,7 +20,6 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
-use iota_sdk_types::{TransactionDigest, UserSignature};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_traffic_controller::{
@@ -35,6 +34,7 @@ use iota_types::{
     transaction::SenderSignedTransactionAPI,
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
+use rust_sdk::types::{TransactionDigest, UserSignature};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 #[tokio::test]

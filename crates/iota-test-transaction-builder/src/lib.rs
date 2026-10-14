@@ -13,14 +13,6 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_crypto::Signer;
-use iota_sdk_transaction_builder::PTBArgumentList;
-use iota_sdk_types::{
-    Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version,
-    crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
-};
 use iota_types::{
     crypto::AccountPrivateKey,
     transaction::{
@@ -30,6 +22,16 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use rand::RngExt;
+use rust_sdk::{
+    crypto::Signer,
+    transaction_builder::PTBArgumentList,
+    types::{
+        Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+        SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
+        UserSignature, Version,
+        crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
+    },
+};
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -799,11 +801,11 @@ pub async fn delete_nft(
 /// Fetch one IOTA coin owned by `sender` to use as an explicit gas coin.
 ///
 /// Without an explicit gas coin,
-/// [`TransactionBuilder::finish`](iota_sdk_transaction_builder::TransactionBuilder::finish)
+/// [`TransactionBuilder::finish`](rust_sdk::transaction_builder::TransactionBuilder::finish)
 /// auto-adds every IOTA coin the sender owns as gas inputs and merges the leftover into
 /// one output coin, breaking tests that observe the sender's coin count.
 pub async fn select_gas_coin(
-    grpc_client: &iota_grpc_client::GrpcClient,
+    grpc_client: &rust_sdk::grpc_client::GrpcClient,
     sender: Address,
 ) -> ObjectId {
     let gas_coin = grpc_client
@@ -831,7 +833,7 @@ pub async fn select_gas_coin(
 /// shared mutable objects, `u64`/`Address` and other pure values), or an
 /// array/`Vec` of a single argument type.
 pub async fn move_call_tx<A: PTBArgumentList>(
-    grpc_client: &iota_grpc_client::GrpcClient,
+    grpc_client: &rust_sdk::grpc_client::GrpcClient,
     sender: Address,
     package_id: ObjectId,
     module: &str,
@@ -860,7 +862,7 @@ pub async fn move_call_tx<A: PTBArgumentList>(
 /// `gas_coin` must differ from `coin_to_split`; when `None`, the builder
 /// selects gas automatically from the sender's IOTA coins.
 pub async fn split_coin_equal_tx(
-    grpc_client: &iota_grpc_client::GrpcClient,
+    grpc_client: &rust_sdk::grpc_client::GrpcClient,
     sender: Address,
     coin_to_split: ObjectId,
     num_coins: u64,
@@ -878,7 +880,7 @@ pub async fn split_coin_equal_tx(
         .expect("coin not found")
         .object()
         .expect("invalid coin object");
-    let coin_balance = iota_sdk_types::Coin::try_from_object(&coin_object)
+    let coin_balance = rust_sdk::types::Coin::try_from_object(&coin_object)
         .expect("object is not a coin")
         .balance();
 

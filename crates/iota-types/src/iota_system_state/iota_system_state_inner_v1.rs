@@ -6,14 +6,16 @@ use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_move_types::{
-    iota_framework::{
-        bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
-    },
-    iota_system::iota_system_state_inner::SystemParametersV1,
-};
-use iota_sdk_types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
+use rust_sdk::{
+    move_types::{
+        iota_framework::{
+            bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+        },
+        iota_system::iota_system_state_inner::SystemParametersV1,
+    },
+    types::{Address, ObjectId},
+};
 use serde::{Deserialize, Serialize};
 
 use super::{

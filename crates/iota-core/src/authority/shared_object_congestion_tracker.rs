@@ -4,12 +4,12 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_sdk_types::{ObjectId, SharedObjectReference};
 use iota_types::{
     base_types::CommitRound,
     executable_transaction::VerifiedExecutableTransaction,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
+use rust_sdk::types::{ObjectId, SharedObjectReference};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -1075,7 +1075,6 @@ mod execution_slot_tests {
 
 #[cfg(test)]
 pub mod shared_object_test_utils {
-    use iota_sdk_types::Version;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         base_types::random_object_ref,
@@ -1083,6 +1082,7 @@ pub mod shared_object_test_utils {
         executable_transaction::VerifiedExecutableTransaction,
         transaction::{CallArg, VerifiedTransaction},
     };
+    use rust_sdk::types::Version;
 
     use super::*;
 
@@ -1177,8 +1177,8 @@ pub mod shared_object_test_utils {
 #[cfg(test)]
 mod object_cost_tests {
     use iota_protocol_config::PerObjectCongestionControlMode;
-    use iota_sdk_types::TransactionDigest;
     use rstest::rstest;
+    use rust_sdk::types::TransactionDigest;
 
     use super::{shared_object_test_utils::*, *};
 

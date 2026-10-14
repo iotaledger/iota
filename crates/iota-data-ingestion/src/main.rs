@@ -14,10 +14,10 @@ use iota_data_ingestion_core::{
     WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use iota_grpc_client::GrpcClient;
 use iota_kvstore::{BigTableClient, KvWorker, Table};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus_filtered::Registry;
+use rust_sdk::grpc_client::GrpcClient;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 

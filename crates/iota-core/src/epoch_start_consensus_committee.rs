@@ -54,7 +54,6 @@ mod test {
     use fastcrypto::traits::{KeyPair, ToFromBytes};
     use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
-    use iota_sdk_types::Address;
     use iota_types::{
         committee::CommitteeTrait,
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
@@ -62,6 +61,7 @@ mod test {
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
     };
+    use rust_sdk::types::Address;
 
     use super::get_consensus_committee;
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_sdk_types::TransactionDenyRulesUpdate as NativeTransactionDenyRulesUpdate;
+use rust_sdk::types::TransactionDenyRulesUpdate as NativeTransactionDenyRulesUpdate;
 
 use crate::types::{epoch::Epoch, iota_address::IotaAddress, uint53::UInt53};
 

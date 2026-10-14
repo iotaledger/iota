@@ -5,7 +5,6 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use iota_sdk_types::TransactionDigest;
 use iota_types::{
     error::IotaError,
     messages_grpc::{
@@ -15,6 +14,7 @@ use iota_types::{
     },
     transaction::TransactionEnvelope,
 };
+use rust_sdk::types::TransactionDigest;
 use tonic::IntoRequest;
 
 use crate::authority_client::{NetworkAuthorityClient, insert_metadata};

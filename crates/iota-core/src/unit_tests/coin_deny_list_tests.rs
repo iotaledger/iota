@@ -5,11 +5,6 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_move_types::iota_framework::coin::{DenyCapV1, RegulatedCoinMetadata};
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
-    TransactionDigest, TransactionEffects, TypeTag, Version,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
@@ -24,6 +19,13 @@ use iota_types::{
     object::Object,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionEnvelope, VerifiedTransaction,
+    },
+};
+use rust_sdk::{
+    move_types::iota_framework::coin::{DenyCapV1, RegulatedCoinMetadata},
+    types::{
+        Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
+        TransactionDigest, TransactionEffects, TypeTag, Version,
     },
 };
 

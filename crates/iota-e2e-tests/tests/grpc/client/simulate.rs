@@ -1,15 +1,17 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::read_mask_fields::SimulateField;
-use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, Command, Transaction};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionAPI},
+};
+use rust_sdk::{
+    grpc_client::read_mask_fields::SimulateField,
+    grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult,
+    types::{Address, Command, Transaction},
 };
 use tonic::Code;
 

@@ -16,7 +16,6 @@ mod checked {
         transaction_context::TransactionContext,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::ObjectId;
     use iota_types::{
         auth_context::AuthContext,
         base_types::*,
@@ -43,6 +42,7 @@ mod checked {
         move_vm::MoveVM, native_extensions::NativeContextExtensions,
         native_functions::NativeFunctionTable,
     };
+    use rust_sdk::types::ObjectId;
     use tracing::instrument;
 
     /// Creates a new instance of `MoveVM` with the specified native functions

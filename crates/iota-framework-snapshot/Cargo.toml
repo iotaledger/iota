@@ -18,7 +18,7 @@ bin-version.workspace = true
 iota-framework.workspace = true
 iota-framework-snapshot-manifest.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 [dev-dependencies]
 # external dependencies

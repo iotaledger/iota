@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use iota_sdk_types::{Address, ObjectId};
 use iota_types::iota_system_state::iota_system_state_summary::{
     IotaSystemStateSummary as NativeSystemStateSummary,
     IotaSystemStateSummaryV1 as NativeSystemStateSummaryV1,
     IotaSystemStateSummaryV2 as NativeSystemStateSummaryV2,
     IotaValidatorSummary as NativeValidatorSummary,
 };
+use rust_sdk::types::{Address, ObjectId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};

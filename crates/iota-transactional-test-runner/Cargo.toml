@@ -38,7 +38,6 @@ iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
@@ -51,6 +50,7 @@ move-stdlib = { path = "../../external-crates/move/crates/move-stdlib" }
 move-symbol-pool.workspace = true
 move-transactional-test-runner = { path = "../../external-crates/move/crates/move-transactional-test-runner" }
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
+rust-sdk = { workspace = true, features = ["types"] }
 simulacrum.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true

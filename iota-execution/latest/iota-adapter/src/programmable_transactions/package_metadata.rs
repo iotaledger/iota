@@ -19,7 +19,6 @@ mod checked {
     use std::collections::BTreeMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{ObjectId, TypeTag};
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID,
         error::{ExecutionError, ExecutionErrorKind},
@@ -36,6 +35,7 @@ mod checked {
     };
     use move_core_types::{ident_str, identifier::IdentStr, language_storage::ModuleId};
     use move_trace_format::format::MoveTraceBuilder;
+    use rust_sdk::types::{ObjectId, TypeTag};
 
     use crate::{
         execution_mode::System,

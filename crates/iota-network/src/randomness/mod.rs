@@ -22,12 +22,12 @@ use iota_config::p2p::RandomnessConfig;
 use iota_macros::fail_point_if;
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::anemo_ext::NetworkExt;
-use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::AuthorityName,
     committee::EpochId,
     crypto::{RandomnessPartialSignature, RandomnessSignature},
 };
+use rust_sdk::types::RandomnessRound;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{OnceCell, mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn};

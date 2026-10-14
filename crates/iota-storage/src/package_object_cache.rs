@@ -4,13 +4,13 @@
 
 use std::{num::NonZeroUsize, sync::Arc};
 
-use iota_sdk_types::ObjectId;
 use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     storage::{ObjectStore, PackageObject},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
+use rust_sdk::types::ObjectId;
 
 pub struct PackageObjectCache {
     cache: RwLock<LruCache<ObjectId, PackageObject>>,

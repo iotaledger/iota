@@ -8,9 +8,9 @@
 use std::collections::{HashMap, VecDeque};
 
 use iota_common::sync::notify_read::NotifyRead;
-use iota_sdk_types::TransactionDigest;
 use iota_types::error::IotaError;
 use parking_lot::RwLock;
+use rust_sdk::types::TransactionDigest;
 
 /// Maximum number of dropped transaction entries to retain.
 /// At ~200 bytes per entry (digest + error), 100k entries ≈ 20 MB.

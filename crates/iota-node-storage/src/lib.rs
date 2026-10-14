@@ -13,7 +13,6 @@
 //! - `iota-grpc-server` can consume them without depending on `iota-core`
 //! - `simulacrum` and other test harnesses can implement them freely
 
-use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{
     base_types::EpochId,
     digests::ChainIdentifier,
@@ -24,6 +23,7 @@ use iota_types::{
         error::Result,
     },
 };
+use rust_sdk::types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
 
 /// Trait extending [`ReadStore`] with full-node-specific queries that may
 /// require richer databases or indexes to support.

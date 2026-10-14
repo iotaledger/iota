@@ -21,10 +21,6 @@ use std::{
 };
 
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
-use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, OwnedObjectReference,
-    Owner, StructTag, TransactionEffects,
-};
 use iota_test_transaction_builder::{TestTransactionBuilder, publish_package};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -33,6 +29,10 @@ use iota_types::{
 };
 use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, TypeTag, VmSdkError, grpc::GrpcStore};
 use move_core_types::annotated_value::MoveValue;
+use rust_sdk::types::{
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, OwnedObjectReference,
+    Owner, StructTag, TransactionEffects,
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Build a staking transaction, simulate it with both the node's dry-run and

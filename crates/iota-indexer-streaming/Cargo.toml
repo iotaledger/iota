@@ -20,8 +20,8 @@ tracing.workspace = true
 
 # internal dependencies
 iota-indexer.workspace = true
-iota-sdk-types.workspace = true
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 [lints]
 workspace = true

@@ -25,11 +25,6 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
-    Address, CheckpointDigest, GasCostSummary, Identifier, MoveStruct, ObjectDigest, ObjectId,
-    ObjectReference, Owner, StructTag, Transaction, TransactionDigest, TransactionEventsDigest,
-    TypeTag, UserSignature, Version,
-};
 use iota_types::{
     balance::Supply,
     base_types::{ObjectType, random_object_ref},
@@ -54,6 +49,11 @@ use move_core_types::{
     resolver::ModuleResolver,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
+use rust_sdk::types::{
+    Address, CheckpointDigest, GasCostSummary, Identifier, MoveStruct, ObjectDigest, ObjectId,
+    ObjectReference, Owner, StructTag, Transaction, TransactionDigest, TransactionEventsDigest,
+    TypeTag, UserSignature, Version,
+};
 use serde_json::json;
 
 struct Examples {

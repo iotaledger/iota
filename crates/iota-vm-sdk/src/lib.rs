@@ -60,10 +60,10 @@ pub use iota_config::transaction_deny_config::{
     TransactionDenyConfig, TransactionDenyConfigBuilder,
 };
 pub use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-pub use iota_sdk_types::{
+pub use iota_types::object::Object;
+pub use move_trace_format::format::{TraceEvent, TraceVersion};
+pub use rust_sdk::types::{
     Address, MoveAuthenticator, ObjectId, SenderSignedTransaction, StructTag, Transaction,
     TransactionEffects, TransactionEvents, TypeTag, UserSignature, Version,
 };
-pub use iota_types::object::Object;
-pub use move_trace_format::format::{TraceEvent, TraceVersion};
 pub use store::{InMemoryStore, Store};

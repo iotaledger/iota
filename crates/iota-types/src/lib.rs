@@ -9,7 +9,6 @@
     rust_2021_compatibility
 )]
 
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
@@ -17,6 +16,7 @@ use move_binary_format::{
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use object::OBJECT_START_VERSION;
+use rust_sdk::types::{Address, ObjectId, StructTag, TypeTag, Version};
 
 use crate::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
@@ -261,14 +261,14 @@ impl MoveTypeTagTrait for Address {
     }
 }
 
-impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::object::ID {
+impl MoveTypeTagTrait for rust_sdk::move_types::iota_framework::object::ID {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(StructTag::new_id()))
     }
 }
 
 impl<N: MoveTypeTagTrait> MoveTypeTagTrait
-    for iota_sdk_move_types::iota_framework::dynamic_object_field::Wrapper<N>
+    for rust_sdk::move_types::iota_framework::dynamic_object_field::Wrapper<N>
 {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(
@@ -277,19 +277,19 @@ impl<N: MoveTypeTagTrait> MoveTypeTagTrait
     }
 }
 
-impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::ConfigKey {
+impl MoveTypeTagTrait for rust_sdk::move_types::iota_framework::deny_list::ConfigKey {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
     }
 }
 
-impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::AddressKey {
+impl MoveTypeTagTrait for rust_sdk::move_types::iota_framework::deny_list::AddressKey {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
     }
 }
 
-impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::GlobalPauseKey {
+impl MoveTypeTagTrait for rust_sdk::move_types::iota_framework::deny_list::GlobalPauseKey {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }

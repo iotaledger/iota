@@ -4,8 +4,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use iota_sdk_types::{InputSharedObject, TransactionDigest, TransactionEffects};
 use iota_types::{effects::TransactionEffectsAPI, storage::ObjectKey};
+use rust_sdk::types::{InputSharedObject, TransactionDigest, TransactionEffects};
 use tracing::trace;
 
 pub struct CausalOrder {
@@ -222,8 +222,8 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionEffects, Version};
     use iota_types::effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting};
+    use rust_sdk::types::{ObjectDigest, ObjectId, ObjectReference, TransactionEffects, Version};
 
     use super::*;
 

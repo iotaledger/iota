@@ -7,8 +7,8 @@ use iota_json_rpc_types::{
     BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions, IotaObjectResponseError,
 };
 use iota_sdk::IotaClient;
-use iota_sdk_types::{ObjectId, Owner, TypeTag};
 use iota_types::{gas_coin::GasCoin, parse_iota_type_tag};
+use rust_sdk::types::{ObjectId, Owner, TypeTag};
 use tracing::{debug, trace};
 
 /// A util struct that helps verify IOTA Object.

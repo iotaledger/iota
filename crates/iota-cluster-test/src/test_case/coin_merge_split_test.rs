@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
+use rust_sdk::types::{Address, ObjectId, Owner, StructTag, TypeTag};
 use tracing::{debug, info};
 
 use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};

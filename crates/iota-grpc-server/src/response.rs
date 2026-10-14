@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::headers;
+use rust_sdk::grpc_types::headers;
 
 use crate::GrpcReader;
 
@@ -43,7 +43,7 @@ pub fn append_info_headers<T>(
 
         headers.insert(
             headers::X_IOTA_TIMESTAMP,
-            iota_grpc_types::proto::timestamp_ms_to_proto(latest_checkpoint.timestamp_ms)
+            rust_sdk::grpc_types::proto::timestamp_ms_to_proto(latest_checkpoint.timestamp_ms)
                 .to_string()
                 .try_into()
                 .expect("timestamp is a valid MetadataValue<Ascii>"),

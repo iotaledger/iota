@@ -8,7 +8,7 @@ mod view_demo;
 mod view_function_calls;
 mod view_serialization;
 
-use iota_grpc_types::v1::{
+use rust_sdk::grpc_types::v1::{
     bcs::BcsData,
     signatures::{UserSignature, UserSignatures},
     transaction::Transaction as ProtoTransaction,

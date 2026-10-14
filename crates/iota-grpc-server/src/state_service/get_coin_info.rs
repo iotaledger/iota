@@ -3,19 +3,21 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
-    google::rpc::bad_request::FieldViolation,
-    v1::{
-        coin::{
-            CoinMetadata, CoinTreasury, RegulatedCoinMetadata, coin_treasury::SupplyState,
-            regulated_coin_metadata::CoinRegulatedState,
+use rust_sdk::{
+    grpc_types::{
+        google::rpc::bad_request::FieldViolation,
+        v1::{
+            coin::{
+                CoinMetadata, CoinTreasury, RegulatedCoinMetadata, coin_treasury::SupplyState,
+                regulated_coin_metadata::CoinRegulatedState,
+            },
+            error_reason::ErrorReason,
+            state_service::{GetCoinInfoRequest, GetCoinInfoResponse},
         },
-        error_reason::ErrorReason,
-        state_service::{GetCoinInfoRequest, GetCoinInfoResponse},
     },
+    move_types::iota_framework::coin,
+    types::{Address, Owner, TypeTag},
 };
-use iota_sdk_move_types::iota_framework::coin;
-use iota_sdk_types::{Address, Owner, TypeTag};
 
 use crate::{error::RpcError, types::GrpcReader, validation::object_id_proto};
 

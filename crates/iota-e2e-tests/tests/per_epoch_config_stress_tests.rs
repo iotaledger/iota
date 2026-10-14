@@ -6,15 +6,15 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Transaction, TypeTag,
-    Version,
-};
 use iota_types::{
     base_types::EpochId, effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
 };
 use rand::random;
+use rust_sdk::types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Transaction, TypeTag,
+    Version,
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 

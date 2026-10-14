@@ -101,10 +101,6 @@ use iota_network::{
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
-    RandomnessRound,
-    crypto::{Intent, IntentMessage, IntentScope},
-};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     http_key_value_store::HttpKVStore,
@@ -134,6 +130,10 @@ use iota_types::{
     transaction::{SenderSignedTransactionAPI, TransactionEnvelope, VerifiedCertificate},
 };
 use prometheus_filtered::{MetricLevel, Registry};
+use rust_sdk::types::{
+    RandomnessRound,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 #[cfg(msim)]
 use simulator::*;
 use tap::tap::TapFallible;

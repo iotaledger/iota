@@ -20,11 +20,11 @@ use iota_sdk::{
         transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{
+use iota_types::transaction::TransactionAPI;
+use rust_sdk::types::{
     Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
     crypto::Intent,
 };
-use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";

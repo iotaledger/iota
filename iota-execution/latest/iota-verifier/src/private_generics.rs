@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Address;
 use iota_types::error::ExecutionError;
 use move_binary_format::{
     CompiledModule,
@@ -13,6 +12,7 @@ use move_binary_format::{
 };
 use move_bytecode_utils::format_signature_token;
 use move_core_types::{ident_str, identifier::IdentStr};
+use rust_sdk::types::Address;
 
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 

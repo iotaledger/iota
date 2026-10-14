@@ -8,12 +8,12 @@ mod sim_only_tests {
 
     use iota_macros::sim_test;
     use iota_node::IotaNode;
-    use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects};
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
         effects::TransactionEffectsAPI, messages_checkpoint::CheckpointSequenceNumber,
         transaction::CallArg,
     };
+    use rust_sdk::types::{ObjectId, TransactionDigest, TransactionEffects};
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
 

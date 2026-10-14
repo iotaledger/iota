@@ -11,12 +11,12 @@ use std::{
 use backoff::backoff::Backoff;
 use futures::{StreamExt, TryStreamExt};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_grpc_client::GrpcClient;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
 use object_store::ObjectStore;
+use rust_sdk::grpc_client::GrpcClient;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 use tokio::{
@@ -341,7 +341,7 @@ impl CheckpointReaderActor {
         let mut query = client
             .checkpoints_stream()
             .start_sequence_number(self.current_checkpoint_number)
-            .read_mask(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA);
+            .read_mask(rust_sdk::grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA);
         if let Some(filter) = self.fullnode_transaction_filter.clone() {
             query = query.transactions_filter(filter.into());
         }

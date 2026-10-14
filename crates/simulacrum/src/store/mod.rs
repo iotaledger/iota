@@ -5,10 +5,6 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
-use iota_sdk_types::{
-    Address, CheckpointContents, ObjectId, ObjectReference, TransactionDigest, TransactionEffects,
-    TransactionEvents, Version,
-};
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
@@ -20,6 +16,10 @@ use iota_types::{
         InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjectReadResult,
         ReceivingObjects, VerifiedTransaction,
     },
+};
+use rust_sdk::types::{
+    Address, CheckpointContents, ObjectId, ObjectReference, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 pub mod in_mem_store;
 

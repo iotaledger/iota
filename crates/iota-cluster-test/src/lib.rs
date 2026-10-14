@@ -15,12 +15,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
-use iota_sdk_types::{Address, Owner, Transaction, TransactionDigest};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     gas_coin::GasCoin, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
 };
+use rust_sdk::types::{Address, Owner, Transaction, TransactionDigest};
 use test_case::{
     coin_index_test::CoinIndexTest, coin_merge_split_test::CoinMergeSplitTest,
     fullnode_build_publish_transaction_test::FullNodeBuildPublishTransactionTest,
@@ -93,12 +93,12 @@ impl TestContext {
     /// Connect a gRPC client to the fullnode.
     ///
     /// Panics if the cluster exposes no gRPC endpoint (remote clusters).
-    fn get_fullnode_grpc_client(&self) -> iota_grpc_client::GrpcClient {
+    fn get_fullnode_grpc_client(&self) -> rust_sdk::grpc_client::GrpcClient {
         let url = self
             .cluster
             .grpc_url()
             .expect("cluster exposes no gRPC endpoint");
-        iota_grpc_client::GrpcClient::new(url).expect("failed to create gRPC client")
+        rust_sdk::grpc_client::GrpcClient::new(url).expect("failed to create gRPC client")
     }
 
     fn get_wallet(&self) -> &WalletContext {

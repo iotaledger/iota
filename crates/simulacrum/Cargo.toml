@@ -19,7 +19,6 @@ iota-config.workspace = true
 iota-execution.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-transaction-checks.workspace = true
@@ -28,6 +27,7 @@ move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 typed-store-error.workspace = true
 
 [lints]

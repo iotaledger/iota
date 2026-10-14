@@ -269,7 +269,6 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{CheckpointContents, CheckpointSummary, GasCostSummary};
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
         message_envelope::Envelope,
@@ -277,6 +276,7 @@ mod tests {
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;
+    use rust_sdk::types::{CheckpointContents, CheckpointSummary, GasCostSummary};
     use tempfile::TempDir;
 
     use super::*;

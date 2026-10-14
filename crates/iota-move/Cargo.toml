@@ -22,7 +22,6 @@ iota-move-build.workspace = true
 iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
@@ -33,6 +32,7 @@ move-package.workspace = true
 move-unit-test.workspace = true
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 telemetry-subscribers.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

@@ -10,13 +10,13 @@ use std::{
 use iota_common::debug_fatal;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
+use rust_sdk::types::SenderSignedTransaction;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, warn};
 

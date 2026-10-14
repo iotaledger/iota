@@ -4,8 +4,8 @@
 
 use std::collections::HashSet;
 
-use iota_sdk_types::ObjectId;
 use iota_types::effects::{TransactionEffectsAPI, TransactionEffectsExt};
+use rust_sdk::types::ObjectId;
 
 use crate::{
     ingestion::common::prepare::{CheckpointObjectChanges, ValidatedCheckpoint, extract_df_kind},
@@ -46,7 +46,7 @@ impl<'chk> ObjectsTransformer<'chk> {
             .iter_transactions()
             .flat_map(|tx| &tx.output_objects)
             .filter_map(|object| {
-                let iota_sdk_types::ObjectData::Package(package) = object.data() else {
+                let rust_sdk::types::ObjectData::Package(package) = object.data() else {
                     return None;
                 };
                 Some(IndexedPackage::new(

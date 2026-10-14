@@ -4,15 +4,15 @@
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, InputSharedObject, ObjectId, Transaction, TransactionEffects,
-};
 use iota_types::{
     effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
     transaction::TransactionAPI,
 };
 use moka::{ops::compute::Op, sync::Cache};
+use rust_sdk::types::{
+    ExecutionError, ExecutionStatus, InputSharedObject, ObjectId, Transaction, TransactionEffects,
+};
 
 use crate::execution_cache::TransactionCacheRead;
 

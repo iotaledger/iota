@@ -5,7 +5,6 @@
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::*,
     committee::*,
@@ -29,6 +28,7 @@ use prometheus_filtered::{
     Histogram, HistogramVec, IntCounterVec, Registry, core::GenericCounter,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
+use rust_sdk::types::{TransactionDigest, TransactionEffectsDigest};
 use tap::TapFallible;
 use tracing::{debug, error, instrument};
 

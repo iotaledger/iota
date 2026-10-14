@@ -8,7 +8,8 @@ mod common;
 use std::{collections::HashMap, sync::Arc};
 
 use common::{MockGrpcStateReader, create_large_object, create_test_transaction};
-use iota_grpc_types::{
+use prost::Message;
+use rust_sdk::grpc_types::{
     field::FieldMaskUtil,
     v1::{
         ledger_service::{
@@ -18,7 +19,6 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
-use prost::Message;
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -67,7 +67,7 @@ async fn test_get_objects_batching_within_limit() {
             .map(|id| {
                 ObjectRequest::default().with_object_ref(
                     ObjectReference::default().with_object_id(
-                        iota_grpc_types::v1::types::ObjectId::default()
+                        rust_sdk::grpc_types::v1::types::ObjectId::default()
                             .with_object_id(id.into_bytes().to_vec()),
                     ),
                 )
@@ -224,7 +224,7 @@ async fn test_get_transactions_batching_within_limit() {
             .iter()
             .map(|d| {
                 TransactionRequest::default().with_digest(
-                    iota_grpc_types::v1::types::Digest::default()
+                    rust_sdk::grpc_types::v1::types::Digest::default()
                         .with_digest(d.into_bytes().to_vec()),
                 )
             })

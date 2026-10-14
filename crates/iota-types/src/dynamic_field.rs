@@ -8,9 +8,11 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_move_types::iota_framework::dynamic_field::Field;
-use iota_sdk_types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
+use rust_sdk::{
+    move_types::iota_framework::dynamic_field::Field,
+    types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope},
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};

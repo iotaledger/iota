@@ -8,9 +8,6 @@ use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
-use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Transaction,
-};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
     network_config::NetworkConfig,
@@ -29,6 +26,9 @@ use iota_types::{
         make_move_authenticator_tx, to_sender_signed_transaction,
         to_sender_signed_transaction_with_multi_signers,
     },
+};
+use rust_sdk::types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Transaction,
 };
 
 use crate::{

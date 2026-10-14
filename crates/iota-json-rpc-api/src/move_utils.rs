@@ -9,8 +9,8 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, iota_primitives::ObjectId as ObjectIdSchema,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::ObjectId;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use rust_sdk::types::ObjectId;
 
 /// Provides utility functions to more easily work with Move packages, modules
 /// and functions.

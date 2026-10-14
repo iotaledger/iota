@@ -13,11 +13,6 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
-use iota_sdk_types::{
-    Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag, Transaction,
-    TransactionDigest, TypeTag,
-};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -31,6 +26,13 @@ use iota_types::{
     transaction::{CallArg, TransactionAPI},
 };
 use move_core_types::annotated_value::MoveValue;
+use rust_sdk::{
+    move_types::iota_framework::vec_map::VecMap,
+    types::{
+        Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag,
+        Transaction, TransactionDigest, TypeTag,
+    },
+};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]

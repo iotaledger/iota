@@ -10,9 +10,9 @@ use std::{
 };
 
 use iota_common::debug_fatal;
-use iota_sdk_types::Version;
 use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
+use rust_sdk::types::Version;
 
 pub enum CacheResult<T> {
     /// Entry is in the cache
@@ -298,7 +298,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::Version;
+    use rust_sdk::types::Version;
 
     use super::*;
 

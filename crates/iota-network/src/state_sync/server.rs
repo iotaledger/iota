@@ -10,7 +10,6 @@ use std::{
 use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
-use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest};
 use iota_types::{
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, FullCheckpointContents,
@@ -18,6 +17,7 @@ use iota_types::{
     },
     storage::WriteStore,
 };
+use rust_sdk::types::{CheckpointContentsDigest, CheckpointDigest};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 

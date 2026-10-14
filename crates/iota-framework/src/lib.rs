@@ -5,7 +5,6 @@
 use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{MovePackage, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
     execution_config_utils::to_binary_config,
     move_package::{MovePackageExt, max_package_size},
@@ -14,6 +13,7 @@ use iota_types::{
 };
 use move_binary_format::{CompiledModule, compatibility::Compatibility, normalized};
 use move_core_types::gas_algebra::InternalGas;
+use rust_sdk::types::{MovePackage, ObjectId, ObjectReference, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 

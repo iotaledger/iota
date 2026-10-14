@@ -1,11 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::{GrpcError, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, UserSignature};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::effects::TransactionEffectsAPI;
+use rust_sdk::{
+    grpc_client::{GrpcError, read_mask_fields::TransactionField},
+    types::{Address, UserSignature},
+};
 
 use super::super::utils::{create_signed_transaction, is_success, setup_grpc_test};
 

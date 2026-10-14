@@ -4,8 +4,8 @@
 
 use criterion::*;
 use fastcrypto::hash::MultisetHash;
-use iota_sdk_types::ObjectDigest;
 use iota_types::global_state_hash::GlobalStateHash;
+use rust_sdk::types::ObjectDigest;
 
 fn global_state_hash_benchmark(c: &mut Criterion) {
     {

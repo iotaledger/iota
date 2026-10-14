@@ -28,11 +28,6 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
-use iota_sdk_types::{
-    Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
-    EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
-    TransactionEvents,
-};
 use iota_storage::object_store::util::SUCCESS_MARKER;
 use iota_types::{
     committee::{Committee, EpochId},
@@ -53,6 +48,11 @@ use object_store::{
     ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path as ObjectPath,
 };
 use prometheus_filtered::Registry;
+use rust_sdk::types::{
+    Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
+    EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents,
+};
 use tokio::sync::{Semaphore, mpsc, oneshot};
 
 use crate::{

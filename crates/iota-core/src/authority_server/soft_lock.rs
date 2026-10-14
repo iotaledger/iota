@@ -46,9 +46,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::error::IotaError;
 use parking_lot::Mutex;
+use rust_sdk::types::{ObjectReference, TransactionDigest};
 use tracing::{debug, error, trace};
 
 use crate::authority_server::metrics::ValidatorServiceMetrics;
@@ -441,7 +441,7 @@ impl PreConsensusSoftLocks {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectDigest, ObjectId, Version};
+    use rust_sdk::types::{ObjectDigest, ObjectId, Version};
 
     use super::*;
 

@@ -12,9 +12,9 @@
 //!   cargo run -p iota-vm-sdk --example offline_dev_inspect
 
 use anyhow::Result;
-use iota_sdk_types::Transaction;
 use iota_types::{effects::TransactionEffectsAPI, transaction::TransactionAPI};
 use iota_vm_sdk::{Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion};
+use rust_sdk::types::Transaction;
 
 fn main() -> Result<()> {
     // Framework packages (0x1, 0x2, …) are compiled into the binary.

@@ -4,13 +4,13 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::TransactionEffectsDigest;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{EpochId, StakeUnit},
     error::{ErrorCategory, IotaError},
 };
 use itertools::Itertools as _;
+use rust_sdk::types::TransactionEffectsDigest;
 use thiserror::Error;
 
 /// Errors emitted from individual validators during transaction driver

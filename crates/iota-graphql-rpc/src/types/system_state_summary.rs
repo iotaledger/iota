@@ -5,10 +5,10 @@
 use std::collections::BTreeMap;
 
 use async_graphql::*;
-use iota_sdk_types::{Address as NativeAddress, ObjectId};
 use iota_types::iota_system_state::iota_system_state_summary::{
     IotaSystemStateSummary as NativeSystemStateSummary, IotaValidatorSummary,
 };
+use rust_sdk::types::{Address as NativeAddress, ObjectId};
 
 use super::validator_set::ValidatorSet;
 use crate::{

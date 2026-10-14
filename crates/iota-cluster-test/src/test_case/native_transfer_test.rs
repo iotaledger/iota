@@ -4,8 +4,10 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_sdk_transaction_builder::unresolved;
-use iota_sdk_types::{Address, ObjectId, Owner};
+use rust_sdk::{
+    transaction_builder::unresolved,
+    types::{Address, ObjectId, Owner},
+};
 use tracing::info;
 
 use crate::{

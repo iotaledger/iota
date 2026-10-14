@@ -20,7 +20,6 @@ use iota_macros::fail_point;
 use iota_metrics::{
     GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, spawn_monitored_task,
 };
-use iota_sdk_types::TransactionDigest;
 use iota_types::{
     committee::{Committee, EpochId},
     error::{IotaError, IotaResult},
@@ -31,6 +30,7 @@ use iota_types::{
     },
     transaction::{CertifiedTransaction, SenderSignedTransactionAPI, TransactionEnvelope},
 };
+use rust_sdk::types::TransactionDigest;
 use tap::TapFallible;
 use tokio::{
     sync::{

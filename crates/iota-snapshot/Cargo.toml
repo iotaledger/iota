@@ -30,10 +30,10 @@ tracing.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
-iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 [dev-dependencies]
 async-trait.workspace = true

@@ -4,10 +4,6 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, ObjectId, RandomnessRound, SharedObjectReference,
-    TransactionDigest, TransactionEffects, Version, VersionAssignment,
-};
 use iota_types::{
     base_types::EpochId,
     effects::TransactionEffectsAPI,
@@ -17,6 +13,10 @@ use iota_types::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
     transaction::{SenderSignedTransactionAPI, TransactionAPI, TransactionKey},
+};
+use rust_sdk::types::{
+    ExecutionError, ExecutionStatus, ObjectId, RandomnessRound, SharedObjectReference,
+    TransactionDigest, TransactionEffects, Version, VersionAssignment,
 };
 use tracing::trace;
 
@@ -498,10 +498,6 @@ fn get_or_init_versions(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{
-        Address, MoveAuthenticatorV1, ObjectDigest, ObjectReference, RandomnessRound,
-        SenderSignedTransaction, UserSignature,
-    };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         effects::TestEffectsBuilder,
@@ -512,6 +508,10 @@ mod tests {
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{CallArg, VerifiedTransaction},
+    };
+    use rust_sdk::types::{
+        Address, MoveAuthenticatorV1, ObjectDigest, ObjectReference, RandomnessRound,
+        SenderSignedTransaction, UserSignature,
     };
 
     use super::*;

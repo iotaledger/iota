@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
-use iota_sdk_types::ObjectId;
+use rust_sdk::types::ObjectId;
 use serde::{Deserialize, Serialize};
 
 pub type SnapshotManifest = BTreeMap<u64, Snapshot>;

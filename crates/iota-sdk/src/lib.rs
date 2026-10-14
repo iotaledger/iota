@@ -104,7 +104,6 @@ pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
-use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
 use jsonrpsee::{
@@ -114,6 +113,7 @@ use jsonrpsee::{
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use reqwest::header::HeaderName;
+use rust_sdk::types::{Address, ObjectId, StructTag};
 use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;
 
@@ -495,7 +495,7 @@ impl IotaClientBuilder {
 /// use std::str::FromStr;
 ///
 /// use iota_sdk::IotaClientBuilder;
-/// use iota_sdk_types::Address;
+/// use rust_sdk::types::Address;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {

@@ -18,12 +18,12 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
     use iota_types::{
         digests::ChainIdentifier,
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
+    use rust_sdk::types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
     use serde_json::json;
     use serial_test::serial;
     use simulacrum::Simulacrum;

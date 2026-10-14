@@ -13,11 +13,11 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
 };
-use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use iota_types::{
     base_types::EpochId, effects::TransactionEffectsAPI,
     messages_checkpoint::CheckpointSequenceNumber, storage::ObjectStore,
 };
+use rust_sdk::types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use typed_store::rocks::MetricConf;
 
 use self::{

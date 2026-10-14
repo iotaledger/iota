@@ -2,10 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
-use iota_sdk_types::{
-    Address, UserSignature,
-    crypto::{IntentMessage, SimpleSignature},
+use rust_sdk::{
+    crypto::{Verifier, simple::SimpleVerifier},
+    types::{
+        Address, UserSignature,
+        crypto::{IntentMessage, SimpleSignature},
+    },
 };
 use serde::Serialize;
 

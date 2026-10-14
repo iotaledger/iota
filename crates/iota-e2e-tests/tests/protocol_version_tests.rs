@@ -73,11 +73,6 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
-    use iota_sdk_types::{
-        Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
-        ProgrammableTransaction, Transaction, TransactionDigest, TransactionEffects,
-        TransactionKind, Version,
-    };
     use iota_types::{
         base_types::ConciseableName,
         effects::TransactionEffectsAPI,
@@ -99,6 +94,11 @@ mod sim_only_tests {
     };
     use move_core_types::{
         account_address::AccountAddress, identifier::Identifier as MoveIdentifier,
+    };
+    use rust_sdk::types::{
+        Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
+        ProgrammableTransaction, Transaction, TransactionDigest, TransactionEffects,
+        TransactionKind, Version,
     };
     use test_cluster::TestCluster;
     use tokio::time::{Duration, sleep};

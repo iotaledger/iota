@@ -18,16 +18,6 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_crypto::IotaSigner as _;
-use iota_sdk_types::{
-    Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
-    ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
-    GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
-    OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
-    StructTag, Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
-    crypto::{Intent, IntentScope},
-};
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
@@ -74,6 +64,19 @@ use rand::{
     distr::{Distribution, Uniform},
     prelude::StdRng,
     seq::SliceRandom,
+};
+use rust_sdk::{
+    crypto::IotaSigner as _,
+    types::{
+        Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
+        ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
+        GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
+        OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound,
+        SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionEffects,
+        TransactionEffectsDigest, TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
+        Version, VersionAssignment,
+        crypto::{Intent, IntentScope},
+    },
 };
 use serde_json::json;
 
@@ -8309,8 +8312,8 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
     #[values(false, true)] enabled: bool,
 ) {
-    use iota_sdk_types::GasCostSummary;
     use iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID;
+    use rust_sdk::types::GasCostSummary;
 
     use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
 
@@ -8359,10 +8362,10 @@ async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
 /// author is dropped by `verify_consensus_transaction`.
 #[tokio::test]
 async fn deny_rule_proposal_through_consensus_updates_active_set() {
-    use iota_sdk_types::{Address, DenyRuleSet};
     use iota_types::{
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
+    use rust_sdk::types::{Address, DenyRuleSet};
 
     let authority = authority_with_deny_rule_governance(true).await;
     let epoch_store = authority.epoch_store_for_testing();
@@ -8444,10 +8447,10 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
 /// consensus handler and never affects the active set.
 #[tokio::test]
 async fn deny_rule_proposal_ignored_when_flag_disabled() {
-    use iota_sdk_types::Address;
     use iota_types::{
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
+    use rust_sdk::types::Address;
 
     let authority = authority_with_deny_rule_governance(false).await;
     let epoch_store = authority.epoch_store_for_testing();
@@ -8486,8 +8489,8 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
     );
 }
 
-fn rules_denying(address: iota_sdk_types::Address) -> iota_sdk_types::DenyRuleSet {
-    iota_sdk_types::DenyRuleSet {
+fn rules_denying(address: rust_sdk::types::Address) -> rust_sdk::types::DenyRuleSet {
+    rust_sdk::types::DenyRuleSet {
         denied_addresses: [address].into(),
         ..Default::default()
     }

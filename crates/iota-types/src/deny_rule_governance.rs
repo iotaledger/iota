@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+use rust_sdk::types::{Address, DenyRuleSet, ObjectId};
 
 /// Read access to a set of transaction deny rules.
 ///
@@ -84,7 +84,7 @@ impl DenyRuleConfig for DenyRuleSet {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+    use rust_sdk::types::{Address, DenyRuleSet, ObjectId};
 
     use crate::deny_rule_governance::DenyRuleConfig;
 

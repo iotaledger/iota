@@ -1,9 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::read_mask_fields::TransactionField;
 use iota_macros::sim_test;
-use iota_sdk_types::TransactionDigest;
+use rust_sdk::{grpc_client::read_mask_fields::TransactionField, types::TransactionDigest};
 
 use super::{
     super::utils::{execute_transaction_and_get_digest, setup_grpc_test},
@@ -87,7 +86,7 @@ async fn get_transactions_scenarios() {
         .await
         .expect_err("Empty input should return an error");
     assert!(
-        matches!(err, iota_grpc_client::GrpcError::EmptyRequest),
+        matches!(err, rust_sdk::grpc_client::GrpcError::EmptyRequest),
         "Expected EmptyRequest error, got: {err}"
     );
 

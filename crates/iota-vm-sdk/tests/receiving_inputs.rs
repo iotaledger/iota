@@ -11,9 +11,6 @@
 //! and digest must match the store's current object); `DevInspect` skips
 //! them, like the node. Self-contained — uses only the built-in framework.
 
-use iota_sdk_types::{
-    MoveStruct, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest, Version,
-};
 use iota_types::{
     error::{IotaError, UserInputError},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
@@ -23,6 +20,9 @@ use iota_types::{
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
     VmSdkError,
+};
+use rust_sdk::types::{
+    MoveStruct, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest, Version,
 };
 
 const GAS_PRICE: u64 = 1000;
@@ -145,7 +145,7 @@ fn dry_run_rejects_wrong_receiving_digest() {
     let wrong_digest_ref = ObjectReference::new(
         receivable_ref.object_id,
         receivable_ref.version,
-        iota_sdk_types::ObjectDigest::ZERO,
+        rust_sdk::types::ObjectDigest::ZERO,
     );
     let err = vm
         .execute(

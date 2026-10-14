@@ -10,7 +10,6 @@ use std::{
 
 use futures::{StreamExt as _, future::BoxFuture, stream::FuturesUnordered};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
-use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName as _},
     committee::StakeUnit,
@@ -20,6 +19,7 @@ use iota_types::{
     object::Object,
     transaction_driver_types::{EffectsFinalityInfo, FinalizedEffects},
 };
+use rust_sdk::types::{ObjectReference, TransactionDigest, TransactionEffectsDigest};
 use tokio::{
     join,
     sync::mpsc::{Receiver, Sender, channel},
@@ -1076,10 +1076,6 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use iota_sdk_types::{
-        Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
-        ObjectOut, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    };
     use iota_types::{
         committee::Committee,
         error::{IotaError, UserInputError},
@@ -1095,6 +1091,10 @@ mod tests {
         },
         object::Object,
         transaction::TransactionEnvelope,
+    };
+    use rust_sdk::types::{
+        Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
+        ObjectOut, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
     };
 
     use super::*;

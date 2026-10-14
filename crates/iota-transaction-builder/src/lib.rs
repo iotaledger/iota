@@ -14,9 +14,6 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
-use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionKind,
-};
 use iota_types::{
     coin,
     error::UserInputError,
@@ -26,6 +23,9 @@ use iota_types::{
     transaction::{
         CallArg, InputObjectKind, ProgrammableTransactionExt, TransactionAPI, TransactionKindExt,
     },
+};
+use rust_sdk::types::{
+    Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionKind,
 };
 
 #[async_trait]

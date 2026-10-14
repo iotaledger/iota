@@ -3,8 +3,8 @@
 
 use std::ops::Range;
 
-use iota_grpc_client::{GrpcClient, read_mask_fields::EpochField};
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
+use rust_sdk::grpc_client::{GrpcClient, read_mask_fields::EpochField};
 
 /// How often the per-checkpoint workers log progress at info level: one line
 /// every this many checkpoints.

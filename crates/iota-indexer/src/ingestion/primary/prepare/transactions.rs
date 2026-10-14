@@ -7,10 +7,6 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_sdk_types::{
-    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, Owner, Transaction, TransactionDigest,
-    TransactionEffects, TransactionEvents, Version,
-};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
@@ -18,6 +14,10 @@ use iota_types::{
     transaction::TransactionAPI,
 };
 use itertools::Itertools;
+use rust_sdk::types::{
+    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, Owner, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEvents, Version,
+};
 
 use crate::{
     errors::IndexerError,

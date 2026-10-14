@@ -21,7 +21,6 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use iota_common::{debug_fatal, fatal};
 use iota_macros::fail_point_if;
 use iota_network::randomness;
-use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},
@@ -35,6 +34,7 @@ use rand08::{
     SeedableRng,
     rngs::{OsRng, StdRng},
 };
+use rust_sdk::types::RandomnessRound;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::OnceCell, task::JoinHandle};
 use tracing::{debug, error, info, warn};

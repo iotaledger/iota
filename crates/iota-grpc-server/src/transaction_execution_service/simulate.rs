@@ -4,7 +4,15 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    error::IotaError,
+    transaction::TransactionAPI,
+    transaction_executor::{
+        SimulateTransactionResult as InternalSimulateResult, TransactionExecutor, VmChecks,
+    },
+};
+use rust_sdk::grpc_types::{
     field::FieldMaskTree,
     read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
     v1::{
@@ -16,14 +24,6 @@ use iota_grpc_types::{
             SimulateTransactionsRequest, SimulateTransactionsResponse, SimulatedTransaction,
             simulate_transaction_item::TransactionCheckModes,
         },
-    },
-};
-use iota_types::{
-    effects::TransactionEffectsAPI,
-    error::IotaError,
-    transaction::TransactionAPI,
-    transaction_executor::{
-        SimulateTransactionResult as InternalSimulateResult, TransactionExecutor, VmChecks,
     },
 };
 
@@ -272,7 +272,7 @@ async fn simulate_single_transaction(
                             .map_err(|e| e.with_context("failed to merge command results"))?;
 
                     response.execution_result = Some(
-                        iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::CommandResults(command_results),
+                        rust_sdk::grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::CommandResults(command_results),
                     );
                 }
             }
@@ -309,7 +309,7 @@ async fn simulate_single_transaction(
                     }
 
                     response.execution_result = Some(
-                        iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::ExecutionError(exec_error),
+                        rust_sdk::grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::ExecutionError(exec_error),
                     );
                 }
             }

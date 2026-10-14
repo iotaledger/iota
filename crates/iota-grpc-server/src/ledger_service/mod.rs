@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use futures::{Stream, StreamExt};
 use iota_config::node::GrpcApiConfig;
-use iota_grpc_types::v1::ledger_service::{self as grpc_ledger_service};
 use iota_protocol_config::Chain;
 use iota_types::digests::ChainIdentifier;
+use rust_sdk::grpc_types::v1::ledger_service::{self as grpc_ledger_service};
 use tokio_util::sync::CancellationToken;
 use tonic::{Code, Request, Response, Status};
 

@@ -13,9 +13,9 @@ use iota_json_rpc_types::{
     },
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::{Address, ObjectId};
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use rust_sdk::types::{Address, ObjectId};
 
 /// Provides methods for constructing transactions such as transferring objects,
 /// sending coins, performing Move calls, or managing stakes.

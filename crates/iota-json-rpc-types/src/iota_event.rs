@@ -5,7 +5,6 @@
 use std::{fmt, fmt::Display, str::FromStr};
 
 use fastcrypto::encoding::{Base58, Base64};
-use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TransactionDigest};
 use iota_types::{
     error::IotaResult,
     event::{EventEnvelope, EventID},
@@ -13,6 +12,7 @@ use iota_types::{
 };
 use json_to_table::json_to_table;
 use move_core_types::annotated_value::MoveDatatypeLayout;
+use rust_sdk::types::{Address, Event, Identifier, ObjectId, StructTag, TransactionDigest};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

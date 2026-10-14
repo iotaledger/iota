@@ -16,10 +16,6 @@ use std::{
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
-    Version,
-};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
@@ -32,6 +28,10 @@ use iota_types::{
 use itertools::{Either, Itertools, izip};
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use prometheus_filtered::Registry;
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    Version,
+};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
@@ -202,7 +202,7 @@ impl HistoricalFallbackReader {
     }
 
     /// Fetches a checkpoint by either a [`CheckpointSequenceNumber`] or
-    /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest).
+    /// [`CheckpointDigest`](rust_sdk::types::CheckpointDigest).
     pub(crate) async fn checkpoint(
         &self,
         id: CheckpointId,

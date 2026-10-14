@@ -6,9 +6,9 @@ use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, bail};
 use iota_core::jsonrpc_index::IndexStoreTables;
-use iota_sdk_types::{Address, Identifier, ObjectId, TransactionDigest};
 use iota_types::base_types::TxSequenceNumber;
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
+use rust_sdk::types::{Address, Identifier, ObjectId, TransactionDigest};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
     rocks::{DBMap, MetricConf},

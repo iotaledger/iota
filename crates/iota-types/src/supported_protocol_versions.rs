@@ -6,7 +6,7 @@ use std::ops::RangeInclusive;
 
 use fastcrypto::hash::HashFunction;
 pub use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::Digest;
+use rust_sdk::types::Digest;
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::DefaultHash;

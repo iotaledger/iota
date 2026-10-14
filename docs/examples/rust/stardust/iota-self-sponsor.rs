@@ -20,11 +20,11 @@ use iota_sdk::{
         transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{
+use iota_types::transaction::TransactionAPI;
+use rust_sdk::types::{
     Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
     crypto::Intent,
 };
-use iota_types::transaction::TransactionAPI;
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 

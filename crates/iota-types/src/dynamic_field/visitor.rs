@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A,
     annotated_visitor::{self, StructDriver, ValueDriver, VariantDriver, VecDriver, Visitor},
     u256::U256,
 };
+use rust_sdk::types::{ObjectId, TypeTag};
 
 use super::{DynamicFieldInfo, DynamicFieldType};
 use crate::{
@@ -243,10 +243,10 @@ fn extract_name_layout(
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::UID};
     use move_core_types::{
         account_address::AccountAddress, annotated_value as A, language_storage::TypeTag,
     };
+    use rust_sdk::move_types::iota_framework::{dynamic_field::Field, object::UID};
 
     use super::*;
     use crate::object::bounded_visitor::tests::{enum_, layout_, value_, variant_};

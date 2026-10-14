@@ -5,7 +5,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use iota_sdk_types::{CheckpointContents, CheckpointSummary};
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
@@ -15,6 +14,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransaction,
 };
+use rust_sdk::types::{CheckpointContents, CheckpointSummary};
 use tracing::{debug, info, instrument, trace};
 
 use super::{CheckpointMetrics, CheckpointStore};

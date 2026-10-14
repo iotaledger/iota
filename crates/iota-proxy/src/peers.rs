@@ -12,14 +12,13 @@ use anyhow::Result;
 use bcs;
 use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaObjectDataOptions};
-use iota_sdk_move_types::iota_framework::dynamic_field::Field;
-use iota_sdk_types::ObjectId;
 use iota_tls::Allower;
 use iota_types::iota_system_state::{
     iota_system_state_inner_v1::ValidatorV1,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use itertools::Itertools;
+use rust_sdk::{move_types::iota_framework::dynamic_field::Field, types::ObjectId};
 use tracing::{debug, error, info};
 
 /// AllowedPeers is a mapping of public key to AllowedPeer data

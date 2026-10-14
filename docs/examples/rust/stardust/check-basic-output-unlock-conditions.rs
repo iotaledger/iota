@@ -11,7 +11,7 @@ use iota_sdk::{
     rpc_types::{IotaData, IotaObjectDataOptions},
     types::stardust::output::BasicOutput,
 };
-use iota_sdk_types::ObjectId;
+use rust_sdk::types::ObjectId;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

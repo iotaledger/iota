@@ -12,12 +12,14 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_crypto::{Signer as _, ToFromBytes as _};
-use iota_sdk_types::{
-    Address, Digest, Owner, TransactionDigest,
-    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
-};
 use move_binary_format::file_format;
+use rust_sdk::{
+    crypto::{Signer as _, ToFromBytes as _},
+    types::{
+        Address, Digest, Owner, TransactionDigest,
+        crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+    },
+};
 
 use super::*;
 use crate::{

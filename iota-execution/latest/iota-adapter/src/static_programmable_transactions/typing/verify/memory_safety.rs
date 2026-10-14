@@ -7,9 +7,9 @@ use std::{
     collections::{BTreeMap, BTreeSet},
 };
 
-use iota_sdk_types::CommandArgumentError;
 use iota_types::error::{ExecutionError, command_argument_error};
 use move_regex_borrow_graph::references::Ref;
+use rust_sdk::types::CommandArgumentError;
 
 use crate::{
     sp,

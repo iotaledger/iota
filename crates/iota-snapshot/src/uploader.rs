@@ -22,7 +22,6 @@ use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
     epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
 };
-use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
     FileCompression,
     object_store::util::{
@@ -36,6 +35,7 @@ use prometheus_filtered::{
     Histogram, IntCounter, IntGauge, Registry, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
+use rust_sdk::types::CheckpointCommitment;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 

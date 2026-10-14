@@ -15,13 +15,13 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{
-    GasPayment, ObjectId, Owner, Transaction, TransactionExpiration, TransactionKind, TransactionV1,
-};
 use iota_simulator::fastcrypto::encoding::Base64;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionAPI,
+};
+use rust_sdk::types::{
+    GasPayment, ObjectId, Owner, Transaction, TransactionExpiration, TransactionKind, TransactionV1,
 };
 use test_cluster::TestClusterBuilder;
 

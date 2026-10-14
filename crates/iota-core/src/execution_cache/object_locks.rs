@@ -4,13 +4,13 @@
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
-use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::ObjectStore,
     transaction::VerifiedSignedTransaction,
 };
+use rust_sdk::types::{ObjectId, ObjectReference};
 use tracing::{debug, info, instrument, trace};
 
 use super::writeback_cache::WritebackCache;
@@ -289,7 +289,7 @@ impl ObjectLocks {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::TransactionDigest;
+    use rust_sdk::types::TransactionDigest;
 
     use super::ObjectLocks;
     use crate::execution_cache::{

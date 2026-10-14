@@ -9,7 +9,7 @@ use std::{
 };
 
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::TransactionDigest;
+use rust_sdk::types::TransactionDigest;
 use tracing::info;
 
 use crate::{

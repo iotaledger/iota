@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use iota_sdk_types::{Address, ObjectId};
+use rust_sdk::types::{Address, ObjectId};
 
 use crate::{
     client::{Client, Connection},

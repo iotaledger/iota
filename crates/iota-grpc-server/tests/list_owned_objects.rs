@@ -12,21 +12,22 @@ mod common;
 use std::{collections::HashMap, sync::Arc};
 
 use common::{MockGrpcStateReader, connect_state_client, owner_proto, start_test_server};
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    v1::state_service::{
-        ListOwnedObjectsRequest, ListOwnedObjectsResponse, state_service_client::StateServiceClient,
-    },
-};
-use iota_sdk_types::{
-    Address, MoveObjectType, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest,
-};
 use iota_types::{
     gas_coin::GasCoin,
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        v1::state_service::{
+            ListOwnedObjectsRequest, ListOwnedObjectsResponse,
+            state_service_client::StateServiceClient,
+        },
+    },
+    types::{Address, MoveObjectType, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest},
+};
 use tonic::transport::Channel;
 
 // ---------------------------------------------------------------------------

@@ -10,7 +10,6 @@ use iota_core::{
     signature_verifier::*,
     test_utils::{make_cert_with_large_committee, make_dummy_tx},
 };
-use iota_sdk_types::Address;
 use iota_types::{
     committee::Committee,
     crypto::{AccountPrivateKey, AuthorityKeyPair, get_key_pair},
@@ -19,6 +18,7 @@ use iota_types::{
 use itertools::Itertools as _;
 use prometheus_filtered::Registry;
 use rand::{rng, seq::SliceRandom};
+use rust_sdk::types::Address;
 
 fn gen_certs(
     committee: &Committee,

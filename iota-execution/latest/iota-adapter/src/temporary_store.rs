@@ -11,11 +11,6 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
-    ObjectOut, ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
-    Version,
-};
 use iota_types::{
     auth_context::AuthContext,
     base_types::VersionDigest,
@@ -38,6 +33,11 @@ use iota_types::{
     transaction::InputObjects,
 };
 use parking_lot::RwLock;
+use rust_sdk::types::{
+    Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
+    ObjectOut, ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version,
+};
 
 use crate::gas_charger::GasCharger;
 

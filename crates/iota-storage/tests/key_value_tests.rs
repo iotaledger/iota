@@ -7,10 +7,6 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, ObjectId,
-    TransactionDigest, TransactionEffects, TransactionEvents,
-};
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -26,6 +22,10 @@ use iota_types::{
     object::Object,
     storage::ObjectKey,
     transaction::TransactionEnvelope,
+};
+use rust_sdk::types::{
+    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, ObjectId,
+    TransactionDigest, TransactionEffects, TransactionEvents,
 };
 
 fn random_tx() -> TransactionEnvelope {
@@ -382,9 +382,9 @@ mod simtests {
         routing::get,
     };
     use iota_macros::sim_test;
-    use iota_sdk_types::{Address, Event, Identifier, StructTag};
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
+    use rust_sdk::types::{Address, Event, Identifier, StructTag};
     use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
 

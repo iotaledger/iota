@@ -37,15 +37,6 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_sdk_types::{
-    Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
-    InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
-    TransactionKind, TypeTag, Version, WriteKind,
-    crypto::{Intent, IntentScope},
-};
 use iota_storage::{
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -125,6 +116,15 @@ use prometheus_filtered::{
     Registry, register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
+};
+use rust_sdk::types::{
+    Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
+    InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
+    TransactionKind, TypeTag, Version, WriteKind,
+    crypto::{Intent, IntentScope},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tap::TapFallible;
@@ -6303,9 +6303,9 @@ pub mod framework_injection {
     };
 
     use iota_framework::{BuiltInFramework, SystemPackage};
-    use iota_sdk_types::ObjectId;
     use iota_types::base_types::AuthorityName;
     use move_binary_format::CompiledModule;
+    use rust_sdk::types::ObjectId;
 
     type FrameworkOverrideConfig = BTreeMap<ObjectId, PackageOverrideConfig>;
 

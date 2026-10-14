@@ -3,12 +3,14 @@
 
 use std::fmt;
 
-use iota_sdk_move_types::iota_framework::{
-    linked_table::{LinkedTable, Node},
-    transaction_deny_rules::{TransactionDenyRules, TransactionDenyRulesInnerV1},
-};
-use iota_sdk_types::{DenyRuleSet, Identifier, Version};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
+use rust_sdk::{
+    move_types::iota_framework::{
+        linked_table::{LinkedTable, Node},
+        transaction_deny_rules::{TransactionDenyRules, TransactionDenyRulesInnerV1},
+    },
+    types::{DenyRuleSet, Identifier, Version},
+};
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
@@ -66,7 +68,7 @@ pub fn get_transaction_deny_rules(
     let Some(object) = object_store.try_get_object(&IOTA_TRANSACTION_DENY_RULES_OBJECT_ID)? else {
         return Ok(None);
     };
-    let iota_sdk_types::ObjectData::Struct(move_object) = &object.data else {
+    let rust_sdk::types::ObjectData::Struct(move_object) = &object.data else {
         return Err(IotaError::ObjectDeserialization {
             error: "TransactionDenyRules object must be a Move object".to_string(),
         });

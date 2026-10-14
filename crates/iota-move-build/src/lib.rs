@@ -17,7 +17,6 @@ use iota_package_management::{
     PublishedAtError, resolve_published_id,
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion, latest_system_packages},
 };
-use iota_sdk_types::{Address, MovePackage, ObjectId, Version};
 // `ProtocolBuildConfig` lives in `iota-types` (both this crate and the verifier
 // depend on it); re-export it here so callers that build a `BuildConfig` can
 // reach it without a separate `iota-types` dependency.
@@ -61,6 +60,7 @@ use move_package::{
     },
 };
 use move_symbol_pool::Symbol;
+use rust_sdk::types::{Address, MovePackage, ObjectId, Version};
 use serde_reflection::Registry;
 
 #[cfg(test)]

@@ -4,9 +4,11 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
-use iota_sdk_move_types::iota_framework::{bag::Bag, system_admin_cap::IotaSystemAdminCap};
-use iota_sdk_types::Address;
 use once_cell::sync::OnceCell;
+use rust_sdk::{
+    move_types::iota_framework::{bag::Bag, system_admin_cap::IotaSystemAdminCap},
+    types::Address,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{

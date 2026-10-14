@@ -21,8 +21,8 @@ tracing.workspace = true
 
 # internal dependencies
 iota-data-ingestion-core.workspace = true
-iota-sdk-types.workspace = true
 iota-types.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 telemetry-subscribers.workspace = true
 
 [features]

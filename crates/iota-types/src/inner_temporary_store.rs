@@ -7,10 +7,10 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectId, Owner, TransactionEffects, TransactionEvents, Version};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
+use rust_sdk::types::{ObjectId, Owner, TransactionEffects, TransactionEvents, Version};
 
 use crate::{
     base_types::VersionDigest,

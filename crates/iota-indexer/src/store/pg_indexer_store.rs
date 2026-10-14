@@ -14,9 +14,9 @@ use diesel::{
 };
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{CheckpointDigest, ObjectId};
 use iota_types::digests::ChainIdentifier;
 use itertools::Itertools;
+use rust_sdk::types::{CheckpointDigest, ObjectId};
 use strum::IntoEnumIterator;
 use tap::TapFallible;
 use tracing::info;

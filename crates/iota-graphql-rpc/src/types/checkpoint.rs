@@ -17,7 +17,7 @@ use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
     models::checkpoints::StoredCheckpoint, pruning::CommitterTables, schema::checkpoints,
 };
-use iota_sdk_types::{CheckpointDigest, CheckpointSummary};
+use rust_sdk::types::{CheckpointDigest, CheckpointSummary};
 use serde::{Deserialize, Serialize};
 
 use crate::{

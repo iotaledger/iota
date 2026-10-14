@@ -10,11 +10,11 @@ use iota_indexer::apis::{ReadApi, SimulationFields};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::IotaTypeTag;
-use iota_sdk_types::{
+use move_core_types::account_address::AccountAddress;
+use rust_sdk::types::{
     GasPayment, ObjectReference, StructTag, Transaction, TransactionExpiration, TransactionKind,
     TransactionV1, TypeTag,
 };
-use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
 use crate::{

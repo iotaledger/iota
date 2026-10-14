@@ -8,10 +8,6 @@ use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, RandomnessRound, Transaction, TransactionEffects,
-    Version, VersionAssignment,
-};
 use iota_types::{
     crypto::{AccountPrivateKey, AuthorityKeyPair},
     effects::SignedTransactionEffects,
@@ -25,6 +21,10 @@ use iota_types::{
         VerifiedSignedTransaction, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
+};
+use rust_sdk::types::{
+    Address, ObjectId, ObjectReference, Owner, RandomnessRound, Transaction, TransactionEffects,
+    Version, VersionAssignment,
 };
 
 use super::{

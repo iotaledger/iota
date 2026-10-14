@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ExecutionError as ExecutionFailureStatus, MoveLocation, ObjectId};
 use iota_types::{
     error::{ExecutionError, IotaError},
     iota_sdk_types_conversions::identifier_core_to_sdk,
@@ -16,6 +15,7 @@ use move_core_types::{
     vm_status::{StatusCode, StatusType},
 };
 use move_vm_runtime::move_vm::MoveVM;
+use rust_sdk::types::{ExecutionError as ExecutionFailureStatus, MoveLocation, ObjectId};
 
 pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
     error: VMError,

@@ -18,12 +18,14 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
-use iota_sdk_move_types::iota_framework::dynamic_field::Field;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_types::{dynamic_field::DynamicFieldName, event::EventID, object::ObjectRead};
 use jsonrpsee::{
     PendingSubscriptionSink, RpcModule,
     core::{RpcResult, SubscriptionResult, client::Error as RpcClientError},
+};
+use rust_sdk::{
+    move_types::iota_framework::dynamic_field::Field,
+    types::{Address, ObjectId, TransactionDigest, TypeTag},
 };
 use tap::TapFallible;
 

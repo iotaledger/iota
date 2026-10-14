@@ -12,8 +12,10 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
+use rust_sdk::{
+    crypto::{Signer, simple::SimpleKeypair},
+    types::{Address, ObjectId, ObjectReference, Version},
+};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -42,7 +44,6 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{TransactionDigest, crypto::SimpleSignature};
 use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
 };
@@ -50,6 +51,7 @@ use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     types::ErrorObject,
 };
+use rust_sdk::types::{TransactionDigest, crypto::SimpleSignature};
 use simulacrum::Simulacrum;
 use simulacrum_server::start_simulacrum_grpc_server;
 use test_cluster::{TestCluster, TestClusterBuilder};

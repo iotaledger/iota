@@ -202,11 +202,11 @@ mod tests {
         http::{Method, Request, StatusCode, header},
     };
     use http_body_util::BodyExt;
-    use iota_sdk_types::{Address, TransactionDigest};
     use iota_storage::http_key_value_store::{
         TaggedKey, encode_digest, encode_object_key, encoded_tagged_key,
     };
     use iota_types::storage::ObjectKey;
+    use rust_sdk::types::{Address, TransactionDigest};
     use tower::ServiceExt;
 
     use super::*;

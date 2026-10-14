@@ -9,8 +9,8 @@ use std::{
 };
 
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::CheckpointDigest;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use rust_sdk::types::CheckpointDigest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

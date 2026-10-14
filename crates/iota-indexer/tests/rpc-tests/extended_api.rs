@@ -24,9 +24,9 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     TransactionBlockBytes,
 };
-use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, storage::ReadStore};
 use prometheus_filtered::Registry;
+use rust_sdk::types::{Address, ObjectId, StructTag};
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;
 

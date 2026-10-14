@@ -4,13 +4,13 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Version,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TransactionEnvelope},
+};
+use rust_sdk::types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Version,
 };
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};

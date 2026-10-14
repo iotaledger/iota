@@ -10,7 +10,6 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Transaction, TransactionEffects};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     committee::{Committee, EpochId},
@@ -27,6 +26,7 @@ use iota_types::{
     transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
+use rust_sdk::types::{Transaction, TransactionEffects};
 
 use crate::SimulatorStore;
 

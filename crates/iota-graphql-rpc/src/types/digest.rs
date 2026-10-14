@@ -6,7 +6,7 @@ use std::{fmt, str::FromStr};
 
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
-use iota_sdk_types::{CheckpointDigest, ObjectDigest, TransactionDigest};
+use rust_sdk::types::{CheckpointDigest, ObjectDigest, TransactionDigest};
 
 use crate::types::string_input::impl_string_input;
 

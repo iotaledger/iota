@@ -4,8 +4,6 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_move_types::iota_framework::account::AuthenticatorFunctionRefV1Key;
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, Version};
 use iota_types::{
     dynamic_field::derive_dynamic_field_id, iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
@@ -17,6 +15,10 @@ use move_core_types::{
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
+};
+use rust_sdk::{
+    move_types::iota_framework::account::AuthenticatorFunctionRefV1Key,
+    types::{Address, ObjectId, Owner, StructTag, Version},
 };
 use smallvec::smallvec;
 

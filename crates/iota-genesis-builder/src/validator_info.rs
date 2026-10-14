@@ -5,11 +5,11 @@
 use anyhow::bail;
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::Address;
 use iota_types::crypto::{
     AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
     verify_proof_of_possession,
 };
+use rust_sdk::types::Address;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

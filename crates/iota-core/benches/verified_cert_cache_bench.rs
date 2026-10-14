@@ -4,8 +4,8 @@
 
 use criterion::{Criterion, *};
 use iota_core::signature_verifier::SignatureVerifierMetrics;
-use iota_sdk_types::CertificateDigest;
 use iota_types::signature_verification::VerifiedDigestCache;
+use rust_sdk::types::CertificateDigest;
 
 fn verified_cert_cache_bench(c: &mut Criterion) {
     let mut digests: Vec<_> = (0..(1 << 18))

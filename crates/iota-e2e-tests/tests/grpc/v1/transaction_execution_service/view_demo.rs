@@ -3,21 +3,23 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use iota_grpc_types::v1::{
-    command::{CommandOutput, InputArgument},
-    transaction_execution_service::{
-        ViewFunctionCallItem, ViewFunctionCallsRequest, ViewFunctionCallsResponse,
-        transaction_execution_service_client::TransactionExecutionServiceClient,
-        view_function_call_outputs, view_function_call_result,
-    },
-    types::TypeTag as ProtoTypeTag,
-};
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, ObjectId, Owner, SharedObjectReference, TypeTag};
 use iota_test_transaction_builder::PublishData;
 use iota_types::effects::TransactionEffectsAPI;
 use prost_types::{ListValue, Struct, Value, value::Kind};
+use rust_sdk::{
+    grpc_types::v1::{
+        command::{CommandOutput, InputArgument},
+        transaction_execution_service::{
+            ViewFunctionCallItem, ViewFunctionCallsRequest, ViewFunctionCallsResponse,
+            transaction_execution_service_client::TransactionExecutionServiceClient,
+            view_function_call_outputs, view_function_call_result,
+        },
+        types::TypeTag as ProtoTypeTag,
+    },
+    types::{Address, ObjectId, Owner, SharedObjectReference, TypeTag},
+};
 use test_cluster::TestCluster;
 
 use crate::utils::{first_sender, setup_grpc_test, wait_for_executed_transactions_checkpointed};
@@ -47,7 +49,7 @@ struct ViewDemoPackage {
 /// behind local (`WaitForLocalExecution`) visibility.
 async fn publish_view_demo_package(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::GrpcClient,
+    client: &rust_sdk::grpc_client::GrpcClient,
 ) -> ViewDemoPackage {
     let sender = first_sender(test_cluster);
 
@@ -153,7 +155,7 @@ fn single_call_request(
 /// Call the `view_demo` endpoint for one `fq_function_name`/`type_args`/
 /// `arguments` and return the response.
 async fn call_view(
-    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<rust_sdk::grpc_client::InterceptedChannel>,
     fq_function_name: String,
     type_args: Vec<ProtoTypeTag>,
     arguments: Vec<InputArgument>,

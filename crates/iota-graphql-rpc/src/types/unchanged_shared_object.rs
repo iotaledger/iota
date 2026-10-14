@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_sdk_types::InputSharedObject;
+use rust_sdk::types::InputSharedObject;
 
 use crate::{
     error::Error,

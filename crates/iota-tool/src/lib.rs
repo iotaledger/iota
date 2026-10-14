@@ -43,10 +43,6 @@ use iota_data_ingestion_core::history::reader::{
 use iota_multiaddr::Multiaddr;
 use iota_network::default_iota_network_config;
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{
-    CheckpointCommitment, CheckpointContentsDigest, ObjectDigest, ObjectId, Owner,
-    TransactionDigest, Version,
-};
 use iota_snapshot::{
     VerifiedEpochInfo,
     progress::{ProgressTicker, ProgressUnit, make_multi_progress, println_or_log},
@@ -75,6 +71,10 @@ use iota_types::{
 };
 use itertools::Itertools;
 use prometheus_filtered::Registry;
+use rust_sdk::types::{
+    CheckpointCommitment, CheckpointContentsDigest, ObjectDigest, ObjectId, Owner,
+    TransactionDigest, Version,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{mpsc, oneshot},

@@ -6,10 +6,10 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::{
+use iota_types::crypto::{EncodeDecodeBase64, PublicKey};
+use rust_sdk::types::{
     MultisigCommittee, MultisigMember, SignatureScheme, crypto::PublicKey as SdkPublicKey,
 };
-use iota_types::crypto::{EncodeDecodeBase64, PublicKey};
 
 /// Read a string as a Base64 encoded ED25519 public key.
 pub(crate) fn public_key_from_base64(base64: &str) -> Result<PublicKey> {

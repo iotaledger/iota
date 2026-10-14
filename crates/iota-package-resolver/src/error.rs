@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{Address, TypeTag};
 use move_binary_format::errors::VMError;
+use rust_sdk::types::{Address, TypeTag};
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]

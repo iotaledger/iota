@@ -14,9 +14,6 @@ use iota_json_rpc_types::{
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
-};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -29,6 +26,9 @@ use iota_types::{
     },
 };
 use jsonrpsee::http_client::HttpClient;
+use rust_sdk::types::{
+    Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
+};
 use test_cluster::TestCluster;
 
 use crate::common::{

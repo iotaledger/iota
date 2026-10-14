@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use rust_sdk::types::{ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{error::IotaError, gas_coin::GasCoin, id::UID, object::Object};

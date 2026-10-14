@@ -4,7 +4,7 @@
 
 use std::fmt::{Display, Formatter};
 
-use iota_sdk_types::GasCostSummary;
+use rust_sdk::types::GasCostSummary;
 
 use crate::displays::Pretty;
 

@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::StreamExt;
-use iota_grpc_types::{
+use prost::Message;
+use rust_sdk::grpc_types::{
     field::FieldMaskUtil,
     v1::ledger_service::{
         GetCheckpointRequest, GetTransactionsRequest, TransactionRequest, TransactionRequests,
         ledger_service_client::LedgerServiceClient,
     },
 };
-use prost::Message;
 
 use crate::{
     common::{self, MockGrpcStateReader},
@@ -60,7 +60,7 @@ async fn a_checkpoint_is_observed_as_a_whole() {
 
 #[tokio::test]
 async fn transactions_and_events_of_a_checkpoint_are_observed_as_items() {
-    use iota_grpc_types::v1::ledger_service::checkpoint_data::Payload;
+    use rust_sdk::grpc_types::v1::ledger_service::checkpoint_data::Payload;
 
     let mut mock = MockGrpcStateReader::new_from_iter(0..=10);
     mock.checkpoint_transactions = common::build_checkpoint_transactions_with_events(4, 3);
@@ -169,7 +169,7 @@ async fn item_sizes_of_get_transactions_match_what_the_client_receives() {
                     .iter()
                     .map(|digest| {
                         TransactionRequest::default().with_digest(
-                            iota_grpc_types::v1::types::Digest::default()
+                            rust_sdk::grpc_types::v1::types::Digest::default()
                                 .with_digest(digest.into_bytes().to_vec()),
                         )
                     })
@@ -201,7 +201,7 @@ async fn item_sizes_of_get_transactions_match_what_the_client_receives() {
 
 #[tokio::test]
 async fn a_checkpoint_of_many_messages_is_observed_as_the_sum_of_them() {
-    use iota_grpc_types::v1::ledger_service::checkpoint_data::Payload;
+    use rust_sdk::grpc_types::v1::ledger_service::checkpoint_data::Payload;
 
     let mut mock = MockGrpcStateReader::new_from_iter(0..=10);
     mock.checkpoint_transactions = common::build_checkpoint_transactions_with_events(2500, 1);
@@ -243,8 +243,10 @@ async fn a_checkpoint_of_many_messages_is_observed_as_the_sum_of_them() {
 
 /// The sum of the encoded sizes of the messages of each checkpoint, in order.
 /// A checkpoint ends with its end marker.
-fn checkpoint_sums(messages: &[iota_grpc_types::v1::ledger_service::CheckpointData]) -> Vec<usize> {
-    use iota_grpc_types::v1::ledger_service::checkpoint_data::Payload;
+fn checkpoint_sums(
+    messages: &[rust_sdk::grpc_types::v1::ledger_service::CheckpointData],
+) -> Vec<usize> {
+    use rust_sdk::grpc_types::v1::ledger_service::checkpoint_data::Payload;
 
     let mut sums = vec![0];
     for message in messages {
@@ -259,7 +261,7 @@ fn checkpoint_sums(messages: &[iota_grpc_types::v1::ledger_service::CheckpointDa
 
 #[tokio::test]
 async fn a_historical_stream_observes_each_checkpoint() {
-    use iota_grpc_types::v1::ledger_service::StreamCheckpointsRequest;
+    use rust_sdk::grpc_types::v1::ledger_service::StreamCheckpointsRequest;
 
     let mut mock = MockGrpcStateReader::new_from_iter(0..=10);
     mock.checkpoint_transactions = common::build_checkpoint_transactions_with_events(3, 2);
@@ -293,8 +295,8 @@ async fn a_historical_stream_observes_each_checkpoint() {
 
 #[tokio::test]
 async fn a_live_stream_observes_each_checkpoint() {
-    use iota_grpc_types::v1::ledger_service::StreamCheckpointsRequest;
     use iota_types::full_checkpoint_content::CheckpointData;
+    use rust_sdk::grpc_types::v1::ledger_service::StreamCheckpointsRequest;
 
     let (handle, metrics) = start(MockGrpcStateReader::new_from_iter(0..=10)).await;
     let mut ledger = LedgerServiceClient::new(connect(&handle).await);
@@ -319,7 +321,11 @@ async fn a_live_stream_observes_each_checkpoint() {
             let message = stream.next().await.unwrap().unwrap();
             let end = matches!(
                 message.payload,
-                Some(iota_grpc_types::v1::ledger_service::checkpoint_data::Payload::EndMarker(_))
+                Some(
+                    rust_sdk::grpc_types::v1::ledger_service::checkpoint_data::Payload::EndMarker(
+                        _
+                    )
+                )
             );
             messages.push(message);
             if end {

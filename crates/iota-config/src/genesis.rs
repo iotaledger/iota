@@ -15,9 +15,6 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointSummary, ObjectId, TransactionEffects, TransactionEvents,
-};
 use iota_types::{
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
@@ -32,6 +29,9 @@ use iota_types::{
     object::Object,
     storage::ObjectStore,
     transaction::TransactionEnvelope,
+};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointSummary, ObjectId, TransactionEffects, TransactionEvents,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;

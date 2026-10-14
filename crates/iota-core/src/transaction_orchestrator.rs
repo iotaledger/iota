@@ -26,7 +26,6 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
     spawn_logged_monitored_task, spawn_monitored_task,
 };
-use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -53,6 +52,7 @@ use prometheus_filtered::{
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
 };
+use rust_sdk::types::{Transaction, TransactionDigest};
 use tokio::{
     sync::{
         broadcast::{Receiver, error::RecvError},

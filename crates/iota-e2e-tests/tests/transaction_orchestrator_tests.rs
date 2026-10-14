@@ -15,7 +15,6 @@ use iota_core::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectReference, TransactionExpiration};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -35,6 +34,7 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, TransactionEnvelope},
 };
+use rust_sdk::types::{ObjectReference, TransactionExpiration};
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::timeout;
 use tracing::info;
@@ -1417,12 +1417,12 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
 /// Extracts the suggested gas price from execution-worker congestion
 /// cancellation effects, if that is what `effects` carry.
 fn cancelled_congestion_suggested_gas_price(
-    effects: &iota_sdk_types::TransactionEffects,
+    effects: &rust_sdk::types::TransactionEffects,
 ) -> Option<u64> {
     match effects.status() {
-        iota_sdk_types::ExecutionStatus::Failure {
+        rust_sdk::types::ExecutionStatus::Failure {
             error:
-                iota_sdk_types::ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                rust_sdk::types::ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
                     suggested_gas_price,
                 },
             ..
@@ -1468,7 +1468,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
     // commit carrying two or more cancels the rest. Retry with fresh object
     // references in the unlikely case a burst spreads across
     // single-transaction commits.
-    let mut congested: Option<(iota_sdk_types::Address, ObjectReference, u64)> = None;
+    let mut congested: Option<(rust_sdk::types::Address, ObjectReference, u64)> = None;
     'bursts: for _ in 0..5 {
         let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
         let batch: Vec<_> = accounts_and_objs
@@ -1477,7 +1477,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
             .take(10)
             .collect();
         let submissions = batch.iter().map(|(address, obj)| {
-            let data = iota_sdk_types::Transaction::new_transfer_iota(
+            let data = rust_sdk::types::Transaction::new_transfer_iota(
                 recipient,
                 *address,
                 Some(2),
@@ -1545,7 +1545,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
 
     // Resubmit with the charged gas object at the suggested gas price.
     let gas_price = suggested_gas_price;
-    let data = iota_sdk_types::Transaction::new_transfer_iota(
+    let data = rust_sdk::types::Transaction::new_transfer_iota(
         recipient,
         address,
         Some(2),
@@ -1606,7 +1606,7 @@ async fn test_execution_worker_congestion_cancellation_validator_restart()
     let recipient = iota_types::crypto::get_key_pair::<iota_types::crypto::AccountPrivateKey>().0;
 
     let submit_transfer = |address, gas_object: ObjectReference, gas_price: u64| {
-        let data = iota_sdk_types::Transaction::new_transfer_iota(
+        let data = rust_sdk::types::Transaction::new_transfer_iota(
             recipient,
             address,
             Some(2),
@@ -1630,7 +1630,7 @@ async fn test_execution_worker_congestion_cancellation_validator_restart()
 
     // Burst transfers until one is cancelled (as in
     // `test_execution_worker_congestion_end_to_end`).
-    let mut congested: Option<(iota_sdk_types::Address, ObjectReference, u64)> = None;
+    let mut congested: Option<(rust_sdk::types::Address, ObjectReference, u64)> = None;
     'bursts: for _ in 0..5 {
         let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
         let batch: Vec<_> = accounts_and_objs

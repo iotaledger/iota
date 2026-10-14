@@ -12,7 +12,7 @@ use std::{
 use iota_framework::SystemPackage;
 pub use iota_framework_snapshot_manifest::*;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::ObjectId;
+use rust_sdk::types::ObjectId;
 
 const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectId] = &[
     ObjectId::STD,

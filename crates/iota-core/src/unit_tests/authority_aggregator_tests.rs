@@ -15,12 +15,6 @@ use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
-use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
-    SenderSignedTransaction, StakeUnit, Transaction, TransactionDigest, TransactionEffects,
-    TransactionEvents,
-    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
-};
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
@@ -51,6 +45,12 @@ use iota_types::{
 };
 use move_core_types::account_address::AccountAddress;
 use rand::{SeedableRng, rngs::StdRng};
+use rust_sdk::types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+    SenderSignedTransaction, StakeUnit, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEvents,
+    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+};
 use tokio::time::Instant;
 
 use crate::{
@@ -106,7 +106,7 @@ pub fn set_local_client_config(
 
 pub fn create_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    secret: &impl rust_sdk::crypto::Signer<SimpleSignature>,
     dest: Address,
     value: u64,
     package_id: ObjectId,
@@ -139,7 +139,7 @@ pub fn create_object_move_transaction(
 
 pub fn delete_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    secret: &impl rust_sdk::crypto::Signer<SimpleSignature>,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectReference,
@@ -164,7 +164,7 @@ pub fn delete_object_move_transaction(
 
 pub fn set_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    secret: &impl rust_sdk::crypto::Signer<SimpleSignature>,
     object_ref: ObjectReference,
     value: u64,
     framework_obj_id: ObjectId,

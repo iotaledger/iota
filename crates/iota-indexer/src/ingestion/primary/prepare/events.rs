@@ -4,8 +4,8 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{CheckpointSequenceNumber, CheckpointTimestamp, Event, ObjectId};
 use iota_types::full_checkpoint_content::CheckpointTransaction;
+use rust_sdk::types::{CheckpointSequenceNumber, CheckpointTimestamp, Event, ObjectId};
 
 use crate::{
     models::display::{

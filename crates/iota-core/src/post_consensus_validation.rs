@@ -46,7 +46,6 @@ use std::{
 };
 
 use iota_common::fatal;
-use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
@@ -54,6 +53,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
 };
+use rust_sdk::types::{ObjectReference, TransactionDigest};
 use tracing::{debug, warn};
 
 use crate::{

@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
-use iota_sdk_types::{Address, ObjectId};
+use rust_sdk::types::{Address, ObjectId};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 

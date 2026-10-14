@@ -13,22 +13,24 @@ use std::{
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use iota_grpc_client::{
-    GrpcClient,
-    read_mask_fields::{ObjectField, TransactionField},
-};
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, StructTag, Transaction, TransactionDigest,
-    TransactionEffects, crypto::Intent,
-};
 use iota_types::{
     effects::TransactionEffectsAPI, gas_coin::GasCoin, object::Object,
     transaction::TransactionEnvelope,
 };
 use prometheus_filtered::Registry;
+use rust_sdk::{
+    grpc_client::{
+        GrpcClient,
+        read_mask_fields::{ObjectField, TransactionField},
+    },
+    types::{
+        Address, ObjectId, ObjectReference, Owner, StructTag, Transaction, TransactionDigest,
+        TransactionEffects, crypto::Intent,
+    },
+};
 use tap::tap::TapFallible;
 use tokio::{
     sync::{
@@ -368,7 +370,7 @@ impl SimpleFaucet {
         match response.into_parts().0.into_iter().next() {
             Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
             // Per-item error: the object does not exist (anymore).
-            Some(Err(iota_grpc_client::GrpcError::Server(status)))
+            Some(Err(rust_sdk::grpc_client::GrpcError::Server(status)))
                 if status.code == tonic::Code::NotFound as i32 =>
             {
                 Ok(None)
@@ -677,7 +679,7 @@ impl SimpleFaucet {
         });
 
         let tx_digest = tx.digest();
-        let signed_tx: iota_sdk_types::SignedTransaction = tx.clone().into();
+        let signed_tx: rust_sdk::types::SignedTransaction = tx.clone().into();
         let response = self
             .grpc_client
             .execute_transaction(signed_tx)
@@ -1183,10 +1185,12 @@ pub async fn batch_transfer_gases(
 #[cfg(test)]
 mod tests {
     use anyhow::*;
-    use iota_grpc_client::GrpcClient;
     use iota_sdk::wallet_context::WalletContext;
-    use iota_sdk_transaction_builder::{TransactionBuilder, WaitForTransaction, unresolved};
-    use iota_sdk_types::{ExecutionStatus, TransactionEffectsV1};
+    use rust_sdk::{
+        grpc_client::GrpcClient,
+        transaction_builder::{TransactionBuilder, WaitForTransaction, unresolved},
+        types::{ExecutionStatus, TransactionEffectsV1},
+    };
     use test_cluster::TestClusterBuilder;
 
     use super::*;

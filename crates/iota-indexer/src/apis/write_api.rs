@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::TryFutureExt;
-use iota_grpc_client::{GrpcClient, read_mask_fields::SimulateField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::WriteApiServer;
@@ -19,15 +18,18 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{
-    Address, GasPayment, SenderSignedTransaction, Transaction, TransactionEffects,
-    TransactionEvents, TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
-};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::TransactionEffectsAPI, error::ExecutionError, iota_serde::BigInt, object::Object,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use rust_sdk::{
+    grpc_client::{GrpcClient, read_mask_fields::SimulateField},
+    types::{
+        Address, GasPayment, SenderSignedTransaction, Transaction, TransactionEffects,
+        TransactionEvents, TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
+    },
+};
 
 use crate::{
     errors::{IndexerError, IndexerResult},

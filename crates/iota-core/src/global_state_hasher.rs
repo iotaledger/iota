@@ -7,7 +7,6 @@ use std::sync::Arc;
 use fastcrypto::hash::MultisetHash;
 use iota_common::fatal;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{ObjectDigest, TransactionEffects};
 use iota_types::{
     committee::EpochId,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -18,6 +17,7 @@ use iota_types::{
     storage::ObjectStore,
 };
 use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
+use rust_sdk::types::{ObjectDigest, TransactionEffects};
 use tracing::debug;
 
 use crate::authority::{

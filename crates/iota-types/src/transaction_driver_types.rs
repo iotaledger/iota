@@ -5,7 +5,7 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
+use rust_sdk::types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;

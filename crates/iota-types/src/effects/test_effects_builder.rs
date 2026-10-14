@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{
+use rust_sdk::types::{
     ExecutionStatus, GasCostSummary, ObjectDigest, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, TransactionEventsDigest, Version,
     effects::{ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects},

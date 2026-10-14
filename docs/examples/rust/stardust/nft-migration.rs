@@ -17,11 +17,11 @@ use iota_sdk::{
         transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{
+use iota_types::transaction::TransactionAPI;
+use rust_sdk::types::{
     Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
     crypto::Intent,
 };
-use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";

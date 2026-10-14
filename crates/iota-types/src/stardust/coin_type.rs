@@ -3,7 +3,7 @@
 
 use std::fmt::Display;
 
-use iota_sdk_types::{StructTag, TypeTag};
+use rust_sdk::types::{StructTag, TypeTag};
 
 /// The type tag for the outputs used in the migration.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

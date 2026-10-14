@@ -4,11 +4,11 @@
 
 use diesel::prelude::*;
 use iota_json_rpc_types::Checkpoint as RpcCheckpoint;
-use iota_sdk_types::{
+use iota_types::storage::EpochInfoV1Entry;
+use rust_sdk::types::{
     CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, GasCostSummary,
     TransactionDigest,
 };
-use iota_types::storage::EpochInfoV1Entry;
 
 use crate::{
     errors::IndexerError,

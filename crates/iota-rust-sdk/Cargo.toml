@@ -10,12 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
-iota-grpc-client = { workspace = true, optional = true }
-iota-grpc-types = { workspace = true, optional = true }
-iota-sdk-crypto = { workspace = true, optional = true }
-iota-sdk-graphql-client = { workspace = true, optional = true }
-iota-sdk-transaction-builder = { workspace = true, optional = true }
-iota-sdk-types = { workspace = true, optional = true }
+rust-sdk.workspace = true
 
 [features]
 default = [
@@ -35,24 +30,24 @@ default = [
   "types",
 ]
 # Crypto
-crypto = ["dep:iota-sdk-crypto"]
-ed25519 = ["crypto", "iota-sdk-crypto/ed25519"]
-secp256r1 = ["crypto", "iota-sdk-crypto/secp256r1"]
-passkey = ["crypto", "iota-sdk-crypto/passkey"]
-secp256k1 = ["crypto", "iota-sdk-crypto/secp256k1"]
-pem = ["crypto", "iota-sdk-crypto/pem"]
-bls12381 = ["crypto", "iota-sdk-crypto/bls12381"]
-bech32 = ["crypto", "iota-sdk-crypto/bech32"]
-mnemonic = ["crypto", "iota-sdk-crypto/mnemonic"]
+crypto = ["rust-sdk/crypto"]
+ed25519 = ["crypto", "rust-sdk/ed25519"]
+secp256r1 = ["crypto", "rust-sdk/secp256r1"]
+passkey = ["crypto", "rust-sdk/passkey"]
+secp256k1 = ["crypto", "rust-sdk/secp256k1"]
+pem = ["crypto", "rust-sdk/pem"]
+bls12381 = ["crypto", "rust-sdk/bls12381"]
+bech32 = ["crypto", "rust-sdk/bech32"]
+mnemonic = ["crypto", "rust-sdk/mnemonic"]
 # GraphQL
-graphql = ["dep:iota-sdk-graphql-client"]
+graphql = ["rust-sdk/graphql-tls-ring"]
 # gRPC
-grpc = ["dep:iota-grpc-client", "dep:iota-grpc-types"]
+grpc = ["rust-sdk/grpc-tls-native-roots", "rust-sdk/grpc-tls-ring"]
 # Transaction Builder
-transaction-builder = ["dep:iota-sdk-transaction-builder"]
+transaction-builder = ["rust-sdk/transaction-builder"]
 # Types
-types = ["dep:iota-sdk-types"]
-serde = ["types", "iota-sdk-types/serde"]
-rand = ["types", "iota-sdk-types/rand"]
-hash = ["types", "iota-sdk-types/hash"]
-proptest = ["types", "iota-sdk-types/proptest"]
+types = ["rust-sdk/types"]
+serde = ["types", "rust-sdk/serde"]
+rand = ["types", "rust-sdk/rand"]
+hash = ["types", "rust-sdk/hash"]
+proptest = ["types", "rust-sdk/proptest"]

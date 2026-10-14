@@ -6,7 +6,6 @@
 //! the node rejects it.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     error::IotaError,
@@ -18,6 +17,7 @@ use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
     VmSdkError,
 };
+use rust_sdk::types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest};
 
 const GAS_PRICE: u64 = 1000;
 

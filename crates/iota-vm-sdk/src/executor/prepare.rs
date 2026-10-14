@@ -13,10 +13,6 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Digest, Event, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
-    TransactionEffects, UserSignature,
-};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefForExecution, MoveAuthenticatorForExecution,
@@ -44,6 +40,10 @@ use iota_types::{
     transaction_executor::SimulateTransactionResult,
 };
 use move_trace_format::format::MoveTraceBuilder;
+use rust_sdk::types::{
+    Address, Digest, Event, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
+    TransactionEffects, UserSignature,
+};
 
 use crate::{
     error::{ExecutionError, StoreError, ValidationError, VmError, VmSdkError},

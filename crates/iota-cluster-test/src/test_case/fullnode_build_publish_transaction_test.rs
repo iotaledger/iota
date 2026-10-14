@@ -5,8 +5,8 @@
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_move_build::test_utils::compile_basics_package;
-use iota_sdk_types::{MovePackageData, Owner};
 use iota_test_transaction_builder::select_gas_coin;
+use rust_sdk::types::{MovePackageData, Owner};
 
 use crate::{TestCaseImpl, TestContext};
 

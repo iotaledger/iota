@@ -5,8 +5,8 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::{Arg, Command};
-use iota_sdk_types::{Transaction, crypto::Intent};
 use iota_types::object::{Object, ObjectInner};
+use rust_sdk::types::{Transaction, crypto::Intent};
 
 pub fn main() -> Result<()> {
     let matches = Command::new("sign_tx")

@@ -19,7 +19,6 @@ tracing.workspace = true
 # internal dependencies
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-transaction-builder.workspace = true
-iota-sdk-types.workspace = true
 iota-types.workspace = true
+rust-sdk = { workspace = true, features = ["transaction-builder", "types"] }
 typed-store-error.workspace = true

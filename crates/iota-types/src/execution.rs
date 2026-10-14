@@ -7,11 +7,11 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_types::{
+use once_cell::sync::Lazy;
+use rust_sdk::types::{
     Argument, Event, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest,
     TypeTag, Version,
 };
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{

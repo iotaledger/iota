@@ -8,15 +8,15 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
-        GasCostSummary, ObjectData, ObjectId, ObjectReference, TransactionDigest,
-    };
     use iota_types::{
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         error::ExecutionError,
         gas::{IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
         object::MoveStructExt,
+    };
+    use rust_sdk::types::{
+        GasCostSummary, ObjectData, ObjectId, ObjectReference, TransactionDigest,
     };
     use tracing::trace;
 

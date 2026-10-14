@@ -4,13 +4,13 @@
 
 use std::fmt;
 
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
     identifier::IdentStr,
 };
+use rust_sdk::types::{ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{

@@ -9,11 +9,11 @@ use std::{
 };
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
     base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
     messages_consensus::TransactionDenyRuleProposal,
 };
+use rust_sdk::types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use tokio::time::timeout;
 use typed_store::{Map, rocks::DBBatch};
 
@@ -1056,8 +1056,8 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     use std::collections::VecDeque;
 
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use iota_sdk_types::TransactionKind;
     use iota_types::transaction::TransactionAPI;
+    use rust_sdk::types::TransactionKind;
 
     use crate::consensus_handler::ConsensusCommitInfo;
 
@@ -1203,9 +1203,9 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
 
     use iota_network::randomness;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use iota_sdk_types::TransactionKind;
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_types::transaction::TransactionAPI;
+    use rust_sdk::types::TransactionKind;
 
     use crate::{
         checkpoints::CheckpointServiceNoop,
@@ -1627,11 +1627,11 @@ async fn deny_rule_mirror_guard_fails_on_a_missing_object() {
 async fn failed_deny_rule_update_execution_is_reported() {
     use std::collections::BTreeSet;
 
-    use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
     use iota_types::{
         effects::TestEffectsBuilder, executable_transaction::VerifiedExecutableTransaction,
         transaction::VerifiedTransaction,
     };
+    use rust_sdk::types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
 
     let update_transaction = || {
         VerifiedExecutableTransaction::new_system(
@@ -1745,11 +1745,11 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
     };
 
     use iota_common::register_debug_fatal_handler;
-    use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
     use iota_types::{
         effects::TestEffectsBuilder, executable_transaction::VerifiedExecutableTransaction,
         transaction::VerifiedTransaction,
     };
+    use rust_sdk::types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
 
     let asserted = Arc::new(AtomicUsize::new(0));
     register_debug_fatal_handler!("TransactionDenyRulesUpdate failed execution", {
@@ -1833,7 +1833,6 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
     #[values(false, true)] gated_features_enabled: bool,
 ) {
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
     use iota_types::{
         base_types::random_object_ref,
         crypto::{
@@ -1847,6 +1846,7 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
         },
         supported_protocol_versions::SupportedProtocolVersions,
     };
+    use rust_sdk::types::crypto::{Intent, IntentMessage, IntentScope};
 
     use crate::{
         authority::authority_per_epoch_store::misbehavior::MisbehaviorReportVersion,

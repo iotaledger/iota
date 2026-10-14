@@ -8,8 +8,8 @@ use anyhow::{Context, Result, bail, ensure};
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_config::{Config, IOTA_NETWORK_CONFIG, NodeConfig, genesis, node};
 use iota_multiaddr::Multiaddr;
-use iota_sdk_crypto::ToFromBytes as _;
 use iota_types::{committee::CommitteeWithNetworkMetadata, crypto::AccountPrivateKey};
+use rust_sdk::crypto::ToFromBytes as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 

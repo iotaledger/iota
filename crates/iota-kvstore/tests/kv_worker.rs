@@ -5,12 +5,12 @@ use std::collections::HashMap;
 
 use iota_data_ingestion_core::Worker;
 use iota_kvstore::{KeyValueStoreReader, KvWorker, TransactionData, emulator::BigTableEmulator};
-use iota_sdk_types::{CheckpointDigest, TransactionDigest};
 use iota_types::{
     base_types::VersionNumber, effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointData, object::Object, storage::ObjectKey,
     test_checkpoint_data_builder::TestCheckpointDataBuilder,
 };
+use rust_sdk::types::{CheckpointDigest, TransactionDigest};
 
 /// Build a small checkpoint with a mix of object creations and transfers so
 /// every table receives more than one row.

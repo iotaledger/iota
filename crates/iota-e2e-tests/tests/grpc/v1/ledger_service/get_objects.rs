@@ -3,27 +3,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::StreamExt;
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::GET_OBJECTS_READ_MASK,
-    v1::{
-        ledger_service::{
-            GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
-            ledger_service_client::LedgerServiceClient, object_result,
-        },
-        types::ObjectReference,
-    },
-};
 use iota_macros::sim_test;
-use iota_sdk_types::ObjectId;
 use prost_types::FieldMask;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::GET_OBJECTS_READ_MASK,
+        v1::{
+            ledger_service::{
+                GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
+                ledger_service_client::LedgerServiceClient, object_result,
+            },
+            types::ObjectReference,
+        },
+    },
+    types::ObjectId,
+};
 
 use crate::utils::{
     assert_field_presence, comma_separated_field_mask_to_paths, object_id_from_hex, setup_grpc_test,
 };
 
 async fn assert_get_objects_request(
-    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    ledger_client: &mut LedgerServiceClient<rust_sdk::grpc_client::InterceptedChannel>,
     requests: Vec<ObjectRequest>,
     read_mask: Option<FieldMask>,
     max_message_size_bytes: Option<u32>,

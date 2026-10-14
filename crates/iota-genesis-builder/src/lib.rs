@@ -23,11 +23,6 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointSummary, Command, Event, GenesisObject, Identifier,
-    ObjectId, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    crypto::{Intent, IntentMessage, IntentScope},
-};
 use iota_types::{
     base_types::{ExecutionDigests, TxContext},
     committee::Committee,
@@ -56,6 +51,11 @@ use iota_types::{
     },
 };
 use move_binary_format::CompiledModule;
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointSummary, Command, Event, GenesisObject, Identifier,
+    ObjectId, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
@@ -1192,10 +1192,10 @@ mod test {
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
     use iota_protocol_config::ProtocolVersion;
-    use iota_sdk_types::Address;
     use iota_types::crypto::{
         AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession, get_key_pair_from_rng,
     };
+    use rust_sdk::types::Address;
 
     use crate::{Builder, validator_info::ValidatorInfo};
 

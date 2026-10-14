@@ -12,11 +12,13 @@ use iota_keys::{
     key_derive::generate_new_key,
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
 };
-use iota_sdk_crypto::ToFromBech32;
-use iota_sdk_types::{Address, SignatureScheme};
 use iota_types::{
     base_types::IOTA_ADDRESS_LENGTH,
     crypto::{DefaultHash, PublicKey},
+};
+use rust_sdk::{
+    crypto::ToFromBech32,
+    types::{Address, SignatureScheme},
 };
 use tempfile::TempDir;
 

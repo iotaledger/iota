@@ -27,10 +27,6 @@ use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
-use iota_sdk_types::{
-    CheckpointContents, RandomnessRound, TransactionDigest, TransactionEffects,
-    TransactionEffectsDigest, TransactionKind,
-};
 use iota_types::{
     base_types::ExecutionData,
     effects::TransactionEffectsAPI,
@@ -44,6 +40,10 @@ use iota_types::{
     transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction},
 };
 use parking_lot::Mutex;
+use rust_sdk::types::{
+    CheckpointContents, RandomnessRound, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionKind,
+};
 use tap::{TapFallible, TapOptional};
 use tracing::{debug, info, instrument};
 

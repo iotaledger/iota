@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use clap::{Arg, Command};
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::Transaction;
+use rust_sdk::types::Transaction;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

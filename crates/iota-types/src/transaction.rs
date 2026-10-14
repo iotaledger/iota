@@ -16,7 +16,9 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use itertools::Either;
+use nonempty::{NonEmpty, nonempty};
+use rust_sdk::types::{
     Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
@@ -27,8 +29,6 @@ use iota_sdk_types::{
     TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
-use itertools::Either;
-use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 use tracing::{instrument, trace};
@@ -2489,7 +2489,7 @@ impl<S> Envelope<SenderSignedTransaction, S> {
 impl TransactionEnvelope {
     pub fn from_data_and_signer(
         tx: Transaction,
-        signers: Vec<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
+        signers: Vec<&impl rust_sdk::crypto::Signer<SimpleSignature>>,
     ) -> Self {
         let signatures = {
             let digest = tx.signing_digest();
@@ -2506,7 +2506,7 @@ impl TransactionEnvelope {
     pub fn signature_from_signer(
         tx: Transaction,
         intent: Intent,
-        signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+        signer: &impl rust_sdk::crypto::Signer<SimpleSignature>,
     ) -> SimpleSignature {
         let digest = IntentMessage::new(intent, tx).signing_digest();
         signer.sign(&digest)

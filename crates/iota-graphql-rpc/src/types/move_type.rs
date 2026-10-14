@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_sdk_types::{MoveObjectType, StructTag, TypeTag};
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::annotated_value as A;
+use rust_sdk::types::{MoveObjectType, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{

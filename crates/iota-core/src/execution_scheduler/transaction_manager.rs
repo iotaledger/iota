@@ -12,7 +12,6 @@ use std::{
 use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest, Version};
 use iota_types::{
     committee::EpochId,
     error::{IotaError, IotaResult},
@@ -24,6 +23,7 @@ use iota_types::{
 };
 use lru::LruCache;
 use parking_lot::RwLock;
+use rust_sdk::types::{ObjectId, SenderSignedTransaction, TransactionDigest, Version};
 use tap::TapOptional;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{error, info, instrument, trace, warn};

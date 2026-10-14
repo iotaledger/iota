@@ -7,7 +7,7 @@ mod move_package_service;
 mod state_service;
 mod transaction_execution_service;
 
-use iota_grpc_types::v1::{
+use rust_sdk::grpc_types::v1::{
     checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
     coin::{CoinMetadata, CoinTreasury, RegulatedCoinMetadata},
     command::{

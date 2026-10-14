@@ -5,7 +5,7 @@
 //! [`TransactionBuilderLedgerClient`].
 //!
 //! [`NodeTransactionBuilderLedgerClient`] backs the SDK
-//! [`TransactionBuilder`](iota_sdk_transaction_builder::TransactionBuilder)
+//! [`TransactionBuilder`](rust_sdk::transaction_builder::TransactionBuilder)
 //! with a node's local state instead of a remote gRPC or GraphQL endpoint.
 //! All reads go through [`GrpcStateReader`] — the same interface the gRPC
 //! server uses — so the client is available wherever that store is
@@ -14,21 +14,23 @@
 //! The client is ledger-only: it resolves objects, gas, and protocol
 //! parameters, but does not simulate or execute, so transactions are built
 //! with an explicit gas budget via
-//! [`TransactionBuilder::finish_with_budget`](iota_sdk_transaction_builder::TransactionBuilder::finish_with_budget).
+//! [`TransactionBuilder::finish_with_budget`](rust_sdk::transaction_builder::TransactionBuilder::finish_with_budget).
 
 use std::sync::Arc;
 
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{ProtocolConfig as NodeProtocolConfig, ProtocolVersion};
-use iota_sdk_transaction_builder::{
-    ObjectsPage, ProtocolConfig, TransactionBuilderClientBase, TransactionBuilderLedgerClient,
-};
-use iota_sdk_types::{Address, Object, ObjectId, StructTag, Version};
 use iota_types::{
     error::IotaError,
     iota_sdk_types_conversions::SdkTypeConversionError,
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     storage::OwnedObjectCursor,
+};
+use rust_sdk::{
+    transaction_builder::{
+        ObjectsPage, ProtocolConfig, TransactionBuilderClientBase, TransactionBuilderLedgerClient,
+    },
+    types::{Address, Object, ObjectId, StructTag, Version},
 };
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;

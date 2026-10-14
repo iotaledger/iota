@@ -5,10 +5,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
-use iota_sdk_types::{
-    Address, GasCostSummary, Identifier, ObjectId, ObjectReference, SharedObjectReference,
-    StructTag, Transaction, TypeTag,
-};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package_and_make_counter,
@@ -17,6 +13,10 @@ use iota_types::{
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     effects::TransactionEffectsAPI,
     transaction::CallArg,
+};
+use rust_sdk::types::{
+    Address, GasCostSummary, Identifier, ObjectId, ObjectReference, SharedObjectReference,
+    StructTag, Transaction, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};

@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail};
-use iota_sdk_types::{
-    CheckpointContents, EndOfEpochData, Event, ObjectReference, TransactionEffects,
-    TransactionEvents,
-};
 use iota_types::{
     committee::Committee,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -14,6 +10,10 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},
     object::Object,
     transaction::TransactionEnvelope,
+};
+use rust_sdk::types::{
+    CheckpointContents, EndOfEpochData, Event, ObjectReference, TransactionEffects,
+    TransactionEvents,
 };
 use serde::{Deserialize, Serialize};
 

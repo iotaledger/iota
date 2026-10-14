@@ -7,13 +7,13 @@ use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
 use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
-use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
     base_types::ObjectIdParseError,
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::SdkTypeConversionError,
 };
 use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
+use rust_sdk::types::{ObjectId, Version};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -178,7 +178,7 @@ pub enum IndexerError {
     SdkTypeConversion(#[from] SdkTypeConversionError),
 
     #[error(transparent)]
-    IdentifierParse(#[from] iota_sdk_types::TypeParseError),
+    IdentifierParse(#[from] rust_sdk::types::TypeParseError),
 
     #[error("failed to restore from formal snapshot: {0}")]
     Restore(String),
@@ -226,14 +226,14 @@ impl From<url::ParseError> for IndexerError {
     }
 }
 
-impl From<iota_grpc_client::GrpcError> for IndexerError {
-    fn from(err: iota_grpc_client::GrpcError) -> Self {
+impl From<rust_sdk::grpc_client::GrpcError> for IndexerError {
+    fn from(err: rust_sdk::grpc_client::GrpcError) -> Self {
         IndexerError::Grpc(err.to_string())
     }
 }
 
-impl From<iota_grpc_types::proto::TryFromProtoError> for IndexerError {
-    fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
+impl From<rust_sdk::grpc_types::proto::TryFromProtoError> for IndexerError {
+    fn from(err: rust_sdk::grpc_types::proto::TryFromProtoError) -> Self {
         IndexerError::Grpc(err.to_string())
     }
 }

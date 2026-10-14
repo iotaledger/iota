@@ -15,12 +15,14 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_transaction_builder::assigned;
-use iota_sdk_types::{Address, MovePackageData, ObjectId, ObjectReference, TransactionDigest};
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+};
+use rust_sdk::{
+    transaction_builder::assigned,
+    types::{Address, MovePackageData, ObjectId, ObjectReference, TransactionDigest},
 };
 use test_cluster::TestClusterBuilder;
 

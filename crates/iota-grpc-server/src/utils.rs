@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::TypeTag;
+use rust_sdk::types::TypeTag;
 
 use crate::GrpcReader;
 

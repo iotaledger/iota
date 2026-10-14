@@ -5,7 +5,7 @@
 use std::mem;
 
 use fastcrypto::traits::Signer;
-use iota_sdk_types::{
+use rust_sdk::types::{
     CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionEffects,
 };
 
@@ -194,9 +194,9 @@ impl MockCheckpointBuilder {
             .voting_rights
             .iter()
             .map(|(name, _)| {
-                let intent_msg = iota_sdk_types::crypto::IntentMessage::new(
-                    iota_sdk_types::crypto::Intent::iota_app(
-                        iota_sdk_types::crypto::IntentScope::CheckpointSummary,
+                let intent_msg = rust_sdk::types::crypto::IntentMessage::new(
+                    rust_sdk::types::crypto::Intent::iota_app(
+                        rust_sdk::types::crypto::IntentScope::CheckpointSummary,
                     ),
                     &checkpoint,
                 );

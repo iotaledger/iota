@@ -10,7 +10,6 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::{
         RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
@@ -36,6 +35,7 @@ use move_core_types::{
     runtime_value as R,
     u256::U256,
 };
+use rust_sdk::types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value as JsonValue, json};
@@ -943,12 +943,12 @@ macro_rules! call_arg {
                 IotaJsonValue::from_str(&self)
             }
         }
-        impl IotaJsonArg for iota_sdk_types::ObjectId {
+        impl IotaJsonArg for rust_sdk::types::ObjectId {
             fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
                 IotaJsonValue::from_str(&self.to_string())
             }
         }
-        impl IotaJsonArg for iota_sdk_types::Address {
+        impl IotaJsonArg for rust_sdk::types::Address {
             fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
                 IotaJsonValue::from_str(&self.to_string())
             }
@@ -979,7 +979,7 @@ macro_rules! call_arg {
 macro_rules! type_args {
     ($($value:expr), *) => {{
         use iota_json_rpc_types::IotaTypeTag;
-        use iota_sdk_types::TypeTag;
+        use rust_sdk::types::TypeTag;
         trait IotaJsonTypeArg {
             fn to_iota_json(&self) -> anyhow::Result<IotaTypeTag>;
         }

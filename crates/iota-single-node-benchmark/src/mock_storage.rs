@@ -8,7 +8,6 @@ use std::{
 };
 
 use iota_core::authority::shared_object_version_manager::AssignedVersions;
-use iota_sdk_types::{ObjectId, Owner, Version};
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     base_types::{EpochId, VersionNumber},
@@ -24,6 +23,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 use prometheus_filtered::core::{Atomic, AtomicU64};
+use rust_sdk::types::{ObjectId, Owner, Version};
 
 // TODO: We won't need a special purpose InMemoryObjectStore once the
 // InMemoryCache is ready.
