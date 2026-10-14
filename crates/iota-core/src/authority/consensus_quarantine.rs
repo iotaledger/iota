@@ -1772,4 +1772,49 @@ mod tests {
         assert_eq!(quarantine.get_owned_object_lock(&obj_ref), None);
         assert_eq!(locked_in_table(), Some(relocked));
     }
+
+    /// When the commit of a released lock and the later commit that locked the
+    /// same reference again flush in one batch, the table ends with the later
+    /// lock.
+    #[tokio::test]
+    async fn lock_taken_again_wins_when_both_commits_flush_in_one_batch() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+        let obj_ref = ObjectReference::new(
+            ObjectId::random(),
+            Version::from_u64(1),
+            ObjectDigest::random(),
+        );
+        let (released, relocked) = (TransactionDigest::random(), TransactionDigest::random());
+
+        for (round, height, holding_tx) in [(1, 40, released), (2, 41, relocked)] {
+            let mut output = output_with_pending_checkpoints(round, [height]);
+            output.set_owned_object_locks(HashMap::from([(obj_ref, holding_tx)]));
+            quarantine
+                .push_consensus_output(output, &epoch_store)
+                .unwrap();
+        }
+        for (seq, height) in [(10, 40), (11, 41)] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, height, 0);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 11);
+
+        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), None);
+        assert_eq!(
+            epoch_store
+                .tables()
+                .unwrap()
+                .get_locked_transaction(&obj_ref)
+                .unwrap(),
+            Some(relocked)
+        );
+    }
 }

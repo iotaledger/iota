@@ -8012,6 +8012,78 @@ async fn gas_coin_of_an_unauthorized_transaction_is_released_once_the_horizon_re
     assert_eq!(locks.get(&gas_ref), Some(&contender_digest));
 }
 
+/// Keeps `tx` at `commit`, stores the lock it takes on the gas coin `gas_id`
+/// as the handler does, and executes it as a root of that commit. It fails
+/// without a charge and leaves the coin live at its version.
+async fn keep_and_fail(
+    s: &BookkeepingSetup,
+    commit: CommitIndex,
+    tx: VerifiedTransaction,
+    gas_id: ObjectId,
+) {
+    let digest = *tx.digest();
+    let gas_ref = s.latest_ref(&gas_id);
+    let result = s.validate_at(commit, std::slice::from_ref(&tx)).await;
+    assert_eq!(result.kept, vec![digest], "{:?}", result.dropped);
+    seed_quarantined_lock(&s.epoch_store, gas_ref, digest);
+    s.epoch_store
+        .assign_commit_to_transactions(commit, vec![TransactionKey::Digest(digest)]);
+    let effects = s.execute_with_assigned_shared_versions_unchecked(tx);
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+    assert_eq!(s.latest_ref(&gas_id), gas_ref);
+    s.authority
+        .get_object_cache_reader()
+        .try_check_owned_objects_are_live(&[gas_ref])
+        .expect("the gas coin must stay usable");
+}
+
+/// A reference released by one failed transaction can be locked by a second
+/// one that fails too. The second lock holds until the horizon reaches the
+/// second failure, then it is released in turn. Each failure leaves the gas
+/// coin live at its version.
+#[tokio::test]
+async fn reference_released_twice_by_consecutive_failures() {
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
+    let gas_ref = s.latest_ref(&gas_id);
+    let distance = s.horizon_distance();
+
+    let first_failure = 5;
+    let first = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);
+    keep_and_fail(&s, first_failure, first, gas_id).await;
+
+    let second_failure = first_failure + distance;
+    let second = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 2);
+    let second_digest = *second.digest();
+    keep_and_fail(&s, second_failure, second, gas_id).await;
+
+    let before_release = s
+        .validate_at(
+            second_failure + distance - 1,
+            &[s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 3)],
+        )
+        .await;
+    assert!(
+        matches!(
+            before_release.dropped.as_slice(),
+            [(_, IotaError::ObjectLockConflict { obj_ref, pending_transaction })]
+                if *obj_ref == gas_ref && *pending_transaction == second_digest
+        ),
+        "{:?}",
+        before_release.dropped
+    );
+
+    let third = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 4);
+    let at_release = s
+        .validate_at(second_failure + distance, std::slice::from_ref(&third))
+        .await;
+    assert_eq!(
+        at_release.kept,
+        vec![*third.digest()],
+        "{:?}",
+        at_release.dropped
+    );
+}
+
 /// A validator that executed an unauthorized transaction replays its commit,
 /// as after a restart. The replay retains the executed transaction and locks
 /// the gas coin its failure left unconsumed, like the validators that kept the
