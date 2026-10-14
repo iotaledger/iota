@@ -2553,6 +2553,11 @@ impl<'a> Validator<'a> {
                 Some(PostConsensusVerdict::Dropped(error)) => {
                     PostConsensusVerdict::Dropped(error.clone())
                 }
+                // Up to the switch, a saved keep is repeated without checks
+                // and registers no locks.
+                Some(PostConsensusVerdict::Kept) if last_before_switch.is_some() => {
+                    PostConsensusVerdict::Kept
+                }
                 // A saved keep with effects: no input is read.
                 Some(PostConsensusVerdict::Kept)
                     if self.executed.contains_key(&candidate.digest) =>
@@ -2616,14 +2621,16 @@ impl<'a> Validator<'a> {
                 ));
             }
             if verdict == PostConsensusVerdict::Kept {
-                for reference in &candidate.owned_inputs {
-                    commit_locks.insert(*reference, candidate.digest);
+                if last_before_switch.is_none() {
+                    for reference in &candidate.owned_inputs {
+                        commit_locks.insert(*reference, candidate.digest);
+                    }
                 }
                 processed.push(candidate.digest);
             }
             verdicts.push((candidate.digest, verdict));
         }
-        if commit_locks != expected.locks {
+        if last_before_switch.is_none() && commit_locks != expected.locks {
             return self.fail(format!(
                 "lock set mismatch at {commit}: got {commit_locks:?}, oracle {:?}",
                 expected.locks

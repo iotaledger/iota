@@ -196,6 +196,26 @@ pub async fn validate_and_resolve_conflicts(
     } else {
         None
     };
+    // A node that switched to executing synced checkpoints after commit
+    // `last` replays only the commits up to it after a restart. Synced
+    // checkpoints have since written outputs without handler rows, which the
+    // reader cannot place, so these commits repeat their saved decisions.
+    let replaying_up_to_the_switch = if deterministic_validation {
+        match epoch_store.last_commit_before_synced_checkpoint_execution()? {
+            Some(last) if commit_index > last => fatal!(
+                "commit {commit_index} validated after the switch to synced checkpoints \
+                 after commit {last}"
+            ),
+            Some(last) if saved_candidates.is_none() => fatal!(
+                "commit {commit_index} has no saved decisions although the switch to synced \
+                 checkpoints after commit {last} saved every decision up to it"
+            ),
+            Some(_) => true,
+            None => false,
+        }
+    } else {
+        false
+    };
     let mut saved_verdicts = HashMap::new();
     // The dropped transactions whose drop is `PostConsensusVerdict::Missing`.
     let mut not_visible_yet = HashSet::new();
@@ -254,6 +274,16 @@ pub async fn validate_and_resolve_conflicts(
             }
             dropped.push((digest, error.clone()));
             keep[i] = false;
+            continue;
+        }
+        // Its locks are not registered: nothing in this epoch reads them, as
+        // every transaction up to the switch repeats its saved decision and no
+        // commit after it is validated.
+        if replaying_up_to_the_switch && saved == Some(PostConsensusVerdict::Kept) {
+            debug!(
+                ?digest,
+                "Repeating the saved keep up to the synced checkpoint switch"
+            );
             continue;
         }
 
