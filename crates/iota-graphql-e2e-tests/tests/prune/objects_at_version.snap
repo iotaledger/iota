@@ -116,7 +116,8 @@ Response: {
         "object"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 8
       }
     }
   ]
@@ -169,7 +170,8 @@ Response: {
         "dynamicField"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 8
       }
     }
   ]

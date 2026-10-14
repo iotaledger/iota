@@ -78,8 +78,14 @@ pub enum Error {
     // Catch-all for client-fault errors
     #[error("{0}")]
     Client(String),
-    #[error("Requested data has been pruned: {0}")]
-    DataPruned(String),
+    #[error("Requested data has been pruned: {message}")]
+    DataPruned {
+        message: String,
+        /// The oldest checkpoint the request could have found data in.
+        ///
+        /// Anything before it has been pruned and is no longer served.
+        oldest_available_checkpoint: u64,
+    },
     #[error("Internal error occurred while processing request: {0}")]
     Internal(String),
     #[error(transparent)]
@@ -99,8 +105,12 @@ impl ErrorExtensions for Error {
             | Error::Client(_) => {
                 e.set("code", code::BAD_USER_INPUT);
             }
-            Error::DataPruned(_) => {
+            Error::DataPruned {
+                oldest_available_checkpoint,
+                ..
+            } => {
                 e.set("code", code::DATA_PRUNED);
+                e.set("oldestAvailableCheckpoint", *oldest_available_checkpoint);
             }
             Error::Internal(_) => {
                 e.set("code", code::INTERNAL_SERVER_ERROR);
@@ -121,7 +131,13 @@ impl ErrorExtensions for Error {
 impl From<IndexerError> for Error {
     fn from(e: IndexerError) -> Self {
         match e {
-            IndexerError::DataPruned { message, .. } => Error::DataPruned(message),
+            IndexerError::DataPruned {
+                message,
+                oldest_available_checkpoint,
+            } => Error::DataPruned {
+                message,
+                oldest_available_checkpoint,
+            },
             _ => Error::Internal(e.to_string()),
         }
     }
@@ -130,5 +146,35 @@ impl From<IndexerError> for Error {
 impl From<IndexerStreamingError> for Error {
     fn from(e: IndexerStreamingError) -> Self {
         Error::Internal(e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_graphql::Value;
+
+    use super::*;
+
+    #[test]
+    fn data_pruned_reports_the_oldest_available_checkpoint() {
+        let error = Error::from(IndexerError::DataPruned {
+            message: "requested events not available".into(),
+            oldest_available_checkpoint: 12,
+        })
+        .extend();
+
+        assert_eq!(
+            error.message,
+            "Requested data has been pruned: requested events not available"
+        );
+        let extensions = error.extensions.expect("DATA_PRUNED sets extensions");
+        assert_eq!(
+            extensions.get("code"),
+            Some(&Value::from(code::DATA_PRUNED))
+        );
+        assert_eq!(
+            extensions.get("oldestAvailableCheckpoint"),
+            Some(&Value::from(12u64))
+        );
     }
 }
