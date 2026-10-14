@@ -21,6 +21,8 @@ The examples on this page use the `view_functions` package from [Call a View Fun
 public fun score_of(board: &Leaderboard, player: &address): Option<ScoreEntry>
 ```
 
+Only devnet and local networks record the metadata that view calls need, so the examples connect to devnet.
+
 ## Call a function
 
 Name the function as `<package>::<module>::<function>` and pass its arguments in the order they are declared. An object parameter, like `board` here, takes the object's ID:
@@ -28,7 +30,7 @@ Name the function as `<package>::<module>::<function>` and pass its arguments in
 ```ts
 import { decodeViewOutputs, IotaGrpcClient } from '@iota/grpc';
 
-const client = new IotaGrpcClient({ network: 'testnet' });
+const client = new IotaGrpcClient({ network: 'devnet' });
 
 const { body } = await client.viewFunctionCall({
     fqFunctionName: `${packageId}::leaderboard::score_of`,
