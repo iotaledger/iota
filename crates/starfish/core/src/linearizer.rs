@@ -542,11 +542,11 @@ mod tests {
     use super::*;
     use crate::{
         CommitIndex, TestBlockHeader,
-        commit::{CommitDigest, WAVE_LENGTH, with_no_metastate},
+        commit::{CommitDigest, WAVE_LENGTH, max_commit_bytes, with_no_metastate},
         context::Context,
         dag_state::DataSource,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
-        storage::mem_store::MemStore,
+        storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
         transaction_ref::GenericTransactionRefAPI,
@@ -1546,6 +1546,53 @@ mod tests {
         assert!(
             !contains_orphan,
             "Optimistic path must not commit a ref whose header is not traversed"
+        );
+    }
+
+    /// A leader with no commit in the `gc_depth` rounds below it has the
+    /// largest sub-DAG: itself plus every block of those rounds. Its commit
+    /// fits `max_commit_bytes`.
+    #[tokio::test]
+    async fn maximal_sub_dag_fits_max_commit_bytes() {
+        let num_authorities = 4;
+        let gc_depth = 3;
+        let mut context = Context::new_for_test(num_authorities).0;
+        context.protocol_config.set_gc_depth_for_testing(gc_depth);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let leader_round = gc_depth + 1;
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder
+            .layers(1..=leader_round)
+            .build()
+            .persist_layers(dag_state.clone());
+        let leader = dag_builder
+            .leader_block(leader_round)
+            .expect("leader block should exist");
+
+        let subdags = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader]));
+        assert_eq!(subdags.len(), 1);
+        let max_subdag_blocks = gc_depth as usize * num_authorities + 1;
+        assert_eq!(subdags[0].headers.len(), max_subdag_blocks);
+
+        dag_state.write().flush();
+        let commit = store
+            .read_last_commit()
+            .expect("store read should succeed")
+            .expect("commit should be stored");
+        assert_eq!(commit.block_headers().len(), max_subdag_blocks);
+        assert!(
+            commit.serialized().len() <= max_commit_bytes(num_authorities, gc_depth as usize),
+            "a commit of {} bytes exceeds the bound of {} bytes",
+            commit.serialized().len(),
+            max_commit_bytes(num_authorities, gc_depth as usize),
         );
     }
 }
