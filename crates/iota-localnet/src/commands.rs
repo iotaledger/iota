@@ -35,7 +35,7 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
-use iota_swarm::memory::{Node, Swarm};
+use iota_swarm::memory::{Node, Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{
         GenesisConfig, SsfnGenesisConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
@@ -685,20 +685,13 @@ async fn start(
     // must enable it by default.
     #[cfg(feature = "indexer")]
     if indexer_address.is_some() || graphql_address.is_some() {
-        // The gRPC API config is given rather than left out. The builder
-        // would otherwise put the API on a free port, which differs on every
-        // run. A `--node-config-override` still wins over it.
-        swarm_builder = swarm_builder
-            .with_fullnode_enable_grpc_api(true)
-            .with_fullnode_grpc_api_config(GrpcApiConfig::default());
+        swarm_builder = with_fullnode_grpc_api(swarm_builder);
     }
 
     // the faucet communicates with the fullnode via gRPC, we must enable it by
     // default.
     if faucet_address.is_some() {
-        // the gRPC api uses default values if config is not provided,
-        // allowing to not override it when provided in fullnode config.
-        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
+        swarm_builder = with_fullnode_grpc_api(swarm_builder);
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
@@ -1421,6 +1414,16 @@ fn write_node_config(config: &NodeConfig, path: &Path) -> Result<(), anyhow::Err
     contents.push_str(&serde_yaml::to_string(config)?);
     fs::write(path, contents)
         .with_context(|| format!("Cannot write node config to {}", path.display()))
+}
+
+/// Turn the fullnode's gRPC API on at its default address. A
+/// `--node-config-override` still wins over it.
+fn with_fullnode_grpc_api(swarm_builder: SwarmBuilder) -> SwarmBuilder {
+    // Without a config, the builder puts the API on a free port that changes
+    // on every run.
+    swarm_builder
+        .with_fullnode_enable_grpc_api(true)
+        .with_fullnode_grpc_api_config(GrpcApiConfig::default())
 }
 
 /// Translate the deprecated `--with-grpc` value into node config overrides.
