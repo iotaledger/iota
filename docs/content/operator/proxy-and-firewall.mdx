@@ -1,0 +1,322 @@
+---
+title: Proxy and Firewall Setup
+description: Connection limits per client address with HAProxy on the JSON-RPC port of a full node and with nftables on the gRPC port of a validator.
+tags: [node-operation, how-to]
+teams:
+  - iotaledger/node
+---
+
+# Proxy and Firewall Setup
+
+The Docker Compose files in [`setups/`](https://github.com/iotaledger/iota/tree/develop/setups) put a component in front of the public TCP ports of a node. This component limits the connections of each client address, so that one client cannot use all the connections of a node.
+
+| Port     | Node      | In front of the node                        | What it does                                                                                  |
+| -------- | --------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| TCP/9000 | Full node | HAProxy                                     | Connection limit per client address, timers, request body limit, client address for the node |
+| TCP/8080 | Validator | nftables rules of the `node-limits` service | Connection limit per client address, applied at the first packet of a connection             |
+| TCP/8081 | Validator | Nothing                                     | Consensus between validators                                                                  |
+| UDP/8084 | Both      | Nothing                                     | Peer-to-peer state sync                                                                       |
+| TCP/9184 | Both      | Published on `127.0.0.1` only               | Node metrics, for local monitoring                                                            |
+| TCP/8404 | Full node | Published on `127.0.0.1` only               | HAProxy metrics, for local monitoring                                                         |
+
+A limit per client address applies to each IPv4 address and to each IPv6 `/64` network.
+
+The full node setup needs Docker Engine 28 or later and Docker Compose 2.33.1 or later. The validator setup needs Docker Compose 2.17 or later. The limits need the address of each client. Docker keeps it for published ports when `iptables` and `ip6tables` are on, which is the default. The setups were not tested with rootless Docker.
+
+## Full Node: HAProxy on the JSON-RPC Port
+
+The [full node Docker setup](./full-node/docker.mdx) runs two services:
+
+- `fullnode`: the node. It does not publish its JSON-RPC port.
+- `haproxy`: HAProxy 3.4.7 or later, the latest patch release of HAProxy 3.4. It publishes port 9000 and sends the requests to the node.
+
+The files are in `haproxy/` next to `docker-compose.yaml`. HAProxy needs all of them:
+
+| File                  | Content                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `haproxy.cfg`         | The HAProxy configuration                                                                                             |
+| `limits_9000.map`     | Limits for networks, instead of the default limit                                                                     |
+| `trusted_proxies.lst` | Networks of your own load balancers that add `x-forwarded-for` (see [below](#behind-your-own-load-balancer))          |
+| `proxy_protocol.lst`  | Networks of your own load balancers that send the PROXY protocol header (see [below](#behind-your-own-load-balancer)) |
+
+### Only HAProxy Reaches the JSON-RPC Port of the Node
+
+The node reads the address of each client from the `x-forwarded-for` header, which HAProxy writes (`client-id-source: x-forwarded-for: 1` in `data/config/fullnode.yaml`). After you set `dry-run: false`, the traffic controller of the node uses this address to rate limit and block clients. HAProxy removes the `x-forwarded-for` header that a client sends.
+
+The node uses this header as the address of the client. Thus no client other than HAProxy may reach the JSON-RPC port of the node:
+
+- With Docker Compose, the node does not publish port 9000. Only the host and the containers on the Compose network reach it.
+- With systemd, the node listens on `127.0.0.1` only (see [systemd](#systemd)).
+
+`client-id-source` also applies to the gRPC API of the node (`enable-grpc-api`). If you enable the gRPC API, do not publish its port, or put it behind a proxy that writes the `x-forwarded-for` header too.
+
+A `policy-config` block replaces the whole default policy of the traffic controller. The shipped `fullnode.yaml` writes out all fields of the default policy. If you change the block, keep all fields. A block that sets only `client-id-source` turns off the spam and error policies.
+
+### Values
+
+| Setting                                                         | Value                                                                 | Where in `haproxy.cfg`                                     |
+| --------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Connections on port 9000                                        | 10000                                                                 | `acl port_full fe_conn gt 10000`                           |
+| Connections per client address                                  | 64, or the value in `limits_9000.map`                                 | `map_ip_int(...,64)`                                       |
+| Requests in progress per client address, on all its connections | The same value                                                        | `sc1_conn_cur(st_req_9000),sub(sess.limit)`                |
+| Requests at the same time on one HTTP/2 connection              | 64                                                                    | `tune.h2.fe.max-concurrent-streams`                        |
+| Request body                                                    | At most 1 MiB, complete within 10 s                                   | `wait-for-body`, `deny_status 413`                         |
+| First request and each block of request headers                 | 10 s                                                                  | `timeout http-request`                                     |
+| Idle time between requests                                      | 300 s                                                                 | `timeout http-keep-alive`                                  |
+| Response that the client does not read                          | 60 s                                                                  | `timeout client`                                           |
+| Time for the node to answer                                     | 330 s                                                                 | `timeout server`                                           |
+| Idle WebSocket connection                                       | 1 h                                                                   | `timeout tunnel`                                           |
+| Connections from HAProxy to the node for requests               | 1000; a request waits up to 30 s for one                              | `maxconn` of `node_jsonrpc`, `timeout queue`               |
+| Connections from HAProxy to the node for WebSockets             | 200; a WebSocket waits up to 1 s for one                              | `maxconn` and `timeout queue` of `node_websocket`          |
+| Health check of the node                                        | `GET /health` every 2 s; DOWN after 2 failed checks, at most 2 s each | `option httpchk`, `check inter 2s fall 2`, `timeout check` |
+| Age of an HTTP/1 connection                                     | 27 to 33 min                                                          | `rand(360),add(1620)`                                      |
+
+An open WebSocket counts as a connection, not as a request in progress.
+
+A connection over a connection limit gets a TCP reset right after HAProxy accepts it. HAProxy sends its own errors as JSON-RPC errors. For a POST request, the HTTP status is 200, because JSON-RPC clients read the body of a response only if its status is 2xx. Other requests, for example `GET /health`, keep the status of the error, so a health check sees a node that does not answer as down:
+
+| Cause                                                                     | HTTP status of a GET | JSON-RPC error code |
+| ------------------------------------------------------------------------- | -------------------- | ------------------- |
+| Too many requests in progress from the client address                     | 429                  | `-32009`            |
+| Request body larger than 1 MiB                                            | 413                  | `-32600`            |
+| The node is not available, or no connection to the node is free in time   | 503                  | `-32009`            |
+| The node did not answer in time, or did not send a valid response         | 504, 502             | `-32050`            |
+
+The code `-32050` says that the node can still execute the request. When the IOTA Rust SDK waits for the local execution of a transaction (`WaitForLocalExecution`), it then looks for the transaction for up to 60 s instead of failing at once. For `-32009`, HAProxy did not send the request to the node, and the client gets the error at once.
+
+HAProxy uses HTTP/1.1 to the node, so each request in progress uses one connection to the node, and each WebSocket uses one for as long as it is open. WebSockets have their own limit, so that open subscriptions do not take the connections of requests. A WebSocket that finds no free connection to the node gets HTTP 503 with a JSON-RPC error after 1 s. The node allows 100 subscriptions by default (`indexer-max-subscriptions`). If you raise this value, raise the WebSocket limit too. The node serves WebSockets only with `jsonrpc-server-type: both` or `websocket` in its config.
+
+When the node does not answer its health check, HAProxy marks it DOWN, and requests get the 503 error at once. A node that stops is DOWN within about 8 s.
+
+HAProxy's own errors have the header `access-control-allow-origin: *` for requests with an `Origin` header, as the replies of the node have by default. HAProxy sends HTML with status 408 to a client that does not send a complete request in time.
+
+### Change the Limit for a Network
+
+Add a line `<network> <limit>` to `haproxy/limits_9000.map`. The limit applies to the connections and to the requests in progress of each address in the network. The longest prefix wins, and `0` means no limit. For example, for your own clients behind one NAT address:
+
+```
+203.0.113.7/32 512
+```
+
+To apply the change without a restart, also send it to the admin socket of HAProxy. HAProxy keeps the counts of open connections:
+
+```shell
+docker compose exec haproxy sh -c 'echo "add map /usr/local/etc/haproxy/limits_9000.map 203.0.113.7/32 512" | socat stdio unix-connect:/tmp/admin.sock'
+```
+
+Use `set map` to change an entry that exists, and `del map` to remove one. Changes on the socket are lost when HAProxy restarts, so always edit the file too. `show table st_conn_9000` on the socket shows the open connections of each client address.
+
+A reload reads all files again: `docker compose kill -s USR2 haproxy`. The new HAProxy process starts its counts at zero, while the old process serves its open connections for at most 2 h (`hard-stop-after`). During this time, a client address can hold up to two times its limit.
+
+Clients on the same host reach HAProxy through Docker. HAProxy sees them with the gateway address of the `dual-stack` network (`docker network inspect <project>_dual-stack`), not with `127.0.0.1`. To give local clients a higher limit, add this address to the map. Docker can choose another address when it creates the network again.
+
+### Logs and Metrics
+
+`docker compose logs haproxy` shows:
+
+- every request with an error;
+- refused connections. HAProxy logs a refused connection of a client address if the same limit refused no other connection of this address in the last minute. For the limit of the port, the same applies to all addresses together;
+- 1 in 100 other responses, chosen at random.
+
+A line has the httplog format of HAProxy and four more fields:
+
+| Field                          | Meaning                                                                                                         |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `txn_close`                    | A request with an error                                                                                         |
+| `tcp-req-conn`, `tcp-req-sess` | A refused connection; `tcp-req-sess` for a connection from a load balancer that sends the PROXY protocol header |
+| `http-after-res`               | One of the 1 in 100 responses                                                                                   |
+| `error=`                       | The HTTP status of HAProxy's own error, before HAProxy changed it to 200 for a POST request; `-` if none        |
+| `conn=`                        | The open connections of the client address                                                                      |
+| `req=`                         | The requests in progress of the client address                                                                  |
+
+Before you change a limit, use the 1 in 100 responses to see how many connections and requests your clients have at the same time. HAProxy writes such a line before it sends the response, so its byte count and its total time are 0.
+
+HAProxy metrics for Prometheus are on `http://127.0.0.1:8404/metrics`. Other paths on port 8404 get 404. The metrics are totals for the port; the counts of each client address are on the admin socket. Because HAProxy changes the status of its own errors to 200 for POST requests, `haproxy_frontend_http_responses_total` counts them as `2xx`. Use these series for alerts:
+
+| Series                                                                   | It increases or is 1 when                                                                             |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `haproxy_server_status{proxy="node_jsonrpc",server="node",state="DOWN"}` | The node does not answer its health check                                                             |
+| `haproxy_backend_connection_errors_total{proxy="node_jsonrpc"}`          | A request got the 503 error: HAProxy could not connect to the node, or no connection was free in time |
+| `haproxy_backend_connection_errors_total{proxy="node_websocket"}`        | The same for WebSockets                                                                               |
+| `haproxy_backend_response_errors_total{proxy="node_jsonrpc"}`            | A request got the 502 or 504 error                                                                    |
+| `haproxy_frontend_requests_denied_total{proxy="jsonrpc"}`                | A request got the 413 or 429 error                                                                    |
+| `haproxy_frontend_denied_connections_total{proxy="jsonrpc"}`             | A connection limit refused a connection                                                               |
+
+Also watch the metrics of the node itself on `127.0.0.1:9184`.
+
+### IPv6
+
+HAProxy is on a second Compose network, `dual-stack`, which has IPv6. Its published ports use this network (`gw_priority: 1`), so HAProxy sees the IPv6 address of each client.
+
+The full node stays on the `default` network, which has IPv4 only. The node listens on IPv4 addresses, and Docker sends IPv6 traffic for its P2P port through its own proxy. If the network of the node had IPv6, Docker would send this traffic to the IPv6 address of the container, where the node does not listen.
+
+## Validator: nftables on the gRPC Port
+
+The [validator Docker setup](./validator-node/docker.mdx) runs the service `node-limits` next to the node. It loads nftables rules into the network namespace of the host, in their own table `inet iota_node_limits`. This needs Linux 5.10 or later. The files are in `node-limits/`:
+
+| File                       | Content                                                       |
+| -------------------------- | ------------------------------------------------------------- |
+| `node-limits.sh`           | Writes the rules from the values file, loads and removes them |
+| `node-limits.conf`         | The values file                                               |
+| `iota-node-limits.service` | A systemd unit for hosts without Docker                       |
+
+The default values:
+
+| Setting                                                                | Value |
+| ---------------------------------------------------------------------- | ----- |
+| Connections per client address on 8080                                 | 16    |
+| Connections per loopback address                                       | 1024  |
+| Time that a connection which has not finished its TCP handshake counts | 5 s   |
+
+A new connection over the limit gets a TCP reset in answer to its first packet, before the TLS handshake. Open connections count until they close.
+
+`docker compose up` builds the image of the service first, from a pinned `debian:trixie-slim` image and the `nftables` package. The build needs access to Docker Hub and to the Debian package mirrors. If the build fails, `docker compose up` stops, and does not start the node either. In this case, start the node alone with `docker compose up -d iota-node`.
+
+The service:
+
+- loads the table when it starts;
+- loads it again within 30 s if the table is removed, for example by a restart of `nftables.service`, or if the values file changes;
+- removes the table when it stops.
+
+If the service is killed with `SIGKILL`, the table stays. Remove it with `sudo nft delete table inet iota_node_limits`.
+
+### Change the Values
+
+Edit `node-limits/node-limits.conf`. The service applies the change within 30 s. The new rules start their counts at zero.
+
+Check the file before the service reads it:
+
+```shell
+sh node-limits/node-limits.sh generate node-limits/node-limits.conf > /dev/null
+```
+
+If the file has an error, the service keeps the rules that it loaded before and writes the error to its log (`docker compose logs node-limits`) every 30 s. When the service starts with such a file, it loads no limits and stops with an error, and Docker starts it again.
+
+Add an `override` line for networks that need more connections, for example your own full nodes behind one NAT address, or a load balancer:
+
+```
+override 8080 203.0.113.0/24 64
+override 8080 198.51.100.7 0
+```
+
+The longest prefix wins, and `0` means no limit. Loopback addresses have their own limit (`loopback`). Clients in containers on the same host do not use loopback addresses. A client on the host that connects to an address of the host other than a loopback address gets the default limit.
+
+To turn the limits off, write this line into the file `.env` next to `docker-compose.yml`, so that it stays for the next `docker compose up`:
+
+```
+IOTA_NODE_LIMITS=off
+```
+
+Then run `docker compose up -d node-limits`. To turn the limits on again, remove the line and run the same command.
+
+### Check the Limits
+
+```shell
+sudo nft list table inet iota_node_limits
+sudo nft list counters table inet iota_node_limits
+sudo dmesg | grep 'iota-node-limits refused'
+```
+
+The counters `p8080_accepted` and `p8080_refused` count the new connections of the port. The kernel log has one line for the first refused connection of a client address in a minute, and at most 20 lines per second.
+
+The node itself also limits the total number of connections of the gRPC port, TLS handshakes included. Unset, the limit is 1/8 of the file descriptor limit of the process, at most 32768. `grpc-max-connections` in `validator.yaml` changes it, and `0` removes it. The node resets a connection over this limit right after it accepts it, and counts it in the metric `authority_grpc_inbound_connections_refused`.
+
+### IPv6
+
+The Compose network of the validator has IPv4 only. The node listens on IPv4 addresses, and Docker sends IPv6 clients to the node through its own proxy. The nftables rules see the IPv6 address of each client, because they run in the network namespace of the host. The traffic controller of the node sees all IPv6 clients with the address of the Docker gateway.
+
+The rules use connection tracking. When they are loaded, the kernel tracks all connections of the host, for example also those of port 8081. Docker uses connection tracking already. On a host without Docker, make sure that `net.netfilter.nf_conntrack_max` is large enough for all connections of the node.
+
+## Behind Your Own Load Balancer
+
+Limits per client address work only where the client address is known. Put them on the outermost component that sees the client addresses.
+
+Full node behind a TCP load balancer that sends the PROXY protocol header (version 1 or 2), for example HAProxy, Traefik or a cloud network load balancer:
+
+1. Add the networks of the load balancer to `haproxy/proxy_protocol.lst`.
+2. Reload HAProxy: `docker compose kill -s USR2 haproxy`.
+
+HAProxy then reads the client address from the PROXY header. The limits per client address and the `x-forwarded-for` header for the node use this address. A connection from these networks without a PROXY header is closed. A connection over a limit per client address is closed, not reset.
+
+Full node behind an HTTP load balancer that adds `x-forwarded-for`:
+
+1. Add the networks of the load balancer to `haproxy/trusted_proxies.lst`. HAProxy then keeps the `x-forwarded-for` header of these requests and appends the address of the load balancer.
+2. Give these networks the limit `0` in `haproxy/limits_9000.map`, because all connections come from the load balancer.
+3. Set `client-id-source: x-forwarded-for: 2` in `data/config/fullnode.yaml`, so that the node reads the address that the load balancer wrote.
+4. Make sure that only the load balancer reaches port 9000. The node does not charge a request with fewer entries in the header than this number to any client.
+
+Validator: clients check the network key of the validator in the TLS handshake on port 8080, so a load balancer can only pass the TLS connections through. Prefer a TCP load balancer that keeps the client address. Otherwise, add an override `0` for the addresses of the load balancer.
+
+## Upgrade the Docker Compose Setups
+
+### Full Node
+
+1. If you scrape the node metrics on port 9184 from another host or from a container that is not on the Compose network, change this first: port 9184 is now published on `127.0.0.1` only.
+2. Make sure that Docker Engine is 28 or later and Docker Compose is 2.33.1 or later.
+3. Back up `docker-compose.yaml` and `data/config/fullnode.yaml`.
+4. Download the new setup into a new directory, as in [Docker Setup](./full-node/docker.mdx). Copy its `docker-compose.yaml` and the whole `haproxy/` directory into your setup directory. Keep `data/`.
+5. Set the client address source in `data/config/fullnode.yaml`:
+   - If the file has a `policy-config` block, change only `client-id-source` in it to `x-forwarded-for: 1`. Do not add a second block: the node does not start with two.
+   - Otherwise, copy the `policy-config` block of the new `data/config/fullnode.yaml` into it.
+
+   Without this change, the node sees all requests with the address of HAProxy. With `client-id-source: socket-addr` and `dry-run: false`, the node can then block HAProxy, and with an `allow-list` it refuses all requests.
+6. Run `docker compose up -d`. Docker creates the `dual-stack` network and the `haproxy` service, and starts the node again with the same database.
+7. Check a JSON-RPC request on port 9000, and `docker compose logs haproxy`.
+
+To go back, restore the two files and run `docker compose up -d --remove-orphans`.
+
+### Validator
+
+1. If you scrape the node metrics on port 9184 from another host or from a container that is not on the Compose network, change this first: port 9184 is now published on `127.0.0.1` only.
+2. Make sure that Docker Compose is 2.17 or later.
+3. Back up `docker-compose.yml`.
+4. Download the new `docker-compose.yml` and the `node-limits/` files, as in [Docker Setup](./validator-node/docker.mdx).
+5. Add overrides to `node-limits/node-limits.conf` for your own full nodes behind one address.
+6. At a quiet time, not near the end of an epoch, run `docker compose up -d`. The node restarts once.
+7. Check the table with `sudo nft list table inet iota_node_limits`.
+
+To go back, restore `docker-compose.yml` and run `docker compose up -d --remove-orphans`. The `node-limits` service removes its table when it stops.
+
+## systemd {#systemd}
+
+### Validator {#systemd-validator}
+
+1. Install nftables: `sudo apt-get install -y nftables`.
+2. Download the files:
+
+   ```shell
+   sudo mkdir -p /opt/iota/node-limits /etc/iota-node
+   sudo curl -fLJ -o /opt/iota/node-limits/node-limits.sh https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/node-limits/node-limits.sh
+   sudo curl -fLJ -o /etc/iota-node/node-limits.conf https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/node-limits/node-limits.conf
+   sudo curl -fLJ -o /etc/systemd/system/iota-node-limits.service https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/node-limits/iota-node-limits.service
+   ```
+
+3. Start the service: `sudo systemctl daemon-reload && sudo systemctl enable --now iota-node-limits`.
+4. Set `metrics-address: "127.0.0.1:9184"` in `validator.yaml`. This applies at the next start of the node.
+
+The service keeps the table loaded as in Docker: it loads the rules again within 30 s if the table is removed or the values file changes. `systemctl reload iota-node-limits` loads a changed values file at once.
+
+### Full Node {#systemd-full-node}
+
+HAProxy is a required part of a full node on systemd, as in Docker. The shipped config reads the address of each client from the `x-forwarded-for` header that HAProxy writes, so only HAProxy may reach the JSON-RPC port of the node.
+
+1. Install HAProxy 3.4.7 or later. Ubuntu 24.04 includes HAProxy 2.8, which is too old for this configuration. The official image is one way to run it:
+
+   ```shell
+   sudo mkdir -p /etc/iota-haproxy
+   sudo cp iota/setups/fullnode/docker/haproxy/* /etc/iota-haproxy/
+   docker run -d --name haproxy --network host --restart unless-stopped \
+     -v /etc/iota-haproxy:/usr/local/etc/haproxy:ro haproxy:3.4.7-alpine
+   ```
+
+   Copy every file of [`setups/fullnode/docker/haproxy/`](https://github.com/iotaledger/iota/tree/develop/setups/fullnode/docker/haproxy): `haproxy.cfg` reads the other three from `/usr/local/etc/haproxy/`. If you use a HAProxy package instead, copy the files to `/usr/local/etc/haproxy/`, and start HAProxy with this `haproxy.cfg`.
+2. In the node config, set:
+
+   ```yaml
+   json-rpc-address: "127.0.0.1:9001"
+   metrics-address: "127.0.0.1:9184"
+   ```
+
+   and keep the `policy-config` block of the shipped full node config. HAProxy listens on port 9000 and sends the requests to `127.0.0.1:9001`, the default of `IOTA_JSONRPC_SERVER` in `haproxy.cfg`. Its metrics are on `127.0.0.1:8404`.
+3. Restart the node and HAProxy.
+4. Check a JSON-RPC request on port 9000, and that port 9001 does not answer from another host.

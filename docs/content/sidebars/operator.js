@@ -74,6 +74,7 @@ const operator = [
         ],
     },
     'operator/data-management',
+    'operator/proxy-and-firewall',
     // 'operator/security-releases',
     {
         type: 'category',

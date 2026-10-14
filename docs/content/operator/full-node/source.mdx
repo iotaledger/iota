@@ -81,6 +81,16 @@ If you changed your local configuration you can always go back to the default [F
 
 <FullnodeP2P />
 
+#### Put HAProxy in Front of the JSON-RPC Port
+
+This step is required. HAProxy is part of the full node setup: it limits the connections of each client address and writes the address of the client in the `x-forwarded-for` header, which the node reads (`client-id-source: x-forwarded-for: 1` in the shipped config). Only HAProxy may reach the JSON-RPC port of the node:
+
+1. In `fullnode.yaml`, set `json-rpc-address: "127.0.0.1:9001"` and `metrics-address: "127.0.0.1:9184"`.
+2. Install HAProxy and its files, and start it, as in [Proxy and Firewall Setup](../proxy-and-firewall.mdx#systemd-full-node). HAProxy serves port 9000.
+3. Restart the node: `sudo systemctl restart iota-node`.
+
+When you run the installer again and it asks about `fullnode.yaml`, keep your file (`k`). If you let it write a new file, set the two addresses again.
+
 ### Reach your node via the RPC endpoint
 
 <TryRpcEndpoint/>

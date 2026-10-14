@@ -28,6 +28,10 @@ To simplify the setup process, you can use the default configuration file:
 </Tabs>
 
 :::info
+The default configuration belongs to a full node with HAProxy in front of its JSON-RPC port. `json-rpc-address: "0.0.0.0:9000"` is for the [Docker setup](./docker.mdx), where the node does not publish port 9000 and only HAProxy reaches it. `client-id-source: x-forwarded-for: 1` reads the address of the client from the header that HAProxy writes. With systemd, set `json-rpc-address: "127.0.0.1:9001"` and run HAProxy on port 9000, as in [Proxy and Firewall Setup](../proxy-and-firewall.mdx#systemd-full-node).
+:::
+
+:::info
 If you used the installer script, it will have generated that config file for you, with default ports, archive and pruning settings, and also covers peering configuration for the selected network.
 :::
 
