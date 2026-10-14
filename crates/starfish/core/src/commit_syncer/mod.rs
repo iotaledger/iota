@@ -1117,26 +1117,33 @@ pub(crate) mod tests {
     /// Builds a single-commit byte stream from `commit` and runs it through
     /// `verify_commits` with the two protocol flags set as specified. The
     /// version check fires before the index check, so the default commit
-    /// index of 0 is fine here.
-    fn run_verify(commit: Commit, starfish_speed_on: bool) -> ConsensusResult<()> {
+    /// index of 0 is fine here. Also returns the unprovable faults charged to
+    /// the serving peer.
+    fn run_verify(commit: Commit, starfish_speed_on: bool) -> (ConsensusResult<()>, u64) {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(starfish_speed_on);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
         let serialized = commit.serialize().unwrap();
-        verify_commits(
+        let result = verify_commits(
             &context,
             &NoopBlockVerifier,
             &misbehavior_store,
-            AuthorityIndex::new_for_test(1),
+            peer,
             CommitRange::new(1..=1),
             vec![serialized],
             vec![],
             10,
         )
-        .map(|_| ())
+        .map(|_| ());
+        let counts = misbehavior_store.snapshot_totals();
+        (
+            result,
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+        )
     }
 
     #[rstest::rstest]
@@ -1150,7 +1157,7 @@ pub(crate) mod tests {
         #[case] starfish_speed_on: bool,
         #[case] expected_variant: &'static str,
     ) {
-        let result = run_verify(commit, starfish_speed_on);
+        let (result, unprovable) = run_verify(commit, starfish_speed_on);
         let Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
             starfish_speed,
@@ -1160,6 +1167,7 @@ pub(crate) mod tests {
         };
         assert_eq!(actual, expected_variant);
         assert_eq!(starfish_speed, starfish_speed_on);
+        assert_eq!(unprovable, 1);
     }
 
     #[tokio::test]
@@ -1204,6 +1212,79 @@ pub(crate) mod tests {
                 peer: error_peer,
             }) if index == invalid_author && max == 4 && error_peer == peer
         ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+    }
+
+    /// Serializes a commit at `index` whose leader is in the committee.
+    fn serialized_commit(
+        context: &Arc<Context>,
+        index: CommitIndex,
+        previous_digest: CommitDigest,
+    ) -> Bytes {
+        let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+        Commit::new(
+            context,
+            index,
+            previous_digest,
+            0,
+            leader,
+            vec![leader],
+            vec![],
+            vec![],
+            false,
+        )
+        .serialize()
+        .unwrap()
+    }
+
+    /// A rejected commit list charges the serving peer one unprovable fault,
+    /// except an empty one, which an honest peer sends when it has no
+    /// certified commit in the range.
+    #[rstest::rstest]
+    #[case::malformed_commit("MalformedCommit", 1)]
+    #[case::unexpected_start_commit("UnexpectedStartCommit", 1)]
+    #[case::unexpected_commit_sequence("UnexpectedCommitSequence", 1)]
+    #[case::not_enough_commit_votes("NotEnoughCommitVotes", 1)]
+    #[case::no_commit_received("NoCommitReceived", 0)]
+    #[tokio::test]
+    async fn verify_commits_charges_rejected_commit_lists(
+        #[case] expected_error: &'static str,
+        #[case] expected_unprovable: u64,
+    ) {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let serialized_commits = match expected_error {
+            "MalformedCommit" => vec![Bytes::from_static(b"garbage")],
+            "UnexpectedStartCommit" => vec![serialized_commit(&context, 2, CommitDigest::MIN)],
+            "UnexpectedCommitSequence" => vec![
+                serialized_commit(&context, 1, CommitDigest::MIN),
+                serialized_commit(&context, 2, CommitDigest::MIN),
+            ],
+            "NotEnoughCommitVotes" => vec![serialized_commit(&context, 1, CommitDigest::MIN)],
+            _ => vec![],
+        };
+
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=2),
+            serialized_commits,
+            vec![],
+            10,
+        );
+
+        let error = result.expect_err("the commit list must be rejected");
+        assert_eq!(error.name(), expected_error);
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+            expected_unprovable
+        );
     }
 
     #[tokio::test]
