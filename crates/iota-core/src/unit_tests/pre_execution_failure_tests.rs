@@ -13,8 +13,8 @@ use std::{collections::HashSet, sync::Arc};
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasCostSummary, MoveAuthenticator, MoveAuthenticatorV1, ObjectId,
-    Owner, SharedObjectReference, Transaction, TransactionEffects, UserSignature,
-    VersionAssignment, crypto::Intent,
+    Owner, SharedObjectReference, Transaction, TransactionEffects, UnchangedSharedKind,
+    UserSignature, Version, VersionAssignment, crypto::Intent,
 };
 use iota_types::{
     account_abstraction::authenticator_function::MoveAuthenticatorsForExecution,
@@ -61,6 +61,8 @@ struct UnresolvedAccountSetup {
     transfer_id: ObjectId,
     gas_id: ObjectId,
     shared_id: Option<ObjectId>,
+    /// The version consensus assigns to the shared input.
+    shared_version: Version,
     sender: Address,
     executable: VerifiedExecutableTransaction,
 }
@@ -165,6 +167,7 @@ impl UnresolvedAccountSetup {
             transfer_id,
             gas_id,
             shared_id,
+            shared_version: OBJECT_START_VERSION,
             sender,
             executable,
         }
@@ -174,10 +177,15 @@ impl UnresolvedAccountSetup {
     fn execute(&self) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         // Shared inputs, the account included, need the versions consensus
         // would have assigned them.
-        let assigned_versions = std::iter::once(self.account_id)
-            .chain(self.shared_id)
-            .map(|id| VersionAssignment::new(id, OBJECT_START_VERSION))
-            .collect();
+        let assigned_versions = std::iter::once(VersionAssignment::new(
+            self.account_id,
+            OBJECT_START_VERSION,
+        ))
+        .chain(
+            self.shared_id
+                .map(|id| VersionAssignment::new(id, self.shared_version)),
+        )
+        .collect();
         let env = ExecutionEnv::new().with_assigned_versions(assigned_versions);
 
         // With the bookkeeping on, an execution belongs to a commit the
@@ -428,6 +436,54 @@ async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validat
         (contents(&shared_before), shared_before.storage_rebate),
         "the shared input's contents and storage rebate must not change"
     );
+}
+
+/// A transaction whose gas owner did not authorize it and whose shared input
+/// was cancelled for congestion charges nobody either. The cancelled object is
+/// recorded as cancelled and the gas coin stays usable.
+#[tokio::test]
+async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged() {
+    let _guard = enable_deterministic_validation();
+    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+    let mut setup = UnresolvedAccountSetup::new(
+        Object::shared_for_testing(),
+        ObjectId::random(),
+        ObjectId::random(),
+        recipient,
+        GasPayer::Account,
+        Some(Object::shared_for_testing()),
+    )
+    .await;
+    setup.shared_version = Version::new_congested_with_suggested_gas_price(1_000).unwrap();
+    let shared_id = setup.shared_id.unwrap();
+    let gas_before = setup
+        .authority
+        .get_object(&setup.gas_id)
+        .unwrap()
+        .object_ref();
+
+    let (effects, _) = setup.execute().unwrap();
+
+    assert!(effects.status().is_failure(), "{:?}", effects.status());
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &GasCostSummary::default(),
+        "nobody may be charged"
+    );
+    assert!(
+        effects
+            .unchanged_shared_objects()
+            .iter()
+            .any(|(id, kind)| *id == shared_id
+                && matches!(kind, UnchangedSharedKind::Canceled { .. })),
+        "{:?}",
+        effects.unchanged_shared_objects()
+    );
+    setup
+        .authority
+        .get_object_cache_reader()
+        .try_check_owned_objects_are_live(&[gas_before])
+        .expect("the gas coin must stay usable");
 }
 
 /// Two validators write the same effects for a transaction that charges
