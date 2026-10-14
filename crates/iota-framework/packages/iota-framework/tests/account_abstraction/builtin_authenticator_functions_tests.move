@@ -4,6 +4,7 @@
 #[test_only]
 module iota::builtin_authenticator_functions_tests;
 
+use iota::authenticator_function;
 use iota::builtin_authenticator_functions;
 use iota::public_key;
 use iota::signature_scheme;
@@ -61,6 +62,34 @@ fun builtin_auth_function_ref_has_correct_fields() {
     assert_eq(ref.package(), object::id_from_address(@0x2));
     assert_ref_eq(ref.module_name(), &ascii::string(b"builtin_authenticator_functions"));
     assert_ref_eq(ref.function_name(), &ascii::string(b"builtin_authenticator_v1"));
+}
+
+#[test]
+fun is_builtin_authenticator_accepts_the_builtin_ref() {
+    let ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<TestAccount>();
+
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&ref), true);
+}
+
+#[test]
+fun is_builtin_authenticator_rejects_other_refs() {
+    let other_package = authenticator_function::create_auth_function_ref_v1_for_testing<
+        TestAccount,
+    >(
+        @0xABC,
+        ascii::string(b"builtin_authenticator_functions"),
+        ascii::string(b"builtin_authenticator_v1"),
+    );
+    let other_function = authenticator_function::create_auth_function_ref_v1_for_testing<
+        TestAccount,
+    >(
+        @0x2,
+        ascii::string(b"builtin_authenticator_functions"),
+        ascii::string(b"other_function"),
+    );
+
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_package), false);
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_function), false);
 }
 
 // === attach_public_key / has_public_key / borrow_public_key / detach_public_key ===
@@ -138,6 +167,54 @@ fun rotate_returns_old_key_and_stores_new() {
 fun rotate_without_attach_aborts() {
     account_test_mut!(|account| {
         builtin_authenticator_functions::rotate_public_key(account.id_mut(), ed25519_public_key());
+    });
+}
+
+// === ensure_builtin_auth_and_public_key_together ===
+
+#[test]
+fun ensure_together_accepts_the_builtin_ref_with_a_public_key() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &builtin_authenticator(),
+        );
+    });
+}
+
+#[test]
+fun ensure_together_accepts_a_custom_ref_without_a_public_key() {
+    account_test!(|account| {
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &custom_authenticator(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
+fun ensure_together_aborts_for_the_builtin_ref_without_a_public_key() {
+    account_test!(|account| {
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &builtin_authenticator(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EPublicKeyWithoutBuiltinAuth)]
+fun ensure_together_aborts_for_a_custom_ref_with_a_public_key() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &custom_authenticator(),
+        );
     });
 }
 
@@ -667,6 +744,18 @@ fun secp256k1_public_key(): public_key::PublicKey {
     public_key::create(
         signature_scheme::secp256k1(),
         x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c",
+    )
+}
+
+fun builtin_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<TestAccount> {
+    builtin_authenticator_functions::builtin_authenticator_function_ref_v1()
+}
+
+fun custom_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<TestAccount> {
+    authenticator_function::create_auth_function_ref_v1_for_testing(
+        @0xABC,
+        ascii::string(b"custom_authenticator"),
+        ascii::string(b"authenticate"),
     )
 }
 
