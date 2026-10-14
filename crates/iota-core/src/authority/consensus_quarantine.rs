@@ -598,7 +598,8 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
-    // P-COOL owned object locks (aggregate across all quarantined commits)
+    // P-COOL owned object locks (aggregate across all quarantined commits).
+    // A reference holds the lock of the latest commit that locked it.
     owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
     // In-memory cache of the `authority_overload_notifications` table: the most
@@ -1001,8 +1002,13 @@ impl ConsensusOutputQuarantine {
     }
 
     fn remove_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
-        for obj_ref in output.owned_object_locks.keys() {
-            self.owned_object_locks.remove(obj_ref);
+        for (obj_ref, lock_details) in &output.owned_object_locks {
+            // A later commit may have locked the same reference again, after
+            // the lock of this commit was released; that newer lock stays
+            // until its own commit flushes.
+            if self.owned_object_locks.get(obj_ref) == Some(lock_details) {
+                self.owned_object_locks.remove(obj_ref);
+            }
         }
     }
 

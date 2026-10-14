@@ -128,7 +128,13 @@ pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefF
 /// execution and the failure is reported in the authentication's place.
 pub enum MoveAuthenticatorsForExecution {
     Resolved(Vec<MoveAuthenticatorForExecution>),
-    ResolutionFailed(ExecutionError),
+    /// No authenticator runs. `accounts` are the addresses of the accounts the
+    /// transaction's Move authenticators authenticate, so execution can tell
+    /// whether the gas owner is one of them.
+    ResolutionFailed {
+        error: ExecutionError,
+        accounts: Vec<Address>,
+    },
 }
 
 /// Derive the id of the dynamic field on the account object that holds its

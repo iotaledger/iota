@@ -2317,10 +2317,13 @@ impl AuthorityState {
             self.check_owned_locks(&owned_object_refs)?;
 
             // With a pre-execution failure, no authenticator runs, the gas owner's
-            // included, so the executor gets the failure in place of the list. That
-            // changes neither
-            // who pays nor the outcome: the gas owner is charged either way, as
-            // when the first authenticator fails.
+            // included, so the executor gets the failure in place of the list,
+            // with the accounts the authenticators would have authenticated. It
+            // decides who pays as when the first authenticator fails.
+            let accounts = move_authenticators
+                .iter()
+                .map(|move_authenticator| move_authenticator.address())
+                .collect::<Vec<_>>();
             let move_authenticators = if pre_execution_error.is_some() {
                 Vec::new()
             } else {
@@ -2365,7 +2368,7 @@ impl AuthorityState {
             };
 
             let authenticators = match pre_execution_error {
-                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed(error),
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed { error, accounts },
                 None => MoveAuthenticatorsForExecution::Resolved(move_authenticators),
             };
 
