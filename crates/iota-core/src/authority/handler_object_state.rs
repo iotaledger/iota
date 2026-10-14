@@ -244,7 +244,7 @@ impl HandlerObjectState {
 
     /// Drops the key → index entries of a fully executed commit, keeping the
     /// map bounded.
-    pub fn drop_commit_assignments(&self, index: CommitIndex) {
+    fn drop_commit_assignments(&self, index: CommitIndex) {
         if let Some(keys) = self.keys_by_commit.lock().remove(&index) {
             for key in keys {
                 self.commit_index_by_key.remove(&key);
@@ -596,10 +596,10 @@ mod tests {
         assert_eq!(state.commit_index_of(&key_a), Some(3));
         assert_eq!(state.commit_index_of(&key_b), Some(4));
         assert_eq!(state.commit_index_of(&key_c), Some(4));
-        state.drop_commit_assignments(3);
+        state.record_commit_fully_executed(3, &[]);
         assert_eq!(state.commit_index_of(&key_a), None);
         assert_eq!(state.commit_index_of(&key_b), Some(4));
-        state.drop_commit_assignments(4);
+        state.record_commit_fully_executed(4, &[]);
         assert_eq!(state.commit_index_of(&key_b), None);
         assert_eq!(state.commit_index_of(&key_c), None);
     }

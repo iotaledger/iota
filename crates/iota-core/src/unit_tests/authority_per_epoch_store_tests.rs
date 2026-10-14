@@ -2198,7 +2198,7 @@ mod handler_object_state_storage {
     }
 
     #[tokio::test]
-    async fn map_hit_writes_handler_processed_only() {
+    async fn execution_records_rows_only_while_its_commit_is_assigned() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.set_pcool_deterministic_validation_for_testing(true);
@@ -2206,12 +2206,19 @@ mod handler_object_state_storage {
             });
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
 
         let mutated = ObjectId::random();
         let effects = executed_owned_tx_effects(mutated, 5, 1);
         let key = TransactionKey::Digest(*effects.transaction_digest());
 
+        // An execution before its commit is assigned records nothing; the
+        // commit's upserts at full execution cover it.
+        assert!(!state.record_executed_transaction(&key, &effects));
+        assert_eq!(state.overlay_size_for_testing(), 0);
+
         epoch_store.assign_commit_to_transactions(6, vec![key]);
+        assert_eq!(state.commit_index_of(&key), Some(6));
         epoch_store.record_executed_transaction(&key, &effects);
 
         let row = epoch_store
@@ -2220,5 +2227,14 @@ mod handler_object_state_storage {
             .expect("handler-processed row must exist for a handler-known commit");
         assert_eq!(row.produced_at, 6);
         assert_eq!(row.replaced_version, Some(Version::from_u64(5)));
+
+        // Full execution drops the commit's assignments, so a later execution
+        // under the same key records nothing.
+        epoch_store.record_commit_fully_executed(6, &[]);
+        assert_eq!(state.commit_index_of(&key), None);
+        let overlay_size = state.overlay_size_for_testing();
+        let later_effects = executed_owned_tx_effects(ObjectId::random(), 8, 2);
+        assert!(!state.record_executed_transaction(&key, &later_effects));
+        assert_eq!(state.overlay_size_for_testing(), overlay_size);
     }
 }
