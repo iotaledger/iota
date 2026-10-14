@@ -466,7 +466,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
         | ConsensusError::NotEnoughCommitVotes { .. }
-        | ConsensusError::SerializedCommitTooLarge { .. }
+        | ConsensusError::TooManyCommitBytes { .. }
         | ConsensusError::InvalidCommitRange { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
@@ -1450,7 +1450,7 @@ mod tests {
             // Commit-chain inconsistencies.
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
-            ConsensusError::SerializedCommitTooLarge {
+            ConsensusError::TooManyCommitBytes {
                 peer: authority,
                 size: 2,
                 limit: 1,
