@@ -31,7 +31,7 @@
 //! ([`HandlerObjectState::write_commit_rows_to_batch`]). Everything else the
 //! module does is in-memory plus point reads.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map::Entry};
 
 use dashmap::DashMap;
 use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
@@ -216,13 +216,20 @@ impl HandlerObjectState {
     }
 
     /// Records the roots of commit `index`, before any of them can be
-    /// scheduled for execution. Called exactly once per commit.
+    /// scheduled for execution. Called exactly once per commit; a second call
+    /// for the same index is reported and leaves the first assignment in
+    /// place.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
-        for key in &roots {
-            self.commit_index_by_key.insert(*key, index);
-        }
-        if self.keys_by_commit.lock().insert(index, roots).is_some() {
-            debug_fatal!("commit index {index} assigned twice");
+        match self.keys_by_commit.lock().entry(index) {
+            Entry::Occupied(_) => {
+                debug_fatal!("commit index {index} assigned twice");
+            }
+            Entry::Vacant(entry) => {
+                for key in &roots {
+                    self.commit_index_by_key.insert(*key, index);
+                }
+                entry.insert(roots);
+            }
         }
     }
 
@@ -528,14 +535,19 @@ mod tests {
         assert!(rows.iter().all(|(key, _)| key.0 != shared_id));
     }
 
-    #[test]
-    fn commit_index_map_assign_and_drop() {
-        let state = HandlerObjectState {
+    /// A state with empty overlays, built without the epoch tables.
+    fn empty_state() -> HandlerObjectState {
+        HandlerObjectState {
             commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100),
-        };
+        }
+    }
+
+    #[test]
+    fn commit_index_map_assign_and_drop() {
+        let state = empty_state();
         let key_a = TransactionKey::Digest(TransactionDigest::random());
         let key_b = TransactionKey::Digest(TransactionDigest::random());
         let key_c = TransactionKey::RandomnessRound(0, RandomnessRound::new(1));
@@ -550,5 +562,26 @@ mod tests {
         state.drop_commit_assignments(4);
         assert_eq!(state.commit_index_of(&key_b), None);
         assert_eq!(state.commit_index_of(&key_c), None);
+    }
+
+    /// A second assignment of the same commit keeps the first root list. In
+    /// test builds `debug_fatal!` panics, so the second call runs under
+    /// `catch_unwind`.
+    #[test]
+    fn commit_assigned_twice_keeps_the_first_assignment() {
+        let state = empty_state();
+        let first = TransactionKey::Digest(TransactionDigest::random());
+        let second = TransactionKey::Digest(TransactionDigest::random());
+
+        state.assign_commit_to_transactions(3, vec![first]);
+        let second_call = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            state.assign_commit_to_transactions(3, vec![second]);
+        }));
+        assert!(second_call.is_err(), "the second assignment is reported");
+
+        assert_eq!(state.commit_index_of(&first), Some(3));
+        assert_eq!(state.commit_index_of(&second), None);
+        state.drop_commit_assignments(3);
+        assert_eq!(state.commit_index_of(&first), None);
     }
 }
