@@ -14,7 +14,7 @@ teams:
 
 `viewFunctionCall` runs a Move function marked `#[view]` and gives you its return values, with no transaction and no signature involved.
 
-The examples on this page use the `view_functions` package from [Call a View Function](../../../move/how-tos/call-a-view-function.mdx), which also explains how to write view functions and how to publish the package. Its `leaderboard` module has a shared `Leaderboard` object and views such as:
+The examples on this page use the `view_functions` package from [Call a View Function](../../../move/how-tos/call-a-view-function.mdx), which explains how to publish the package. [Define a View Function](../../../move/how-tos/define-a-view-function.mdx) explains how to write view functions. The package's `leaderboard` module has a shared `Leaderboard` object and views such as:
 
 ```move
 #[view]
@@ -78,7 +78,7 @@ const { body } = await client.viewFunctionCall({
 There are two ways a view call can go wrong, and they look different:
 
 - **The function ran and aborted.** The call itself succeeds, and `decodeViewOutputs` returns an `executionError` describing the abort.
-- **The node refused to run it**, for example because the function does not exist or is not marked `#[view]`. `viewFunctionCall` throws a `ServerError` with code `InvalidArgument`.
+- **The node refused to run it.** `viewFunctionCall` throws a `ServerError` with code `NotFound` if the package does not exist, and `InvalidArgument` if the module or function does not exist, the function is not marked `#[view]`, or an argument does not fit.
 
 For example, `auction::bid_at` reads a bid by index, so asking for a bid that does not exist aborts:
 
