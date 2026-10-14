@@ -21,9 +21,11 @@ set -euo pipefail
 
 SDK_GIT_URL="https://github.com/iotaledger/iota-rust-sdk.git"
 
-# Crates published from iota-rust-sdk. A dependency line is rewritten when its
-# key, or the crate it renames with `package`, is one of these.
-SDK_CRATES="iota-sdk-crypto iota-sdk-graphql-client iota-sdk-grpc-client iota-sdk-grpc-types iota-sdk-move-types iota-sdk-transaction-builder iota-sdk-types"
+# Every crate published from iota-rust-sdk is named iota-sdk-<name>. A dependency
+# line is rewritten when its key, or the crate it renames with `package`, matches
+# and the line pins a version or a git source. The umbrella `iota-sdk` crate is
+# left out on purpose: `crates/iota-sdk` is the node's own crate of that name.
+SDK_CRATE_PATTERN='iota-sdk-[a-z0-9-]+'
 
 SOURCE=${1:-}
 
@@ -53,7 +55,7 @@ use warnings;
 my $kind    = $ENV{SDK_SOURCE_KIND};
 my $source  = $ENV{SDK_SOURCE};
 my $git_url = $ENV{SDK_GIT_URL};
-my $crates  = join '|', map { quotemeta } split ' ', $ENV{SDK_CRATES};
+my $crates  = $ENV{SDK_CRATE_PATTERN};
 
 for my $file (@ARGV) {
     open my $in, '<', $file or die "$file: $!";
@@ -130,8 +132,8 @@ update_deny() {
 echo "Pinning the SDK crates to $SOURCE_KIND $SOURCE"
 echo "Updating Cargo.toml files..."
 
-changed=$(git grep -lz -E "$(echo "$SDK_CRATES" | tr ' ' '|')" -- '*Cargo.toml' \
-    | SDK_SOURCE_KIND="$SOURCE_KIND" SDK_SOURCE="$SOURCE" SDK_GIT_URL="$SDK_GIT_URL" SDK_CRATES="$SDK_CRATES" \
+changed=$(git grep -lz -E "$SDK_CRATE_PATTERN" -- '*Cargo.toml' \
+    | SDK_SOURCE_KIND="$SOURCE_KIND" SDK_SOURCE="$SOURCE" SDK_GIT_URL="$SDK_GIT_URL" SDK_CRATE_PATTERN="$SDK_CRATE_PATTERN" \
         xargs -0 perl -e "$REWRITE_MANIFESTS")
 
 update_deny
