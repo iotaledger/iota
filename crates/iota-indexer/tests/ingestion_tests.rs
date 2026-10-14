@@ -767,7 +767,7 @@ mod ingestion_tests {
         assert!(
             rows.iter().any(|r| r.object_id == id.as_bytes().to_vec()
                 && r.object_version == version.as_u64() as i64),
-            "expected {label} in cp{cp}; rows: {rows:?}",
+            "expected {label} in cp {cp}; rows: {rows:?}",
         );
         Ok(())
     }
