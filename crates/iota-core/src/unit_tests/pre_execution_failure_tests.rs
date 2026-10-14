@@ -8,24 +8,31 @@
 //! failure. With deterministic validation on, they also cover who pays: nobody,
 //! when the gas owner is an account that did not authorize the transaction.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{cell::Cell, collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
 
+use iota_move_build::BuildConfig;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, ExecutionStatus, GasCostSummary, MoveAuthenticator, MoveAuthenticatorV1, ObjectId,
-    Owner, SharedObjectReference, Transaction, TransactionEffects, UnchangedSharedKind,
-    UserSignature, Version, VersionAssignment, crypto::Intent,
+    Address, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator, MoveAuthenticatorV1,
+    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
+    TransactionEffects, TypeTag, UnchangedSharedKind, UserSignature, Version, VersionAssignment,
+    crypto::Intent,
 };
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     account_abstraction::authenticator_function::MoveAuthenticatorsForExecution,
     auth_context::AuthContextData,
     crypto::{AccountPrivateKey, get_key_pair},
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, ExecutionErrorKind, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    move_package,
     object::{OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
+        TransactionEnvelope,
+    },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
@@ -907,6 +914,7 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
             MoveAuthenticatorsForExecution::ResolutionFailed {
                 error: ExecutionError::new(failure, None),
                 accounts: vec![],
+                gas_owner: None,
             },
             checked_input_objects,
             kind,
@@ -968,4 +976,510 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
         effects,
         "failure effects must decode to what was encoded"
     );
+}
+
+/// The authenticator a test Move account from the `move_authenticator` test
+/// package runs.
+#[derive(Clone, Copy)]
+enum TestAuthenticator {
+    Passes,
+    /// Aborts with code 1.
+    Fails,
+    /// Aborts with code 2.
+    FailsOther,
+}
+
+impl TestAuthenticator {
+    fn function_name(self) -> &'static str {
+        match self {
+            Self::Passes => "authenticate_pass",
+            Self::Fails => "authenticate_fail",
+            Self::FailsOther => "authenticate_fail_other",
+        }
+    }
+}
+
+/// The sender or sponsor of a [`MoveAccountSponsorSetup`].
+#[derive(Clone, Copy)]
+enum TestAccount {
+    /// A Move account running this authenticator.
+    Account(TestAuthenticator),
+    /// A shared object that is not an account, so it cannot be resolved.
+    Unresolvable,
+}
+
+/// Where the sponsor's Move authenticator is among the transaction's
+/// signatures.
+#[derive(Clone, Copy)]
+enum SponsorSignature {
+    First,
+    Second,
+}
+
+/// An authority with the `move_authenticator` test package published. Every
+/// execution is assigned to a commit of its own when the bookkeeping is on, as
+/// the consensus handler would.
+struct TestChain {
+    authority: Arc<AuthorityState>,
+    next_commit: Cell<u64>,
+    package_id: ObjectId,
+    publisher: (Address, AccountPrivateKey),
+    publisher_gas_id: ObjectId,
+}
+
+impl TestChain {
+    async fn new(publisher: (Address, AccountPrivateKey), publisher_gas_id: ObjectId) -> Self {
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(&[Object::with_id_owner_for_testing(
+                publisher_gas_id,
+                publisher.0,
+            )])
+            .build()
+            .await;
+        let mut chain = Self {
+            authority,
+            next_commit: Cell::new(1),
+            package_id: ObjectId::ZERO,
+            publisher,
+            publisher_gas_id,
+        };
+
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("src/unit_tests/data/move_authenticator");
+        let package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let upgrade_cap = builder.publish_upgradeable(
+            package.get_package_bytes(false),
+            package.get_dependency_storage_package_ids(),
+        );
+        builder.transfer_arg(chain.publisher.0, upgrade_cap);
+        let effects =
+            chain.execute_publisher_call(builder.finish(), TEST_ONLY_GAS_UNIT_FOR_PUBLISH);
+        chain.package_id = effects
+            .created()
+            .into_iter()
+            .map(|created| created.reference().object_id)
+            .find(|id| chain.authority.get_object(id).unwrap().is_package())
+            .expect("the publish must create the package");
+        chain
+    }
+
+    fn reference_gas_price(&self) -> u64 {
+        self.authority.reference_gas_price_for_testing().unwrap()
+    }
+
+    /// Adds `account`, and returns its id and initial shared version.
+    fn add_account(&self, account: TestAccount) -> (ObjectId, Version) {
+        match account {
+            TestAccount::Account(authenticator) => self.create_account(authenticator),
+            TestAccount::Unresolvable => {
+                let object = Object::shared_for_testing();
+                let id = object.id();
+                self.authority.insert_genesis_object(object);
+                (id, OBJECT_START_VERSION)
+            }
+        }
+    }
+
+    /// Creates a shared test account running `authenticator`, and returns its
+    /// id and initial shared version.
+    fn create_account(&self, authenticator: TestAuthenticator) -> (ObjectId, Version) {
+        let metadata_ref = self
+            .authority
+            .get_object(&move_package::derive_package_metadata_id(self.package_id))
+            .unwrap()
+            .object_ref();
+        let account_type =
+            TypeTag::from_str(&format!("{}::test_account::TestAccount", self.package_id)).unwrap();
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let arguments = vec![
+            builder
+                .obj(CallArg::ImmutableOrOwned(metadata_ref))
+                .unwrap(),
+            builder.pure("test_account").unwrap(),
+            builder.pure(authenticator.function_name()).unwrap(),
+        ];
+        let function_ref = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::from_static("authenticator_function"),
+            Identifier::from_static("create_auth_function_ref_v1"),
+            vec![account_type],
+            arguments,
+        );
+        builder.programmable_move_call(
+            self.package_id,
+            Identifier::from_static("test_account"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![function_ref],
+        );
+        let effects =
+            self.execute_publisher_call(builder.finish(), TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10);
+        effects
+            .created()
+            .into_iter()
+            .find_map(|created| match created.owner() {
+                Owner::Shared(initial_shared_version) => {
+                    Some((created.reference().object_id, *initial_shared_version))
+                }
+                _ => None,
+            })
+            .expect("the call must create a shared account")
+    }
+
+    /// Executes a programmable transaction sent and paid for by the publisher,
+    /// with a budget of `gas_units`, which must succeed.
+    fn execute_publisher_call(
+        &self,
+        pt: ProgrammableTransaction,
+        gas_units: u64,
+    ) -> TransactionEffects {
+        let (publisher, publisher_key) = &self.publisher;
+        let rgp = self.reference_gas_price();
+        let gas_ref = self
+            .authority
+            .get_object(&self.publisher_gas_id)
+            .unwrap()
+            .object_ref();
+        let tx = Transaction::new_programmable(*publisher, vec![gas_ref], pt, rgp * gas_units, rgp);
+        let effects = self.execute(
+            TransactionEnvelope::from(to_sender_signed_transaction(tx, publisher_key)),
+            ExecutionEnv::new(),
+        );
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        effects
+    }
+
+    /// Executes `tx` on the authority, skipping the consensus handler.
+    fn execute(&self, tx: TransactionEnvelope, env: ExecutionEnv) -> TransactionEffects {
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let verified = epoch_store.verify_transaction(tx).unwrap();
+        let executable =
+            VerifiedExecutableTransaction::new_from_checkpoint(verified, epoch_store.epoch(), 1);
+        if epoch_store.pcool_bookkeeping_enabled() {
+            let commit = self.next_commit.get();
+            self.next_commit.set(commit + 1);
+            epoch_store.assign_commit_to_transactions(commit, vec![executable.key()]);
+        }
+        self.authority
+            .try_execute_immediately(&executable, env, &epoch_store)
+            .unwrap()
+            .0
+    }
+}
+
+/// The fixed inputs of a [`MoveAccountSponsorSetup`], so two authorities can
+/// build the same transaction.
+struct MoveAccountSponsorInputs {
+    publisher: (Address, AccountPrivateKey),
+    publisher_gas_id: ObjectId,
+    transfer_id: ObjectId,
+    gas_id: ObjectId,
+    recipient: Address,
+}
+
+impl MoveAccountSponsorInputs {
+    fn random() -> Self {
+        Self {
+            publisher: get_key_pair(),
+            publisher_gas_id: ObjectId::random(),
+            transfer_id: ObjectId::random(),
+            gas_id: ObjectId::random(),
+            recipient: get_key_pair::<AccountPrivateKey>().0,
+        }
+    }
+}
+
+/// A [`TestChain`] with a transfer from a sender authenticated by a Move
+/// authenticator, sponsored by a Move account that pays the gas.
+struct MoveAccountSponsorSetup {
+    chain: TestChain,
+    sender: Address,
+    sponsor: Address,
+    transfer_id: ObjectId,
+    gas_id: ObjectId,
+    transfer: TransactionEnvelope,
+    /// The versions consensus assigns to the two accounts.
+    assigned_versions: Vec<VersionAssignment>,
+}
+
+impl MoveAccountSponsorSetup {
+    async fn new(
+        inputs: &MoveAccountSponsorInputs,
+        sender: TestAccount,
+        sponsor: TestAccount,
+        sponsor_signature: SponsorSignature,
+    ) -> Self {
+        let chain = TestChain::new(
+            (inputs.publisher.0, inputs.publisher.1.clone()),
+            inputs.publisher_gas_id,
+        )
+        .await;
+        let (sender_account_id, sender_version) = chain.add_account(sender);
+        let (sponsor_account_id, sponsor_version) = chain.add_account(sponsor);
+        let (sender_address, sponsor_address): (Address, Address) =
+            (sender_account_id.into(), sponsor_account_id.into());
+        chain.authority.insert_genesis_objects(&[
+            Object::with_id_owner_for_testing(inputs.transfer_id, sender_address),
+            Object::with_id_owner_for_testing(inputs.gas_id, sponsor_address),
+        ]);
+
+        let latest = |id: &ObjectId| chain.authority.get_object(id).unwrap().object_ref();
+        let rgp = chain.reference_gas_price();
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .transfer_object(inputs.recipient, latest(&inputs.transfer_id))
+            .unwrap();
+        let tx = Transaction::new_programmable_allow_sponsor(
+            sender_address,
+            vec![latest(&inputs.gas_id)],
+            builder.finish(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+            rgp,
+            sponsor_address,
+        );
+        let authenticator = |account_id: ObjectId, version: Version| {
+            UserSignature::MoveAuthenticator(MoveAuthenticator::from(MoveAuthenticatorV1::new(
+                vec![],
+                vec![],
+                SharedObjectReference::new(account_id, version, false),
+            )))
+        };
+        let (sender_authenticator, sponsor_authenticator) = (
+            authenticator(sender_account_id, sender_version),
+            authenticator(sponsor_account_id, sponsor_version),
+        );
+        let signatures = match sponsor_signature {
+            SponsorSignature::First => vec![sponsor_authenticator, sender_authenticator],
+            SponsorSignature::Second => vec![sender_authenticator, sponsor_authenticator],
+        };
+
+        Self {
+            chain,
+            sender: sender_address,
+            sponsor: sponsor_address,
+            transfer_id: inputs.transfer_id,
+            gas_id: inputs.gas_id,
+            transfer: TransactionEnvelope::from_user_sig_data(tx, signatures),
+            assigned_versions: vec![
+                VersionAssignment::new(sender_account_id, sender_version),
+                VersionAssignment::new(sponsor_account_id, sponsor_version),
+            ],
+        }
+    }
+
+    fn object_ref(&self, id: &ObjectId) -> ObjectReference {
+        self.chain.authority.get_object(id).unwrap().object_ref()
+    }
+
+    /// Executes the sponsored transfer.
+    fn execute(&self) -> TransactionEffects {
+        self.chain.execute(
+            self.transfer.clone(),
+            ExecutionEnv::new().with_assigned_versions(self.assigned_versions.clone()),
+        )
+    }
+}
+
+/// Whether `status` is a failed Move authentication that aborted with `code`.
+fn is_authentication_abort(status: &ExecutionStatus, code: u64) -> bool {
+    matches!(
+        status,
+        ExecutionStatus::Failure {
+            error: ExecutionErrorKind::MoveAuthentication { error },
+            command: None,
+        } if matches!(**error, ExecutionErrorKind::MoveAbort { code: abort_code, .. } if abort_code == code)
+    )
+}
+
+/// With deterministic validation on, a Move-account sponsor whose authenticator
+/// passes pays for a sender whose authenticator fails, wherever its signature
+/// is. Both orders charge the same and change the same objects.
+#[tokio::test]
+async fn move_account_sponsor_pays_wherever_its_signature_is() {
+    let _guard = enable_deterministic_validation();
+    let inputs = MoveAccountSponsorInputs::random();
+    let mut effects = Vec::new();
+    for position in [SponsorSignature::First, SponsorSignature::Second] {
+        let setup = MoveAccountSponsorSetup::new(
+            &inputs,
+            TestAccount::Account(TestAuthenticator::Fails),
+            TestAccount::Account(TestAuthenticator::Passes),
+            position,
+        )
+        .await;
+        let transfer_before = setup.object_ref(&setup.transfer_id);
+
+        let result = setup.execute();
+
+        assert!(
+            is_authentication_abort(result.status(), 1),
+            "the sender's failure must be reported: {:?}",
+            result.status()
+        );
+        assert!(
+            result.gas_cost_summary().gas_used() > 0,
+            "the sponsor must be charged"
+        );
+        assert_eq!(result.gas_object().owner(), &Owner::Address(setup.sponsor));
+        assert_eq!(
+            setup.object_ref(&setup.transfer_id),
+            transfer_before,
+            "the sender's owned input must keep its version"
+        );
+        effects.push(result);
+    }
+    // The read-only shared inputs, the two accounts, are listed in the order of
+    // the signatures; who pays and what changes must not depend on it.
+    let outcome = |effects: &TransactionEffects| {
+        (
+            effects.status().clone(),
+            effects.gas_cost_summary().clone(),
+            effects.gas_object(),
+            effects.all_changed_objects(),
+        )
+    };
+    assert_eq!(
+        outcome(&effects[0]),
+        outcome(&effects[1]),
+        "the order of the signatures must not change who pays or what changes"
+    );
+}
+
+/// With deterministic validation on, a Move-account sponsor whose
+/// authenticator passes pays even when the sender's account cannot be
+/// resolved. The resolution failure is reported.
+#[tokio::test]
+async fn move_account_sponsor_pays_when_the_sender_account_cannot_be_resolved() {
+    let _guard = enable_deterministic_validation();
+    let setup = MoveAccountSponsorSetup::new(
+        &MoveAccountSponsorInputs::random(),
+        TestAccount::Unresolvable,
+        TestAccount::Account(TestAuthenticator::Passes),
+        SponsorSignature::Second,
+    )
+    .await;
+
+    let effects = setup.execute();
+
+    assert_eq!(
+        effects.status(),
+        &authenticator_function_not_found(setup.sender.into())
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the sponsor must be charged"
+    );
+    assert_eq!(effects.gas_object().owner(), &Owner::Address(setup.sponsor));
+    assert!(
+        effects
+            .old_object_metadata()
+            .iter()
+            .all(|old| old.reference().object_id != setup.transfer_id),
+        "the sender's owned input must keep its version"
+    );
+}
+
+/// With deterministic validation on, a Move-account sponsor whose
+/// authenticator fails is not charged, and its failure is reported.
+#[tokio::test]
+async fn failing_move_account_sponsor_is_not_charged() {
+    let _guard = enable_deterministic_validation();
+    let setup = MoveAccountSponsorSetup::new(
+        &MoveAccountSponsorInputs::random(),
+        TestAccount::Account(TestAuthenticator::Passes),
+        TestAccount::Account(TestAuthenticator::FailsOther),
+        SponsorSignature::Second,
+    )
+    .await;
+    let gas_before = setup.object_ref(&setup.gas_id);
+
+    let effects = setup.execute();
+
+    assert!(
+        is_authentication_abort(effects.status(), 2),
+        "{:?}",
+        effects.status()
+    );
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+    assert_eq!(setup.object_ref(&setup.gas_id), gas_before);
+}
+
+/// With deterministic validation on, when both authenticators fail, the
+/// sponsor's failure is reported, since it is the one that decides that nobody
+/// pays, even when the sender's signature comes first.
+#[tokio::test]
+async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
+    let _guard = enable_deterministic_validation();
+    let setup = MoveAccountSponsorSetup::new(
+        &MoveAccountSponsorInputs::random(),
+        TestAccount::Account(TestAuthenticator::Fails),
+        TestAccount::Account(TestAuthenticator::FailsOther),
+        SponsorSignature::Second,
+    )
+    .await;
+
+    let effects = setup.execute();
+
+    assert!(
+        is_authentication_abort(effects.status(), 2),
+        "the sponsor's failure must be reported: {:?}",
+        effects.status()
+    );
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+}
+
+/// With deterministic validation off, authenticators keep running in signature
+/// order, the first failure is reported, and the sponsor pays.
+#[tokio::test]
+async fn move_account_sponsor_order_is_unchanged_with_the_flag_off() {
+    let setup = MoveAccountSponsorSetup::new(
+        &MoveAccountSponsorInputs::random(),
+        TestAccount::Account(TestAuthenticator::Fails),
+        TestAccount::Account(TestAuthenticator::FailsOther),
+        SponsorSignature::Second,
+    )
+    .await;
+
+    let effects = setup.execute();
+
+    assert!(
+        is_authentication_abort(effects.status(), 1),
+        "the sender's failure must be reported: {:?}",
+        effects.status()
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the sponsor must be charged"
+    );
+    assert!(
+        effects
+            .old_object_metadata()
+            .iter()
+            .any(|old| old.reference().object_id == setup.transfer_id),
+        "every owned input must be rewritten with the flag off"
+    );
+}
+
+/// With deterministic validation on, when neither account can be resolved, the
+/// sponsor's resolution failure is reported, since it is the one that decides
+/// that nobody pays, even when the sender's signature comes first.
+#[tokio::test]
+async fn unresolvable_sponsor_failure_is_reported_when_both_cannot_be_resolved() {
+    let _guard = enable_deterministic_validation();
+    let setup = MoveAccountSponsorSetup::new(
+        &MoveAccountSponsorInputs::random(),
+        TestAccount::Unresolvable,
+        TestAccount::Unresolvable,
+        SponsorSignature::Second,
+    )
+    .await;
+
+    let effects = setup.execute();
+
+    assert_eq!(
+        effects.status(),
+        &authenticator_function_not_found(setup.sponsor.into())
+    );
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
 }

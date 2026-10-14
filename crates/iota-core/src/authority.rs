@@ -2235,12 +2235,11 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            // The first account that cannot be resolved fails the transaction before
-            // any authenticator runs. The remaining inputs are still collected, since
-            // for the failure effects, we have to charge gas for those inputs.
-            let mut pre_execution_error = None;
+            // The first account that cannot be resolved fails the transaction. The
+            // remaining inputs are still collected, since for the failure effects,
+            // we have to charge gas for those inputs.
             let mut per_authenticator_input_objects = Vec::with_capacity(move_authenticators.len());
-            let mut function_refs = Vec::with_capacity(move_authenticators.len());
+            let mut resolutions = Vec::with_capacity(move_authenticators.len());
             for (move_authenticator, (authenticator_input_objects, account_object)) in
                 move_authenticators.iter().zip(per_authenticator_inputs)
             {
@@ -2259,21 +2258,14 @@ impl AuthorityState {
                 // so post-consensus validation cannot keep this check. Here, an
                 // account that fails it produces failure effects instead of a
                 // panic.
-                match self.check_move_account_for_execution(
+                resolutions.push(self.check_move_account_for_execution(
                     account_object_id,
                     account_object_version,
                     account_object_digest,
                     account_object,
                     &move_authenticator.address(),
                     protocol_config,
-                ) {
-                    Ok(function_ref) => function_refs.push(function_ref),
-                    Err(error) => {
-                        if pre_execution_error.is_none() {
-                            pre_execution_error = Some(error);
-                        }
-                    }
-                }
+                ));
 
                 per_authenticator_input_objects.push(authenticator_input_objects);
             }
@@ -2307,48 +2299,60 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
-            // With a pre-execution failure, no authenticator runs, the gas owner's
-            // included, so the executor gets the failure in place of the list,
-            // with the accounts the authenticators would have authenticated. It
-            // decides who pays as when the first authenticator fails.
-            let accounts = move_authenticators
-                .iter()
-                .map(|move_authenticator| move_authenticator.address())
-                .collect::<Vec<_>>();
-            let move_authenticators = if pre_execution_error.is_some() {
-                Vec::new()
-            } else {
-                debug_assert_eq!(
-                    move_authenticators.len(),
-                    per_authenticator_checked_input_objects.len(),
-                    "Move authenticators amount must match the number of checked authenticator inputs"
-                );
-                move_authenticators
-                    .into_iter()
-                    .zip(function_refs)
-                    .zip(per_authenticator_checked_input_objects)
-                    .map(
-                        |(
-                            (move_authenticator, function_ref),
-                            authenticator_checked_input_objects,
-                        )| {
-                            MoveAuthenticatorForExecution {
-                                authenticator: move_authenticator.to_owned(),
-                                function_ref,
-                                input_objects: authenticator_checked_input_objects,
-                            }
-                        },
-                    )
-                    .collect::<Vec<_>>()
-            };
-
+            // The function refs of the accounts that resolved, so an
+            // authenticator that runs after another account failed to resolve
+            // still finds its own.
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|a| a.authenticator.address() == address)
-                        .map(|a| a.function_ref.authenticator_function_ref.clone())
+                        .zip(&resolutions)
+                        .find(|(move_authenticator, _)| move_authenticator.address() == address)
+                        .and_then(|(_, resolution)| resolution.as_ref().ok())
+                        .map(|function_ref| function_ref.authenticator_function_ref.clone())
                 });
+
+            let accounts = move_authenticators
+                .iter()
+                .map(|move_authenticator| move_authenticator.address())
+                .collect::<Vec<_>>();
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_checked_input_objects.len(),
+                "Move authenticators amount must match the number of checked authenticator inputs"
+            );
+            // Under deterministic validation, a gas owner that cannot be resolved
+            // did not authorize the transaction, so nobody pays; its own failure is
+            // then the one reported.
+            let deterministic_validation = protocol_config.pcool_deterministic_validation();
+            let mut first_resolution_error = None;
+            let mut gas_owner_resolution_error = None;
+            let mut resolved_authenticators = Vec::with_capacity(move_authenticators.len());
+            for ((move_authenticator, resolution), authenticator_checked_input_objects) in
+                move_authenticators
+                    .into_iter()
+                    .zip(resolutions)
+                    .zip(per_authenticator_checked_input_objects)
+            {
+                match resolution {
+                    Ok(function_ref) => {
+                        resolved_authenticators.push(MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref,
+                            input_objects: authenticator_checked_input_objects,
+                        })
+                    }
+                    Err(error)
+                        if deterministic_validation
+                            && move_authenticator.address() == gas_data.owner =>
+                    {
+                        gas_owner_resolution_error = Some(error);
+                    }
+                    Err(error) => {
+                        first_resolution_error.get_or_insert(error);
+                    }
+                }
+            }
 
             let auth_context_data = AuthContextData {
                 transaction_data_bytes: tx_bytes,
@@ -2358,9 +2362,20 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            let authenticators = match pre_execution_error {
-                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed { error, accounts },
-                None => MoveAuthenticatorsForExecution::Resolved(move_authenticators),
+            // With a resolution failure, the executor gets the failure in place of
+            // the list, with the accounts the authenticators would have
+            // authenticated and the gas owner's authenticator if its account
+            // resolved, so it can decide who pays.
+            let authenticators = match gas_owner_resolution_error.or(first_resolution_error) {
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
+                    error,
+                    accounts,
+                    gas_owner: resolved_authenticators
+                        .into_iter()
+                        .find(|resolved| resolved.authenticator.address() == gas_data.owner)
+                        .map(Box::new),
+                },
+                None => MoveAuthenticatorsForExecution::Resolved(resolved_authenticators),
             };
 
             epoch_store
