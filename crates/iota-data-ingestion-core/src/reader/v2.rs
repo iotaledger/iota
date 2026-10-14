@@ -633,7 +633,7 @@ impl CheckpointReader {
     ///
     /// Transmits a watermark to the checkpoint reader, indicating that all
     /// checkpoints below this watermark can be safely pruned or cleaned up.
-    /// The new watermark replaces the previous one, so the call is blocking.
+    /// The new watermark replaces the previous one.
     ///
     /// # Errors
     ///
