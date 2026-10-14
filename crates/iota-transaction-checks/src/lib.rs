@@ -19,7 +19,7 @@ mod checked {
         Address, ObjectId, ObjectReference, Owner, Transaction, TransactionKind, Version,
     };
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
+        IOTA_CLOCK_OBJECT_SHARED_VERSION,
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
@@ -781,8 +781,10 @@ mod checked {
         Ok(())
     }
 
-    /// Check all the `MoveAuthenticator` related input objects against the
-    /// database.
+    /// Check the `MoveAuthenticator` input objects that were loaded: an owned
+    /// input's digest and owner, a shared input's owner and initial version.
+    /// Rules that read only the declaration live in
+    /// `MoveAuthenticator::validity_check`, which runs before any load.
     #[instrument(level = "trace", skip_all)]
     fn check_move_authenticator_objects(
         authenticator_objects: &InputObjects,
@@ -871,11 +873,11 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                id: ObjectId::AUTHENTICATOR_STATE,
                 ..
             } => {
                 return Err(UserInputError::InaccessibleSystemObject {
-                    object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                    object_id: ObjectId::AUTHENTICATOR_STATE,
                 });
             }
             InputObjectKind::SharedMoveObject {

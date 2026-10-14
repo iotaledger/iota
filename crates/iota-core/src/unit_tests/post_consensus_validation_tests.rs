@@ -2595,6 +2595,26 @@ impl BookkeepingSetup {
         sponsor: Address,
         sponsor_key: &AccountPrivateKey,
     ) -> VerifiedTransaction {
+        self.epoch_store
+            .verify_transaction(self.account_authenticated_call(
+                authenticator,
+                gas_id,
+                sponsor,
+                sponsor_key,
+            ))
+            .unwrap()
+    }
+
+    /// [`Self::build_account_authenticated_call`] before verification, for a
+    /// transaction admission would refuse and a byzantine submitter can still
+    /// sequence.
+    fn account_authenticated_call(
+        &self,
+        authenticator: MoveAuthenticatorV1,
+        gas_id: &ObjectId,
+        sponsor: Address,
+        sponsor_key: &AccountPrivateKey,
+    ) -> TransactionEnvelope {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
@@ -2613,12 +2633,11 @@ impl BookkeepingSetup {
             self.rgp,
             sponsor,
         );
-        let tx = to_sender_signed_transaction_with_optional_sponsor(
+        to_sender_signed_transaction_with_optional_sponsor(
             tx,
             UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator)),
             Some(sponsor_key),
-        );
-        self.epoch_store.verify_transaction(tx).unwrap()
+        )
     }
 
     /// Executes a call naming the deleted shared object `id`, created at
@@ -4895,6 +4914,100 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
         },
         "execution must fail the kept transaction because its account was deleted"
     );
+}
+
+/// A Move authenticator naming a mutable shared object as a call argument is
+/// refused at admission, and a byzantine submitter can still sequence it. At
+/// commit 16, horizon 14, `S` is deleted at commit 15 on one validator and
+/// still live on another. Both must drop the transaction on the declaration,
+/// which no object read can change.
+#[tokio::test]
+async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_validator() {
+    for deletion_executed in [false, true] {
+        let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+        let gas_id = ObjectId::random();
+        let setup_gas_id = ObjectId::random();
+        let s = setup_bookkeeping(
+            vec![
+                Object::with_id_owner_for_testing(gas_id, sponsor),
+                Object::with_id_owner_for_testing(setup_gas_id, sponsor),
+            ],
+            true,
+        )
+        .await;
+
+        let share = |index| {
+            let effects = s.handler_known_object_basics_call(
+                "share",
+                vec![],
+                &setup_gas_id,
+                sponsor,
+                &sponsor_key,
+                index,
+            );
+            let shared = effects.created()[0];
+            (
+                *shared.reference().object_id(),
+                initial_shared_version(shared.owner()),
+            )
+        };
+        let (account_id, account_start_version) = share(5);
+        let (s_id, s_start_version) = share(6);
+        if deletion_executed {
+            s.handler_known_shared_object_basics_call(
+                "delete",
+                vec![s.shared_arg(&s_id)],
+                &setup_gas_id,
+                sponsor,
+                &sponsor_key,
+                15,
+            );
+        }
+
+        let tx = VerifiedTransaction::new_unchecked(s.account_authenticated_call(
+            MoveAuthenticatorV1::new(
+                vec![CallArg::Shared(SharedObjectReference::new(
+                    s_id,
+                    s_start_version,
+                    true,
+                ))],
+                vec![],
+                SharedObjectReference::new(account_id, account_start_version, false),
+            ),
+            &gas_id,
+            sponsor,
+            &sponsor_key,
+        ));
+        let digest = *tx.digest();
+        let mut transactions = vec![make_user_tx_v1_verified(tx)];
+        let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+            &s.authority,
+            &s.epoch_store,
+            16,
+            true,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            transactions.is_empty(),
+            "kept with deletion executed: {deletion_executed}"
+        );
+        assert!(locks.is_empty(), "deletion executed: {deletion_executed}");
+        assert_eq!(dropped.len(), 1, "deletion executed: {deletion_executed}");
+        assert_eq!(dropped[0].0, digest);
+        assert!(
+            matches!(
+                &dropped[0].1,
+                IotaError::UserInput {
+                    error: UserInputError::MutableSharedIsInMoveAuthenticatorInput { object_id }
+                } if *object_id == s_id
+            ),
+            "deletion executed: {deletion_executed}, got {:?}",
+            dropped[0].1
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

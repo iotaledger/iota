@@ -1133,6 +1133,106 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
     }
 }
 
+/// Returns the max-version protocol config with deterministic validation on.
+fn config_with_deterministic_validation() -> ProtocolConfig {
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.enable_pcool_deterministic_validation_for_testing();
+    config
+}
+
+/// With deterministic validation, a mutable shared call argument is refused
+/// from the transaction bytes alone. An immutable one passes.
+#[test]
+fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator() {
+    let config = config_with_deterministic_validation();
+    let context = TxValidityCheckContext {
+        config: &config,
+        epoch: 0,
+    };
+    let sender = Address::random();
+    let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
+    let id = ObjectId::random();
+    let argument = |mutable| {
+        MoveAuthenticatorV1::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
+                id,
+                Version::from(1),
+                mutable,
+            ))],
+            vec![],
+            account,
+        )
+    };
+
+    assert_eq!(
+        with_move_authenticator(make_transaction_data(sender), argument(true))
+            .validity_check(&context)
+            .unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::MutableSharedIsInMoveAuthenticatorInput { object_id: id },
+        }
+    );
+    with_move_authenticator(make_transaction_data(sender), argument(false))
+        .validity_check(&context)
+        .unwrap();
+}
+
+/// With deterministic validation, the authenticator state object is refused
+/// from the transaction bytes alone, as a call argument and as the object to
+/// authenticate.
+#[test]
+fn validity_check_rejects_authenticator_state_in_move_authenticator() {
+    let config = config_with_deterministic_validation();
+    let sender = Address::random();
+    let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
+    let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
+
+    let as_call_arg = MoveAuthenticatorV1::new(vec![CallArg::Shared(state)], vec![], account);
+    let as_account_object = MoveAuthenticatorV1::new(vec![], vec![], state);
+
+    for authenticator in [as_call_arg, as_account_object] {
+        assert_eq!(
+            with_move_authenticator(make_transaction_data(sender), authenticator)
+                .validity_check(&TxValidityCheckContext {
+                    config: &config,
+                    epoch: 0,
+                })
+                .unwrap_err(),
+            IotaError::UserInput {
+                error: UserInputError::InaccessibleSystemObject {
+                    object_id: ObjectId::AUTHENTICATOR_STATE,
+                },
+            }
+        );
+    }
+}
+
+/// Without deterministic validation, the transaction bytes alone refuse
+/// neither the authenticator state object nor a mutable shared object as a
+/// `MoveAuthenticator` input: the checks on the loaded objects do.
+#[test]
+fn validity_check_leaves_move_authenticator_input_kinds_to_the_loaded_objects() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(!config.pcool_deterministic_validation());
+    let sender = Address::random();
+    let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
+    let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
+    let mutable_shared = SharedObjectReference::new(ObjectId::random(), Version::from(1), true);
+
+    for authenticator in [
+        MoveAuthenticatorV1::new(vec![CallArg::Shared(mutable_shared)], vec![], account),
+        MoveAuthenticatorV1::new(vec![CallArg::Shared(state)], vec![], account),
+        MoveAuthenticatorV1::new(vec![], vec![], state),
+    ] {
+        with_move_authenticator(make_transaction_data(sender), authenticator)
+            .validity_check(&TxValidityCheckContext {
+                config: &config,
+                epoch: 0,
+            })
+            .unwrap();
+    }
+}
+
 /// The restriction is on the authenticator only: a transaction whose
 /// programmable part reads the randomness state object, and then only
 /// transfers, is still accepted alongside an authenticator that does not name
