@@ -205,7 +205,8 @@ pub enum LocalnetCommand {
         /// accepts also a port, a host, or both (e.g., 0.0.0.0:9123).
         /// When providing a specific value, please use the = sign between the
         /// flag and value: `--with-faucet=6124` or
-        /// `--with-faucet=0.0.0.0`, or `--with-faucet=0.0.0.0:9123`
+        /// `--with-faucet=0.0.0.0`, or `--with-faucet=0.0.0.0:9123`.
+        /// This also turns on the fullnode's gRPC API at 0.0.0.0:50051.
         #[arg(
             long,
             default_missing_value = "0.0.0.0:9123",
