@@ -2703,6 +2703,7 @@ impl BookkeepingSetup {
                         produced_at: index,
                         initial_shared_version: None,
                         replaced_version: None,
+                        deleted_by: None,
                     },
                 )],
             )
@@ -3006,6 +3007,7 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
             produced_at: 4,
             initial_shared_version: None,
             replaced_version: Some(created_ref.version),
+            deleted_by: Some(*delete_effects.transaction_digest()),
         }
     );
 }
@@ -3037,6 +3039,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
             produced_at: 5,
             initial_shared_version: None,
             replaced_version: Some(created_ref.version),
+            deleted_by: None,
         }
     );
     let wrapper_ref = *wrap_effects.created()[0].reference();
@@ -3067,6 +3070,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
             produced_at: 6,
             initial_shared_version: None,
             replaced_version: None,
+            deleted_by: None,
         }
     );
     assert_eq!(
@@ -3082,6 +3086,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
             produced_at: 6,
             initial_shared_version: None,
             replaced_version: Some(wrapper_ref.version),
+            deleted_by: Some(*unwrap_effects.transaction_digest()),
         }
     );
 }
@@ -3110,6 +3115,7 @@ async fn handler_known_share_records_the_initial_shared_version() {
             produced_at: 5,
             initial_shared_version: Some(initial_shared_version(shared.owner())),
             replaced_version: None,
+            deleted_by: None,
         }
     );
 }
@@ -3132,7 +3138,8 @@ async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tom
 
     // Once the object is gone, the tombstone row is the only place this
     // validator can still read the initial shared version a transaction
-    // declares against.
+    // declares against, and the deleting transaction a kept input is handed
+    // on with.
     let delete_effects = s.handler_known_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(shared_id)],
@@ -3149,6 +3156,7 @@ async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tom
             produced_at: 6,
             initial_shared_version: Some(initial),
             replaced_version: Some(shared.reference().version),
+            deleted_by: Some(*delete_effects.transaction_digest()),
         }
     );
 }
@@ -3907,9 +3915,7 @@ fn assert_shared_missing(verdict: SharedVerdict, kind: MissingKind) {
     }
 }
 
-/// The verdict is `Deleted` with `delete_effects`' version and digest. Only
-/// before any later transaction named the deleted object: such a transaction
-/// writes the latest deletion marker, which supplies the digest.
+/// The verdict is `Deleted` with `delete_effects`' version and digest.
 #[track_caller]
 fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects) {
     let digest = assert_deleted_at(verdict, delete_effects.lamport_version());
@@ -3936,8 +3942,9 @@ fn assert_deleted_at(verdict: SharedVerdict, expected_version: Version) -> Trans
 ///
 /// Later transactions naming the deleted object write newer deletion records
 /// in the store and no row, so the latest deletion record differs between a
-/// validator that executed them and one that did not. The results must not:
-/// the reads before and after those transactions stand for those two
+/// validator that executed them and one that did not. The results must not,
+/// nor the version and transaction they carry: the reads before and after
+/// those transactions stand for those two
 /// validators.
 #[tokio::test]
 async fn reader_checks_the_declared_version_against_the_deletion_row() {
@@ -3991,16 +3998,13 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
         s.name_deleted_shared_object(shared_id, initial, &gas_id, sender, &sender_key, 16);
     s.assert_no_handler_row(shared_id, handler_smear_effects.lamport_version());
 
-    // The tombstone row decides at both commits, and gives the version.
+    // The tombstone row decides at both commits, and gives the version and
+    // the deleting transaction.
     assert_drops_with(
         s.read_shared(16, shared_id, wrong),
         DropKind::SharedInitialVersionMismatch,
     );
-    let digest = assert_deleted_at(
-        s.read_shared(16, shared_id, initial),
-        delete_effects.lamport_version(),
-    );
-    assert_eq!(digest, *handler_smear_effects.transaction_digest());
+    assert_deleted_by(s.read_shared(16, shared_id, initial), &delete_effects);
     assert_drops_with(
         s.read_shared(18, shared_id, wrong),
         DropKind::SharedInitialVersionMismatch,
@@ -4040,6 +4044,78 @@ async fn reader_answers_missing_for_a_shared_id_the_store_does_not_have() {
         ),
         MissingKind::SharedCreationAboveHorizon,
     );
+}
+
+/// Execution of a shared object's deletion at commit 11 writes the handler's
+/// tombstone row, then the tombstone, then the deletion marker. Validation of
+/// commit 12 runs alongside it and here reads the object between the
+/// tombstone and the marker. The tombstone row answers the deletion with its
+/// version and transaction, as it does once the marker is written, and the
+/// read never fails.
+#[tokio::test]
+async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker() {
+    use iota_types::effects::TestEffectsBuilder;
+
+    use crate::transaction_outputs::TransactionOutputs;
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let deleter_gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            Object::with_id_owner_for_testing(deleter_gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_ref = *share_effects.created()[0].reference();
+    let shared_id = shared_ref.object_id;
+    let initial = initial_shared_version(share_effects.created()[0].owner());
+
+    let deletion = s.build_move_call(
+        "object_basics",
+        "delete",
+        vec![s.shared_arg(&shared_id)],
+        &deleter_gas_id,
+        sender,
+        &sender_key,
+    );
+    let deletion_effects = TestEffectsBuilder::new(deletion.data())
+        .with_shared_input_versions([(shared_id, shared_ref.version)].into())
+        .with_deleted_objects_owned_by([(shared_id, shared_ref.version, Owner::Shared(initial))])
+        .build();
+    let key = TransactionKey::Digest(*deletion.digest());
+    s.epoch_store.assign_commit_to_transactions(11, vec![key]);
+    s.epoch_store
+        .record_executed_transaction(&key, &deletion_effects);
+    s.authority.get_cache_writer().write_transaction_outputs(
+        s.epoch_store.epoch(),
+        Arc::new(TransactionOutputs {
+            transaction: Arc::new(deletion),
+            effects: deletion_effects.clone(),
+            events: Default::default(),
+            markers: vec![],
+            wrapped: vec![],
+            deleted: vec![ObjectKey(shared_id, deletion_effects.lamport_version())],
+            live_object_markers_to_delete: vec![],
+            new_live_object_markers_to_init: vec![],
+            written: Default::default(),
+        }),
+    );
+    assert!(s.authority.get_object(&shared_id).is_none());
+    assert_eq!(
+        s.authority
+            .get_object_cache_reader()
+            .try_get_last_shared_object_deletion_info(&shared_id, s.epoch_store.epoch())
+            .unwrap(),
+        None
+    );
+
+    // Commit 12, horizon 10: the deletion at 11 is above the horizon.
+    assert_deleted_by(s.read_shared(12, &shared_id, initial), &deletion_effects);
 }
 
 // ---------------------------------------------------------------------------

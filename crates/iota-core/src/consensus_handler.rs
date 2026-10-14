@@ -1740,6 +1740,7 @@ mod tests {
                         kind: HandlerProcessedObjectKind::Live,
                         initial_shared_version: None,
                         replaced_version: None,
+                        deleted_by: None,
                     },
                 )],
             )
@@ -1853,6 +1854,7 @@ mod tests {
                         kind: HandlerProcessedObjectKind::Live,
                         initial_shared_version: None,
                         replaced_version: None,
+                        deleted_by: None,
                     },
                 )],
             )

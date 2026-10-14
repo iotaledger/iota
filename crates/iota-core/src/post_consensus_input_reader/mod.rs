@@ -114,10 +114,9 @@ pub enum SharedVerdict {
     /// depend on it.
     Exists(Object),
     /// Deleted by a commit above the horizon. The input is kept and passed
-    /// on as `DeletedSharedObject`. The version is that of the tombstone row
-    /// when one decided, otherwise that of this epoch's latest deletion
-    /// record in the store, and the digest is the deletion record's. Neither
-    /// decides anything at the commit.
+    /// on as `DeletedSharedObject`, with the version and the deleting
+    /// transaction from the tombstone row. Neither decides anything at the
+    /// commit.
     Deleted(Version, TransactionDigest),
     Drop(DropReason),
     Missing(MissingReason),

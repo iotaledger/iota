@@ -22,8 +22,8 @@ use super::{
     },
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, SharedReader,
-        SharedTablesLookup, SharedTablesRecheck,
+        CreatedObjectLookup, DeletionRowLookup, ObjectAbsent, SharedReader, SharedTablesLookup,
+        SharedTablesRecheck,
     },
 };
 use crate::{
@@ -162,20 +162,16 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Decides a shared input whose object is not in the store: reads the
-    /// highest row of `id`, then the store's record of a deletion in this
-    /// epoch. Called after either read of the creation row.
+    /// Decides a shared input whose object is not in the store, from the
+    /// highest row of `id`. Called after either read of the creation row.
     fn check_deletion(
         &self,
         object_absent: SharedReader<ObjectAbsent>,
     ) -> IotaResult<SharedVerdict> {
-        let deletion_row_read = match object_absent.read_deletion_row(self)? {
-            DeletionRowLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            DeletionRowLookup::NotDropped(deletion_row_read) => deletion_row_read,
-        };
-        Ok(match deletion_row_read.read_deletion_info(self)? {
-            DeletionInfoLookup::Deleted(version, digest) => SharedVerdict::Deleted(version, digest),
-            DeletionInfoLookup::Missing(reason) => SharedVerdict::Missing(reason),
+        Ok(match object_absent.read_deletion_row(self)? {
+            DeletionRowLookup::Deleted(version, digest) => SharedVerdict::Deleted(version, digest),
+            DeletionRowLookup::Drop(reason) => SharedVerdict::Drop(reason),
+            DeletionRowLookup::Missing(reason) => SharedVerdict::Missing(reason),
         })
     }
 

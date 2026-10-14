@@ -69,7 +69,8 @@ use dashmap::DashMap;
 use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use iota_sdk_types::{
-    ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionEffects, Version, WriteKind,
+    ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionDigest, TransactionEffects,
+    Version, WriteKind,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -126,6 +127,10 @@ pub struct HandlerProcessedObject {
     /// input of a mutation, deletion or wrap. `None` for a creation or an
     /// unwrap.
     pub replaced_version: Option<Version>,
+    /// The transaction of a `Deleted` row, `None` on the other kinds. A kept
+    /// deleted shared input carries it as the deleting transaction, so the
+    /// reader needs no deletion marker.
+    pub deleted_by: Option<TransactionDigest>,
 }
 
 /// The rows a commit's executed transactions produce. Both writers of durable
@@ -145,7 +150,7 @@ pub fn handler_rows_for_commit<'a>(
 /// commit at `produced_at`: created / mutated / unwrapped objects become
 /// `Live` rows, deletions and wraps become tombstone rows. A deleted shared
 /// object's row keeps its initial shared version, taken from the consumed
-/// input's owner.
+/// input's owner, and every `Deleted` row names the transaction.
 pub fn handler_processed_upserts(
     effects: &TransactionEffects,
     produced_at: CommitIndex,
@@ -190,6 +195,7 @@ pub fn handler_processed_upserts(
                 produced_at,
                 initial_shared_version,
                 replaced_version,
+                deleted_by: None,
             },
         ));
     }
@@ -206,6 +212,8 @@ pub fn handler_processed_upserts(
             _ => None,
         };
         let replaced_version = old_object.map(|(version, _)| *version);
+        let deleted_by =
+            (kind == HandlerProcessedObjectKind::Deleted).then(|| *effects.transaction_digest());
         rows.push((
             ObjectKey(reference.object_id, reference.version),
             HandlerProcessedObject {
@@ -214,6 +222,7 @@ pub fn handler_processed_upserts(
                 produced_at,
                 initial_shared_version,
                 replaced_version,
+                deleted_by,
             },
         ));
     }
@@ -1099,6 +1108,7 @@ mod tests {
             produced_at,
             initial_shared_version: None,
             replaced_version: None,
+            deleted_by: None,
         };
         let key = |version| ObjectKey(ObjectId::random(), Version::from_u64(version));
 
