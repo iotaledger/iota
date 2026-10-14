@@ -1613,6 +1613,33 @@ mod tests {
         }
     }
 
+    /// The faucet, indexer and GraphQL service turn the fullnode's gRPC API
+    /// on at its default address, which `fullnode:enable-grpc-api=true` keeps
+    /// and an address override moves.
+    #[test]
+    fn services_turn_the_fullnode_grpc_api_on_at_the_default_address() {
+        for (input, expected) in [
+            ("fullnode:enable-grpc-api=true", "0.0.0.0:50051"),
+            (
+                "fullnode:grpc-api-config={address: '127.0.0.1:50052'}",
+                "127.0.0.1:50052",
+            ),
+        ] {
+            let swarm = with_fullnode_grpc_api(Swarm::builder())
+                .with_fullnode_count(1)
+                .with_node_config_overrides(vec![input.parse().unwrap()])
+                .try_build()
+                .unwrap();
+            let config = swarm.fullnodes().next().unwrap().config();
+            assert!(config.enable_grpc_api, "{input}");
+            assert_eq!(
+                config.grpc_api_config.as_ref().unwrap().address,
+                expected.parse::<SocketAddr>().unwrap(),
+                "{input}"
+            );
+        }
+    }
+
     /// Every service port of a local network is fixed, so a collision is a
     /// startup failure rather than a test flake. The fullnode metrics
     /// endpoint and the GraphQL metrics endpoint shared `9184` once.
