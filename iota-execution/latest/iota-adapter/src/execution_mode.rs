@@ -144,9 +144,10 @@ impl ExecutionMode for Normal {
     }
 }
 
-/// Execution mode for the node's own call to a private framework function on
-/// behalf of a user transaction. The same as `Normal`, except that functions
-/// are called bypassing visibility.
+/// Execution mode for a call to a private Move function that the node makes
+/// on behalf of a user transaction, in a PTB the node builds itself. The same
+/// as `Normal`, except that private and `public(package)` functions can be
+/// called.
 #[derive(Copy, Clone)]
 pub struct PrivateCall;
 
@@ -155,7 +156,7 @@ impl ExecutionMode for PrivateCall {
     type ExecutionResults = ();
 
     fn allow_arbitrary_function_calls() -> bool {
-        // allows calling the private framework functions
+        // allows calling the private Move functions
         true
     }
 

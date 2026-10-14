@@ -2141,7 +2141,10 @@ mod checked {
                 builder.pure(claim.public_key_scheme),
                 builder.pure(&claim.public_key_raw_bytes),
             ) else {
-                invariant_violation!("Unable to generate claim_account transaction!")
+                invariant_violation!(
+                    "Unable to serialize the claimed public key's scheme flag and raw bytes as \
+                     pure inputs of the `ClaimAccount` call"
+                )
             };
             let scheme = builder.programmable_move_call(
                 ObjectId::FRAMEWORK,
