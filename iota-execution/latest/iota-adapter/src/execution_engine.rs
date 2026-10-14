@@ -510,6 +510,13 @@ mod checked {
             }
             result => result,
         };
+        // The gas owner pays for a failed authentication it authorized, but the
+        // account that failed authorized nothing, so only the gas coins change.
+        if authentication_execution_result.is_err()
+            && protocol_config.pcool_deterministic_validation()
+        {
+            temporary_store.leave_owned_inputs_unchanged(gas_charger.gas_coins());
+        }
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -584,7 +591,7 @@ mod checked {
         let status = elaborate_error_logs(&error, transaction_digest);
 
         temporary_store.drop_writes();
-        temporary_store.leave_owned_inputs_unchanged();
+        temporary_store.leave_owned_inputs_unchanged(&[]);
         temporary_store.ensure_active_inputs_mutated();
 
         // Genesis writes a special digest to indicate that an object was created during
