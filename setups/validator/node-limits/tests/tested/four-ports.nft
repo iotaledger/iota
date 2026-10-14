@@ -1,0 +1,164 @@
+# Rules that were tested with four validators on one host before
+# node-limits.sh was written, for the values of four-ports.conf.
+table inet node_limits {}
+delete table inet node_limits
+table inet node_limits {
+  ct timeout half_open_v4 { protocol tcp; l3proto ip; policy = { syn_sent: 5, syn_recv: 5 }; }
+  ct timeout half_open_v6 { protocol tcp; l3proto ip6; policy = { syn_sent: 5, syn_recv: 5 }; }
+  set logged_v4 { type ipv4_addr; size 65535; flags dynamic,timeout; timeout 2m; }
+  set logged_v6 { type ipv6_addr; size 65535; flags dynamic,timeout; timeout 2m; }
+  set p9200_v4 { type ipv4_addr; size 65535; flags dynamic; }  # default, 16
+  set p9200_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9200_lo_v4 { type ipv4_addr; size 65535; flags dynamic; }  # loopback, 1024
+  set p9200_lo_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9200_o0_v4 { type ipv4_addr; size 65535; flags dynamic; }  # override 10.0.0.4/32, 32
+  set p9200_o0_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  counter p9200_accepted {}
+  counter p9200_refused {}
+  counter p9200_untracked {}
+  set p9210_v4 { type ipv4_addr; size 65535; flags dynamic; }  # default, 16
+  set p9210_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9210_lo_v4 { type ipv4_addr; size 65535; flags dynamic; }  # loopback, 1024
+  set p9210_lo_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9210_o0_v4 { type ipv4_addr; size 65535; flags dynamic; }  # override 10.0.0.4/32, 32
+  set p9210_o0_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  counter p9210_accepted {}
+  counter p9210_refused {}
+  counter p9210_untracked {}
+  set p9220_v4 { type ipv4_addr; size 65535; flags dynamic; }  # default, 16
+  set p9220_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9220_lo_v4 { type ipv4_addr; size 65535; flags dynamic; }  # loopback, 1024
+  set p9220_lo_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9220_o0_v4 { type ipv4_addr; size 65535; flags dynamic; }  # override 10.0.0.4/32, 32
+  set p9220_o0_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  counter p9220_accepted {}
+  counter p9220_refused {}
+  counter p9220_untracked {}
+  set p9230_v4 { type ipv4_addr; size 65535; flags dynamic; }  # default, 16
+  set p9230_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9230_lo_v4 { type ipv4_addr; size 65535; flags dynamic; }  # loopback, 1024
+  set p9230_lo_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  set p9230_o0_v4 { type ipv4_addr; size 65535; flags dynamic; }  # override 10.0.0.4/32, 32
+  set p9230_o0_v6 { type ipv6_addr; size 65535; flags dynamic; }
+  counter p9230_accepted {}
+  counter p9230_refused {}
+  counter p9230_untracked {}
+  chain prerouting {
+    type filter hook prerouting priority mangle; policy accept;
+    fib daddr type != local return
+    tcp flags & (fin|syn|rst|ack) != syn return
+    ct state != new return
+    tcp dport != { 9200, 9210, 9220, 9230 } return
+    meta nfproto ipv4 ct timeout set "half_open_v4"
+    meta nfproto ipv6 ct timeout set "half_open_v6"
+    tcp dport vmap { 9200 : jump p9200, 9210 : jump p9210, 9220 : jump p9220, 9230 : jump p9230 }
+  }
+  chain p9200 {
+    ip saddr 10.0.0.4/32 goto p9200_o0
+    ip saddr 10.0.0.5/32 counter name p9200_accepted accept
+    ip saddr 127.0.0.0/8 goto p9200_lo
+    ip6 saddr ::1 goto p9200_lo
+    add @p9200_v4 { ip saddr ct count over 16 } counter name p9200_refused goto refuse
+    add @p9200_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 16 } counter name p9200_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9200_v4 counter name p9200_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9200_v6 counter name p9200_untracked
+    counter name p9200_accepted
+  }
+  chain p9200_lo {  # loopback
+    add @p9200_lo_v4 { ip saddr ct count over 1024 } counter name p9200_refused goto refuse
+    add @p9200_lo_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 1024 } counter name p9200_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9200_lo_v4 counter name p9200_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9200_lo_v6 counter name p9200_untracked
+    counter name p9200_accepted
+  }
+  chain p9200_o0 {  # override 10.0.0.4/32
+    add @p9200_o0_v4 { ip saddr ct count over 32 } counter name p9200_refused goto refuse
+    add @p9200_o0_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 32 } counter name p9200_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9200_o0_v4 counter name p9200_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9200_o0_v6 counter name p9200_untracked
+    counter name p9200_accepted
+  }
+  chain p9210 {
+    ip saddr 10.0.0.4/32 goto p9210_o0
+    ip saddr 10.0.0.5/32 counter name p9210_accepted accept
+    ip saddr 127.0.0.0/8 goto p9210_lo
+    ip6 saddr ::1 goto p9210_lo
+    add @p9210_v4 { ip saddr ct count over 16 } counter name p9210_refused goto refuse
+    add @p9210_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 16 } counter name p9210_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9210_v4 counter name p9210_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9210_v6 counter name p9210_untracked
+    counter name p9210_accepted
+  }
+  chain p9210_lo {  # loopback
+    add @p9210_lo_v4 { ip saddr ct count over 1024 } counter name p9210_refused goto refuse
+    add @p9210_lo_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 1024 } counter name p9210_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9210_lo_v4 counter name p9210_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9210_lo_v6 counter name p9210_untracked
+    counter name p9210_accepted
+  }
+  chain p9210_o0 {  # override 10.0.0.4/32
+    add @p9210_o0_v4 { ip saddr ct count over 32 } counter name p9210_refused goto refuse
+    add @p9210_o0_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 32 } counter name p9210_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9210_o0_v4 counter name p9210_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9210_o0_v6 counter name p9210_untracked
+    counter name p9210_accepted
+  }
+  chain p9220 {
+    ip saddr 10.0.0.4/32 goto p9220_o0
+    ip saddr 10.0.0.5/32 counter name p9220_accepted accept
+    ip saddr 127.0.0.0/8 goto p9220_lo
+    ip6 saddr ::1 goto p9220_lo
+    add @p9220_v4 { ip saddr ct count over 16 } counter name p9220_refused goto refuse
+    add @p9220_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 16 } counter name p9220_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9220_v4 counter name p9220_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9220_v6 counter name p9220_untracked
+    counter name p9220_accepted
+  }
+  chain p9220_lo {  # loopback
+    add @p9220_lo_v4 { ip saddr ct count over 1024 } counter name p9220_refused goto refuse
+    add @p9220_lo_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 1024 } counter name p9220_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9220_lo_v4 counter name p9220_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9220_lo_v6 counter name p9220_untracked
+    counter name p9220_accepted
+  }
+  chain p9220_o0 {  # override 10.0.0.4/32
+    add @p9220_o0_v4 { ip saddr ct count over 32 } counter name p9220_refused goto refuse
+    add @p9220_o0_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 32 } counter name p9220_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9220_o0_v4 counter name p9220_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9220_o0_v6 counter name p9220_untracked
+    counter name p9220_accepted
+  }
+  chain p9230 {
+    ip saddr 10.0.0.4/32 goto p9230_o0
+    ip saddr 10.0.0.5/32 counter name p9230_accepted accept
+    ip saddr 127.0.0.0/8 goto p9230_lo
+    ip6 saddr ::1 goto p9230_lo
+    add @p9230_v4 { ip saddr ct count over 16 } counter name p9230_refused goto refuse
+    add @p9230_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 16 } counter name p9230_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9230_v4 counter name p9230_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9230_v6 counter name p9230_untracked
+    counter name p9230_accepted
+  }
+  chain p9230_lo {  # loopback
+    add @p9230_lo_v4 { ip saddr ct count over 1024 } counter name p9230_refused goto refuse
+    add @p9230_lo_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 1024 } counter name p9230_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9230_lo_v4 counter name p9230_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9230_lo_v6 counter name p9230_untracked
+    counter name p9230_accepted
+  }
+  chain p9230_o0 {  # override 10.0.0.4/32
+    add @p9230_o0_v4 { ip saddr ct count over 32 } counter name p9230_refused goto refuse
+    add @p9230_o0_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: ct count over 32 } counter name p9230_refused goto refuse
+    meta nfproto ipv4 ip saddr != @p9230_o0_v4 counter name p9230_untracked
+    meta nfproto ipv6 ip6 saddr & ffff:ffff:ffff:ffff:: != @p9230_o0_v6 counter name p9230_untracked
+    counter name p9230_accepted
+  }
+  chain refuse {
+    add @logged_v4 { ip saddr limit rate 1/minute burst 1 packets } limit rate 20/second log prefix "node_limits refused: " level warn goto send_rst
+    add @logged_v6 { ip6 saddr & ffff:ffff:ffff:ffff:: limit rate 1/minute burst 1 packets } limit rate 20/second log prefix "node_limits refused: " level warn goto send_rst
+    goto send_rst
+  }
+  chain send_rst {
+    reject with tcp reset
+  }
+}

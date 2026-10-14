@@ -5,8 +5,7 @@ services:
       - "8080:8080"
       - "8081:8081"
       - "8084:8084/udp"
-      - "9000:9000"
-      - "9184:9184"
+      - "127.0.0.1:9184:9184" # Metrics port, this host only
     volumes:
       - ./key-pairs:/opt/iota/key-pairs/:ro
       - ./validator.yaml:/opt/iota/config/validator.yaml:ro
@@ -17,4 +16,42 @@ services:
       "/usr/local/bin/iota-node",
       "--config-path",
       "/opt/iota/config/validator.yaml",
+    ]
+
+  # Connection limits per client address on the validator gRPC port (8080),
+  # with nftables on this host. See node-limits/node-limits.conf.
+  # IOTA_NODE_LIMITS=off in the .env file next to this file removes the limits.
+  # "docker compose up" builds the image of this service first; the build needs
+  # Docker Hub and the Debian package mirrors.
+  node-limits:
+    build:
+      context: ./node-limits
+      dockerfile_inline: |
+        FROM debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
+        RUN apt-get update && apt-get install -y --no-install-recommends nftables && rm -rf /var/lib/apt/lists/*
+    # The rules must be in the network namespace of the host, where they see
+    # the address of each client.
+    network_mode: host
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+    read_only: true
+    tmpfs:
+      - /run
+    restart: unless-stopped
+    environment:
+      - IOTA_NODE_LIMITS=${IOTA_NODE_LIMITS:-on}
+    volumes:
+      - type: bind
+        source: ./node-limits
+        target: /etc/iota-node-limits
+        read_only: true
+        bind:
+          create_host_path: false
+    command: [
+      "/bin/sh",
+      "/etc/iota-node-limits/node-limits.sh",
+      "run",
+      "/etc/iota-node-limits/node-limits.conf",
     ]
