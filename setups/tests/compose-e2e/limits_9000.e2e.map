@@ -1,0 +1,13 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# Small limits for run.sh.
+0.0.0.0/0 4
+::/0 4
+# No limit.
+192.0.2.12/32 0
+# Check F12-count.
+192.0.2.15/32 2
+# The shipped default, for the HTTP/2 checks (F9).
+192.0.2.20/32 64
+192.0.2.21/32 64
