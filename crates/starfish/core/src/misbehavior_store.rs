@@ -338,8 +338,9 @@ impl MisbehaviorStore {
     }
 
     /// Attributes a rejected fetch response to the peer that served it: the
-    /// peer is both the sender and the only party the error can name. The block classifier decides
-    /// the fault type, leaving transport failures untracked.
+    /// peer is both the sender and the only party the error can name. The
+    /// block classifier decides the fault type, leaving transport failures
+    /// untracked.
     pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
         self.record_faulty_block(peer, peer, error);
     }
@@ -375,12 +376,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // same way: the signed header proves authorship, not the send order.
         // So is a fetch response with more entries than the request allows,
         // with an entry larger than any valid one, or with commits after its
-        // transactions, and a commit-sync response whose commits fail to
-        // decode, carry the wrong version or an index outside the committee,
-        // break the requested sequence, or lack a quorum of votes, or whose
-        // transactions end before the first commit is covered: an honest
-        // server sends only the certified commit chain it stores, with the
-        // first commit whole.
+        // transactions. So is a commit-sync response an honest server never
+        // sends: it serves only the certified commit chain it stores, with the
+        // first commit's transactions whole.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -448,8 +446,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         ConsensusError::BlockHeaderEquivocation { .. }
 
         // Not attributable as misbehavior from a signed block alone: subjective
-        // rejections, commit-sync inconsistencies, fetch-shape
-        // mismatches, reconstruction and encoder failures, storage, network
+        // rejections, commit-sync inconsistencies, fetch-shape mismatches,
+        // reconstruction and encoder failures, storage, network
         // transport, request-shape checks, local lifecycle signals, and version
         // mismatches that may stem from a benign upgrade misconfiguration rather
         // than a faulty peer.
@@ -1475,8 +1473,8 @@ mod tests {
     #[tokio::test]
     async fn test_untracked_errors() {
         // Subjective rejections, commit lists an honest server can send, and
-        // fetch-shape errors are not block header faults — they belong to separate metrics
-        // and should not increment the faulty_blocks counters.
+        // fetch-shape errors are not block header faults — they belong to
+        // separate metrics and should not increment the faulty_blocks counters.
         let authority = AuthorityIndex::new_for_test(1);
         let cases: &[ConsensusError] = &[
             ConsensusError::BlockRejected {
