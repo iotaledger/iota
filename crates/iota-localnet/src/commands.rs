@@ -4,7 +4,7 @@
 
 use std::{
     fs,
-    net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
+    net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -815,19 +815,7 @@ async fn start(
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
 
     #[cfg(feature = "indexer")]
-    let fullnode_grpc_url = {
-        let socket_addr = swarm
-            .fullnodes()
-            .next()
-            .and_then(|node| {
-                node.config()
-                    .grpc_api_config
-                    .as_ref()
-                    .map(|grpc| grpc.address)
-            })
-            .unwrap_or_else(|| GrpcApiConfig::default().address);
-        format!("http://{socket_addr}")
-    };
+    let fullnode_grpc_url = local_fullnode_grpc_url(&swarm);
 
     #[cfg(feature = "indexer")]
     if let Some(indexer_address) = indexer_address {
@@ -911,19 +899,7 @@ async fn start(
             _ => bail!("faucet configuration requires an IPv4 address"),
         };
 
-        let fullnode_grpc_url = {
-            let socket_addr = swarm
-                .fullnodes()
-                .next()
-                .and_then(|node| {
-                    node.config()
-                        .grpc_api_config
-                        .as_ref()
-                        .map(|grpc| grpc.address)
-                })
-                .unwrap_or_else(|| GrpcApiConfig::default().address);
-            format!("http://{socket_addr}")
-        };
+        let fullnode_grpc_url = local_fullnode_grpc_url(&swarm);
 
         let config = FaucetConfig {
             host_ip,
@@ -1426,6 +1402,33 @@ fn with_fullnode_grpc_api(swarm_builder: SwarmBuilder) -> SwarmBuilder {
         .with_fullnode_grpc_api_config(GrpcApiConfig::default())
 }
 
+/// The URL at which a service on this host reaches the fullnode's gRPC API.
+fn local_fullnode_grpc_url(swarm: &Swarm) -> String {
+    let address = swarm
+        .fullnodes()
+        .next()
+        .and_then(|node| {
+            node.config()
+                .grpc_api_config
+                .as_ref()
+                .map(|grpc| grpc.address)
+        })
+        .unwrap_or_else(|| GrpcApiConfig::default().address);
+    local_url(address)
+}
+
+/// The URL at which a client on this host reaches a server that listens at
+/// `address`. An unspecified host becomes loopback.
+fn local_url(mut address: SocketAddr) -> String {
+    // A connection to the unspecified address fails on Windows.
+    match address.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => address.set_ip(Ipv4Addr::LOCALHOST.into()),
+        IpAddr::V6(ip) if ip.is_unspecified() => address.set_ip(Ipv6Addr::LOCALHOST.into()),
+        _ => {}
+    }
+    format!("http://{address}")
+}
+
 /// Translate the deprecated `--with-grpc` value into node config overrides.
 ///
 /// The API is off on a generated fullnode, which leaves `grpc-api-config`
@@ -1637,6 +1640,21 @@ mod tests {
                 expected.parse::<SocketAddr>().unwrap(),
                 "{input}"
             );
+        }
+    }
+
+    /// A service on this host connects over loopback to a server that
+    /// listens on every interface, and to any other address as it is.
+    #[test]
+    fn a_wildcard_listen_address_is_reached_over_loopback() {
+        for (address, expected) in [
+            ("0.0.0.0:50051", "http://127.0.0.1:50051"),
+            ("[::]:50051", "http://[::1]:50051"),
+            ("127.0.0.1:50051", "http://127.0.0.1:50051"),
+            ("192.168.1.2:50051", "http://192.168.1.2:50051"),
+            ("[::1]:50051", "http://[::1]:50051"),
+        ] {
+            assert_eq!(local_url(address.parse().unwrap()), expected);
         }
     }
 
