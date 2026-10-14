@@ -347,7 +347,8 @@ pub(crate) fn verify_commits(
     max_commits: usize,
 ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
     // Every rejection is recorded once against the serving peer, except a vote
-    // header that fails verification, which is recorded with its author.
+    // header that fails verification, which also charges its author when its
+    // signature is valid.
     let reject = |e: ConsensusError| {
         misbehavior_store.record_fetch_fault(peer, &e);
         e
