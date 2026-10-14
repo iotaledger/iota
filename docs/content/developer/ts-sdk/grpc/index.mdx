@@ -24,7 +24,7 @@ It ships separately from `@iota/iota-sdk` and works next to `IotaClient`. You st
 - know exactly which chain, epoch and checkpoint height every answer was read at
 - work with compact binary payloads (protobuf around BCS) instead of JSON
 
-For anything the gRPC API does not cover yet, such as balances, event queries, staking, the system state, protocol config, normalized Move modules or name resolution, use [`IotaClient`](../typescript/iota-client.mdx) or [GraphQL](../typescript/graphql.mdx).
+For anything the gRPC API does not cover yet, such as balances, event queries, staking, a decoded system state, normalized Move modules or name resolution, use [`IotaClient`](../typescript/iota-client.mdx) or [GraphQL](../typescript/graphql.mdx). `getEpoch` returns the system state only as raw BCS, with no decoder in `@iota/grpc`.
 
 ## Runtime support
 

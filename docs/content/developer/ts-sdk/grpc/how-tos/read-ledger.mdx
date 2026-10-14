@@ -130,6 +130,23 @@ const { body: previous } = await client.getEpoch({ epoch: current.epoch! - 1n })
 console.log(previous.firstCheckpoint, previous.lastCheckpoint);
 ```
 
+The epoch's protocol config is left out by default. Ask for all of it with `EpochField.PROTOCOL_CONFIG`, or for single keys with `epochFeatureFlag` and `epochAttribute`:
+
+```ts
+import { epochAttribute, epochFeatureFlag, EpochField } from '@iota/grpc';
+
+const { body } = await client.getEpoch({
+    readMask: [
+        EpochField.PROTOCOL_CONFIG_PROTOCOL_VERSION,
+        epochFeatureFlag('enable_vdf'),
+        epochAttribute('max_tx_gas'),
+    ],
+});
+
+const { protocolVersion, featureFlags, attributes } = body.protocolConfig!;
+console.log(protocolVersion, featureFlags?.flags.enable_vdf, attributes?.attributes.max_tx_gas);
+```
+
 `getReferenceGasPrice` returns the current epoch's reference gas price, in NANOS, as a `bigint`:
 
 ```ts
