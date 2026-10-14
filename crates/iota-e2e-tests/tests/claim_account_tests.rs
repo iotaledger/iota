@@ -395,9 +395,8 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
 /// Verify that a `ClaimAccountTransaction` whose public key is not a valid
 /// point on its curve is rejected at validity-check time.
 ///
-/// Execution builds the Move `PublicKey` from these bytes directly instead of
-/// calling `public_key::create`, so the validity check is the only thing that
-/// rejects a malformed key.
+/// Execution validates the key again in `public_key::create`, but the
+/// transaction must be turned away before it is executed.
 #[cfg(msim)]
 #[sim_test]
 async fn test_claim_account_rejected_with_invalid_public_key() {

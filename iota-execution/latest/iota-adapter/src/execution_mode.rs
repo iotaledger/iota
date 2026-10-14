@@ -144,6 +144,80 @@ impl ExecutionMode for Normal {
     }
 }
 
+/// Execution mode for a call to a private Move function that the node makes
+/// on behalf of a user transaction, in a PTB the node builds itself. The same
+/// as `Normal`, except that private and `public(package)` functions can be
+/// called.
+#[derive(Copy, Clone)]
+pub struct PrivateCall;
+
+impl ExecutionMode for PrivateCall {
+    type ArgumentUpdates = ();
+    type ExecutionResults = ();
+
+    fn allow_arbitrary_function_calls() -> bool {
+        // allows calling the private Move functions
+        true
+    }
+
+    fn allow_arbitrary_values() -> bool {
+        false
+    }
+
+    fn skip_conservation_checks() -> bool {
+        false
+    }
+
+    fn packages_are_predefined() -> bool {
+        false
+    }
+
+    fn empty_arguments() -> Self::ArgumentUpdates {}
+
+    fn empty_results() -> Self::ExecutionResults {}
+
+    fn add_argument_update(
+        _resolver: &impl TypeTagResolver,
+        _acc: &mut Self::ArgumentUpdates,
+        _arg: Argument,
+        _new_value: &Value,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn finish_command(
+        _resolver: &impl TypeTagResolver,
+        _acc: &mut Self::ExecutionResults,
+        _argument_updates: Self::ArgumentUpdates,
+        _command_result: &[Value],
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        false
+    }
+
+    const TRACK_EXECUTION: bool = false;
+
+    fn add_argument_update_v2(
+        _acc: &mut Self::ArgumentUpdates,
+        _arg: Argument,
+        _bytes: Vec<u8>,
+        _type_: TypeTag,
+    ) -> Result<(), ExecutionError> {
+        invariant_violation!("should not be called");
+    }
+
+    fn finish_command_v2(
+        _acc: &mut Self::ExecutionResults,
+        _argument_updates: Vec<(Argument, Vec<u8>, TypeTag)>,
+        _command_result: Vec<(Vec<u8>, TypeTag)>,
+    ) -> Result<(), ExecutionError> {
+        invariant_violation!("should not be called");
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct Genesis;
 
