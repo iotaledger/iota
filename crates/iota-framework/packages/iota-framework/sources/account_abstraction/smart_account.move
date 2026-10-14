@@ -7,9 +7,9 @@
 /// This module holds only what every `SmartAccount` needs: creating the account, managing its
 /// dynamic fields, and rotating its authenticator. It knows nothing about any particular
 /// authenticator, with one exception. Other modules extend an account by adding dynamic fields
-/// under their own key types. `iota::smart_account_builtin_auth` is such a module: it adds the
-/// built-in authenticator for IOTA's standard signature schemes together with the public key it
-/// checks signatures against.
+/// to it. `iota::smart_account_builtin_auth` is such a module: it adds the built-in authenticator
+/// for IOTA's standard signature schemes together with the public key it checks signatures
+/// against, in the `builtin_authenticator_functions::PublicKeyFieldName` field.
 ///
 /// The exception: an account has the built-in authenticator and that public key together, or
 /// neither. `build_v1` and `rotate_auth_function_ref_v1` abort if the built-in authenticator
@@ -19,8 +19,8 @@
 /// built-in authenticator and a custom one goes through it.
 ///
 /// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
-/// object ID for the supplied authenticator. After optionally adding fields with `with_field`,
-/// finalize with `build_v1`.
+/// object ID for an account with the supplied authenticator. After optionally adding fields with
+/// `with_field`, finalize with `build_v1`.
 ///
 /// Once built, the account can only be changed by itself — the admin functions require the
 /// transaction sender to be the smart account's address.
@@ -56,8 +56,9 @@ public struct SmartAccount has key {
 ///
 /// The builder cannot be copied, stored, or dropped — it must be consumed by `build_v1`.
 ///
-/// Use `with_field` before finalizing. It is the only way to add fields at creation time, since
-/// post-creation the admin functions require the transaction sender to be the account's address.
+/// Use `with_field` before finalizing. It is the only public way to add fields at creation time,
+/// since post-creation the admin functions require the transaction sender to be the account's
+/// address.
 public struct SmartAccountBuilder {
     account: SmartAccount,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,

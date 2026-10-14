@@ -177,9 +177,6 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
 /// Replaces the existing public key with `public_key` and returns the previous key.
 /// Aborts if no public key is currently attached.
 ///
-/// Call this before obtaining a new authenticator function ref and passing it to
-/// `account::rotate_auth_function_ref_v1`.
-///
 /// Emits a `PublicKeyRotated` event on success.
 public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
@@ -267,7 +264,7 @@ fun public_key_field_name(): PublicKeyFieldName {
     PublicKeyFieldName {}
 }
 
-/// Adds `public_key` to the account's public key field.
+/// Adds the account's public key field, holding `public_key`.
 fun add_public_key(account_id: &mut UID, public_key: PublicKey) {
     df::add(account_id, public_key_field_name(), public_key);
 }

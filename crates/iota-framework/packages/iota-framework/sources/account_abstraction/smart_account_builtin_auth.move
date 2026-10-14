@@ -165,6 +165,7 @@ public fun rotate_public_key(
 /// `account::MutableAccountCreated` event.
 ///
 /// Aborts if `public_key` does not derive the sender's address.
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
     let builder = smart_account::claim_builder(
