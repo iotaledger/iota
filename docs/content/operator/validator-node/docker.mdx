@@ -32,21 +32,28 @@ Perform these steps on the server that will be running the validator instance.
 
 ### 2.1. Download Docker Compose configuration
 
-Download the docker compose file:
+Download the docker compose file and the files of the `node-limits` service:
 
 <Tabs groupId="network" queryString>
     <TabItem label="Mainnet" value="mainnet">
       ```bash
       curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-mainnet.yml
+      mkdir -p node-limits
+      curl -fLJ -o node-limits/node-limits.sh https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/node-limits/node-limits.sh
+      curl -fLJ -o node-limits/node-limits.conf https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/node-limits/node-limits.conf
       ```
     </TabItem>
     <TabItem label="Testnet" value="testnet">
       ```bash
       curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-testnet.yml
+      mkdir -p node-limits
+      curl -fLJ -o node-limits/node-limits.sh https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/node-limits/node-limits.sh
+      curl -fLJ -o node-limits/node-limits.conf https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/node-limits/node-limits.conf
       ```
     </TabItem>
 </Tabs>
 
+The `node-limits` service loads nftables rules on the host that limit the connections of each client address on the gRPC port (8080). It needs Linux 5.10 or later and Docker Compose 2.17 or later. `docker compose up` builds the image of the service first, which needs access to Docker Hub and to the Debian package mirrors. Add overrides for your own full nodes behind one address to `node-limits/node-limits.conf`. To turn the limits off, write `IOTA_NODE_LIMITS=off` into the file `.env` next to `docker-compose.yml`. See [Proxy and Firewall Setup](../proxy-and-firewall.mdx#validator-nftables-on-the-grpc-port).
 
 ### 2.2. Download Configuration Template
 
