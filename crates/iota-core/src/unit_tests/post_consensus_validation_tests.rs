@@ -2753,6 +2753,7 @@ impl BookkeepingSetup {
                         deleted_by: None,
                     },
                 )],
+                &[],
             )
             .unwrap();
     }
@@ -2868,7 +2869,7 @@ impl BookkeepingSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[])
+            .record_commit_fully_executed(index, &[], &[])
             .unwrap();
     }
 
@@ -2989,7 +2990,7 @@ impl BookkeepingSetup {
             .flat_map(|effects| handler_processed_upserts(effects, index))
             .collect();
         self.epoch_store
-            .record_commit_fully_executed(index, &upserts)
+            .record_commit_fully_executed(index, &upserts, &[])
             .unwrap();
     }
 
@@ -6245,7 +6246,7 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
         .find(|effects| effects.transaction_digest() == first[0].digest())
         .unwrap();
     s.epoch_store
-        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1))
+        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1), &[])
         .unwrap();
     assert!(
         s.process_at(3, std::slice::from_ref(&deferred))
@@ -6326,7 +6327,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
     assert_eq!(retry.dropped.len(), 1);
     normal
         .epoch_store
-        .record_commit_fully_executed(13, &[])
+        .record_commit_fully_executed(13, &[], &[])
         .unwrap();
     let accepted = normal
         .validate_at(15, std::slice::from_ref(&consumer))
@@ -7213,10 +7214,9 @@ async fn test_immutable_object_input_locked_when_flag_disabled() {
     );
 }
 
-/// The already-executed branch registers locks from the transaction's own
-/// effects, so it locks the owned inputs it consumed and leaves the immutable
-/// input free. A later reader of the same immutable object is then kept
-/// instead of hitting the winner-out-locked `fatal!`.
+/// The already-executed branch locks the transaction's owned inputs and leaves
+/// the immutable input free. A later reader of the same immutable object is
+/// then kept instead of hitting the winner-out-locked `fatal!`.
 #[tokio::test]
 async fn test_already_executed_tx_does_not_lock_immutable_input() {
     telemetry_subscribers::init_for_testing();

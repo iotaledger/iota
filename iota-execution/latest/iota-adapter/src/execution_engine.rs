@@ -289,7 +289,9 @@ mod checked {
     /// transaction execution.
     /// Running the Move authentication can have two outcomes:
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
-    ///     produces transaction effects with the appropriate error status.
+    ///     produces transaction effects with the appropriate error status. With deterministic
+    ///     validation on, a gas owner that is a Move account and did not authorize the transaction
+    ///     is not charged; see `execute_without_gas_charge_to_effects`.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and
@@ -366,6 +368,7 @@ mod checked {
 
         // Prepare the gas charger.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
+        let gas_owner = gas_data.owner;
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
         let mut gas_charger = GasCharger::new(
@@ -389,11 +392,18 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
+        // Next to the result, whether the gas owner authorized the transaction.
+        // An owner that signed it did, as its signature is checked before
+        // consensus. A Move account did only if its authenticator ran and
+        // succeeded.
+        //
         // A resolution failure skips the authenticators entirely, so the objects
         // holding their function references are neither recorded as loaded nor
         // charged for.
-        let authentication_execution_result = match authenticators {
-            MoveAuthenticatorsForExecution::ResolutionFailed(error) => Err(error),
+        let (authentication_execution_result, gas_owner_authorized) = match authenticators {
+            MoveAuthenticatorsForExecution::ResolutionFailed { error, accounts } => {
+                (Err(error), !accounts.contains(&gas_owner))
+            }
             MoveAuthenticatorsForExecution::Resolved(authenticators) => {
                 // Prepare the authenticators for execution.
                 // Store the loaded object metadata in the `TemporaryStore` before the
@@ -430,14 +440,19 @@ mod checked {
                     )
                     .collect::<Vec<_>>();
 
+                let mut gas_owner_authorized = !authenticators
+                    .iter()
+                    .any(|(authenticator, ..)| authenticator.address() == gas_owner);
+
                 // Authentication execution.
                 // It does not alter the state, if not for command execution gas charging, and
                 // produces no effects other than possible errors.
 
                 // Run each authenticator in sequence; the first failure aborts the chain.
-                authenticators.into_iter().try_for_each(
+                let result = authenticators.into_iter().try_for_each(
                     |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                        match authenticator_function_ref {
+                        let account = authenticator.address();
+                        let result = match authenticator_function_ref {
                             AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                                 authenticate_transaction_inner(
                                     &mut temporary_store,
@@ -455,9 +470,14 @@ mod checked {
                                     move_vm,
                                 )
                             }
+                        };
+                        if result.is_ok() && account == gas_owner {
+                            gas_owner_authorized = true;
                         }
+                        result
                     },
-                )
+                );
+                (result, gas_owner_authorized)
             }
         };
 
@@ -466,6 +486,30 @@ mod checked {
         // both.
         let authentication_execution_result =
             report_authentication_error(authentication_execution_result, protocol_config);
+
+        // Under deterministic validation, the gas owner's authenticator runs for
+        // the first time here, so a transaction it did not authorize can reach
+        // execution. Nobody pays for it.
+        let authentication_execution_result = match authentication_execution_result {
+            Err(error)
+                if !gas_owner_authorized && protocol_config.pcool_deterministic_validation() =>
+            {
+                return execute_without_gas_charge_to_effects::<Mode>(
+                    temporary_store,
+                    gas_charger,
+                    shared_object_refs,
+                    transaction_dependencies,
+                    contains_deleted_input,
+                    cancelled_objects,
+                    transaction_digest,
+                    epoch_id,
+                    protocol_config,
+                    certificate_deny_set,
+                    error,
+                );
+            }
+            result => result,
+        };
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -494,6 +538,77 @@ mod checked {
             certificate_deny_set,
             trace_builder_opt,
             Some(authentication_execution_result),
+        )
+    }
+
+    /// Produces the effects of a transaction whose gas owner is a Move account
+    /// that did not authorize it: its authenticator failed, or did not run
+    /// because resolution or an earlier authenticator failed. Nobody authorized
+    /// paying for gas, so nobody is charged:
+    ///   - owned inputs, gas coins included, keep their versions and stay with their owners;
+    ///   - mutable shared inputs move to the version consensus assigned, with their contents and
+    ///     storage rebates unchanged, so later transactions find them at the versions consensus
+    ///     gave those transactions.
+    ///
+    /// The checks every transaction runs on its inputs come first, as when gas
+    /// is charged, so a deleted or cancelled input is reported the same way
+    /// whoever pays.
+    fn execute_without_gas_charge_to_effects<Mode: ExecutionMode>(
+        mut temporary_store: TemporaryStore,
+        mut gas_charger: GasCharger,
+        shared_object_refs: Vec<SharedInput>,
+        mut transaction_dependencies: BTreeSet<TransactionDigest>,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
+        transaction_digest: TransactionDigest,
+        epoch_id: &EpochId,
+        protocol_config: &ProtocolConfig,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        authentication_error: ExecutionError,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Vec<ExecutionTiming>,
+        Result<Mode::ExecutionResults, ExecutionError>,
+    ) {
+        let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
+        let error = run_inputs_checks(
+            protocol_config,
+            deny_cert,
+            contains_deleted_input,
+            cancelled_objects,
+        )
+        .err()
+        .unwrap_or(authentication_error);
+        let status = elaborate_error_logs(&error, transaction_digest);
+
+        temporary_store.drop_writes();
+        temporary_store.leave_owned_inputs_unchanged();
+        temporary_store.ensure_active_inputs_mutated();
+
+        // Genesis writes a special digest to indicate that an object was created during
+        // genesis and not written by any normal transaction - remove that from the
+        // dependencies
+        transaction_dependencies.remove(&TransactionDigest::GENESIS_MARKER);
+
+        // No gas coin was smashed, so the effects name no gas object.
+        let (inner, effects) = temporary_store.into_effects(
+            shared_object_refs,
+            &transaction_digest,
+            transaction_dependencies,
+            GasCostSummary::default(),
+            status,
+            &mut gas_charger,
+            *epoch_id,
+        );
+
+        (
+            inner,
+            gas_charger.into_gas_status(),
+            effects,
+            vec![],
+            Err(error),
         )
     }
 

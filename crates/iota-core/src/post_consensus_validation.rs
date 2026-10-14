@@ -22,13 +22,14 @@
 //! 3. With deterministic validation, a commit replayed after a restart repeats the decisions saved
 //!    on its first run: a saved drop is dropped again without checks, and a saved keep that has
 //!    executed is retained as below. Otherwise, an already-executed transaction is **retained** as
-//!    a committee-agreed winner (registers the locks its own effects report, skips re-validation);
-//!    not dropped. See issue #11649. With deterministic validation, a transaction with no saved
+//!    a committee-agreed winner (registers the locks on its owned inputs, skips re-validation); not
+//!    dropped. See issue #11649. With deterministic validation, a transaction with no saved
 //!    decision goes through the checks below even if it has executed.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
-//!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt.
-//!    Cheap; performed before expensive checks.
+//!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt,
+//!    and a lock released by the failed execution of the holding transaction (see
+//!    `is_lock_released`). Cheap; performed before expensive checks.
 //! 6. `handle_transaction_validation_checks()` — drop with error. Only reached when all locks are
 //!    free.
 //! 7. All passed — acquire locks in the local tracking map, keep transaction.
@@ -41,7 +42,8 @@
 //! `pcool_skip_immutable_object_locks` set only genuinely owned references are
 //! locked — an immutable input never takes a new version, so its lock would
 //! never lapse (issue #12602). Step 7 filters via the loaded objects, step 3
-//! via the executed transaction's effects; without the flag both lock the raw
+//! via the executed transaction's effects and, for an input they left
+//! unconsumed, the object at that version; without the flag both lock the raw
 //! probed set.
 
 use std::{
@@ -209,6 +211,7 @@ pub async fn validate_and_resolve_conflicts(
             commit_index,
         )
     });
+    let horizon = reader.as_ref().map(CommitIndexedReader::horizon);
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
@@ -273,23 +276,30 @@ pub async fn validate_and_resolve_conflicts(
                 .get_transaction_cache_reader()
                 .try_is_tx_already_executed(&digest)?
         {
-            // Byte-based, so safe even though the inputs are already consumed.
+            // Byte-based, so safe even though the inputs may already be consumed.
             let owned_inputs = extract_owned_input_objects(tx)?;
             let owned_inputs = if skip_immutable_locks {
-                filter_locked_inputs_by_effects(authority_state, &digest, owned_inputs)?
+                filter_locked_inputs_of_executed_transaction(
+                    authority_state,
+                    &digest,
+                    owned_inputs,
+                )?
             } else {
                 owned_inputs
             };
             for obj_ref in &owned_inputs {
-                // A winner cannot be out-locked: after the effects filter,
-                // every reference here was consumed by this transaction, so a
+                // A winner cannot be out-locked: every reference here is an
+                // input of this transaction, which the committee kept, so a
                 // lock held by a different tx is a consistency violation, not
-                // a conflict. (Flag off, immutable references stay in the set
-                // and weaken this invariant — issue #12602.)
+                // a conflict, unless that tx's failure released it. (Flag off,
+                // immutable references stay in the set and weaken this
+                // invariant — issue #12602.)
                 if let Some(other) =
                     find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
                 {
-                    if other != digest {
+                    if other != digest
+                        && !is_lock_released(authority_state, epoch_store, obj_ref, other, horizon)?
+                    {
                         fatal!(
                             "already-executed transaction {:?} has owned input {:?} \
                              locked by a different transaction {:?}",
@@ -373,6 +383,9 @@ pub async fn validate_and_resolve_conflicts(
                 // Check #0 already dedups by digest, so a same-digest lock here
                 // is always this transaction's own prior-round lock.
                 if locked_by == digest {
+                    continue;
+                }
+                if is_lock_released(authority_state, epoch_store, obj_ref, locked_by, horizon)? {
                     continue;
                 }
 
@@ -587,12 +600,14 @@ pub async fn validate_and_resolve_conflicts(
 }
 
 /// Narrows the byte-derived owned inputs of an already-executed transaction to
-/// the references it consumed — the same set the main path locks — by
-/// intersecting them with the pre-execution references in its own effects;
-/// immutable inputs never appear there (issue #12602). A missing effects body
-/// is a storage error, never a "not executed" verdict, which would drop a
-/// committee-agreed winner other validators keep.
-fn filter_locked_inputs_by_effects(
+/// the references the main path locks: all of them except immutable ones
+/// (issue #12602). A reference its effects consumed is owned. One they did not
+/// consume is immutable, or owned and left unchanged by a failure that charged
+/// no gas, and the object at that version tells which. An immutable object is
+/// never pruned, so a version the store no longer holds was owned and consumed
+/// later. A missing effects body is a storage error, never a "not executed"
+/// verdict, which would drop a committee-agreed winner other validators keep.
+fn filter_locked_inputs_of_executed_transaction(
     authority_state: &AuthorityState,
     digest: &TransactionDigest,
     owned_inputs: Vec<ObjectReference>,
@@ -606,19 +621,25 @@ fn filter_locked_inputs_by_effects(
                  post-consensus validation"
             ),
         })?;
-    // Owned inputs always appear in effects and immutable ones never do
-    // (`TemporaryStore::ensure_active_inputs_mutated` force-mutates every
-    // non-immutable owned input); intersecting on the full `ObjectReference`
-    // — the lock table's own key — keeps the sets identical by construction.
+    // Intersecting on the full `ObjectReference`, the lock table's own key,
+    // keeps the sets identical by construction.
     let consumed: HashSet<ObjectReference> = effects
         .old_object_metadata()
         .into_iter()
         .map(|old| *old.reference())
         .collect();
-    Ok(owned_inputs
-        .into_iter()
-        .filter(|obj_ref| consumed.contains(obj_ref))
-        .collect())
+    let mut locked_inputs = Vec::with_capacity(owned_inputs.len());
+    for obj_ref in owned_inputs {
+        let immutable = !consumed.contains(&obj_ref)
+            && authority_state
+                .get_object_cache_reader()
+                .try_get_object_by_key(&obj_ref.object_id, obj_ref.version)?
+                .is_some_and(|object| object.is_immutable());
+        if !immutable {
+            locked_inputs.push(obj_ref);
+        }
+    }
+    Ok(locked_inputs)
 }
 
 /// Finds an existing owned-object lock on `obj_ref`, walking three tiers in
@@ -643,6 +664,48 @@ fn find_existing_lock(
         return Ok(Some(locker));
     }
     epoch_store.tables()?.get_locked_transaction(obj_ref)
+}
+
+/// Whether the lock `holding_tx` holds on `obj_ref` is released for a commit
+/// whose reader trusts rows up to `horizon`: the holding transaction's
+/// execution failed in a commit at or below the horizon and left `obj_ref`
+/// unconsumed, so that version is still live and may be locked again. Every
+/// validator has executed the commits up to the horizon before validating, so
+/// all of them reach the same answer; a holding transaction that failed above
+/// it keeps its lock until the horizon passes its commit. `None` —
+/// deterministic validation off — releases nothing.
+///
+/// A missing effects body of a transaction recorded as failed is a storage
+/// error, never a verdict.
+fn is_lock_released(
+    authority_state: &AuthorityState,
+    epoch_store: &AuthorityPerEpochStore,
+    obj_ref: &ObjectReference,
+    holding_tx: TransactionDigest,
+    horizon: Option<CommitIndex>,
+) -> IotaResult<bool> {
+    let Some(horizon) = horizon else {
+        return Ok(false);
+    };
+    if !epoch_store
+        .failed_transaction_commit(&holding_tx)?
+        .is_some_and(|failed_at| failed_at <= horizon)
+    {
+        return Ok(false);
+    }
+    let effects = authority_state
+        .get_transaction_cache_reader()
+        .try_get_executed_effects(&holding_tx)?
+        .ok_or_else(|| IotaError::GenericAuthority {
+            error: format!(
+                "effects of failed transaction {holding_tx:?} are unavailable in post-consensus \
+                 validation"
+            ),
+        })?;
+    Ok(!effects
+        .old_object_metadata()
+        .iter()
+        .any(|old| old.reference() == obj_ref))
 }
 
 /// Extracts the `ImmOrOwnedMoveObject` input references of a

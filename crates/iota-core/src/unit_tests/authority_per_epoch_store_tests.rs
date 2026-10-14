@@ -2248,7 +2248,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, &[])
                 .unwrap();
         };
 
@@ -2319,11 +2319,11 @@ mod handler_object_state_storage {
         let v5 = generate_live_entry(2);
         epoch_store.assign_commit_to_transactions(1, vec![]);
         epoch_store
-            .record_commit_fully_executed(1, &[(key(3), v3)])
+            .record_commit_fully_executed(1, &[(key(3), v3)], &[])
             .unwrap();
         epoch_store.assign_commit_to_transactions(2, vec![]);
         epoch_store
-            .record_commit_fully_executed(2, &[(key(5), v5)])
+            .record_commit_fully_executed(2, &[(key(5), v5)], &[])
             .unwrap();
 
         // Commit 2's row for the same id lands beside commit 1's rather than
@@ -2375,7 +2375,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, &[])
                 .unwrap();
         };
 
@@ -2439,7 +2439,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, &[])
                 .unwrap();
         };
 
@@ -2605,8 +2605,8 @@ mod handler_object_state_storage {
         // the earlier completion arriving afterwards does not lower it.
         reopened.assign_commit_to_transactions(3, vec![]);
         reopened.assign_commit_to_transactions(4, vec![]);
-        reopened.record_commit_fully_executed(4, &[]).unwrap();
-        reopened.record_commit_fully_executed(3, &[]).unwrap();
+        reopened.record_commit_fully_executed(4, &[], &[]).unwrap();
+        reopened.record_commit_fully_executed(3, &[], &[]).unwrap();
         assert_highest(&reopened, 4);
     }
 }

@@ -346,7 +346,10 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
                 .epoch_start_timestamp(),
             gas_data,
             gas_status,
-            MoveAuthenticatorsForExecution::ResolutionFailed(ExecutionError::new(failure, None)),
+            MoveAuthenticatorsForExecution::ResolutionFailed {
+                error: ExecutionError::new(failure, None),
+                accounts: vec![],
+            },
             checked_input_objects,
             kind,
             signer,
