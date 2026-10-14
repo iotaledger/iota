@@ -730,11 +730,24 @@ impl CheckpointStore {
 
             // A reader parks only below the watermark, so only what this
             // write has just passed can have anyone waiting on it.
-            for checkpoint in checkpoints.iter().filter(|c| {
-                previous.is_none_or(|previous_seq_number| previous_seq_number < c.sequence_number())
-            }) {
+            let passed = |seq: CheckpointSequenceNumber| {
+                previous.is_none_or(|previous_seq_number| previous_seq_number < seq)
+                    && seq <= last.sequence_number()
+            };
+            for checkpoint in checkpoints.iter().filter(|c| passed(c.sequence_number())) {
                 self.synced_checkpoint_notify_read
                     .notify(&checkpoint.sequence_number(), checkpoint);
+            }
+            // The write can also pass checkpoints outside the run: the other
+            // writer may have verified them without marking them synced yet,
+            // and it then has nothing left to release them with.
+            for seq in self
+                .synced_checkpoint_notify_read
+                .pending_keys(|seq| passed(*seq))
+            {
+                if let Some(checkpoint) = self.get_checkpoint_by_sequence_number(seq)? {
+                    self.synced_checkpoint_notify_read.notify(&seq, &checkpoint);
+                }
             }
         }
         Ok(())
@@ -782,6 +795,12 @@ impl CheckpointStore {
                 .expect("db error")
         })
         .await
+    }
+
+    /// The number of reads waiting for a checkpoint to be synced.
+    #[cfg(test)]
+    pub fn synced_checkpoint_waiters_for_testing(&self) -> usize {
+        self.synced_checkpoint_notify_read.num_pending()
     }
 
     pub async fn notify_read_executed_checkpoint(

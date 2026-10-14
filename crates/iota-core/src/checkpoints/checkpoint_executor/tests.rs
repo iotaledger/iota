@@ -605,3 +605,51 @@ fn sync_checkpoint(
         .update_highest_synced_checkpoint(checkpoint)
         .unwrap();
 }
+
+/// A writer can move the synced watermark past a checkpoint without that
+/// checkpoint being among the ones it writes, when another writer already
+/// verified it but has not marked it synced yet. The checkpoint executor
+/// waiting for that checkpoint must be released by the write, not by its
+/// next timeout.
+#[tokio::test]
+async fn synced_watermark_moved_past_a_checkpoint_releases_its_waiter() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+    let committee =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    let (checkpoints, contents, _, _) = committee.make_empty_checkpoints(3, None);
+    for (checkpoint, content) in checkpoints.iter().zip(contents.iter()) {
+        checkpoint_store
+            .insert_verified_checkpoint(checkpoint)
+            .unwrap();
+        checkpoint_store
+            .insert_checkpoint_contents(content.clone().into_checkpoint_contents())
+            .unwrap();
+    }
+    checkpoint_store
+        .update_highest_synced_checkpoint(&checkpoints[0])
+        .unwrap();
+
+    let skipped = checkpoints[1].sequence_number();
+    let waiter = tokio::spawn({
+        let checkpoint_store = checkpoint_store.clone();
+        async move {
+            checkpoint_store
+                .notify_read_synced_checkpoint(skipped)
+                .await
+        }
+    });
+    while checkpoint_store.synced_checkpoint_waiters_for_testing() == 0 {
+        tokio::task::yield_now().await;
+    }
+
+    checkpoint_store
+        .update_highest_synced_checkpoint(&checkpoints[2])
+        .unwrap();
+
+    let released = timeout(Duration::from_secs(5), waiter)
+        .await
+        .expect("the waiter for the passed checkpoint should be released")
+        .unwrap();
+    assert_eq!(released.sequence_number(), skipped);
+}
