@@ -255,7 +255,10 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             and testnet.
 //             The consensus handler's processed-transaction cache holds only
 //             messages recorded as processed, so a cache hit gives the same
-//             answer as the processed-message table on every validator.
+//             answer as the processed-message table on every validator. A
+//             user transaction from an authority that has sent EndOfPublish
+//             no longer makes a later transaction with the same key in the
+//             same commit be skipped as a duplicate.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -762,6 +765,9 @@ struct FeatureFlags {
     // cache also holds messages that were dropped without being recorded, and
     // since it differs between validators and after a restart, skipping on a
     // cache hit lets validators disagree about a later copy of a dropped message.
+    // Also drops a user transaction from an authority that has sent EndOfPublish
+    // before the duplicate checks of its commit, so it cannot hide a valid copy
+    // later in the same commit.
     #[serde(skip_serializing_if = "is_false")]
     consensus_handler_cache_only_recorded_messages: bool,
 }

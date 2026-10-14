@@ -1758,10 +1758,12 @@ mod tests {
     }
 
     /// Commits `transaction` from a block of committee member 1 after member 1
-    /// sent `EndOfPublish`, so the epoch store drops it without recording it as
-    /// processed, then commits the same transaction from member 2's block. The
-    /// second copy must be processed: a handler that ran continuously and one
-    /// that restarted in between must reach the same outcome.
+    /// sent `EndOfPublish`, so it is dropped without being recorded as
+    /// processed, then commits member 1's copy again followed by member 2's
+    /// copy in one commit. Member 2's copy must be processed: neither the
+    /// dropped copy in the earlier commit nor the one ahead of it in the same
+    /// commit may hide it, and a handler that ran continuously and one that
+    /// restarted in between must reach the same outcome.
     async fn assert_copy_of_transaction_dropped_after_end_of_publish_is_processed(
         state: &AuthorityState,
         handler: &mut ConsensusHandler<CheckpointServiceNoop>,
@@ -1793,7 +1795,7 @@ mod tests {
             .handle_consensus_output_for_test(commit_with_transactions(
                 12,
                 102,
-                vec![(2, transaction)],
+                vec![(1, transaction.clone()), (2, transaction)],
             ))
             .await;
         assert!(epoch_store.is_consensus_message_processed(&key).unwrap());
