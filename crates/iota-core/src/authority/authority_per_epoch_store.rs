@@ -3800,6 +3800,9 @@ impl AuthorityPerEpochStore {
 
     /// Processes one consensus commit. Returns the transactions to schedule,
     /// their assigned versions, and the keys the commit recorded as processed.
+    /// The keys are returned only with
+    /// `consensus_handler_cache_only_recorded_messages` on; otherwise the list
+    /// is empty.
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
@@ -4309,7 +4312,14 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let processed_keys = output.consensus_messages_processed().cloned().collect();
+        let processed_keys = if self
+            .protocol_config
+            .consensus_handler_cache_only_recorded_messages()
+        {
+            output.consensus_messages_processed().cloned().collect()
+        } else {
+            Vec::new()
+        };
 
         // Write details of the this consensus commit to consensus output quarantine.
         self.consensus_quarantine
