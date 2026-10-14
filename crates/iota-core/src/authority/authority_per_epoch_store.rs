@@ -3440,12 +3440,16 @@ impl AuthorityPerEpochStore {
             .map(|_| VerifiedAuthorityCapabilitiesV1::new_from_verified(authority_capabilities))
     }
 
-    /// Verifies transaction signatures and other data
-    /// Important: This function can potentially be called in parallel and you
-    /// can not rely on order of transactions to perform verification
-    /// If this function return an error, transaction is skipped and is not
-    /// passed to handle_consensus_transaction This function returns unit
-    /// error and is responsible for emitting log messages for internal errors
+    /// Checks a sequenced consensus transaction before its commit is processed.
+    /// Returns `None` if the transaction must be skipped, so it is not passed
+    /// to `process_consensus_transactions_and_commit_boundary`, and logs the
+    /// reason.
+    ///
+    /// Must be called for the transactions of a commit in consensus order,
+    /// after all earlier commits were processed. The result may depend on the
+    /// state left by earlier commits, but not on other transactions of the
+    /// same commit. Within a commit, a transaction is skipped as a duplicate
+    /// only of an earlier one with the same key that passed this check.
     pub(crate) fn verify_consensus_transaction(
         &self,
         transaction: SequencedConsensusTransaction,
@@ -3462,6 +3466,25 @@ impl AuthorityPerEpochStore {
                 "handle_consensus_transaction UserTransaction [skip]",
             );
             skipped_consensus_txns.inc();
+            return None;
+        }
+        // A user transaction from an authority that has sent EndOfPublish must not be processed.
+        // Drop it here, before its key enters the duplicate checks of this commit, so that it
+        // cannot make a later transaction with the same key be skipped.
+        if self
+            .protocol_config()
+            .consensus_handler_cache_only_recorded_messages()
+            && transaction.transaction.user_transaction_digest().is_some()
+            && self
+                .has_sent_end_of_publish(&transaction.certificate_author)
+                .expect("the end-of-publish set is readable")
+        {
+            warn!(
+                "[Byzantine authority] Authority {:?} sent user transaction {:?} after it sent \
+                 EndOfPublish message to consensus",
+                transaction.certificate_author.concise(),
+                transaction.transaction.user_transaction_digest(),
+            );
             return None;
         }
         // Signatures are verified as part of the consensus payload verification in
@@ -5094,6 +5117,8 @@ impl AuthorityPerEpochStore {
                     );
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
                 if self.has_sent_end_of_publish(certificate_author)?
                     && !previously_deferred_tx_digests.contains_key(certificate.digest())
                 {
@@ -5343,6 +5368,8 @@ impl AuthorityPerEpochStore {
                     warn!("UserTransactionV1 contains system transaction, ignoring");
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
                 if self.has_sent_end_of_publish(certificate_author)?
                     && !previously_deferred_tx_digests.contains_key(transaction.digest())
                 {
