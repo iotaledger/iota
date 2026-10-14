@@ -71,58 +71,111 @@ mod ingestion_tests {
         }};
     }
 
-    /// Creates a simulacrum that writes checkpoint data to a new temporary
-    /// directory.
-    fn new_sim() -> (Simulacrum, TempDir) {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        sim.set_data_ingestion_path(tmp_dir.path().to_path_buf());
-        (sim, tmp_dir)
+    struct TestSim {
+        inner: Arc<Simulacrum>,
+        data_dir: TempDir,
     }
 
-    /// Starts a writer indexer on [`DB_NAME`] that ingests the checkpoints of
-    /// `sim`.
-    async fn start_indexer(sim: Simulacrum, data_dir: &TempDir) -> PgIndexerStore {
-        start_indexer_with(sim, data_dir, Some(DB_NAME), None).await
-    }
+    impl TestSim {
+        fn new() -> Self {
+            let data_dir = iota_common::tempdir();
+            let sim = Simulacrum::new();
+            sim.set_data_ingestion_path(data_dir.path().to_path_buf());
+            Self {
+                inner: Arc::new(sim),
+                data_dir,
+            }
+        }
 
-    /// Starts a writer indexer that ingests the checkpoints of `sim`.
-    async fn start_indexer_with(
-        sim: Simulacrum,
-        data_dir: &TempDir,
-        database_name: Option<&str>,
-        db_init_hook: Option<DBInitHook>,
-    ) -> PgIndexerStore {
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_dir.path().to_path_buf(),
-            None,
-            database_name,
-            db_init_hook,
-        )
-        .await;
-        pg_store
-    }
+        /// Starts a writer indexer on [`DB_NAME`] that ingests the
+        /// checkpoints.
+        async fn start_indexer(&self) -> PgIndexerStore {
+            self.start_indexer_with(Some(DB_NAME), None).await
+        }
 
-    /// Executes a transfer of a new coin to a random address and asserts
-    /// success.
-    ///
-    /// Returns the transaction, its effects, and the reference of the coin
-    /// that it creates.
-    fn execute_transfer(
-        sim: &Simulacrum,
-    ) -> (TransactionEnvelope, TransactionEffects, ObjectReference) {
-        let (transaction, _) = sim.transfer_txn(Address::random());
-        let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
-        assert!(err.is_none(), "tx failed: {err:?}");
-        let created = effects.created();
-        assert_eq!(
-            created.len(),
-            1,
-            "transfer_txn should create exactly 1 coin"
-        );
-        let created_coin = *created[0].reference();
-        (transaction, effects, created_coin)
+        /// Starts a writer indexer that ingests the checkpoints.
+        async fn start_indexer_with(
+            &self,
+            database_name: Option<&str>,
+            db_init_hook: Option<DBInitHook>,
+        ) -> PgIndexerStore {
+            let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
+                self.inner.clone(),
+                self.data_dir.path().to_path_buf(),
+                None,
+                database_name,
+                db_init_hook,
+            )
+            .await;
+            pg_store
+        }
+
+        /// Returns the address of the first account in the keystore.
+        fn sender(&self) -> Address {
+            self.inner
+                .with_keystore(|ks| *ks.accounts().next().unwrap().0)
+        }
+
+        /// Returns the reference of a gas coin that the sender owns.
+        fn pick_gas(&self) -> ObjectReference {
+            let sender = self.sender();
+            self.inner.with_store(|s| {
+                s.owned_objects(sender)
+                    .find(|o| o.is_gas_coin())
+                    .unwrap()
+                    .object_ref()
+            })
+        }
+
+        /// Signs `tx` with the key of the sender, executes it, asserts
+        /// success and returns the effects.
+        fn execute_signed(&self, tx: Transaction) -> TransactionEffects {
+            let key = self
+                .inner
+                .with_keystore(|ks| ks.accounts().next().unwrap().1.clone());
+            assert_eq!(tx.sender(), self.sender());
+            let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
+            let (effects, err) = self.inner.execute_transaction(tx).unwrap();
+            assert!(err.is_none(), "tx failed: {err:?}");
+            effects
+        }
+
+        /// Executes a transfer of a new coin to a random address and asserts
+        /// success.
+        ///
+        /// Returns the transaction, its effects, and the reference of the
+        /// coin that it creates.
+        fn execute_transfer(&self) -> (TransactionEnvelope, TransactionEffects, ObjectReference) {
+            let (transaction, _) = self.inner.transfer_txn(Address::random());
+            let (effects, err) = self.inner.execute_transaction(transaction.clone()).unwrap();
+            assert!(err.is_none(), "tx failed: {err:?}");
+            let created = effects.created();
+            assert_eq!(
+                created.len(),
+                1,
+                "transfer_txn should create exactly 1 coin"
+            );
+            let created_coin = *created[0].reference();
+            (transaction, effects, created_coin)
+        }
+
+        /// Executes a transfer and returns the rows that it must add to
+        /// `objects_version` at checkpoint `cp`.
+        fn execute_transfer_version_rows(&self, cp: i64) -> [StoredObjectVersion; 2] {
+            let (tx, effects, coin) = self.execute_transfer();
+            let gas = find_object_ref(
+                effects
+                    .mutated()
+                    .iter()
+                    .map(OwnedObjectReference::reference),
+                tx.gas()[0].object_id,
+            );
+            [gas, coin].map(|r| StoredObjectVersion {
+                object_id: r.object_id.as_bytes().to_vec(),
+                object_version: r.version.as_u64() as i64,
+                cp_sequence_number: cp,
+            })
+        }
     }
 
     /// Returns the reference of the object `id` in `refs`.
@@ -175,8 +228,8 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let sim = TestSim::new();
+        let pg_store = sim.start_indexer().await;
 
         let checkpoint_objects = (0..1000)
             .map(|_| CheckpointObjectChanges::random())
@@ -187,12 +240,12 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn transaction_table() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let (transaction, effects, _) = execute_transfer(&sim);
+        let sim = TestSim::new();
+        let (transaction, effects, _) = sim.execute_transfer();
         // Create a checkpoint which should include the transaction we executed.
-        let checkpoint = sim.create_checkpoint();
+        let checkpoint = sim.inner.create_checkpoint();
 
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let digest = *effects.transaction_digest();
@@ -222,11 +275,11 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn object_type() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let (transaction, ..) = execute_transfer(&sim);
-        sim.create_checkpoint();
+        let sim = TestSim::new();
+        let (transaction, ..) = sim.execute_transfer();
+        sim.inner.create_checkpoint();
 
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let obj_id = transaction.gas()[0].object_id;
@@ -257,11 +310,11 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let (_, effects, _) = execute_transfer(&sim);
-        sim.create_checkpoint();
+        let sim = TestSim::new();
+        let (_, effects, _) = sim.execute_transfer();
+        sim.inner.create_checkpoint();
 
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let stored = read_tx_global_order(&pg_store, *effects.transaction_digest()).await?;
@@ -277,20 +330,19 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let (_, effects, _) = execute_transfer(&sim);
-        sim.create_checkpoint();
+        let sim = TestSim::new();
+        let (_, effects, _) = sim.execute_transfer();
+        sim.inner.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let pg_store = start_indexer_with(
-            sim,
-            &tmp_dir,
-            Some(DB_NAME),
-            Some(emulate_insertion_order_set_earlier_by_optimistic_indexing(
-                digest,
-            )),
-        )
-        .await;
+        let pg_store = sim
+            .start_indexer_with(
+                Some(DB_NAME),
+                Some(emulate_insertion_order_set_earlier_by_optimistic_indexing(
+                    digest,
+                )),
+            )
+            .await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let stored = read_tx_global_order(&pg_store, digest).await?;
@@ -316,9 +368,10 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let pg_store =
-            start_indexer_with(sim, &tmp_dir, Some("indexer_ingestion_tx_indices_db"), None).await;
+        let sim = TestSim::new();
+        let pg_store = sim
+            .start_indexer_with(Some("indexer_ingestion_tx_indices_db"), None)
+            .await;
 
         // By creating 1000 random tx indices we ensure that the
         // persist_event_indices function will flatten each TxIndex by
@@ -343,14 +396,10 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let pg_store = start_indexer_with(
-            sim,
-            &tmp_dir,
-            Some("indexer_ingestion_event_indices_db"),
-            None,
-        )
-        .await;
+        let sim = TestSim::new();
+        let pg_store = sim
+            .start_indexer_with(Some("indexer_ingestion_event_indices_db"), None)
+            .await;
 
         // By creating 2000 random event indices we ensure that the
         // persist_event_indices function will flatten each EventIndex by
@@ -368,11 +417,11 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        execute_transfer(&sim);
-        sim.create_checkpoint();
+        let sim = TestSim::new();
+        sim.execute_transfer();
+        sim.inner.create_checkpoint();
 
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let max_cp = IndexerStore::get_latest_checkpoint_sequence_number(&pg_store)
@@ -399,14 +448,14 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        execute_transfer(&sim);
-        sim.create_checkpoint(); // checkpoint 1
-        sim.advance_epoch(false); // checkpoint 2 and epoch 1
-        execute_transfer(&sim);
-        sim.create_checkpoint(); // checkpoint 3
+        let sim = TestSim::new();
+        sim.execute_transfer();
+        sim.inner.create_checkpoint(); // checkpoint 1
+        sim.inner.advance_epoch(false); // checkpoint 2 and epoch 1
+        sim.execute_transfer();
+        sim.inner.create_checkpoint(); // checkpoint 3
 
-        let pg_store = start_indexer_with(sim, &tmp_dir, None, None).await;
+        let pg_store = sim.start_indexer_with(None, None).await;
         indexer_wait_for_checkpoint(&pg_store, 3).await;
 
         let db_checkpoint = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
@@ -425,15 +474,15 @@ mod ingestion_tests {
     /// deletions.
     #[tokio::test]
     pub async fn checkpointed_objects_match_objects() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
+        let sim = TestSim::new();
 
         // Execute several transfers to create mutations on the gas object.
         for _ in 0..3 {
-            execute_transfer(&sim);
-            sim.create_checkpoint();
+            sim.execute_transfer();
+            sim.inner.create_checkpoint();
         }
 
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 3).await;
 
         // Read all rows from both tables.
@@ -571,19 +620,19 @@ mod ingestion_tests {
     ///   - a MUTATED gas   → ACTIVE backward entry with previous version/data
     #[tokio::test]
     pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
+        let sim = TestSim::new();
 
         // --- checkpoint 1: TWO transfers in the same checkpoint ---
         // This exercises the case where multiple transactions produce backward
         // history entries for the same checkpoint, and where the same object
         // (the gas coin) is mutated by both transactions within one checkpoint.
-        let (tx1, _, created_coin_1) = execute_transfer(&sim);
+        let (tx1, _, created_coin_1) = sim.execute_transfer();
         let gas_object_id = tx1.gas()[0].object_id;
         let gas_version_before_tx1 = tx1.gas()[0].version;
 
         // Second transfer in the same checkpoint — uses the same gas object
         // (now at an updated version).
-        let (tx2, _, created_coin_2) = execute_transfer(&sim);
+        let (tx2, _, created_coin_2) = sim.execute_transfer();
         let gas_version_before_tx2 = tx2.gas()[0].version;
         assert!(
             gas_version_before_tx2 > gas_version_before_tx1,
@@ -591,14 +640,14 @@ mod ingestion_tests {
         );
 
         // Both transactions land in checkpoint 1.
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // --- checkpoint 2: one more transfer ---
-        let (tx3, _, created_coin_3) = execute_transfer(&sim);
+        let (tx3, _, created_coin_3) = sim.execute_transfer();
         let gas_version_before_tx3 = tx3.gas()[0].version;
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 2).await;
 
         // === checkpoint 1 assertions (two transactions) ===
@@ -645,44 +694,26 @@ mod ingestion_tests {
         Ok(())
     }
 
-    /// Executes a transfer and returns the rows that it must add to
-    /// `objects_version` at checkpoint `cp`.
-    fn execute_transfer_version_rows(sim: &Simulacrum, cp: i64) -> [StoredObjectVersion; 2] {
-        let (tx, effects, coin) = execute_transfer(sim);
-        let gas = find_object_ref(
-            effects
-                .mutated()
-                .iter()
-                .map(OwnedObjectReference::reference),
-            tx.gas()[0].object_id,
-        );
-        [gas, coin].map(|r| StoredObjectVersion {
-            object_id: r.object_id.as_bytes().to_vec(),
-            object_version: r.version.as_u64() as i64,
-            cp_sequence_number: cp,
-        })
-    }
-
     /// Verify that `objects_version` is populated correctly: one row per output
     /// object per transaction. Tests repeated mutations of the same object in a
     /// single checkpoint.
     #[tokio::test]
     pub async fn object_versions_ingestion() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
+        let sim = TestSim::new();
 
         // checkpoint 1: gas mutated twice + two coins created
         let mut cp1_expected = [
-            execute_transfer_version_rows(&sim, 1),
-            execute_transfer_version_rows(&sim, 1),
+            sim.execute_transfer_version_rows(1),
+            sim.execute_transfer_version_rows(1),
         ]
         .concat();
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // checkpoint 2: gas mutated once + one coin created
-        let mut cp2_expected = execute_transfer_version_rows(&sim, 2).to_vec();
-        sim.create_checkpoint();
+        let mut cp2_expected = sim.execute_transfer_version_rows(2).to_vec();
+        sim.inner.create_checkpoint();
 
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 2).await;
 
         cp1_expected.sort();
@@ -697,29 +728,6 @@ mod ingestion_tests {
         );
 
         Ok(())
-    }
-
-    /// Executes transaction in simulacrum, asserts success and returns effects.
-    fn execute_signed(sim: &Simulacrum, tx: Transaction) -> TransactionEffects {
-        let (sender, key) = sim.with_keystore(|ks| {
-            let (s, k) = ks.accounts().next().unwrap();
-            (*s, k.clone())
-        });
-        assert_eq!(tx.sender(), sender);
-        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
-        let (effects, err) = sim.execute_transaction(tx).unwrap();
-        assert!(err.is_none(), "tx failed: {err:?}");
-        effects
-    }
-
-    /// Returns the reference of a gas coin that `sender` owns.
-    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectReference {
-        sim.with_store(|s| {
-            s.owned_objects(sender)
-                .find(|o| o.is_gas_coin())
-                .unwrap()
-                .object_ref()
-        })
     }
 
     /// Adds a call to `function` of the `example` module in `package_id`.
@@ -769,14 +777,13 @@ mod ingestion_tests {
     /// `unwrapped_then_deleted`.
     #[tokio::test]
     pub async fn objects_version_ingestion_wraps_and_removals() -> Result<(), IndexerError> {
-        let (sim, tmp_dir) = new_sim();
-        let sender = sim.with_keystore(|ks| *ks.accounts().next().unwrap().0);
-        let rgp = sim.reference_gas_price();
+        let sim = TestSim::new();
+        let sender = sim.sender();
+        let rgp = sim.inner.reference_gas_price();
 
         // publish package
-        let gas = pick_gas(&sim, sender);
-        let publish_fx = execute_signed(
-            &sim,
+        let gas = sim.pick_gas();
+        let publish_fx = sim.execute_signed(
             TestTransactionBuilder::new(sender, gas, rgp)
                 .publish_examples("simple_warrior")
                 .build(),
@@ -788,16 +795,15 @@ mod ingestion_tests {
             .expect("publish must create an immutable package")
             .reference()
             .object_id;
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // mint a Sword
-        let gas = pick_gas(&sim, sender);
+        let gas = sim.pick_gas();
         let mut builder = ProgrammableTransactionBuilder::new();
         let strength = builder.pure(42u8).unwrap();
         let sword_arg = move_call(&mut builder, package_id, "new_sword", vec![strength]);
         builder.transfer_arg(sender, sword_arg);
-        let mint_sword_fx = execute_signed(
-            &sim,
+        let mint_sword_fx = sim.execute_signed(
             TestTransactionBuilder::new(sender, gas, rgp)
                 .programmable(builder.finish())
                 .build(),
@@ -808,10 +814,10 @@ mod ingestion_tests {
             .find(|created| matches!(created.owner(), Owner::Address(_)))
             .expect("mint must create the sword")
             .reference();
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // cp3: mint a Warrior + equip sword
-        let gas = pick_gas(&sim, sender);
+        let gas = sim.pick_gas();
         let mut builder = ProgrammableTransactionBuilder::new();
         let warrior_arg = move_call(&mut builder, package_id, "new_warrior", vec![]);
         let sword_input = owned_input(&mut builder, sword_v0);
@@ -822,8 +828,7 @@ mod ingestion_tests {
             vec![warrior_arg, sword_input],
         );
         builder.transfer_arg(sender, warrior_arg);
-        let equip_fx = execute_signed(
-            &sim,
+        let equip_fx = sim.execute_signed(
             TestTransactionBuilder::new(sender, gas, rgp)
                 .programmable(builder.finish())
                 .build(),
@@ -836,17 +841,16 @@ mod ingestion_tests {
             .reference();
         let sword_wrapped_version =
             find_object_ref(&equip_fx.wrapped(), sword_v0.object_id).version;
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // cp4: unequip sword
-        let gas = pick_gas(&sim, sender);
+        let gas = sim.pick_gas();
         let mut builder = ProgrammableTransactionBuilder::new();
         let warrior_input = owned_input(&mut builder, warrior_v0);
         let unwrapped_sword_arg =
             move_call(&mut builder, package_id, "unequip", vec![warrior_input]);
         builder.transfer_arg(sender, unwrapped_sword_arg);
-        let unequip_fx = execute_signed(
-            &sim,
+        let unequip_fx = sim.execute_signed(
             TestTransactionBuilder::new(sender, gas, rgp)
                 .programmable(builder.finish())
                 .build(),
@@ -865,10 +869,10 @@ mod ingestion_tests {
                 .map(OwnedObjectReference::reference),
             warrior_v0.object_id,
         );
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // cp5: equip sword
-        let gas = pick_gas(&sim, sender);
+        let gas = sim.pick_gas();
         let mut builder = ProgrammableTransactionBuilder::new();
         let warrior_input = owned_input(&mut builder, warrior_after_unequip);
         let sword_input = owned_input(&mut builder, sword_unwrapped_ref);
@@ -878,8 +882,7 @@ mod ingestion_tests {
             "equip",
             vec![warrior_input, sword_input],
         );
-        let reequip_fx = execute_signed(
-            &sim,
+        let reequip_fx = sim.execute_signed(
             TestTransactionBuilder::new(sender, gas, rgp)
                 .programmable(builder.finish())
                 .build(),
@@ -893,10 +896,10 @@ mod ingestion_tests {
                 .map(OwnedObjectReference::reference),
             warrior_v0.object_id,
         );
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // cp6: destroy warrior
-        let gas = pick_gas(&sim, sender);
+        let gas = sim.pick_gas();
         let mut builder = ProgrammableTransactionBuilder::new();
         let warrior_input = owned_input(&mut builder, warrior_after_reequip);
         move_call(
@@ -905,8 +908,7 @@ mod ingestion_tests {
             "destroy_warrior",
             vec![warrior_input],
         );
-        let destroy_fx = execute_signed(
-            &sim,
+        let destroy_fx = sim.execute_signed(
             TestTransactionBuilder::new(sender, gas, rgp)
                 .programmable(builder.finish())
                 .build(),
@@ -915,10 +917,10 @@ mod ingestion_tests {
             find_object_ref(&destroy_fx.deleted(), warrior_v0.object_id).version;
         let sword_unwrapped_deleted_version =
             find_object_ref(&destroy_fx.unwrapped_then_deleted(), sword_v0.object_id).version;
-        sim.create_checkpoint();
+        sim.inner.create_checkpoint();
 
         // spin up the indexer
-        let pg_store = start_indexer(sim, &tmp_dir).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 6).await;
 
         // cp3: warrior created (output) + sword wrapped (removed)
