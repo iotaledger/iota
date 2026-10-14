@@ -100,7 +100,7 @@ const { body } = await client.getHealth({ thresholdMs: 60_000n });
 console.log(body.executedCheckpointHeight);
 ```
 
-`getServiceInfo` tells you which chain the node is on, its current epoch and checkpoint height, the oldest checkpoint it still serves, and its version.
+`getServiceInfo` tells you the node's current epoch and checkpoint height, and the oldest checkpoint it still serves. To find out which chain the node is on and which version it runs, read `metadata.chain` and `metadata.serverVersion`, which come with every response.
 
 ## Cancel a call
 
