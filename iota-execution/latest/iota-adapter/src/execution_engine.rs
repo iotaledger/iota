@@ -291,7 +291,8 @@ mod checked {
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
     ///     produces transaction effects with the appropriate error status. With deterministic
     ///     validation on, a gas owner that is a Move account and did not authorize the transaction
-    ///     is not charged; see `execute_without_gas_charge_to_effects`.
+    ///     is not charged; see `execute_without_gas_charge_to_effects`. A gas owner that did
+    ///     authorize it is charged, and its gas coins are the only owned inputs that change.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and
@@ -511,7 +512,8 @@ mod checked {
             result => result,
         };
         // The gas owner pays for a failed authentication it authorized, but the
-        // account that failed authorized nothing, so only the gas coins change.
+        // account that failed authorized nothing, so of the owned inputs only
+        // the gas coins change.
         if authentication_execution_result.is_err()
             && protocol_config.pcool_deterministic_validation()
         {
