@@ -59,6 +59,8 @@ A node can only stream checkpoints it has not pruned. `lowestAvailableCheckpoint
 
 `transactionsFilter` and `eventsFilter` drop the transactions and events that do not match. Add `filterCheckpoints: true` to also skip checkpoints with no match at all.
 
+The node rejects the stream with `InvalidArgument` if `transactionsFilter` is set without a `TRANSACTIONS…` field in `readMask`, if `eventsFilter` is set without an `EVENTS…` field, or if `filterCheckpoints` is set without either filter.
+
 Matches can be far apart, so while it skips, the node sends `progress` items that say how far it has scanned, at most once every `progressIntervalMs`. You only get them with `filterCheckpoints`. This stream picks out staking requests:
 
 ```ts

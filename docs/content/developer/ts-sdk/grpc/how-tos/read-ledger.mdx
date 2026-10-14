@@ -117,6 +117,8 @@ const { body } = await client.getCheckpoint(
 );
 ```
 
+A filter only works if the read mask asks for what it filters. `transactionsFilter` needs a `TRANSACTIONS…` field in `readMask`, and `eventsFilter` needs an `EVENTS…` field. Otherwise the whole call fails with `InvalidArgument`.
+
 The same filters work with [`streamCheckpoints`](stream-checkpoints.mdx), which can also skip checkpoints that contain no match.
 
 ## Read the epoch and the gas price
