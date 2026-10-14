@@ -436,9 +436,9 @@ where
     // protect them from a malicious server. Commits and certifier headers
     // carry the same count caps `verify_commits` applies (twice the requested
     // range and two headers per authority).
-    // Commits are bounded by their total bytes rather than one by one:
-    // `max_commit_bytes` holds when no validator is Byzantine, and the total
-    // allows that much for every commit the count cap admits.
+    // Commits are bounded by their total bytes, `max_commit_bytes` for every
+    // commit the count cap admits, since `max_commit_bytes` holds for a single
+    // commit only when no validator is Byzantine.
     // Transactions carry no configured count cap on the fast path, since the
     // server returns every transaction the committed range references. The
     // commits already received bound them instead: a commit holds at most one
