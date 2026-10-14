@@ -44,19 +44,17 @@ pub(crate) struct BeforeVersion {
 ///
 /// # Query Parameters
 ///
-/// * `before_version` (optional, default `false`): only valid when `item_type`
-///   is [`ItemType::Object`]. When `true`, returns the latest stored version
-///   strictly less than the version encoded in the key. Returns `400 Bad
-///   Request` if used with any other [`ItemType`].
+/// * `before_version` (optional, default `false`): only valid when `item_type` is
+///   [`ItemType::Object`]. When `true`, returns the latest stored version strictly less than the
+///   version encoded in the key. Returns `400 Bad Request` if used with any other [`ItemType`].
 ///
 /// # Returns
 ///
-/// * If the key exists, the data is returned as a [`Bytes`](bytes::Bytes)
-///   stream with a `200 OK` status code.
-/// * If the key does not exist, a `404 Not Found` status code is returned with
-///   an empty body.
-/// * If an error occurs while interacting with the KV store, an `500 internal
-///   server error` is returned.
+/// * If the key exists, the data is returned as a [`Bytes`](bytes::Bytes) stream with a `200 OK`
+///   status code.
+/// * If the key does not exist, a `404 Not Found` status code is returned with an empty body.
+/// * If an error occurs while interacting with the KV store, an `500 internal server error` is
+///   returned.
 pub async fn data_as_bytes(
     State(app_state): State<SharedRestServerAppState>,
     ExtractPath(key): ExtractPath,
@@ -97,10 +95,9 @@ pub async fn data_as_bytes(
 ///
 /// # Query Parameters
 ///
-/// * `before_version` (optional, default `false`): only valid when `item_type`
-///   is [`ItemType::Object`]. When `true`, returns the latest stored version
-///   strictly less than the version encoded in each key. Returns `400 Bad
-///   Request` if used with any other [`ItemType`].
+/// * `before_version` (optional, default `false`): only valid when `item_type` is
+///   [`ItemType::Object`]. When `true`, returns the latest stored version strictly less than the
+///   version encoded in each key. Returns `400 Bad Request` if used with any other [`ItemType`].
 ///
 /// # Request Body
 ///
@@ -113,21 +110,20 @@ pub async fn data_as_bytes(
 /// ```
 ///
 /// Where:
-/// - `keys`: Array of base64url-encoded keys for given `item_type`. The same
-///   kind of key and encoding user would use in single item GET request.
+/// - `keys`: Array of base64url-encoded keys for given `item_type`. The same kind of key and
+///   encoding user would use in single item GET request.
 ///
 /// # Returns
 ///
-/// * If successful, returns a BCS-serialized
-///   [`Vec`]<[`Option`]<[`Bytes`](bytes::Bytes)>> with a `200 OK` status code.
-///   The vector has the same length and order as the `keys` list in the request
-///   body. Each entry is `Some(bytes)` if the key was found, or `None` if the
-///   key was not found.
-///  * If no keys are provided or the number of keys exceeds the configured
-///    `multiget_max_items` limit, a `400 bad request error` is returned.
+/// * If successful, returns a BCS-serialized [`Vec`]<[`Option`]<[`Bytes`](bytes::Bytes)>> with a
+///   `200 OK` status code. The vector has the same length and order as the `keys` list in the
+///   request body. Each entry is `Some(bytes)` if the key was found, or `None` if the key was not
+///   found.
+///  * If no keys are provided or the number of keys exceeds the configured `multiget_max_items`
+///    limit, a `400 bad request error` is returned.
 /// * If the keys cannot be parsed, a `400 bad request error` is returned.
-/// * If an error occurs while interacting with the KV store, an `500 internal
-///   server error` is returned.
+/// * If an error occurs while interacting with the KV store, an `500 internal server error` is
+///   returned.
 pub async fn multi_get_data(
     State(app_state): State<SharedRestServerAppState>,
     Path(item_type): Path<ItemType>,
@@ -199,23 +195,20 @@ pub(crate) struct TransactionDigestsByAddressQuery {
 ///
 /// # Query Parameters
 ///
-/// * `cursor` (optional): The [`TransactionSequenceNumber`] used as an
-///   exclusive pagination boundary. Omit for the first request.
-/// * `limit` (optional): The maximum number of results to return. Defaults to
-///   the server's configured `multiget_max_items` when omitted.
+/// * `cursor` (optional): The [`TransactionSequenceNumber`] used as an exclusive pagination
+///   boundary. Omit for the first request.
+/// * `limit` (optional): The maximum number of results to return. Defaults to the server's
+///   configured `multiget_max_items` when omitted.
 /// * `oldest_first` (optional, default `false`):
 ///   - `true`: Ascending sequence order (oldest first).
 ///   - `false`: Descending sequence order (newest first).
 ///
 /// # Responses
 ///
-/// * `200 OK`: A BCS-encoded `Vec<(TransactionSequenceNumber,
-///   TransactionDigest)>`. Returns an empty list when no transaction digests
-///   are found in the range scan.
-/// * `400 Bad Request`: Returned if the provided `address` is malformed or
-///   invalid.
-/// * `500 Internal Server Error`: Returned if an error occurs interacting with
-///   the KV store.
+/// * `200 OK`: A BCS-encoded `Vec<(TransactionSequenceNumber, TransactionDigest)>`. Returns an
+///   empty list when no transaction digests are found in the range scan.
+/// * `400 Bad Request`: Returned if the provided `address` is malformed or invalid.
+/// * `500 Internal Server Error`: Returned if an error occurs interacting with the KV store.
 pub async fn transaction_digests_by_address(
     State(app_state): State<SharedRestServerAppState>,
     Path(address): Path<String>,

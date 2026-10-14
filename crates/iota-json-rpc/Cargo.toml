@@ -50,6 +50,7 @@ iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-traffic-controller.workspace = true

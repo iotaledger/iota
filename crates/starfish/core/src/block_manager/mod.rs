@@ -1120,12 +1120,11 @@ mod tests {
     /// Test that verifies the scenario where:
     /// 1. A header without transactions is added first and gets accepted
     /// 2. Later the full block with transactions is added
-    /// 3. The bug: the full block gets stuck in suspended_blocks instead of
-    ///    being processed
+    /// 3. The bug: the full block gets stuck in suspended_blocks instead of being processed
     ///
     /// Expected behavior:
-    /// - When a full block arrives and its header is already accepted in
-    ///   DagState, the transactions should be extracted and added to DagState
+    /// - When a full block arrives and its header is already accepted in DagState, the transactions
+    ///   should be extracted and added to DagState
     /// - The full block should NOT remain in suspended_blocks
     ///
     /// Actual behavior (BUG):

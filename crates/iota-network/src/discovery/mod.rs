@@ -337,8 +337,8 @@ impl DiscoveryEventLoop {
 
     /// Handles a [`PeerEvent`].
     ///
-    /// * NewPeer: Adds the peer to the connected peers list and queries the
-    ///   peer for their known peers.
+    /// * NewPeer: Adds the peer to the connected peers list and queries the peer for their known
+    ///   peers.
     /// * LostPeer: Removes the peer from the connected peers list.
     /// * Closed: Panics if the channel is closed.
     fn handle_peer_event(&mut self, peer_event: Result<PeerEvent, RecvError>) {
@@ -383,10 +383,9 @@ impl DiscoveryEventLoop {
     /// 2. Queries a subset of connected peers for their known peers.
     /// 3. Culls old known peers older than a day.
     /// 4. Cleans out the pending_dials, dial_seed_peers_task if it's done.
-    /// 5. Selects a subset of known peers to dial if we're not connected to
-    ///    enough peers.
-    /// 6. If we have no neighbors and we aren't presently trying to connect to
-    ///    anyone we need to try the seed peers.
+    /// 5. Selects a subset of known peers to dial if we're not connected to enough peers.
+    /// 6. If we have no neighbors and we aren't presently trying to connect to anyone we need to
+    ///    try the seed peers.
     fn handle_tick(&mut self, _now: std::time::Instant, now_unix: u64) {
         self.update_our_info_timestamp(now_unix);
 
@@ -440,11 +439,9 @@ impl DiscoveryEventLoop {
         );
 
         // Randomly selects the number_to_dial of peers to connect to.
-        for (peer_id, info) in rand::seq::SliceRandom::choose_multiple(
-            eligible.as_slice(),
-            &mut rand::thread_rng(),
-            number_to_dial,
-        ) {
+        for (peer_id, info) in
+            rand::seq::IndexedRandom::sample(eligible.as_slice(), &mut rand::rng(), number_to_dial)
+        {
             let abort_handle = self.tasks.spawn(try_to_connect_to_peer(
                 self.network.clone(),
                 info.data().to_owned(),
@@ -688,7 +685,7 @@ async fn query_connected_peers_for_their_known_peers(
         .peers()
         .into_iter()
         .flat_map(|id| network.peer(id))
-        .choose_multiple(&mut rand::thread_rng(), config.peers_to_query());
+        .sample(&mut rand::rng(), config.peers_to_query());
 
     let peer_query_timeout = config.peer_query_timeout();
 

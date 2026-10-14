@@ -6,12 +6,9 @@
 //! implementations for the consensus protocol.
 //!
 //! Having an abstract network interface allows
-//! - simplifying the semantics of sending data and serving requests over the
-//!   network
-//! - hiding implementation specific types and semantics from the consensus
-//!   protocol
-//! - allowing easy swapping of network implementations, for better performance
-//!   or testing
+//! - simplifying the semantics of sending data and serving requests over the network
+//! - hiding implementation specific types and semantics from the consensus protocol
+//! - allowing easy swapping of network implementations, for better performance or testing
 //!
 //! When modifying the client and server interfaces, the principle is to keep
 //! the interfaces low level, close to underlying implementations in semantics.
@@ -85,8 +82,7 @@ pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBun
 ///
 /// NOTE: the timeout parameters help saving resources at client and potentially
 /// server. But it is up to the server implementation if the timeout is honored.
-/// - To bound server resources, server should implement own timeout for
-///   incoming requests.
+/// - To bound server resources, server should implement own timeout for incoming requests.
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Subscribes to blocks from a peer after last_received round.
@@ -489,7 +485,7 @@ pub(crate) struct SerializedTransactionsV2 {
 
 #[cfg(test)]
 mod tests {
-    use rand::{seq::IteratorRandom, thread_rng};
+    use rand::{rng, seq::IteratorRandom};
 
     use super::*;
     use crate::TestBlockHeader;
@@ -497,9 +493,9 @@ mod tests {
     fn test_block_bundle_useful_authorities_set_bitmask_conversion() {
         let block = VerifiedBlock::new_for_test(TestBlockHeader::new(0u32, 0u8).build());
         // Generate a random sample of AuthorityIndex values (from 0..=255).
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let useful_authorities: BTreeSet<AuthorityIndex> = (0u8..=255)
-            .choose_multiple(&mut rng, 50) // pick 50 random distinct authorities
+            .sample(&mut rng, 50) // pick 50 random distinct authorities
             .into_iter()
             .map(AuthorityIndex::from)
             .collect();

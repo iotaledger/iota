@@ -14,7 +14,8 @@ use iota_grpc_types::{
         state_service::{GetCoinInfoRequest, GetCoinInfoResponse},
     },
 };
-use iota_sdk_types::{Address, Owner};
+use iota_sdk_move_types::iota_framework::coin;
+use iota_sdk_types::{Address, Owner, TypeTag};
 
 use crate::{error::RpcError, types::GrpcReader, validation::object_id_proto};
 
@@ -123,45 +124,35 @@ pub(crate) fn get_coin_info(
     }
 
     // Populate regulated metadata.
-    //
-    // NOTE: Unlike `CoinMetadata` and `TreasuryCap` above which use the
-    // type-safe `TryFrom<Object>` conversion, `RegulatedCoinMetadata` is
-    // deserialized via raw `bcs::from_bytes`. This is because
-    // `iota_types::deny_list_v1::RegulatedCoinMetadata` does not implement
-    // `TryFrom<Object>`. If that impl is added upstream, this should be
-    // updated to use it for consistency and better error handling.
     if let Some(regulated_object_id) = coin_info.regulated_coin_metadata_object_id {
         if let Some(object) = reader.get_object(&regulated_object_id)? {
-            if let Some(move_obj) = object.data.as_opt_struct() {
-                match bcs::from_bytes::<iota_types::deny_list_v1::RegulatedCoinMetadata>(
-                    move_obj.contents(),
-                ) {
-                    Ok(regulated) => {
-                        // Proto fields `allow_global_pause` and `variant` are not populated
-                        // because the on-chain `RegulatedCoinMetadata` struct does not store
-                        // these values — it only contains `id`, `coin_metadata_object`, and
-                        // `deny_cap_object`.
-                        response.regulated_metadata = Some(
-                            RegulatedCoinMetadata::default()
-                                .with_id(object_id_proto(&regulated.id.id.bytes))
-                                .with_coin_metadata_object(object_id_proto(
-                                    &regulated.coin_metadata_object.bytes,
-                                ))
-                                .with_deny_cap_object(object_id_proto(
-                                    &regulated.deny_cap_object.bytes,
-                                ))
-                                .with_coin_regulated_state(CoinRegulatedState::Regulated),
-                        );
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Unable to read object {regulated_object_id} as \
-                             RegulatedCoinMetadata for coin type {coin_type_str}: {e}"
-                        );
-                    }
+            let coin_type_tag = TypeTag::Struct(Box::new(core_coin_type));
+            let regulated = coin::RegulatedCoinMetadata::<()>::try_from_object_with_type(
+                &object,
+                &coin_type_tag,
+            );
+            match regulated {
+                Ok(regulated) => {
+                    // Proto fields `allow_global_pause` and `variant` are not populated
+                    // because the on-chain `RegulatedCoinMetadata` struct does not store
+                    // these values: it only contains `id`, `coin_metadata_object`, and
+                    // `deny_cap_object`.
+                    response.regulated_metadata = Some(
+                        RegulatedCoinMetadata::default()
+                            .with_id(object_id_proto(&regulated.id.id.bytes))
+                            .with_coin_metadata_object(object_id_proto(
+                                &regulated.coin_metadata_object.bytes,
+                            ))
+                            .with_deny_cap_object(object_id_proto(&regulated.deny_cap_object.bytes))
+                            .with_coin_regulated_state(CoinRegulatedState::Regulated),
+                    );
                 }
-            } else {
-                tracing::error!("Object {regulated_object_id} is not a Move object");
+                Err(e) => {
+                    tracing::error!(
+                        "Unable to read object {regulated_object_id} as \
+                         RegulatedCoinMetadata for coin type {coin_type_str}: {e}"
+                    );
+                }
             }
         }
     } else {

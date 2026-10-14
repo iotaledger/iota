@@ -56,21 +56,15 @@ impl DataReader for AuthorityStateDataReader {
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
         let limit = cap_page_limit(limit);
-        let mut rows = self.0.get_owner_objects_with_limit(
+        let page = self.0.get_owner_objects_page(
             address,
             cursor,
-            limit + 1,
+            limit,
             Some(IotaObjectDataFilter::StructType(object_type)),
         )?;
-        let has_next_page = rows.len() > limit && limit > 0; // limit == 0 only when RPC_QUERY_MAX_RESULT_LIMIT set to 0
-        rows.truncate(limit);
-        let next_cursor = if has_next_page {
-            rows.last().map(|row| row.object_id)
-        } else {
-            None
-        };
 
-        let data = rows
+        let data = page
+            .data
             .into_iter()
             .map(|info| {
                 let read = self.0.get_object_read(&info.object_id)?;
@@ -80,8 +74,8 @@ impl DataReader for AuthorityStateDataReader {
 
         Ok(iota_json_rpc_types::ObjectsPage {
             data,
-            next_cursor,
-            has_next_page,
+            next_cursor: page.next_cursor,
+            has_next_page: page.has_next_page,
         })
     }
 

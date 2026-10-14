@@ -115,9 +115,9 @@ impl<A: Allower> rustls::server::danger::ClientCertVerifier for ClientCertVerifi
     }
 
     // Verifies this is a valid ed25519 self-signed certificate
-    // 1. we prepare arguments for webpki's certificate verification (following the
-    //    rustls implementation) placing the public key at the root of the
-    //    certificate chain (as it should be for a self-signed certificate)
+    // 1. we prepare arguments for webpki's certificate verification (following the rustls
+    //    implementation) placing the public key at the root of the certificate chain (as it should
+    //    be for a self-signed certificate)
     // 2. we call webpki's certificate verification
     fn verify_client_cert(
         &self,
@@ -266,9 +266,9 @@ impl rustls::client::danger::ServerCertVerifier for ServerCertVerifier {
 }
 
 // Verifies this is a valid ed25519 self-signed certificate
-// 1. we prepare arguments for webpki's certificate verification (following the
-//    rustls implementation) placing the public key at the root of the
-//    certificate chain (as it should be for a self-signed certificate)
+// 1. we prepare arguments for webpki's certificate verification (following the rustls
+//    implementation) placing the public key at the root of the certificate chain (as it should be
+//    for a self-signed certificate)
 // 2. we call webpki's certificate verification
 fn verify_self_signed_cert(
     end_entity: &CertificateDer,

@@ -43,10 +43,7 @@ async fn publish_view_functions_package(
 ) -> (ObjectId, SharedObjectReference) {
     let sender = first_sender(test_cluster);
 
-    // `with_allow_view_function` is required for the `#[view]` attribute on
-    // `counter::value` to be compiled into on-chain module metadata.
     let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
         .build(&view_functions_package_path())
         .expect("view_functions package should build");
 

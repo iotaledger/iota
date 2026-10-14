@@ -55,6 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
     file.read_to_string(&mut contents)?;
     let config: Config = serde_yaml::from_str(&contents)?;
 
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let client = {
         let c = reqwest::Client::builder()
             .no_proxy()

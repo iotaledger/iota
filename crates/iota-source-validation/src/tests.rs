@@ -626,8 +626,7 @@ async fn multiple_failures() -> anyhow::Result<()> {
 
     // Compile local package `d` that references:
     // - `b::b` (c.move exists locally but not on chain => error)
-    // - `c::c` (d.move exists on-chain but we delete it locally before compiling =>
-    //   error)
+    // - `c::c` (d.move exists on-chain but we delete it locally before compiling => error)
     let d_pkg_fixtures = iota_common::tempdir();
     let d_pkg = {
         let b_id = b_ref.object_id.into();

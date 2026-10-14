@@ -30,6 +30,7 @@ pub struct NodeFWClient {
 
 impl NodeFWClient {
     pub fn new(remote_fw_url: String) -> Self {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         Self {
             client: reqwest::Client::builder()
                 .timeout(REQUEST_TIMEOUT)

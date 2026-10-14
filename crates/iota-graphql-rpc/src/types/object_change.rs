@@ -8,7 +8,10 @@ use async_graphql::*;
 use iota_sdk_types::{ChangedObject, IdOperation, ObjectId, ObjectOut, Version};
 use iota_types::object::Object as NativeObject;
 
-use crate::types::{iota_address::IotaAddress, object::Object};
+use crate::{
+    error::Error,
+    types::{iota_address::IotaAddress, object::Object},
+};
 
 /// Represents the source of an object change (derived from transaction kind)
 #[derive(Clone, Debug)]
@@ -74,7 +77,7 @@ impl ObjectChange {
 
     /// The contents of the object immediately after the transaction.
     async fn output_state(&self, ctx: &Context<'_>) -> Result<Option<Object>> {
-        let Some(version) = self.output_version() else {
+        let Some(version) = self.output_version().extend()? else {
             return Ok(None);
         };
 
@@ -115,13 +118,17 @@ impl ObjectChange {
     /// effects entry does not carry; a package keeps the version it was
     /// published or upgraded at.
     #[graphql(skip)]
-    fn output_version(&self) -> Option<Version> {
-        match self.native.output_state {
+    fn output_version(&self) -> Result<Option<Version>, Error> {
+        Ok(match self.native.output_state {
             ObjectOut::ObjectWrite { .. } => Some(self.lamport_version),
             ObjectOut::PackageWrite { version, .. } => Some(version),
             ObjectOut::Missing => None,
-            _ => unimplemented!("a new ObjectOut enum variant was added and needs to be handled"),
-        }
+            _ => {
+                return Err(Error::Internal(
+                    "unknown ObjectOut variant in object change".to_string(),
+                ));
+            }
+        })
     }
 
     /// This object's state from objects used/produced by simulation, if
@@ -174,6 +181,7 @@ mod tests {
                 output_objects: None,
             }
             .output_version()
+            .unwrap()
         };
 
         assert_eq!(

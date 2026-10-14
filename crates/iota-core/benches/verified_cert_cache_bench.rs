@@ -12,7 +12,10 @@ fn verified_cert_cache_bench(c: &mut Criterion) {
         .map(|_| CertificateDigest::random())
         .collect();
     digests.extend_from_slice(&digests.clone());
-    rand::seq::SliceRandom::shuffle(digests.as_mut_slice(), &mut rand::rngs::OsRng);
+    rand::seq::SliceRandom::shuffle(
+        digests.as_mut_slice(),
+        &mut rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+    );
 
     let cpus = num_cpus::get();
     let chunk_size = digests.len() / cpus;

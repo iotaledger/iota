@@ -7,17 +7,21 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag, Version};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use iota_sdk_move_types::iota_framework::{
+    config::Config,
+    deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
+    dynamic_object_field::Wrapper,
+};
+use iota_sdk_types::{Address, Identifier, ObjectId, Version};
+use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
     base_types::EpochId,
-    config::{Config, Setting},
-    dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
+    config::Setting,
+    dynamic_field::get_dynamic_field_from_store,
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
-    id::{ID, UID},
     object::Object,
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
@@ -28,62 +32,6 @@ pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 
 pub const CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS: usize = 1000;
-
-/// Rust representation of the Move type 0x2::coin::RegulatedCoinMetadata.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RegulatedCoinMetadata {
-    pub id: UID,
-    pub coin_metadata_object: ID,
-    pub deny_cap_object: ID,
-}
-
-/// Rust representation of the Move type 0x2::coin::DenyCapV1.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DenyCapV1 {
-    pub id: UID,
-    pub allow_global_pause: bool,
-}
-
-/// Rust representation of the Move type 0x2::deny_list::ConfigKey.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct ConfigKey {
-    per_type_index: u64,
-    per_type_key: Vec<u8>,
-}
-
-impl MoveTypeTagTrait for ConfigKey {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
-    }
-}
-
-/// Rust representation of the Move type 0x2::deny_list::AddressKey.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct AddressKey(Address);
-
-impl MoveTypeTagTrait for AddressKey {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
-    }
-}
-
-/// Rust representation of the Move type 0x2::deny_list::GlobalPauseKey.
-/// There is no u8 in the Move definition, however empty structs in Move
-/// are represented as a single byte 0 in the serialized data.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct GlobalPauseKey(bool);
-
-impl GlobalPauseKey {
-    pub fn new() -> Self {
-        Self(false)
-    }
-}
-
-impl MoveTypeTagTrait for GlobalPauseKey {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
-    }
-}
 
 /// Returns `Ok(())` if no input or receiving object's coin type is on a deny
 /// list for the given `address`.
@@ -172,7 +120,7 @@ pub fn check_coin_deny_list_v1_during_execution(
 }
 
 fn check_new_regulated_coin_owners(
-    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<Address>)>,
+    new_regulated_coin_owners: BTreeMap<String, (Config<ConfigWriteCap>, BTreeSet<Address>)>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> Result<(), ExecutionError> {
@@ -202,22 +150,22 @@ fn check_new_regulated_coin_owners(
 pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
     object_store: &dyn ObjectStore,
-) -> Option<Config> {
-    let config_key = DOFWrapper {
+) -> Option<Config<ConfigWriteCap>> {
+    let config_key = Wrapper {
         name: ConfigKey {
             per_type_index: DENY_LIST_COIN_TYPE_INDEX,
             per_type_key: coin_type.as_bytes().to_vec(),
         },
     };
     // TODO: Consider caching the config object UID to avoid repeat deserialization.
-    let config: Config =
+    let config: Config<ConfigWriteCap> =
         get_dynamic_field_from_store(object_store, IOTA_DENY_LIST_OBJECT_ID, &config_key).ok()?;
     Some(config)
 }
 
 #[instrument(level = "trace", skip_all)]
 pub fn check_address_denied_by_config(
-    deny_config: &Config,
+    deny_config: &Config<ConfigWriteCap>,
     address: Address,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
@@ -228,11 +176,11 @@ pub fn check_address_denied_by_config(
 
 #[instrument(level = "trace", skip_all)]
 pub fn check_global_pause(
-    deny_config: &Config,
+    deny_config: &Config<ConfigWriteCap>,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
 ) -> bool {
-    let global_pause_key = GlobalPauseKey::new();
+    let global_pause_key = GlobalPauseKey::default();
     read_config_setting(object_store, deny_config, global_pause_key, cur_epoch).unwrap_or(false)
 }
 
@@ -262,7 +210,7 @@ pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) 
 /// If `cur_epoch` is `None`, the `newer_value` is always returned.
 fn read_config_setting<K, V>(
     object_store: &dyn ObjectStore,
-    config: &Config,
+    config: &Config<ConfigWriteCap>,
     setting_name: K,
     cur_epoch: Option<EpochId>,
 ) -> Option<V>

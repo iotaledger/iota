@@ -174,7 +174,7 @@ fn make_shared_authenticator_transaction(
     let tx_data = TestTransactionBuilder::new(sender, gas_object.object_ref(), 100)
         .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", vec![])
         .build();
-    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+    let authenticator = MoveAuthenticatorV1::new(
         vec![],
         vec![],
         SharedObjectReference::new(shared_object.id(), 0.into(), false),
@@ -222,11 +222,10 @@ async fn assert_awaits_authenticator_input(
 /// available.
 ///
 /// - `ExecutionScheduler` fails this without scheduling on
-///   `collect_all_input_object_kind_for_reading`: it dispatches early and would
-///   later panic in the input loader.
+///   `collect_all_input_object_kind_for_reading`: it dispatches early and would later panic in the
+///   input loader.
 /// - `TransactionManager` already passes: it schedules on the envelope's
-///   `SenderSignedTransaction::input_objects()`, which already includes
-///   authenticator inputs.
+///   `SenderSignedTransaction::input_objects()`, which already includes authenticator inputs.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn schedulers_wait_for_authenticator_inputs() {
     let shared_version = 2000.into();

@@ -168,7 +168,7 @@ impl ValidatorClientMonitor {
         &self,
         committee: impl Iterator<Item = &'a AuthorityName>,
     ) -> Vec<&'a AuthorityName> {
-        let rng = rand::thread_rng();
+        let rng = rand::rng();
         let now = Instant::now();
         let validators = self
             .client_stats

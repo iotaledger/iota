@@ -28,12 +28,12 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_move_types::iota_framework::vec_map::VecMap;
 use iota_sdk_types::{
     Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
@@ -1379,7 +1379,8 @@ async fn convert_to_response<S: PackageStore>(
     if opts.show_effects {
         if let Some(effects) = cache.effects {
             let effects =
-                IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver).await;
+                IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver)
+                    .await?;
             response.effects = Some(effects);
         }
     }

@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, env};
+use std::{
+    collections::BTreeMap,
+    env,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use iota_macros::nondeterministic;
 use rocksdb::{BlockBasedOptions, Cache, ReadOptions};
@@ -35,6 +39,31 @@ const DEFAULT_TARGET_FILE_SIZE_BASE_MB: usize = 128;
 // Set to 1 to disable blob storage for transactions and effects.
 const ENV_VAR_DISABLE_BLOB_STORAGE: &str = "DISABLE_BLOB_STORAGE";
 const ENV_VAR_DB_PARALLELISM: &str = "DB_PARALLELISM";
+
+static FALLOCATE_DISABLED: AtomicBool = AtomicBool::new(false);
+
+/// Stops RocksDB from preallocating file space in databases opened afterwards
+/// with [`default_db_options`] or [`bulk_ingestion_options`].
+///
+/// For tests that run many nodes in one process: on Linux, each write-ahead
+/// log otherwise reserves up to 1.1 × the write buffer size on disk.
+pub fn disable_fallocate() {
+    FALLOCATE_DISABLED.store(true, Ordering::Relaxed);
+}
+
+/// Returns the RocksDB default options, with `allow_fallocate` turned off if
+/// [`disable_fallocate`] was called.
+pub(crate) fn base_db_options() -> rocksdb::Options {
+    let mut options = rocksdb::Options::default();
+    if !FALLOCATE_DISABLED.load(Ordering::Relaxed) {
+        return options;
+    }
+    // The crate has no setter for `allow_fallocate`. The parsed copy drops the
+    // objects attached to the original, so this must run before any are set.
+    options
+        .get_options_from_string("allow_fallocate=false")
+        .expect("allow_fallocate should be a valid RocksDB option")
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct ReadWriteOptions {
@@ -81,7 +110,7 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
     let total_memory_bytes = available_memory_bytes();
     let num_cpus = num_cpus::get();
 
-    let mut db_options = rocksdb::Options::default();
+    let mut db_options = base_db_options();
 
     // `unordered_write` gives a large speedup for bulk writes; relaxed write
     // ordering is acceptable because the store is rebuilt from scratch on
@@ -388,7 +417,7 @@ impl DBOptions {
 /// Creates a default RocksDB option, to be used when RocksDB option is
 /// unspecified.
 pub fn default_db_options() -> DBOptions {
-    let mut opt = rocksdb::Options::default();
+    let mut opt = base_db_options();
 
     // One common issue when running tests on Mac is that the default ulimit is too
     // low, leading to I/O errors such as "Too many open files". Raising fdlimit

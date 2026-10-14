@@ -74,15 +74,14 @@ impl FileProgressStore {
 
     /// Reads the file content and parses it as a JSON [`Value`].
     ///
-    /// - If the file is empty, this function *avoids reading the file* and
-    ///   immediately returns an empty JSON object.
-    /// - If the file is not empty, it reads the entire file content and parses
-    ///   into a JSON [`Value`].
-    /// - If JSON parsing fails (indicating a corrupted or invalid JSON file),
-    ///   it also returns an empty JSON object. This ensures that the progress
-    ///   store starts with a clean state in case of file corruption. Later, the
-    ///   `ProgressStore::load` method will interpret this empty JSON object as
-    ///   a default checkpoint sequence number of 0.
+    /// - If the file is empty, this function *avoids reading the file* and immediately returns an
+    ///   empty JSON object.
+    /// - If the file is not empty, it reads the entire file content and parses into a JSON
+    ///   [`Value`].
+    /// - If JSON parsing fails (indicating a corrupted or invalid JSON file), it also returns an
+    ///   empty JSON object. This ensures that the progress store starts with a clean state in case
+    ///   of file corruption. Later, the `ProgressStore::load` method will interpret this empty JSON
+    ///   object as a default checkpoint sequence number of 0.
     async fn read_file_to_json_value(&mut self) -> IngestionResult<Value> {
         if self.is_file_empty().await? {
             return Ok(Self::empty_json_object());

@@ -665,7 +665,8 @@ async fn test_event_filtering() {
 
     // get the latest checkpoint sequence number
     let latest_checkpoint_seq = client
-        .checkpoint_latest(None, None, CheckpointResponseField::ALL)
+        .checkpoint_latest()
+        .read_mask(CheckpointResponseField::ALL)
         .await
         .expect("Failed to get latest checkpoint")
         .body()
@@ -673,13 +674,11 @@ async fn test_event_filtering() {
 
     // Test 1: SenderFilter - should receive only events from sender_1
     let mut sender_stream = client
-        .checkpoints_stream(
-            Some(0),
-            Some(latest_checkpoint_seq),
-            None,
-            Some(sender_filter),
-            CheckpointResponseField::EVENTS,
-        )
+        .checkpoints_stream()
+        .start_sequence_number(0)
+        .end_sequence_number(latest_checkpoint_seq)
+        .events_filter(sender_filter)
+        .read_mask(CheckpointResponseField::EVENTS)
         .await
         .expect("Failed to create sender events stream");
 
@@ -720,13 +719,11 @@ async fn test_event_filtering() {
 
     // Test 2: MoveEventTypeFilter - should receive only NFT events
     let mut nft_stream = client
-        .checkpoints_stream(
-            Some(0),
-            Some(latest_checkpoint_seq),
-            None,
-            Some(nft_filter),
-            CheckpointResponseField::EVENTS,
-        )
+        .checkpoints_stream()
+        .start_sequence_number(0)
+        .end_sequence_number(latest_checkpoint_seq)
+        .events_filter(nft_filter)
+        .read_mask(CheckpointResponseField::EVENTS)
         .await
         .expect("Failed to create NFT events stream");
 
@@ -765,13 +762,11 @@ async fn test_event_filtering() {
 
     // Test 3: AnyEventFilter - should receive sender_1 events, and all NFT events
     let mut any_stream = client
-        .checkpoints_stream(
-            Some(0),
-            Some(latest_checkpoint_seq),
-            None,
-            Some(any_filter),
-            CheckpointResponseField::EVENTS,
-        )
+        .checkpoints_stream()
+        .start_sequence_number(0)
+        .end_sequence_number(latest_checkpoint_seq)
+        .events_filter(any_filter)
+        .read_mask(CheckpointResponseField::EVENTS)
         .await
         .expect("Failed to create all events stream");
 

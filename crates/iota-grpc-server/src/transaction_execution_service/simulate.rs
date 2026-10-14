@@ -33,10 +33,12 @@ use crate::{
     types::GrpcReader, validation::validate_read_mask,
 };
 
-/// Simulate a batch of transactions sequentially.
+/// Simulate a batch of transactions.
 ///
-/// Each transaction is simulated independently — failure of one does not abort
-/// the rest. Results are returned in the same order as the input.
+/// Each transaction is simulated independently against the current state, so
+/// it does not see the effects of other transactions in the batch. Failure of
+/// one does not abort the rest. Results are returned in the same order as the
+/// input.
 ///
 /// ## Available Read Mask Fields
 ///
@@ -48,8 +50,7 @@ use crate::{
 /// - `executed_transaction` - includes all executed transaction fields
 ///   - `executed_transaction.transaction` - includes all transaction fields
 ///     - `executed_transaction.transaction.digest` - the transaction digest
-///     - `executed_transaction.transaction.bcs` - the full BCS-encoded
-///       transaction
+///     - `executed_transaction.transaction.bcs` - the full BCS-encoded transaction
 ///   - `executed_transaction.signatures` - includes all signature fields
 ///     - `executed_transaction.signatures.bcs` - the full BCS-encoded signature
 ///   - `executed_transaction.effects` - includes all effects fields
@@ -57,93 +58,69 @@ use crate::{
 ///     - `executed_transaction.effects.bcs` - the full BCS-encoded effects
 ///   - `executed_transaction.events` - includes all event fields
 ///     - `executed_transaction.events.digest` - the events digest
-///     - `executed_transaction.events.events` - includes all event fields (all
-///       events of the transaction)
-///       - `executed_transaction.events.events.bcs` - the full BCS-encoded
+///     - `executed_transaction.events.events` - includes all event fields (all events of the
+///       transaction)
+///       - `executed_transaction.events.events.bcs` - the full BCS-encoded event
+///       - `executed_transaction.events.events.package_id` - the ID of the package that emitted the
 ///         event
-///       - `executed_transaction.events.events.package_id` - the ID of the
-///         package that emitted the event
-///       - `executed_transaction.events.events.module` - the module that
-///         emitted the event
-///       - `executed_transaction.events.events.sender` - the sender that
-///         triggered the event
-///       - `executed_transaction.events.events.event_type` - the type of the
+///       - `executed_transaction.events.events.module` - the module that emitted the event
+///       - `executed_transaction.events.events.sender` - the sender that triggered the event
+///       - `executed_transaction.events.events.event_type` - the type of the event
+///       - `executed_transaction.events.events.bcs_contents` - the full BCS-encoded contents of the
 ///         event
-///       - `executed_transaction.events.events.bcs_contents` - the full
-///         BCS-encoded contents of the event
-///       - `executed_transaction.events.events.json_contents` - the
-///         JSON-encoded contents of the event
-///   - `executed_transaction.checkpoint` - the checkpoint that included the
-///     transaction (not available for just-executed transactions)
-///   - `executed_transaction.timestamp` - the timestamp of the checkpoint (not
+///       - `executed_transaction.events.events.json_contents` - the JSON-encoded contents of the
+///         event
+///   - `executed_transaction.checkpoint` - the checkpoint that included the transaction (not
 ///     available for just-executed transactions)
+///   - `executed_transaction.timestamp` - the timestamp of the checkpoint (not available for
+///     just-executed transactions)
 ///   - `executed_transaction.input_objects` - includes all input object fields
-///     - `executed_transaction.input_objects.reference` - includes all
-///       reference fields
-///       - `executed_transaction.input_objects.reference.object_id` - the ID of
-///         the input object
-///       - `executed_transaction.input_objects.reference.version` - the version
-///         of the input object
-///       - `executed_transaction.input_objects.reference.digest` - the digest
-///         of the input object contents
+///     - `executed_transaction.input_objects.reference` - includes all reference fields
+///       - `executed_transaction.input_objects.reference.object_id` - the ID of the input object
+///       - `executed_transaction.input_objects.reference.version` - the version of the input object
+///       - `executed_transaction.input_objects.reference.digest` - the digest of the input object
+///         contents
 ///     - `executed_transaction.input_objects.bcs` - the full BCS-encoded object
-///   - `executed_transaction.output_objects` - includes all output object
-///     fields
-///     - `executed_transaction.output_objects.reference` - includes all
-///       reference fields
-///       - `executed_transaction.output_objects.reference.object_id` - the ID
-///         of the output object
-///       - `executed_transaction.output_objects.reference.version` - the
-///         version of the output object
-///       - `executed_transaction.output_objects.reference.digest` - the digest
-///         of the output object contents
-///     - `executed_transaction.output_objects.bcs` - the full BCS-encoded
-///       object
-///   - `executed_transaction.balance_changes` - per-owner, per-coin-type
-///     balance deltas derived from the simulated effects and input/output
-///     objects; a mocked gas coin is excluded. For a failed transaction this
-///     contains only the gas charge.
-///   - `executed_transaction.object_changes` - structured object changes
-///     (created, mutated, deleted, wrapped, unwrapped, published) derived from
-///     the simulated effects and input/output objects.
+///   - `executed_transaction.output_objects` - includes all output object fields
+///     - `executed_transaction.output_objects.reference` - includes all reference fields
+///       - `executed_transaction.output_objects.reference.object_id` - the ID of the output object
+///       - `executed_transaction.output_objects.reference.version` - the version of the output
+///         object
+///       - `executed_transaction.output_objects.reference.digest` - the digest of the output object
+///         contents
+///     - `executed_transaction.output_objects.bcs` - the full BCS-encoded object
+///   - `executed_transaction.balance_changes` - per-owner, per-coin-type balance deltas derived
+///     from the simulated effects and input/output objects; a mocked gas coin is excluded. For a
+///     failed transaction this contains only the gas charge.
+///   - `executed_transaction.object_changes` - structured object changes (created, mutated,
+///     deleted, wrapped, unwrapped, published) derived from the simulated effects and input/output
+///     objects.
 ///
 /// ## Gas Fields
-/// - `suggested_gas_price` - the suggested gas price for the transaction,
-///   denominated in NANOS
+/// - `suggested_gas_price` - the suggested gas price for the transaction, denominated in NANOS
 ///
 /// ## Execution Result Fields
-/// - `execution_result` - the execution result (oneof: command_results on
-///   success, execution_error on failure)
-///   - `execution_result.command_results` - includes all fields of per-command
-///     results if execution succeeded
-///     - `execution_result.command_results.mutated_by_ref` - includes all
-///       fields of objects mutated by reference
-///       - `execution_result.command_results.mutated_by_ref.argument` - the
-///         argument reference
-///       - `execution_result.command_results.mutated_by_ref.type_tag` - the
-///         Move type tag
-///       - `execution_result.command_results.mutated_by_ref.bcs` - the
-///         BCS-encoded value
-///       - `execution_result.command_results.mutated_by_ref.json` - the
-///         JSON-encoded value
-///     - `execution_result.command_results.return_values` - includes all fields
-///       of return values returned by the command
-///       - `execution_result.command_results.return_values.argument` - the
-///         argument reference
-///       - `execution_result.command_results.return_values.type_tag` - the Move
-///         type tag
-///       - `execution_result.command_results.return_values.bcs` - the
-///         BCS-encoded value
-///       - `execution_result.command_results.return_values.json` - the
-///         JSON-encoded value
-///   - `execution_result.execution_error` - includes all fields of the
-///     execution error if execution failed
-///     - `execution_result.execution_error.bcs_kind` - the BCS-encoded error
-///       kind
-///     - `execution_result.execution_error.source` - the error source
-///       description
-///     - `execution_result.execution_error.command_index` - the index of the
-///       command that failed
+/// - `execution_result` - the execution result (oneof: command_results on success, execution_error
+///   on failure)
+///   - `execution_result.command_results` - includes all fields of per-command results if execution
+///     succeeded
+///     - `execution_result.command_results.mutated_by_ref` - includes all fields of objects mutated
+///       by reference
+///       - `execution_result.command_results.mutated_by_ref.argument` - the argument reference
+///       - `execution_result.command_results.mutated_by_ref.type_tag` - the Move type tag
+///       - `execution_result.command_results.mutated_by_ref.bcs` - the BCS-encoded value
+///       - `execution_result.command_results.mutated_by_ref.json` - the JSON-encoded value
+///     - `execution_result.command_results.return_values` - includes all fields of return values
+///       returned by the command
+///       - `execution_result.command_results.return_values.argument` - the argument reference
+///       - `execution_result.command_results.return_values.type_tag` - the Move type tag
+///       - `execution_result.command_results.return_values.bcs` - the BCS-encoded value
+///       - `execution_result.command_results.return_values.json` - the JSON-encoded value
+///   - `execution_result.execution_error` - includes all fields of the execution error if execution
+///     failed
+///     - `execution_result.execution_error.bcs_kind` - the BCS-encoded error kind
+///     - `execution_result.execution_error.source` - the error source description
+///     - `execution_result.execution_error.command_index` - the index of the command that failed
 #[tracing::instrument(skip_all, fields(batch_size = request.transactions.len()))]
 pub async fn simulate_transactions(
     reader: &Arc<GrpcReader>,

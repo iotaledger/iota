@@ -700,7 +700,11 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
-        Ok(self.get_latest_iota_system_state().await?.into())
+        Ok(self
+            .get_latest_iota_system_state()
+            .await?
+            .try_into()
+            .map_err(IndexerError::from)?)
     }
 
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {

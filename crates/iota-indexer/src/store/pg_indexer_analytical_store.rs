@@ -14,10 +14,11 @@ use iota_sdk_types::ObjectId;
 use tap::tap::TapFallible;
 use tracing::{error, info};
 
-use super::IndexerAnalyticalStore;
+use super::{IndexerAnalyticalStore, WatermarkLowerBounds};
 use crate::{
     db::ConnectionPool,
     errors::{Context, IndexerError},
+    ingestion::common::persist::CommitterTables,
     models::{
         address_metrics::StoredAddressMetrics,
         checkpoints::StoredCheckpoint,
@@ -31,10 +32,11 @@ use crate::{
             StoredTransactionTimestamp, TxSeq,
         },
         tx_count_metrics::StoredTxCountMetrics,
+        watermarks::StoredWatermark,
     },
     schema::{
         active_addresses, address_metrics, addresses, checkpoints, epoch_peak_tps,
-        move_call_metrics, move_calls, transactions, tx_count_metrics,
+        move_call_metrics, move_calls, transactions, tx_count_metrics, watermarks,
     },
     store::diesel_macro::{
         read_only_blocking, spawn_blocking_task, transactional_blocking_with_retry,
@@ -69,6 +71,38 @@ impl PgIndexerAnalyticalStore {
 
 #[async_trait]
 impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
+    async fn get_watermark_lower_bounds(
+        &self,
+        tables: &[CommitterTables],
+    ) -> IndexerResult<WatermarkLowerBounds> {
+        let entities = tables
+            .iter()
+            .map(|t| t.as_ref().to_owned())
+            .collect::<Vec<String>>();
+
+        self.execute_in_blocking_worker(move |this| {
+            let stored = read_only_blocking!(&this.blocking_cp, |conn| {
+                watermarks::table
+                    .filter(watermarks::entity.eq_any(entities))
+                    .load::<StoredWatermark>(conn)
+            })
+            .context("failed reading watermark lower bounds from PostgresDB")?;
+
+            Ok(stored
+                .iter()
+                .fold(WatermarkLowerBounds::default(), |bounds, watermark| {
+                    WatermarkLowerBounds {
+                        min_available_epoch: bounds
+                            .min_available_epoch
+                            .max(watermark.min_available_epoch),
+                        min_available_cp: bounds.min_available_cp.max(watermark.min_available_cp),
+                        min_available_tx: bounds.min_available_tx.max(watermark.min_available_tx),
+                    }
+                }))
+        })
+        .await
+    }
+
     async fn get_latest_stored_checkpoint(&self) -> IndexerResult<Option<StoredCheckpoint>> {
         self.execute_in_blocking_worker(move |this| {
             let latest_cp = read_only_blocking!(&this.blocking_cp, |conn| {

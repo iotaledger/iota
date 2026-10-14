@@ -26,13 +26,12 @@ use crate::verification_failure;
 /// Verify if a given function can be used as an authenticator function
 ///
 /// A function is an authenticator function if:
-/// - only has read-only inputs (immutable owned/shared references or pure
-///   types)
+/// - only has read-only inputs (immutable owned/shared references or pure types)
 /// - has no return type
 /// - must be a public non-entry function
-/// - the first argument is a reference to the account object type (a Datatype
-///   or a concrete DatatypeInstantiation, i.e., with no template type
-///   parameters but concrete ones, both with `key` ability)
+/// - the first argument is a reference to the account object type (a Datatype or a concrete
+///   DatatypeInstantiation, i.e., with no template type parameters but concrete ones, both with
+///   `key` ability)
 /// - the last two arguments in order are AuthContext and TxContext
 /// - AuthContext has to be an immutable reference
 /// - TxContext has to be an immutable reference
@@ -184,8 +183,7 @@ fn verify_authenticate_account_type(
 /// Verify that the parameter type is a valid type for an authenticator
 /// function. Check that:
 /// - no Receiving objects are passed at all;
-/// - no objects are passed by value or by mutable reference, but only by
-///   immutable reference;
+/// - no objects are passed by value or by mutable reference, but only by immutable reference;
 /// - only primitive types are allowed by value.
 fn verify_authenticate_param_type(
     module: &CompiledModule,
