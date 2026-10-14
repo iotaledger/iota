@@ -13,6 +13,7 @@ mod ingestion_tests {
         BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper,
         connection::BoxableConnection,
     };
+    use iota_common::random_util::TempDir;
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
@@ -26,12 +27,13 @@ mod ingestion_tests {
         },
         schema::{checkpointed_objects, checkpoints, objects, transactions, tx_global_order},
         store::{PgIndexerStore, diesel_macro::spawn_blocking_task, indexer_store::IndexerStore},
+        test_utils::DBInitHook,
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
     use iota_sdk_types::{
-        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
-        TransactionEffects, Version,
+        Address, Argument, Identifier, ObjectId, ObjectReference, OwnedObjectReference, Owner,
+        StructTag, Transaction, TransactionDigest, TransactionEffects, Version,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
@@ -40,7 +42,6 @@ mod ingestion_tests {
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use simulacrum::Simulacrum;
-    use tempfile::tempdir;
 
     use crate::common::{
         backward_history::{find_all_entries_at_checkpoint, find_backward_entry},
@@ -48,6 +49,8 @@ mod ingestion_tests {
         object_versions::find_object_versions_at_checkpoint,
         start_simulacrum_grpc_with_write_indexer,
     };
+
+    const DB_NAME: &str = "indexer_ingestion_tests_db";
 
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
@@ -68,21 +71,112 @@ mod ingestion_tests {
         }};
     }
 
-    #[tokio::test]
-    pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
+    /// Creates a simulacrum that writes checkpoint data to a new temporary
+    /// directory.
+    fn new_sim() -> (Simulacrum, TempDir) {
         let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
+        sim.set_data_ingestion_path(tmp_dir.path().to_path_buf());
+        (sim, tmp_dir)
+    }
 
+    /// Starts a writer indexer on [`DB_NAME`] that ingests the checkpoints of
+    /// `sim`.
+    async fn start_indexer(sim: Simulacrum, data_dir: &TempDir) -> PgIndexerStore {
+        start_indexer_with(sim, data_dir, Some(DB_NAME), None).await
+    }
+
+    /// Starts a writer indexer that ingests the checkpoints of `sim`.
+    async fn start_indexer_with(
+        sim: Simulacrum,
+        data_dir: &TempDir,
+        database_name: Option<&str>,
+        db_init_hook: Option<DBInitHook>,
+    ) -> PgIndexerStore {
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
-            data_ingestion_path,
+            data_dir.path().to_path_buf(),
             None,
-            Some("indexer_ingestion_tests_db"),
-            None,
+            database_name,
+            db_init_hook,
         )
         .await;
+        pg_store
+    }
+
+    /// Executes a transfer of a new coin to a random address and asserts
+    /// success.
+    ///
+    /// Returns the transaction, its effects, and the reference of the coin
+    /// that it creates.
+    fn execute_transfer(
+        sim: &Simulacrum,
+    ) -> (TransactionEnvelope, TransactionEffects, ObjectReference) {
+        let (transaction, _) = sim.transfer_txn(Address::random());
+        let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        assert!(err.is_none(), "tx failed: {err:?}");
+        let created = effects.created();
+        assert_eq!(
+            created.len(),
+            1,
+            "transfer_txn should create exactly 1 coin"
+        );
+        let created_coin = *created[0].reference();
+        (transaction, effects, created_coin)
+    }
+
+    /// Returns the reference of the object `id` in `refs`.
+    fn find_object_ref<'a>(
+        refs: impl IntoIterator<Item = &'a ObjectReference>,
+        id: ObjectId,
+    ) -> ObjectReference {
+        *refs
+            .into_iter()
+            .find(|r| r.object_id == id)
+            .unwrap_or_else(|| panic!("object {id:?} not found"))
+    }
+
+    async fn read_tx_global_order(
+        pg_store: &PgIndexerStore,
+        digest: TransactionDigest,
+    ) -> Result<TxGlobalOrder, IndexerError> {
+        read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq(digest.bytes().to_vec()))
+                .select(TxGlobalOrder::as_select())
+                .first::<TxGlobalOrder>(conn)
+        })
+        .context("failed reading `tx_global_order` from PostgresDB")
+    }
+
+    /// Returns a hook that inserts the `tx_global_order` row of `digest`
+    /// without sequence numbers, as optimistic indexing does before the
+    /// checkpoint arrives.
+    fn emulate_insertion_order_set_earlier_by_optimistic_indexing(
+        digest: TransactionDigest,
+    ) -> DBInitHook {
+        Box::new(move |pg_store: &PgIndexerStore| {
+            transactional_blocking_with_retry!(
+                &pg_store.blocking_cp(),
+                |conn| {
+                    let insertable = TxGlobalOrder {
+                        tx_digest: digest.bytes().to_vec(),
+                        optimistic_sequence_number: None,
+                        tx_sequence_number: None,
+                    };
+                    insert_or_ignore_into!(tx_global_order::table, insertable, conn);
+                    Ok::<(), IndexerError>(())
+                },
+                Duration::from_secs(60)
+            )
+            .unwrap()
+        })
+    }
+
+    #[tokio::test]
+    pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
+        let (sim, tmp_dir) = new_sim();
+        let pg_store = start_indexer(sim, &tmp_dir).await;
 
         let checkpoint_objects = (0..1000)
             .map(|_| CheckpointObjectChanges::random())
@@ -93,29 +187,12 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn transaction_table() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        // Execute a simple transaction.
-        let transfer_recipient = Address::random();
-        let (transaction, _) = sim.transfer_txn(transfer_recipient);
-        let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
-        assert!(err.is_none());
-
+        let (sim, tmp_dir) = new_sim();
+        let (transaction, effects, _) = execute_transfer(&sim);
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
+        let pg_store = start_indexer(sim, &tmp_dir).await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let digest = *effects.transaction_digest();
@@ -145,34 +222,16 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn object_type() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
+        let (sim, tmp_dir) = new_sim();
+        let (transaction, ..) = execute_transfer(&sim);
+        sim.create_checkpoint();
 
-        // Execute a simple transaction.
-        let transfer_recipient = Address::random();
-        let (transaction, _) = sim.transfer_txn(transfer_recipient);
-        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
-        assert!(err.is_none());
-
-        // Create a checkpoint which should include the transaction we executed.
-        let _ = sim.create_checkpoint();
-
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
+        let pg_store = start_indexer(sim, &tmp_dir).await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let obj_id = transaction.gas()[0].object_id;
 
-        // Read the transaction from the database directly.
+        // Read the object from the database directly.
         let db_object: StoredObject = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             objects::table
                 .filter(objects::object_id.eq(obj_id.as_bytes()))
@@ -182,7 +241,7 @@ mod ingestion_tests {
 
         let obj_type_tag = StructTag::new_gas_coin();
 
-        // Check that the different components of the event type were stored correctly.
+        // Check that the different components of the object type were stored correctly.
         assert_eq!(
             db_object.object_type,
             Some(obj_type_tag.to_canonical_string(true))
@@ -198,45 +257,19 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        // Execute a simple transaction.
-        let transfer_recipient = Address::random();
-        let (transaction, _) = sim.transfer_txn(transfer_recipient);
-        let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
-        assert!(err.is_none());
-
-        // Create a checkpoint which should include the transaction we executed.
+        let (sim, tmp_dir) = new_sim();
+        let (_, effects, _) = execute_transfer(&sim);
         sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
+        let pg_store = start_indexer(sim, &tmp_dir).await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
-        let digest = *effects.transaction_digest();
+        let stored = read_tx_global_order(&pg_store, *effects.transaction_digest()).await?;
 
-        let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_global_order::table
-                .filter(tx_global_order::tx_digest.eq(digest.bytes().to_vec()))
-                .select(TxGlobalOrder::as_select())
-                .first::<TxGlobalOrder>(conn)
-        })
-        .context("failed reading `tx_global_order` from PostgresDB")?;
-
-        assert!(stored_global_order.tx_sequence_number.is_some());
+        assert!(stored.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = -1;
         assert_eq!(
-            stored_global_order.optimistic_sequence_number,
+            stored.optimistic_sequence_number,
             Some(expected_optimistic_sequence_number)
         );
         Ok(())
@@ -244,58 +277,23 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        // Execute a simple transaction.
-        let transfer_recipient = Address::random();
-        let (transaction, _) = sim.transfer_txn(transfer_recipient);
-        let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
-        assert!(err.is_none());
-        // Create a checkpoint which should include the transaction we executed.
+        let (sim, tmp_dir) = new_sim();
+        let (_, effects, _) = execute_transfer(&sim);
         sim.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let emulate_insertion_order_set_earlier_by_optimistic_indexing =
-            move |pg_store: &PgIndexerStore| {
-                transactional_blocking_with_retry!(
-                    &pg_store.blocking_cp(),
-                    |conn| {
-                        let insertable = TxGlobalOrder {
-                            tx_digest: digest.bytes().to_vec(),
-                            optimistic_sequence_number: None,
-                            tx_sequence_number: None,
-                        };
-                        insert_or_ignore_into!(tx_global_order::table, insertable, conn);
-                        Ok::<(), IndexerError>(())
-                    },
-                    Duration::from_secs(60)
-                )
-                .unwrap()
-            };
-
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            Some(Box::new(
-                emulate_insertion_order_set_earlier_by_optimistic_indexing,
+        let pg_store = start_indexer_with(
+            sim,
+            &tmp_dir,
+            Some(DB_NAME),
+            Some(emulate_insertion_order_set_earlier_by_optimistic_indexing(
+                digest,
             )),
         )
         .await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
-        // Read the transaction from the database directly.
-        let stored = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_global_order::table
-                .filter(tx_global_order::tx_digest.eq(digest.bytes().to_vec()))
-                .select(TxGlobalOrder::as_select())
-                .first::<TxGlobalOrder>(conn)
-        })
-        .context("failed reading `tx_global_order` from PostgresDB")?;
+        let stored = read_tx_global_order(&pg_store, digest).await?;
 
         // The checkpoint upsert must fill in the sequence number without
         // replacing the row inserted by the optimistic path.
@@ -318,19 +316,9 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tx_indices_db"),
-            None,
-        )
-        .await;
+        let (sim, tmp_dir) = new_sim();
+        let pg_store =
+            start_indexer_with(sim, &tmp_dir, Some("indexer_ingestion_tx_indices_db"), None).await;
 
         // By creating 1000 random tx indices we ensure that the
         // persist_event_indices function will flatten each TxIndex by
@@ -355,15 +343,10 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
+        let (sim, tmp_dir) = new_sim();
+        let pg_store = start_indexer_with(
+            sim,
+            &tmp_dir,
             Some("indexer_ingestion_event_indices_db"),
             None,
         )
@@ -385,27 +368,11 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        let transfer_recipient = Address::random();
-        let (transaction, _) = sim.transfer_txn(transfer_recipient);
-        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
-        assert!(err.is_none());
-
+        let (sim, tmp_dir) = new_sim();
+        execute_transfer(&sim);
         sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
+        let pg_store = start_indexer(sim, &tmp_dir).await;
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         let max_cp = IndexerStore::get_latest_checkpoint_sequence_number(&pg_store)
@@ -432,33 +399,16 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        let transfer_recipient = Address::random();
-        let (transaction, _) = sim.transfer_txn(transfer_recipient);
-        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
-        assert!(err.is_none());
-
+        let (sim, tmp_dir) = new_sim();
+        execute_transfer(&sim);
         sim.create_checkpoint(); // checkpoint 1
         sim.advance_epoch(false); // checkpoint 2 and epoch 1
-
-        let (transaction, _) = sim.transfer_txn(transfer_recipient);
-        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        execute_transfer(&sim);
         sim.create_checkpoint(); // checkpoint 3
-        assert!(err.is_none());
 
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            None,
-            None,
-        )
-        .await;
+        let pg_store = start_indexer_with(sim, &tmp_dir, None, None).await;
         indexer_wait_for_checkpoint(&pg_store, 3).await;
+
         let db_checkpoint = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             checkpoints::table
                 .order(checkpoints::sequence_number.desc())
@@ -475,39 +425,15 @@ mod ingestion_tests {
     /// deletions.
     #[tokio::test]
     pub async fn checkpointed_objects_match_objects() -> Result<(), IndexerError> {
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
+        let (sim, tmp_dir) = new_sim();
 
-        // Execute several transfers to create mutations.
-        let recipient1 = Address::random();
-        let recipient2 = Address::random();
+        // Execute several transfers to create mutations on the gas object.
+        for _ in 0..3 {
+            execute_transfer(&sim);
+            sim.create_checkpoint();
+        }
 
-        let (tx1, _) = sim.transfer_txn(recipient1);
-        let (_, err) = sim.execute_transaction(tx1).unwrap();
-        assert!(err.is_none());
-        sim.create_checkpoint();
-
-        let (tx2, _) = sim.transfer_txn(recipient2);
-        let (_, err) = sim.execute_transaction(tx2).unwrap();
-        assert!(err.is_none());
-        sim.create_checkpoint();
-
-        // One more transfer to trigger further mutations on gas objects.
-        let (tx3, _) = sim.transfer_txn(recipient1);
-        let (_, err) = sim.execute_transaction(tx3).unwrap();
-        assert!(err.is_none());
-        sim.create_checkpoint();
-
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
+        let pg_store = start_indexer(sim, &tmp_dir).await;
         indexer_wait_for_checkpoint(&pg_store, 3).await;
 
         // Read all rows from both tables.
@@ -616,6 +542,26 @@ mod ingestion_tests {
         Ok(())
     }
 
+    /// Asserts that `coin` has a NOT_YET_CREATED entry in
+    /// `objects_backward_history` at `cp`, with object_version = lamport - 1
+    /// (the version assigned by the create tx, minus one).
+    async fn assert_not_yet_created(
+        pg_store: &PgIndexerStore,
+        coin: ObjectReference,
+        cp: i64,
+    ) -> Result<(), IndexerError> {
+        let entry = find_backward_entry(pg_store, coin.object_id.as_bytes(), cp)
+            .await?
+            .unwrap_or_else(|| {
+                panic!("created coin {coin:?} must have a backward history entry at cp {cp}")
+            });
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
+        assert_eq!(entry.object_version, coin.version.as_u64() as i64 - 1);
+        assert!(entry.serialized_object.is_none());
+        assert!(entry.object_digest.is_none());
+        Ok(())
+    }
+
     /// Verify that `objects_backward_history` is populated correctly, including
     /// when multiple transactions land in the same checkpoint.
     ///
@@ -625,105 +571,40 @@ mod ingestion_tests {
     ///   - a MUTATED gas   → ACTIVE backward entry with previous version/data
     #[tokio::test]
     pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
+        let (sim, tmp_dir) = new_sim();
 
         // --- checkpoint 1: TWO transfers in the same checkpoint ---
         // This exercises the case where multiple transactions produce backward
         // history entries for the same checkpoint, and where the same object
         // (the gas coin) is mutated by both transactions within one checkpoint.
-        let recipient1 = Address::random();
-        let (tx1, _) = sim.transfer_txn(recipient1);
-        let gas_ref_tx1 = tx1.gas()[0];
-        let gas_object_id = gas_ref_tx1.object_id;
-        let gas_version_before_tx1 = gas_ref_tx1.version;
-        let (effects1, err) = sim.execute_transaction(tx1).unwrap();
-        assert!(err.is_none());
-        let created1: Vec<_> = effects1
-            .created()
-            .into_iter()
-            .map(|created| (created.reference().object_id, created.reference().version))
-            .collect();
-        assert_eq!(
-            created1.len(),
-            1,
-            "transfer_txn should create exactly 1 coin"
-        );
-        let (created_coin_1, created_coin_1_version) = created1[0];
+        let (tx1, _, created_coin_1) = execute_transfer(&sim);
+        let gas_object_id = tx1.gas()[0].object_id;
+        let gas_version_before_tx1 = tx1.gas()[0].version;
 
         // Second transfer in the same checkpoint — uses the same gas object
         // (now at an updated version).
-        let recipient2 = Address::random();
-        let (tx2, _) = sim.transfer_txn(recipient2);
+        let (tx2, _, created_coin_2) = execute_transfer(&sim);
         let gas_version_before_tx2 = tx2.gas()[0].version;
         assert!(
             gas_version_before_tx2 > gas_version_before_tx1,
             "gas should have been bumped after tx1"
         );
-        let (effects2, err) = sim.execute_transaction(tx2).unwrap();
-        assert!(err.is_none());
-        let created2: Vec<_> = effects2
-            .created()
-            .into_iter()
-            .map(|created| (created.reference().object_id, created.reference().version))
-            .collect();
-        assert_eq!(created2.len(), 1);
-        let (created_coin_2, created_coin_2_version) = created2[0];
 
         // Both transactions land in checkpoint 1.
         sim.create_checkpoint();
 
         // --- checkpoint 2: one more transfer ---
-        let recipient3 = Address::random();
-        let (tx3, _) = sim.transfer_txn(recipient3);
+        let (tx3, _, created_coin_3) = execute_transfer(&sim);
         let gas_version_before_tx3 = tx3.gas()[0].version;
-        let (effects3, err) = sim.execute_transaction(tx3).unwrap();
-        assert!(err.is_none());
-        let created3: Vec<_> = effects3
-            .created()
-            .into_iter()
-            .map(|created| (created.reference().object_id, created.reference().version))
-            .collect();
-        assert_eq!(created3.len(), 1);
-        let (created_coin_3, created_coin_3_version) = created3[0];
         sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
+        let pg_store = start_indexer(sim, &tmp_dir).await;
         indexer_wait_for_checkpoint(&pg_store, 2).await;
 
         // === checkpoint 1 assertions (two transactions) ===
 
-        // Both created coins should have NOT_YET_CREATED entries, with
-        // object_version = lamport - 1 (the version assigned by the create tx,
-        // minus one).
-        let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)
-            .await?
-            .expect("created coin 1 must have a backward history entry at cp 1");
-        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
-        assert_eq!(
-            entry.object_version,
-            created_coin_1_version.as_u64() as i64 - 1
-        );
-        assert!(entry.serialized_object.is_none());
-        assert!(entry.object_digest.is_none());
-
-        let entry = find_backward_entry(&pg_store, created_coin_2.as_bytes(), 1)
-            .await?
-            .expect("created coin 2 must have a backward history entry at cp 1");
-        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
-        assert_eq!(
-            entry.object_version,
-            created_coin_2_version.as_u64() as i64 - 1
-        );
+        assert_not_yet_created(&pg_store, created_coin_1, 1).await?;
+        assert_not_yet_created(&pg_store, created_coin_2, 1).await?;
 
         // The gas object was mutated twice in checkpoint 1 — there should be
         // two ACTIVE entries with different previous versions.
@@ -752,14 +633,7 @@ mod ingestion_tests {
 
         // === checkpoint 2 assertions (single transaction) ===
 
-        let entry = find_backward_entry(&pg_store, created_coin_3.as_bytes(), 2)
-            .await?
-            .expect("created coin 3 must have a backward history entry at cp 2");
-        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
-        assert_eq!(
-            entry.object_version,
-            created_coin_3_version.as_u64() as i64 - 1
-        );
+        assert_not_yet_created(&pg_store, created_coin_3, 2).await?;
 
         let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)
             .await?
@@ -771,92 +645,51 @@ mod ingestion_tests {
         Ok(())
     }
 
+    /// Executes a transfer and returns the rows that it must add to
+    /// `objects_version` at checkpoint `cp`.
+    fn execute_transfer_version_rows(sim: &Simulacrum, cp: i64) -> [StoredObjectVersion; 2] {
+        let (tx, effects, coin) = execute_transfer(sim);
+        let gas = find_object_ref(
+            effects
+                .mutated()
+                .iter()
+                .map(OwnedObjectReference::reference),
+            tx.gas()[0].object_id,
+        );
+        [gas, coin].map(|r| StoredObjectVersion {
+            object_id: r.object_id.as_bytes().to_vec(),
+            object_version: r.version.as_u64() as i64,
+            cp_sequence_number: cp,
+        })
+    }
+
     /// Verify that `objects_version` is populated correctly: one row per output
     /// object per transaction. Tests repeated mutations of the same object in a
     /// single checkpoint.
     #[tokio::test]
     pub async fn object_versions_ingestion() -> Result<(), IndexerError> {
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        // two transfers using the same gas object
-        let (tx1, _) = sim.transfer_txn(Address::random());
-        let gas_object_id = tx1.gas()[0].object_id;
-        let (effects1, err) = sim.execute_transaction(tx1).unwrap();
-        assert!(err.is_none());
-        let gas_after_tx1 = effects1
-            .mutated()
-            .into_iter()
-            .find(|mutated| mutated.reference().object_id == gas_object_id)
-            .expect("gas must be mutated by tx1")
-            .reference()
-            .version;
-        let created_coin_1 = *effects1.created()[0].reference();
-
-        let (tx2, _) = sim.transfer_txn(Address::random());
-        let (effects2, err) = sim.execute_transaction(tx2).unwrap();
-        assert!(err.is_none());
-        let gas_after_tx2 = effects2
-            .mutated()
-            .into_iter()
-            .find(|mutated| mutated.reference().object_id == gas_object_id)
-            .expect("gas must be mutated by tx2")
-            .reference()
-            .version;
-        let created_coin_2 = *effects2.created()[0].reference();
-
-        sim.create_checkpoint();
-
-        // one more transfer, separate checkpoint
-        let (tx3, _) = sim.transfer_txn(Address::random());
-        let (effects3, err) = sim.execute_transaction(tx3).unwrap();
-        assert!(err.is_none());
-        let gas_after_tx3 = effects3
-            .mutated()
-            .into_iter()
-            .find(|mutated| mutated.reference().object_id == gas_object_id)
-            .expect("gas must be mutated by tx3")
-            .reference()
-            .version;
-        let created_coin_3 = *effects3.created()[0].reference();
-        sim.create_checkpoint();
-
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
-        indexer_wait_for_checkpoint(&pg_store, 2).await;
-
-        let make_version_row = |id: ObjectId, version: Version, cp: i64| StoredObjectVersion {
-            object_id: id.as_bytes().to_vec(),
-            object_version: version.as_u64() as i64,
-            cp_sequence_number: cp,
-        };
+        let (sim, tmp_dir) = new_sim();
 
         // checkpoint 1: gas mutated twice + two coins created
-        let mut cp1_expected = vec![
-            make_version_row(gas_object_id, gas_after_tx1, 1),
-            make_version_row(gas_object_id, gas_after_tx2, 1),
-            make_version_row(created_coin_1.object_id, created_coin_1.version, 1),
-            make_version_row(created_coin_2.object_id, created_coin_2.version, 1),
-        ];
+        let mut cp1_expected = [
+            execute_transfer_version_rows(&sim, 1),
+            execute_transfer_version_rows(&sim, 1),
+        ]
+        .concat();
+        sim.create_checkpoint();
+
+        // checkpoint 2: gas mutated once + one coin created
+        let mut cp2_expected = execute_transfer_version_rows(&sim, 2).to_vec();
+        sim.create_checkpoint();
+
+        let pg_store = start_indexer(sim, &tmp_dir).await;
+        indexer_wait_for_checkpoint(&pg_store, 2).await;
+
         cp1_expected.sort();
         assert_eq!(
             find_object_versions_at_checkpoint(&pg_store, 1).await?,
             cp1_expected
         );
-
-        // checkpoint 2: gas mutated once + one coin created
-        let mut cp2_expected = vec![
-            make_version_row(gas_object_id, gas_after_tx3, 2),
-            make_version_row(created_coin_3.object_id, created_coin_3.version, 2),
-        ];
         cp2_expected.sort();
         assert_eq!(
             find_object_versions_at_checkpoint(&pg_store, 2).await?,
@@ -879,6 +712,7 @@ mod ingestion_tests {
         effects
     }
 
+    /// Returns the reference of a gas coin that `sender` owns.
     fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectReference {
         sim.with_store(|s| {
             s.owned_objects(sender)
@@ -888,18 +722,56 @@ mod ingestion_tests {
         })
     }
 
+    /// Adds a call to `function` of the `example` module in `package_id`.
+    fn move_call(
+        builder: &mut ProgrammableTransactionBuilder,
+        package_id: ObjectId,
+        function: &'static str,
+        arguments: Vec<Argument>,
+    ) -> Argument {
+        builder.programmable_move_call(
+            package_id,
+            Identifier::from_static("example"),
+            Identifier::from_static(function),
+            vec![],
+            arguments,
+        )
+    }
+
+    /// Adds the owned object `object` as an input.
+    fn owned_input(
+        builder: &mut ProgrammableTransactionBuilder,
+        object: ObjectReference,
+    ) -> Argument {
+        builder.obj(CallArg::ImmutableOrOwned(object)).unwrap()
+    }
+
+    /// Asserts that `objects_version` has a row for `id` at `version` in
+    /// checkpoint `cp`.
+    async fn assert_present(
+        pg_store: &PgIndexerStore,
+        cp: i64,
+        id: ObjectId,
+        version: Version,
+        label: &str,
+    ) -> Result<(), IndexerError> {
+        let rows = find_object_versions_at_checkpoint(pg_store, cp).await?;
+        assert!(
+            rows.iter().any(|r| r.object_id == id.as_bytes().to_vec()
+                && r.object_version == version.as_u64() as i64),
+            "expected {label} in cp{cp}; rows: {rows:?}",
+        );
+        Ok(())
+    }
+
     /// Verify `objects_version` ingestion for every wrap/removal effect,
     /// namely: `wrapped`, `unwrapped`, `deleted`, and
     /// `unwrapped_then_deleted`.
     #[tokio::test]
     pub async fn objects_version_ingestion_wraps_and_removals() -> Result<(), IndexerError> {
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
+        let (sim, tmp_dir) = new_sim();
         let sender = sim.with_keystore(|ks| *ks.accounts().next().unwrap().0);
         let rgp = sim.reference_gas_price();
-        let module = Identifier::from_static("example");
 
         // publish package
         let gas = pick_gas(&sim, sender);
@@ -922,13 +794,7 @@ mod ingestion_tests {
         let gas = pick_gas(&sim, sender);
         let mut builder = ProgrammableTransactionBuilder::new();
         let strength = builder.pure(42u8).unwrap();
-        let sword_arg = builder.programmable_move_call(
-            package_id,
-            module.clone(),
-            Identifier::from_static("new_sword"),
-            vec![],
-            vec![strength],
-        );
+        let sword_arg = move_call(&mut builder, package_id, "new_sword", vec![strength]);
         builder.transfer_arg(sender, sword_arg);
         let mint_sword_fx = execute_signed(
             &sim,
@@ -947,19 +813,12 @@ mod ingestion_tests {
         // cp3: mint a Warrior + equip sword
         let gas = pick_gas(&sim, sender);
         let mut builder = ProgrammableTransactionBuilder::new();
-        let warrior_arg = builder.programmable_move_call(
+        let warrior_arg = move_call(&mut builder, package_id, "new_warrior", vec![]);
+        let sword_input = owned_input(&mut builder, sword_v0);
+        move_call(
+            &mut builder,
             package_id,
-            module.clone(),
-            Identifier::from_static("new_warrior"),
-            vec![],
-            vec![],
-        );
-        let sword_input = builder.obj(CallArg::ImmutableOrOwned(sword_v0)).unwrap();
-        builder.programmable_move_call(
-            package_id,
-            module.clone(),
-            Identifier::from_static("equip"),
-            vec![],
+            "equip",
             vec![warrior_arg, sword_input],
         );
         builder.transfer_arg(sender, warrior_arg);
@@ -975,25 +834,16 @@ mod ingestion_tests {
             .find(|created| matches!(created.owner(), Owner::Address(_)))
             .expect("equip tx must create the warrior")
             .reference();
-        let sword_wrapped_version = equip_fx
-            .wrapped()
-            .into_iter()
-            .find(|r| r.object_id == sword_v0.object_id)
-            .expect("sword must be wrapped in the equip tx")
-            .version;
+        let sword_wrapped_version =
+            find_object_ref(&equip_fx.wrapped(), sword_v0.object_id).version;
         sim.create_checkpoint();
 
         // cp4: unequip sword
         let gas = pick_gas(&sim, sender);
         let mut builder = ProgrammableTransactionBuilder::new();
-        let warrior_input = builder.obj(CallArg::ImmutableOrOwned(warrior_v0)).unwrap();
-        let unwrapped_sword_arg = builder.programmable_move_call(
-            package_id,
-            module.clone(),
-            Identifier::from_static("unequip"),
-            vec![],
-            vec![warrior_input],
-        );
+        let warrior_input = owned_input(&mut builder, warrior_v0);
+        let unwrapped_sword_arg =
+            move_call(&mut builder, package_id, "unequip", vec![warrior_input]);
         builder.transfer_arg(sender, unwrapped_sword_arg);
         let unequip_fx = execute_signed(
             &sim,
@@ -1001,34 +851,31 @@ mod ingestion_tests {
                 .programmable(builder.finish())
                 .build(),
         );
-        let sword_unwrapped_ref = *unequip_fx
-            .unwrapped()
-            .into_iter()
-            .find(|unwrapped| unwrapped.reference().object_id == sword_v0.object_id)
-            .expect("sword must be unwrapped in the unequip tx")
-            .reference();
-        let warrior_after_unequip = *unequip_fx
-            .mutated()
-            .into_iter()
-            .find(|mutated| mutated.reference().object_id == warrior_v0.object_id)
-            .expect("warrior must be mutated by unequip")
-            .reference();
+        let sword_unwrapped_ref = find_object_ref(
+            unequip_fx
+                .unwrapped()
+                .iter()
+                .map(OwnedObjectReference::reference),
+            sword_v0.object_id,
+        );
+        let warrior_after_unequip = find_object_ref(
+            unequip_fx
+                .mutated()
+                .iter()
+                .map(OwnedObjectReference::reference),
+            warrior_v0.object_id,
+        );
         sim.create_checkpoint();
 
         // cp5: equip sword
         let gas = pick_gas(&sim, sender);
         let mut builder = ProgrammableTransactionBuilder::new();
-        let warrior_input = builder
-            .obj(CallArg::ImmutableOrOwned(warrior_after_unequip))
-            .unwrap();
-        let sword_input = builder
-            .obj(CallArg::ImmutableOrOwned(sword_unwrapped_ref))
-            .unwrap();
-        builder.programmable_move_call(
+        let warrior_input = owned_input(&mut builder, warrior_after_unequip);
+        let sword_input = owned_input(&mut builder, sword_unwrapped_ref);
+        move_call(
+            &mut builder,
             package_id,
-            module.clone(),
-            Identifier::from_static("equip"),
-            vec![],
+            "equip",
             vec![warrior_input, sword_input],
         );
         let reequip_fx = execute_signed(
@@ -1037,31 +884,25 @@ mod ingestion_tests {
                 .programmable(builder.finish())
                 .build(),
         );
-        let sword_rewrapped_version = reequip_fx
-            .wrapped()
-            .into_iter()
-            .find(|r| r.object_id == sword_v0.object_id)
-            .expect("sword must be wrapped in the re-equip tx")
-            .version;
-        let warrior_after_reequip = *reequip_fx
-            .mutated()
-            .into_iter()
-            .find(|mutated| mutated.reference().object_id == warrior_v0.object_id)
-            .expect("warrior must be mutated by re-equip")
-            .reference();
+        let sword_rewrapped_version =
+            find_object_ref(&reequip_fx.wrapped(), sword_v0.object_id).version;
+        let warrior_after_reequip = find_object_ref(
+            reequip_fx
+                .mutated()
+                .iter()
+                .map(OwnedObjectReference::reference),
+            warrior_v0.object_id,
+        );
         sim.create_checkpoint();
 
         // cp6: destroy warrior
         let gas = pick_gas(&sim, sender);
         let mut builder = ProgrammableTransactionBuilder::new();
-        let warrior_input = builder
-            .obj(CallArg::ImmutableOrOwned(warrior_after_reequip))
-            .unwrap();
-        builder.programmable_move_call(
+        let warrior_input = owned_input(&mut builder, warrior_after_reequip);
+        move_call(
+            &mut builder,
             package_id,
-            module.clone(),
-            Identifier::from_static("destroy_warrior"),
-            vec![],
+            "destroy_warrior",
             vec![warrior_input],
         );
         let destroy_fx = execute_signed(
@@ -1070,87 +911,68 @@ mod ingestion_tests {
                 .programmable(builder.finish())
                 .build(),
         );
-        let warrior_deleted_version = destroy_fx
-            .deleted()
-            .into_iter()
-            .find(|r| r.object_id == warrior_v0.object_id)
-            .expect("warrior must be deleted in destroy_warrior")
-            .version;
-        let sword_unwrapped_deleted_version = destroy_fx
-            .unwrapped_then_deleted()
-            .into_iter()
-            .find(|r| r.object_id == sword_v0.object_id)
-            .expect("sword must be unwrapped_then_deleted in destroy_warrior")
-            .version;
+        let warrior_deleted_version =
+            find_object_ref(&destroy_fx.deleted(), warrior_v0.object_id).version;
+        let sword_unwrapped_deleted_version =
+            find_object_ref(&destroy_fx.unwrapped_then_deleted(), sword_v0.object_id).version;
         sim.create_checkpoint();
 
         // spin up the indexer
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
+        let pg_store = start_indexer(sim, &tmp_dir).await;
         indexer_wait_for_checkpoint(&pg_store, 6).await;
 
-        let assert_present =
-            |rows: &[StoredObjectVersion], id: ObjectId, version: Version, label: &str| {
-                assert!(
-                    rows.iter().any(|r| r.object_id == id.as_bytes().to_vec()
-                        && r.object_version == version.as_u64() as i64),
-                    "expected {label}; rows: {rows:?}",
-                );
-            };
-
         // cp3: warrior created (output) + sword wrapped (removed)
-        let cp3 = find_object_versions_at_checkpoint(&pg_store, 3).await?;
         assert_present(
-            &cp3,
+            &pg_store,
+            3,
             warrior_v0.object_id,
             warrior_v0.version,
-            "created warrior in cp3",
-        );
+            "created warrior",
+        )
+        .await?;
         assert_present(
-            &cp3,
+            &pg_store,
+            3,
             sword_v0.object_id,
             sword_wrapped_version,
-            "wrapped sword in cp3",
-        );
-
+            "wrapped sword",
+        )
+        .await?;
         // cp4: sword unwrapped (output)
-        let cp4 = find_object_versions_at_checkpoint(&pg_store, 4).await?;
         assert_present(
-            &cp4,
+            &pg_store,
+            4,
             sword_v0.object_id,
             sword_unwrapped_ref.version,
-            "unwrapped sword in cp4",
-        );
-
+            "unwrapped sword",
+        )
+        .await?;
         // cp5: sword re-wrapped (removed)
-        let cp5 = find_object_versions_at_checkpoint(&pg_store, 5).await?;
         assert_present(
-            &cp5,
+            &pg_store,
+            5,
             sword_v0.object_id,
             sword_rewrapped_version,
-            "re-wrapped sword in cp5",
-        );
-
+            "re-wrapped sword",
+        )
+        .await?;
         // cp6: warrior deleted + sword unwrapped_then_deleted (both removed)
-        let cp6 = find_object_versions_at_checkpoint(&pg_store, 6).await?;
         assert_present(
-            &cp6,
+            &pg_store,
+            6,
             warrior_v0.object_id,
             warrior_deleted_version,
-            "deleted warrior in cp6",
-        );
+            "deleted warrior",
+        )
+        .await?;
         assert_present(
-            &cp6,
+            &pg_store,
+            6,
             sword_v0.object_id,
             sword_unwrapped_deleted_version,
-            "unwrapped_then_deleted sword in cp6",
-        );
+            "unwrapped_then_deleted sword",
+        )
+        .await?;
 
         Ok(())
     }
