@@ -1808,10 +1808,11 @@ mod tests {
             assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
-        /// A response with no transactions fails the fetch but records no
-        /// misbehavior, since an honest response can arrive incomplete.
+        /// A response that ends without covering the first commit is charged
+        /// to the serving peer: an honest server sends the first commit whole
+        /// or refuses the request.
         #[tokio::test]
-        async fn does_not_record_misbehavior_for_missing_transactions() {
+        async fn records_misbehavior_for_missing_transactions() {
             let context = fast_sync_context();
             let (commits, vote_headers, _) = two_commit_response(&context);
 
@@ -1821,7 +1822,7 @@ mod tests {
                 matches!(err, ConsensusError::FetchedTransactionsMismatch { .. }),
                 "unexpected error: {err:?}"
             );
-            assert_unprovable_faults(&inner, vec![0; 4]);
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
         /// When no commit is covered because the response stream was cut, the

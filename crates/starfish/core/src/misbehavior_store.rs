@@ -377,8 +377,10 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // with an entry larger than any valid one, or with commits after its
         // transactions, and a commit-sync response whose commits fail to
         // decode, carry the wrong version or an index outside the committee,
-        // break the requested sequence, or lack a quorum of votes: an honest
-        // server sends only the certified commit chain it stores.
+        // break the requested sequence, or lack a quorum of votes, or whose
+        // transactions end before the first commit is covered: an honest
+        // server sends only the certified commit chain it stores, with the
+        // first commit whole.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -404,7 +406,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::InvalidAuthorityIndexRequested { .. }
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
-        | ConsensusError::NotEnoughCommitVotes { .. } => FaultType::Unprovable,
+        | ConsensusError::NotEnoughCommitVotes { .. }
+        | ConsensusError::FetchedTransactionsMismatch { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had
@@ -471,7 +474,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::NoCommitReceived { .. }
         | ConsensusError::TooManyCommitBytes { .. }
         | ConsensusError::InvalidCommitRange { .. }
-        | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
         | ConsensusError::NetworkConfig(_)
         | ConsensusError::NetworkClientConnection(_)
@@ -1414,6 +1416,11 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 commit: Box::new(Commit::V3(CommitV3::default())),
             },
+            ConsensusError::FetchedTransactionsMismatch {
+                peer: AuthorityIndex::new_for_test(0),
+                expected: 3,
+                received: 1,
+            },
         ];
         for e in cases {
             let (prov, unprov, bundle) = classify_via_record(e);
@@ -1483,16 +1490,11 @@ mod tests {
                 size: 2,
                 limit: 1,
             },
-            // Fetch shortfalls (client-side truncation can produce them).
+            // Fetch shortfall (client-side truncation can produce it).
             ConsensusError::NotEnoughHeadersFetched {
                 peer: authority,
                 requested: 5,
                 received: 3,
-            },
-            ConsensusError::FetchedTransactionsMismatch {
-                peer: authority,
-                expected: 3,
-                received: 1,
             },
             // Version mismatch may be a benign upgrade misconfiguration, so it
             // is not charged as misbehavior.
