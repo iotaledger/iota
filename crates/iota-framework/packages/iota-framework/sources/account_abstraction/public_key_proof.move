@@ -9,24 +9,28 @@
 /// `VerifiedPublicKey`, for every account type.
 ///
 /// # Existing accounts
-/// The message names the account and its key change count, which goes up on every attach,
-/// rotate and detach, so a proof works on one account and only once:
+/// The message names the account and the address of the public key attached to it now
+/// (`public_key::to_iota_address`), or `none` if it has none, so a proof works only on that
+/// account and only while that key is attached:
 ///
 /// ```
 /// 0000000000000000000000000000000000000000000000000000000000000002::public_key::PublicKey
 /// public key: <hex of flag || raw bytes>
 /// account: 0x<hex>
-/// key changes on this account: <decimal>
+/// current key address: 0x<hex>, or none
 /// valid until epoch: <decimal>
 /// ```
+///
+/// A proof works again if the account gets the same key back before the proof expires, for
+/// example after rotating away and back. Only code that can change the account's key can use it
+/// then, and it still attaches only the key whose holder signed.
 ///
 /// # New accounts
 /// A new account's address can't be known when the key signs, since it comes from the digest of
 /// the transaction that carries the signature. The message names an `AccountFactory` instead,
-/// the sender of the creating transaction, one of that sender's nonce keys and its next sequence
-/// number, which the creation consumes. Naming the sender keeps anyone else from using the proof
-/// through a shared factory, and each sender's sequence numbers are its own, so nobody else can
-/// move them:
+/// the sender of the creating transaction, a nonce key of the factory and that nonce key's next
+/// sequence number, which the creation consumes. Naming the sender keeps anyone else from using
+/// the proof:
 ///
 /// ```
 /// 0000000000000000000000000000000000000000000000000000000000000002::public_key::PublicKey
@@ -42,7 +46,6 @@
 module iota::public_key_proof;
 
 use iota::address;
-use iota::dynamic_field;
 use iota::hex;
 use iota::protocol_config;
 use iota::public_key::PublicKey;
@@ -58,80 +61,93 @@ const EInvalidProofSignature: vector<u8> =
 #[error(code = 2)]
 const EProofExpired: vector<u8> = b"The proof is valid only until an earlier epoch.";
 #[error(code = 3)]
-const EFactoryIsShared: vector<u8> = b"A shared factory can't be destroyed.";
+const EFactoryIsShared: vector<u8> =
+    b"A shared factory can't be destroyed and its sequence numbers can't be skipped.";
+#[error(code = 4)]
+const EInvalidNonceKeyCount: vector<u8> = b"A shared factory has from 1 to 1024 nonce keys.";
+#[error(code = 5)]
+const ENonceKeyOutOfRange: vector<u8> = b"The factory has no such nonce key.";
+
+// === Constants ===
+
+const MAX_SHARED_FACTORY_NONCE_KEYS: u64 = 1024;
 
 // === Structs ===
 
 /// Proof that the holder of `public_key` approved attaching it.
 ///
-/// `account` is the account the proof was made for, with its key change count at that time, or
-/// `none` for a new account. It has no abilities: it must be consumed by
+/// `account` is the account the proof was made for, with the address of the key it had attached
+/// then, or `none` for a new account. It has no abilities: it must be consumed by
 /// `builtin_authenticator_functions` in the same transaction.
 public struct VerifiedPublicKey {
     public_key: PublicKey,
     account: Option<address>,
-    key_change_count: u64,
+    current_key_address: Option<address>,
 }
 
 /// Makes proofs for new accounts single-use.
 ///
-/// Every sender has its own sequence numbers here, one per nonce key it picks, and a creation
-/// consumes the one its proof names. Nonce keys only let a sender keep several proofs open that
-/// don't depend on each other's order.
+/// Holds the next sequence number of each of its nonce keys, and a creation consumes the one its
+/// proof names. Their number is fixed when the factory is created, so the factory doesn't grow
+/// with use.
 ///
-/// An owned factory is used only by its owner and never waits for consensus. A shared factory
-/// can be used by anyone, but every transaction that uses it is ordered by consensus.
+/// An owned factory has one nonce key, `0`, is used only by its owner and never waits for
+/// consensus. A shared factory can be used by anyone, and every transaction that uses it is
+/// ordered by consensus. Its senders share the sequence numbers, so a proof stops working if
+/// another sender creates an account under the same nonce key first, and has to be signed again.
 public struct AccountFactory has key {
     id: UID,
     shared: bool,
-}
-
-/// Dynamic field key of the next sequence number of `sender` under `nonce_key`.
-public struct NonceKey has copy, drop, store {
-    sender: address,
-    nonce_key: u64,
+    sequences: vector<u64>,
 }
 
 // === Public Functions ===
 
-/// Creates an `AccountFactory` owned by the sender.
+/// Creates an `AccountFactory` owned by the sender, with one nonce key.
 public fun new_owned_factory(ctx: &mut TxContext) {
-    let factory = AccountFactory { id: object::new(ctx), shared: false };
+    let factory = AccountFactory { id: object::new(ctx), shared: false, sequences: vector[0] };
     transfer::transfer(factory, ctx.sender());
 }
 
-/// Creates a shared `AccountFactory`.
-public fun new_shared_factory(ctx: &mut TxContext) {
-    transfer::share_object(AccountFactory { id: object::new(ctx), shared: true });
+/// Creates a shared `AccountFactory` with `nonce_keys` nonce keys. More nonce keys let more
+/// proofs stay open at the same time, and make every transaction that uses the factory write a
+/// larger object.
+///
+/// Aborts if `nonce_keys` is 0 or more than 1024.
+public fun new_shared_factory(nonce_keys: u64, ctx: &mut TxContext) {
+    assert!(
+        nonce_keys > 0 && nonce_keys <= MAX_SHARED_FACTORY_NONCE_KEYS,
+        EInvalidNonceKeyCount,
+    );
+    transfer::share_object(AccountFactory {
+        id: object::new(ctx),
+        shared: true,
+        sequences: vector::tabulate!(nonce_keys, |_| 0),
+    });
 }
 
-/// Destroys an owned `AccountFactory`, after removing the sequence numbers of its owner under
-/// `nonce_keys`. Sequence numbers under other nonce keys stay in storage, unreachable.
-///
-/// Proofs that name the factory can no longer be used.
+/// Destroys an owned `AccountFactory`. Proofs that name it can no longer be used.
 ///
 /// Aborts if the factory is shared.
-public fun destroy_owned_factory(factory: AccountFactory, nonce_keys: vector<u64>, ctx: &TxContext) {
+public fun destroy_owned_factory(factory: AccountFactory) {
     assert!(!factory.shared, EFactoryIsShared);
 
-    let AccountFactory { mut id, shared: _ } = factory;
-    nonce_keys.do!(|nonce_key| {
-        let name = NonceKey { sender: ctx.sender(), nonce_key };
-        if (dynamic_field::exists_(&id, name)) {
-            dynamic_field::remove<NonceKey, u64>(&mut id, name);
-        }
-    });
+    let AccountFactory { id, shared: _, sequences: _ } = factory;
     id.delete();
 }
 
-/// Moves the sender's sequence number under `nonce_key` one step on, so the proof made for the
-/// current one can no longer be used. Other senders' sequence numbers don't change.
-public fun skip_sequence(factory: &mut AccountFactory, nonce_key: u64, ctx: &TxContext) {
-    factory.consume_sequence(ctx.sender(), nonce_key);
+/// Moves the sequence number of `nonce_key` one step on, so the proof made for the current one
+/// can no longer be used.
+///
+/// Aborts if the factory is shared, or has no such nonce key.
+public fun skip_sequence(factory: &mut AccountFactory, nonce_key: u64) {
+    assert!(!factory.shared, EFactoryIsShared);
+    factory.consume_sequence(nonce_key);
 }
 
-/// Checks that the holder of `public_key` signed the proof message for `account` at
-/// `key_change_count`, valid until `valid_until_epoch`.
+/// Checks that the holder of `public_key` signed the proof message for `account` while the key
+/// with address `current_key_address` is attached to it (`none` if no key is), valid until
+/// `valid_until_epoch`.
 ///
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 /// Aborts if the current epoch is after `valid_until_epoch`.
@@ -139,22 +155,28 @@ public fun skip_sequence(factory: &mut AccountFactory, nonce_key: u64, ctx: &TxC
 public fun verify_for_account(
     public_key: PublicKey,
     account: address,
-    key_change_count: u64,
+    current_key_address: Option<address>,
     valid_until_epoch: u64,
     signature: vector<u8>,
     ctx: &TxContext,
 ): VerifiedPublicKey {
-    let message = account_proof_message(&public_key, account, key_change_count, valid_until_epoch);
+    let message = account_proof_message(
+        &public_key,
+        account,
+        current_key_address,
+        valid_until_epoch,
+    );
     verify_signature(&public_key, &message, &signature, valid_until_epoch, ctx);
 
-    VerifiedPublicKey { public_key, account: option::some(account), key_change_count }
+    VerifiedPublicKey { public_key, account: option::some(account), current_key_address }
 }
 
 /// Checks that the holder of `public_key` signed the proof message for a new account created by
-/// the transaction sender under `factory` and `nonce_key`, at the sender's next sequence number
-/// there, valid until `valid_until_epoch`, then consumes that sequence number.
+/// the transaction sender under `factory` and `nonce_key`, at that nonce key's next sequence
+/// number, valid until `valid_until_epoch`, then consumes that sequence number.
 ///
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
+/// Aborts if the factory has no such nonce key.
 /// Aborts if the current epoch is after `valid_until_epoch`.
 /// Aborts if `signature` is not a valid signature of the message by `public_key`.
 public fun verify_for_new_account(
@@ -165,35 +187,42 @@ public fun verify_for_new_account(
     signature: vector<u8>,
     ctx: &TxContext,
 ): VerifiedPublicKey {
-    let sender = ctx.sender();
-    let sequence = factory.next_sequence(sender, nonce_key);
     let message = creation_proof_message(
         &public_key,
         object::id(factory),
-        sender,
+        ctx.sender(),
         nonce_key,
-        sequence,
+        factory.next_sequence(nonce_key),
         valid_until_epoch,
     );
     verify_signature(&public_key, &message, &signature, valid_until_epoch, ctx);
-    factory.consume_sequence(sender, nonce_key);
+    factory.consume_sequence(nonce_key);
 
-    VerifiedPublicKey { public_key, account: option::none(), key_change_count: 0 }
+    VerifiedPublicKey {
+        public_key,
+        account: option::none(),
+        current_key_address: option::none(),
+    }
 }
 
 /// Returns the message the key holder signs to attach `public_key` to the existing `account`
-/// at `key_change_count`.
+/// while the key with address `current_key_address` is attached to it.
 public fun account_proof_message(
     public_key: &PublicKey,
     account: address,
-    key_change_count: u64,
+    current_key_address: Option<address>,
     valid_until_epoch: u64,
 ): vector<u8> {
     let mut message = message_head(public_key);
     message.append(b"\naccount: 0x");
     message.append(address::to_string(account).into_bytes());
-    message.append(b"\nkey changes on this account: ");
-    message.append(key_change_count.to_string().into_bytes());
+    message.append(b"\ncurrent key address: ");
+    if (current_key_address.is_some()) {
+        message.append(b"0x");
+        message.append(address::to_string(current_key_address.destroy_some()).into_bytes());
+    } else {
+        message.append(b"none");
+    };
     message.append(b"\nvalid until epoch: ");
     message.append(valid_until_epoch.to_string().into_bytes());
     message
@@ -230,14 +259,17 @@ public fun is_shared(self: &AccountFactory): bool {
     self.shared
 }
 
-/// Returns the sequence number the next proof of `sender` under `nonce_key` must name.
-public fun next_sequence(self: &AccountFactory, sender: address, nonce_key: u64): u64 {
-    let name = NonceKey { sender, nonce_key };
-    if (dynamic_field::exists_(&self.id, name)) {
-        *dynamic_field::borrow(&self.id, name)
-    } else {
-        0
-    }
+/// Returns the number of nonce keys of the factory. They are numbered from 0.
+public fun nonce_keys(self: &AccountFactory): u64 {
+    self.sequences.length()
+}
+
+/// Returns the sequence number the next proof under `nonce_key` must name.
+///
+/// Aborts if the factory has no such nonce key.
+public fun next_sequence(self: &AccountFactory, nonce_key: u64): u64 {
+    assert!(nonce_key < self.sequences.length(), ENonceKeyOutOfRange);
+    self.sequences[nonce_key]
 }
 
 /// Borrows the verified public key.
@@ -250,27 +282,23 @@ public fun public_key(self: &VerifiedPublicKey): &PublicKey {
 /// Returns a `VerifiedPublicKey` for a new account claimed through `ClaimAccount`, where
 /// `claim::claim_address` has already proved that the sender holds `public_key`.
 public(package) fun verified_by_claim(public_key: PublicKey): VerifiedPublicKey {
-    VerifiedPublicKey { public_key, account: option::none(), key_change_count: 0 }
+    VerifiedPublicKey { public_key, account: option::none(), current_key_address: option::none() }
 }
 
 /// Unpacks the proof into its public key, the account it was made for (`none` for a new
-/// account) and that account's key change count.
-public(package) fun unpack(self: VerifiedPublicKey): (PublicKey, Option<address>, u64) {
-    let VerifiedPublicKey { public_key, account, key_change_count } = self;
-    (public_key, account, key_change_count)
+/// account) and the address of the key that account had attached then.
+public(package) fun unpack(self: VerifiedPublicKey): (PublicKey, Option<address>, Option<address>) {
+    let VerifiedPublicKey { public_key, account, current_key_address } = self;
+    (public_key, account, current_key_address)
 }
 
 // === Private Functions ===
 
-/// Moves the sequence number of `sender` under `nonce_key` one step on.
-fun consume_sequence(self: &mut AccountFactory, sender: address, nonce_key: u64) {
-    let name = NonceKey { sender, nonce_key };
-    if (dynamic_field::exists_(&self.id, name)) {
-        let sequence: &mut u64 = dynamic_field::borrow_mut(&mut self.id, name);
-        *sequence = *sequence + 1;
-    } else {
-        dynamic_field::add(&mut self.id, name, 1u64);
-    }
+/// Moves the sequence number of `nonce_key` one step on.
+fun consume_sequence(self: &mut AccountFactory, nonce_key: u64) {
+    assert!(nonce_key < self.sequences.length(), ENonceKeyOutOfRange);
+    let sequence = &mut self.sequences[nonce_key];
+    *sequence = *sequence + 1;
 }
 
 /// Returns the first two lines of a proof message: the type name of `PublicKey`, which keeps
@@ -313,18 +341,19 @@ native fun verify_personal_message(
 
 // === Test Functions ===
 
-/// A proof for `account` at `key_change_count`, without a signature.
+/// A proof for `account` while the key with address `current_key_address` is attached to it,
+/// without a signature.
 #[test_only]
 public fun verified_for_account_for_testing(
     public_key: PublicKey,
     account: address,
-    key_change_count: u64,
+    current_key_address: Option<address>,
 ): VerifiedPublicKey {
-    VerifiedPublicKey { public_key, account: option::some(account), key_change_count }
+    VerifiedPublicKey { public_key, account: option::some(account), current_key_address }
 }
 
 /// A proof for a new account, without a signature.
 #[test_only]
 public fun verified_for_new_account_for_testing(public_key: PublicKey): VerifiedPublicKey {
-    VerifiedPublicKey { public_key, account: option::none(), key_change_count: 0 }
+    VerifiedPublicKey { public_key, account: option::none(), current_key_address: option::none() }
 }

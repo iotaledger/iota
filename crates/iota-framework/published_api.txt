@@ -2509,9 +2509,6 @@ VerifiedPublicKey
 AccountFactory
 	public struct
 	0x2::public_key_proof
-NonceKey
-	public struct
-	0x2::public_key_proof
 new_owned_factory
 	public fun
 	0x2::public_key_proof
@@ -2537,6 +2534,9 @@ creation_proof_message
 	public fun
 	0x2::public_key_proof
 is_shared
+	public fun
+	0x2::public_key_proof
+nonce_keys
 	public fun
 	0x2::public_key_proof
 next_sequence
@@ -2575,9 +2575,6 @@ PublicKeyRotated
 PublicKeyFieldName
 	public struct
 	0x2::builtin_authenticator_functions
-PublicKeyChangeCountKey
-	public struct
-	0x2::builtin_authenticator_functions
 builtin_authenticator_function_ref_v1
 	public fun
 	0x2::builtin_authenticator_functions
@@ -2599,13 +2596,7 @@ has_public_key
 borrow_public_key
 	public fun
 	0x2::builtin_authenticator_functions
-public_key_change_count
-	public fun
-	0x2::builtin_authenticator_functions
 consume_proof
-	fun
-	0x2::builtin_authenticator_functions
-count_key_change
 	fun
 	0x2::builtin_authenticator_functions
 builtin_authenticator_v1
@@ -3923,9 +3914,6 @@ has_public_key
 	public fun
 	0x2::smart_account_builtin_auth
 borrow_public_key
-	public fun
-	0x2::smart_account_builtin_auth
-public_key_change_count
 	public fun
 	0x2::smart_account_builtin_auth
 rotate_to_builtin_auth_v1

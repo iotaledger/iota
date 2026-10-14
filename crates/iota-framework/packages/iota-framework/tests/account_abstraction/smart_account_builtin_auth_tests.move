@@ -241,20 +241,15 @@ fun rotate_public_key_aborts_if_sender_not_account() {
 // === Public key proofs ===
 
 #[test]
-fun public_key_change_count_follows_attach_rotate_and_detach() {
+#[expected_failure(
+    abort_code = iota::builtin_authenticator_functions::EProofForAnotherCurrentPublicKey,
+)]
+fun rotate_public_key_aborts_for_a_used_proof() {
     builtin_account_test!(|account, scenario| {
-        assert_eq(smart_account_builtin_auth::public_key_change_count(account), 1);
-
-        let proof = account_proof(account, multisig_public_key());
-        smart_account_builtin_auth::rotate_public_key(account, proof, scenario.ctx());
-        assert_eq(smart_account_builtin_auth::public_key_change_count(account), 2);
-
-        smart_account_builtin_auth::rotate_to_custom_auth_v1(
-            account,
-            custom_authenticator(),
-            scenario.ctx(),
-        );
-        assert_eq(smart_account_builtin_auth::public_key_change_count(account), 3);
+        let first = account_proof(account, multisig_public_key());
+        let replay = account_proof(account, multisig_public_key());
+        smart_account_builtin_auth::rotate_public_key(account, first, scenario.ctx());
+        smart_account_builtin_auth::rotate_public_key(account, replay, scenario.ctx());
     });
 }
 
@@ -265,14 +260,16 @@ fun rotate_public_key_aborts_for_a_proof_for_another_account() {
         let proof = public_key_proof::verified_for_account_for_testing(
             multisig_public_key(),
             @0xA,
-            smart_account_builtin_auth::public_key_change_count(account),
+            option::some(smart_account_builtin_auth::borrow_public_key(account).to_iota_address()),
         );
         smart_account_builtin_auth::rotate_public_key(account, proof, scenario.ctx());
     });
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EStaleKeyChangeCount)]
+#[expected_failure(
+    abort_code = iota::builtin_authenticator_functions::EProofForAnotherCurrentPublicKey,
+)]
 fun rotate_to_builtin_auth_v1_aborts_for_a_proof_made_before_the_key_was_detached() {
     builtin_account_test!(|account, scenario| {
         let proof = account_proof(account, multisig_public_key());
@@ -289,22 +286,28 @@ fun rotate_to_builtin_auth_v1_aborts_for_a_proof_made_before_the_key_was_detache
 #[expected_failure(abort_code = iota::builtin_authenticator_functions::EProofForAnotherAccount)]
 fun builder_v1_aborts_for_a_proof_for_an_existing_account() {
     let mut scenario = test_scenario::begin(@0x0);
-    let proof = public_key_proof::verified_for_account_for_testing(ed25519_public_key(), @0xA, 0);
+    let proof = public_key_proof::verified_for_account_for_testing(
+        ed25519_public_key(),
+        @0xA,
+        option::none(),
+    );
     smart_account_builtin_auth::builder_v1(proof, scenario.ctx()).build_v1();
 
     abort
 }
 
 #[test]
-fun claim_account_v1_counts_the_claimed_key() {
+fun claimed_account_rotates_with_a_proof_naming_the_claimed_key() {
     let public_key = ed25519_public_key();
     let sender = public_key.to_iota_address();
     let mut scenario = test_scenario::begin(sender);
     smart_account_builtin_auth::claim_account_v1_for_testing(public_key, scenario.ctx());
 
     scenario.next_tx(sender);
-    let account = scenario.take_shared<SmartAccount>();
-    assert_eq(smart_account_builtin_auth::public_key_change_count(&account), 1);
+    let mut account = scenario.take_shared<SmartAccount>();
+    let proof = account_proof(&account, multisig_public_key());
+    smart_account_builtin_auth::rotate_public_key(&mut account, proof, scenario.ctx());
+    assert_ref_eq(smart_account_builtin_auth::borrow_public_key(&account), &multisig_public_key());
     test_scenario::return_shared(account);
     scenario.end();
 }
@@ -477,11 +480,16 @@ fun new_account_proof(public_key: PublicKey): VerifiedPublicKey {
     public_key_proof::verified_for_new_account_for_testing(public_key)
 }
 
-/// A proof for `account` at its current key change count, without a signature.
+/// A proof for `account` that names the address of its current key, without a signature.
 fun account_proof(account: &SmartAccount, public_key: PublicKey): VerifiedPublicKey {
+    let current_key_address = if (smart_account_builtin_auth::has_public_key(account)) {
+        option::some(smart_account_builtin_auth::borrow_public_key(account).to_iota_address())
+    } else {
+        option::none()
+    };
     public_key_proof::verified_for_account_for_testing(
         public_key,
         account.account_address(),
-        smart_account_builtin_auth::public_key_change_count(account),
+        current_key_address,
     )
 }
