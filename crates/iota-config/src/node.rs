@@ -1993,6 +1993,37 @@ mod tests {
             Some(Value::Null)
         );
     }
+
+    /// The fullnode configs in `setups/` read the client address from
+    /// `x-forwarded-for` and keep every other field of the default policy,
+    /// since a `policy-config` block replaces the whole default policy.
+    #[test]
+    fn the_shipped_fullnode_policy_is_the_default_policy_read_from_x_forwarded_for() {
+        let expected = PolicyConfig {
+            client_id_source: iota_types::traffic_control::ClientIdSource::XForwardedFor(1),
+            ..PolicyConfig::default_dos_protection_policy()
+        };
+        for (network, shipped) in [
+            (
+                "mainnet",
+                include_str!("../../../setups/fullnode/fullnode-mainnet.yaml"),
+            ),
+            (
+                "testnet",
+                include_str!("../../../setups/fullnode/fullnode-testnet.yaml"),
+            ),
+            (
+                "devnet",
+                include_str!("../../../setups/fullnode/fullnode-devnet.yaml"),
+            ),
+        ] {
+            let shipped: Value = serde_yaml::from_str(shipped).unwrap();
+            let policy = written_at(&shipped, POLICY_CONFIG)
+                .unwrap_or_else(|| panic!("the {network} config has no policy-config"));
+            let policy: PolicyConfig = serde_yaml::from_value(policy).unwrap();
+            assert_eq!(as_yaml(&policy), as_yaml(&expected), "{network}");
+        }
+    }
 }
 
 // RunWithRange is used to specify the ending epoch/checkpoint to process.

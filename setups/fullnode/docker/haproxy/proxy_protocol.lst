@@ -1,0 +1,8 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# Networks of your own load balancers that send the PROXY protocol header
+# (version 1 or 2) at the start of each connection to HAProxy. HAProxy then
+# uses the client address in this header. A connection from these networks
+# without the header is closed. Write one network per line, for example:
+# 203.0.113.0/24
