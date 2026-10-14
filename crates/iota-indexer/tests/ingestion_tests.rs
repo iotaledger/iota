@@ -455,7 +455,7 @@ mod ingestion_tests {
         sim.execute_transfer();
         sim.inner.create_checkpoint(); // checkpoint 3
 
-        let pg_store = sim.start_indexer_with(None, None).await;
+        let pg_store = sim.start_indexer().await;
         indexer_wait_for_checkpoint(&pg_store, 3).await;
 
         let db_checkpoint = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
