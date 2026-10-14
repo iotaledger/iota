@@ -79,6 +79,29 @@ impl UnresolvedAccountSetup {
         gas_payer: GasPayer<'_>,
         shared: Option<Object>,
     ) -> Self {
+        Self::new_with_second_gas_coin(
+            account,
+            transfer_id,
+            gas_id,
+            None,
+            recipient,
+            gas_payer,
+            shared,
+        )
+        .await
+    }
+
+    /// Like [`Self::new`], with `second_gas_id`, when given, as a second gas
+    /// coin of the same owner, which gas charging merges into the first.
+    async fn new_with_second_gas_coin(
+        account: Object,
+        transfer_id: ObjectId,
+        gas_id: ObjectId,
+        second_gas_id: Option<ObjectId>,
+        recipient: Address,
+        gas_payer: GasPayer<'_>,
+        shared: Option<Object>,
+    ) -> Self {
         let account_id = account.id();
         let account_address: Address = account_id.into();
         let sender = match gas_payer {
@@ -95,6 +118,7 @@ impl UnresolvedAccountSetup {
             Object::with_id_owner_for_testing(transfer_id, sender),
             Object::with_id_owner_for_testing(gas_id, gas_owner),
         ];
+        objects.extend(second_gas_id.map(|id| Object::with_id_owner_for_testing(id, gas_owner)));
         objects.extend(shared);
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(&objects)
@@ -104,7 +128,10 @@ impl UnresolvedAccountSetup {
         let rgp = authority.reference_gas_price_for_testing().unwrap();
 
         let transfer_ref = authority.get_object(&transfer_id).unwrap().object_ref();
-        let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+        let gas_refs = std::iter::once(gas_id)
+            .chain(second_gas_id)
+            .map(|id| authority.get_object(&id).unwrap().object_ref())
+            .collect();
 
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_object(recipient, transfer_ref).unwrap();
@@ -119,7 +146,7 @@ impl UnresolvedAccountSetup {
         }
         let tx = Transaction::new_programmable_allow_sponsor(
             sender,
-            vec![gas_ref],
+            gas_refs,
             builder.finish(),
             rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
             rgp,
@@ -372,6 +399,32 @@ fn authenticator_function_not_found(account_id: ObjectId) -> ExecutionStatus {
     }
 }
 
+/// Asserts that `effects` create, delete and wrap no object, other than
+/// deleting `merged_gas_coins`, the gas coins merged into the first one when a
+/// gas owner that authorized the transaction pays.
+fn assert_no_object_created_deleted_or_wrapped(
+    effects: &TransactionEffects,
+    merged_gas_coins: &[ObjectId],
+) {
+    assert!(effects.created().is_empty(), "{:?}", effects.created());
+    assert!(effects.wrapped().is_empty(), "{:?}", effects.wrapped());
+    assert!(effects.unwrapped().is_empty(), "{:?}", effects.unwrapped());
+    assert!(
+        effects.unwrapped_then_deleted().is_empty(),
+        "{:?}",
+        effects.unwrapped_then_deleted()
+    );
+    let mut deleted: Vec<ObjectId> = effects
+        .deleted()
+        .iter()
+        .map(|reference| reference.object_id)
+        .collect();
+    deleted.sort();
+    let mut expected = merged_gas_coins.to_vec();
+    expected.sort();
+    assert_eq!(deleted, expected, "only merged gas coins may be deleted");
+}
+
 /// With deterministic validation on, a gas owner whose account cannot be
 /// resolved did not authorize the transaction, so nobody is charged. Owned
 /// inputs, the gas coin included, keep their versions, so the account can use
@@ -409,6 +462,7 @@ async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validat
         &GasCostSummary::default(),
         "nobody may be charged"
     );
+    assert_no_object_created_deleted_or_wrapped(&effects, &[]);
     assert_eq!(
         effects.as_v1().gas_object(),
         None,
@@ -479,6 +533,7 @@ async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged()
         &GasCostSummary::default(),
         "nobody may be charged"
     );
+    assert_no_object_created_deleted_or_wrapped(&effects, &[]);
     assert!(
         effects
             .unchanged_shared_objects()
@@ -493,6 +548,106 @@ async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged()
         .get_object_cache_reader()
         .try_check_owned_objects_are_live(&[gas_before])
         .expect("the gas coin must stay usable");
+}
+
+/// An account that pays with two gas coins but did not authorize the
+/// transaction keeps both: nothing is merged, so no coin is deleted.
+#[tokio::test]
+async fn unauthorized_transaction_keeps_every_gas_coin() {
+    let _guard = enable_deterministic_validation();
+    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+    let second_gas_id = ObjectId::random();
+    let setup = UnresolvedAccountSetup::new_with_second_gas_coin(
+        Object::shared_for_testing(),
+        ObjectId::random(),
+        ObjectId::random(),
+        Some(second_gas_id),
+        recipient,
+        GasPayer::Account,
+        None,
+    )
+    .await;
+    let reference = |id: &ObjectId| setup.authority.get_object(id).unwrap().object_ref();
+    let coins_before = [reference(&setup.gas_id), reference(&second_gas_id)];
+
+    let (effects, _) = setup.execute().unwrap();
+
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &GasCostSummary::default(),
+        "nobody may be charged"
+    );
+    assert_no_object_created_deleted_or_wrapped(&effects, &[]);
+    assert!(
+        effects.old_object_metadata().is_empty(),
+        "no object may change: {:?}",
+        effects.old_object_metadata()
+    );
+    assert_eq!(
+        [reference(&setup.gas_id), reference(&second_gas_id)],
+        coins_before
+    );
+    setup
+        .authority
+        .get_object_cache_reader()
+        .try_check_owned_objects_are_live(&coins_before)
+        .expect("both gas coins must stay usable");
+}
+
+/// A signing sponsor that pays with two gas coins for a sender account that
+/// cannot be resolved is charged, which merges its second coin into the
+/// first. That is the only object the failed transaction deletes; the
+/// account's owned input is left as it was.
+#[tokio::test]
+async fn paying_sponsor_loses_only_its_merged_gas_coin() {
+    let _guard = enable_deterministic_validation();
+    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+    let sponsor: (Address, AccountPrivateKey) = get_key_pair();
+    let second_gas_id = ObjectId::random();
+    let setup = UnresolvedAccountSetup::new_with_second_gas_coin(
+        Object::shared_for_testing(),
+        ObjectId::random(),
+        ObjectId::random(),
+        Some(second_gas_id),
+        recipient,
+        GasPayer::Sponsor(&sponsor),
+        None,
+    )
+    .await;
+    let transfer_before = setup
+        .authority
+        .get_object(&setup.transfer_id)
+        .unwrap()
+        .object_ref();
+
+    let (effects, _) = setup.execute().unwrap();
+
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the sponsor that signed must be charged"
+    );
+    assert_no_object_created_deleted_or_wrapped(&effects, &[second_gas_id]);
+    let mut changed: Vec<ObjectId> = effects
+        .old_object_metadata()
+        .iter()
+        .map(|old| old.reference().object_id)
+        .collect();
+    changed.sort();
+    let mut gas_coins = vec![setup.gas_id, second_gas_id];
+    gas_coins.sort();
+    assert_eq!(
+        changed, gas_coins,
+        "only the sponsor's gas coins may change"
+    );
+    assert_eq!(
+        setup
+            .authority
+            .get_object(&setup.transfer_id)
+            .unwrap()
+            .object_ref(),
+        transfer_before,
+        "the account's owned input must keep its version"
+    );
 }
 
 /// Two validators write the same effects for a transaction that charges
