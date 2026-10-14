@@ -4,10 +4,9 @@
 //! Reads one shared input: whether the object exists and is shared at the
 //! declared initial version. It reads the object's creation row (the row at
 //! the declared initial shared version) and the latest object in the store,
-//! and, for an object that is gone, the highest row of `id` and the store's
-//! record of a deletion in this epoch. It never reads the object's contents.
-//! As for owned inputs, each step is its own type, and a store answer is kept
-//! until the creation row has been read a second time.
+//! and, for an object that is gone, the highest row of `id`. It never reads
+//! the object's contents. As for owned inputs, each step is its own type, and
+//! a store answer is kept until the creation row has been read a second time.
 
 use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
 use iota_types::{
@@ -218,17 +217,18 @@ impl SharedReader<ObjectAnswered> {
 }
 
 // ---------------------------------------------------------------------------
-// Deletion: the highest row of `id`, then the store's deletion record
+// Deletion: the highest row of `id`
 // ---------------------------------------------------------------------------
 //
 // Execution writes a deletion marker at the tombstone version, and again at
 // the version of every later transaction that names the deleted object
 // mutably. Those later transactions write no handler row for the object, so
-// the latest marker's version depends on which of them a validator has
-// executed. The deletion is therefore decided from the id's highest handler
-// row, which the hook writes before the outputs. The marker only tells
-// whether this validator saw a deletion this epoch and supplies the verdict's
-// digest.
+// the latest marker depends on which of them a validator has executed, and
+// the deleting execution writes its tombstone before its marker, so a read
+// alongside it can find the one without the other. The deletion is therefore
+// decided from the id's highest handler row alone, which the hook writes
+// before the outputs and which names the deleting transaction. The marker is
+// never read.
 
 /// No live object for `id` in the store.
 pub struct ObjectAbsent {
@@ -248,107 +248,58 @@ enum AbsentOrigin {
 /// Outcome of the read of the highest row of `id`.
 #[must_use]
 pub enum DeletionRowLookup {
+    /// Deleted above the horizon, by the transaction. Kept: the transaction
+    /// being validated executes against the deletion.
+    Deleted(Version, TransactionDigest),
     /// Deleted at or below the horizon, or the deleted object was not shared
     /// at the declared initial version.
     Drop(DropReason),
-    /// No deletion visible at this commit. Next: the deletion marker.
-    NotDropped(SharedReader<DeletionRowRead>),
-}
-
-impl SharedReader<ObjectAbsent> {
-    /// Reads the row of `id` at its highest version. A shared object has at
-    /// most a creation row and a tombstone row this epoch, so a tombstone row
-    /// is a deletion whose commit the handler has assigned, and it records the
-    /// deleting commit and the deleted object's initial shared version.
-    pub fn read_deletion_row(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionRowLookup> {
-        let row = ctx.epoch_store.highest_handler_processed_row(&self.id)?;
-        let origin = self.state.origin;
-        Ok(
-            match classify_deletion_row(
-                row.as_ref().map(|(_, row)| row),
-                self.initial_shared_version,
-                self.horizon,
-            ) {
-                DeletionClass::Drop(reason) => DeletionRowLookup::Drop(reason),
-                DeletionClass::AboveHorizon => {
-                    DeletionRowLookup::NotDropped(self.into_state(DeletionRowRead {
-                        origin,
-                        deleted_version: row.map(|(key, _)| key.1),
-                    }))
-                }
-                DeletionClass::NotHandlerKnown => {
-                    DeletionRowLookup::NotDropped(self.into_state(DeletionRowRead {
-                        origin,
-                        deleted_version: None,
-                    }))
-                }
-            },
-        )
-    }
-}
-
-/// The highest handler row did not drop the input.
-pub struct DeletionRowRead {
-    origin: AbsentOrigin,
-    /// The version of the tombstone row above the horizon, `None` when no
-    /// handler-known deletion exists.
-    deleted_version: Option<Version>,
-}
-impl SharedState for DeletionRowRead {}
-
-/// Outcome of the deletion marker read for this epoch.
-#[must_use]
-pub enum DeletionInfoLookup {
-    /// Deleted above the horizon, or by execution the handler has not
-    /// reached. Kept: the transaction executes against the deletion.
-    Deleted(Version, TransactionDigest),
-    /// No deletion this epoch and no creation row: the id never existed or
-    /// was deleted before this epoch.
+    /// No creation row and no tombstone row: the id never existed, was
+    /// deleted before this epoch, or was created above the horizon.
     Missing(MissingReason),
 }
 
-impl SharedReader<DeletionRowRead> {
-    /// Reads the store's latest record of a deletion of `id` in this epoch.
-    /// The result takes the version of the tombstone row when one decided,
-    /// otherwise the deletion record's, and always the deletion record's
-    /// digest. A deletion in an earlier epoch leaves no record.
+impl SharedReader<ObjectAbsent> {
+    /// Reads the row of `id` at its highest version, which decides. A shared
+    /// object has at most a creation row and a tombstone row this epoch, so a
+    /// tombstone row is a deletion whose commit the handler has assigned, and
+    /// it records the deleting commit, the deleted object's initial shared
+    /// version and the deleting transaction.
     ///
-    /// With no record, an id with no creation row and no tombstone row
-    /// answers missing. For an id the rows show this epoch, the record is
-    /// read once more, because the deleting execution writes the tombstone
-    /// row before the record. A record still absent is a storage error, which
-    /// stops commit processing, and never a result: only a broken write, or a
-    /// writer held between its tombstone row and its record across both
-    /// reads, leaves it absent.
-    pub fn read_deletion_info(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionInfoLookup> {
-        let DeletionRowRead {
-            origin,
-            deleted_version,
-        } = self.state;
-        let epoch = ctx.epoch_store.epoch();
-        let read_marker = || {
-            ctx.cache
-                .try_get_last_shared_object_deletion_info(&self.id, epoch)
-        };
-        let shown_by_bookkeeping = origin != AbsentOrigin::NoEntry || deleted_version.is_some();
-        let marker = match read_marker()? {
-            None if shown_by_bookkeeping => read_marker()?,
-            marker => marker,
-        };
-        match marker {
-            Some((marker_version, digest)) => Ok(DeletionInfoLookup::Deleted(
-                deleted_version.unwrap_or(marker_version),
-                digest,
-            )),
-            None if shown_by_bookkeeping => Err(IotaError::Storage(format!(
-                "shared input {} declared at {} has no live object and no deletion marker, \
-                 though the bookkeeping shows it this epoch ({origin:?}, deleted version \
-                 {deleted_version:?})",
+    /// A creation row at or below the horizon with no live object and no
+    /// tombstone row is a storage error, which stops commit processing, and
+    /// never a result: executing a deletion writes its row before the
+    /// tombstone reaches the store, so only a broken write leaves that state.
+    pub fn read_deletion_row(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionRowLookup> {
+        let row = ctx.epoch_store.highest_handler_processed_row(&self.id)?;
+        let class = classify_deletion_row(
+            row.as_ref().map(|(_, row)| row),
+            self.initial_shared_version,
+            self.horizon,
+        );
+        let tombstone = row.and_then(|(ObjectKey(_, version), row)| {
+            row.deleted_by.map(|deleted_by| (version, deleted_by))
+        });
+        match (class, tombstone) {
+            (DeletionClass::Drop(reason), _) => Ok(DeletionRowLookup::Drop(reason)),
+            (DeletionClass::AboveHorizon, Some((version, deleted_by))) => {
+                Ok(DeletionRowLookup::Deleted(version, deleted_by))
+            }
+            (DeletionClass::AboveHorizon, None) => Err(IotaError::Storage(format!(
+                "shared input {} declared at {} has a tombstone row above the horizon that \
+                 names no transaction",
                 self.id, self.initial_shared_version
             ))),
-            None => Ok(DeletionInfoLookup::Missing(MissingReason(
-                MissingKind::SharedNotFound,
-            ))),
+            (DeletionClass::NotHandlerKnown, _) => match self.state.origin {
+                AbsentOrigin::NoEntry => Ok(DeletionRowLookup::Missing(MissingReason(
+                    MissingKind::SharedNotFound,
+                ))),
+                AbsentOrigin::Created => Err(IotaError::Storage(format!(
+                    "shared input {} declared at {} has no live object and no tombstone row, \
+                     though its creation row is at or below the horizon",
+                    self.id, self.initial_shared_version
+                ))),
+            },
         }
     }
 }
@@ -495,6 +446,7 @@ mod tests {
             produced_at,
             initial_shared_version: initial_shared_version.map(Version::from_u64),
             replaced_version: None,
+            deleted_by: None,
         }
     }
 
@@ -508,6 +460,7 @@ mod tests {
             produced_at,
             initial_shared_version: initial_shared_version.map(Version::from_u64),
             replaced_version: None,
+            deleted_by: Some(TransactionDigest::random()),
         }
     }
 
@@ -616,10 +569,10 @@ mod tests {
 
     /// A creation row at or below the horizon proves the object was created
     /// this epoch, and the outputs follow the row. An absent object with no
-    /// tombstone row and no deletion marker breaks that, so the read is a
-    /// storage error rather than a verdict.
+    /// tombstone row breaks that, so the read is a storage error rather than
+    /// a verdict.
     #[tokio::test]
-    async fn creation_row_without_object_or_deletion_marker_is_a_storage_error() {
+    async fn creation_row_without_object_or_tombstone_row_is_a_storage_error() {
         use iota_sdk_types::SenderSignedTransaction;
         use iota_test_transaction_builder::TestTransactionBuilder;
         use iota_types::{
@@ -631,6 +584,11 @@ mod tests {
             authority_per_epoch_store::handler_object_state::handler_processed_upserts,
             authority_tests::init_state_with_objects_and_object_basics,
         };
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
 
         const PRODUCING_COMMIT: CommitIndex = 5;
 
