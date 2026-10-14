@@ -499,6 +499,61 @@ async fn signing_sponsor_is_charged_under_deterministic_validation() {
     assert_eq!(effects.gas_object().owner(), &Owner::Address(sponsor.0));
 }
 
+/// With deterministic validation on, a signing sponsor pays for a sender
+/// account that cannot be resolved, but the account authorized nothing, so its
+/// owned inputs keep their versions and stay usable. Only the sponsor's gas
+/// coin changes.
+#[tokio::test]
+async fn unresolved_sender_account_keeps_its_owned_inputs_when_a_sponsor_pays() {
+    let _guard = enable_deterministic_validation();
+    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+    let sponsor: (Address, AccountPrivateKey) = get_key_pair();
+    let setup = UnresolvedAccountSetup::new(
+        Object::shared_for_testing(),
+        ObjectId::random(),
+        ObjectId::random(),
+        recipient,
+        GasPayer::Sponsor(&sponsor),
+        None,
+    )
+    .await;
+    let transfer_before = setup
+        .authority
+        .get_object(&setup.transfer_id)
+        .unwrap()
+        .object_ref();
+
+    let (effects, _) = setup.execute().unwrap();
+
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the sponsor that signed must be charged"
+    );
+    assert_eq!(
+        effects
+            .old_object_metadata()
+            .iter()
+            .map(|old| old.reference().object_id)
+            .collect::<Vec<_>>(),
+        vec![setup.gas_id],
+        "the sponsor's gas coin must be the only object the effects change"
+    );
+    assert_eq!(
+        setup
+            .authority
+            .get_object(&setup.transfer_id)
+            .unwrap()
+            .object_ref(),
+        transfer_before,
+        "the account's owned input must keep its version"
+    );
+    setup
+        .authority
+        .get_object_cache_reader()
+        .try_check_owned_objects_are_live(&[transfer_before])
+        .expect("the account's owned input must stay usable");
+}
+
 /// With deterministic validation on, the gas owner decides who pays, not the
 /// sender: an account sponsoring a sender that signs is not charged when the
 /// account cannot be resolved.
