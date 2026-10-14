@@ -48,7 +48,8 @@ pub(crate) const WAVE_LENGTH: Round = 3;
 pub(crate) type WaveNumber = u32;
 
 /// Upper bound on the BCS-serialized size of a [`Commit`] for a committee of
-/// `committee_size` authorities and a GC depth of `gc_depth` rounds.
+/// `committee_size` authorities and a GC depth of `gc_depth` rounds. It holds
+/// when no validator is Byzantine.
 ///
 /// `CommitV3` is the largest variant. Its sub-DAG holds the leader and at most
 /// one block per authority in each of the `gc_depth` rounds below it.
