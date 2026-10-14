@@ -1,0 +1,9 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# Publishes the JSON-RPC port of the fullnode itself, for the checks that need
+# a client to reach the node without HAProxy.
+services:
+  fullnode:
+    ports:
+      - "19000:9000/tcp"
