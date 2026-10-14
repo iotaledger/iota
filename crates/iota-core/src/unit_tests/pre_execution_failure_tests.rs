@@ -267,6 +267,15 @@ async fn unresolved_authenticator_account_fails_with_effects() {
         Owner::Address(setup.sender),
         "the transfer must not have run"
     );
+    // Without deterministic validation, every owned input of a failed
+    // transaction is rewritten, as before.
+    assert!(
+        effects
+            .old_object_metadata()
+            .iter()
+            .any(|old| old.reference().object_id == setup.transfer_id),
+        "the account's owned input must be rewritten with the flag off"
+    );
 }
 
 /// Two validators write the same effects for the same failing transaction.
