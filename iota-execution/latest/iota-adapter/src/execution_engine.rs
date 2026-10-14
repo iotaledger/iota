@@ -393,17 +393,90 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
+        let deterministic_validation = protocol_config.pcool_deterministic_validation();
+        let run_authenticator =
+            |temporary_store: &mut TemporaryStore<'_>,
+             gas_charger: &mut GasCharger,
+             trace_builder_opt: &mut Option<MoveTraceBuilder>,
+             authenticator: MoveAuthenticator,
+             authenticator_function_ref: AuthenticatorFunctionRef,
+             authenticator_input_objects: CheckedInputObjects| {
+                match authenticator_function_ref {
+                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                        authenticate_transaction_inner(
+                            temporary_store,
+                            protocol_config,
+                            metrics.clone(),
+                            gas_charger,
+                            authenticator,
+                            authenticator_function_ref_v1,
+                            &authenticator_input_objects.into_inner(),
+                            transaction_kind.clone(),
+                            transaction_digest,
+                            auth_context_data.clone(),
+                            tx_ctx.clone(),
+                            trace_builder_opt,
+                            move_vm,
+                        )
+                    }
+                }
+            };
+
         // Next to the result, whether the gas owner authorized the transaction.
         // An owner that signed it did, as its signature is checked before
         // consensus. A Move account did only if its authenticator ran and
         // succeeded.
         //
-        // A resolution failure skips the authenticators entirely, so the objects
-        // holding their function references are neither recorded as loaded nor
-        // charged for.
+        // Under deterministic validation the gas owner's authenticator runs
+        // first, and also after another account failed to resolve, so whether
+        // the gas owner authorized does not depend on the order of the
+        // signatures. When it fails, its failure is the one reported.
+        //
+        // Otherwise a resolution failure skips the authenticators entirely, so
+        // the objects holding their function references are neither recorded as
+        // loaded nor charged for.
         let (authentication_execution_result, gas_owner_authorized) = match authenticators {
-            MoveAuthenticatorsForExecution::ResolutionFailed { error, accounts } => {
-                (Err(error), !accounts.contains(&gas_owner))
+            MoveAuthenticatorsForExecution::ResolutionFailed {
+                error,
+                accounts,
+                gas_owner: gas_owner_authenticator,
+            } => {
+                if !accounts.contains(&gas_owner) {
+                    (Err(error), true)
+                } else {
+                    match gas_owner_authenticator
+                        .filter(|_| deterministic_validation)
+                        .map(|gas_owner_authenticator| *gas_owner_authenticator)
+                    {
+                        Some(MoveAuthenticatorForExecution {
+                            authenticator,
+                            function_ref,
+                            input_objects: authenticator_input_objects,
+                        }) => {
+                            let AuthenticatorFunctionRefForExecution {
+                                authenticator_function_ref,
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            } = function_ref;
+                            temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            )]));
+                            match run_authenticator(
+                                &mut temporary_store,
+                                &mut gas_charger,
+                                trace_builder_opt,
+                                authenticator,
+                                authenticator_function_ref,
+                                authenticator_input_objects,
+                            ) {
+                                Ok(()) => (Err(error), true),
+                                Err(gas_owner_error) => (Err(gas_owner_error), false),
+                            }
+                        }
+                        None => (Err(error), false),
+                    }
+                }
             }
             MoveAuthenticatorsForExecution::Resolved(authenticators) => {
                 // Prepare the authenticators for execution.
@@ -411,7 +484,7 @@ mod checked {
                 // authenticators are executed.
                 // The temporary store must contain all the required information at this
                 // point.
-                let authenticators = authenticators
+                let mut authenticators = authenticators
                     .into_iter()
                     .map(
                         |MoveAuthenticatorForExecution {
@@ -441,6 +514,16 @@ mod checked {
                     )
                     .collect::<Vec<_>>();
 
+                if deterministic_validation {
+                    if let Some(position) = authenticators
+                        .iter()
+                        .position(|(authenticator, ..)| authenticator.address() == gas_owner)
+                    {
+                        let gas_owner_authenticator = authenticators.remove(position);
+                        authenticators.insert(0, gas_owner_authenticator);
+                    }
+                }
+
                 let mut gas_owner_authorized = !authenticators
                     .iter()
                     .any(|(authenticator, ..)| authenticator.address() == gas_owner);
@@ -453,25 +536,14 @@ mod checked {
                 let result = authenticators.into_iter().try_for_each(
                     |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
                         let account = authenticator.address();
-                        let result = match authenticator_function_ref {
-                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                                authenticate_transaction_inner(
-                                    &mut temporary_store,
-                                    protocol_config,
-                                    metrics.clone(),
-                                    &mut gas_charger,
-                                    authenticator,
-                                    authenticator_function_ref_v1,
-                                    &authenticator_input_objects.into_inner(),
-                                    transaction_kind.clone(),
-                                    transaction_digest,
-                                    auth_context_data.clone(),
-                                    tx_ctx.clone(),
-                                    trace_builder_opt,
-                                    move_vm,
-                                )
-                            }
-                        };
+                        let result = run_authenticator(
+                            &mut temporary_store,
+                            &mut gas_charger,
+                            trace_builder_opt,
+                            authenticator,
+                            authenticator_function_ref,
+                            authenticator_input_objects,
+                        );
                         if result.is_ok() && account == gas_owner {
                             gas_owner_authorized = true;
                         }
