@@ -9,7 +9,9 @@ use diesel::{
 };
 use iota_indexer::{
     errors::{Context, IndexerError},
-    ingestion::OperationalLevel,
+    ingestion::OperationalLevel::{
+        self, Basic, CombinedEventFilters, FilteredQueries, ObjectsHistory,
+    },
     insert_or_ignore_into,
     models::transactions::{StoredTransaction, TxGlobalOrder},
     schema::{transactions, tx_global_order},
@@ -23,33 +25,40 @@ use iota_types::{
     effects::TransactionEffectsAPI, messages_checkpoint::VerifiedCheckpoint,
     transaction::TransactionEnvelope,
 };
+use rstest::rstest;
 
 use crate::{
     common::indexer_wait_for_checkpoint,
     utils::{IngestionTest, TestSim, read_only_blocking},
 };
 
+#[rstest]
 #[tokio::test]
-pub async fn transaction_table() -> Result<(), IndexerError> {
+pub async fn transaction_table(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     TransactionTable
-        .run(OperationalLevel::default(), "ingestion_transaction_table")
+        .run(level, "ingestion_transaction_table")
         .await
 }
 
+#[rstest]
 #[tokio::test]
-pub async fn tx_global_order_table() -> Result<(), IndexerError> {
+pub async fn tx_global_order_table(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     TxGlobalOrderTable::new(false)
-        .run(OperationalLevel::default(), "ingestion_tx_global_order")
+        .run(level, "ingestion_tx_global_order")
         .await
 }
 
+#[rstest]
 #[tokio::test]
-pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
+pub async fn tx_global_order_table_on_conflict_do_nothing(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     TxGlobalOrderTable::new(true)
-        .run(
-            OperationalLevel::default(),
-            "ingestion_tx_global_order_on_conflict_do_nothing",
-        )
+        .run(level, "ingestion_tx_global_order_on_conflict_do_nothing")
         .await
 }
 

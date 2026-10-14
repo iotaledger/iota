@@ -5,7 +5,10 @@
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use iota_indexer::{
     errors::{Context, IndexerError},
-    ingestion::{OperationalLevel, common::prepare::CheckpointObjectChanges},
+    ingestion::{
+        OperationalLevel::{self, Basic, CombinedEventFilters, FilteredQueries, ObjectsHistory},
+        common::prepare::CheckpointObjectChanges,
+    },
     models::{
         obj_indices::StoredObjectVersion,
         objects::{StoredCheckpointedObject, StoredObject},
@@ -23,6 +26,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
 };
+use rstest::rstest;
 
 use crate::{
     common::{
@@ -45,33 +49,34 @@ pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
     Ok(())
 }
 
+#[rstest]
 #[tokio::test]
-pub async fn object_type() -> Result<(), IndexerError> {
-    ObjectType
-        .run(OperationalLevel::default(), "ingestion_object_type")
-        .await
+pub async fn object_type(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
+    ObjectType.run(level, "ingestion_object_type").await
 }
 
+#[rstest]
 #[tokio::test]
-pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
+pub async fn checkpoint_objects_are_finalized(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     CheckpointObjectsAreFinalized
-        .run(
-            OperationalLevel::default(),
-            "ingestion_checkpoint_objects_are_finalized",
-        )
+        .run(level, "ingestion_checkpoint_objects_are_finalized")
         .await
 }
 
 /// Verify that `checkpointed_objects` matches `objects` (minus
 /// `finalized_in_cp`) after checkpoint ingestion with mutations and
 /// deletions.
+#[rstest]
 #[tokio::test]
-pub async fn checkpointed_objects_match_objects() -> Result<(), IndexerError> {
+pub async fn checkpointed_objects_match_objects(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     CheckpointedObjectsMatchObjects
-        .run(
-            OperationalLevel::default(),
-            "ingestion_checkpointed_objects_match_objects",
-        )
+        .run(level, "ingestion_checkpointed_objects_match_objects")
         .await
 }
 
@@ -161,23 +166,26 @@ pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
 /// Verify that `objects_version` is populated correctly: one row per output
 /// object per transaction. Tests repeated mutations of the same object in a
 /// single checkpoint.
+#[rstest]
 #[tokio::test]
-pub async fn object_versions_ingestion() -> Result<(), IndexerError> {
+pub async fn object_versions_ingestion(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     ObjectVersionsIngestion
-        .run(OperationalLevel::default(), "ingestion_object_versions")
+        .run(level, "ingestion_object_versions")
         .await
 }
 
 /// Verify `objects_version` ingestion for every wrap/removal effect,
 /// namely: `wrapped`, `unwrapped`, `deleted`, and
 /// `unwrapped_then_deleted`.
+#[rstest]
 #[tokio::test]
-pub async fn objects_version_ingestion_wraps_and_removals() -> Result<(), IndexerError> {
+pub async fn objects_version_ingestion_wraps_and_removals(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
     ObjectsVersionIngestionWrapsAndRemovals
-        .run(
-            OperationalLevel::default(),
-            "ingestion_objects_version_wraps_and_removals",
-        )
+        .run(level, "ingestion_objects_version_wraps_and_removals")
         .await
 }
 

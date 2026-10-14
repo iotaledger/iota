@@ -5,22 +5,26 @@
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_indexer::{
     errors::{Context, IndexerError},
-    ingestion::OperationalLevel,
+    ingestion::OperationalLevel::{
+        self, Basic, CombinedEventFilters, FilteredQueries, ObjectsHistory,
+    },
     models::checkpoints::StoredCheckpoint,
     schema::checkpoints,
     store::PgIndexerStore,
 };
+use rstest::rstest;
 
 use crate::{
     common::indexer_wait_for_checkpoint,
     utils::{IngestionTest, TestSim, read_only_blocking},
 };
 
+#[rstest]
 #[tokio::test]
-pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
-    EpochBoundary
-        .run(OperationalLevel::default(), "ingestion_epoch_boundary")
-        .await
+pub async fn test_epoch_boundary(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
+    EpochBoundary.run(level, "ingestion_epoch_boundary").await
 }
 
 struct EpochBoundary;
