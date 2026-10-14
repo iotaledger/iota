@@ -36,3 +36,22 @@ fn a_finished_handshake_is_no_longer_pending() {
 
     assert_eq!(reader.value("pending_handshakes_peak", &[]), 1.0);
 }
+
+#[test]
+fn both_refusal_reasons_are_exported_before_any_refusal() {
+    let registry = Registry::new();
+    let _metrics = ListenerMetrics::new("t", &registry, MetricLevel::Info);
+
+    let refused = registry
+        .gather()
+        .into_iter()
+        .find(|family| family.name() == "t_inbound_connections_refused")
+        .expect("the refusal counter is exported");
+    let reasons: Vec<String> = refused
+        .get_metric()
+        .iter()
+        .flat_map(|metric| metric.get_label())
+        .map(|label| label.value().to_owned())
+        .collect();
+    assert_eq!(reasons, ["max_connections", "max_pending_connections"]);
+}

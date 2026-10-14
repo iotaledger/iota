@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use connection_handler::{OnConnectionClose, sleep_or_pending};
 pub use http;
@@ -10,10 +15,11 @@ use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
 use metrics::{HandshakeResult, TrackedIo};
+use refusal::{RefusalLog, RefusalReason};
 use tokio::task::JoinSet;
 use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
-use tracing::trace;
+use tracing::{debug, trace, warn};
 
 use self::{
     body::BoxBody,
@@ -28,6 +34,7 @@ mod fuse;
 mod io;
 mod listener;
 pub mod metrics;
+mod refusal;
 
 pub use config::{Config, PeerConnectionEvent};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
@@ -102,7 +109,7 @@ impl Builder {
         service: S,
     ) -> Result<ServerHandle<L::Addr>, BoxError>
     where
-        L: Listener<Addr = std::net::SocketAddr>,
+        L: Listener<Io = tokio::net::TcpStream, Addr = SocketAddr>,
         S: Service<
                 Request<BoxBody>,
                 Response = Response<ResponseBody>,
@@ -146,6 +153,8 @@ impl Builder {
             graceful_shutdown_token: graceful_shutdown_token.clone(),
             _watch_receiver: watch_receiver,
             peer_connection_counts,
+            max_connections_refusals: RefusalLog::default(),
+            max_pending_connections_refusals: RefusalLog::default(),
         };
 
         let handle = ServerHandle(Arc::new(HandleInner {
@@ -241,11 +250,13 @@ struct Server<L: Listener> {
     // Used to signal to a ServerHandle when the server has completed shutting down
     _watch_receiver: tokio::sync::watch::Receiver<()>,
     peer_connection_counts: PeerConnectionCounts,
+    max_connections_refusals: RefusalLog,
+    max_pending_connections_refusals: RefusalLog,
 }
 
 impl<L> Server<L>
 where
-    L: Listener<Addr = std::net::SocketAddr>,
+    L: Listener<Io = tokio::net::TcpStream, Addr = SocketAddr>,
 {
     async fn serve(mut self) -> Result<(), BoxError> {
         loop {
@@ -254,8 +265,9 @@ where
                     trace!("signal received, shutting down");
                     break;
                 },
-                // While the handshake limit is reached, leave new connections in the kernel
-                // backlog rather than accepting them into an unbounded set of pending tasks.
+                // Without a connection limit, while the handshake limit is reached, leave
+                // new connections in the kernel backlog rather than accepting them into an
+                // unbounded set of pending tasks.
                 (io, remote_addr) = self.listener.accept(), if self.accepts_more_connections() => {
                     self.handle_incoming(io, remote_addr);
                 },
@@ -293,15 +305,77 @@ where
         Ok(())
     }
 
-    /// Whether another connection may be accepted, or the limit on concurrent
-    /// TLS handshakes is currently reached.
+    /// Whether the accept loop accepts now. A listener with `max_connections`
+    /// always accepts and resets the connections over its limits; one without
+    /// pauses while the limit on concurrent TLS handshakes is reached.
     fn accepts_more_connections(&self) -> bool {
-        self.config
+        self.config.max_connections.is_some()
+            || self
+                .config
+                .max_pending_connections
+                .is_none_or(|max| self.pending_connections.len() < max)
+    }
+
+    /// The limit a new connection would exceed, with its value, or `None` when
+    /// the connection may be served. Only a listener with `max_connections`
+    /// refuses connections.
+    fn refusal_reason(&self) -> Option<(RefusalReason, usize)> {
+        let max_connections = self.config.max_connections?;
+        let pending = self.pending_connections.len();
+        if let Some(max_pending) = self
+            .config
             .max_pending_connections
-            .is_none_or(|max| self.pending_connections.len() < max)
+            .filter(|max| pending >= *max)
+        {
+            return Some((RefusalReason::MaxPendingConnections, max_pending));
+        }
+        let open = self
+            .connections
+            .read()
+            .expect("no thread panics while it holds the connections lock")
+            .len();
+        (pending + open >= max_connections)
+            .then_some((RefusalReason::MaxConnections, max_connections))
+    }
+
+    /// Closes `io`, a connection just accepted from `remote_addr`, because the
+    /// listener is at the limit `reason` with the value `limit`.
+    fn refuse(
+        &mut self,
+        io: tokio::net::TcpStream,
+        remote_addr: SocketAddr,
+        reason: RefusalReason,
+        limit: usize,
+    ) {
+        if let Some(metrics) = &self.config.metrics {
+            metrics.record_refusal(reason);
+        }
+        let refusals = match reason {
+            RefusalReason::MaxConnections => &mut self.max_connections_refusals,
+            RefusalReason::MaxPendingConnections => &mut self.max_pending_connections_refusals,
+        };
+        let reason: &str = reason.into();
+        match refusals.record(Instant::now()) {
+            Some(suppressed) => warn!(
+                listener = %self.local_addr,
+                %remote_addr,
+                "refused a connection: {reason} ({limit}) reached; {suppressed} more refusals \
+                 for this reason were logged at debug since the last warning"
+            ),
+            None => debug!(
+                listener = %self.local_addr,
+                %remote_addr,
+                "refused a connection: {reason} ({limit}) reached"
+            ),
+        }
+        reset(io);
     }
 
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
+        if let Some((reason, limit)) = self.refusal_reason() {
+            self.refuse(io, remote_addr, reason, limit);
+            return;
+        }
         let io = TrackedIo::new(io, self.config.metrics.as_ref(), remote_addr);
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
@@ -423,6 +497,19 @@ where
             self.connection_handlers.shutdown().await;
         }
     }
+}
+
+/// Closes `stream` with a TCP reset instead of the usual close, so that the
+/// client sees at once that it was refused, and no `TIME_WAIT` state is kept
+/// for it.
+fn reset(stream: tokio::net::TcpStream) {
+    // The simulator's `TcpStream` has no `set_zero_linger`, and its
+    // `set_linger` is `todo!()`.
+    #[cfg(not(msim))]
+    if let Err(e) = stream.set_zero_linger() {
+        trace!("failed to set a zero linger on a refused connection: {e}");
+    }
+    drop(stream);
 }
 
 /// Returns `tls` with the ALPN protocols this server serves: `h2`, and
@@ -769,6 +856,292 @@ mod tests {
             .expect("the handshake must succeed");
     }
 
+    /// Polls `condition` until it holds, for at most 10 seconds.
+    async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        while !condition() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "timed out waiting for {what}"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    /// Checks that the server closed `connection`, the result of a connect,
+    /// with a TCP reset rather than a normal close. On loopback the reset can
+    /// arrive before the connect completes.
+    async fn assert_reset(connection: std::io::Result<tokio::net::TcpStream>) {
+        use tokio::io::AsyncReadExt as _;
+
+        let read = match connection {
+            Ok(mut stream) => {
+                let mut buf = [0u8; 1];
+                tokio::time::timeout(Duration::from_secs(10), stream.read(&mut buf))
+                    .await
+                    .expect("the server must close a refused connection at once")
+            }
+            Err(e) => Err(e),
+        };
+        assert!(
+            matches!(&read, Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset),
+            "a refused connection must be reset, got {read:?}"
+        );
+    }
+
+    /// With `max_connections` set, a full set of pending handshakes resets a
+    /// new connection at once instead of leaving it in the kernel backlog,
+    /// and the listener serves again once a handshake slot frees.
+    #[tokio::test]
+    async fn a_full_pending_set_refuses_new_connections_at_once() {
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    // Long enough that the silent peer below is released by the test
+                    // rather than by the deadline.
+                    .handshake_timeout(Some(Duration::from_secs(60)))
+                    .max_pending_connections(Some(1))
+                    .max_connections(Some(8)),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        // The listener accepts in arrival order, so this peer holds the only
+        // handshake slot before the next connection is accepted.
+        let silent = tokio::net::TcpStream::connect(addr).await.unwrap();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let tls_connect = || async {
+            let io = tokio::net::TcpStream::connect(addr).await?;
+            connector.connect(server_name.clone(), io).await
+        };
+
+        // The silent peer keeps its slot for the test, so without the refusal
+        // the connection would wait in the backlog for the whole bound.
+        let refused = tokio::time::timeout(Duration::from_secs(10), tls_connect())
+            .await
+            .expect("the server must refuse at once, not leave the connection in the backlog");
+        let error = refused.expect_err("the handshake slot is taken");
+        assert_eq!(error.kind(), std::io::ErrorKind::ConnectionReset, "{error}");
+
+        drop(silent);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        loop {
+            match tokio::time::timeout(Duration::from_secs(10), tls_connect()).await {
+                Ok(Ok(_)) => break,
+                // The server may not have seen the close of the silent peer yet.
+                Ok(Err(e))
+                    if e.kind() == std::io::ErrorKind::ConnectionReset
+                        && tokio::time::Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+                other => panic!("the handshake must succeed once the slot frees, got {other:?}"),
+            }
+        }
+    }
+
+    /// Connections still in their TLS handshake count toward
+    /// `max_connections`.
+    #[tokio::test]
+    async fn handshakes_in_progress_count_toward_the_connection_limit() {
+        let (server_tls_config, _) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .handshake_timeout(Some(Duration::from_secs(60)))
+                    .max_connections(Some(2)),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let _silent = [
+            tokio::net::TcpStream::connect(addr).await.unwrap(),
+            tokio::net::TcpStream::connect(addr).await.unwrap(),
+        ];
+        assert_reset(tokio::net::TcpStream::connect(addr).await).await;
+        assert_eq!(handle.number_of_connections(), 0, "no handshake finished");
+    }
+
+    /// A connection over the limit is reset, so its client sees the refusal at
+    /// once.
+    #[tokio::test]
+    async fn a_connection_over_the_limit_is_reset() {
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(1)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let _held = tokio::net::TcpStream::connect(addr).await.unwrap();
+
+        assert_reset(tokio::net::TcpStream::connect(addr).await).await;
+    }
+
+    /// However many clients connect, the listener holds at most
+    /// `max_connections`, and a closed connection makes room for a new one.
+    #[tokio::test]
+    async fn the_listener_never_holds_more_than_its_limit() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const MAX_CONNECTIONS: usize = 4;
+        const CLIENTS: usize = 16;
+
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), app)
+            .unwrap();
+        let addr = *handle.local_addr();
+        let open = || handle.number_of_connections();
+
+        let mut connections = Vec::new();
+        for _ in 0..CLIENTS {
+            connections.push(tokio::net::TcpStream::connect(addr).await);
+            assert!(open() <= MAX_CONNECTIONS, "the listener holds {}", open());
+        }
+        // The listener accepts in arrival order, so the first ones are held.
+        let refused = connections.split_off(MAX_CONNECTIONS);
+        let mut held: Vec<_> = connections
+            .into_iter()
+            .map(|connection| connection.expect("a connection within the limit is held"))
+            .collect();
+        for connection in refused {
+            assert_reset(connection).await;
+            assert!(open() <= MAX_CONNECTIONS, "the listener holds {}", open());
+        }
+        assert_eq!(open(), MAX_CONNECTIONS);
+
+        held.pop();
+        wait_until("the closed connection to be released", || {
+            open() == MAX_CONNECTIONS - 1
+        })
+        .await;
+
+        let mut newcomer = tokio::net::TcpStream::connect(addr).await.unwrap();
+        newcomer
+            .write_all(b"GET / HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        let mut response = String::new();
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            newcomer.read_to_string(&mut response),
+        )
+        .await
+        .expect("the newcomer must be served")
+        .unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+        assert!(open() <= MAX_CONNECTIONS, "the listener holds {}", open());
+    }
+
+    /// Log output kept in memory for a test.
+    #[derive(Clone, Default)]
+    struct CapturedLogs(Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl std::io::Write for CapturedLogs {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl CapturedLogs {
+        /// The captured refusal lines logged at `level`.
+        fn refusals_at(&self, level: &str) -> Vec<String> {
+            String::from_utf8(self.0.lock().unwrap().clone())
+                .unwrap()
+                .lines()
+                .filter(|line| line.split_whitespace().next() == Some(level))
+                .filter(|line| line.contains("refused a connection"))
+                .map(str::to_owned)
+                .collect()
+        }
+    }
+
+    /// For each reason, the first refusal in a minute is logged at `warn` and
+    /// the others at `debug`, so many refusals do not fill the log.
+    #[tokio::test]
+    async fn refusals_are_logged_at_warn_once_a_minute_for_each_reason() {
+        let logs = CapturedLogs::default();
+        // The test runtime runs the server on this thread, so the server logs
+        // to this subscriber.
+        let _subscriber = tracing::subscriber::set_default(
+            tracing_subscriber::fmt()
+                .with_writer({
+                    let logs = logs.clone();
+                    move || logs.clone()
+                })
+                .with_max_level(tracing::Level::DEBUG)
+                .with_ansi(false)
+                .without_time()
+                .finish(),
+        );
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .handshake_timeout(Some(Duration::from_secs(60)))
+                    .max_pending_connections(Some(1))
+                    .max_connections(Some(2)),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let tls_connect = || async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+            connector.connect(server_name, io).await.unwrap()
+        };
+
+        // One at a time: the only handshake slot frees when the server, not
+        // the client, ends the handshake.
+        let mut open = Vec::new();
+        for held in 1..=2 {
+            open.push(tls_connect().await);
+            wait_until("the connection to be open", || {
+                handle.number_of_connections() == held
+            })
+            .await;
+        }
+        for _ in 0..3 {
+            assert_reset(tokio::net::TcpStream::connect(addr).await).await;
+        }
+        open.pop();
+        wait_until("one open connection", || {
+            handle.number_of_connections() == 1
+        })
+        .await;
+        let _silent = tokio::net::TcpStream::connect(addr).await.unwrap();
+        for _ in 0..3 {
+            assert_reset(tokio::net::TcpStream::connect(addr).await).await;
+        }
+
+        let warnings = logs.refusals_at("WARN");
+        assert_eq!(warnings.len(), 2, "{warnings:#?}");
+        assert!(
+            warnings[0].contains("max_connections (2) reached"),
+            "{warnings:#?}"
+        );
+        assert!(
+            warnings[1].contains("max_pending_connections (1) reached"),
+            "{warnings:#?}"
+        );
+        assert_eq!(logs.refusals_at("DEBUG").len(), 4);
+    }
+
     /// A peer at its connection limit gets no further connections, while every
     /// other peer is served as usual and the peer itself recovers a slot as
     /// soon as one of its connections closes.
@@ -1105,6 +1478,10 @@ mod tests {
         assert!(
             served(Config::default().max_pending_connections(Some(0))).is_err(),
             "a zero limit must be rejected"
+        );
+        assert!(
+            served(Config::default().max_connections(Some(0))).is_err(),
+            "a zero connection limit must be rejected"
         );
         assert!(
             served(

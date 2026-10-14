@@ -29,6 +29,25 @@ pub async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
     }
 }
 
+/// Checks that the server closed `connection`, the result of a connect,
+/// with a TCP reset. On loopback the reset can arrive before the connect
+/// completes.
+pub async fn assert_reset(connection: std::io::Result<TcpStream>) {
+    let read = match connection {
+        Ok(mut stream) => {
+            let mut buf = [0u8; 1];
+            tokio::time::timeout(Duration::from_secs(10), stream.read(&mut buf))
+                .await
+                .expect("the server must close a refused connection at once")
+        }
+        Err(e) => Err(e),
+    };
+    assert!(
+        matches!(&read, Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset),
+        "a refused connection must be reset, got {read:?}"
+    );
+}
+
 pub fn setup() -> (MetricsReader, ListenerMetrics) {
     let registry = Registry::new();
     let metrics = ListenerMetrics::new(PREFIX, &registry, MetricLevel::Info);

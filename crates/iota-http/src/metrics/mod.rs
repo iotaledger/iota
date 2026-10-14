@@ -26,7 +26,10 @@ mod tls;
 pub(crate) use connection::ConnectionGuard;
 pub(crate) use io::TrackedIo;
 use scope::Scope;
+use strum::IntoEnumIterator;
 pub(crate) use tls::HandshakeResult;
+
+use crate::refusal::RefusalReason;
 
 /// Connection lifetimes in seconds.
 const CONNECTION_LIFETIME_SEC_BUCKETS: &[f64] =
@@ -85,6 +88,17 @@ impl ListenerMetrics {
         metrics.inbound_connections.inc();
         ConnectionGuard::new(self.0.clone())
     }
+
+    /// Counts a socket the listener closed right after accept because it was
+    /// at the limit `reason`. Such a socket is not counted as accepted or open.
+    pub(crate) fn record_refusal(&self, reason: RefusalReason) {
+        let reason: &str = reason.into();
+        self.0
+            .metrics
+            .inbound_connections_refused
+            .with_label_values(&[reason])
+            .inc();
+    }
 }
 
 struct Inner {
@@ -98,22 +112,39 @@ struct Inner {
 
 struct Metrics {
     inbound_connections_accepted: IntCounterVec,
+    inbound_connections_refused: IntCounterVec,
     inbound_connections: IntGaugeWithPeakGauge,
     connection_lifetime_seconds: Histogram,
 }
 
 impl Metrics {
     fn new(prefix: &str, registry: &Registry, level: MetricLevel) -> Self {
+        let inbound_connections_refused = register_int_counter_vec_with_registry!(
+            format!("{prefix}_inbound_connections_refused"),
+            "Sockets closed with a TCP reset right after the TCP accept because the listener \
+             was at a limit. The reason is the limit: max_connections or \
+             max_pending_connections",
+            &["reason"],
+            registry;
+            level
+        )
+        .expect("the metrics of a listener register without collision");
+        for reason in RefusalReason::iter() {
+            let reason: &str = reason.into();
+            inbound_connections_refused.with_label_values(&[reason]);
+        }
         Self {
             inbound_connections_accepted: register_int_counter_vec_with_registry!(
                 format!("{prefix}_inbound_connections_accepted"),
-                "Sockets accepted, counted from the TCP accept, before any TLS handshake. \
-                 The scope is where the remote address is: loopback, private or public",
+                "Sockets the listener kept, counted from the TCP accept, before any TLS \
+                 handshake. The scope is where the remote address is: loopback, private or \
+                 public",
                 &["scope"],
                 registry;
                 level
             )
             .expect("the metrics of a listener register without collision"),
+            inbound_connections_refused,
             inbound_connections: IntGaugeWithPeakGauge::register(
                 (
                     &format!("{prefix}_inbound_connections"),

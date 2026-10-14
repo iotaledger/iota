@@ -3031,6 +3031,7 @@ mod listener_metrics_tests {
 
     const CONNECTION_FAMILIES: &[&str] = &[
         "inbound_connections_accepted",
+        "inbound_connections_refused",
         "inbound_connections",
         "inbound_connections_peak",
         "connection_lifetime_seconds",

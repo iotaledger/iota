@@ -276,3 +276,51 @@ async fn a_connection_refused_for_its_peer_is_not_left_open() {
         1
     );
 }
+
+#[tokio::test]
+async fn refusals_are_counted_by_reason() {
+    let refused = |reader: &MetricsReader, reason| {
+        reader.value("inbound_connections_refused", &[("reason", reason)])
+    };
+
+    // A plain listener that holds one connection refuses the next one.
+    let (reader, metrics) = setup();
+    let addr = serve(
+        Config::default().max_connections(Some(1)),
+        &metrics,
+        ok_app(),
+    );
+    let _held = TcpStream::connect(addr).await.unwrap();
+    assert_reset(TcpStream::connect(addr).await).await;
+
+    assert_eq!(refused(&reader, "max_connections"), 1.0);
+    assert_eq!(refused(&reader, "max_pending_connections"), 0.0);
+    assert_eq!(
+        reader.value("inbound_connections_accepted", &[]),
+        1.0,
+        "a refused socket is not counted as accepted"
+    );
+    assert_eq!(
+        reader.value("inbound_connections", &[]),
+        1.0,
+        "a refused socket is not counted as open"
+    );
+
+    // A TLS listener whose only handshake slot is taken refuses the next one.
+    let (reader, metrics) = setup();
+    let addr = serve_tls(
+        Config::default()
+            .handshake_timeout(Some(Duration::from_secs(60)))
+            .max_pending_connections(Some(1))
+            .max_connections(Some(8)),
+        &metrics,
+        ok_app(),
+    );
+    let _silent = TcpStream::connect(addr).await.unwrap();
+    assert_reset(TcpStream::connect(addr).await).await;
+
+    assert_eq!(refused(&reader, "max_pending_connections"), 1.0);
+    assert_eq!(refused(&reader, "max_connections"), 0.0);
+    assert_eq!(reader.value("inbound_connections_accepted", &[]), 1.0);
+    assert_eq!(reader.value("inbound_connections", &[]), 1.0);
+}
