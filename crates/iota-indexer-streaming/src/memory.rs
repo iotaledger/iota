@@ -38,8 +38,8 @@ use iota_indexer::{
     },
     read::IndexerReader,
 };
-use iota_sdk_types::{Event, TransactionDigest};
 use prometheus_filtered::{Histogram, IntGauge};
+use rust_sdk::types::{Event, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};

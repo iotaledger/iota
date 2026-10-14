@@ -14,9 +14,8 @@ serde.workspace = true
 thiserror.workspace = true
 
 # internal dependencies
-iota-sdk-move-types = { workspace = true, features = ["serde"] }
-iota-sdk-types.workspace = true
 iota-types.workspace = true
+rust-sdk = { workspace = true, features = ["move-types", "serde"] }
 
 [lints]
 workspace = true

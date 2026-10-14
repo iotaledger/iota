@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
+use iota_protocol_config::ProtocolConfig as IotaProtocolConfig;
+use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
+use rust_sdk::grpc_types::{
     field::FieldMaskTree,
     v1::{
         bcs::BcsData,
@@ -16,8 +18,6 @@ use iota_grpc_types::{
         versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
     },
 };
-use iota_protocol_config::ProtocolConfig as IotaProtocolConfig;
-use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
 use crate::{error::RpcError, validation::object_id_proto};
 
@@ -90,12 +90,12 @@ impl Merge<&IotaProtocolConfig> for ProtocolConfig {
 }
 
 // Signature implementations
-impl Merge<&iota_sdk_types::UserSignature> for UserSignature {
+impl Merge<&rust_sdk::types::UserSignature> for UserSignature {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::UserSignature,
+        source: &rust_sdk::types::UserSignature,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
@@ -141,12 +141,12 @@ impl Merge<&iota_types::transaction::TransactionEnvelope> for UserSignatures {
     }
 }
 
-impl Merge<&iota_sdk_types::SignedTransaction> for UserSignatures {
+impl Merge<&rust_sdk::types::SignedTransaction> for UserSignatures {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::SignedTransaction,
+        source: &rust_sdk::types::SignedTransaction,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Use mask directly — UserSignatures is a transparent wrapper
@@ -176,12 +176,12 @@ impl Merge<&UserSignatures> for UserSignatures {
 }
 
 // Event implementations
-impl Merge<&iota_sdk_types::TransactionEvents> for Events {
+impl Merge<&rust_sdk::types::TransactionEvents> for Events {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::TransactionEvents,
+        source: &rust_sdk::types::TransactionEvents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Use mask directly — Events is a transparent wrapper
@@ -198,12 +198,12 @@ impl Merge<&iota_sdk_types::TransactionEvents> for Events {
     }
 }
 
-impl Merge<&iota_sdk_types::Event> for Event {
+impl Merge<&rust_sdk::types::Event> for Event {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::Event,
+        source: &rust_sdk::types::Event,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
@@ -253,7 +253,7 @@ impl Merge<iota_types::object::Object> for Object {
             return Ok(());
         }
 
-        let sdk_object: iota_sdk_types::Object =
+        let sdk_object: rust_sdk::types::Object =
             source.try_into().map_err(|e: SdkTypeConversionError| {
                 RpcError::from(e).with_context("failed to convert object")
             })?;
@@ -262,12 +262,12 @@ impl Merge<iota_types::object::Object> for Object {
     }
 }
 
-impl Merge<&iota_sdk_types::Object> for Object {
+impl Merge<&rust_sdk::types::Object> for Object {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::Object,
+        source: &rust_sdk::types::Object,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
@@ -359,12 +359,12 @@ impl Merge<&Objects> for Objects {
 }
 
 // Checkpoint implementations
-impl Merge<&iota_sdk_types::CheckpointSummary> for CheckpointSummary {
+impl Merge<&rust_sdk::types::CheckpointSummary> for CheckpointSummary {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::CheckpointSummary,
+        source: &rust_sdk::types::CheckpointSummary,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
@@ -403,12 +403,12 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
     }
 }
 
-impl Merge<&iota_sdk_types::CheckpointContents> for CheckpointContents {
+impl Merge<&rust_sdk::types::CheckpointContents> for CheckpointContents {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::CheckpointContents,
+        source: &rust_sdk::types::CheckpointContents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
@@ -447,12 +447,12 @@ impl Merge<&CheckpointContents> for CheckpointContents {
     }
 }
 
-impl Merge<&iota_sdk_types::CheckpointSummary> for Checkpoint {
+impl Merge<&rust_sdk::types::CheckpointSummary> for Checkpoint {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::CheckpointSummary,
+        source: &rust_sdk::types::CheckpointSummary,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::SUMMARY_FIELD.name) {
@@ -472,7 +472,7 @@ impl Merge<&iota_types::crypto::AuthorityStrongQuorumSignInfo> for Checkpoint {
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::SIGNATURE_FIELD.name) {
-            let signature = iota_sdk_types::ValidatorAggregatedSignature::from(source.clone());
+            let signature = rust_sdk::types::ValidatorAggregatedSignature::from(source.clone());
             self.signature = Some(signature.into());
         }
 
@@ -480,12 +480,12 @@ impl Merge<&iota_types::crypto::AuthorityStrongQuorumSignInfo> for Checkpoint {
     }
 }
 
-impl Merge<&iota_sdk_types::CheckpointContents> for Checkpoint {
+impl Merge<&rust_sdk::types::CheckpointContents> for Checkpoint {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::CheckpointContents,
+        source: &rust_sdk::types::CheckpointContents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::CONTENTS_FIELD.name) {
@@ -535,12 +535,12 @@ impl Merge<&Checkpoint> for Checkpoint {
 }
 
 // Transaction implementations
-impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
+impl Merge<&rust_sdk::types::TransactionEffects> for TransactionEffects {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::TransactionEffects,
+        source: &rust_sdk::types::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Set digest if requested
@@ -577,12 +577,12 @@ impl Merge<&TransactionEffects> for TransactionEffects {
     }
 }
 
-impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
+impl Merge<&rust_sdk::types::TransactionEvents> for TransactionEvents {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::TransactionEvents,
+        source: &rust_sdk::types::TransactionEvents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Set digest if requested
@@ -703,12 +703,12 @@ impl Merge<&iota_types::transaction::TransactionEnvelope> for Transaction {
     }
 }
 
-impl Merge<&iota_sdk_types::Transaction> for Transaction {
+impl Merge<&rust_sdk::types::Transaction> for Transaction {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::Transaction,
+        source: &rust_sdk::types::Transaction,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -801,9 +801,9 @@ impl Merge<&iota_types::storage::EpochInfoV1Entry> for EpochCloseProof {
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_types::{field::FieldMaskUtil, v1::epoch::ProtocolConfig};
     use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
     use prost_types::FieldMask;
+    use rust_sdk::grpc_types::{field::FieldMaskUtil, v1::epoch::ProtocolConfig};
 
     use super::*;
 

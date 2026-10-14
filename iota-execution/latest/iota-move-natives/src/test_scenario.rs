@@ -11,10 +11,6 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
-use iota_sdk_types::{
-    Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
-    Version,
-};
 use iota_types::{
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
@@ -37,6 +33,10 @@ use move_vm_types::{
     natives::function::NativeResult,
     pop_arg,
     values::{self, StructRef, Value, Vector, VectorSpecialization},
+};
+use rust_sdk::types::{
+    Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
+    Version,
 };
 use smallvec::smallvec;
 

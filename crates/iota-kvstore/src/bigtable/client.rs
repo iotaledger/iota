@@ -13,16 +13,16 @@ use iota_bigtable::{
         row_range::{EndKey, StartKey},
     },
 };
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointDigest, TransactionDigest, TransactionEffects,
-    TransactionEvents,
-};
 use iota_types::{
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
     transaction::TransactionEnvelope,
+};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointDigest, TransactionDigest, TransactionEffects,
+    TransactionEvents,
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;

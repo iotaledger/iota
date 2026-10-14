@@ -11,7 +11,7 @@
 //! directly to avoid going through the BCS machinery.
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk_types::{
+use rust_sdk::types::{
     Address, CheckpointData, CheckpointTransaction, Identifier, Object, SignedCheckpointSummary,
     SignedTransaction, StructTag, TypeParseError, TypeTag, ValidatorAggregatedSignature,
     ValidatorCommittee, ValidatorCommitteeMember,

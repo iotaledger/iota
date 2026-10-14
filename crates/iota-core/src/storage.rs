@@ -5,10 +5,6 @@
 use std::sync::Arc;
 
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
-use iota_sdk_types::{
-    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, EndOfEpochData, StructTag,
-    TransactionDigest, TransactionEffects, TransactionEvents,
-};
 use iota_types::{
     committee::{Committee, EpochId},
     error::IotaError,
@@ -24,6 +20,10 @@ use iota_types::{
     transaction::VerifiedTransaction,
 };
 use parking_lot::Mutex;
+use rust_sdk::types::{
+    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, EndOfEpochData, StructTag,
+    TransactionDigest, TransactionEffects, TransactionEvents,
+};
 use tracing::instrument;
 
 use crate::{
@@ -295,14 +295,14 @@ impl ReadStore for RocksDbStore {
 impl ObjectStore for RocksDbStore {
     fn try_get_object(
         &self,
-        object_id: &iota_sdk_types::ObjectId,
+        object_id: &rust_sdk::types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.cache_traits.object_store.try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &iota_sdk_types::ObjectId,
+        object_id: &rust_sdk::types::ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.cache_traits
@@ -464,14 +464,14 @@ impl GrpcReadStore {
 impl ObjectStore for GrpcReadStore {
     fn try_get_object(
         &self,
-        object_id: &iota_sdk_types::ObjectId,
+        object_id: &rust_sdk::types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.rocks.try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &iota_sdk_types::ObjectId,
+        object_id: &rust_sdk::types::ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.rocks.try_get_object_by_key(object_id, version)

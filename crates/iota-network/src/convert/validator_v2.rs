@@ -3,7 +3,6 @@
 
 //! Conversions between `iota.validator.v2` proto types and native `iota-types`.
 
-use iota_sdk_types::TransactionDigest;
 use iota_types::{
     error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,
@@ -14,6 +13,7 @@ use iota_types::{
     },
     transaction::TransactionEnvelope,
 };
+use rust_sdk::types::TransactionDigest;
 
 use super::{bcs_deserialize, bcs_serialize};
 use crate::api::{
@@ -304,12 +304,12 @@ impl From<api::HealthCheckResponse> for ValidatorHealthResponse {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
     use iota_types::{
         error::IotaError,
         messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusUpdate},
         transaction::TransactionEnvelope,
     };
+    use rust_sdk::types::{TransactionDigest, TransactionEffectsDigest};
 
     use crate::api::{self, SubmittedStatus, status_detail::Kind};
 

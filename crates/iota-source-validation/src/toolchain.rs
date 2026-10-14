@@ -13,7 +13,6 @@ use std::{
 
 use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
-use iota_sdk_types::Address;
 use move_binary_format::CompiledModule;
 use move_bytecode_source_map::utils::source_map_from_file;
 use move_command_line_common::{
@@ -36,6 +35,7 @@ use move_package::{
     source_package::{layout::SourcePackageLayout, parsed_manifest::PackageName},
 };
 use move_symbol_pool::Symbol;
+use rust_sdk::types::Address;
 use tar::Archive;
 use tempfile::TempDir;
 use tracing::{debug, info};

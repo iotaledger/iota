@@ -5,8 +5,8 @@
 use std::fmt;
 
 use async_graphql::*;
-use iota_sdk_types::Version;
 use iota_types::iota_serde::BigInt;
+use rust_sdk::types::Version;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;

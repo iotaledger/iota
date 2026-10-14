@@ -42,8 +42,8 @@ iota-graphql-rpc-client.workspace = true
 iota-json-rpc-types.workspace = true
 iota-package-resolver.workspace = true
 iota-sdk.workspace = true
-iota-sdk-types.workspace = true
 iota-types.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]

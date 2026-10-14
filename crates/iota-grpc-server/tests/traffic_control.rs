@@ -21,7 +21,12 @@ use common::{
 };
 use futures::StreamExt;
 use iota_grpc_server::GrpcServerHandle;
-use iota_grpc_types::{
+use iota_traffic_controller::TrafficController;
+use iota_types::{
+    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
+    transaction_executor::TransactionExecutor,
+};
+use rust_sdk::grpc_types::{
     field::FieldMaskUtil,
     v1::{
         ledger_service::{
@@ -35,11 +40,6 @@ use iota_grpc_types::{
         },
         types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
     },
-};
-use iota_traffic_controller::TrafficController;
-use iota_types::{
-    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
-    transaction_executor::TransactionExecutor,
 };
 use tonic::{Code, transport::Channel};
 

@@ -4,12 +4,14 @@
 //! Conversion of the balance and object changes a transaction reports into
 //! their proto form.
 //!
-//! The derivation itself lives in [`iota_sdk_types::effects::changes`], so
+//! The derivation itself lives in [`rust_sdk::types::effects::changes`], so
 //! every consumer that assembles a node-shaped response derives them the same
 //! way.
 
-use iota_grpc_types::v1::transaction as grpc_tx;
-use iota_sdk_types::{BalanceChange, DeriveChangesError, ObjectChange, StructTag, TypeTag};
+use rust_sdk::{
+    grpc_types::v1::transaction as grpc_tx,
+    types::{BalanceChange, DeriveChangesError, ObjectChange, StructTag, TypeTag},
+};
 
 impl From<DeriveChangesError> for crate::error::RpcError {
     fn from(error: DeriveChangesError) -> Self {
@@ -33,7 +35,7 @@ pub fn balance_change_to_proto(change: BalanceChange) -> grpc_tx::BalanceChange 
 
 /// A Move object's type is always a struct; the proto carries it as the more
 /// general `TypeTag`, matching `BalanceChange.coin_type`.
-fn object_type_to_proto(object_type: StructTag) -> iota_grpc_types::v1::types::TypeTag {
+fn object_type_to_proto(object_type: StructTag) -> rust_sdk::grpc_types::v1::types::TypeTag {
     (&TypeTag::Struct(Box::new(object_type))).into()
 }
 

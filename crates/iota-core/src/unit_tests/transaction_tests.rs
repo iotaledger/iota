@@ -10,12 +10,6 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
-use iota_sdk_crypto::IotaSigner as _;
-use iota_sdk_types::{
-    Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
-    Identifier, SenderSignedTransaction, SharedObjectReference, TransactionKind,
-    crypto::IntentScope,
-};
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
     crypto::{AccountPrivateKey, get_key_pair},
@@ -23,6 +17,14 @@ use iota_types::{
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
+};
+use rust_sdk::{
+    crypto::IotaSigner as _,
+    types::{
+        Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        GenesisTransaction, Identifier, SenderSignedTransaction, SharedObjectReference,
+        TransactionKind, crypto::IntentScope,
+    },
 };
 use starfish_core::{BlockRef, BlockStatus};
 
@@ -51,13 +53,13 @@ macro_rules! assert_matches {
 }
 
 use fastcrypto::traits::AggregateAuthenticator;
-use iota_sdk_types::{
-    ConsensusCommitDigest,
-    crypto::{IntentAppId, IntentVersion},
-};
 use iota_types::{
     messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+};
+use rust_sdk::types::{
+    ConsensusCommitDigest,
+    crypto::{IntentAppId, IntentVersion},
 };
 
 use super::*;

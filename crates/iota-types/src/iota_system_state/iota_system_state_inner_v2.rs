@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use iota_sdk_move_types::{
-    iota_framework::{
-        bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+use rust_sdk::{
+    move_types::{
+        iota_framework::{
+            bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+        },
+        iota_system::iota_system_state_inner::SystemParametersV1,
     },
-    iota_system::iota_system_state_inner::SystemParametersV1,
+    types::Address,
 };
-use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
 
 use super::{

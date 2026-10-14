@@ -9,8 +9,8 @@ use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
-use iota_sdk_types::Address;
 use iota_types::object::Object;
+use rust_sdk::types::Address;
 use tracing::error;
 
 use crate::{db::ConnectionPool, errors::IndexerError, schema::objects, store::diesel_macro::*};

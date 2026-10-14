@@ -32,13 +32,13 @@ iota-macros.workspace = true
 iota-names.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 [lints]
 workspace = true

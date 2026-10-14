@@ -10,8 +10,8 @@
 //! concrete cause; the remaining phases wrap a message because their causes
 //! (BCS / layout / VM invariant failures) are not a single matchable type.
 
-use iota_sdk_types::{ObjectId, Version};
 use iota_types::error::IotaError;
+use rust_sdk::types::{ObjectId, Version};
 
 /// Top-level error for every fallible operation in the SDK.
 #[derive(Debug, thiserror::Error)]

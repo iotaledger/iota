@@ -6,16 +6,16 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{
-    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, ObjectReference, TransactionDigest,
-    TypeTag,
-};
 use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     fp_ensure,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointContentsExt,
     object::Object,
+};
+use rust_sdk::types::{
+    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, ObjectReference, TransactionDigest,
+    TypeTag,
 };
 
 use crate::{

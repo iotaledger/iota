@@ -22,7 +22,6 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
-use iota_sdk_types::TransactionDigest;
 use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::AuthorityName,
@@ -39,6 +38,7 @@ use prometheus_filtered::{
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
 };
+use rust_sdk::types::TransactionDigest;
 use tokio::{
     sync::{Semaphore, SemaphorePermit, oneshot},
     task::JoinHandle,
@@ -1503,11 +1503,11 @@ mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
     use fastcrypto::traits::KeyPair;
-    use iota_sdk_types::TransactionDigest;
     use iota_types::{
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_bytes},
     };
+    use rust_sdk::types::TransactionDigest;
 
     use super::position_submit_certificate;
     use crate::{

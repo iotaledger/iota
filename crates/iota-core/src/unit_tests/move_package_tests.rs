@@ -6,16 +6,16 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Identifier, MovePackage, ObjectData, ObjectId, PackageUpgradeError, TransactionDigest,
-    TypeOrigin, UpgradeInfo,
-};
 use iota_types::{
     error::ExecutionErrorKind,
     move_package::MovePackageExt,
     object::{OBJECT_START_VERSION, Object},
 };
 use move_binary_format::file_format::CompiledModule;
+use rust_sdk::types::{
+    Identifier, MovePackage, ObjectData, ObjectId, PackageUpgradeError, TransactionDigest,
+    TypeOrigin, UpgradeInfo,
+};
 
 macro_rules! type_origin_table {
     {} => { Vec::new() };

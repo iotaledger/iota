@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::ed25519::ED25519_PUBLIC_KEY_LENGTH;
-use iota_sdk_types::{Address, SignatureScheme};
 use iota_types::crypto::PublicKey;
+use rust_sdk::types::{Address, SignatureScheme};
 
 use crate::{
     Transport,

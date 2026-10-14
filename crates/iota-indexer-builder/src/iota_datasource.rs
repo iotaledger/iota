@@ -11,11 +11,11 @@ use iota_data_ingestion_core::{
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 use iota_metrics::{metered_channel, spawn_monitored_task};
-use iota_sdk_types::TransactionDigest;
 use iota_types::{
     full_checkpoint_content::{CheckpointData as IotaCheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
 };
+use rust_sdk::types::TransactionDigest;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;

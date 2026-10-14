@@ -13,13 +13,13 @@ use axum::{
 };
 use base64::Engine;
 use humantime::parse_duration;
-use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::AuthorityName,
     crypto::{RandomnessPartialSignature, RandomnessSignature},
     error::IotaError,
     traffic_control::TrafficControlReconfigParams,
 };
+use rust_sdk::types::RandomnessRound;
 use serde::Deserialize;
 use telemetry_subscribers::{TelemetryError, TracingHandle};
 use tokio::sync::oneshot;

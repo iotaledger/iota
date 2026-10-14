@@ -39,10 +39,6 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, MovePackage, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag, UpgradeInfo,
-};
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
@@ -54,6 +50,13 @@ use iota_types::{
     },
 };
 use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
+use rust_sdk::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, MovePackage, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag,
+        UpgradeInfo,
+    },
+};
 use serde_json::json;
 use tempfile::TempDir;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -364,7 +367,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         context.config_mut().keystore_mut().add_key(
             None,
-            SimpleKeypair::from(iota_sdk_crypto::ed25519::Ed25519PrivateKey::random()),
+            SimpleKeypair::from(rust_sdk::crypto::ed25519::Ed25519PrivateKey::random()),
         )?;
     }
 

@@ -11,7 +11,6 @@
 use std::{cell::OnceCell, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     error::{ExecutionError, ExecutionErrorKind},
     object::Object,
@@ -23,6 +22,7 @@ use move_binary_format::{
 };
 use move_core_types::{annotated_value, language_storage::ModuleId, runtime_value};
 use move_vm_runtime::move_vm::MoveVM;
+use rust_sdk::types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 
 use super::LinkageView;
 use crate::{
@@ -76,8 +76,8 @@ impl<'pc, 'vm, 'state, 'linkage> Env<'pc, 'vm, 'state, 'linkage> {
     }
 
     pub fn convert_type_argument_error(&self, idx: usize, e: VMError) -> ExecutionError {
-        use iota_sdk_types::TypeArgumentError;
         use move_core_types::vm_status::StatusCode;
+        use rust_sdk::types::TypeArgumentError;
         match e.major_status() {
             StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                 ExecutionErrorKind::TypeArityMismatch.into()

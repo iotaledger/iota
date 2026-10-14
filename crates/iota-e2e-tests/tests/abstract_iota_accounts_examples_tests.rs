@@ -35,11 +35,6 @@ use fastcrypto::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
-    TransactionEffects, TypeTag, UserSignature, WriteKind, crypto::Intent,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
@@ -50,6 +45,11 @@ use iota_types::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
         TransactionEnvelope,
     },
+};
+use rust_sdk::types::{
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    TransactionEffects, TypeTag, UserSignature, WriteKind, crypto::Intent,
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 

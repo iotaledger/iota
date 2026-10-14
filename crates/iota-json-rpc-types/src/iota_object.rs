@@ -13,10 +13,6 @@ use anyhow::{anyhow, bail};
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Identifier, MovePackage, MoveStruct, ObjectData, ObjectDigest, ObjectId,
-    ObjectReference, Owner, StructTag, TransactionDigest, TypeOrigin, UpgradeInfo, Version,
-};
 use iota_types::{
     base_types::{ObjectInfo, ObjectType},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
@@ -26,6 +22,10 @@ use iota_types::{
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
+use rust_sdk::types::{
+    Address, Identifier, MovePackage, MoveStruct, ObjectData, ObjectDigest, ObjectId,
+    ObjectReference, Owner, StructTag, TransactionDigest, TypeOrigin, UpgradeInfo, Version,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

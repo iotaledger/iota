@@ -11,10 +11,10 @@ use iota_sdk::{
     error::Error as SdkError,
     rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage},
 };
-use iota_sdk_types::{Address, ObjectId};
 use move_binary_format::CompiledModule;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_symbol_pool::Symbol;
+use rust_sdk::types::{Address, ObjectId};
 use toolchain::units_for_toolchain;
 
 use crate::error::{AggregateError, Error};

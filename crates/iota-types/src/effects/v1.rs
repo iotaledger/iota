@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::TransactionEventsDigest;
+use rust_sdk::types::TransactionEventsDigest;
 
 use super::{
     ChangedObject, EpochId, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,

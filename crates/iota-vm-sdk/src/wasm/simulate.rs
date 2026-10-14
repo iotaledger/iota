@@ -6,11 +6,11 @@
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{OwnedObjectReference, SenderSignedTransaction, Transaction, UserSignature};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::{Object, ObjectInner},
 };
+use rust_sdk::types::{OwnedObjectReference, SenderSignedTransaction, Transaction, UserSignature};
 use wasm_bindgen::prelude::*;
 
 use super::{
@@ -152,7 +152,7 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
 
     // Decode the per-command dev-inspect values (return values and mutable
     // reference outputs), each a raw `(bytes, type)` pair, against the store.
-    let decode_call_value = |bytes: &[u8], type_tag: &iota_sdk_types::TypeTag| {
+    let decode_call_value = |bytes: &[u8], type_tag: &rust_sdk::types::TypeTag| {
         let (value, decode_error) = match vm.decode_value(bytes, type_tag) {
             Ok(v) => (Some(move_value_to_json(&v)), None),
             Err(e) => (None, Some(e.to_string())),

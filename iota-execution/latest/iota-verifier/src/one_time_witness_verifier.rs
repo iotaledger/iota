@@ -19,7 +19,6 @@
 //! - its only instance in existence is passed as an argument to the module initializer
 //! - it is never instantiated anywhere in its defining module
 
-use iota_sdk_types::{Address, Identifier};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
     error::ExecutionError,
@@ -30,6 +29,7 @@ use move_binary_format::file_format::{
     FunctionHandle, SignatureToken, StructDefinition,
 };
 use move_core_types::{ident_str, language_storage::ModuleId};
+use rust_sdk::types::{Address, Identifier};
 
 use crate::{INIT_FN_NAME, verification_failure};
 

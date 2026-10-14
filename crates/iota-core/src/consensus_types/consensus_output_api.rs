@@ -4,9 +4,9 @@
 
 use std::{collections::BTreeMap, fmt::Display};
 
-use iota_sdk_types::ConsensusCommitDigest;
 use iota_types::messages_consensus::ConsensusTransaction;
 use itertools::Itertools as _;
+use rust_sdk::types::ConsensusCommitDigest;
 
 use crate::consensus_types::AuthorityIndex;
 /// A list of tuples of:

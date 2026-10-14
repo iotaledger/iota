@@ -25,12 +25,6 @@ use iota_json_rpc_types::{DryRunTransactionBlockResponse, IotaTransactionBlockEf
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-use iota_sdk_types::{
-    Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
-    ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
-    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind,
-    crypto::{Intent, SimpleSignature},
-};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -48,6 +42,12 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
+use rust_sdk::types::{
+    Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
+    ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind,
+    crypto::{Intent, SimpleSignature},
+};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";

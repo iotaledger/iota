@@ -29,11 +29,6 @@ use iota_json_rpc_types::{
     TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
-    TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -44,6 +39,13 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
+use rust_sdk::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
+        TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
+    },
+};
 
 use crate::{
     coin_api::execute_move_call,

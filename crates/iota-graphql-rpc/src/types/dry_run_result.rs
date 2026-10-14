@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use async_graphql::*;
 use iota_indexer::{apis::SimulationOutput, types::IndexedBalanceChange};
 use iota_json_rpc_types::IotaExecutionResult;
-use iota_sdk_types::{TransactionEvents, TypeTag};
+use rust_sdk::types::{TransactionEvents, TypeTag};
 
 use crate::{
     consistency::UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,

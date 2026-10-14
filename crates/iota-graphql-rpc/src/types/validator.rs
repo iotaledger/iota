@@ -13,7 +13,6 @@ use futures::TryFutureExt;
 use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::mean_apy_from_exchange_rates;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_types::Address as NativeAddress;
 use iota_types::{
     committee::EpochId,
     iota_system_state::{
@@ -21,6 +20,7 @@ use iota_types::{
         iota_system_state_summary::IotaValidatorSummary as NativeIotaValidatorSummary,
     },
 };
+use rust_sdk::types::Address as NativeAddress;
 
 use crate::{
     consistency::ConsistentIndexCursor,

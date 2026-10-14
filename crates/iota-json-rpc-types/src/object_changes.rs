@@ -4,7 +4,9 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_sdk_types::{Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
+use rust_sdk::types::{
+    Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

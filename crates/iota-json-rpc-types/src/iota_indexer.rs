@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use iota_names::registry::NameRecord;
-use iota_sdk_types::{Address, ObjectId};
+use rust_sdk::types::{Address, ObjectId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

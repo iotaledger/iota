@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
-use iota_sdk_crypto::IotaSigner as _;
-use iota_sdk_types::{
-    ObjectId, Transaction,
-    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
+use rust_sdk::{
+    crypto::IotaSigner as _,
+    types::{
+        ObjectId, Transaction,
+        crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
+    },
 };
 
 use crate::{

@@ -11,14 +11,14 @@ use iota_indexer::{
     store::{PgIndexerStore, indexer_store::IndexerStore},
     types::ObjectStatus,
 };
-use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, OwnedObjectReference, Owner,
-    StructTag, Version,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
+};
+use rust_sdk::types::{
+    Address, Argument, Identifier, ObjectId, ObjectReference, OwnedObjectReference, Owner,
+    StructTag, Version,
 };
 
 use crate::{

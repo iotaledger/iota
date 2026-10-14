@@ -19,10 +19,6 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
-    TransactionEvents, TransactionEventsDigest, TypeTag, Version,
-};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{ObjectInfo, TxSequenceNumber},
@@ -40,6 +36,10 @@ use parking_lot::ArcMutexGuard;
 use prometheus_filtered::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry,
+};
+use rust_sdk::types::{
+    Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
+    TransactionEvents, TransactionEventsDigest, TypeTag, Version,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, info, trace};
@@ -1672,16 +1672,16 @@ impl IndexStore {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use iota_sdk_types::{
-        Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TransactionEvents,
-        TypeTag, Version,
-    };
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
         dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
         object,
     };
     use prometheus_filtered::Registry;
+    use rust_sdk::types::{
+        Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TransactionEvents,
+        TypeTag, Version,
+    };
 
     use super::{IndexStore, ObjectIndexChanges};
 

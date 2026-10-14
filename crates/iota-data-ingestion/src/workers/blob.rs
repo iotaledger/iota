@@ -10,13 +10,13 @@ use bytes::Bytes;
 use futures::{StreamExt, stream};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
-use iota_grpc_client::GrpcClient;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
 };
 use object_store::{DynObjectStore, MultipartUpload, ObjectStore, ObjectStoreExt, path::Path};
+use rust_sdk::grpc_client::GrpcClient;
 use serde::{Deserialize, Deserializer, Serialize};
 use tokio::sync::Mutex;
 

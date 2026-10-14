@@ -2,22 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
-    v1::{
-        bcs::BcsData,
-        transaction::Transaction as ProtoTransaction,
-        transaction_execution_service::{
-            SimulateTransactionItem, SimulateTransactionsRequest, SimulateTransactionsResponse,
-            SimulatedTransaction, simulate_transaction_item::TransactionCheckModes,
-            simulated_transaction::ExecutionResult,
-            transaction_execution_service_client::TransactionExecutionServiceClient,
-        },
-    },
-};
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, Command, Transaction};
 use iota_types::{
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -25,6 +10,23 @@ use iota_types::{
     utils::ptb_with_pure_inputs,
 };
 use prost_types::FieldMask;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
+        v1::{
+            bcs::BcsData,
+            transaction::Transaction as ProtoTransaction,
+            transaction_execution_service::{
+                SimulateTransactionItem, SimulateTransactionsRequest, SimulateTransactionsResponse,
+                SimulatedTransaction, simulate_transaction_item::TransactionCheckModes,
+                simulated_transaction::ExecutionResult,
+                transaction_execution_service_client::TransactionExecutionServiceClient,
+            },
+        },
+    },
+    types::{Address, Command, Transaction},
+};
 
 use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
@@ -59,7 +61,7 @@ fn first_simulated_transaction(response: &SimulateTransactionsResponse) -> &Simu
 ///    relative to `ExecutionError` (i.e. strip the leading `"execution_result.execution_error."`
 ///    prefix).  Panics if `execution_result` is not the `ExecutionError` variant.
 async fn assert_simulate_transaction_request(
-    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<rust_sdk::grpc_client::InterceptedChannel>,
     transaction: ProtoTransaction,
     read_mask: Option<FieldMask>,
     expected_response_paths: &[&str],

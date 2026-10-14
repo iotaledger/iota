@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
     error::{IotaError, IotaResult},
     execution::TypeLayoutStore,
@@ -11,6 +10,7 @@ use iota_types::{
 };
 use move_core_types::annotated_value as A;
 use move_vm_runtime::move_vm::MoveVM;
+use rust_sdk::types::{ObjectId, StructTag};
 
 use crate::{
     data_store::{cached_data_store::CachedPackageStore, linkage_view::LinkageView},

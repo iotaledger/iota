@@ -16,10 +16,6 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
-        Address, Command, CommandArgumentError, Identifier, MovePackage, ObjectId,
-        PackageUpgradeError, ProgrammableTransaction, StructTag, TypeTag,
-    };
     use iota_types::{
         auth_context,
         base_types::{
@@ -68,6 +64,10 @@ mod checked {
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
     use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
+    use rust_sdk::types::{
+        Address, Command, CommandArgumentError, Identifier, MovePackage, ObjectId,
+        PackageUpgradeError, ProgrammableTransaction, StructTag, TypeTag,
+    };
     use serde::{Deserialize, de::DeserializeSeed};
     use tracing::instrument;
     use web_time::Instant;

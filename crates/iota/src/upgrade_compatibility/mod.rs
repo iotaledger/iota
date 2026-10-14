@@ -21,7 +21,6 @@ use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::ObjectId;
 use iota_types::{
     execution_config_utils::to_binary_config,
     move_package::{MovePackageExt, UpgradePolicy},
@@ -53,6 +52,7 @@ use move_core_types::{
 };
 use move_ir_types::location::{ByteIndex, Loc};
 use move_package::compilation::compiled_package::CompiledUnitWithSource;
+use rust_sdk::types::ObjectId;
 
 type Enum = normalized::Enum<normalized::RcIdentifier>;
 type Field = normalized::Field<normalized::RcIdentifier>;

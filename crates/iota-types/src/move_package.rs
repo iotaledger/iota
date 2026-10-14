@@ -38,11 +38,6 @@ use std::{
 
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_move_types::iota_framework::vec_map::{Entry, VecMap};
-use iota_sdk_types::{
-    Identifier, MovePackage, ObjectId, PackageUpgradeError, StructTag, TypeOrigin, TypeTag,
-    UpgradeInfo, Version,
-};
 use move_binary_format::{
     binary_config::BinaryConfig,
     file_format::CompiledModule,
@@ -50,6 +45,13 @@ use move_binary_format::{
     normalized,
 };
 use move_core_types::identifier::IdentStr;
+use rust_sdk::{
+    move_types::iota_framework::vec_map::{Entry, VecMap},
+    types::{
+        Identifier, MovePackage, ObjectId, PackageUpgradeError, StructTag, TypeOrigin, TypeTag,
+        UpgradeInfo, Version,
+    },
+};
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 

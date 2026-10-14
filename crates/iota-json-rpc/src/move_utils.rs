@@ -12,13 +12,13 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{ObjectData, ObjectId};
 use iota_types::{move_package::normalize_modules, object::ObjectRead};
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
 use move_binary_format::{binary_config::BinaryConfig, normalized};
 use move_core_types::identifier::Identifier;
+use rust_sdk::types::{ObjectData, ObjectId};
 use tap::TapFallible;
 use tracing::{error, instrument, warn};
 

@@ -14,7 +14,6 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
 };
@@ -32,6 +31,7 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use rust_sdk::types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Execute a sequence of transactions to add a validator, including adding

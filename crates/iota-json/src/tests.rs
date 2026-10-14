@@ -7,7 +7,6 @@ use std::{path::Path, str::FromStr};
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest};
 use iota_types::{
     dynamic_field::derive_dynamic_field_id, gas_coin::GasCoin,
     iota_sdk_types_conversions::struct_tag_sdk_to_core, move_package::MovePackageExt,
@@ -22,6 +21,7 @@ use move_core_types::{
     ident_str,
     u256::U256,
 };
+use rust_sdk::types::{Address, Identifier, ObjectId, StructTag, TransactionDigest};
 use serde::Serialize;
 use serde_json::{Value, json};
 use test_fuzz::runtime::num_traits::ToPrimitive;

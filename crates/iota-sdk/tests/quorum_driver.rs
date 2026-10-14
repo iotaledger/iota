@@ -11,9 +11,6 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     json_rpc_error::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE},
 };
-use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, Transaction, TransactionDigest, Version,
-};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -23,6 +20,9 @@ use jsonrpsee::{
     RpcModule,
     server::{Server, ServerHandle},
     types::ErrorObjectOwned,
+};
+use rust_sdk::types::{
+    Address, ObjectDigest, ObjectId, ObjectReference, Transaction, TransactionDigest, Version,
 };
 use serde_json::{Value, json};
 

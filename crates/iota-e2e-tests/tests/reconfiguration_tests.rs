@@ -17,10 +17,6 @@ use iota_core::{
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{
-    Address, GasCostSummary, TransactionExpiration,
-    crypto::{Intent, IntentMessage, IntentScope},
-};
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
@@ -39,6 +35,10 @@ use iota_types::{
 };
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use rand08::{SeedableRng, rngs::StdRng};
+use rust_sdk::types::{
+    Address, GasCostSummary, TransactionExpiration,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
@@ -1099,9 +1099,9 @@ async fn test_epoch_flag_upgrade() {
 #[cfg(msim)]
 #[sim_test]
 async fn safe_mode_reconfig_test() {
-    use iota_grpc_client::read_mask_fields::EpochField;
     use iota_test_transaction_builder::make_staking_transaction;
     use iota_types::iota_system_state::{IotaSystemState, advance_epoch_result_injection};
+    use rust_sdk::grpc_client::read_mask_fields::EpochField;
 
     const EPOCH_DURATION: u64 = 10000;
 

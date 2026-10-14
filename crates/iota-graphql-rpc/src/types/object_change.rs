@@ -5,8 +5,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use async_graphql::*;
-use iota_sdk_types::{ChangedObject, IdOperation, ObjectId, ObjectOut, Version};
 use iota_types::object::Object as NativeObject;
+use rust_sdk::types::{ChangedObject, IdOperation, ObjectId, ObjectOut, Version};
 
 use crate::{
     error::Error,
@@ -153,7 +153,7 @@ impl ObjectChange {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectIn, Owner, Version};
+    use rust_sdk::types::{ObjectDigest, ObjectId, ObjectIn, Owner, Version};
 
     use super::*;
 

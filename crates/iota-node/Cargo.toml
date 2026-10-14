@@ -54,13 +54,13 @@ iota-network.workspace = true
 iota-network-stack.workspace = true
 iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
 iota-snapshot.workspace = true
 iota-storage.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
 move-vm-profiler.workspace = true
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

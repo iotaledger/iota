@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::v1::ledger_service::{
+use rust_sdk::grpc_types::v1::ledger_service::{
     GetCheckpointRequest, StreamCheckpointsRequest, ledger_service_client::LedgerServiceClient,
 };
 
@@ -61,7 +61,7 @@ async fn the_checkpoint_calls_observe_the_requested_max_message_size() {
 
 #[tokio::test]
 async fn get_transactions_and_the_list_calls_observe_the_requested_max_message_size() {
-    use iota_grpc_types::v1::{
+    use rust_sdk::grpc_types::v1::{
         ledger_service::{GetTransactionsRequest, TransactionRequest, TransactionRequests},
         move_package_service::{
             ListPackageVersionsRequest, move_package_service_client::MovePackageServiceClient,
@@ -126,10 +126,11 @@ async fn get_transactions_and_the_list_calls_observe_the_requested_max_message_s
         .get_transactions(
             GetTransactionsRequest::default()
                 .with_requests(TransactionRequests::default().with_requests(vec![
-                    TransactionRequest::default().with_digest(
-                        iota_grpc_types::v1::types::Digest::default().with_digest(vec![7u8; 32]),
-                    ),
-                ]))
+                        TransactionRequest::default().with_digest(
+                            rust_sdk::grpc_types::v1::types::Digest::default()
+                                .with_digest(vec![7u8; 32]),
+                        ),
+                    ]))
                 .with_max_message_size_bytes(4 * MIB),
         )
         .await

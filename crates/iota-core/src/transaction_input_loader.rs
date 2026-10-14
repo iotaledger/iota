@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     base_types::EpochId,
     error::{IotaError, IotaResult, UserInputError},
@@ -15,6 +14,7 @@ use iota_types::{
     },
 };
 use itertools::izip;
+use rust_sdk::types::{ObjectReference, TransactionDigest};
 use tracing::instrument;
 
 use crate::{

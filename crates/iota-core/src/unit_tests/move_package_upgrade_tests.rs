@@ -11,11 +11,6 @@ use std::{
 
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
-    ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
-    TransactionEffects,
-};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -28,6 +23,11 @@ use iota_types::{
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::ident_str;
+use rust_sdk::types::{
+    Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
+    ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
+    TransactionEffects,
+};
 
 use crate::authority::{
     AuthorityState,
@@ -46,8 +46,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
-            iota_sdk_types::Identifier::from_static(stringify!($func)),
+            rust_sdk::types::Identifier::from_static(stringify!($module_name)),
+            rust_sdk::types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )

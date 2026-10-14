@@ -14,17 +14,19 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
-use iota_sdk_crypto::{
-    Signer, ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, SignatureScheme,
-    crypto::{Intent, IntentMessage, SimpleSignature},
-};
 use iota_types::crypto::{EncodeDecodeBase64, PublicKey, enum_dispatch, get_key_pair_from_rng};
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
+use rust_sdk::{
+    crypto::{
+        Signer, ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{
+        Address, SignatureScheme,
+        crypto::{Intent, IntentMessage, SimpleSignature},
+    },
+};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DisplayFromStr, serde_as};
 use tracing::{debug, info};

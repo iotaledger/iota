@@ -7,13 +7,13 @@ use std::{
 };
 
 use iota_config::node::DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB;
-use iota_sdk_types::CheckpointContentsDigest;
 use iota_types::messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents};
 use parking_lot::Mutex;
 use prometheus_filtered::{
     IntCounter, IntGauge, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
+use rust_sdk::types::CheckpointContentsDigest;
 
 /// Value of the `lookup` metrics label for sequence-number lookups: the
 /// checkpoint executor's bulk load and `ReadStore` reads by sequence number.

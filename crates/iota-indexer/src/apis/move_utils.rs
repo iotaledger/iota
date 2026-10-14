@@ -12,9 +12,9 @@ use iota_json_rpc_types::{
     IotaMoveNormalizedType, MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::ObjectId;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_binary_format::normalized;
+use rust_sdk::types::ObjectId;
 
 use crate::read::IndexerReader;
 

@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{
+use iota_types::error::ExecutionError;
+use rust_sdk::types::{
     Command, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectReference, Owner,
     ProgrammableTransaction, Publish, SharedObjectReference, SplitCoins, StructTag,
     TransferObjects, Upgrade,
 };
-use iota_types::error::ExecutionError;
 
 use crate::static_programmable_transactions::{env::Env, loading::ast as L};
 

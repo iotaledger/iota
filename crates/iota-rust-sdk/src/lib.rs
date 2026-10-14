@@ -13,15 +13,15 @@
 //! crate's re-exports; adding a separate `iota-rust-sdk` dependency at a
 //! different version reintroduces incompatible duplicate types.
 
-#[cfg(feature = "grpc")]
-pub use iota_grpc_client as grpc_client;
-#[cfg(feature = "grpc")]
-pub use iota_grpc_types as grpc_types;
 #[cfg(feature = "crypto")]
-pub use iota_sdk_crypto as crypto;
+pub use rust_sdk::crypto;
 #[cfg(feature = "graphql")]
-pub use iota_sdk_graphql_client as graphql_client;
+pub use rust_sdk::graphql_client;
+#[cfg(feature = "grpc")]
+pub use rust_sdk::grpc_client;
+#[cfg(feature = "grpc")]
+pub use rust_sdk::grpc_types;
 #[cfg(feature = "transaction-builder")]
-pub use iota_sdk_transaction_builder as transaction_builder;
+pub use rust_sdk::transaction_builder;
 #[cfg(feature = "types")]
-pub use iota_sdk_types as types;
+pub use rust_sdk::types;

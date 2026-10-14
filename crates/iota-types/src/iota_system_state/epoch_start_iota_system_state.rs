@@ -11,7 +11,7 @@ use anemo::{
 use enum_dispatch::enum_dispatch;
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::Address;
+use rust_sdk::types::Address;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -412,8 +412,8 @@ mod test {
     use fastcrypto::traits::{KeyPair, ToFromBytes};
     use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
-    use iota_sdk_types::Address;
     use rand08::thread_rng;
+    use rust_sdk::types::Address;
 
     use crate::{
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},

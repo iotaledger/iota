@@ -5,11 +5,11 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::stream::FuturesUnordered;
-use iota_sdk_types::{Address, ObjectReference};
 use iota_types::{
     crypto::{AccountPrivateKey, get_account_private_key},
     object::Object,
 };
+use rust_sdk::types::{Address, ObjectReference};
 
 #[derive(Clone)]
 pub struct Account {

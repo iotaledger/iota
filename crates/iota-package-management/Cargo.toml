@@ -16,9 +16,9 @@ thiserror.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 [build-dependencies]
 # external dependencies

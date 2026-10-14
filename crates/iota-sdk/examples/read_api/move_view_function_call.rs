@@ -31,8 +31,8 @@ use iota_sdk::{
         transaction::TransactionAPI,
     },
 };
-use iota_sdk_types::{Argument, Command, Identifier, Owner, Transaction, TypeTag};
 use move_package::BuildConfig as MoveBuildConfig;
+use rust_sdk::types::{Argument, Command, Identifier, Owner, Transaction, TypeTag};
 use utils::{setup_for_write_with_network, sign_and_execute_transaction};
 
 use crate::utils::Network;

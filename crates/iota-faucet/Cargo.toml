@@ -33,15 +33,13 @@ uuid.workspace = true
 # internal dependencies
 bin-version.workspace = true
 iota-config.workspace = true
-iota-grpc-client.workspace = true
 iota-keys.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-sdk.workspace = true
-iota-sdk-transaction-builder.workspace = true
-iota-sdk-types.workspace = true
 iota-types.workspace = true
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["grpc-tls-native-roots", "grpc-tls-ring", "transaction-builder", "types"] }
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

@@ -4,8 +4,8 @@
 
 use std::collections::HashSet;
 
-use iota_sdk_types::TransactionDigest;
 use once_cell::sync::OnceCell;
+use rust_sdk::types::TransactionDigest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

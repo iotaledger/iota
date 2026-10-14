@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
-use iota_sdk_types::{ObjectId, TransactionEffects};
 use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     transaction::SenderSignedTransactionAPI,
 };
+use rust_sdk::types::{ObjectId, TransactionEffects};
 use tokio::sync::Mutex;
 
 use crate::{

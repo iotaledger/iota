@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier};
 use iota_types::{
     base_types::{TxContext, TxContextKind},
     clock::Clock,
@@ -17,6 +16,7 @@ use move_binary_format::{
     file_format::{AbilitySet, Bytecode, FunctionDefinition, SignatureToken, Visibility},
 };
 use move_bytecode_utils::format_signature_token;
+use rust_sdk::types::{Address, Identifier};
 
 use crate::{INIT_FN_NAME, verification_failure};
 

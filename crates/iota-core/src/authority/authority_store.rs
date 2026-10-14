@@ -11,7 +11,6 @@ use iota_common::sync::notify_read::NotifyRead;
 use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
 use iota_genesis_common::MigrationTxDataExt;
 use iota_macros::fail_point_arg;
-use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::VerifiedExecutionData,
@@ -30,6 +29,7 @@ use iota_types::{
 };
 use itertools::izip;
 use move_core_types::resolver::ModuleResolver;
+use rust_sdk::types::{TransactionEffects, TransactionEvents, Version};
 use tokio::time::Instant;
 use tracing::{debug, info, trace};
 use typed_store::{

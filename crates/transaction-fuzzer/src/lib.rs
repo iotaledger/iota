@@ -13,7 +13,6 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, GasPayment, MoveStruct, ObjectId, Owner, TransactionDigest};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
@@ -21,6 +20,7 @@ use iota_types::{
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
+use rust_sdk::types::{Address, GasPayment, MoveStruct, ObjectId, Owner, TransactionDigest};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(

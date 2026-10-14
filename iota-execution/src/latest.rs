@@ -15,10 +15,6 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
-    TransactionEffects, TransactionKind,
-};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
@@ -42,6 +38,10 @@ use move_bytecode_verifier_meter::Meter;
 use move_trace_format::format::MoveTraceBuilder;
 use move_vm_config::verifier::{MeterConfig, VerifierConfig};
 use move_vm_runtime_latest::move_vm::MoveVM;
+use rust_sdk::types::{
+    Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
+    TransactionEffects, TransactionKind,
+};
 
 use crate::{executor, verifier};
 

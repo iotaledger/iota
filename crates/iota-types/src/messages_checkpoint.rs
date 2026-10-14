@@ -10,14 +10,14 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+#[cfg(not(target_arch = "wasm32"))]
+use prometheus_filtered::Histogram;
+use rust_sdk::types::{
     CheckpointContents, CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest,
     CheckpointSummary, CheckpointTransactionInfo, Digest, EndOfEpochData, GasCostSummary,
     RandomnessRound, Transaction,
     crypto::{Intent, IntentScope, UserSignature},
 };
-#[cfg(not(target_arch = "wasm32"))]
-use prometheus_filtered::Histogram;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_arch = "wasm32"))]
 use tap::TapFallible;
@@ -828,11 +828,11 @@ mod tests {
     use std::collections::BTreeMap;
 
     use fastcrypto::traits::KeyPair;
-    use iota_sdk_types::{
+    use rand::{SeedableRng, prelude::StdRng};
+    use rust_sdk::types::{
         ConsensusCommitDigest, ObjectId, TransactionDigest, TransactionEffectsDigest,
         TransactionKind,
     };
-    use rand::{SeedableRng, prelude::StdRng};
 
     use super::*;
     use crate::{

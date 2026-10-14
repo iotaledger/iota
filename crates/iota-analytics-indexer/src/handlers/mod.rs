@@ -7,9 +7,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{
-    ObjectId, Owner, SenderSignedTransaction, StructTag, TransactionEffects, TypeTag,
-};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
@@ -17,6 +14,9 @@ use iota_types::{
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
+use rust_sdk::types::{
+    ObjectId, Owner, SenderSignedTransaction, StructTag, TransactionEffects, TypeTag,
+};
 
 use crate::{
     FileType,
@@ -282,13 +282,13 @@ fn parse_struct_field(
 mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
-    use iota_sdk_types::{ObjectId, StructTag};
     use move_core_types::{
         account_address::AccountAddress,
         annotated_value::{MoveStruct, MoveValue, MoveVariant},
         identifier::Identifier,
         language_storage::StructTag as MoveStructTag,
     };
+    use rust_sdk::types::{ObjectId, StructTag};
 
     use crate::handlers::parse_struct;
 

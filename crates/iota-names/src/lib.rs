@@ -10,7 +10,7 @@ pub mod registry;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
+use rust_sdk::types::{Address, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
 use self::name::Name;

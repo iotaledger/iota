@@ -3,9 +3,11 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_sdk_move_types::iota_framework::{dynamic_field::Field, vec_map::VecMap};
-use iota_sdk_types::{Address, MoveStruct, ObjectId};
 use iota_types::{id::ID, object::Object};
+use rust_sdk::{
+    move_types::iota_framework::{dynamic_field::Field, vec_map::VecMap},
+    types::{Address, MoveStruct, ObjectId},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, error::IotaNamesError, name::Name};

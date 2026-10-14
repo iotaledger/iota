@@ -12,9 +12,9 @@ use iota_indexer::{
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::Transaction;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_types::transaction::TransactionEnvelope;
+use rust_sdk::types::Transaction;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;

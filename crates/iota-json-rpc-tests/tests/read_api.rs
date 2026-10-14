@@ -17,13 +17,13 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
     effects::TransactionEffectsAPI, messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::CallArg,
 };
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use rand::{SeedableRng, rngs::StdRng};
+use rust_sdk::types::{Address, ObjectId, ObjectReference, TransactionDigest, Version};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 trait MatchesResponseOptions {

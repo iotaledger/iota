@@ -5,10 +5,6 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
-    TransactionEffects, TransactionKind,
-};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
@@ -26,6 +22,10 @@ use iota_types::{
     transaction::CheckedInputObjects,
 };
 use move_trace_format::format::MoveTraceBuilder;
+use rust_sdk::types::{
+    Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
+    TransactionEffects, TransactionKind,
+};
 
 /// Abstracts over access to the VM across versions of the execution layer.
 pub trait Executor {

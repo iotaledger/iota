@@ -14,7 +14,7 @@
 mod utils;
 
 use iota_sdk::rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions};
-use iota_sdk_types::ObjectId;
+use rust_sdk::types::ObjectId;
 use utils::setup_for_write;
 
 #[tokio::main]

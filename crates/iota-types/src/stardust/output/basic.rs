@@ -5,15 +5,17 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk_move_types::{
-    iota_framework::bag::Bag,
-    stardust::{
-        expiration_unlock_condition::ExpirationUnlockCondition,
-        storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition,
-        timelock_unlock_condition::TimelockUnlockCondition,
+use rust_sdk::{
+    move_types::{
+        iota_framework::bag::Bag,
+        stardust::{
+            expiration_unlock_condition::ExpirationUnlockCondition,
+            storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition,
+            timelock_unlock_condition::TimelockUnlockCondition,
+        },
     },
+    types::{Address, Identifier, StructTag},
 };
-use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

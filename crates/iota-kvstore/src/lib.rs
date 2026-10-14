@@ -6,16 +6,16 @@ use std::num::NonZeroUsize;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointDigest, TransactionDigest, TransactionEffects,
-    TransactionEvents,
-};
 use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
     transaction::TransactionEnvelope,
+};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointDigest, TransactionDigest, TransactionEffects,
+    TransactionEvents,
 };
 use serde::{Deserialize, Serialize};
 

@@ -6,7 +6,6 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::{CheckpointCommitment, EndOfEpochData, GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
@@ -16,6 +15,7 @@ use iota_types::{
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
+use rust_sdk::types::{CheckpointCommitment, EndOfEpochData, GasCostSummary};
 use tokio::time::timeout;
 use typed_store::Map;
 

@@ -19,10 +19,9 @@ tracing.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
-iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519"] }
-iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-vm-config.workspace = true
+rust-sdk = { workspace = true, features = ["bech32", "ed25519", "types"] }
 
 # Heavy node-side deps (network, file IO, key management). Gated so they're
 # excluded from the wasm32 build.

@@ -5,10 +5,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_config::genesis::Genesis;
-use iota_sdk_types::{
-    CheckpointDigest, CheckpointSummary, EndOfEpochData,
-    crypto::{Intent, IntentMessage, IntentScope},
-};
 use iota_types::{
     base_types::{AuthorityName, ExecutionData},
     committee::{Committee, EpochId, StakeUnit},
@@ -21,6 +17,10 @@ use iota_types::{
         CheckpointVersionSpecificData, FullCheckpointContents, VerifiedCheckpoint,
         VerifiedCheckpointContents,
     },
+};
+use rust_sdk::types::{
+    CheckpointDigest, CheckpointSummary, EndOfEpochData,
+    crypto::{Intent, IntentMessage, IntentScope},
 };
 
 use crate::network_config::NetworkConfig;

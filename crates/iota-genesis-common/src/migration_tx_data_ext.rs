@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_config::{genesis::GenesisCeremonyParameters, migration_tx_data::MigrationTxData};
-use iota_sdk_types::TransactionDigest;
 use iota_types::object::Object;
+use rust_sdk::types::TransactionDigest;
 
 use crate::prepare_and_execute_genesis_transaction;
 

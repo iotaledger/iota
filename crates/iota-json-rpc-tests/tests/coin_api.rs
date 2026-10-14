@@ -18,13 +18,13 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk::{PagedFn, wallet_context::WalletContext};
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
     balance::Supply, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     parse_iota_struct_tag, quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::http_client::HttpClient;
+use rust_sdk::types::{Address, Identifier, ObjectId, StructTag};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 async fn create_and_mint_coins(

@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo};
-use iota_sdk_types::{ObjectId, TransactionDigest};
+use rust_sdk::{
+    grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo},
+    types::{ObjectId, TransactionDigest},
+};
 use tonic::{Code, Status};
 
 /// Main RPC error type
@@ -53,8 +55,8 @@ impl RpcError {
         }
     }
 
-    pub fn into_status_proto(self) -> iota_grpc_types::google::rpc::Status {
-        let mut status = iota_grpc_types::google::rpc::Status::default();
+    pub fn into_status_proto(self) -> rust_sdk::grpc_types::google::rpc::Status {
+        let mut status = rust_sdk::grpc_types::google::rpc::Status::default();
         status.code = self.code.into();
         status.message = self.message.unwrap_or_default();
         status.details = self
@@ -111,20 +113,20 @@ impl From<bcs::Error> for RpcError {
     }
 }
 
-impl From<iota_sdk_types::BcsError> for RpcError {
-    fn from(value: iota_sdk_types::BcsError) -> Self {
+impl From<rust_sdk::types::BcsError> for RpcError {
+    fn from(value: rust_sdk::types::BcsError) -> Self {
         Self::internal().with_context(value)
     }
 }
 
-impl From<iota_grpc_types::proto::GrpcConversionError> for RpcError {
-    fn from(value: iota_grpc_types::proto::GrpcConversionError) -> Self {
+impl From<rust_sdk::grpc_types::proto::GrpcConversionError> for RpcError {
+    fn from(value: rust_sdk::grpc_types::proto::GrpcConversionError) -> Self {
         Self::internal().with_context(value)
     }
 }
 
-impl From<iota_grpc_types::google::rpc::bad_request::FieldViolation> for RpcError {
-    fn from(value: iota_grpc_types::google::rpc::bad_request::FieldViolation) -> Self {
+impl From<rust_sdk::grpc_types::google::rpc::bad_request::FieldViolation> for RpcError {
+    fn from(value: rust_sdk::grpc_types::google::rpc::bad_request::FieldViolation) -> Self {
         BadRequest::from(value).into()
     }
 }

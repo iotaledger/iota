@@ -4,16 +4,19 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
-    field::FieldMaskTree,
-    proto::timestamp_ms_to_proto,
-    v1::{
-        bcs::{self as grpc_bcs, BcsData},
-        command::{CommandOutput, CommandOutputs, CommandResult, CommandResults},
-        event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskTree,
+        proto::timestamp_ms_to_proto,
+        v1::{
+            bcs::{self as grpc_bcs, BcsData},
+            command::{CommandOutput, CommandOutputs, CommandResult, CommandResults},
+            event as grpc_event, object as grpc_obj, signatures as grpc_sig,
+            transaction as grpc_tx,
+        },
     },
+    types::{Transaction, TransactionEffects, TransactionEvents, TypeTag, UserSignature},
 };
-use iota_sdk_types::{Transaction, TransactionEffects, TransactionEvents, TypeTag, UserSignature};
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 
@@ -31,7 +34,7 @@ pub struct TransactionReadSource<'a> {
     pub output_objects: Option<Vec<iota_types::object::Object>>,
     /// Simulate-only: gas coin mocked during simulation, excluded from derived
     /// balance changes.
-    pub mocked_coin: Option<iota_sdk_types::ObjectId>,
+    pub mocked_coin: Option<rust_sdk::types::ObjectId>,
 }
 
 impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
@@ -327,7 +330,7 @@ impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
 struct CommandResultReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    mutable_reference_outputs: &'a [(iota_sdk_types::Argument, Vec<u8>, TypeTag)],
+    mutable_reference_outputs: &'a [(rust_sdk::types::Argument, Vec<u8>, TypeTag)],
     return_values: &'a [(Vec<u8>, TypeTag)],
 }
 
@@ -375,7 +378,7 @@ impl Merge<&CommandResultReadSource<'_>> for CommandResult {
 pub(crate) struct CommandOutputsReadSource<'a> {
     pub(crate) reader: &'a Arc<GrpcReader>,
     pub(crate) config: &'a iota_config::node::GrpcApiConfig,
-    pub(crate) outputs: Vec<(Option<iota_sdk_types::Argument>, &'a [u8], &'a TypeTag)>,
+    pub(crate) outputs: Vec<(Option<rust_sdk::types::Argument>, &'a [u8], &'a TypeTag)>,
 }
 
 impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
@@ -410,7 +413,7 @@ impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
 struct CommandOutputReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    arg: Option<iota_sdk_types::Argument>,
+    arg: Option<rust_sdk::types::Argument>,
     bcs_bytes: &'a [u8],
     ty: &'a TypeTag,
 }

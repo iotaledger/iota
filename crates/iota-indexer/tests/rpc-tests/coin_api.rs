@@ -14,10 +14,6 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, crypto::SimpleSignature,
-};
 use iota_types::{
     balance::Supply,
     crypto::{AccountPrivateKey, get_key_pair},
@@ -27,6 +23,12 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
+use rust_sdk::{
+    crypto::{Signer, simple::SimpleKeypair},
+    types::{
+        Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, crypto::SimpleSignature,
+    },
+};
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 

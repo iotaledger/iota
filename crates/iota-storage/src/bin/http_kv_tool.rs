@@ -5,12 +5,12 @@
 use std::{str::FromStr, sync::Arc};
 
 use clap::*;
-use iota_sdk_types::{CheckpointDigest, ObjectId, TransactionDigest};
 use iota_storage::{
     http_key_value_store::*, key_value_store::TransactionKeyValueStore,
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use rust_sdk::types::{CheckpointDigest, ObjectId, TransactionDigest};
 
 // Command line options are:
 // --base-url <url> - the base URL of the HTTP server

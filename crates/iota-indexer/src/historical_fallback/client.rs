@@ -10,10 +10,6 @@ use futures::{
     TryStreamExt,
     stream::{self, StreamExt},
 };
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
-    TransactionEvents, Version,
-};
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -26,6 +22,10 @@ use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
     Client, Url,
     header::{CONTENT_LENGTH, HeaderValue},
+};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;

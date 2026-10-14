@@ -12,8 +12,13 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-grpc = ["dep:iota-grpc-client", "dep:tokio", "dep:tonic"]
-graphql = ["dep:chrono", "dep:iota-sdk-graphql-client", "dep:tokio"]
+grpc = [
+  "dep:tokio",
+  "dep:tonic",
+  "rust-sdk/grpc-tls-native-roots",
+  "rust-sdk/grpc-tls-ring",
+]
+graphql = ["dep:chrono", "rust-sdk/graphql-tls-ring", "dep:tokio"]
 tracing = ["iota-execution/tracing"]
 wasm-bindgen = [
   "dep:base64",
@@ -38,16 +43,14 @@ tonic = { workspace = true, optional = true }
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
-iota-grpc-client = { workspace = true, optional = true }
 iota-protocol-config.workspace = true
-iota-sdk-graphql-client = { workspace = true, optional = true }
-iota-sdk-types.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-trace-format.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 # `prometheus-filtered` (pulled by the metrics registry) does not build on
 # wasm32, which uses the stub metrics from `iota-types` instead.

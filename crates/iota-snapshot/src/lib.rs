@@ -39,7 +39,6 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     global_state_hasher::GlobalStateHasher,
 };
-use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
@@ -60,6 +59,7 @@ use iota_types::{
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
+use rust_sdk::types::{ObjectId, ObjectReference};
 use serde::{Deserialize, Serialize};
 
 use crate::{

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::CommandArgumentError;
 use iota_types::error::{ExecutionError, ExecutionErrorKind, command_argument_error};
 use move_binary_format::{CompiledModule, file_format::Visibility};
+use rust_sdk::types::CommandArgumentError;
 
 use crate::{
     execution_mode::ExecutionMode,

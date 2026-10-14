@@ -13,9 +13,8 @@
 //!   cargo run -p iota-vm-sdk --features graphql --example stake_graphql
 
 use anyhow::{Context, Result};
-use iota_sdk_graphql_client::GraphQLClient;
-use iota_sdk_types::Address;
 use iota_vm_sdk::{ExecuteOptions, LocalVm, Transaction, graphql::GraphQLStore};
+use rust_sdk::{graphql_client::GraphQLClient, types::Address};
 
 #[tokio::main]
 async fn main() -> Result<()> {

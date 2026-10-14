@@ -12,15 +12,15 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Identifier, MoveObjectType, ObjectDigest, ObjectId, ObjectReference, Owner,
-    SignatureScheme, StructTag, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TypeTag, Version,
-};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress, annotated_value as A, ident_str, identifier::IdentStr,
+};
+use rust_sdk::types::{
+    Address, Identifier, MoveObjectType, ObjectDigest, ObjectId, ObjectReference, Owner,
+    SignatureScheme, StructTag, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TypeTag, Version,
 };
 use serde::{Deserialize, Serialize, ser::Error};
 

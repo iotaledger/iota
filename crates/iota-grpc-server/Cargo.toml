@@ -34,20 +34,17 @@ tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
-iota-grpc-types.workspace = true
 iota-json.workspace = true
 iota-metrics.workspace = true
 iota-node-storage.workspace = true
 iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-move-types = { workspace = true, features = ["serde"] }
-iota-sdk-transaction-builder.workspace = true
-iota-sdk-types.workspace = true
 iota-traffic-controller.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["grpc", "move-types", "serde", "transaction-builder"] }
 
 [dev-dependencies]
 # external dependencies
@@ -58,7 +55,7 @@ serde_json.workspace = true
 tempfile.workspace = true
 
 # internal dependencies
-iota-grpc-client.workspace = true
 iota-metrics = { workspace = true, features = ["test-utils"] }
 iota-test-transaction-builder.workspace = true
+rust-sdk = { workspace = true, features = ["grpc-tls-native-roots", "grpc-tls-ring"] }
 typed-store-error.workspace = true

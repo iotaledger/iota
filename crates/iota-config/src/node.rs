@@ -16,8 +16,6 @@ use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_fro
 use iota_metrics::MetricGroups;
 use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
     crypto::{
@@ -30,6 +28,7 @@ use iota_types::{
 };
 use once_cell::sync::OnceCell;
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use rust_sdk::{crypto::simple::SimpleKeypair, types::Address};
 use serde::{Deserialize, Serialize};
 use starfish_config::Parameters as StarfishParameters;
 use tracing::info;
@@ -2019,7 +2018,7 @@ mod bech32_formatted_keypair {
     use std::ops::Deref;
 
     use fastcrypto::encoding::{Base64, Encoding};
-    use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
+    use rust_sdk::crypto::{ToFromBech32, simple::SimpleKeypair};
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S, T>(kp: &T, serializer: S) -> Result<S::Ok, S::Error>

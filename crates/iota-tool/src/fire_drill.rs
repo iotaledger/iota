@@ -29,8 +29,6 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptio
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_multiaddr::{Multiaddr, Protocol};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Transaction};
 use iota_types::{
     committee::EpochId,
     crypto::{
@@ -38,6 +36,10 @@ use iota_types::{
         network_to_simple_keypair,
     },
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI, TransactionEnvelope},
+};
+use rust_sdk::{
+    crypto::simple::SimpleKeypair,
+    types::{Address, Identifier, ObjectId, ObjectReference, Transaction},
 };
 use tracing::info;
 

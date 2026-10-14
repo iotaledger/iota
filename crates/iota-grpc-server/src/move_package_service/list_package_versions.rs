@@ -3,12 +3,14 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::v1::move_package_service::{
-    ListPackageVersionsRequest, ListPackageVersionsResponse, PackageVersion,
-};
-use iota_sdk_types::ObjectId;
 use iota_types::move_package::MovePackageExt;
 use prost::Message;
+use rust_sdk::{
+    grpc_types::v1::move_package_service::{
+        ListPackageVersionsRequest, ListPackageVersionsResponse, PackageVersion,
+    },
+    types::ObjectId,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{

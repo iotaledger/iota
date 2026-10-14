@@ -6,8 +6,8 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_sdk_types::{GenesisTransaction as NativeGenesisTransaction, TransactionDigest};
 use iota_types::object::Object as NativeObject;
+use rust_sdk::types::{GenesisTransaction as NativeGenesisTransaction, TransactionDigest};
 
 use crate::{
     consistency::ConsistentIndexCursor,

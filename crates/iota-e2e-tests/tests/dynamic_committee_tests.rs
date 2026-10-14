@@ -11,10 +11,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
-use iota_sdk_types::{
-    Address, Argument, Command, ObjectId, OwnedObjectReference, ProgrammableTransaction,
-    TransactionEffects,
-};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -29,6 +25,10 @@ use iota_types::{
     transaction::CallArg,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
+use rust_sdk::types::{
+    Address, Argument, Command, ObjectId, OwnedObjectReference, ProgrammableTransaction,
+    TransactionEffects,
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
@@ -39,8 +39,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
-            iota_sdk_types::Identifier::from_static(stringify!($func)),
+            rust_sdk::types::Identifier::from_static(stringify!($module_name)),
+            rust_sdk::types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -284,7 +284,7 @@ impl StressTestRunner {
 }
 
 mod add_stake {
-    use iota_sdk_types::TransactionEffects;
+    use rust_sdk::types::TransactionEffects;
 
     use super::*;
 

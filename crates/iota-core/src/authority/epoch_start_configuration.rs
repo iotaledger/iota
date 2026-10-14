@@ -6,7 +6,6 @@ use std::fmt;
 
 use enum_dispatch::enum_dispatch;
 use iota_config::NodeConfig;
-use iota_sdk_types::{CheckpointDigest, DenyRuleSet, Version};
 use iota_types::{
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
@@ -21,6 +20,7 @@ use iota_types::{
         get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
     },
 };
+use rust_sdk::types::{CheckpointDigest, DenyRuleSet, Version};
 use serde::{Deserialize, Serialize};
 
 #[enum_dispatch]

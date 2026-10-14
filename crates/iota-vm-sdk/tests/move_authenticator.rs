@@ -16,9 +16,6 @@
 
 use std::{fs, path::PathBuf};
 
-use iota_sdk_types::{
-    MoveStruct, SenderSignedTransaction, Transaction, TransactionDigest, UserSignature,
-};
 use iota_types::{
     object::{MoveStructExt, Object, ObjectInner},
     transaction::TransactionAPI,
@@ -29,6 +26,9 @@ use iota_vm_sdk::{
 };
 #[cfg(feature = "tracing")]
 use iota_vm_sdk::{DebugConfig, ProfileOutput, ProfileSink};
+use rust_sdk::types::{
+    MoveStruct, SenderSignedTransaction, Transaction, TransactionDigest, UserSignature,
+};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -147,7 +147,7 @@ fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
 
 /// Run a fixture in dev-inspect mode and return the status / signature-status
 /// pair.
-fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
+fn replay(name: &str) -> (rust_sdk::types::ExecutionStatus, SignatureStatus) {
     let result = run(name, ExecuteOptions::dev_inspect());
     (result.status, result.signature_status)
 }

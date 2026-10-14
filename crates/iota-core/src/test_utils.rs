@@ -6,10 +6,6 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
-    crypto::{Intent, IntentScope},
-};
 use iota_types::{
     base_types::{AuthorityName, ExecutionDigests, random_object_ref},
     committee::Committee,
@@ -27,6 +23,10 @@ use iota_types::{
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
 use move_core_types::account_address::AccountAddress;
+use rust_sdk::types::{
+    Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
+    crypto::{Intent, IntentScope},
+};
 use tokio::time::timeout;
 use tracing::{info, warn};
 

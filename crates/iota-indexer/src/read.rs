@@ -36,11 +36,6 @@ use iota_json_rpc_types::{
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, Resolver, error::Error as PackageResolverError,
 };
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
-use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEvents, TypeTag,
-    Version,
-};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
@@ -62,6 +57,13 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value::MoveStructLayout, identifier::Identifier};
+use rust_sdk::{
+    move_types::iota_framework::vec_map::VecMap,
+    types::{
+        Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEvents,
+        TypeTag, Version,
+    },
+};
 use tap::TapFallible;
 
 use crate::{

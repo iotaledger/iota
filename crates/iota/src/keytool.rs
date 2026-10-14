@@ -35,18 +35,6 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_crypto::{
-    Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
-    simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, SenderSignedTransaction, SignatureScheme, Transaction,
-    crypto::{
-        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
-        PasskeyAuthenticator, PublicKey as SdkPublicKey, SimpleSignature, ThresholdUnit,
-        UserSignature, WeightUnit,
-    },
-};
 use iota_types::{
     crypto::{DefaultHash, EncodeDecodeBase64, PublicKey, get_authority_key_pair},
     error::IotaResult,
@@ -55,6 +43,20 @@ use iota_types::{
     transaction::TransactionAPI,
 };
 use json_to_table::{Orientation, json_to_table};
+use rust_sdk::{
+    crypto::{
+        Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+        simple::SimpleKeypair,
+    },
+    types::{
+        Address, SenderSignedTransaction, SignatureScheme, Transaction,
+        crypto::{
+            Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+            PasskeyAuthenticator, PublicKey as SdkPublicKey, SimpleSignature, ThresholdUnit,
+            UserSignature, WeightUnit,
+        },
+    },
+};
 use serde::Serialize;
 use serde_json::json;
 use tabled::{

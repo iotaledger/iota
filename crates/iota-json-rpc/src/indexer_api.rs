@@ -26,8 +26,6 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
-use iota_sdk_move_types::iota_framework::dynamic_field::Field;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
@@ -38,6 +36,10 @@ use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
+use rust_sdk::{
+    move_types::iota_framework::dynamic_field::Field,
+    types::{Address, ObjectId, TransactionDigest, TypeTag},
+};
 use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};

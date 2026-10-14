@@ -15,10 +15,6 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{
-    EndOfEpochTransactionKind, ObjectId, SenderSignedTransaction, StructTag, TransactionDigest,
-    TransactionKind, Version,
-};
 use iota_types::{
     base_types::VersionNumber, digests::ChainIdentifier, object::Object,
     transaction::TransactionAPI,
@@ -26,6 +22,10 @@ use iota_types::{
 use lru::LruCache;
 use parking_lot::RwLock;
 use rand::RngExt;
+use rust_sdk::types::{
+    EndOfEpochTransactionKind, ObjectId, SenderSignedTransaction, StructTag, TransactionDigest,
+    TransactionKind, Version,
+};
 
 use crate::types::{EPOCH_CHANGE_STRUCT_TAGS, ReplayEngineError};
 

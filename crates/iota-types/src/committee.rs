@@ -13,12 +13,12 @@ use fastcrypto::traits::KeyPair;
 use iota_common::portable_random;
 use iota_multiaddr::Multiaddr;
 pub use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{TransactionDigest, ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
 use rand::{
     Rng, SeedableRng,
     rngs::{ChaCha12Rng, ThreadRng},
 };
+use rust_sdk::types::{TransactionDigest, ValidatorCommitteeMember};
 use serde::{Deserialize, Serialize};
 
 use super::base_types::*;
@@ -572,7 +572,7 @@ impl CommitteeChainVerifier {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
-    use iota_sdk_types::{CheckpointSummary, EndOfEpochData};
+    use rust_sdk::types::{CheckpointSummary, EndOfEpochData};
 
     use super::*;
     use crate::{

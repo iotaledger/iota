@@ -6,28 +6,10 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
-    field::FieldMaskTree,
-    proto::prost_to_json,
-    read_masks::VIEW_FUNCTION_CALLS_READ_MASK,
-    v1::{
-        bcs::BcsData,
-        command::{CommandOutputs, InputArgument, input_argument},
-        transaction_execution_service::{
-            ExecutionError, ViewFunctionCallItem, ViewFunctionCallOutputs, ViewFunctionCallResult,
-            ViewFunctionCallsRequest, ViewFunctionCallsResponse,
-        },
-        types::TypeTag as ProtoTypeTag,
-    },
-};
 use iota_json::{
     IotaJsonValue, IotaMoveCallInputValue, ResolvedCallArg, resolve_move_function_args,
 };
 use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
-use iota_sdk_transaction_builder::TransactionBuilder;
-use iota_sdk_types::{
-    Address, GasPayment, Identifier, ObjectId, TransactionExpiration, TransactionV1, TypeTag,
-};
 use iota_types::{
     error::IotaError,
     move_package::MovePackageExt,
@@ -35,6 +17,26 @@ use iota_types::{
     transaction_executor::{TransactionExecutor, VmChecks},
 };
 use move_binary_format::binary_config::BinaryConfig;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskTree,
+        proto::prost_to_json,
+        read_masks::VIEW_FUNCTION_CALLS_READ_MASK,
+        v1::{
+            bcs::BcsData,
+            command::{CommandOutputs, InputArgument, input_argument},
+            transaction_execution_service::{
+                ExecutionError, ViewFunctionCallItem, ViewFunctionCallOutputs,
+                ViewFunctionCallResult, ViewFunctionCallsRequest, ViewFunctionCallsResponse,
+            },
+            types::TypeTag as ProtoTypeTag,
+        },
+    },
+    transaction_builder::TransactionBuilder,
+    types::{
+        Address, GasPayment, Identifier, ObjectId, TransactionExpiration, TransactionV1, TypeTag,
+    },
+};
 use tonic::Code;
 
 use super::CommandOutputsReadSource;
@@ -287,7 +289,7 @@ fn add_view_function_call(
     for (resolved_arg, _) in resolved {
         let arg = match resolved_arg {
             ResolvedCallArg::Pure(bytes) => {
-                builder.apply_argument(iota_sdk_types::Input::Pure(bytes))
+                builder.apply_argument(rust_sdk::types::Input::Pure(bytes))
             }
             ResolvedCallArg::Object(object_id) => builder.apply_argument(object_id),
             ResolvedCallArg::ObjVec(_) => {
@@ -356,9 +358,11 @@ fn proto_arg_to_call_arg(arg: &InputArgument) -> Result<IotaMoveCallInputValue, 
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_types::v1::{bcs::BcsData, command::InputArgument};
-    use iota_sdk_types::ObjectId;
     use prost_types::{Value, value::Kind};
+    use rust_sdk::{
+        grpc_types::v1::{bcs::BcsData, command::InputArgument},
+        types::ObjectId,
+    };
 
     use super::*;
 

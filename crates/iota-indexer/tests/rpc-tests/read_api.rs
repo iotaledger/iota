@@ -24,10 +24,6 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
-};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_example_package, publish_simple_warrior_package,
 };
@@ -41,6 +37,12 @@ use iota_types::{
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use rand::{SeedableRng, rngs::StdRng};
+use rust_sdk::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
+    },
+};
 use serde_json::Value;
 
 use crate::{

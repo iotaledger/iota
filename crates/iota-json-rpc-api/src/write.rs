@@ -11,9 +11,9 @@ use iota_json_rpc_types::{
     iota_primitives::{Address as AddressSchema, Base64 as Base64Schema, TypeTag as TypeTagSchema},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::Address;
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use rust_sdk::types::Address;
 
 /// Provides methods for executing and testing transactions.
 #[open_rpc(namespace = "iota", tag = "Write API")]

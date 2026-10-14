@@ -10,13 +10,13 @@ use std::{
 };
 
 use anyhow::bail;
-use iota_sdk_types::{Address, ObjectId};
 use move_package::{
     lock_file::{self, LockFile, schema::ManagedPackage},
     resolution::resolution_graph::Package,
     source_package::layout::SourcePackageLayout,
 };
 use move_symbol_pool::Symbol;
+use rust_sdk::types::{Address, ObjectId};
 
 pub mod system_package_versions;
 

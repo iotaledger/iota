@@ -12,7 +12,6 @@
 //! epoch whose contiguous prefix is finalized.
 
 use iota_protocol_config::Chain;
-use iota_sdk_types::CheckpointSummary;
 use iota_types::{
     committee::EpochId,
     digests::ChainIdentifier,
@@ -21,6 +20,7 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     storage::{EpochInfoV1Entry, EpochInfoV2, error::Error as StorageError},
 };
+use rust_sdk::types::CheckpointSummary;
 use tracing::warn;
 use typed_store::{Map, TypedStoreError, rocks::DBBatch};
 
@@ -361,10 +361,6 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{
-        CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionDigest,
-        TransactionEffects, TransactionEvents,
-    };
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo,
         effects::TransactionEffectsExtForTesting,
@@ -373,6 +369,10 @@ mod tests {
         messages_checkpoint::{
             CertifiedCheckpointSummary, CheckpointContentsExt, VerifiedCheckpoint,
         },
+    };
+    use rust_sdk::types::{
+        CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionDigest,
+        TransactionEffects, TransactionEvents,
     };
     use typed_store::Map;
 

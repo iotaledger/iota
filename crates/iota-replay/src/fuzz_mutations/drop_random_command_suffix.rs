@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::TransactionKind;
 use rand::RngExt;
+use rust_sdk::types::TransactionKind;
 use tracing::info;
 
 use crate::fuzz::TransactionKindMutator;

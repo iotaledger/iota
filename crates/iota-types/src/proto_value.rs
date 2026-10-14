@@ -494,8 +494,8 @@ pub(crate) mod tests {
         };
     }
 
-    fn address(a: &str) -> iota_sdk_types::Address {
-        iota_sdk_types::Address::from_str(a).unwrap()
+    fn address(a: &str) -> rust_sdk::types::Address {
+        rust_sdk::types::Address::from_str(a).unwrap()
     }
 
     #[test]

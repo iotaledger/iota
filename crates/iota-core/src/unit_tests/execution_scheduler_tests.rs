@@ -18,10 +18,6 @@
 use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{
-    MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction, SharedObjectReference,
-    TransactionEffectsDigest, UserSignature, Version, VersionAssignment,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_private_key,
@@ -30,6 +26,10 @@ use iota_types::{
     object::Object,
     storage::InputKey,
     transaction::{CallArg, TransactionEnvelope, VerifiedTransaction},
+};
+use rust_sdk::types::{
+    MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction, SharedObjectReference,
+    TransactionEffectsDigest, UserSignature, Version, VersionAssignment,
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -142,7 +142,7 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
     let new_owned_object = Object::with_id_owner_version_for_testing(
         owned_object.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        rust_sdk::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()
@@ -257,7 +257,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
                     Object::with_id_owner_version_for_testing(
                         shared_object.id(),
                         shared_version,
-                        iota_sdk_types::Owner::Shared(0.into()),
+                        rust_sdk::types::Owner::Shared(0.into()),
                     ),
                 );
             },
@@ -347,7 +347,7 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     let new_shared_object = Object::with_id_owner_version_for_testing(
         shared_object.id(),
         shared_version,
-        iota_sdk_types::Owner::Shared(initial_shared_version),
+        rust_sdk::types::Owner::Shared(initial_shared_version),
     );
     state
         .get_cache_writer()
@@ -432,7 +432,7 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
     let new_owned_object = Object::with_id_owner_version_for_testing(
         owned_object.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        rust_sdk::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()
@@ -486,7 +486,7 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
     let a_ready = Object::with_id_owner_version_for_testing(
         owned_a.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        rust_sdk::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()
@@ -502,7 +502,7 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
     let b_ready = Object::with_id_owner_version_for_testing(
         owned_b.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        rust_sdk::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()

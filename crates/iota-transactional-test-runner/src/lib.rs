@@ -20,10 +20,6 @@ use iota_core::authority::{
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::EventFilter;
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId,
-    Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
-};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::VersionNumber,
@@ -44,6 +40,10 @@ pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,
 };
 use rand::rngs::StdRng;
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId,
+    Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
+};
 use simulacrum::{Simulacrum, SimulatorStore};
 use simulator_persisted_store::PersistedStore;
 use test_adapter::{IotaTestAdapter, PRE_COMPILED};

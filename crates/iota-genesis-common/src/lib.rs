@@ -7,7 +7,6 @@ mod migration_tx_data_ext;
 
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{TransactionEffects, TransactionEvents, TransactionKind};
 use iota_types::{
     digests::ChainIdentifier,
     effects::TransactionEffectsAPI,
@@ -21,6 +20,7 @@ use iota_types::{
 };
 pub use migration_tx_data_ext::MigrationTxDataExt;
 use prometheus_filtered::Registry;
+use rust_sdk::types::{TransactionEffects, TransactionEvents, TransactionKind};
 
 /// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
 pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {

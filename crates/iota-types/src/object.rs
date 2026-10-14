@@ -11,14 +11,14 @@ use std::{
 
 use iota_common::debug_fatal;
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::Object as ObjectInner;
-use iota_sdk_types::{
-    Address, MovePackage, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TypeTag, Version,
-};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{self, MoveStructLayout, MoveTypeLayout, MoveValue};
+pub use rust_sdk::types::Object as ObjectInner;
+use rust_sdk::types::{
+    Address, MovePackage, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag, Version,
+};
 use serde::{Deserialize, Serialize};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
@@ -910,7 +910,7 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+    use rust_sdk::types::{Address, ObjectId, TransactionDigest};
 
     use crate::{
         gas_coin::GasCoin,

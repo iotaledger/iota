@@ -8,12 +8,12 @@ use iota_common::random_util::TempDir;
 use iota_indexer::{
     models::obj_indices::StoredObjectVersion, store::PgIndexerStore, test_utils::DBInitHook,
 };
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, OwnedObjectReference, Transaction, TransactionEffects,
-};
 use iota_types::{
     effects::TransactionEffectsAPI,
     transaction::{TransactionAPI, TransactionEnvelope},
+};
+use rust_sdk::types::{
+    Address, ObjectId, ObjectReference, OwnedObjectReference, Transaction, TransactionEffects,
 };
 use simulacrum::Simulacrum;
 

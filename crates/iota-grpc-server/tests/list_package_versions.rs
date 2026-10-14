@@ -13,11 +13,13 @@ use std::sync::Arc;
 use common::{
     MockGrpcStateReader, connect_move_package_service_client, object_id_proto, start_test_server,
 };
-use iota_grpc_types::v1::move_package_service::{
-    ListPackageVersionsRequest, ListPackageVersionsResponse,
-};
-use iota_sdk_types::ObjectId;
 use iota_types::storage::{PackageVersionInfo, PackageVersionKey};
+use rust_sdk::{
+    grpc_types::v1::move_package_service::{
+        ListPackageVersionsRequest, ListPackageVersionsResponse,
+    },
+    types::ObjectId,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers

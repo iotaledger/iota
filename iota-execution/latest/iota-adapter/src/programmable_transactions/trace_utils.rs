@@ -8,7 +8,6 @@
 //! that any errors coming from these functions only manifest itself
 //! when tracing is enabled.
 
-use iota_sdk_types::{Command, ObjectId};
 use iota_types::{
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind},
@@ -27,6 +26,7 @@ use move_trace_format::{
     value::{SerializableMoveValue, SimplifiedMoveStruct},
 };
 use move_vm_types::loaded_data::runtime_types::Type;
+use rust_sdk::types::{Command, ObjectId};
 
 use crate::{
     execution_value::{ObjectContents, ObjectValue, Value},

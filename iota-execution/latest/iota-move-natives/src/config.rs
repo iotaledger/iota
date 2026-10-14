@@ -4,7 +4,6 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::iota_sdk_types_conversions::struct_tag_core_to_sdk;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -18,6 +17,7 @@ use move_vm_types::{
     pop_arg,
     values::{Struct, Value, Vector},
 };
+use rust_sdk::types::{ObjectId, StructTag};
 use smallvec::smallvec;
 use tracing::{error, instrument};
 

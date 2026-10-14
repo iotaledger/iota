@@ -30,7 +30,6 @@ use axum_extra::{TypedHeader, headers::ContentLength};
 use chrono::Utc;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
-use iota_grpc_client::GrpcClient;
 use iota_indexer::{
     apis::{OptimisticWriteApi, ReadApi, WriteApi},
     db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
@@ -42,6 +41,7 @@ use iota_indexer::{
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
+use rust_sdk::grpc_client::GrpcClient;
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
@@ -790,8 +790,8 @@ pub mod tests {
         Request, Response, Variables,
         extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_sdk_types::Transaction;
     use iota_types::transaction::TransactionAPI;
+    use rust_sdk::types::Transaction;
     use serde_json::json;
     use uuid::Uuid;
 

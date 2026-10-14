@@ -13,12 +13,12 @@ use iota_json_rpc_types::{
     },
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{dynamic_field::DynamicFieldName, event::EventID};
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
     proc_macros::rpc,
 };
+use rust_sdk::types::{Address, ObjectId, TransactionDigest};
 
 /// Provides methods to query transactions, events, or objects and allows to
 /// subscribe to data streams.

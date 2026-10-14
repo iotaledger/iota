@@ -19,11 +19,11 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 pub use rpc_command_processor::{
     RpcCommandProcessor, load_addresses_from_file, load_digests_from_file, load_objects_from_file,
 };
+use rust_sdk::types::{Address, ObjectId, TransactionDigest};
 use strum::EnumString;
 
 use crate::load_test::LoadTestConfig;

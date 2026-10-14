@@ -6,13 +6,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::bail;
 use clap::Parser;
-use iota_sdk_types::ObjectId;
 use move_cli::base;
 use move_package::{
     BuildConfig,
     lock_file::{self, LockFile},
     source_package::layout::SourcePackageLayout,
 };
+use rust_sdk::types::ObjectId;
 
 const NO_LOCK_FILE: &str = "Expected a `Move.lock` file to exist in the package path, \
                             but none found. Consider running `iota move build` to \

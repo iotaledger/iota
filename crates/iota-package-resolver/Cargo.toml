@@ -14,7 +14,6 @@ lru.workspace = true
 thiserror.workspace = true
 
 # internal dependencies
-iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 # TODO: `move-command-line-common` is used for `ErrorBitset`. We should
@@ -22,6 +21,7 @@ move-binary-format.workspace = true
 # here once we do.
 move-command-line-common.workspace = true
 move-core-types.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 [dev-dependencies]
 # external dependencies

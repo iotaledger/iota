@@ -16,7 +16,6 @@ use iota_data_ingestion_core::history::{
     CHECKPOINT_FILE_MAGIC,
     manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
 };
-use iota_sdk_types::CheckpointDigest;
 use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
@@ -32,6 +31,7 @@ use iota_types::{
     },
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
+use rust_sdk::types::CheckpointDigest;
 use tokio::time::{Instant, timeout};
 
 use crate::{

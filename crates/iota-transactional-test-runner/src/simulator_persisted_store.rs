@@ -7,11 +7,6 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId,
-    ObjectReference, Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents,
-    Version,
-};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
     base_types::VersionNumber,
@@ -30,6 +25,11 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
+use rust_sdk::types::{
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId,
+    ObjectReference, Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version,
+};
 use simulacrum::Simulacrum;
 use typed_store::{
     DBMapUtils, Map,

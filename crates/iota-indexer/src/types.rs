@@ -6,14 +6,6 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
-use iota_sdk_move_types::iota_system::iota_system_state_inner::{
-    SystemEpochInfoEventV1, SystemEpochInfoEventV2,
-};
-use iota_sdk_types::{
-    Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-    EndOfEpochData, MovePackage, ObjectDigest, ObjectId, Owner, SenderSignedTransaction, StructTag,
-    TransactionDigest, TransactionEffects, TypeTag, Version,
-};
 use iota_types::{
     crypto::AggregateAuthoritySignature,
     dynamic_field::DynamicFieldType,
@@ -24,6 +16,17 @@ use iota_types::{
 };
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::RngExt;
+use rust_sdk::{
+    move_types::iota_system::iota_system_state_inner::{
+        SystemEpochInfoEventV1, SystemEpochInfoEventV2,
+    },
+    types::{
+        Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest,
+        CheckpointDigest, EndOfEpochData, MovePackage, ObjectDigest, ObjectId, Owner,
+        SenderSignedTransaction, StructTag, TransactionDigest, TransactionEffects, TypeTag,
+        Version,
+    },
+};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
@@ -178,7 +181,7 @@ impl IndexedEvent {
         event_sequence_number: u64,
         checkpoint_sequence_number: u64,
         transaction_digest: TransactionDigest,
-        event: &iota_sdk_types::Event,
+        event: &rust_sdk::types::Event,
         timestamp_ms: u64,
     ) -> Self {
         Self {
@@ -219,7 +222,7 @@ impl EventIndex {
     pub fn from_event(
         tx_sequence_number: u64,
         event_sequence_number: u64,
-        event: &iota_sdk_types::Event,
+        event: &rust_sdk::types::Event,
     ) -> Self {
         let type_instantiation = event
             .struct_tag
@@ -418,7 +421,7 @@ pub struct IndexedTransaction {
     pub timestamp_ms: u64,
     pub object_changes: Vec<IndexedObjectChange>,
     pub balance_change: Vec<IndexedBalanceChange>,
-    pub events: Vec<iota_sdk_types::Event>,
+    pub events: Vec<rust_sdk::types::Event>,
     pub transaction_kind: IotaTransactionKind,
     pub successful_tx_num: u64,
 }
@@ -841,19 +844,21 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
 /// Provides conversion methods from gRPC types to iota core types.
 pub(crate) mod grpc_conversion {
 
-    use iota_grpc_types::v1::{
-        command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
-        object::Objects as GrpcObjects,
-        transaction::{
-            BalanceChanges as GrpcBalanceChanges, ObjectChanges as GrpcObjectChanges,
-            object_change::Kind as GrpcObjectChangeKind,
-        },
-    };
     use iota_json_rpc_types::{
         BalanceChange, IotaArgument, IotaExecutionResult, IotaTypeTag, ObjectChange,
     };
-    use iota_sdk_types::{StructTag, TypeTag, Version};
     use iota_types::object::Object;
+    use rust_sdk::{
+        grpc_types::v1::{
+            command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
+            object::Objects as GrpcObjects,
+            transaction::{
+                BalanceChanges as GrpcBalanceChanges, ObjectChanges as GrpcObjectChanges,
+                object_change::Kind as GrpcObjectChangeKind,
+            },
+        },
+        types::{StructTag, TypeTag, Version},
+    };
 
     use crate::{errors::IndexerError, types::IndexerResult};
 

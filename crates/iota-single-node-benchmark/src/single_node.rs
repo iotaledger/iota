@@ -24,7 +24,6 @@ use iota_core::{
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectReference, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
     base_types::AuthorityName,
@@ -42,6 +41,7 @@ use iota_types::{
     },
     transaction_executor::VmChecks,
 };
+use rust_sdk::types::{Address, ObjectReference, TransactionDigest, TransactionEffects};
 
 use crate::{command::Component, mock_storage::InMemoryObjectStore};
 

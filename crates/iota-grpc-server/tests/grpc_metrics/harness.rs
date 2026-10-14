@@ -8,28 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures::StreamExt;
 use iota_config::node::GrpcApiConfig;
 use iota_grpc_server::{GrpcServerHandle, GrpcServerMetrics};
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    v1::{
-        ledger_service::{
-            GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
-            ledger_service_client::LedgerServiceClient,
-        },
-        move_package_service::{
-            ListPackageVersionsRequest, ListPackageVersionsResponse,
-            move_package_service_client::MovePackageServiceClient,
-        },
-        state_service::{
-            ListDynamicFieldsRequest, ListDynamicFieldsResponse, ListOwnedObjectsRequest,
-            ListOwnedObjectsResponse, state_service_client::StateServiceClient,
-        },
-        types::ObjectReference,
-    },
-};
 pub use iota_metrics::test_utils::MetricsReader;
-use iota_sdk_types::{
-    Address, MoveObjectType, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest,
-};
 use iota_types::{
     gas_coin::GasCoin,
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
@@ -40,6 +19,27 @@ use iota_types::{
     transaction_executor::TransactionExecutor,
 };
 use prometheus_filtered::Registry;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        v1::{
+            ledger_service::{
+                GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
+                ledger_service_client::LedgerServiceClient,
+            },
+            move_package_service::{
+                ListPackageVersionsRequest, ListPackageVersionsResponse,
+                move_package_service_client::MovePackageServiceClient,
+            },
+            state_service::{
+                ListDynamicFieldsRequest, ListDynamicFieldsResponse, ListOwnedObjectsRequest,
+                ListOwnedObjectsResponse, state_service_client::StateServiceClient,
+            },
+            types::ObjectReference,
+        },
+    },
+    types::{Address, MoveObjectType, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest},
+};
 use tonic::transport::Channel;
 
 use crate::common::{

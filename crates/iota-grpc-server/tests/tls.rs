@@ -12,10 +12,12 @@ use std::{
 
 use common::{MockGrpcStateReader, owner_proto, start_test_server};
 use iota_config::node::TlsConfig;
-use iota_grpc_types::v1::state_service::{
-    ListOwnedObjectsRequest, state_service_client::StateServiceClient,
+use rust_sdk::{
+    grpc_types::v1::state_service::{
+        ListOwnedObjectsRequest, state_service_client::StateServiceClient,
+    },
+    types::Address,
 };
-use iota_sdk_types::Address;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig};
 
 #[tokio::test]

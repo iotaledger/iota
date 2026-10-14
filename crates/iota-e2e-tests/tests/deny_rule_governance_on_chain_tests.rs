@@ -17,10 +17,10 @@ use std::time::Duration;
 use iota_config::transaction_deny_config::TransactionDenyConfigBuilder;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, DenyRuleSet};
 use iota_types::{
     IOTA_TRANSACTION_DENY_RULES_OBJECT_ID, transaction_deny_rules::get_transaction_deny_rules,
 };
+use rust_sdk::types::{Address, DenyRuleSet};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Enables both governance flags and the two injection knobs. The returned
@@ -118,9 +118,9 @@ async fn restart_with_deny_config(
 /// this node's executed checkpoints, in checkpoint order.
 fn checkpointed_update_digests(
     handle: &iota_node::IotaNodeHandle,
-) -> Vec<iota_sdk_types::TransactionDigest> {
-    use iota_sdk_types::TransactionKind;
+) -> Vec<rust_sdk::types::TransactionDigest> {
     use iota_types::{messages_checkpoint::CheckpointContentsExt, transaction::TransactionAPI};
+    use rust_sdk::types::TransactionKind;
 
     handle.with(|node| {
         let state = node.state();
@@ -795,8 +795,8 @@ async fn deny_rule_fullnode_converges_and_crosses_the_boundary() {
 /// chunked additions and chunked removals.
 #[sim_test]
 async fn deny_rule_event_fold_matches_the_object() {
-    use iota_sdk_types::{ObjectId, TransactionKind};
     use iota_types::{messages_checkpoint::CheckpointContentsExt, transaction::TransactionAPI};
+    use rust_sdk::types::{ObjectId, TransactionKind};
 
     /// Mirror of the Move event's BCS layout.
     #[derive(serde::Deserialize)]

@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use iota_json_rpc_types::ObjectChange;
-use iota_sdk_types::{
+use rust_sdk::types::{
     Address, ObjectReference, ObjectRemoveKind, ObjectVersion, OwnedObjectReference, StructTag,
     WriteKind,
 };

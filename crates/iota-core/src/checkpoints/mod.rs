@@ -29,11 +29,6 @@ use iota_common::{
 };
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
-use iota_sdk_types::{
-    CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-    CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionDigest, TransactionEffects,
-    TransactionKind, UserSignature,
-};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
@@ -61,6 +56,11 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use pin_project_lite::pin_project;
 use rand::seq::IndexedRandom;
+use rust_sdk::types::{
+    CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+    CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionDigest, TransactionEffects,
+    TransactionKind, UserSignature,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Notify, mpsc, watch},
@@ -3017,9 +3017,9 @@ impl CheckpointServiceNotify for CheckpointService {
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_types::{GasCostSummary, TransactionEffects};
     use iota_types::effects::TransactionEffectsAPI;
     use itertools::MultiUnzip;
+    use rust_sdk::types::{GasCostSummary, TransactionEffects};
 
     #[expect(clippy::type_complexity)]
     pub fn new_gas_cost_summary_from_txn_effects<'a>(
@@ -3144,14 +3144,14 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use iota_sdk_types::{
-        GenesisObject, Identifier, MovePackage, ObjectData, ObjectId, Owner, TransactionEffects,
-        TransactionEffectsDigest, TransactionEvents, Version,
-    };
     use iota_types::{
         effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::SignedCheckpointSummary,
         transaction::VerifiedTransaction,
+    };
+    use rust_sdk::types::{
+        GenesisObject, Identifier, MovePackage, ObjectData, ObjectId, Owner, TransactionEffects,
+        TransactionEffectsDigest, TransactionEvents, Version,
     };
     use tokio::sync::mpsc;
 

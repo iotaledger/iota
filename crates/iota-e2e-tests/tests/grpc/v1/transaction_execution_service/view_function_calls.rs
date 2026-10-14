@@ -3,20 +3,22 @@
 
 use std::path::PathBuf;
 
-use iota_grpc_types::v1::{
-    command::InputArgument,
-    transaction_execution_service::{
-        ViewFunctionCallItem, ViewFunctionCallsRequest, ViewFunctionCallsResponse,
-        transaction_execution_service_client::TransactionExecutionServiceClient,
-        view_function_call_outputs, view_function_call_result,
-    },
-};
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, Owner, SharedObjectReference};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
 use prost_types::{Value, value::Kind};
+use rust_sdk::{
+    grpc_types::v1::{
+        command::InputArgument,
+        transaction_execution_service::{
+            ViewFunctionCallItem, ViewFunctionCallsRequest, ViewFunctionCallsResponse,
+            transaction_execution_service_client::TransactionExecutionServiceClient,
+            view_function_call_outputs, view_function_call_result,
+        },
+    },
+    types::{ObjectId, Owner, SharedObjectReference},
+};
 use test_cluster::TestCluster;
 
 use crate::utils::{first_sender, setup_grpc_test, wait_for_executed_transactions_checkpointed};
@@ -39,7 +41,7 @@ fn view_functions_package_path() -> PathBuf {
 /// behind local (`WaitForLocalExecution`) visibility.
 async fn publish_view_functions_package(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::GrpcClient,
+    client: &rust_sdk::grpc_client::GrpcClient,
 ) -> (ObjectId, SharedObjectReference) {
     let sender = first_sender(test_cluster);
 
@@ -124,7 +126,7 @@ fn single_call_request(
 
 /// Call `{package_id}::counter::value(counter)` and return the response.
 async fn call_counter_value(
-    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<rust_sdk::grpc_client::InterceptedChannel>,
     package_id: ObjectId,
     counter_id: ObjectId,
 ) -> Result<ViewFunctionCallsResponse, tonic::Status> {

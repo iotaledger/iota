@@ -10,10 +10,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_sdk_types::{
-    Address, Argument, Command, Identifier, MakeMoveVector, MovePackage, ProgrammableTransaction,
-    StructTag, TypeOrigin, TypeTag, Version,
-};
 use iota_types::{
     base_types::is_primitive_type_tag,
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
@@ -38,6 +34,10 @@ use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveEnumLayout, MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     language_storage::ModuleId,
+};
+use rust_sdk::types::{
+    Address, Argument, Command, Identifier, MakeMoveVector, MovePackage, ProgrammableTransaction,
+    StructTag, TypeOrigin, TypeTag, Version,
 };
 
 use crate::error::Error;
@@ -1851,10 +1851,10 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
     use iota_types::{base_types::random_object_ref, error::IotaResult};
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
+    use rust_sdk::types::{Identifier, ObjectId, StructTag, TypeTag};
 
     use super::*;
 

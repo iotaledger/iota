@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Ok, anyhow, bail, ensure};
-use iota_sdk_types::{Address, Command, Identifier, ObjectId, Transaction};
 use iota_types::{
     base_types::ObjectType,
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
@@ -13,6 +12,7 @@ use iota_types::{
     },
     transaction::{CallArg, TransactionAPI},
 };
+use rust_sdk::types::{Address, Command, Identifier, ObjectId, Transaction};
 
 use crate::TransactionBuilder;
 

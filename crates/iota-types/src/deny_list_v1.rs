@@ -7,12 +7,14 @@ use std::{
     fmt,
 };
 
-use iota_sdk_move_types::iota_framework::{
-    config::Config,
-    deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
-    dynamic_object_field::Wrapper,
+use rust_sdk::{
+    move_types::iota_framework::{
+        config::Config,
+        deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
+        dynamic_object_field::Wrapper,
+    },
+    types::{Address, Identifier, ObjectId, Version},
 };
-use iota_sdk_types::{Address, Identifier, ObjectId, Version};
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 

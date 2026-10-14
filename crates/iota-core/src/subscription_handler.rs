@@ -8,12 +8,12 @@ use iota_json_rpc_types::{
     EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
 };
-use iota_sdk_types::Transaction;
 use iota_types::error::IotaResult;
 use prometheus_filtered::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
+use rust_sdk::types::Transaction;
 use tokio_stream::Stream;
 use tracing::{error, instrument, trace};
 

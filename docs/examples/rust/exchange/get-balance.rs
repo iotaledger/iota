@@ -4,7 +4,7 @@
 use std::str::FromStr;
 
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::Address;
+use rust_sdk::types::Address;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

@@ -7,11 +7,11 @@ use std::{collections::BTreeSet, sync::Arc};
 use enum_dispatch::enum_dispatch;
 use execution_scheduler_impl::ExecutionScheduler;
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     error::IotaResult, executable_transaction::VerifiedExecutableTransaction, storage::InputKey,
 };
 use prometheus_filtered::IntGauge;
+use rust_sdk::types::{SenderSignedTransaction, TransactionDigest};
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use transaction_manager::TransactionManager;
 

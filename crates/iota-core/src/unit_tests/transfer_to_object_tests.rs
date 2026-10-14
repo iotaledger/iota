@@ -4,11 +4,6 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectDigest, ObjectId, ObjectReference,
-    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
-    TransactionEffects, Version,
-};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -16,6 +11,11 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
+};
+use rust_sdk::types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectDigest, ObjectId, ObjectReference,
+    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    TransactionEffects, Version,
 };
 
 use crate::{

@@ -9,11 +9,6 @@ use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, InputSharedObject, ObjectId,
-    ObjectReference, ObjectVersion, RandomnessRound, SharedObjectReference, Transaction,
-    TransactionDigest, TransactionEffects, TransactionKind, Version,
-};
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
@@ -28,6 +23,11 @@ use iota_types::{
         TransactionAPI as _, TransactionEnvelope, TransactionKey, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
+};
+use rust_sdk::types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, InputSharedObject, ObjectId,
+    ObjectReference, ObjectVersion, RandomnessRound, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 
 use crate::{

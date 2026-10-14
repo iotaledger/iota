@@ -5,20 +5,22 @@
 use std::sync::Arc;
 
 use futures::Stream;
-use iota_grpc_types::{
-    field::FieldMaskTree,
-    google::rpc::bad_request::FieldViolation,
-    read_masks::GET_OBJECTS_READ_MASK,
-    v1::{
-        error_reason::ErrorReason,
-        ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
-        object::Object,
-        types::ObjectId as ProtoObjectId,
-    },
-};
-use iota_sdk_types::ObjectId;
 use prost::Message;
 use prost_types::FieldMask;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskTree,
+        google::rpc::bad_request::FieldViolation,
+        read_masks::GET_OBJECTS_READ_MASK,
+        v1::{
+            error_reason::ErrorReason,
+            ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
+            object::Object,
+            types::ObjectId as ProtoObjectId,
+        },
+    },
+    types::ObjectId,
+};
 
 use crate::{
     constants::validate_max_message_size,

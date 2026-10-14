@@ -16,13 +16,6 @@ mod checked {
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-    use iota_sdk_types::{
-        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction,
-        Identifier, MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
-        SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
-        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
-    };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -63,6 +56,13 @@ mod checked {
     use move_binary_format::CompiledModule;
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::move_vm::MoveVM;
+    use rust_sdk::types::{
+        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+        EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction,
+        Identifier, MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
+        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
+    };
     use tracing::{info, instrument, trace, warn};
 
     use crate::{

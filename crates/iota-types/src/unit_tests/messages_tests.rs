@@ -10,16 +10,18 @@ use std::{
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_crypto::{
-    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, ExecutionStatus, GasCostSummary, GasPayment, MoveAuthenticatorV1, Owner,
-    SharedObjectReference, SignatureScheme, StructTag, TransactionDenyRulesUpdate,
-    TransactionEventsDigest, crypto::SimpleSignature,
-};
 use roaring::RoaringBitmap;
+use rust_sdk::{
+    crypto::{
+        Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{
+        Address, ExecutionStatus, GasCostSummary, GasPayment, MoveAuthenticatorV1, Owner,
+        SharedObjectReference, SignatureScheme, StructTag, TransactionDenyRulesUpdate,
+        TransactionEventsDigest, crypto::SimpleSignature,
+    },
+};
 
 use super::*;
 use crate::{

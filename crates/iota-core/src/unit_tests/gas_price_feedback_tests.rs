@@ -7,12 +7,6 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{
-    Address, CanceledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
-    ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference,
-    Transaction, TransactionEffects, TransactionKind, UnchangedSharedKind, Version,
-    VersionAssignment,
-};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -22,6 +16,12 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use rand::seq::SliceRandom;
+use rust_sdk::types::{
+    Address, CanceledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
+    ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference,
+    Transaction, TransactionEffects, TransactionKind, UnchangedSharedKind, Version,
+    VersionAssignment,
+};
 
 use crate::{
     authority::{

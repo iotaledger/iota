@@ -5,11 +5,6 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_sdk_crypto::Signer;
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
-    crypto::SimpleSignature,
-};
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaResult,
@@ -20,6 +15,13 @@ use iota_types::{
 };
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
+use rust_sdk::{
+    crypto::Signer,
+    types::{
+        Address, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
+        crypto::SimpleSignature,
+    },
+};
 
 use crate::authority::{AuthorityState, authority_tests::send_and_confirm_transaction};
 

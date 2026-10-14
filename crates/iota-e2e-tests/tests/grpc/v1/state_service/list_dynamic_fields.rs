@@ -1,12 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
+use iota_macros::sim_test;
+use prost_types::FieldMask;
+use rust_sdk::grpc_types::{
     field::FieldMaskUtil, read_masks::LIST_DYNAMIC_FIELDS_READ_MASK,
     v1::state_service::ListDynamicFieldsRequest,
 };
-use iota_macros::sim_test;
-use prost_types::FieldMask;
 
 use crate::utils::{
     assert_field_presence, assert_tonic_error, comma_separated_field_mask_to_paths,

@@ -26,11 +26,11 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{
+use reqwest::Client;
+use rust_sdk::types::{
     Address, Argument, Command, ObjectId, SignatureScheme, Transaction, TransactionDigest,
     crypto::Intent,
 };
-use reqwest::Client;
 use serde_json::json;
 use tracing::info;
 

@@ -6,10 +6,6 @@
 use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk_types::{
-    Argument, Command, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier,
-    ObjectOut, StructTag, TypeTag,
-};
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountPrivateKey, get_key_pair},
@@ -19,6 +15,10 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{account_address::AccountAddress, identifier::IdentStr, u256::U256};
+use rust_sdk::types::{
+    Argument, Command, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier,
+    ObjectOut, StructTag, TypeTag,
+};
 
 use super::*;
 use crate::authority::authority_tests::{

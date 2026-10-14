@@ -8,8 +8,8 @@ pub mod linkage_view;
 
 use std::rc::Rc;
 
-use iota_sdk_types::{MovePackage, ObjectId};
 use iota_types::{error::IotaResult, storage::BackingPackageStore};
+use rust_sdk::types::{MovePackage, ObjectId};
 
 // A unifying trait that allows us to load move packages that may not be objects
 // just yet (e.g., if they were published in the current transaction). Note that

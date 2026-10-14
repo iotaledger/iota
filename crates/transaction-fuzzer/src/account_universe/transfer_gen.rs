@@ -6,10 +6,6 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, GasPayment, ObjectReference, Transaction,
-    TransactionKind,
-};
 use iota_types::{
     error::{IotaError, UserInputError},
     object::Object,
@@ -20,6 +16,10 @@ use iota_types::{
 use once_cell::sync::Lazy;
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
+use rust_sdk::types::{
+    Address, ExecutionError, ExecutionStatus, GasPayment, ObjectReference, Transaction,
+    TransactionKind,
+};
 
 use crate::{
     account_universe::{

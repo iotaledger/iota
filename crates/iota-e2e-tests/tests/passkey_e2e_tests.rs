@@ -6,10 +6,6 @@ use std::net::SocketAddr;
 
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{
-    Address, SignatureScheme, Transaction, UserSignature,
-    crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::PublicKey,
@@ -29,6 +25,10 @@ use passkey_types::{
         PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
+};
+use rust_sdk::types::{
+    Address, SignatureScheme, Transaction, UserSignature,
+    crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use url::Url;

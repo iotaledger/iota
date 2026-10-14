@@ -7,8 +7,8 @@ use backoff::{self, ExponentialBackoff};
 use iota_data_ingestion_core::{
     create_remote_store_client, history::manifest::Manifest, reader::v2::RemoteUrl,
 };
-use iota_grpc_client::GrpcClient;
 use object_store::ObjectStoreExt;
+use rust_sdk::grpc_client::GrpcClient;
 use tracing::{debug, info};
 
 use crate::{

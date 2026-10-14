@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_enum_compat_util::*;
-use iota_sdk_types::ObjectId;
+use rust_sdk::types::ObjectId;
 
 use crate::{IotaMoveStruct, IotaMoveValue, MoveFunctionName};
 

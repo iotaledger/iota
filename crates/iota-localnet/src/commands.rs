@@ -33,8 +33,6 @@ use iota_indexer::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::Address;
 use iota_swarm::memory::{Node, Swarm};
 use iota_swarm_config::{
     genesis_config::{
@@ -50,6 +48,7 @@ use iota_swarm_config::{
 };
 use iota_types::traffic_control::PolicyConfig;
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use rust_sdk::{crypto::simple::SimpleKeypair, types::Address};
 use tempfile::tempdir;
 use tracing::info;
 

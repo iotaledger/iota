@@ -11,7 +11,6 @@ use std::{
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
 use iota_core::authority::shared_object_version_manager::AssignedTxAndVersions;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionEffects, Version};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -22,6 +21,7 @@ use iota_types::{
         VerifiedTransaction,
     },
 };
+use rust_sdk::types::{Address, ObjectId, ObjectReference, TransactionEffects, Version};
 use tracing::{info, warn};
 
 use crate::{

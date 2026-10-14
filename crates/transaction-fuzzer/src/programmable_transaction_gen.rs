@@ -5,14 +5,14 @@
 use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
-};
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
 };
 use once_cell::sync::Lazy;
 use proptest::{collection::vec, prelude::*};
+use rust_sdk::types::{
+    Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
+};
 
 static PROTOCOL_CONFIG: Lazy<ProtocolConfig> =
     Lazy::new(ProtocolConfig::get_for_max_version_UNSAFE);

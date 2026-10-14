@@ -8,10 +8,6 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
-use iota_sdk_types::{
-    CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
-    TransactionEvents, Version,
-};
 use iota_types::{
     base_types::VersionNumber,
     error::{IotaError, IotaResult, UserInputError},
@@ -19,6 +15,10 @@ use iota_types::{
     object::Object,
     storage::ObjectKey,
     transaction::TransactionEnvelope,
+};
+use rust_sdk::types::{
+    CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use tracing::instrument;
 

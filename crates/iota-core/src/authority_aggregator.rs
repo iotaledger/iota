@@ -20,10 +20,6 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::{
-    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionEvents,
-};
 use iota_types::{
     base_types::*,
     committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
@@ -51,6 +47,10 @@ use prometheus_filtered::{
     Histogram, IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
     register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
+};
+use rust_sdk::types::{
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents,
 };
 use thiserror::Error;
 use tokio::time::{sleep, timeout};

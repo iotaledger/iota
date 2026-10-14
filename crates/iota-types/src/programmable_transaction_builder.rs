@@ -7,7 +7,7 @@
 
 use anyhow::Context;
 use indexmap::IndexMap;
-use iota_sdk_types::{
+use rust_sdk::types::{
     Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
     SharedObjectReference, TypeTag,
 };

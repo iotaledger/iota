@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-};
 use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
 use proptest::{prelude::*, strategy::ValueTree};
+use rust_sdk::types::{
+    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
     executor::Executor,

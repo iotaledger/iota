@@ -4,9 +4,9 @@
 
 use std::collections::HashSet;
 
-use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
 use iota_types::deny_rule_governance::DenyRuleConfig;
 use once_cell::sync::OnceCell;
+use rust_sdk::types::{Address, DenyRuleSet, ObjectId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -248,7 +248,7 @@ impl DenyRuleConfig for TransactionDenyConfig {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+    use rust_sdk::types::{Address, DenyRuleSet, ObjectId};
 
     use super::{DenyRuleConfig, TransactionDenyConfig, TransactionDenyConfigBuilder};
 

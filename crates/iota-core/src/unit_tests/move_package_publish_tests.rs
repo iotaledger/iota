@@ -8,9 +8,6 @@ use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
-};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -30,6 +27,9 @@ use move_binary_format::{
     file_format_common::{BinaryConstants, VERSION_6},
 };
 use move_package::source_package::manifest_parser;
+use rust_sdk::types::{
+    ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
+};
 
 use crate::authority::{
     authority_tests::{call_move, init_state_with_ids, send_and_confirm_transaction},

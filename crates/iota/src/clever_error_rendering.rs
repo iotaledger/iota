@@ -17,7 +17,6 @@
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::{Identifier, ObjectId};
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
@@ -26,6 +25,7 @@ use move_command_line_common::{
     error_bitset::ErrorBitset,
 };
 use move_core_types::account_address::AccountAddress;
+use rust_sdk::types::{Identifier, ObjectId};
 
 /// Take a Move abort status string and render it into a more human-readable
 /// error message using by parsing the string (as best we can) and seeing if the

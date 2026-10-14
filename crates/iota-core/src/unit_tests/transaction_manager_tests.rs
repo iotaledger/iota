@@ -4,10 +4,6 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_types::{
-    ObjectId, Owner, RandomnessRound, SharedObjectReference, TransactionEffectsDigest, Version,
-    VersionAssignment,
-};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_private_key,
@@ -15,6 +11,10 @@ use iota_types::{
     object::Object,
     storage::InputKey,
     transaction::{CallArg, TransactionKey, VerifiedTransaction},
+};
+use rust_sdk::types::{
+    ObjectId, Owner, RandomnessRound, SharedObjectReference, TransactionEffectsDigest, Version,
+    VersionAssignment,
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, error::TryRecvError, unbounded_channel},

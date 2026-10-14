@@ -4,7 +4,6 @@
 
 use std::rc::Rc;
 
-use iota_sdk_types::{ObjectDigest, ObjectId, Version};
 use iota_types::base_types::{RESOLVED_TX_CONTEXT, TxContextKind};
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::{
@@ -12,6 +11,7 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
 };
+use rust_sdk::types::{ObjectDigest, ObjectId, Version};
 
 //**************************************************************************************************
 // AST Nodes
@@ -109,7 +109,7 @@ pub struct MoveCall {
     pub arguments: Vec<Argument>,
 }
 
-pub use iota_sdk_types::Argument;
+pub use rust_sdk::types::Argument;
 
 //**************************************************************************************************
 // impl

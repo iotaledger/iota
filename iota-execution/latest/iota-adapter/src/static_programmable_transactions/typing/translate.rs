@@ -4,12 +4,12 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::CommandArgumentError;
 use iota_types::{
     base_types::TxContextKind,
     coin::RESOLVED_COIN_STRUCT,
     error::{ExecutionError, command_argument_error},
 };
+use rust_sdk::types::CommandArgumentError;
 
 use super::{ast as T, env::Env};
 use crate::{

@@ -10,8 +10,8 @@ use std::{
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{auth::RequireAuthorizationLayer, inflight_limit};
 use iota_config::p2p::RandomnessConfig;
-use iota_sdk_types::RandomnessRound;
 use iota_types::{base_types::AuthorityName, committee::EpochId};
+use rust_sdk::types::RandomnessRound;
 use tokio::sync::mpsc;
 
 use super::{

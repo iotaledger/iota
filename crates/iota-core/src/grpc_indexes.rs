@@ -11,9 +11,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{
-    Address, CheckpointContents, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version,
-};
 use iota_types::{
     committee::EpochId,
     full_checkpoint_content::CheckpointData,
@@ -25,6 +22,9 @@ use iota_types::{
         OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,
         TransactionInfo, error::Error as StorageError,
     },
+};
+use rust_sdk::types::{
+    Address, CheckpointContents, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
@@ -1381,11 +1381,13 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_move_types::iota_framework::dynamic_field::Field;
-    use iota_sdk_types::{CheckpointSummary, GasCostSummary, MovePackage};
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
         message_envelope::Envelope, messages_checkpoint::VerifiedCheckpoint,
+    };
+    use rust_sdk::{
+        move_types::iota_framework::dynamic_field::Field,
+        types::{CheckpointSummary, GasCostSummary, MovePackage},
     };
     use typed_store::rocks::{MetricConf, ReadWriteOptions, open_cf_opts};
 
@@ -1521,7 +1523,7 @@ mod tests {
             name: 0u64,
             value: 0u64,
         };
-        let move_struct = iota_sdk_types::MoveStruct::new(
+        let move_struct = rust_sdk::types::MoveStruct::new(
             StructTag::new_dynamic_field(TypeTag::U64, TypeTag::U64).into(),
             iota_types::object::OBJECT_START_VERSION,
             bcs::to_bytes(&field).unwrap(),
@@ -1653,7 +1655,7 @@ mod tests {
     /// `inverted_balance: None`.
     fn non_coin_object(owner: Address) -> Object {
         let id = ObjectId::random();
-        let move_struct = iota_sdk_types::MoveStruct::new(
+        let move_struct = rust_sdk::types::MoveStruct::new(
             "0x2::clock::Clock".parse::<StructTag>().unwrap().into(),
             iota_types::object::OBJECT_START_VERSION,
             id.as_bytes().to_vec(),

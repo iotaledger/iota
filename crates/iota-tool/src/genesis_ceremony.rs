@@ -18,11 +18,11 @@ use iota_keys::keypair_file::{
 };
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::MAX_PROTOCOL_VERSION;
-use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{AuthorityKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession},
 };
+use rust_sdk::crypto::simple::SimpleKeypair;
 
 use crate::genesis_inspector::examine_genesis_checkpoint;
 
@@ -335,10 +335,10 @@ mod test {
     use iota_genesis_builder::validator_info::ValidatorInfo;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
-    use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_types::crypto::{
         AccountPrivateKey, AuthorityKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
     };
+    use rust_sdk::crypto::simple::SimpleKeypair;
 
     use super::*;
 

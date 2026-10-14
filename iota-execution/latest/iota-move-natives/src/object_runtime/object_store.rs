@@ -8,7 +8,6 @@ use std::{
 };
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_types::{
     committee::EpochId, error::VMMemoryLimitExceededSubStatusCode,
     execution::DynamicallyLoadedObjectMetadata, metrics::LimitsMetrics, object::Object,
@@ -22,6 +21,7 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     values::{GlobalValue, StructRef, Value},
 };
+use rust_sdk::types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 
 use crate::object_runtime::{fingerprint::ObjectFingerprint, get_all_uids};
 

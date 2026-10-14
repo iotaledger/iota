@@ -4,9 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Transaction,
-};
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
@@ -17,6 +14,9 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
+};
+use rust_sdk::types::{
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Transaction,
 };
 
 use crate::authority::{

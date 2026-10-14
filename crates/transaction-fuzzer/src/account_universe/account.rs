@@ -5,12 +5,12 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     object::Object,
 };
 use proptest::prelude::*;
+use rust_sdk::types::{Address, ObjectId};
 
 use crate::executor::Executor;
 

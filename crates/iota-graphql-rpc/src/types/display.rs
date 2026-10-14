@@ -6,8 +6,8 @@ use async_graphql::*;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::{models::display::StoredDisplay, schema::display};
 use iota_json_rpc_types::IotaMoveValue;
-use iota_sdk_types::TypeTag;
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
+use rust_sdk::types::TypeTag;
 
 use crate::{
     data::{Db, DbConnection, QueryExecutor},

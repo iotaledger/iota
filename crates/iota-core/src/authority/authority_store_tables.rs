@@ -4,8 +4,8 @@
 
 use std::path::Path;
 
-use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
+use rust_sdk::types::{TransactionEffects, TransactionEvents, Version};
 use serde::{Deserialize, Serialize};
 pub use typed_store::DbSnapshot;
 use typed_store::{

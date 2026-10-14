@@ -4,7 +4,7 @@
 use std::{thread, time, vec};
 
 use hex::ToHex;
-use iota_sdk_types::SignatureScheme;
+use rust_sdk::types::SignatureScheme;
 use tracing::debug;
 mod transport;
 use serde::Serialize;
@@ -12,11 +12,11 @@ use transport::{APDUAnswer, APDUCommand, LedgerTransport};
 
 pub use crate::api::errors::LedgerError;
 mod api;
-use iota_sdk_types::{
+use iota_types::object::Object;
+use rust_sdk::types::{
     Address,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
-use iota_types::object::Object;
 
 pub use crate::api::{get_public_key::PublicKeyResult, get_version::Version};
 use crate::{

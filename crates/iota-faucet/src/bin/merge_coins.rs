@@ -8,9 +8,8 @@ use iota_config::{IOTA_CLIENT_CONFIG, iota_config_dir};
 use iota_faucet::FaucetError;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_transaction_builder::WaitForTransaction;
-use iota_sdk_types::ObjectId;
 use iota_types::gas_coin::GasCoin;
+use rust_sdk::{transaction_builder::WaitForTransaction, types::ObjectId};
 use tracing::info;
 
 #[tokio::main]

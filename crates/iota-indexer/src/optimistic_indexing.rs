@@ -7,15 +7,17 @@ use diesel::{
 };
 use downcast::Any;
 use fastcrypto::encoding::Base64;
-use iota_grpc_client::{GrpcClient, read_mask_fields::TransactionField};
-use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::{
-    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, Transaction, TransactionDigest,
-    UserSignature, Version,
-};
 use iota_types::{
     effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
     transaction::TransactionEnvelope,
+};
+use rust_sdk::{
+    grpc_client::{GrpcClient, read_mask_fields::TransactionField},
+    grpc_types::v1::transaction::ExecutedTransaction,
+    types::{
+        CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, Transaction, TransactionDigest,
+        UserSignature, Version,
+    },
 };
 
 use crate::{

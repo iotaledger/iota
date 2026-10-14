@@ -8,7 +8,6 @@ use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
 };
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -17,6 +16,7 @@ use iota_types::{
     transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
+use rust_sdk::types::{Identifier, ObjectId, StructTag, TypeTag};
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,

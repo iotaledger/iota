@@ -14,7 +14,6 @@ use iota_move_natives::{
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
     auth_context::AuthContext, base_types::TxContext,
     gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
@@ -28,6 +27,7 @@ use move_package::BuildConfig;
 use move_unit_test::{UnitTestingConfig, extensions::set_extension_hook};
 use move_vm_runtime::native_extensions::NativeContextExtensions;
 use once_cell::sync::Lazy;
+use rust_sdk::types::{Address, TransactionDigest};
 
 // Move unit tests will halt after executing this many steps. This is a
 // protection to avoid divergence

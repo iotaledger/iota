@@ -6,17 +6,19 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_crypto::{
-    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, Argument, Command, ObjectId, ProgrammableTransaction, SenderSignedTransaction,
-    SharedObjectReference, SimpleSignature, Transaction, TransactionKind, TransferObjects,
-    UserSignature, Version,
-    crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
-};
 use rand::{SeedableRng, rngs::StdRng};
+use rust_sdk::{
+    crypto::{
+        Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{
+        Address, Argument, Command, ObjectId, ProgrammableTransaction, SenderSignedTransaction,
+        SharedObjectReference, SimpleSignature, Transaction, TransactionKind, TransferObjects,
+        UserSignature, Version,
+        crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
+    },
+};
 
 use crate::{
     base_types::{dbg_addr, random_object_ref},
@@ -213,7 +215,7 @@ pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address
 
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
-    use iota_sdk_types::{
+    use rust_sdk::types::{
         Address, Digest, MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction,
         SharedObjectReference, UserSignature,
     };
@@ -283,8 +285,7 @@ mod move_authenticator {
 pub use move_authenticator::*;
 
 mod passkey {
-    use iota_sdk_crypto::secp256r1::Secp256r1PrivateKey;
-    use iota_sdk_types::crypto::PasskeyAuthenticator;
+    use rust_sdk::{crypto::secp256r1::Secp256r1PrivateKey, types::crypto::PasskeyAuthenticator};
 
     use super::*;
 

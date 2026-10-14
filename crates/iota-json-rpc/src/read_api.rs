@@ -28,10 +28,6 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
-use iota_sdk_types::{
-    Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     display::DisplayVersionUpdatedEvent,
@@ -46,6 +42,13 @@ use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveValue};
+use rust_sdk::{
+    move_types::iota_framework::vec_map::VecMap,
+    types::{
+        Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents,
+        Version,
+    },
+};
 use tap::TapFallible;
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -1462,10 +1465,6 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
-        CheckpointContents, CheckpointDigest, CheckpointSummary, GasCostSummary,
-        TransactionEffectsDigest, TransactionEvents,
-    };
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -1485,6 +1484,10 @@ mod tests {
     };
     use mockall::mock;
     use roaring::RoaringBitmap;
+    use rust_sdk::types::{
+        CheckpointContents, CheckpointDigest, CheckpointSummary, GasCostSummary,
+        TransactionEffectsDigest, TransactionEvents,
+    };
 
     use super::*;
     use crate::authority_state::MockStateRead;

@@ -4,13 +4,13 @@
 
 use authority_tests::send_and_confirm_transaction;
 use bcs;
-use iota_sdk_types::{Address, ExecutionStatus, Identifier, Owner};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
+use rust_sdk::types::{Address, ExecutionStatus, Identifier, Owner};
 
 use super::*;
 use crate::authority::authority_tests::init_state_with_ids_and_object_basics;

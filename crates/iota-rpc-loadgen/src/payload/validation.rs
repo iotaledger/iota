@@ -10,8 +10,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::IotaClient;
-use iota_sdk_types::{ObjectId, TransactionDigest};
 use itertools::Itertools;
+use rust_sdk::types::{ObjectId, TransactionDigest};
 use tracing::{error, warn};
 
 const LOADGEN_QUERY_MAX_RESULT_LIMIT: usize = 25;

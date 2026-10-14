@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use iota_json_rpc_types::IotaEvent;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{CheckpointContents, TransactionDigest, TransactionEvents};
 use iota_types::{
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{
@@ -20,6 +19,7 @@ use iota_types::{
     object::Object,
 };
 use prometheus_filtered::Registry;
+use rust_sdk::types::{CheckpointContents, TransactionDigest, TransactionEvents};
 
 use crate::{
     errors::{IndexerError, IndexerResult},

@@ -8,13 +8,13 @@
 //! with zero network access, returns per-command results, and leaves the store
 //! untouched (`committed == false`).
 
-use iota_sdk_types::Transaction;
 use iota_types::transaction::TransactionAPI;
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionMode, InMemoryStore, LocalVm, ObjectId,
     ProtocolVersion, SignatureStatus, StructTag, TypeTag,
 };
 use move_core_types::annotated_value::MoveValue;
+use rust_sdk::types::Transaction;
 
 /// Base64-encoded BCS for `0x2::hash::blake2b256([0, 1, 2])` — a pure function
 /// whose only dependencies are the framework packages, so it runs against a

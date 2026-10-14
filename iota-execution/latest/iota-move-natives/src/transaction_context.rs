@@ -5,7 +5,6 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{base_types::TxContext, committee::EpochId};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -13,6 +12,7 @@ use move_core_types::{
 };
 use move_vm_runtime::native_extensions::NativeExtensionMarker;
 use move_vm_types::values::{GlobalValue, StructRef, Value};
+use rust_sdk::types::{Address, ObjectId, TransactionDigest};
 
 use crate::utils;
 

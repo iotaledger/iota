@@ -13,7 +13,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
-iota-sdk-types = { workspace = true, features = ["serde"] }
+rust-sdk = { workspace = true, features = ["serde"] }
 
 [lints]
 workspace = true

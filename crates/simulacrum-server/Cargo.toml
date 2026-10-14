@@ -32,9 +32,9 @@ iota-faucet.workspace = true
 iota-grpc-server.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 simulacrum.workspace = true
 
 [lints]

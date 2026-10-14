@@ -8,7 +8,6 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
-use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEffects};
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
@@ -23,6 +22,7 @@ use iota_types::{
     traffic_control::Weight,
     transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
+use rust_sdk::types::{Address, ObjectId, TransactionDigest, TransactionEffects};
 use tokio_stream::wrappers::ReceiverStream;
 
 /// Maximum number of transactions allowed in a single `submit_tx` request,
@@ -787,8 +787,8 @@ impl ValidatorV2 for ValidatorService {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
     use iota_types::deny_rule_governance::DenyRuleConfig;
+    use rust_sdk::types::{Address, DenyRuleSet, ObjectId};
 
     use super::DenyRuleUnion;
 

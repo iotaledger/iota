@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Command, ObjectId, ObjectReference, Transaction, UserSignature};
 use iota_types::{
     account_abstraction::authenticator_function::AuthenticatorFunctionRef,
     deny_rule_governance::DenyRuleConfig,
@@ -10,6 +9,7 @@ use iota_types::{
     storage::BackingPackageStore,
     transaction::{InputObjectKind, TransactionAPI, TransactionKindExt},
 };
+use rust_sdk::types::{Command, ObjectId, ObjectReference, Transaction, UserSignature};
 use tracing::instrument;
 macro_rules! deny_if_true {
     ($cond:expr, $msg:expr) => {
@@ -261,15 +261,15 @@ fn package_and_dependency_ids(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{
-        DenyRuleSet, MovePackage, ObjectId, TransactionDigest, UpgradeInfo, Version,
-    };
     use iota_types::{
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefV1,
         },
         object::Object,
         storage::PackageObject,
+    };
+    use rust_sdk::types::{
+        DenyRuleSet, MovePackage, ObjectId, TransactionDigest, UpgradeInfo, Version,
     };
 
     use super::*;

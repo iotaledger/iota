@@ -1,8 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_move_types::iota_framework::bag::Bag;
-use iota_sdk_types::{Address, Identifier, StructTag};
+use rust_sdk::{
+    move_types::iota_framework::bag::Bag,
+    types::{Address, Identifier, StructTag},
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

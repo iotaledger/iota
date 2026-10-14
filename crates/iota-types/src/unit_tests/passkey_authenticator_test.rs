@@ -8,10 +8,6 @@ use fastcrypto::{
     hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding as _},
 };
-use iota_sdk_types::{
-    Address, ObjectId, SignatureScheme, Transaction, UserSignature,
-    crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
-};
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
 use passkey_client::Client;
@@ -25,6 +21,10 @@ use passkey_types::{
         PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
+};
+use rust_sdk::types::{
+    Address, ObjectId, SignatureScheme, Transaction, UserSignature,
+    crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };
 use url::Url;
 

@@ -9,7 +9,6 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     error::{IotaError, IotaResult},
     fp_bail, fp_ensure,
@@ -17,6 +16,7 @@ use iota_types::{
     transaction::SenderSignedTransactionAPI,
 };
 use parking_lot::RwLock;
+use rust_sdk::types::{ObjectId, SenderSignedTransaction, TransactionDigest};
 use tokio::time::Instant;
 use tracing::info;
 

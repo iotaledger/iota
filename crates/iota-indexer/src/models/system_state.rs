@@ -3,7 +3,6 @@
 
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     iota_serde::{BigInt, Readable},
     iota_system_state::iota_system_state_summary::{
@@ -11,6 +10,7 @@ use iota_types::{
         IotaValidatorSummary,
     },
 };
+use rust_sdk::types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

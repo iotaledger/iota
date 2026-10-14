@@ -17,10 +17,10 @@ use iota_json_rpc_types::{
     TransactionBlockBytes,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{RpcModule, core::RpcResult};
+use rust_sdk::types::{Address, ObjectId, StructTag};
 
 use crate::{IotaRpcModule, authority_state::StateRead};
 

@@ -13,9 +13,6 @@ use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{
-    CanceledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
-};
 use iota_types::{
     base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
@@ -23,6 +20,9 @@ use iota_types::{
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
 use lru::LruCache;
+use rust_sdk::types::{
+    CanceledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
+};
 use serde::{Deserialize, Serialize};
 use starfish_config::Committee as ConsensusCommittee;
 use tokio::task::JoinSet;
@@ -942,7 +942,6 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
@@ -959,6 +958,7 @@ mod tests {
         utils::to_sender_signed_transaction,
     };
     use prometheus_filtered::Registry;
+    use rust_sdk::types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use starfish_core::{
         BlockHeaderAPI, CommitDigest, CommitRef, CommitmentVerifiedTransactions, CommittedSubDag,
         TestBlockHeader, VerifiedBlockHeader,

@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Argument, StructTag, TypeTag};
 use iota_types::{
     error::ExecutionError, execution::ExecutionResult, invariant_violation, transfer::Receiving,
 };
+use rust_sdk::types::{Argument, StructTag, TypeTag};
 
 use crate::{
     execution_value::{RawValueType, Value},

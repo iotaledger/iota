@@ -18,7 +18,6 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
-use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     MoveTypeTagTrait,
     committee::EpochId,
@@ -36,6 +35,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
+use rust_sdk::types::{Address, ObjectId};
 use serde::{Serialize, de::DeserializeOwned};
 use statrs::statistics::{Data, Median};
 use tracing::{info, instrument};

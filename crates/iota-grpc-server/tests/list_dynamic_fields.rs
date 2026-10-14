@@ -11,13 +11,15 @@ mod common;
 use std::sync::Arc;
 
 use common::{MockGrpcStateReader, connect_state_client, object_id_proto, start_test_server};
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    v1::state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
-};
-use iota_sdk_types::ObjectId;
 use iota_types::storage::DynamicFieldKey;
 use prost_types::FieldMask;
+use rust_sdk::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        v1::state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
+    },
+    types::ObjectId,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers

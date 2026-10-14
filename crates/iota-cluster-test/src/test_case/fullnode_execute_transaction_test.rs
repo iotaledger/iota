@@ -7,8 +7,8 @@ use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::IotaClient;
-use iota_sdk_types::TransactionDigest;
 use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use rust_sdk::types::TransactionDigest;
 use tracing::info;
 
 use crate::{TestCaseImpl, TestContext};

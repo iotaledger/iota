@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use iota_grpc_client::GrpcClient;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClient,
@@ -17,16 +16,19 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{Receiving, SharedMut};
-use iota_sdk_types::{
-    Address, Identifier, MultisigAggregatedSignature, MultisigCommittee, ObjectId, ObjectReference,
-    Owner, SharedObjectReference, StructTag, Transaction, TransactionKind,
-    crypto::{Intent, UserSignature},
-};
 use iota_types::{
     crypto::PublicKey,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionEnvelope},
+};
+use rust_sdk::{
+    grpc_client::GrpcClient,
+    transaction_builder::{Receiving, SharedMut},
+    types::{
+        Address, Identifier, MultisigAggregatedSignature, MultisigCommittee, ObjectId,
+        ObjectReference, Owner, SharedObjectReference, StructTag, Transaction, TransactionKind,
+        crypto::{Intent, UserSignature},
+    },
 };
 
 use crate::{

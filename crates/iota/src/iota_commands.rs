@@ -26,9 +26,9 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Address, SignatureScheme};
 use move_analyzer::analyzer;
 use move_package::BuildConfig;
+use rust_sdk::types::{Address, SignatureScheme};
 use serde_json::json;
 use url::Url;
 

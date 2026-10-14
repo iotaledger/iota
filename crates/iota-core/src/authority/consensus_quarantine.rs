@@ -7,10 +7,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::{
-    CheckpointContents, ObjectId, ObjectReference, RandomnessRound, TransactionDigest,
-    UserSignature, Version,
-};
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
@@ -20,6 +16,10 @@ use iota_types::{
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
+use rust_sdk::types::{
+    CheckpointContents, ObjectId, ObjectReference, RandomnessRound, TransactionDigest,
+    UserSignature, Version,
+};
 use tracing::{debug, info};
 use typed_store::{Map, rocks::DBBatch};
 
@@ -1271,11 +1271,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{CheckpointSummary, GasCostSummary};
     use iota_types::{
         base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt,
         transaction::TransactionKey,
     };
+    use rust_sdk::types::{CheckpointSummary, GasCostSummary};
 
     use super::*;
     use crate::{

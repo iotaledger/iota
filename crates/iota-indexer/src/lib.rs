@@ -6,11 +6,11 @@
 
 use anyhow::Result;
 use errors::IndexerError;
-use iota_grpc_client::GrpcClient;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_metrics::spawn_monitored_task;
 use metrics::IndexerMetrics;
 use prometheus_filtered::Registry;
+use rust_sdk::grpc_client::GrpcClient;
 use tokio_util::sync::CancellationToken;
 
 use crate::{

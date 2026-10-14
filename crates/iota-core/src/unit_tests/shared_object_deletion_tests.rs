@@ -6,12 +6,6 @@
 use std::sync::Arc;
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
-    Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
-    ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
-    ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference, TransactionDigest,
-    TransactionEffects, Version,
-};
 use iota_types::{
     committee::EpochId,
     crypto::{AccountPrivateKey, get_key_pair},
@@ -22,6 +16,12 @@ use iota_types::{
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionEnvelope, VerifiedCertificate,
     },
+};
+use rust_sdk::types::{
+    Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
+    ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
+    ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference, TransactionDigest,
+    TransactionEffects, Version,
 };
 
 use crate::{

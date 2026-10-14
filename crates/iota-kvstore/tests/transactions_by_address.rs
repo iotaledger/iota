@@ -10,11 +10,11 @@ use iota_kvstore::{
     emulator::BigTableEmulator,
     transactions_by_address,
 };
-use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointContentsExt,
     test_checkpoint_data_builder::TestCheckpointDataBuilder,
 };
+use rust_sdk::types::{Address, TransactionDigest};
 
 /// Build a small checkpoint covering affected-address cases.
 fn build_test_checkpoint() -> CheckpointData {

@@ -19,10 +19,6 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
-        Address, Argument, CommandArgumentError, Event, MovePackage, MoveStruct, ObjectData,
-        ObjectId, Owner, SharedObjectReference, StructTag, TypeTag,
-    };
     use iota_types::{
         balance::Balance,
         base_types::TxContext,
@@ -55,6 +51,10 @@ mod checked {
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
     use move_vm_types::loaded_data::runtime_types::Type;
+    use rust_sdk::types::{
+        Address, Argument, CommandArgumentError, Event, MovePackage, MoveStruct, ObjectData,
+        ObjectId, Owner, SharedObjectReference, StructTag, TypeTag,
+    };
     use tracing::instrument;
 
     use crate::{
@@ -960,8 +960,8 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use iota_sdk_types::TypeArgumentError;
             use move_core_types::vm_status::StatusCode;
+            use rust_sdk::types::TypeArgumentError;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                     ExecutionErrorKind::TypeArityMismatch.into()

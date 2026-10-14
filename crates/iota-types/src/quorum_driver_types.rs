@@ -5,8 +5,8 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
 use itertools::Itertools;
+use rust_sdk::types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;

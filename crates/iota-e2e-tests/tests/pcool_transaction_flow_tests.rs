@@ -43,9 +43,9 @@ use std::str::FromStr;
 
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{base_types::dbg_addr, coin::CoinMetadata, transaction::CallArg};
+use rust_sdk::types::{ObjectId, StructTag, TypeTag};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Applies a thread-local protocol-config override that enables the P-COOL

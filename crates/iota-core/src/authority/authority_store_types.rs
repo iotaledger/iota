@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{MovePackage, MoveStruct, ObjectData, Owner, StructTag, TransactionDigest};
 use iota_types::{
     coin::Coin,
     error::IotaError,
@@ -10,6 +9,7 @@ use iota_types::{
     object::{MoveStructExt, Object, ObjectInner},
     storage::ObjectKey,
 };
+use rust_sdk::types::{MovePackage, MoveStruct, ObjectData, Owner, StructTag, TransactionDigest};
 use serde::{Deserialize, Serialize};
 
 // Versioning process:
@@ -138,7 +138,7 @@ impl From<StoreObjectV1> for StoreObjectV2 {
     }
 }
 
-/// Forked version of [`iota_sdk_types::ObjectData`]
+/// Forked version of [`rust_sdk::types::ObjectData`]
 /// Adds extra enum value `IndirectObject`, which represents a reference to an
 /// object stored separately
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -215,7 +215,7 @@ pub(crate) fn try_construct_object(
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::TransactionDigest;
+    use rust_sdk::types::TransactionDigest;
 
     use super::*;
 
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn get_store_object_stamps_provided_checkpoint() {
         for expected in [None, Some(0xCAFE_F00D_BEEF_0001u64)] {
-            let object = Object::immutable_with_id_for_testing(iota_sdk_types::ObjectId::random());
+            let object = Object::immutable_with_id_for_testing(rust_sdk::types::ObjectId::random());
             let wrapper = get_store_object(object, expected);
             let StoreObjectWrapper::V2(StoreObjectV2::Value(value)) = wrapper else {
                 panic!("expected V2(Value), got {wrapper:?}");

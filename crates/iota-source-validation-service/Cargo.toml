@@ -35,12 +35,12 @@ iota-move.workspace = true
 iota-move-build.workspace = true
 iota-package-management.workspace = true
 iota-sdk.workspace = true
-iota-sdk-types.workspace = true
 iota-source-validation.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
 prometheus-filtered.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]

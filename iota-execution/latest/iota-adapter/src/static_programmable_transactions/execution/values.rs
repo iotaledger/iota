@@ -4,7 +4,6 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
 use iota_types::error::ExecutionError;
 use move_binary_format::errors::PartialVMError;
 use move_core_types::{account_address::AccountAddress, runtime_value};
@@ -14,6 +13,7 @@ use move_vm_types::{
     },
     views::ValueView,
 };
+use rust_sdk::types::{ObjectId, Owner, TransactionDigest, Version};
 
 use crate::static_programmable_transactions::{env::Env, typing::ast::Type};
 pub enum InputValue<'a> {

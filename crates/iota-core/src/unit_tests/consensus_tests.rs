@@ -7,10 +7,6 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
-    CheckpointContents, CheckpointSummary, GasCostSummary, Identifier, ObjectId,
-    SharedObjectReference, Transaction,
-};
 use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_private_key,
@@ -27,6 +23,10 @@ use iota_types::{
 use move_core_types::account_address::AccountAddress;
 use parking_lot::Mutex;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
+use rust_sdk::types::{
+    CheckpointContents, CheckpointSummary, GasCostSummary, Identifier, ObjectId,
+    SharedObjectReference, Transaction,
+};
 use starfish_core::{BlockRef, BlockStatus};
 use tokio::time::sleep;
 

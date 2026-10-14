@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TransactionEnvelope};
+use rust_sdk::types::ObjectId;
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
 

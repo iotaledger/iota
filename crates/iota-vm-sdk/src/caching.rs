@@ -23,8 +23,8 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use iota_sdk_types::{ObjectId, Version};
 use iota_types::object::Object;
+use rust_sdk::types::{ObjectId, Version};
 use tokio::{
     runtime::{Handle, RuntimeFlavor},
     task::block_in_place,
@@ -215,8 +215,8 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
     use iota_types::object::{MoveStructExt, Object};
+    use rust_sdk::types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
 
     use super::{CachingStore, ObjectFetcher};
     use crate::{error::StoreError, store::Store};

@@ -5,7 +5,6 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use iota_sdk_types::{Address, ObjectDigest, ObjectId, Owner, Version};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, gas_coin::GasCoin, object::MoveStructExt,
     parse_iota_struct_tag,
@@ -16,6 +15,7 @@ use move_core_types::{
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
 };
+use rust_sdk::types::{Address, ObjectDigest, ObjectId, Owner, Version};
 use serde_json::json;
 
 use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
@@ -26,7 +26,7 @@ fn test_move_value_to_iota_coin() {
     let value = 10000;
     let coin = GasCoin::new(id, value);
 
-    let move_object = iota_sdk_types::MoveStruct::new_gas_coin(Version::default(), id, value);
+    let move_object = rust_sdk::types::MoveStruct::new_gas_coin(Version::default(), id, value);
     let layout = GasCoin::layout();
 
     let move_struct = move_object.to_move_struct(&layout).unwrap();

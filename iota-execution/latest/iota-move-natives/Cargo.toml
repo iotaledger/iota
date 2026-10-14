@@ -23,14 +23,13 @@ tracing.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
-iota-sdk-move-types.workspace = true
-iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-stdlib-natives = { path = "../../../external-crates/move/crates/move-stdlib-natives" }
 move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
 move-vm-types = { path = "../../../external-crates/move/crates/move-vm-types" }
+rust-sdk = { workspace = true, features = ["move-types", "types"] }
 
 [lints]
 workspace = true

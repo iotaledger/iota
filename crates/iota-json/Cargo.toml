@@ -16,11 +16,11 @@ serde.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
-iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
+rust-sdk = { workspace = true, features = ["types"] }
 
 [dev-dependencies]
 # external dependencies

@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_sdk_types::{Address, Argument, Owner, SharedObjectReference, Version};
 use iota_types::{
     move_package::UpgradePolicy, object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
@@ -22,6 +21,7 @@ use move_core_types::{
 };
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::tasks::{RunCommand, SyntaxChoice};
+use rust_sdk::types::{Address, Argument, Owner, SharedObjectReference, Version};
 
 use crate::test_adapter::{FakeID, IotaTestAdapter};
 

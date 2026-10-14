@@ -5,7 +5,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::hash::Hash;
 
-use iota_sdk_types::SenderSignedTransaction;
 #[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;
@@ -13,6 +12,7 @@ use nonempty::NonEmpty;
 use parking_lot::RwLock;
 #[cfg(not(target_arch = "wasm32"))]
 use prometheus_filtered::IntCounter;
+use rust_sdk::types::SenderSignedTransaction;
 
 use crate::{
     error::{IotaError, IotaResult},

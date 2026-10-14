@@ -5,7 +5,6 @@
 //! reporting for standard signature schemes, missing input objects, and
 //! unsupported protocol versions.
 
-use iota_sdk_types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest, Version};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     object::{MoveStructExt, Object},
@@ -17,6 +16,7 @@ use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion,
     SignatureStatus, Store, VmSdkError,
 };
+use rust_sdk::types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest, Version};
 
 const GAS_PRICE: u64 = 1000;
 const GAS_COIN_VALUE: u64 = 1_000_000_000_000;

@@ -11,10 +11,6 @@ use iota_json::{
     resolve_move_function_args,
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
-use iota_sdk_types::{
-    Address, Argument, Identifier, MovePackage, ObjectId, ObjectReference, Owner,
-    SharedObjectReference, StructTag, TypeTag,
-};
 use iota_types::{
     base_types::{ObjectType, TxContext, TxContextKind},
     error::UserInputError,
@@ -27,6 +23,10 @@ use iota_types::{
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+};
+use rust_sdk::types::{
+    Address, Argument, Identifier, MovePackage, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, StructTag, TypeTag,
 };
 
 use crate::TransactionBuilder;

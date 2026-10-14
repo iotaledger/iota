@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
 };
+use rust_sdk::types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

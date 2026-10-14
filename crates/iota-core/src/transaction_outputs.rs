@@ -7,13 +7,13 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectReference, TransactionEffects, TransactionEvents};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},
     transaction::{TransactionAPI, VerifiedTransaction},
 };
+use rust_sdk::types::{ObjectReference, TransactionEffects, TransactionEvents};
 
 /// TransactionOutputs
 pub struct TransactionOutputs {

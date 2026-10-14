@@ -21,11 +21,11 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectDigest, ObjectId, Owner, StructTag, Version};
 use iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT;
 use iota_transaction_builder::DataReader;
 use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use jsonrpsee::http_client::HttpClient;
+use rust_sdk::types::{ObjectDigest, ObjectId, Owner, StructTag, Version};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 fn assert_same_object_changes_ignoring_version_and_digest(
