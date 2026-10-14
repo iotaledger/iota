@@ -261,7 +261,7 @@ The crate provides following tests currently:
 
 - unit tests for DB models (objects, events) which test the conversion between the database representation and the Rust representation of the objects and events.
 - unit tests for the DB query filters, which test the conversion of filters to the correct SQL queries.
-- integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
+- integration tests (see [ingestion_tests](tests/ingestion_tests/)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
 - rpc tests (see [rpc-tests](tests/rpc-tests/main.rs))
 
 > [!NOTE]
