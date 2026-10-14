@@ -14,9 +14,9 @@
 //! 1. a same-commit duplicate of an earlier candidate is silently dropped;
 //! 2. a digest already processed, other than a deferral reload, is a duplicate: it never reaches
 //!    validation and has no saved decision;
-//! 3. an owned input or receiving reference locked by another digest, counting locks taken earlier
-//!    in this commit, drops the candidate (lock conflict); a lock the candidate itself holds, from
-//!    the commit that deferred it, is no conflict;
+//! 3. an owned input locked by another digest, counting locks taken earlier in this commit, drops
+//!    the candidate (lock conflict); a lock the candidate itself holds, from the commit that
+//!    deferred it, is no conflict;
 //! 4. every input is checked against `S_{C-K}`: an owned input is visible only if the state has
 //!    exactly the named version and digest live, stale if the state has a newer version or a
 //!    tombstone at or above it, and missing if the version is not produced yet or the id is
@@ -25,8 +25,8 @@
 //!    visible if present and missing otherwise. A shared object deleted above the horizon is
 //!    therefore visible, and its transaction executes against the deletion. Receiving objects are
 //!    not checked, as at a commit they are checked by reference only;
-//! 5. a candidate with every input visible is kept: its owned inputs and receiving references are
-//!    locked, its digest is processed, and unless deferred it executes at `C`.
+//! 5. a candidate with every input visible is kept: its owned inputs are locked, its digest is
+//!    processed, and unless deferred it executes at `C`. Receiving references take no lock.
 //!
 //! Content checks (gas balance, ownership, deny rules) are not modeled: the
 //! synthetic harness has no content, and the real-execution level exercises
@@ -112,8 +112,8 @@ pub struct Candidate {
     /// deleted, and no deletion marker when already deleted.
     pub read_only_shared: Vec<ObjectId>,
     pub packages: Vec<ObjectId>,
-    /// Objects received at the named versions. They are locked like owned
-    /// inputs, and no check at the commit reads them.
+    /// Objects received at the named versions. They take no lock, and no
+    /// check at the commit reads them.
     pub receiving: Vec<ObjectReference>,
     pub writes: Vec<Write>,
     /// The execution fails: it only charges gas, mutating its mutable inputs
@@ -319,7 +319,7 @@ impl Oracle {
             if verdict != Verdict::Kept {
                 continue;
             }
-            for reference in candidate.owned_inputs.iter().chain(&candidate.receiving) {
+            for reference in &candidate.owned_inputs {
                 outcome.locks.insert(*reference, candidate.digest);
                 self.locks.insert(*reference, candidate.digest);
             }
@@ -343,7 +343,7 @@ impl Oracle {
         if self.processed.contains(&candidate.digest) && !candidate.deferral_reload {
             return Verdict::Duplicate;
         }
-        for reference in candidate.owned_inputs.iter().chain(&candidate.receiving) {
+        for reference in &candidate.owned_inputs {
             let holder = commit_locks
                 .get(reference)
                 .or_else(|| self.locks.get(reference));
@@ -400,10 +400,10 @@ pub fn input_class(state: &State, input: &Input) -> InputClass {
 
 /// Executes a kept candidate against `state`, the state at its commit before
 /// it, and applies the changes. An owned input is consumed at the named
-/// version: a consumer between the horizon and the commit, whether it named
-/// the version as an owned input or received it, took a lock that would have
-/// dropped the candidate. An owned input that is not live here anyway fails
-/// the execution, which leaves that object as it is. A shared input already
+/// version: a consumer between the horizon and the commit that named the
+/// version as an owned input took a lock that would have dropped the
+/// candidate. A receive takes no lock, so an owned input it consumed is not
+/// live here, which fails the execution and leaves that object as it is. A shared input already
 /// deleted at execution, a receiving object not live at its named version, or
 /// a failing transaction, aborts: it only charges gas, mutating every live
 /// owned input and every live mutable shared input.
