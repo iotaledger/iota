@@ -654,8 +654,8 @@ pub struct TonicParameters {
     /// Maximum number of concurrent HTTP/2 streams a peer may open on a single
     /// connection. Bounds per-connection request fan-out.
     ///
-    /// If unspecified, this will default to 64. `0` disables the limit, leaving
-    /// the transport default.
+    /// If unspecified, this will default to 64. `0` keeps the transport's own
+    /// default, currently 200.
     #[serde(default = "TonicParameters::default_max_concurrent_streams")]
     pub max_concurrent_streams: u32,
 

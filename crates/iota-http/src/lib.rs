@@ -119,13 +119,9 @@ impl Builder {
         let graceful_shutdown_token = tokio_util::sync::CancellationToken::new();
         let connections = ActiveConnections::default();
 
-        let tls_config = self.tls_config.map(|mut tls| {
-            tls.alpn_protocols.push(ALPN_H2.into());
-            if self.config.accept_http1 {
-                tls.alpn_protocols.push(ALPN_H1.into());
-            }
-            Arc::new(tls)
-        });
+        let tls_config = self
+            .tls_config
+            .map(|tls| Arc::new(with_alpn(tls, self.config.accept_http1)));
 
         if let (Some(metrics), Some(_)) = (&self.config.metrics, &tls_config) {
             metrics.enable_tls();
@@ -427,6 +423,17 @@ where
             self.connection_handlers.shutdown().await;
         }
     }
+}
+
+/// Returns `tls` with the ALPN protocols this server serves: `h2`, and
+/// `http/1.1` when `accept_http1` is set. A list the caller set is replaced.
+fn with_alpn(mut tls: rustls::ServerConfig, accept_http1: bool) -> rustls::ServerConfig {
+    tls.alpn_protocols.clear();
+    tls.alpn_protocols.push(ALPN_H2.into());
+    if accept_http1 {
+        tls.alpn_protocols.push(ALPN_H1.into());
+    }
+    tls
 }
 
 /// Runs the TLS handshake to completion.
@@ -962,6 +969,126 @@ mod tests {
             );
         }
         assert_eq!(handle.number_of_connections(), 0);
+    }
+
+    /// Reads the `SETTINGS_MAX_CONCURRENT_STREAMS` value a server advertises,
+    /// or `None` when it advertises no limit.
+    async fn advertised_max_concurrent_streams(addr: &std::net::SocketAddr) -> Option<u32> {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        /// Frame header: 3-byte length, 1-byte type, 1-byte flags, 4-byte
+        /// stream id.
+        const FRAME_HEADER_LEN: usize = 9;
+        const SETTINGS_FRAME_TYPE: u8 = 0x4;
+        const SETTINGS_MAX_CONCURRENT_STREAMS: u16 = 0x3;
+        /// Each setting is a 2-byte identifier and a 4-byte value.
+        const SETTING_LEN: usize = 6;
+        const READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+        let mut connection = tokio::net::TcpStream::connect(addr).await.unwrap();
+        // The preface plus an empty SETTINGS frame of our own.
+        connection.write_all(PREFACE).await.unwrap();
+        connection
+            .write_all(&[0, 0, 0, SETTINGS_FRAME_TYPE, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        // The server's own SETTINGS frame is the first thing it sends.
+        let mut header = [0u8; FRAME_HEADER_LEN];
+        tokio::time::timeout(READ_TIMEOUT, connection.read_exact(&mut header))
+            .await
+            .expect("the server must send its SETTINGS frame")
+            .unwrap();
+        let length = u32::from_be_bytes([0, header[0], header[1], header[2]]) as usize;
+        assert_eq!(
+            header[3], SETTINGS_FRAME_TYPE,
+            "expected the server to open with SETTINGS"
+        );
+
+        let mut payload = vec![0u8; length];
+        tokio::time::timeout(READ_TIMEOUT, connection.read_exact(&mut payload))
+            .await
+            .expect("the server must send the whole SETTINGS frame")
+            .unwrap();
+        payload
+            .as_chunks::<SETTING_LEN>()
+            .0
+            .iter()
+            .find_map(|setting| {
+                (u16::from_be_bytes([setting[0], setting[1]]) == SETTINGS_MAX_CONCURRENT_STREAMS)
+                    .then(|| u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]))
+            })
+    }
+
+    /// The server names each protocol it serves once, whatever ALPN list the
+    /// TLS config came with.
+    #[test]
+    fn the_server_advertises_each_protocol_once() {
+        let (server_tls_config, _) = test_tls_configs();
+
+        assert_eq!(
+            with_alpn(server_tls_config.clone(), true).alpn_protocols,
+            [ALPN_H2.to_vec(), ALPN_H1.to_vec()]
+        );
+        assert_eq!(
+            with_alpn(server_tls_config, false).alpn_protocols,
+            [ALPN_H2.to_vec()]
+        );
+    }
+
+    /// A TLS client that offers only HTTP/1.1 is served HTTP/1.1: the server
+    /// advertises its own protocols, not the list of the TLS config it got.
+    #[tokio::test]
+    async fn a_tls_client_that_offers_only_http1_gets_http1() {
+        let (server_tls_config, mut client_tls_config) = test_tls_configs();
+        client_tls_config.alpn_protocols = vec![ALPN_H1.to_vec()];
+        let handle = Builder::new()
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let io = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connection = tokio::time::timeout(
+            Duration::from_secs(10),
+            tokio_rustls::TlsConnector::from(Arc::new(client_tls_config)).connect(server_name, io),
+        )
+        .await
+        .expect("the handshake must finish")
+        .expect("the server must accept a client that offers only http/1.1");
+        assert_eq!(connection.get_ref().1.alpn_protocol(), Some(ALPN_H1));
+    }
+
+    /// An unset `max_concurrent_streams` leaves the transport's own limit in
+    /// place, so one connection cannot open as many streams as it likes.
+    #[tokio::test]
+    async fn an_unset_stream_cap_keeps_the_transport_default() {
+        let handle = Builder::new()
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(200),
+            "a server with no configured limit must still advertise one"
+        );
+    }
+
+    /// A configured limit is advertised as given.
+    #[tokio::test]
+    async fn a_configured_stream_cap_is_advertised() {
+        let handle = Builder::new()
+            .config(Config::default().max_concurrent_streams(17))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(17)
+        );
     }
 
     /// A limit the accept loop can never fall below, and a limit whose slots

@@ -38,7 +38,7 @@ pub struct Config {
 
     /// Sets the SETTINGS_MAX_CONCURRENT_STREAMS option for HTTP2 connections.
     ///
-    /// Default is no limit (None).
+    /// `None` keeps the transport's own default, currently 200.
     pub http2_max_concurrent_streams: Option<u32>,
 
     /// Set whether TCP keepalive messages are enabled on accepted connections.

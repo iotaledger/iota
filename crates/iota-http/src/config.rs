@@ -127,7 +127,7 @@ impl Config {
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
     /// connections.
     ///
-    /// Default is no limit (`None`).
+    /// `None` keeps the transport's own default, currently 200.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#n-stream-concurrency
     pub fn max_concurrent_streams(self, max: impl Into<Option<u32>>) -> Self {
@@ -372,12 +372,19 @@ impl Config {
             .http2_keepalive_timeout
             .unwrap_or_else(|| Duration::new(DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS, 0));
 
+        // hyper replaces its default with the value it is given, so `None`
+        // would remove the limit.
+        if let Some(max_concurrent_streams) = self.max_concurrent_streams {
+            builder
+                .http2()
+                .max_concurrent_streams(max_concurrent_streams);
+        }
+
         builder
             .http2()
             .timer(hyper_util::rt::TokioTimer::new())
             .initial_connection_window_size(self.init_connection_window_size)
             .initial_stream_window_size(self.init_stream_window_size)
-            .max_concurrent_streams(self.max_concurrent_streams)
             .keep_alive_interval(self.http2_keepalive_interval)
             .keep_alive_timeout(http2_keepalive_timeout)
             .adaptive_window(self.http2_adaptive_window.unwrap_or_default())
