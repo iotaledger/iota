@@ -110,7 +110,7 @@ use iota_types::{
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    traffic_control::{PolicyConfig, RemoteFirewallConfig, TrafficControlReconfigParams},
+    traffic_control::{PolicyConfig, TrafficControlReconfigParams},
     transaction::*,
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -3098,7 +3098,6 @@ impl AuthorityState {
         chain_identifier: ChainIdentifier,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
-        firewall_config: Option<RemoteFirewallConfig>,
         epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
@@ -3144,7 +3143,6 @@ impl AuthorityState {
             Arc::new(TrafficController::init(
                 policy_config,
                 traffic_controller_metrics,
-                firewall_config.clone(),
             ))
         });
         let state = Arc::new(AuthorityState {

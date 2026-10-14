@@ -8360,7 +8360,6 @@ name = "iota-traffic-controller"
 version = "1.35.0-alpha"
 dependencies = [
  "arc-swap",
- "axum 0.8.8",
  "dashmap",
  "futures",
  "governor",
@@ -8375,9 +8374,6 @@ dependencies = [
  "parking_lot 0.12.3",
  "prometheus-filtered",
  "rand 0.10.3",
- "reqwest 0.13.5",
- "rustls",
- "serde",
  "tokio",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",

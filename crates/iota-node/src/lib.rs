@@ -718,7 +718,6 @@ impl IotaNode {
             chain_identifier,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
-            config.firewall_config.clone(),
             epoch_end_db_snapshots,
         )
         .await;
