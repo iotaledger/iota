@@ -399,17 +399,18 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     transaction,
                 };
 
-                // The set holds only keys of messages accepted earlier in this commit and,
-                // with the flag on, the cache only keys recorded as processed. A hit in
-                // either means this message would be skipped after verification too,
-                // whatever its payload.
-                let claimed_key = sequenced_transaction.transaction.key();
-                if processed_set.contains(&claimed_key)
-                    || (cache_only_recorded_messages
-                        && self.processed_cache.get(&claimed_key).is_some())
-                {
-                    self.metrics.skipped_consensus_txns_cache_hit.inc();
-                    continue;
+                // With the flag on, the set holds only keys of messages that passed verification
+                // earlier in this commit and the cache only keys recorded as processed. A hit in
+                // either means this message would be skipped after verification too, whatever its
+                // payload.
+                if cache_only_recorded_messages {
+                    let claimed_key = sequenced_transaction.transaction.key();
+                    if processed_set.contains(&claimed_key)
+                        || self.processed_cache.contains(&claimed_key)
+                    {
+                        self.metrics.skipped_consensus_txns_cache_hit.inc();
+                        continue;
+                    }
                 }
 
                 // Verify before adding the key to the set or the cache. The key is derived
@@ -423,15 +424,17 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 };
 
                 let key = verified_transaction.0.key();
-                processed_set.insert(key.clone());
-                // TODO(#13170): remove with the flag. Caches a key before the epoch store
-                // decides whether to record it.
-                let in_cache =
-                    !cache_only_recorded_messages && self.processed_cache.put(key, ()).is_some();
-
-                if in_cache {
-                    self.metrics.skipped_consensus_txns_cache_hit.inc();
-                    continue;
+                if cache_only_recorded_messages {
+                    processed_set.insert(key);
+                } else {
+                    // TODO(#13170): remove with the flag. Caches a key before the epoch store
+                    // decides whether to record it.
+                    let in_set = !processed_set.insert(key.clone());
+                    let in_cache = self.processed_cache.put(key, ()).is_some();
+                    if in_set || in_cache {
+                        self.metrics.skipped_consensus_txns_cache_hit.inc();
+                        continue;
+                    }
                 }
 
                 all_transactions.push(verified_transaction);
@@ -451,10 +454,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             )
             .await
             .expect("Unrecoverable error in consensus handler");
-        if cache_only_recorded_messages {
-            for key in processed_keys {
-                self.processed_cache.put(key, ());
-            }
+        for key in processed_keys {
+            self.processed_cache.put(key, ());
         }
 
         publish_scoring_gauges(&self.epoch_store, &self.committee, &self.metrics);
