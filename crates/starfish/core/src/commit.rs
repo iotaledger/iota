@@ -56,8 +56,8 @@ pub(crate) type WaveNumber = u32;
 /// `committed_transactions` holds one [`TransactionRef`] per block whose
 /// acknowledgments reach a quorum in this commit; a block acknowledges blocks
 /// at most `gc_depth` rounds below it, so these span the `2 * gc_depth` rounds
-/// below the leader. `reputation_scores_desc` holds at most one entry per
-/// authority.
+/// below the leader, plus the leader itself in an optimistic commit.
+/// `reputation_scores_desc` holds at most one entry per authority.
 ///
 /// Returns [`usize::MAX`] when `gc_depth` or `committee_size` is zero (GC
 /// disabled implies no finite sub-DAG bound), matching the convention that a
@@ -71,7 +71,10 @@ pub(crate) fn max_commit_bytes(committee_size: usize, gc_depth: usize) -> usize 
     const FIXED_COMMIT_BYTES: usize = 1 + 4 + 32 + 8 + SERIALIZED_BLOCK_REF_BYTES + 1;
 
     let max_subdag_blocks = gc_depth.saturating_mul(committee_size).saturating_add(1);
-    let max_committed_transactions = gc_depth.saturating_mul(2).saturating_mul(committee_size);
+    let max_committed_transactions = gc_depth
+        .saturating_mul(2)
+        .saturating_mul(committee_size)
+        .saturating_add(1);
     let block_headers = uleb128_len(max_subdag_blocks)
         .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
     let committed_transactions = uleb128_len(max_committed_transactions).saturating_add(
@@ -1237,7 +1240,7 @@ mod tests {
 
     /// Pins the `CommitV3` wire layout that `max_commit_bytes` is derived from:
     /// a commit holding the leader and `gc_depth * committee_size` blocks,
-    /// `2 * gc_depth * committee_size` transaction refs and one reputation
+    /// `2 * gc_depth * committee_size + 1` transaction refs and one reputation
     /// score per authority must serialize to exactly the computed bound. Also
     /// checks that a zero GC depth or committee size disables the bound.
     #[tokio::test]
@@ -1247,7 +1250,7 @@ mod tests {
 
         let commit = Commit::V3(CommitV3 {
             block_headers: vec![BlockRef::MAX; gc_depth * n + 1],
-            committed_transactions: vec![TransactionRef::default(); 2 * gc_depth * n],
+            committed_transactions: vec![TransactionRef::default(); 2 * gc_depth * n + 1],
             reputation_scores_desc: vec![(AuthorityIndex::MAX, u64::MAX); n],
             ..Default::default()
         });
