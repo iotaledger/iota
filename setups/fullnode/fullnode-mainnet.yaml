@@ -37,6 +37,26 @@ checkpoint-archive-config:
   url: "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
   download-concurrency: 5
 
+# Traffic control. The node reads the client address from the x-forwarded-for
+# header, which HAProxy (docker/haproxy) writes. Only HAProxy may connect to
+# the JSON-RPC port of the node. This also applies to the gRPC API
+# (enable-grpc-api): if you enable it, do not publish its port, or put it
+# behind a proxy that writes this header. A policy-config block replaces the
+# whole default policy, so this block writes out all of it.
+policy-config:
+  client-id-source:
+    x-forwarded-for: 1
+  spam-policy-type:
+    freq-threshold:
+      client-threshold: 1000
+      burst-secs: 5
+  error-policy-type:
+    freq-threshold:
+      client-threshold: 50
+      burst-secs: 5
+  spam-sample-rate: 1.0
+  dry-run: true
+
 # Set the exposure level for each Prometheus metric group. The values below
 # are the defaults; omitting a group (or this whole section) is the same as
 # writing them out.

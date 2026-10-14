@@ -116,6 +116,8 @@ jobs:
              ${{ steps.vars.outputs.work_dir }}/prepare.sh
           cp setups/fullnode/docker/docker-compose.yaml \
              ${{ steps.vars.outputs.work_dir }}/docker-compose.yaml
+          cp -r setups/fullnode/docker/haproxy \
+             ${{ steps.vars.outputs.work_dir }}/haproxy
 
       - name: Replace docker image placeholder
         run: |

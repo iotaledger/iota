@@ -14,6 +14,7 @@ iota-common:
   - "crates/iota-common/**"
 iota-config:
   - "crates/iota-config/**"
+  - "setups/fullnode/**"
 iota-core:
   - "crates/iota-core/**"
 iota-cost:
