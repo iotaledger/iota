@@ -11,7 +11,9 @@
 //! package, which contains a basic implementation of an abstract account
 //! inspired by the `examples/move/iotaccount` implementation. This is needed in
 //! order to not depend on an external folder and to enable easier changes to
-//! the Move code.
+//! the Move code. The built-in authenticator tests publish
+//! `./tests/abstract_account/builtin_abstract_account` on top of it, since
+//! that package needs framework modules of the latest protocol version only.
 use std::{net::SocketAddr, str::FromStr};
 
 use fastcrypto::{
@@ -39,7 +41,9 @@ use iota_sdk_types::{
         PasskeyAuthenticator, SimpleSignature,
     },
 };
-use iota_test_transaction_builder::{publish_basics_package, publish_package};
+use iota_test_transaction_builder::{
+    publish_basics_package, publish_package, publish_package_with_unpublished_deps,
+};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     account_abstraction::builtin_authenticator_functions::{
@@ -5618,7 +5622,7 @@ async fn test_builtin_authenticator_rejects_malformed_signature_argument()
         (vec![signature.clone(), signature.clone()], "Arity mismatch"),
         (
             vec![CallArg::Pure(vec![])],
-            "FAILED_TO_DESERIALIZE_ARGUMENT",
+            "Invalid command argument at 1. The argument cannot be deserialized",
         ),
         (
             vec![CallArg::CLOCK_IMMUTABLE],
