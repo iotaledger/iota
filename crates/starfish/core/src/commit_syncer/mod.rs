@@ -346,15 +346,20 @@ pub(crate) fn verify_commits(
     serialized_vote_blocks_headers: Vec<Bytes>,
     max_commits: usize,
 ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
+    // Every rejection is recorded once against the serving peer, except a vote
+    // header that fails verification, which is recorded with its author.
+    let reject = |e: ConsensusError| {
+        misbehavior_store.record_fetch_fault(peer, &e);
+        e
+    };
+
     // Validate response size - peer should not return more than max_commits
     if serialized_commits.len() > max_commits {
-        let e = ConsensusError::TooManyCommitsFromPeer {
+        return Err(reject(ConsensusError::TooManyCommitsFromPeer {
             peer,
             count: serialized_commits.len() as CommitIndex,
             limit: max_commits as CommitIndex,
-        };
-        misbehavior_store.record_fetch_fault(peer, &e);
-        return Err(e);
+        }));
     }
 
     // One vote header per authority certifies a commit, but servers that do
@@ -366,31 +371,29 @@ pub(crate) fn verify_commits(
         .size()
         .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     if serialized_vote_blocks_headers.len() > max_vote_headers {
-        let e = ConsensusError::TooManyCommitVoteHeaders {
+        return Err(reject(ConsensusError::TooManyCommitVoteHeaders {
             peer,
             count: serialized_vote_blocks_headers.len(),
             limit: max_vote_headers,
-        };
-        misbehavior_store.record_fetch_fault(peer, &e);
-        return Err(e);
+        }));
     }
 
     // Parse and verify commits.
     let mut commits = Vec::new();
     for serialized in &serialized_commits {
         let commit: Commit =
-            bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
-        check_commit_version_matches_flags(&commit, &context.protocol_config)?;
-        verify_commit_authority_indices(context, peer, &commit)?;
+            bcs::from_bytes(serialized).map_err(|e| reject(ConsensusError::MalformedCommit(e)))?;
+        check_commit_version_matches_flags(&commit, &context.protocol_config).map_err(reject)?;
+        verify_commit_authority_indices(context, peer, &commit).map_err(reject)?;
         let digest = TrustedCommit::compute_digest(serialized);
         if commits.is_empty() {
             // start is inclusive, so first commit must be at the start index.
             if commit.index() != commit_range.start() {
-                return Err(ConsensusError::UnexpectedStartCommit {
+                return Err(reject(ConsensusError::UnexpectedStartCommit {
                     peer,
                     start: commit_range.start(),
                     commit: Box::new(commit),
-                });
+                }));
             }
         } else {
             // Verify next commit increments index and references the previous digest.
@@ -399,17 +402,17 @@ pub(crate) fn verify_commits(
             if commit.index() != last_commit.index() + 1
                 || &commit.previous_digest() != last_commit_digest
             {
-                return Err(ConsensusError::UnexpectedCommitSequence {
+                return Err(reject(ConsensusError::UnexpectedCommitSequence {
                     peer,
                     prev_commit: Box::new(last_commit.clone()),
                     curr_commit: Box::new(commit),
-                });
+                }));
             }
         }
         commits.push((digest, commit));
     }
     let Some((end_commit_digest, end_commit)) = commits.last() else {
-        return Err(ConsensusError::NoCommitReceived { peer });
+        return Err(reject(ConsensusError::NoCommitReceived { peer }));
     };
 
     // Parse and verify blocks. Then accumulate votes on the end commit.
@@ -418,11 +421,7 @@ pub(crate) fn verify_commits(
     let mut verified_voting_headers = Vec::new();
     for serialized_block_header in serialized_vote_blocks_headers {
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-            .map_err(ConsensusError::MalformedHeader)
-            .inspect_err(|e| {
-                // Author is unknown when deserialization fails — blame the peer.
-                misbehavior_store.record_faulty_block(peer, peer, e);
-            })?;
+            .map_err(|e| reject(ConsensusError::MalformedHeader(e)))?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
             misbehavior_store.record_faulty_block(peer, signed_block_header.author(), &e);
@@ -442,11 +441,11 @@ pub(crate) fn verify_commits(
 
     // Check if the end commit has enough votes.
     if !stake_aggregator.reached_threshold(&context.committee) {
-        return Err(ConsensusError::NotEnoughCommitVotes {
+        return Err(reject(ConsensusError::NotEnoughCommitVotes {
             stake: stake_aggregator.stake(),
             peer,
             commit: Box::new(end_commit.clone()),
-        });
+        }));
     }
 
     let trusted_commits = commits

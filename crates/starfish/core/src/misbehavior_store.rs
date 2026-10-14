@@ -337,10 +337,9 @@ impl MisbehaviorStore {
         }
     }
 
-    /// Attributes a fetch response the collector rejected to the peer that
-    /// served it: the peer is both the sender and the only party the error
-    /// can name. The block classifier decides the fault type, leaving
-    /// transport failures untracked.
+    /// Attributes a rejected fetch response to the peer that served it: the
+    /// peer is both the sender and the only party the error can name. The block classifier decides
+    /// the fault type, leaving transport failures untracked.
     pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
         self.record_faulty_block(peer, peer, error);
     }
