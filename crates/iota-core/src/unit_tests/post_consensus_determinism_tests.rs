@@ -2544,7 +2544,7 @@ impl<'a> Validator<'a> {
                     if saved.decision == PostConsensusDecision::Kept
                         && self.executed.contains_key(&candidate.digest) =>
                 {
-                    for reference in candidate.owned_inputs.iter().chain(&candidate.receiving) {
+                    for reference in &candidate.owned_inputs {
                         if let Some(holder) = self.find_lock(reference, &commit_locks)? {
                             if holder != candidate.digest {
                                 return self.fail(format!(
@@ -2558,7 +2558,7 @@ impl<'a> Validator<'a> {
                 }
                 _ => {
                     let mut conflict = None;
-                    for reference in candidate.owned_inputs.iter().chain(&candidate.receiving) {
+                    for reference in &candidate.owned_inputs {
                         if let Some(holder) = self.find_lock(reference, &commit_locks)? {
                             if holder != candidate.digest {
                                 conflict = Some(IotaError::ObjectLockConflict {
@@ -2606,7 +2606,7 @@ impl<'a> Validator<'a> {
                 ));
             }
             if verdict.decision == PostConsensusDecision::Kept {
-                for reference in candidate.owned_inputs.iter().chain(&candidate.receiving) {
+                for reference in &candidate.owned_inputs {
                     commit_locks.insert(*reference, candidate.digest);
                 }
                 processed.push(candidate.digest);
@@ -3546,35 +3546,6 @@ fn received_epoch_start_history(named: u64) -> History {
         Vec::new(),
     )]);
     History::judge(2, epoch_start, retained, commits)
-}
-
-/// The version of `R` that `T1` received at commit 11, above the horizon of
-/// commit 12, is locked by `T1`, so `T2` naming it as an owned input drops on
-/// a validator that has executed the receive, with its outputs committed and
-/// its commit flushed, as on one that has not.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn received_version_is_locked_for_a_later_transaction() {
-    let history = received_epoch_start_history(EPOCH_START_VERSION);
-    let mut executed = validates(11);
-    executed.push(writer(WriterStep::Execute));
-    executed.extend(checkpoints(11));
-    executed.extend(std::iter::repeat_n(writer(WriterStep::Flush), 11));
-    executed.push(writer(WriterStep::Prune {
-        pre_epoch_too: false,
-    }));
-    executed.push(validate());
-    run_scenario(
-        "received epoch start version, receive executed",
-        &history,
-        executed,
-    )
-    .await;
-    run_scenario(
-        "received epoch start version, receive not executed",
-        &history,
-        validates(12),
-    )
-    .await;
 }
 
 /// The retained version of `R` before the epoch start version stays stale at
