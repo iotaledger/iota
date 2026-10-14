@@ -783,7 +783,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 // A cut stream explains the empty covered prefix: report the
                 // connection failure rather than transactions the peer was
                 // never able to send.
-                return Err(stream_error.unwrap_or(mismatch));
+                return Err(stream_error.unwrap_or_else(|| {
+                    inner
+                        .misbehavior_store
+                        .record_fetch_fault(target_authority, &mismatch);
+                    mismatch
+                }));
             }
             info!(
                 "[{}] Fetched transactions cover only {} out of {} commits received from {}, processing the covered prefix",
@@ -1143,8 +1148,7 @@ fn fill_missing_empty_transactions(
 /// so any prefix of them remains trusted on its own.
 ///
 /// Returns an error naming `peer` when even the first commit is missing
-/// transactions, since the response then allows no forward progress. Not
-/// recorded as misbehavior: an honest response can be cut to any prefix.
+/// transactions, since the response then allows no forward progress.
 fn truncate_to_fully_fetched_prefix<T>(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
