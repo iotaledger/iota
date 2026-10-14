@@ -744,16 +744,17 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     validate_ptb_argument_indices: bool,
 
-    // If true, the consensus handler adds a message to its processed-transaction
-    // cache only after the epoch store recorded it as processed. Otherwise the
-    // cache also holds messages that were dropped without being recorded, and
-    // since it differs between validators and after a restart, skipping on a
-    // cache hit lets validators disagree about a later copy of a dropped message.
-    // Also drops a user transaction from an authority that has sent EndOfPublish
-    // before the duplicate checks of its commit, so it cannot hide a valid copy
-    // later in the same commit.
+    // If true, a consensus message is skipped as a duplicate only of an earlier message with the
+    // same key that was recorded as processed or, in the same commit, passed verification:
+    // - The consensus handler adds a message to its processed-transaction cache only after the
+    //   epoch store recorded it as processed. Otherwise the cache also holds messages that were
+    //   dropped without being recorded, and since it differs between validators and after a
+    //   restart, skipping on a cache hit lets validators disagree about a later message with the
+    //   same key.
+    // - A user transaction from an authority that has sent EndOfPublish fails verification, so it
+    //   does not make a later transaction with the same key in its commit be skipped.
     #[serde(skip_serializing_if = "is_false")]
-    consensus_handler_cache_only_recorded_messages: bool,
+    consensus_dedup_only_recorded_messages: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2266,9 +2267,8 @@ impl ProtocolConfig {
         self.feature_flags.validate_ptb_argument_indices
     }
 
-    pub fn consensus_handler_cache_only_recorded_messages(&self) -> bool {
-        self.feature_flags
-            .consensus_handler_cache_only_recorded_messages
+    pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
+        self.feature_flags.consensus_dedup_only_recorded_messages
     }
 }
 
@@ -3677,8 +3677,7 @@ impl ProtocolConfig {
                     cfg.feature_flags.validate_ptb_argument_indices = true;
                 }
                 39 => {
-                    cfg.feature_flags
-                        .consensus_handler_cache_only_recorded_messages = true;
+                    cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
                 }
                 // Use this template when making changes:
                 //
@@ -4041,9 +4040,8 @@ impl ProtocolConfig {
             .consensus_enable_absolute_score_leader_schedule = val;
     }
 
-    pub fn set_consensus_handler_cache_only_recorded_messages_for_testing(&mut self, val: bool) {
-        self.feature_flags
-            .consensus_handler_cache_only_recorded_messages = val;
+    pub fn set_consensus_dedup_only_recorded_messages_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_dedup_only_recorded_messages = val;
     }
 }
 

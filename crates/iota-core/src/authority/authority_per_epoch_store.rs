@@ -3473,7 +3473,7 @@ impl AuthorityPerEpochStore {
         // cannot make a later transaction with the same key be skipped.
         if self
             .protocol_config()
-            .consensus_handler_cache_only_recorded_messages()
+            .consensus_dedup_only_recorded_messages()
             && transaction.transaction.user_transaction_digest().is_some()
             && self
                 .has_sent_end_of_publish(&transaction.certificate_author)
@@ -3685,7 +3685,7 @@ impl AuthorityPerEpochStore {
     /// Processes one consensus commit. Returns the transactions to schedule,
     /// their assigned versions, and the keys the commit recorded as processed.
     /// The keys are returned only with
-    /// `consensus_handler_cache_only_recorded_messages` on; otherwise the list
+    /// `consensus_dedup_only_recorded_messages` on; otherwise the list
     /// is empty.
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
@@ -4198,7 +4198,7 @@ impl AuthorityPerEpochStore {
 
         let processed_keys = if self
             .protocol_config
-            .consensus_handler_cache_only_recorded_messages()
+            .consensus_dedup_only_recorded_messages()
         {
             output.consensus_messages_processed().cloned().collect()
         } else {
@@ -4780,7 +4780,7 @@ impl AuthorityPerEpochStore {
                 // they may not get reverted after restart during epoch change. A later copy of
                 // an ignored transaction is then processed like a new one, so every validator
                 // must reach it: the consensus handler's processed-transaction cache must hold
-                // only recorded keys (see `consensus_handler_cache_only_recorded_messages`).
+                // only recorded keys (see `consensus_dedup_only_recorded_messages`).
                 // TODO: waiters on `consensus_messages_processed_notify` do not learn about the
                 // drop.
                 ConsensusTransactionResult::Ignored => {

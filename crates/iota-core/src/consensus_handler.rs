@@ -359,12 +359,12 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 );
         }
 
-        // TODO(#13170): once `consensus_handler_cache_only_recorded_messages` is enabled on
+        // TODO(#13170): once `consensus_dedup_only_recorded_messages` is enabled on
         // all networks, remove the flag and the old caching it replaces below.
-        let cache_only_recorded_messages = self
+        let dedup_only_recorded_messages = self
             .epoch_store
             .protocol_config()
-            .consensus_handler_cache_only_recorded_messages();
+            .consensus_dedup_only_recorded_messages();
         let mut all_transactions = Vec::new();
         {
             // We need a set here as well, since the processed_cache is a LRU cache and can
@@ -403,7 +403,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 // earlier in this commit and the cache only keys recorded as processed. A hit in
                 // either means this message would be skipped after verification too, whatever its
                 // payload.
-                if cache_only_recorded_messages {
+                if dedup_only_recorded_messages {
                     let claimed_key = sequenced_transaction.transaction.key();
                     if processed_set.contains(&claimed_key)
                         || self.processed_cache.contains(&claimed_key)
@@ -424,7 +424,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 };
 
                 let key = verified_transaction.0.key();
-                if cache_only_recorded_messages {
+                if dedup_only_recorded_messages {
                     processed_set.insert(key);
                 } else {
                     // TODO(#13170): remove with the flag. Caches a key before the epoch store
@@ -1719,7 +1719,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(true);
-            config.set_consensus_handler_cache_only_recorded_messages_for_testing(true);
+            config.set_consensus_dedup_only_recorded_messages_for_testing(true);
             config
         });
         let (state, mut handler, eop_author, _, transfer) = handler_with_transfer().await;
@@ -1738,7 +1738,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(false);
-            config.set_consensus_handler_cache_only_recorded_messages_for_testing(true);
+            config.set_consensus_dedup_only_recorded_messages_for_testing(true);
             config
         });
         let (state, mut handler, eop_author, network_config, transfer) =
@@ -1771,7 +1771,7 @@ mod tests {
     async fn test_recorded_message_is_skipped_by_cache_or_by_table() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_consensus_handler_cache_only_recorded_messages_for_testing(true);
+            config.set_consensus_dedup_only_recorded_messages_for_testing(true);
             config
         });
         let (state, mut handler, b) = handler_with_impersonated_authority().await;
