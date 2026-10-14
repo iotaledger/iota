@@ -51,7 +51,7 @@ use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use typed_store::{Map, rocks::DBBatch};
 
-use super::AuthorityEpochTables;
+use crate::authority::authority_per_epoch_store::AuthorityEpochTables;
 
 /// Position of a consensus commit in the epoch's commit sequence: dense,
 /// starting at 1, identical on every validator. The node-side counterpart of
@@ -79,8 +79,8 @@ pub enum HandlerProcessedObjectKind {
 pub struct HandlerProcessedObject {
     pub digest: ObjectDigest,
     pub kind: HandlerProcessedObjectKind,
-    /// Index of the commit whose execution produced this row; reads at commit
-    /// C treat rows above the horizon (C − K) as missing
+    /// Index of the commit whose execution produced this row; reads at a
+    /// commit treat rows above that commit's validation horizon as missing.
     pub produced_at: CommitIndex,
     /// `Some` iff the object was created as shared this epoch; doubles as the
     /// created-shared flag for the shared-input checks.
