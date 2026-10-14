@@ -20,10 +20,13 @@
 //! ([`HandlerObjectState::assign_commit_to_transactions`], via the epoch
 //! store); each execution of a registered key puts its rows in the overlay
 //! before its outputs become readable
-//! ([`HandlerObjectState::record_executed_transaction`]); a fully executed
-//! commit puts its rows in the overlay and drops its map entries
-//! ([`HandlerObjectState::record_commit_fully_executed`]); and the eviction
-//! method below clears overlay entries once their rows are durable.
+//! ([`HandlerObjectState::record_executed_transaction`]); a commit is
+//! completed once, when it is fully executed
+//! ([`HandlerObjectState::record_commit_fully_executed`]) or by its quarantine
+//! flush when that comes first
+//! ([`HandlerObjectState::complete_commit_at_flush`]), and either way puts its
+//! rows in the overlay and drops its map entries; and the eviction method
+//! below clears overlay entries once their rows are durable.
 //!
 //! Durable writes happen at exactly one trigger point, the quarantine flush
 //! of a commit's output (once its checkpoint is certified and executed): it
@@ -273,13 +276,50 @@ impl HandlerObjectState {
     /// handler-processed upserts (covering executions that raced the map
     /// registration), and drops the transaction key -> commit index map
     /// entries.
+    ///
+    /// Does nothing once the quarantine flush has completed the commit: its
+    /// rows are durable already, and an overlay upsert now would leave entries
+    /// no flush is left to evict. The caller must hold the quarantine lock, so
+    /// the flush cannot complete the commit between the check and the upserts.
     pub fn record_commit_fully_executed(
         &self,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
     ) {
+        if !self.is_commit_assigned(index) {
+            return;
+        }
         self.upsert_handler_processed_rows(upserts);
         self.drop_commit_assignments(index);
+    }
+
+    /// Completes commit `index` from the quarantine flush, when the flush
+    /// reaches it before the commit is fully executed, as in a replay after a
+    /// restart. Does nothing once [`Self::record_commit_fully_executed`] has
+    /// completed it.
+    ///
+    /// Like [`Self::record_commit_fully_executed`], this puts `rows` in the
+    /// overlay and drops the commit's map entries. The caller writes `rows`
+    /// with [`Self::write_commit_rows_to_batch`] right after, and passes the
+    /// same rows to [`Self::evict_flushed_commit_rows`] once that batch is
+    /// durable.
+    pub fn complete_commit_at_flush(
+        &self,
+        index: CommitIndex,
+        rows: &[(ObjectKey, HandlerProcessedObject)],
+    ) {
+        if !self.is_commit_assigned(index) {
+            return;
+        }
+        self.upsert_handler_processed_rows(rows);
+        self.drop_commit_assignments(index);
+    }
+
+    /// Whether commit `index` is still waiting to be completed. False once
+    /// either completion path has run for it, which is what makes the second
+    /// one a no-op.
+    fn is_commit_assigned(&self, index: CommitIndex) -> bool {
+        self.keys_by_commit.lock().contains_key(&index)
     }
 
     /// The handler-processed row at `key`, from the overlay or the durable
@@ -583,5 +623,34 @@ mod tests {
         assert_eq!(state.commit_index_of(&second), None);
         state.drop_commit_assignments(3);
         assert_eq!(state.commit_index_of(&first), None);
+    }
+
+    /// A commit is completed once: whichever of full execution and the
+    /// quarantine flush comes second leaves the overlay untouched.
+    #[test]
+    fn second_completion_of_a_commit_does_nothing() {
+        let state = empty_state();
+        let row = |produced_at| HandlerProcessedObject {
+            digest: ObjectDigest::random(),
+            kind: HandlerProcessedObjectKind::Live,
+            produced_at,
+            initial_shared_version: None,
+            replaced_version: None,
+        };
+        let key = |version| ObjectKey(ObjectId::random(), Version::from_u64(version));
+
+        // The flush completes commit 3 first, as in a replay after a restart.
+        state.assign_commit_to_transactions(3, vec![]);
+        state.complete_commit_at_flush(3, &[(key(1), row(3))]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        state.record_commit_fully_executed(3, &[(key(2), row(3))]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+
+        // Full execution completes commit 4 first.
+        state.assign_commit_to_transactions(4, vec![]);
+        state.record_commit_fully_executed(4, &[(key(3), row(4))]);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        state.complete_commit_at_flush(4, &[(key(4), row(4))]);
+        assert_eq!(state.overlay_size_for_testing(), 2);
     }
 }
