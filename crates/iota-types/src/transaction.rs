@@ -1198,10 +1198,9 @@ impl TransactionKindExt for TransactionKind {
                                     .to_string()
                             )
                         );
-                        // The claim carries the key as raw bytes and execution
-                        // builds the Move `PublicKey` from them without going
-                        // through `public_key::create`, so apply that
-                        // function's validation here.
+                        // Apply `public_key::create`'s validation here, so that a
+                        // claim with an invalid key is rejected before execution
+                        // rather than aborting in it.
                         let scheme =
                             SignatureScheme::from_byte(smart.public_key_scheme).map_err(|e| {
                                 UserInputError::Unsupported(format!(
@@ -1716,6 +1715,12 @@ impl TransactionAPI for Transaction {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        if self.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(self.expiration(), TransactionExpiration::Epoch(_)),
+                UserInputError::TransactionDependencyRequiresExpiration
+            );
+        }
         check_claimed_key_derives_sender(self)?;
         self.check_sponsorship()
     }
