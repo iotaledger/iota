@@ -110,7 +110,8 @@ impl Drop for ClientAccessManager {
 impl ClientAccessManager {
     /// Takes the allowlist, the blocklist TTLs and the dry-run flag from
     /// `policy_config`. Without an allowlist, spawns the task that drops
-    /// expired blocks, so it must then be called from within a tokio runtime.
+    /// expired blocks, so it must then be called from within a tokio runtime,
+    /// and panics if a blocklist TTL is zero.
     pub fn new(policy_config: &PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         metrics
@@ -122,6 +123,11 @@ impl ClientAccessManager {
         let access = match &policy_config.allow_list {
             Some(allow_list) => Access::Allowlist(parse_allowlist(allow_list)),
             None => {
+                validate_blocklist_ttls(
+                    Some(policy_config.connection_blocklist_ttl_sec),
+                    Some(policy_config.proxy_blocklist_ttl_sec),
+                )
+                .unwrap_or_else(|err| fatal!("Invalid traffic control config: {err}"));
                 let blocklists = Blocklists {
                     clients: Arc::new(DashMap::new()),
                     proxied_clients: Arc::new(DashMap::new()),
@@ -275,6 +281,23 @@ impl ClientAccessManager {
     }
 }
 
+/// Rejects a blocklist TTL of zero, which would expire every block at once and
+/// thus keep no client out.
+pub(crate) fn validate_blocklist_ttls(
+    connection_blocklist_ttl_sec: Option<u64>,
+    proxy_blocklist_ttl_sec: Option<u64>,
+) -> Result<(), String> {
+    for (ttl_sec, name) in [
+        (connection_blocklist_ttl_sec, "connection"),
+        (proxy_blocklist_ttl_sec, "proxy"),
+    ] {
+        if ttl_sec == Some(0) {
+            return Err(format!("The {name} blocklist TTL must be more than zero"));
+        }
+    }
+    Ok(())
+}
+
 /// Returns the allowlist sorted, so that `check` can binary-search it.
 fn parse_allowlist(allow_list: &[String]) -> Vec<IpAddr> {
     let mut allowlist: Vec<IpAddr> = allow_list
@@ -404,6 +427,19 @@ mod tests {
 
     const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
 
+    impl ClientAccessManager {
+        /// Moves the expiration of every direct client's block into the past,
+        /// as if its TTL had passed.
+        pub(crate) fn expire_client_blocks(&self) {
+            if let Access::Blocklist { blocklists, .. } = &self.access {
+                let past = SystemTime::now() - Duration::from_secs(1);
+                for mut block in blocklists.clients.iter_mut() {
+                    block.expiration = past;
+                }
+            }
+        }
+    }
+
     fn manager(policy_config: PolicyConfig) -> ClientAccessManager {
         ClientAccessManager::new(
             &policy_config,
@@ -434,10 +470,28 @@ mod tests {
 
     #[tokio::test]
     async fn a_block_ends_with_its_ttl() {
-        // A TTL of zero expires the block at once.
-        let manager = manager(blocklist_mode(false, 0));
+        let manager = manager(blocklist_mode(false, 120));
         manager.block_client(CLIENT, BlockReason::Spam);
+        manager.expire_client_blocks();
         assert!(manager.check(&Some(CLIENT), &None));
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "The connection blocklist TTL must be more than zero")]
+    async fn a_zero_connection_blocklist_ttl_is_rejected() {
+        manager(PolicyConfig {
+            connection_blocklist_ttl_sec: 0,
+            ..blocklist_mode(false, 120)
+        });
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "The proxy blocklist TTL must be more than zero")]
+    async fn a_zero_proxy_blocklist_ttl_is_rejected() {
+        manager(PolicyConfig {
+            proxy_blocklist_ttl_sec: 0,
+            ..blocklist_mode(false, 120)
+        });
     }
 
     #[tokio::test]
