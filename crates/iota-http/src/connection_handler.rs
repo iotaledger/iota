@@ -10,6 +10,7 @@ use tracing::{debug, trace};
 
 use crate::{
     ActiveConnections, BoxError, ConnectionId, connection_info::PeerConnectionGuard, fuse::Fuse,
+    idle::IdleSleep,
 };
 
 // This is moved to its own function as a way to get around
@@ -20,6 +21,7 @@ pub async fn serve_connection<IO, S, B, C>(
     builder: hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
+    idle_timer: IdleSleep,
     on_connection_close: C,
 ) where
     B: http_body::Body + Send + 'static,
@@ -37,6 +39,7 @@ pub async fn serve_connection<IO, S, B, C>(
             builder.serve_connection_with_upgrades(hyper_io, hyper_svc),
             graceful_shutdown_token,
             max_connection_age,
+            idle_timer,
         )
         .await;
     } else {
@@ -44,6 +47,7 @@ pub async fn serve_connection<IO, S, B, C>(
             builder.serve_connection(hyper_io, hyper_svc),
             graceful_shutdown_token,
             max_connection_age,
+            idle_timer,
         )
         .await;
     }
@@ -58,12 +62,14 @@ async fn serve_until_closed(
     conn: impl GracefulConnection<Error = BoxError>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
+    idle_timer: IdleSleep,
 ) {
     let mut sig = pin!(Fuse::new(graceful_shutdown_token.cancelled_owned()));
 
     let mut conn = pin!(conn);
 
     let sleep = sleep_or_pending(max_connection_age);
+    tokio::pin!(idle_timer);
     tokio::pin!(sleep);
 
     loop {
@@ -77,6 +83,16 @@ async fn serve_until_closed(
                 }
                 break;
             },
+            _ = &mut idle_timer => {
+                // A request can arrive between the timer being reached and
+                // this running, so being ready is not on its own proof that
+                // the connection is still idle.
+                if idle_timer.is_busy() {
+                    continue;
+                }
+                debug!("closing a connection that has been idle past its deadline");
+                conn.as_mut().graceful_shutdown();
+            }
             _ = &mut sleep  => {
                 conn.as_mut().graceful_shutdown();
                 sleep.set(sleep_or_pending(None));

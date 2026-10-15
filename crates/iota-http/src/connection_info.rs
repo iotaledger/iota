@@ -12,7 +12,10 @@ use std::{
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
 
-use crate::config::{OnPeerConnectionEvent, PeerConnectionEvent};
+use crate::{
+    config::{OnPeerConnectionEvent, PeerConnectionEvent},
+    idle::IdleHandle,
+};
 
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
     Arc<RwLock<HashMap<ConnectionId, ConnectionInfo<A>>>>;
@@ -42,6 +45,7 @@ impl<A> ConnectionInfo<A> {
         address: A,
         peer_certificates: Option<Arc<Vec<CertificateDer<'static>>>>,
         graceful_shutdown_token: tokio_util::sync::CancellationToken,
+        idle: IdleHandle,
     ) -> Self {
         Self(Arc::new(Inner {
             id: NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed),
@@ -49,6 +53,7 @@ impl<A> ConnectionInfo<A> {
             time_established: std::time::Instant::now(),
             peer_certificates: peer_certificates.map(PeerCertificates),
             graceful_shutdown_token,
+            idle,
         }))
     }
 
@@ -72,6 +77,14 @@ impl<A> ConnectionInfo<A> {
         self.0.id
     }
 
+    /// How long this connection has gone without being asked for anything,
+    /// counted from when it was established if it never has, or `None` while
+    /// it is serving a request or when its listener sets no
+    /// `max_connection_idle`, which is what makes it track idleness.
+    pub fn idle_for(&self) -> Option<std::time::Duration> {
+        self.0.idle.idle_for()
+    }
+
     /// Trigger a graceful shutdown of this connection
     pub fn close(&self) {
         self.0.graceful_shutdown_token.cancel()
@@ -88,6 +101,7 @@ struct Inner<A = std::net::SocketAddr> {
     time_established: std::time::Instant,
 
     peer_certificates: Option<PeerCertificates>,
+    idle: IdleHandle,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
 }
 
