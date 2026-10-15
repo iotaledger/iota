@@ -68,6 +68,16 @@ pub struct Config {
     /// Default is 20 seconds.
     pub http2_keepalive_timeout: Option<Duration>,
 
+    /// Only affects servers. How long a connection may serve no request
+    /// before it is closed. Keepalive closes a connection whose peer has
+    /// gone; this closes one whose peer is present and doing nothing.
+    ///
+    /// Must exceed the longest gap between requests a peer that is behaving
+    /// leaves.
+    ///
+    /// Default is no deadline (`None`).
+    pub max_connection_idle: Option<Duration>,
+
     // Only affects servers
     pub load_shed: Option<bool>,
 
@@ -110,5 +120,6 @@ impl Config {
             .http2_keepalive_timeout(self.http2_keepalive_timeout)
             .http2_keepalive_interval(self.http2_keepalive_interval)
             .tcp_keepalive(self.tcp_keepalive)
+            .max_connection_idle(self.max_connection_idle)
     }
 }
