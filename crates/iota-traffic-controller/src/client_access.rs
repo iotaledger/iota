@@ -111,7 +111,7 @@ impl ClientAccessManager {
     /// Takes the allowlist, the blocklist TTLs and the dry-run flag from
     /// `policy_config`. Without an allowlist, spawns the task that drops
     /// expired blocks, so it must then be called from within a tokio runtime,
-    /// and panics if a blocklist TTL is zero.
+    /// and panics if the connection blocklist TTL is zero.
     pub fn new(policy_config: &PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         metrics
@@ -123,11 +123,8 @@ impl ClientAccessManager {
         let access = match &policy_config.allow_list {
             Some(allow_list) => Access::Allowlist(parse_allowlist(allow_list)),
             None => {
-                validate_blocklist_ttls(
-                    Some(policy_config.connection_blocklist_ttl_sec),
-                    Some(policy_config.proxy_blocklist_ttl_sec),
-                )
-                .unwrap_or_else(|err| fatal!("Invalid traffic control config: {err}"));
+                validate_connection_blocklist_ttl(policy_config.connection_blocklist_ttl_sec)
+                    .unwrap_or_else(|err| fatal!("Invalid traffic control config: {err}"));
                 let blocklists = Blocklists {
                     clients: Arc::new(DashMap::new()),
                     proxied_clients: Arc::new(DashMap::new()),
@@ -281,19 +278,14 @@ impl ClientAccessManager {
     }
 }
 
-/// Rejects a blocklist TTL of zero, which would expire every block at once and
-/// thus keep no client out.
-pub(crate) fn validate_blocklist_ttls(
-    connection_blocklist_ttl_sec: Option<u64>,
-    proxy_blocklist_ttl_sec: Option<u64>,
-) -> Result<(), String> {
-    for (ttl_sec, name) in [
-        (connection_blocklist_ttl_sec, "connection"),
-        (proxy_blocklist_ttl_sec, "proxy"),
-    ] {
-        if ttl_sec == Some(0) {
-            return Err(format!("The {name} blocklist TTL must be more than zero"));
-        }
+/// Rejects a connection blocklist TTL of zero, which would expire every block
+/// at once: the node would keep no client out, yet log a block line on every
+/// breach for a host firewall to act on. A proxy blocklist TTL of zero stays
+/// valid, since nodes without a proxy in front use it to turn those blocks
+/// off, and those blocks are never logged.
+pub(crate) fn validate_connection_blocklist_ttl(ttl_sec: u64) -> Result<(), String> {
+    if ttl_sec == 0 {
+        return Err("The connection blocklist TTL must be more than zero".to_string());
     }
     Ok(())
 }
@@ -486,12 +478,13 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "The proxy blocklist TTL must be more than zero")]
-    async fn a_zero_proxy_blocklist_ttl_is_rejected() {
-        manager(PolicyConfig {
+    async fn a_zero_proxy_blocklist_ttl_is_accepted() {
+        let manager = manager(PolicyConfig {
             proxy_blocklist_ttl_sec: 0,
             ..blocklist_mode(false, 120)
         });
+        manager.block_proxied_client(CLIENT, BlockReason::Spam);
+        assert!(manager.check(&None, &Some(CLIENT)));
     }
 
     #[tokio::test]

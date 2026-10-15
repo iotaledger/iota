@@ -27,7 +27,7 @@ use tracing::error;
 
 use self::{
     block_log::BlockReason,
-    client_access::{ClientAccessManager, validate_blocklist_ttls},
+    client_access::{ClientAccessManager, validate_connection_blocklist_ttl},
     metrics::TrafficControllerMetrics,
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
@@ -153,8 +153,9 @@ impl TrafficController {
                 validate_threshold(policy, threshold, kind)?;
             }
         }
-        validate_blocklist_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
-            .map_err(IotaError::InvalidAdminRequest)?;
+        if let Some(ttl_sec) = connection_blocklist_ttl_sec {
+            validate_connection_blocklist_ttl(ttl_sec).map_err(IotaError::InvalidAdminRequest)?;
+        }
         for (threshold, policy, gauge, _) in updates {
             if let (Some(threshold), Some(policy)) = (threshold, policy) {
                 policy.set_client_threshold(threshold);
@@ -599,20 +600,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_the_admin_api_rejects_a_zero_blocklist_ttl() {
+    async fn test_the_admin_api_rejects_a_zero_connection_blocklist_ttl() {
         let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
-        for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in
-            [(Some(0), None), (None, Some(0))]
-        {
-            let result = controller.admin_reconfigure(TrafficControlReconfigParams {
-                error_threshold: None,
-                spam_threshold: None,
-                dry_run: Some(true),
-                connection_blocklist_ttl_sec,
-                proxy_blocklist_ttl_sec,
-            });
-            assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
-        }
+        let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+            error_threshold: None,
+            spam_threshold: None,
+            dry_run: Some(true),
+            connection_blocklist_ttl_sec: Some(0),
+            proxy_blocklist_ttl_sec: Some(5),
+        });
+        assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
 
         // A rejected request applies nothing, not even its valid settings.
         let state = controller.get_current_state();
@@ -622,6 +619,21 @@ mod tests {
             state.proxy_blocklist_ttl_sec,
             Some(default_blocklist_ttl_sec())
         );
+    }
+
+    #[tokio::test]
+    async fn test_the_admin_api_accepts_a_zero_proxy_blocklist_ttl() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let state = controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: None,
+                connection_blocklist_ttl_sec: None,
+                proxy_blocklist_ttl_sec: Some(0),
+            })
+            .expect("a zero proxy blocklist TTL is valid");
+        assert_eq!(state.proxy_blocklist_ttl_sec, Some(0));
     }
 
     /// The tallies the shipped default policy tolerates from one client before
