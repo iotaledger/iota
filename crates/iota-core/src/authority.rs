@@ -167,7 +167,7 @@ use crate::{
     execution_driver::execution_process,
     execution_scheduler::{
         ExecutionSchedulerAPI, ExecutionSchedulerWrapper,
-        transaction_manager::VerifiedExecutableAttestedTransaction,
+        transaction_manager::{AttestationSource, VerifiedExecutableAttestedTransaction},
     },
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::GrpcIndexesStore,
@@ -2102,7 +2102,9 @@ impl AuthorityState {
         // Explicit attestations are rejected pre-consensus (block verifier) and
         // at post-consensus (Check #3), so one reaching here is a protocol-level
         // bug.
-        if let Some(Attestation::Explicit { .. }) = transaction.attestation() {
+        if let AttestationSource::Attestation(Attestation::Explicit { .. }) =
+            transaction.attestation()
+        {
             return Err(IotaError::UnsupportedFeature {
                 error: "Explicit attestation reached execute_transaction".into(),
             });
@@ -2294,30 +2296,37 @@ impl AuthorityState {
 
             // Only attested transactions can have their Move-authentication
             // failure attributed, and only they carry recorded versions to judge.
-            let attestation_verdict_context = transaction.attestation().map(|attestation| {
-                attestation_verdict::AttestationVerdictContext {
-                    attestation,
-                    attested_versions: attestation_verdict::AttestedObjectVersions {
-                        object_cache: self.get_object_cache_reader().as_ref(),
-                        current_epoch: epoch_id,
-                    },
-                    store: backing_store,
-                    executor: epoch_store.executor().as_ref(),
-                    protocol_config,
-                    metrics: self.metrics.limits_metrics.clone(),
-                    epoch_id,
-                    epoch_timestamp_ms: epoch_start_timestamp,
-                    reference_gas_price,
-                    gas_data: gas_data.clone(),
-                    authenticators: attestation_verdict::authenticator_inputs(&move_authenticators),
-                    executed_versions: attestation_verdict::executed_versions(&move_authenticators),
-                    transaction: tx,
-                    transaction_signer: signer,
-                    transaction_digest: tx_digest,
-                    sender_auth_digest,
-                    sponsor_auth_digest,
+            let attestation_verdict_context = match transaction.attestation() {
+                AttestationSource::Attestation(attestation) => {
+                    Some(attestation_verdict::AttestationVerdictContext {
+                        attestation,
+                        attested_versions: attestation_verdict::AttestedObjectVersions {
+                            object_cache: self.get_object_cache_reader().as_ref(),
+                            current_epoch: epoch_id,
+                        },
+                        store: backing_store,
+                        executor: epoch_store.executor().as_ref(),
+                        protocol_config,
+                        metrics: self.metrics.limits_metrics.clone(),
+                        epoch_id,
+                        epoch_timestamp_ms: epoch_start_timestamp,
+                        reference_gas_price,
+                        gas_data: gas_data.clone(),
+                        authenticators: attestation_verdict::authenticator_inputs(
+                            &move_authenticators,
+                        ),
+                        executed_versions: attestation_verdict::executed_versions(
+                            &move_authenticators,
+                        ),
+                        transaction: tx,
+                        transaction_signer: signer,
+                        transaction_digest: tx_digest,
+                        sender_auth_digest,
+                        sponsor_auth_digest,
+                    })
                 }
-            });
+                AttestationSource::Unattested | AttestationSource::Certified(_) => None,
+            };
 
             let move_authenticators = match pre_authentication_error {
                 Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed(error),
@@ -2383,11 +2392,14 @@ impl AuthorityState {
             )
         };
 
-        // Executing from a checkpoint copies the certified verdict through;
-        // executing from consensus judges it. Judged before the fork-injecting
-        // fail point below, so that only the effects diverge under it.
-        let attestation_record = transaction.certified_record().or_else(|| {
-            transaction.attestation().and_then(|attestation| {
+        // Judged before the fork-injecting fail point below, so that only the
+        // effects diverge under it.
+        let attestation_record = match transaction.attestation() {
+            AttestationSource::Unattested => None,
+            // Executing from a checkpoint copies the certified verdict through.
+            AttestationSource::Certified(record) => *record,
+            // Executing from consensus judges it.
+            AttestationSource::Attestation(attestation) => {
                 // The claim is only measurable against a body that ran.
                 let executed_units = outcome.body_ran.then(|| {
                     attestation::computation_units(effects.gas_cost_summary(), tx.gas_price())
@@ -2399,8 +2411,8 @@ impl AuthorityState {
                     protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
                 );
                 AttestationRecord::new(attestation, verdict)
-            })
-        });
+            }
+        };
 
         fail_point_if!("cp_execution_nondeterminism", || {
             #[cfg(msim)]
