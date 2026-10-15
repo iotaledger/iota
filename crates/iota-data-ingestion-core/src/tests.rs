@@ -837,6 +837,7 @@ fn mock_checkpoint_data_with_opt(
         None,
         0,
         Vec::new(),
+        Vec::new(),
     );
 
     let sign_infos: Vec<_> = keys

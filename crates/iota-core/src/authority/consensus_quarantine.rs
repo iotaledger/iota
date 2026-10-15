@@ -1379,6 +1379,7 @@ mod tests {
             None,
             0,
             vec![],
+            vec![],
         );
         let builder_summary = BuilderCheckpointSummary {
             summary,

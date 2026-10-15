@@ -12,6 +12,7 @@ use iota_sdk_types::{
     TransactionEvents, Version,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::{EpochId, VerifiedExecutionData},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -968,6 +969,25 @@ pub trait TransactionCacheRead: Send + Sync {
     /// Non-fallible version of `try_get_effects`.
     fn get_effects(&self, digest: &TransactionEffectsDigest) -> Option<TransactionEffects> {
         self.try_get_effects(digest).expect("storage access failed")
+    }
+
+    /// The attestation records of `digests`, which can only have been executed
+    /// in `epoch`: `None` for an unattested transaction or one executed in
+    /// another epoch.
+    fn try_multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>>;
+
+    /// Non-fallible version of `try_multi_get_attestation_records_in_epoch`.
+    fn multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<AttestationRecord>> {
+        self.try_multi_get_attestation_records_in_epoch(epoch, digests)
+            .expect("storage access failed")
     }
 
     fn try_multi_get_events(

@@ -61,6 +61,7 @@ use iota_sdk_types::{
     TransactionEffectsDigest, TransactionEvents, Version,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::{EpochId, VerifiedExecutionData},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
@@ -2254,6 +2255,37 @@ impl TransactionCacheRead for WritebackCache {
             digests,
             |store, digests| store.multi_get_transaction_blocks_in_epoch(epoch, digests),
             false,
+        )
+    }
+
+    fn try_multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        try_do_fallback_lookup(
+            digests,
+            |digest| {
+                self.metrics
+                    .record_cache_request("attestation_record", "uncommitted");
+                // Pending outputs are authoritative: `None` there means unattested.
+                match self.dirty.pending_transaction_writes.get(digest) {
+                    Some(outputs) => {
+                        self.metrics
+                            .record_cache_hit("attestation_record", "uncommitted");
+                        Ok(CacheResult::Hit(outputs.attestation_record))
+                    }
+                    None => {
+                        self.metrics
+                            .record_cache_miss("attestation_record", "uncommitted");
+                        Ok(CacheResult::Miss)
+                    }
+                }
+            },
+            |remaining| {
+                self.record_db_multi_get("attestation_record", remaining.len())
+                    .multi_get_attestation_records_in_epoch(epoch, remaining)
+            },
         )
     }
 

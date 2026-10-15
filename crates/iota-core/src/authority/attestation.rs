@@ -2,17 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The authority's attestation work: producing the attestation on the submit
-//! path and the post-consensus checks of an attested transaction.
+//! path, the post-consensus checks of an attested transaction, and the record
+//! of an attested transaction's execution.
 
 use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{MoveAuthenticator, ObjectId, ObjectReference, Owner, Transaction};
+use iota_sdk_types::{
+    MoveAuthenticator, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects,
+};
 use iota_types::{
     account_abstraction::authenticator_function::{
         MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution, extract_auth_fun_refs,
     },
-    attestation::AttestationData,
+    attestation::{self, AttestationData, AttestationRecord, AttestationVerdict},
     auth_context::AuthContextData,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
@@ -25,8 +28,12 @@ use iota_types::{
     },
 };
 
-use crate::authority::{
-    AuthorityState, ValidationOutputs, authority_per_epoch_store::AuthorityPerEpochStore,
+use crate::{
+    authority::{
+        AuthorityState, ValidationOutputs, attestation_verdict::ExecutionOutcome,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+    },
+    execution_scheduler::transaction_manager::AttestationSource,
 };
 
 impl AuthorityState {
@@ -215,14 +222,10 @@ impl AuthorityState {
             )));
         }
 
-        // Build `AttestationData`. `gas_cost_summary().computation_cost` is in
-        // NANOS; converted to gas units (`computation_cost / gas_price`) so the
-        // claim is independent of the gas price the user chose.
-        let computation_units = effects
-            .gas_cost_summary()
-            .computation_cost
-            .checked_div(tx.gas_price())
-            .unwrap_or(0);
+        // Build `AttestationData`. The claim is in gas units, independent
+        // of the gas price the user chose.
+        let computation_units =
+            attestation::computation_units(effects.gas_cost_summary(), tx.gas_price());
 
         let object_versions =
             attestable_object_versions(tx, &inner_temp_store, account_object_refs)?;
@@ -274,6 +277,35 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
+    }
+}
+
+/// The record of an attested transaction's execution: the certified verdict
+/// when executing from a checkpoint, the judged one when executing from
+/// consensus, nothing for an unattested transaction.
+pub(super) fn attestation_record(
+    source: &AttestationSource,
+    outcome: &ExecutionOutcome,
+    effects: &TransactionEffects,
+    gas_price: u64,
+    protocol_config: &ProtocolConfig,
+) -> Option<AttestationRecord> {
+    match source {
+        AttestationSource::Unattested => None,
+        AttestationSource::Certified(record) => *record,
+        AttestationSource::Attestation(attestation) => {
+            // The claim is only measurable against a body that ran.
+            let executed_units = outcome
+                .body_ran
+                .then(|| attestation::computation_units(effects.gas_cost_summary(), gas_price));
+            let verdict = AttestationVerdict::new(
+                outcome.refuted,
+                attestation.computation_units(),
+                executed_units,
+                protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
+            );
+            Some(AttestationRecord::new(attestation, verdict))
+        }
     }
 }
 

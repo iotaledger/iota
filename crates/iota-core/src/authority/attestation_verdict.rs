@@ -3,7 +3,8 @@
 
 //! Judges the attestation of a transaction whose Move authentication failed at
 //! execution, by re-running authentication at the object versions the attestor
-//! recorded; the transaction effects are unaffected.
+//! recorded. The verdict is recorded as `AttestationRecord::verdict` and
+//! certified in the checkpoint summary; the transaction effects are unaffected.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -391,6 +392,32 @@ fn authentication_error_kind(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
     }
 }
 
+/// What execution established for the verdict on an attested transaction.
+pub(crate) struct ExecutionOutcome {
+    /// Authentication failed and the failure refutes the attestation.
+    pub refuted: bool,
+    /// The body ran, so its computation cost is measurable against the claim.
+    pub body_ran: bool,
+}
+
+/// Whether the transaction body ran, so its computation cost measures the same
+/// work the attestor's dry run did.
+pub(crate) fn body_ran(authentication_failed: bool, error: Option<&ExecutionError>) -> bool {
+    !authentication_failed && error.is_none_or(|error| !is_pre_execution_failure(error.kind()))
+}
+
+/// The checks that run before the transaction body: the input checks on the
+/// authenticator's inputs and the transaction's alike, and the coin deny-list
+/// check that follows authentication.
+fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::InputObjectDeleted
+            | ExecutionErrorKind::AddressDeniedForCoin { .. }
+            | ExecutionErrorKind::CoinTypeGlobalPause { .. }
+    ) || is_cancellation(kind)
+}
+
 /// Decided by consensus or configuration after the dry run, so no attestor
 /// could have foreseen it.
 fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
@@ -422,6 +449,44 @@ mod tests {
 
     fn wrapped(kind: ExecutionErrorKind) -> ExecutionError {
         ExecutionError::from_kind(kind).into_move_authentication_error()
+    }
+
+    /// Only a body that ran, successfully or not, is measured against the
+    /// claim; failed authentication and pre-execution input checks are not.
+    #[test]
+    fn body_ran_excludes_authentication_and_input_check_failures() {
+        let abort = ExecutionError::from_kind(ExecutionErrorKind::InsufficientGas);
+        assert!(body_ran(false, None));
+        assert!(body_ran(false, Some(&abort)));
+        assert!(!body_ran(
+            true,
+            Some(&wrapped(ExecutionErrorKind::InsufficientGas))
+        ));
+        for kind in [
+            ExecutionErrorKind::CertificateDenied,
+            ExecutionErrorKind::InputObjectDeleted,
+            ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+            ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
+                congested_objects: vec![ObjectId::random()],
+            },
+            ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                congested_objects: vec![ObjectId::random()],
+                suggested_gas_price: 1,
+            },
+            ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion {
+                suggested_gas_price: 1,
+            },
+            ExecutionErrorKind::AddressDeniedForCoin {
+                address: Address::ZERO,
+                coin_type: String::new(),
+            },
+            ExecutionErrorKind::CoinTypeGlobalPause {
+                coin_type: String::new(),
+            },
+        ] {
+            let error = ExecutionError::from_kind(kind);
+            assert!(!body_ran(false, Some(&error)), "{error:?}");
+        }
     }
 
     /// An authenticator abort, out-of-gas, unresolved function or deleted

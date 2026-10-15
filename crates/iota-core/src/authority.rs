@@ -63,6 +63,7 @@ use iota_types::{
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
+    attestation::AttestationRecord,
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -135,7 +136,7 @@ use tokio::{
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::TypedStoreError;
 
-use self::authority_store::ExecutionLockWriteGuard;
+use self::{attestation::attestation_record, authority_store::ExecutionLockWriteGuard};
 #[cfg(msim)]
 pub use crate::checkpoints::checkpoint_executor::utils::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
@@ -235,6 +236,18 @@ mod move_authenticator_attestation_tests;
 #[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
+
+#[cfg(test)]
+#[path = "unit_tests/abstract_account_test_utils.rs"]
+pub mod abstract_account_test_utils;
+
+#[cfg(test)]
+#[path = "unit_tests/attestation_test_utils.rs"]
+pub mod attestation_test_utils;
+
+#[cfg(test)]
+#[path = "unit_tests/attestation_verdict_tests.rs"]
+mod attestation_verdict_tests;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
@@ -991,14 +1004,16 @@ impl ExecutionEnv {
     }
 }
 
-/// `execute_transaction()`'s result. The last element holds every object read
+/// `execute_transaction()`'s result. The fourth element holds every object read
 /// during execution, where the pre-image of a mutated object that is not a
-/// declared input, such as a dynamic field, is found.
+/// declared input, such as a dynamic field, is found; the last is the record of
+/// an attested transaction's verdict.
 type TransactionExecutionResult = (
     InnerTemporaryStore,
     TransactionEffects,
     Option<ExecutionError>,
     ObjectSet,
+    Option<AttestationRecord>,
 );
 
 /// Reads latest versions from the live object set, and exact versions from it
@@ -2026,8 +2041,8 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
-        let (inner_temporary_store, effects, execution_error_opt, read_objects) = match self
-            .execute_transaction(
+        let (inner_temporary_store, effects, execution_error_opt, read_objects, attestation_record) =
+            match self.execute_transaction(
                 &execution_guard,
                 transaction,
                 tx_input_objects,
@@ -2035,13 +2050,13 @@ impl AuthorityState {
                 attestation,
                 epoch_store,
             ) {
-            Err(e) => {
-                info!(name = ?self.name, ?digest, "Error preparing transaction: {e}");
-                tx_guard.release();
-                return Err(e);
-            }
-            Ok(res) => res,
-        };
+                Err(e) => {
+                    info!(name = ?self.name, ?digest, "Error preparing transaction: {e}");
+                    tx_guard.release();
+                    return Err(e);
+                }
+                Ok(res) => res,
+            };
 
         if let Some(expected_effects_digest) = expected_effects_digest {
             if effects.digest() != expected_effects_digest {
@@ -2087,6 +2102,7 @@ impl AuthorityState {
             inner_temporary_store,
             &effects,
             read_objects,
+            attestation_record,
             tx_guard,
             execution_guard,
             expected_effects_digest,
@@ -2122,6 +2138,7 @@ impl AuthorityState {
         inner_temporary_store: InnerTemporaryStore,
         effects: &TransactionEffects,
         read_objects: ObjectSet,
+        attestation_record: Option<AttestationRecord>,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -2172,6 +2189,7 @@ impl AuthorityState {
             read_objects,
             &self.metrics,
             epoch_store.protocol_config().enable_validator_attestation(),
+            attestation_record,
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -2303,7 +2321,7 @@ impl AuthorityState {
         let move_authenticators = transaction.move_authenticators();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, _, execution_error_opt) = if move_authenticators
+        let (inner_temp_store, _, mut effects, execution_error, outcome) = if move_authenticators
             .is_empty()
         {
             // No Move authentication required, proceed to execute the transaction directly.
@@ -2320,25 +2338,38 @@ impl AuthorityState {
 
             let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
-            epoch_store.executor().execute_transaction_to_effects(
-                backing_store,
-                protocol_config,
-                self.metrics.limits_metrics.clone(),
-                // TODO: would be nice to pass the whole NodeConfig here, but it creates a
-                // cyclic dependency w/ iota-adapter
-                self.config
-                    .expensive_safety_check_config
-                    .enable_deep_per_tx_iota_conservation_check(),
-                self.config.certificate_deny_config.certificate_deny_set(),
-                &epoch_id,
-                epoch_start_timestamp,
-                tx_checked_input_objects,
-                gas_data,
-                tx_gas_status,
-                kind,
-                signer,
-                tx_digest,
-                &mut None,
+            let (inner_temp_store, gas_status, effects, _timings, execution_error_opt) =
+                epoch_store.executor().execute_transaction_to_effects(
+                    backing_store,
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    // TODO: would be nice to pass the whole NodeConfig here, but it creates a
+                    // cyclic dependency w/ iota-adapter
+                    self.config
+                        .expensive_safety_check_config
+                        .enable_deep_per_tx_iota_conservation_check(),
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_id,
+                    epoch_start_timestamp,
+                    tx_checked_input_objects,
+                    gas_data,
+                    tx_gas_status,
+                    kind,
+                    signer,
+                    tx_digest,
+                    &mut None,
+                );
+            // Without Move authentication there is nothing to refute.
+            let outcome = attestation_verdict::ExecutionOutcome {
+                refuted: false,
+                body_ran: attestation_verdict::body_ran(false, execution_error_opt.as_ref().err()),
+            };
+            (
+                inner_temp_store,
+                gas_status,
+                effects,
+                execution_error_opt,
+                outcome,
             )
         } else {
             // One or more `MoveAuthenticator` signatures present — authenticate each and
@@ -2450,7 +2481,7 @@ impl AuthorityState {
                         sponsor_auth_digest,
                     })
                 }
-                AttestationSource::Unattested => None,
+                AttestationSource::Unattested | AttestationSource::Certified(_) => None,
             };
 
             // The function refs of the accounts that resolved, so an
@@ -2537,7 +2568,7 @@ impl AuthorityState {
                 inner_temp_store,
                 gas_status,
                 effects,
-                timings,
+                _timings,
                 execution_error_opt,
                 authentication_error,
             ) = epoch_store
@@ -2565,24 +2596,34 @@ impl AuthorityState {
             // Only an attested transaction whose authentication failed is
             // judged, on the authentication error itself: the body's own
             // checks may have replaced it in the effects.
-            let refuted = match (&authentication_error, &attestation_verdict_context) {
-                (Some(kind), Some(context)) => context.is_refuted(kind),
-                _ => false,
+            let outcome = attestation_verdict::ExecutionOutcome {
+                refuted: match (&authentication_error, &attestation_verdict_context) {
+                    (Some(kind), Some(context)) => context.is_refuted(kind),
+                    _ => false,
+                },
+                body_ran: attestation_verdict::body_ran(
+                    authentication_error.is_some(),
+                    execution_error_opt.as_ref().err(),
+                ),
             };
-            if refuted {
-                warn!(
-                    ?tx_digest,
-                    "attestation refuted: Move authentication also fails at the attested versions"
-                );
-            }
             (
                 inner_temp_store,
                 gas_status,
                 effects,
-                timings,
                 execution_error_opt,
+                outcome,
             )
         };
+
+        // Judged before the fork-injecting fail point below, so that only the
+        // effects diverge under it.
+        let attestation_record = attestation_record(
+            attestation,
+            &outcome,
+            &effects,
+            tx.gas_price(),
+            protocol_config,
+        );
 
         fail_point_if!("cp_execution_nondeterminism", || {
             #[cfg(msim)]
@@ -2601,8 +2642,9 @@ impl AuthorityState {
         Ok((
             inner_temp_store,
             effects,
-            execution_error_opt.err(),
+            execution_error.err(),
             read_objects,
+            attestation_record,
         ))
     }
 
@@ -2627,7 +2669,7 @@ impl AuthorityState {
             &AttestationSource::Unattested,
             epoch_store,
         )
-        .map(|(inner_temp_store, effects, execution_error, _)| {
+        .map(|(inner_temp_store, effects, execution_error, _, _)| {
             (inner_temp_store, effects, execution_error)
         })
     }
@@ -6102,7 +6144,7 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        let (temporary_store, effects, _execution_error_opt, _) = self.execute_transaction(
+        let (temporary_store, effects, _execution_error_opt, _, _) = self.execute_transaction(
             &execution_guard,
             &executable_tx,
             input_objects,
