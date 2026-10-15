@@ -14,10 +14,17 @@
 //! The sweep finishes before the node executes anything, so no other bucket
 //! holds a version relocated by a commit yet.
 
-use std::{ops::Bound, sync::Arc};
+use std::{
+    ops::Bound,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
-use iota_sdk_types::{TransactionDigest, TransactionEffects, TransactionEffectsDigest};
+use iota_sdk_types::{ObjectId, TransactionEffects};
 use iota_types::{
+    base_types::VersionNumber,
     committee::EpochId,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
@@ -25,6 +32,7 @@ use iota_types::{
     object::Object,
     storage::ObjectKey,
 };
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 use typed_store::{rocks::DBBatch, traits::Map};
@@ -36,6 +44,7 @@ use crate::{
         authority_store_types::{StoreObject, StoreObjectWrapper, try_construct_object},
         historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
+        ledger_backlog_migration::RangeProgress,
     },
     checkpoints::CheckpointStore,
     progress_logger::ProgressLogger,
@@ -50,12 +59,17 @@ const KEYS_PER_SLICE: usize = 5_000;
 /// batch, bounding what an interrupted run has to replay.
 const CHECKPOINTS_PER_SLICE: u64 = 200;
 
+/// How many key ranges the walk of the whole live table splits it into, by
+/// the first byte of the object id; each range is walked by its own thread.
+/// All versions of an object share its id, so they fall in one range.
+const WALK_RANGES: usize = 32;
+
 /// How far the sweep has got through the live `objects` table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ObjectBacklogSweepProgress {
-    /// Every key up to and including this one has been swept; the next slice
-    /// resumes above it.
-    SweptThrough(ObjectKey),
+    /// How far each key range of the walk of the whole live table has got:
+    /// every key up to and including a range's position has been swept.
+    Walking(Vec<RangeProgress<ObjectKey>>),
     /// The sweep has finished, by either route, and later node starts do
     /// nothing.
     Done,
@@ -97,21 +111,7 @@ pub async fn sweep(
             Some(bound) => {
                 sweep.sweep_above_bound(&checkpoint_store, epoch, bound)?;
             }
-            None => {
-                let mut progress = ProgressLogger::new(
-                    "object backlog sweep",
-                    "objects",
-                    sweep.perpetual_tables.objects.estimated_len()?,
-                );
-                loop {
-                    let (decided, more) = sweep.sweep_slice(epoch)?;
-                    progress.advance(decided as u64);
-                    if !more {
-                        break;
-                    }
-                }
-                progress.finish();
-            }
+            None => sweep.walk_in_parallel(epoch)?,
         }
         IotaResult::Ok(())
     })
@@ -238,57 +238,7 @@ impl ObjectBacklogSweep {
             next = ended_at.saturating_add(1);
         }
         progress.finish();
-        self.sweep_unfinalized_transactions(epoch)?;
         self.mark_done(epoch)
-    }
-
-    /// Relocates the versions superseded by the transactions of `epoch` that
-    /// this node executed but no checkpoint has finalized yet, and records
-    /// their tombstones. A node can execute a transaction ahead of its
-    /// checkpoint, and no checkpoint walked above names it. Only `epoch` can
-    /// hold such a transaction: an epoch change reverts the ones its
-    /// checkpoints left out.
-    ///
-    /// Has no progress row of its own: an interrupted run walks the epoch
-    /// again, and a version already relocated is skipped.
-    fn sweep_unfinalized_transactions(&self, epoch: EpochId) -> IotaResult<()> {
-        let ledger = self.historic_ledger.ensure(epoch)?;
-        let mut records = ledger.executed_effects.safe_iter();
-        loop {
-            let chunk: Vec<(TransactionDigest, TransactionEffectsDigest)> = records
-                .by_ref()
-                .take(self.keys_per_slice)
-                .collect::<Result<_, _>>()?;
-            if chunk.is_empty() {
-                return Ok(());
-            }
-            let finalized = ledger
-                .tx_to_checkpoint
-                .multi_get(chunk.iter().map(|(digest, _)| digest))?;
-            let mut superseded = Vec::new();
-            let mut tombstones = Vec::new();
-            for ((_, effects_digest), checkpoint) in chunk.iter().zip(finalized) {
-                if checkpoint.is_some() {
-                    continue;
-                }
-                if let Some(effects) = ledger.effects.get(effects_digest)? {
-                    self.collect_superseded(&effects, &mut superseded, &mut tombstones)?;
-                }
-            }
-            if superseded.is_empty() && tombstones.is_empty() {
-                continue;
-            }
-            let relocated = superseded.len();
-            let tombstone_count = tombstones.len();
-            let mut batch = self.perpetual_tables.objects.batch();
-            self.relocate(&mut batch, epoch, superseded, &tombstones)?;
-            batch.write()?;
-            debug!(
-                relocated,
-                tombstones = tombstone_count,
-                "swept the superseded versions of transactions no checkpoint has finalized"
-            );
-        }
     }
 
     /// Adds the versions `effects` superseded that the live table still holds
@@ -407,19 +357,111 @@ impl ObjectBacklogSweep {
         Ok(())
     }
 
-    /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key, in
-    /// one batch with the progress row. Returns how many rows it decided and
-    /// whether any are left to sweep.
-    fn sweep_slice(&self, epoch: EpochId) -> IotaResult<(usize, bool)> {
-        let objects = &self.perpetual_tables.objects;
-        let progress = &self.perpetual_tables.object_backlog_sweep_progress;
-        let lower_bound = match progress.get(&())? {
+    /// Walks the whole live table, in [`WALK_RANGES`] key ranges with a thread
+    /// per range, resuming each range from its recorded position. Each slice
+    /// records every range's position in the batch of its rows; the writes
+    /// are serialized, so the progress row always holds every range's latest
+    /// written position.
+    fn walk_in_parallel(&self, epoch: EpochId) -> IotaResult<()> {
+        let ranges = match self
+            .perpetual_tables
+            .object_backlog_sweep_progress
+            .get(&())?
+        {
             Some(ObjectBacklogSweepProgress::Done | ObjectBacklogSweepProgress::Skipped) => {
-                return Ok((0, false));
+                return Ok(());
             }
-            Some(ObjectBacklogSweepProgress::SweptThrough(key)) => Bound::Excluded(key),
-            None => Bound::Unbounded,
+            Some(ObjectBacklogSweepProgress::Walking(ranges)) if ranges.len() == WALK_RANGES => {
+                ranges
+            }
+            // A different number of ranges restarts the walk, which is safe:
+            // a relocated version is gone from the live table, and the rows
+            // walked again are decided the same way.
+            _ => vec![RangeProgress::At(None); WALK_RANGES],
         };
+        let ranges = Mutex::new(ranges);
+        let logger = Mutex::new(ProgressLogger::new(
+            "object backlog sweep",
+            "objects",
+            self.perpetual_tables.objects.estimated_len()?,
+        ));
+        let failed = AtomicBool::new(false);
+        // The database starts tasks on the caller's runtime, e.g. to sample
+        // iterator metrics.
+        let runtime = tokio::runtime::Handle::try_current().ok();
+
+        std::thread::scope(|scope| {
+            let walkers: Vec<_> = (0..WALK_RANGES)
+                .map(|range| {
+                    let (ranges, logger, failed, runtime) = (&ranges, &logger, &failed, &runtime);
+                    scope.spawn(move || {
+                        let _runtime = runtime.as_ref().map(|runtime| runtime.enter());
+                        let result = self.walk_range(range, epoch, ranges, logger, failed);
+                        if result.is_err() {
+                            failed.store(true, Ordering::Relaxed);
+                        }
+                        result
+                    })
+                })
+                .collect();
+            walkers.into_iter().try_for_each(|walker| {
+                walker.join().unwrap_or_else(|_| {
+                    Err(IotaError::Storage(
+                        "an object backlog sweep thread panicked".to_string(),
+                    ))
+                })
+            })
+        })?;
+        logger.into_inner().finish();
+        self.mark_done(epoch)
+    }
+
+    /// Walks key range `range` one slice at a time, stopping early if another
+    /// range fails.
+    fn walk_range(
+        &self,
+        range: usize,
+        epoch: EpochId,
+        ranges: &Mutex<Vec<RangeProgress<ObjectKey>>>,
+        logger: &Mutex<ProgressLogger>,
+        failed: &AtomicBool,
+    ) -> IotaResult<()> {
+        loop {
+            let RangeProgress::At(from) = ranges.lock()[range] else {
+                return Ok(());
+            };
+            if failed.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+            let (mut batch, decided, next) = self.sweep_slice(range, from, epoch)?;
+            let mut positions = ranges.lock();
+            let mut written = positions.clone();
+            written[range] = next;
+            batch.insert_batch(
+                &self.perpetual_tables.object_backlog_sweep_progress,
+                [((), ObjectBacklogSweepProgress::Walking(written.clone()))],
+            )?;
+            batch.write()?;
+            // Only once written, or another range could record a position
+            // whose rows a failed write left behind.
+            *positions = written;
+            drop(positions);
+            logger.lock().advance(decided as u64);
+        }
+    }
+
+    /// Builds the batch sweeping up to [`Self::keys_per_slice`] rows of key
+    /// range `range` above `from`. Returns it with how many rows it decided
+    /// and where the range stands once it is written.
+    fn sweep_slice(
+        &self,
+        range: usize,
+        from: Option<ObjectKey>,
+        epoch: EpochId,
+    ) -> IotaResult<(DBBatch, usize, RangeProgress<ObjectKey>)> {
+        let objects = &self.perpetual_tables.objects;
+        let (range_start, range_end) = walk_range_bounds(range);
+        let lower_bound = from.map_or(Bound::Included(range_start), Bound::Excluded);
 
         let mut superseded = Vec::new();
         let mut tombstones = Vec::new();
@@ -430,7 +472,7 @@ impl ObjectBacklogSweep {
         let mut decided = 0;
         let mut sliced = false;
 
-        for row in objects.safe_range_iter((lower_bound, Bound::Unbounded)) {
+        for row in objects.safe_range_iter((lower_bound, range_end)) {
             let (key, object) = row?;
             if let Some((previous, row)) = undecided.take() {
                 Self::decide(
@@ -453,9 +495,10 @@ impl ObjectBacklogSweep {
         }
         if !sliced {
             if let Some((last, row)) = undecided {
-                // Nothing follows it, so it is the newest version of its id.
+                // Nothing follows it in the range, which ends between two
+                // object ids, so it is the newest version of its id.
                 Self::decide(last, row, false, &mut superseded, &mut tombstones)?;
-                swept_through = Some(last);
+                decided += 1;
             }
         }
 
@@ -472,22 +515,17 @@ impl ObjectBacklogSweep {
             batch
                 .insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
         }
-        let recorded = match swept_through {
-            Some(key) if sliced => ObjectBacklogSweepProgress::SweptThrough(key),
-            _ => ObjectBacklogSweepProgress::Done,
+        let next = match swept_through {
+            Some(key) if sliced => RangeProgress::At(Some(key)),
+            _ => RangeProgress::Done,
         };
-        batch.insert_batch(progress, [((), recorded)])?;
-        batch.write()?;
-        if !sliced {
-            self.mark_done(epoch)?;
-        }
 
         debug!(
             relocated,
             tombstones = tombstones.len(),
             "swept a slice of the superseded object versions"
         );
-        Ok((decided, sliced))
+        Ok((batch, decided, next))
     }
 
     /// Sorts one row into the versions to relocate and the tombstones to
@@ -512,6 +550,22 @@ impl ObjectBacklogSweep {
         }
         Ok(())
     }
+}
+
+/// The keys of walk range `range`: those whose object id's first byte is in
+/// its share of `0..=255`.
+fn walk_range_bounds(range: usize) -> (ObjectKey, Bound<ObjectKey>) {
+    let first_key = |range: usize| {
+        let mut bytes = [0; ObjectId::LENGTH];
+        bytes[0] = u8::try_from(range * 256 / WALK_RANGES).expect("below 256");
+        ObjectKey(ObjectId::new(bytes), VersionNumber::from_u64(0))
+    };
+    let end = if range + 1 < WALK_RANGES {
+        Bound::Excluded(first_key(range + 1))
+    } else {
+        Bound::Unbounded
+    };
+    (first_key(range), end)
 }
 
 #[cfg(test)]
