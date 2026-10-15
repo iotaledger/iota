@@ -59,7 +59,10 @@
 use std::{
     collections::{HashMap, VecDeque},
     num::NonZeroUsize,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -72,6 +75,7 @@ use iota_data_ingestion_core::{
     ShimProgressStore, Worker, WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
+use iota_macros::fail_point;
 use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_types::{
     committee::Committee,
@@ -486,6 +490,7 @@ struct StateSyncEventLoop<S> {
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
+    sync_summaries_to_epoch_end: Arc<AtomicBool>,
 }
 
 impl<S> StateSyncEventLoop<S>
@@ -745,6 +750,9 @@ where
             self.store
                 .try_update_highest_synced_checkpoint(&checkpoint)
                 .expect("store operation should not fail");
+            if checkpoint.next_epoch_committee().is_some() {
+                fail_point!("synced-end-of-epoch-checkpoint-from-consensus");
+            }
         }
 
         // We don't care if no one is listening as this is a broadcast channel
@@ -895,8 +903,7 @@ where
     }
 
     /// The highest checkpoint state sync may take on right now: the highest
-    /// one known to be on peers, held back to
-    /// `max_checkpoints_ahead_of_execution` above the executed watermark.
+    /// one known to be on peers, held back by `summary_sync_target`.
     /// `None` when no peer on our chain is known.
     fn highest_checkpoint_to_sync(&self) -> Option<CheckpointSequenceNumber> {
         let highest_known_checkpoint = self
@@ -908,11 +915,47 @@ where
             .store
             .try_get_highest_executed_checkpoint_seq_number()
             .expect("store operation should not fail");
-        Some(checkpoint_sync_target(
+        if !self.sync_summaries_to_epoch_end.load(Ordering::Relaxed) {
+            return Some(checkpoint_sync_target(
+                highest_known_checkpoint,
+                highest_executed_checkpoint,
+                self.config.max_checkpoints_ahead_of_execution(),
+            ));
+        }
+        let highest_verified_checkpoint = self
+            .store
+            .try_get_highest_verified_checkpoint()
+            .expect("store operation should not fail");
+        Some(summary_sync_target(
             highest_known_checkpoint,
             highest_executed_checkpoint,
+            highest_verified_checkpoint.sequence_number(),
             self.config.max_checkpoints_ahead_of_execution(),
+            self.epoch_end_pending(highest_executed_checkpoint, &highest_verified_checkpoint),
         ))
+    }
+
+    /// Whether the summary that ends the epoch being executed is not verified
+    /// yet.
+    fn epoch_end_pending(
+        &self,
+        highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
+        highest_verified_checkpoint: &VerifiedCheckpoint,
+    ) -> bool {
+        let executing_epoch = match highest_executed_checkpoint {
+            Some(seq) => {
+                let executed = self
+                    .store
+                    .try_get_checkpoint_by_sequence_number(seq)
+                    .expect("store operation should not fail")
+                    .expect("executed checkpoint should be in the store");
+                executed.epoch() + u64::from(executed.next_epoch_committee().is_some())
+            }
+            None => 0,
+        };
+        highest_verified_checkpoint.epoch() < executing_epoch
+            || (highest_verified_checkpoint.epoch() == executing_epoch
+                && highest_verified_checkpoint.next_epoch_committee().is_none())
     }
 
     /// Starts syncing checkpoint summaries if there are peers that have a
@@ -1529,6 +1572,27 @@ fn checkpoint_sync_target(
             .unwrap_or(0)
             .saturating_add(max_ahead_of_execution),
     )
+}
+
+/// The highest checkpoint summary state sync may verify right now. Normally
+/// the bound above execution from `checkpoint_sync_target`. While
+/// `epoch_end_pending`, the bound counts from the highest verified summary
+/// instead, so summaries keep coming while execution stands still, until the
+/// summary that ends the epoch being executed arrives.
+fn summary_sync_target(
+    highest_available: CheckpointSequenceNumber,
+    highest_executed: Option<CheckpointSequenceNumber>,
+    highest_verified: CheckpointSequenceNumber,
+    max_ahead_of_execution: u64,
+    epoch_end_pending: bool,
+) -> CheckpointSequenceNumber {
+    let target =
+        checkpoint_sync_target(highest_available, highest_executed, max_ahead_of_execution);
+    if epoch_end_pending {
+        target.max(highest_available.min(highest_verified.saturating_add(max_ahead_of_execution)))
+    } else {
+        target
+    }
 }
 
 /// Syncs checkpoint contents from peers if the target sequence cursor, which is

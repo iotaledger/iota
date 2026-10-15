@@ -28,7 +28,7 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    CheckpointContents, RandomnessRound, TransactionDigest, TransactionEffects,
+    CheckpointContents, CheckpointSummary, RandomnessRound, TransactionDigest, TransactionEffects,
     TransactionEffectsDigest, TransactionKind,
 };
 use iota_types::{
@@ -138,6 +138,10 @@ pub struct CheckpointExecutor {
     tps_estimator: Mutex<TPSEstimator>,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     data_sender: Option<CheckpointDataSender>,
+    /// The next synced checkpoint whose randomness has not been forwarded
+    /// yet; `CheckpointSequenceNumber::MAX` once every synced checkpoint of
+    /// this epoch has been.
+    next_randomness_to_forward: Mutex<CheckpointSequenceNumber>,
 }
 
 impl CheckpointExecutor {
@@ -166,6 +170,7 @@ impl CheckpointExecutor {
             tps_estimator: Mutex::new(TPSEstimator::default()),
             checkpoint_progress_tracker,
             data_sender,
+            next_randomness_to_forward: Mutex::new(0),
         }
     }
 
@@ -344,6 +349,24 @@ impl CheckpointExecutor {
                 .await;
         }
 
+        // A committee validator that has not built the last checkpoint itself
+        // executes it from synced data like the checkpoints before, so it
+        // switches first.
+        if is_last_checkpoint_of_epoch
+            && !self.state.is_fullnode(&self.epoch_store)
+            && self
+                .epoch_store
+                .protocol_config()
+                .committee_validators_skip_synced_checkpoint_execution()
+            && self
+                .checkpoint_store
+                .get_locally_computed_checkpoint(sequence_number)
+                .expect("db error")
+                .is_none()
+        {
+            self.epoch_store.start_executing_synced_checkpoints().await;
+        }
+
         let _parallel_step_guard =
             iota_metrics::monitored_scope("CheckpointExecutor::parallel_step");
 
@@ -495,13 +518,9 @@ impl CheckpointExecutor {
         );
 
         let sequence_number = checkpoint.sequence_number;
-        let locally_built_checkpoint = self
-            .checkpoint_store
-            .get_locally_computed_checkpoint(sequence_number)
-            .expect("db error");
-
-        let Some(locally_built_checkpoint) = locally_built_checkpoint else {
-            // fall back to tx-by-tx execution path if we are catching up.
+        let Some(locally_built_checkpoint) =
+            self.wait_for_locally_built_checkpoint(&checkpoint).await
+        else {
             let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
             return self
                 .execute_transactions_from_synced_checkpoint(ckpt_state, tx_data, pipeline_handle)
@@ -564,6 +583,113 @@ impl CheckpointExecutor {
             },
             state_hash,
         )
+    }
+
+    /// Returns this node's own summary of `checkpoint`, waiting for the
+    /// checkpoint builder if needed. Returns `None` when the caller should
+    /// execute the synced checkpoint instead: always without
+    /// `committee_validators_skip_synced_checkpoint_execution`; with it, for the genesis
+    /// checkpoint, and for any checkpoint once the certified last checkpoint of this epoch
+    /// is known, because peers then stop serving this epoch's consensus
+    /// commits. In that last case it first switches this node to executing
+    /// synced checkpoints for the rest of the epoch, which stops the consensus
+    /// handler and the checkpoint builder. Once switched, it returns `None`
+    /// for every checkpoint, built locally or not.
+    async fn wait_for_locally_built_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Option<CheckpointSummary> {
+        let seq = checkpoint.sequence_number;
+        let skip_synced_execution = self
+            .epoch_store
+            .protocol_config()
+            .committee_validators_skip_synced_checkpoint_execution();
+        // Once switched, the builder no longer runs, so the state hash of a
+        // checkpoint it built may never be computed; the synced path computes
+        // it.
+        if skip_synced_execution && self.epoch_store.is_executing_synced_checkpoints() {
+            return None;
+        }
+        if let Some(summary) = self
+            .checkpoint_store
+            .get_locally_computed_checkpoint(seq)
+            .expect("db error")
+        {
+            return Some(summary);
+        }
+        if seq == 0 || !skip_synced_execution {
+            return None;
+        }
+        let epoch = self.epoch_store.epoch();
+        if self
+            .checkpoint_store
+            .get_epoch_last_checkpoint_seq_number(epoch)
+            .expect("db error")
+            .is_some()
+        {
+            self.epoch_store.start_executing_synced_checkpoints().await;
+            return None;
+        }
+        let _backpressure_guard = self.backpressure_manager.wait_for_local_build();
+        // The builder resolves every randomness round of a build before it
+        // writes any chunk of it, so the round this checkpoint waits for may
+        // only appear in a later synced chunk. Forward from all of them, each
+        // once per epoch.
+        let mut next_to_forward = (*self.next_randomness_to_forward.lock()).max(seq);
+        loop {
+            let highest_synced = self
+                .checkpoint_store
+                .get_highest_synced_checkpoint_seq_number()
+                .expect("db error")
+                .unwrap_or_default();
+            while next_to_forward <= highest_synced {
+                let synced = self
+                    .checkpoint_store
+                    .get_checkpoint_by_sequence_number(next_to_forward)
+                    .expect("db error")
+                    .expect("synced checkpoint should be in the store");
+                if synced.epoch() != epoch {
+                    next_to_forward = CheckpointSequenceNumber::MAX;
+                    break;
+                }
+                self.forward_randomness_from_checkpoint(synced);
+                next_to_forward += 1;
+                tokio::task::yield_now().await;
+            }
+            *self.next_randomness_to_forward.lock() = next_to_forward;
+            tokio::select! {
+                summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => return Some(summary),
+                _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => {
+                    self.epoch_store.start_executing_synced_checkpoints().await;
+                    return None;
+                }
+                _ = self.checkpoint_store.notify_read_synced_checkpoint(next_to_forward), if next_to_forward != CheckpointSequenceNumber::MAX => {}
+            }
+        }
+    }
+
+    fn forward_randomness_from_checkpoint(&self, checkpoint: VerifiedCheckpoint) {
+        let Some(reporter) = self.epoch_store.randomness_reporter() else {
+            return;
+        };
+        let contents = self
+            .checkpoint_store
+            .get_checkpoint_contents(&checkpoint.contents_digest)
+            .expect("db error")
+            .expect("checkpoint contents not found");
+        if self
+            .extract_randomness_rounds(&checkpoint, &contents)
+            .is_empty()
+        {
+            return;
+        }
+        let (_, tx_data) = self.load_checkpoint_transactions(checkpoint);
+        for tx in &tx_data.transactions {
+            if let TransactionKind::RandomnessStateUpdate(rsu) = tx.transaction().kind() {
+                reporter
+                    .forward_randomness_from_checkpoint(rsu.randomness_round, &rsu.random_bytes);
+            }
+        }
     }
 
     #[instrument(level = "info", skip_all)]

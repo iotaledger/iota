@@ -4,7 +4,7 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, atomic::AtomicBool},
 };
 
 use anemo::codegen::InboundRequestLayer;
@@ -28,6 +28,7 @@ pub struct Builder<S> {
     config: Option<StateSyncConfig>,
     metrics: Option<Metrics>,
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
+    sync_summaries_to_epoch_end: Arc<AtomicBool>,
 }
 
 impl Builder<()> {
@@ -38,6 +39,7 @@ impl Builder<()> {
             config: None,
             metrics: None,
             checkpoint_archive_config: None,
+            sync_summaries_to_epoch_end: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -49,6 +51,7 @@ impl<S> Builder<S> {
             config: self.config,
             metrics: self.metrics,
             checkpoint_archive_config: self.checkpoint_archive_config,
+            sync_summaries_to_epoch_end: self.sync_summaries_to_epoch_end,
         }
     }
 
@@ -67,6 +70,16 @@ impl<S> Builder<S> {
         checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     ) -> Self {
         self.checkpoint_archive_config = checkpoint_archive_config;
+        self
+    }
+
+    /// While `enabled` is set, lets summary sync go past
+    /// `max_checkpoints_ahead_of_execution` until the summary that ends the
+    /// epoch being executed is stored. The node sets it for each epoch in
+    /// which it waits for its own checkpoints and so needs that summary to
+    /// finish an epoch its consensus can no longer build.
+    pub fn sync_summaries_to_epoch_end(mut self, enabled: Arc<AtomicBool>) -> Self {
+        self.sync_summaries_to_epoch_end = enabled;
         self
     }
 }
@@ -129,6 +142,7 @@ where
             config,
             metrics,
             checkpoint_archive_config,
+            sync_summaries_to_epoch_end,
         } = self;
         let store = store.unwrap();
         let config = config.unwrap_or_default();
@@ -177,6 +191,7 @@ where
                 metrics,
                 checkpoint_archive_config,
                 genesis_checkpoint,
+                sync_summaries_to_epoch_end,
             },
             server,
         )
@@ -195,6 +210,7 @@ pub struct UnstartedStateSync<S> {
     pub(super) checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
+    pub(super) sync_summaries_to_epoch_end: Arc<AtomicBool>,
 }
 
 impl<S> UnstartedStateSync<S>
@@ -213,6 +229,7 @@ where
             metrics,
             checkpoint_archive_config,
             genesis_checkpoint,
+            sync_summaries_to_epoch_end,
         } = self;
 
         (
@@ -232,6 +249,7 @@ where
                 checkpoint_archive_config,
                 sync_checkpoint_from_archive_task: None,
                 genesis_checkpoint,
+                sync_summaries_to_epoch_end,
             },
             handle,
         )
