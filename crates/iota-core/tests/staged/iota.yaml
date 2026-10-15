@@ -1024,6 +1024,9 @@ TypedStoreError:
       MetricsReporting: UNIT
     5:
       RetryableTransaction: UNIT
+    6:
+      Pruned:
+        NEWTYPE: STR
 UnchangedSharedKind:
   ENUM:
     0:
