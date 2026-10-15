@@ -51,8 +51,8 @@ pub trait TransactionExecutor: Send + Sync {
     /// transactions executed from now on readable until the returned value is
     /// dropped. Take it before executing transactions whose objects are read
     /// from the cache afterwards. Executors that do not prune retain nothing.
-    fn retain_cached_objects(&self) -> Result<Box<dyn Send + Sync>, IotaError> {
-        Ok(Box::new(()))
+    fn retain_cached_objects(&self) -> Box<dyn Send + Sync> {
+        Box::new(())
     }
 
     /// Read authoritative effects, events, and input/output objects for a

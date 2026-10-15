@@ -47,7 +47,6 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
         authority_store_pruner::{
             AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-            ObjectRetention,
         },
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
@@ -1616,7 +1615,7 @@ impl AuthorityStore {
             AuthorityStorePruningMetrics::new_for_test(),
             EPOCH_DURATION_MS_FOR_TESTING,
             None,
-            &ObjectRetention::default(),
+            None,
         )
         .await;
         let _ = AuthorityStorePruner::compact(&self.perpetual_tables);
