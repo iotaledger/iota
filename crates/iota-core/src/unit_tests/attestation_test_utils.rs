@@ -22,7 +22,7 @@ use crate::{
 
 /// Consensus accepts a validator attestation only from the block author, which
 /// `SequencedConsensusTransaction::new_test` fixes at index 0.
-fn attestor_index() -> u8 {
+fn validator_index() -> u8 {
     0
 }
 
@@ -42,7 +42,7 @@ impl AbstractAccountTestEnv {
             .expect("attesting must succeed while authentication passes");
         Attestation::Validator {
             payload,
-            attestor_index: attestor_index(),
+            validator_index: validator_index(),
         }
     }
 
@@ -57,7 +57,7 @@ impl AbstractAccountTestEnv {
                 computation_units,
                 object_versions,
             },
-            attestor_index: attestor_index(),
+            validator_index: validator_index(),
         }
     }
 

@@ -441,17 +441,17 @@ impl ValidatorService {
         let consensus_tx = if let Some(attestation_data) = attestation_data {
             // submit_single_tx runs on a validator, so it must be present in its
             // own committee. Treat absence as a fatal bug, not a user error.
-            let attestor_index = epoch_store
+            let validator_index = epoch_store
                 .committee()
                 .authority_index(&state.name)
-                .map(|i| i as u8)
+                .and_then(|i| u8::try_from(i).ok())
                 .expect("validator must be present in its own consensus committee");
 
             ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
                 verified_tx.into_inner(),
                 Attestation::Validator {
                     payload: attestation_data,
-                    attestor_index,
+                    validator_index,
                 },
             ))
         } else {

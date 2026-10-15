@@ -65,7 +65,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{self, Attestation, AttestationRecord, AttestationVerdict},
+    attestation::{self, AttestationRecord, AttestationVerdict},
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -2098,17 +2098,6 @@ impl AuthorityState {
         // verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`), exactly as for
         // `UserTransactionV1`, and is not re-checked here.
-        //
-        // Explicit attestations are rejected pre-consensus (block verifier) and
-        // at post-consensus (Check #3), so one reaching here is a protocol-level
-        // bug.
-        if let AttestationSource::Attestation(Attestation::Explicit { .. }) =
-            transaction.attestation()
-        {
-            return Err(IotaError::UnsupportedFeature {
-                error: "Explicit attestation reached execute_transaction".into(),
-            });
-        }
 
         let (kind, signer, gas_data) = tx.execution_parts();
 
@@ -2410,7 +2399,7 @@ impl AuthorityState {
                     executed_units,
                     protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
                 );
-                AttestationRecord::new(attestation, verdict)
+                Some(AttestationRecord::new(attestation, verdict))
             }
         };
 

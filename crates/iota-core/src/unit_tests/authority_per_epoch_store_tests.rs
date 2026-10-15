@@ -905,7 +905,7 @@ fn attest(
                 computation_units,
                 object_versions: vec![],
             },
-            attestor_index: 0,
+            validator_index: 0,
         }),
     )
 }
