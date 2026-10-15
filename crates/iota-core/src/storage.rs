@@ -617,6 +617,25 @@ impl GrpcStateReader for GrpcReadStore {
             .map_err(StorageError::custom)
     }
 
+    fn get_lowest_available_checkpoint_indexes(
+        &self,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        let Some(indexes) = self
+            .state
+            .rpc_indexes_store
+            .as_deref()
+            .filter(|store| store.serves(IndexGroup::JsonRpc))
+        else {
+            return Ok(None);
+        };
+        indexes
+            .lowest_available_checkpoint(
+                &self.rocks.checkpoint_store,
+                self.try_get_lowest_available_checkpoint()?,
+            )
+            .map_err(StorageError::custom)
+    }
+
     fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {
         Ok(self.state.get_chain_identifier())
     }

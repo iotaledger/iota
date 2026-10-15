@@ -33,6 +33,12 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
     /// data will be available.
     fn get_lowest_available_checkpoint_objects(&self) -> Result<CheckpointSequenceNumber>;
 
+    /// Lowest checkpoint from which the RPC index history is complete, `None`
+    /// when the node does not keep the transaction and event indexes. Can be
+    /// above the highest executed checkpoint, for example while the history is
+    /// backfilled after a rebuild.
+    fn get_lowest_available_checkpoint_indexes(&self) -> Result<Option<CheckpointSequenceNumber>>;
+
     fn get_chain_identifier(&self) -> Result<ChainIdentifier>;
 
     fn get_epoch_last_checkpoint(&self, epoch_id: EpochId) -> Result<Option<VerifiedCheckpoint>>;

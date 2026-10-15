@@ -537,6 +537,12 @@ impl GrpcStateReader for MockGrpcStateReader {
         Ok(0)
     }
 
+    fn get_lowest_available_checkpoint_indexes(
+        &self,
+    ) -> StorageResult<Option<CheckpointSequenceNumber>> {
+        Ok(Some(self.lowest_available_checkpoint))
+    }
+
     fn get_chain_identifier(&self) -> StorageResult<iota_types::digests::ChainIdentifier> {
         Ok(iota_types::digests::ChainIdentifier::default())
     }

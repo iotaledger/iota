@@ -761,6 +761,12 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
         Ok(0)
     }
 
+    fn get_lowest_available_checkpoint_indexes(
+        &self,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        Ok(None)
+    }
+
     fn get_chain_identifier(
         &self,
     ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {

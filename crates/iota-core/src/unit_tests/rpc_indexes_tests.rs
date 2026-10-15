@@ -630,6 +630,83 @@ async fn test_the_earliest_retained_epoch_never_moves_backwards() {
     assert!(index_store.ensure_history_bucket(1).is_ok());
 }
 
+/// The lowest checkpoint with complete history is raised by the ledger's
+/// lowest checkpoint, the history watermark, and the earliest retained epoch.
+#[tokio::test]
+async fn test_lowest_available_checkpoint() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    checkpoint_store
+        .insert_epoch_last_checkpoint(0, &executed_checkpoint(0, 9))
+        .unwrap();
+    let tmp_dir = iota_common::tempdir();
+    let index_store = open_index_store_with_retention(tmp_dir.path(), Some(1));
+    let lowest = |index_store: &RpcIndexesStore| {
+        index_store
+            .lowest_available_checkpoint(&checkpoint_store, 2)
+            .unwrap()
+    };
+
+    assert_eq!(
+        lowest(&index_store),
+        Some(2),
+        "a store never rebuilt is complete"
+    );
+
+    index_store
+        .tables
+        .history_watermark
+        .insert(&(), &5)
+        .unwrap();
+    assert_eq!(lowest(&index_store), Some(5));
+
+    seed_history_buckets(&index_store, 3);
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
+    assert_eq!(
+        lowest(&index_store),
+        Some(10),
+        "epoch 1 starts at checkpoint 10"
+    );
+}
+
+/// When the earliest retained epoch's first checkpoint is unknown, no executed
+/// checkpoint is reported complete.
+#[tokio::test]
+async fn test_lowest_available_checkpoint_with_an_unknown_epoch_start() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    mark_checkpoint_executed(&checkpoint_store, 20);
+    let tmp_dir = iota_common::tempdir();
+    let index_store = open_index_store_with_retention(tmp_dir.path(), Some(1));
+    seed_history_buckets(&index_store, 3);
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
+
+    assert_eq!(
+        index_store
+            .lowest_available_checkpoint(&checkpoint_store, 2)
+            .unwrap(),
+        Some(21)
+    );
+}
+
+/// A store without the JSON-RPC group keeps no transaction or event indexes,
+/// so it reports no lowest checkpoint for them.
+#[tokio::test]
+async fn test_lowest_available_checkpoint_of_a_grpc_only_store() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let tmp_dir = iota_common::tempdir();
+    let index_store = RpcIndexesStore::new_without_init(
+        tmp_dir.path().to_path_buf(),
+        None,
+        BTreeSet::from([IndexGroup::Grpc]),
+    );
+
+    assert_eq!(
+        index_store
+            .lowest_available_checkpoint(&checkpoint_store, 0)
+            .unwrap(),
+        None
+    );
+}
+
 /// With index pruning configured, the backfill stops at the retention
 /// horizon even before the first pruning pass has persisted the
 /// `earliest_retained_epoch` floor.

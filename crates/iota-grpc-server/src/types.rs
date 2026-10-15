@@ -636,6 +636,12 @@ impl GrpcReader {
             .map_err(Into::into)
     }
 
+    pub fn get_lowest_available_checkpoint_indexes(&self) -> anyhow::Result<Option<u64>> {
+        self.state_reader
+            .get_lowest_available_checkpoint_indexes()
+            .map_err(Into::into)
+    }
+
     pub fn get_object(&self, object_id: &ObjectId) -> anyhow::Result<Option<Object>> {
         self.state_reader
             .try_get_object(object_id)
