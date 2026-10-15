@@ -3,8 +3,7 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::crypto::{MultisigCommittee, PublicKey};
-use iota_types::account_abstraction::public_key;
+use iota_sdk_types::crypto::MultisigCommittee;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -21,26 +20,19 @@ use crate::NativesCostTable;
 #[derive(Clone)]
 pub struct MultisigValidatePubkeyCostParams {
     pub multisig_multisig_validate_pubkey_cost_base: Option<InternalGas>,
-    /// Per-member costs, charged once per committee member according to its key
-    /// scheme. Passkey members validate on the secp256r1 curve and reuse
-    /// `multisig_multisig_validate_pubkey_cost_per_secp256r1_member`.
-    pub multisig_multisig_validate_pubkey_cost_per_ed25519_member: Option<InternalGas>,
-    pub multisig_multisig_validate_pubkey_cost_per_secp256k1_member: Option<InternalGas>,
-    pub multisig_multisig_validate_pubkey_cost_per_secp256r1_member: Option<InternalGas>,
 }
 
 /// Implementation of the Move native function
 /// `multisig::multisig_validate_pubkey(public_key: &vector<u8>): bool`
 ///
-/// Returns `true` if `public_key` deserializes into a well-formed MultiSig
-/// committee that passes canonical validation — 1 to 10 distinct members, every
-/// member key a valid curve point, every weight greater than zero, threshold
-/// greater than zero, and total weight at least the threshold — and `false`
-/// otherwise (including on deserialization failure or trailing bytes).
+/// Returns `true` if `public_key` deserializes into a MultiSig committee that
+/// passes `MultisigCommittee::validate()` — 1 to 10 distinct members, every
+/// weight greater than zero, threshold greater than zero, and total weight at
+/// least the threshold — and `false` otherwise (including on deserialization
+/// failure or trailing bytes). Member keys are not checked against their
+/// curves, matching the SDK.
 ///
-/// gas cost: multisig_multisig_validate_pubkey_cost_base +
-///           per-member curve cost for each validated committee member, charged
-///           according to its key scheme
+/// gas cost: multisig_multisig_validate_pubkey_cost_base
 pub fn multisig_validate_pubkey(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -49,75 +41,24 @@ pub fn multisig_validate_pubkey(
     debug_assert!(ty_args.is_empty());
     debug_assert!(args.len() == 1);
 
-    let cost_params = &context
+    let cost_base = context
         .extensions()
         .get::<NativesCostTable>()?
-        .multisig_validate_pubkey_cost_params;
-    let cost_base = cost_params
+        .multisig_validate_pubkey_cost_params
         .multisig_multisig_validate_pubkey_cost_base
-        .ok_or_else(gas_cost_unavailable_error)?;
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for multisig_validate_pubkey not available".to_string())
+        })?;
     native_charge_gas_early_exit!(context, cost_base);
 
     let public_key = pop_arg!(args, VectorRef);
     let public_key_ref = public_key.as_bytes_ref();
 
-    // A valid MultiSig public key must deserialize cleanly (BCS rejects
-    // trailing bytes), pass committee validation, and have every member key
-    // on its curve. Committee validation alone does not check curve points,
-    // so we verify each member explicitly, charging that member's
-    // per-scheme cost just before checking it. We stop at the first invalid
-    // member, so gas covers only the members actually checked — never the
-    // ones past it.
-    let is_valid = match bcs::from_bytes::<MultisigCommittee>(&public_key_ref) {
-        Ok(committee) if committee.validate().is_ok() => {
-            let mut all_on_curve = true;
-            for member in committee.members() {
-                let member_validation_cost =
-                    member_validation_cost(cost_params, member.public_key())?;
-                native_charge_gas_early_exit!(context, member_validation_cost);
-
-                if !public_key::member_public_key_is_on_curve(member.public_key()) {
-                    all_on_curve = false;
-                    break;
-                }
-            }
-            all_on_curve
-        }
-        _ => false,
-    };
+    // BCS rejects trailing bytes and unsupported member schemes.
+    let is_valid = bcs::from_bytes::<MultisigCommittee>(&public_key_ref)
+        .is_ok_and(|committee| committee.validate().is_ok());
 
     let cost = context.gas_used();
     Ok(NativeResult::ok(cost, smallvec![Value::bool(is_valid)]))
-}
-
-/// The per-member gas cost for validating `public_key`, selected by its key
-/// scheme. Passkey members validate on the secp256r1 curve and reuse its cost;
-/// any future (currently unsupported) scheme costs nothing and is rejected by
-/// [`member_pubkey_is_on_curve`].
-fn member_validation_cost(
-    cost_params: &MultisigValidatePubkeyCostParams,
-    public_key: &PublicKey,
-) -> PartialVMResult<InternalGas> {
-    let cost = match public_key {
-        PublicKey::Ed25519(_) => cost_params
-            .multisig_multisig_validate_pubkey_cost_per_ed25519_member
-            .ok_or_else(gas_cost_unavailable_error)?,
-        PublicKey::Secp256k1(_) => cost_params
-            .multisig_multisig_validate_pubkey_cost_per_secp256k1_member
-            .ok_or_else(gas_cost_unavailable_error)?,
-        PublicKey::Secp256r1(_) | PublicKey::Passkey(_) => cost_params
-            .multisig_multisig_validate_pubkey_cost_per_secp256r1_member
-            .ok_or_else(gas_cost_unavailable_error)?,
-        _ => InternalGas::new(0),
-    };
-    Ok(cost)
-}
-
-/// The invariant-violation error raised when a `multisig_validate_pubkey` gas
-/// cost is missing from the protocol config. Every cost the native reads must
-/// be set for the active protocol version, so a `None` indicates a
-/// misconfiguration rather than bad user input.
-fn gas_cost_unavailable_error() -> PartialVMError {
-    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-        .with_message("Gas cost for multisig_validate_pubkey not available".to_string())
 }

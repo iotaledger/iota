@@ -168,17 +168,20 @@ fn new_error_on_multisig_weight_below_threshold() {
 }
 
 #[test]
-fn new_error_on_multisig_member_not_on_curve() {
+fn new_accepts_multisig_member_not_on_curve() {
     // A compressed secp256k1 key must start with 0x02 or 0x03, so these bytes
-    // are the right length but off the curve. Committee validation ignores key
-    // bytes, so only the per-member curve check rejects this.
+    // are the right length but off the curve. Member keys are not checked
+    // against their curves, as in the SDK's committee validation.
     let committee = MultisigCommittee::new_unchecked(
         vec![MultisigMember::new(Secp256k1PublicKey::new([0xff; 33]), 1)],
         1,
     );
-    assert_eq!(
-        multisig_error(committee),
-        "Invalid MultiSig member public key"
+    assert!(
+        MovePublicKey::new(
+            SignatureScheme::Multisig,
+            bcs::to_bytes(&committee).unwrap()
+        )
+        .is_ok()
     );
 }
 

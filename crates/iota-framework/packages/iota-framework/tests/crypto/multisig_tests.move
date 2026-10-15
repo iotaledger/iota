@@ -19,6 +19,14 @@ fun multisig_validate_pubkey_valid() {
     let mixed =
         x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
     assert!(multisig::multisig_validate_pubkey(&mixed));
+
+    // A Secp256k1 member that is not a valid curve point (prefix 0x00): member keys are not
+    // checked against their curves.
+    assert!(
+        multisig::multisig_validate_pubkey(
+            &x"0101000000000000000000000000000000000000000000000000000000000000000000010100",
+        ),
+    );
 }
 
 #[test]
@@ -62,10 +70,4 @@ fun multisig_validate_pubkey_invalid() {
     );
     // Unknown member scheme tag (3 = ZkLoginDeprecated).
     assert!(!multisig::multisig_validate_pubkey(&x"0103010100"));
-    // Secp256k1 member that is not a valid curve point (prefix 0x00).
-    assert!(
-        !multisig::multisig_validate_pubkey(
-            &x"0101000000000000000000000000000000000000000000000000000000000000000000010100",
-        ),
-    );
 }

@@ -334,9 +334,9 @@ fun create_passkey_invalid_curve_point_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
-fun create_multisig_secp256k1_invalid_curve_point_aborts() {
-    // Multisig with a Secp256k1 member whose bytes are all-zero (prefix 0x00 is invalid).
+fun create_multisig_secp256k1_invalid_curve_point_member() {
+    // Multisig with a Secp256k1 member whose bytes are all-zero (prefix 0x00 is invalid). Member
+    // keys are not checked against their curves, so the key is created.
     // vec_len(1) | tag(1=Secp256k1) | 33 zero bytes | weight(1) | threshold_le(1)
     public_key::create(
         signature_scheme::multisig(),
