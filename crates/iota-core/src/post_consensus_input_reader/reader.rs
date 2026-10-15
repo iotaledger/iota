@@ -10,7 +10,10 @@ use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_types::{
-    account_abstraction::authenticator_function::derive_authenticator_function_ref_v1_dynamic_field_id,
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, authenticator_function_ref_v1_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id,
+    },
     deny_list_v1::coin_deny_list_v1_denial,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
@@ -241,8 +244,9 @@ impl CommitIndexedReader {
 
     /// The dynamic field `id` as of the horizon, live or absent. The field
     /// must change only through its shared parent object, as a field of the
-    /// coin deny list does. Storage errors propagate, and so does a version
-    /// the read needs but the store no longer holds.
+    /// coin deny list or an account's authenticator function field does.
+    /// Storage errors propagate, and so does a version the read needs but the
+    /// store no longer holds.
     pub fn read_dynamic_field(&self, id: ObjectId) -> IotaResult<DynamicFieldAtHorizon> {
         let mut lookup = match DynamicFieldReader::start(id, self.horizon).read_highest_row(self)? {
             HighestRowLookup::Row(lookup) => lookup,
@@ -269,10 +273,38 @@ impl CommitIndexedReader {
     pub fn read_account(&self, account_id: ObjectId) -> IotaResult<AccountVerdict> {
         let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id)?;
         Ok(match self.read_dynamic_field(field_id)? {
-            DynamicFieldAtHorizon::Live(_) => AccountVerdict::Account,
+            DynamicFieldAtHorizon::Live(field) => AccountVerdict::Account(field),
             DynamicFieldAtHorizon::Absent => {
                 AccountVerdict::Missing(MissingReason(MissingKind::AuthenticatorFunctionNotFound))
             }
+        })
+    }
+
+    /// The authenticate function that `field`, the authenticator function
+    /// field [`Self::read_account`] read for the account `account_id`, names,
+    /// for the authenticator package deny check at the commit. `None` when
+    /// this reader does not see the function's package, so the check never
+    /// reports it not found: execution reports it. A package this reader sees
+    /// stays visible to it, so the check reads it again through this reader
+    /// as its package store.
+    ///
+    /// # Errors
+    ///
+    /// Storage errors, and a field that does not decode.
+    pub fn visible_authenticator_function_ref(
+        &self,
+        account_id: ObjectId,
+        field: &Object,
+    ) -> IotaResult<Option<AuthenticatorFunctionRef>> {
+        let function_ref =
+            authenticator_function_ref_v1_from_dynamic_field_object(account_id, field)?
+                .authenticator_function_ref;
+        let package_id = match &function_ref {
+            AuthenticatorFunctionRef::V1(v1) => v1.package,
+        };
+        Ok(match self.read_package(package_id)? {
+            PackageVerdict::Visible(_) => Some(function_ref),
+            PackageVerdict::Missing(_) => None,
         })
     }
 
