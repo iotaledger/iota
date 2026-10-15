@@ -537,6 +537,7 @@ fn wait_for_epoch_db_to_close() {
 /// processed consensus messages, the resume point and the commit the node
 /// switched to synced checkpoints after. A [`reopen`] after it
 /// starts from an empty epoch.
+#[cfg(not(msim))]
 pub(crate) fn clear_pcool_validation_tables(store: &AuthorityPerEpochStore) -> IotaResult {
     let tables = store.tables()?;
     tables.handler_processed_objects.schedule_delete_all()?;
