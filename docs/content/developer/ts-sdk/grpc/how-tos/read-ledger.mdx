@@ -1,0 +1,156 @@
+---
+description: 'How to read objects, transactions, checkpoints and epochs with IotaGrpcClient, and decode what comes back.'
+tags:
+  - how-to
+  - ts-sdk
+  - typescript
+  - grpc
+teams:
+  - iotaledger/tooling
+---
+
+# Read Objects, Transactions and Checkpoints
+
+The examples on this page use a testnet client:
+
+```ts
+import { IotaGrpcClient } from '@iota/grpc';
+
+const client = new IotaGrpcClient({ network: 'testnet' });
+```
+
+## Read objects
+
+Pass object IDs to `getObjects`. To read a specific version, pass `{ objectId, version }` instead of a plain ID:
+
+```ts
+import { decodeObject, objectIdOf } from '@iota/grpc';
+
+const { body } = await client.getObjects(['0x2', { objectId, version }]);
+
+for (const result of body) {
+    if (!result.ok) {
+        console.error(result.error.message);
+        continue;
+    }
+
+    const object = decodeObject(result.value);
+    console.log(objectIdOf(object), result.value.reference?.version, object.owner);
+}
+```
+
+If an object never existed, was deleted, or the version you asked for was pruned, its slot holds a `ServerError` with code `NOT_FOUND`. The other objects are returned as usual.
+
+By default you get each object's reference and its BCS. To get less, for example only references, pass `readMask` with `ObjectField` constants.
+
+## Read transactions
+
+Pass base58 transaction digests to `getTransactions`. By default you get the transaction, its signatures, and the checkpoint and timestamp it was included in. Effects, events, objects and changes have to be requested with `readMask`:
+
+```ts
+import { decodeTransaction, decodeTransactionEffects, TransactionField } from '@iota/grpc';
+
+const { body } = await client.getTransactions([digest], {
+    readMask: [TransactionField.TRANSACTION, TransactionField.EFFECTS, TransactionField.CHECKPOINT],
+});
+
+for (const result of body) {
+    if (!result.ok) continue;
+
+    const { transaction, effects, checkpoint } = result.value;
+    const data = decodeTransaction(transaction!);
+    const status = decodeTransactionEffects(effects!).V1.status;
+
+    console.log(data.V1.sender, status.$kind, checkpoint);
+}
+```
+
+Input and output objects, balance changes and object changes all come from object storage, which nodes prune sooner than transactions. For an older transaction, asking for them fails its slot with `FAILED_PRECONDITION`. The `lowestAvailableCheckpointObjects` field of the [metadata](../responses.mdx#body-and-metadata) shows how far back they go.
+
+## Read a checkpoint
+
+`getCheckpoint` takes `{ sequenceNumber }` or `{ digest }`. Leave it out to get the latest checkpoint:
+
+```ts
+const { body: latest } = await client.getCheckpoint();
+const { body: previous } = await client.getCheckpoint({
+    sequenceNumber: latest.sequenceNumber - 1n,
+});
+```
+
+The response holds the `sequenceNumber`, the `checkpoint` itself, and its `transactions` and `events`. Only the summary is filled in by default, so ask for transactions and events with `CheckpointResponseField`:
+
+```ts
+import { toBase58 } from '@iota/bcs';
+import { CheckpointResponseField, decodeCheckpointSummary } from '@iota/grpc';
+
+const { body } = await client.getCheckpoint(undefined, {
+    readMask: [
+        CheckpointResponseField.CHECKPOINT_SUMMARY,
+        CheckpointResponseField.TRANSACTIONS_TRANSACTION_DIGEST,
+    ],
+});
+
+const summary = decodeCheckpointSummary(body.checkpoint.summary!);
+const digests = body.transactions.map(({ transaction }) => toBase58(transaction!.digest!.digest));
+
+console.log(`checkpoint ${summary.sequenceNumber} at ${summary.timestampMs}: ${digests.length} transactions`);
+```
+
+Digests, IDs and addresses inside protobuf messages are raw bytes. `@iota/bcs` converts them: `toBase58` for digests, `toHex` for IDs and addresses.
+
+### Filter a checkpoint's transactions and events
+
+`transactionsFilter` and `eventsFilter` drop the transactions and events that do not match. For example, to keep only the transactions one address sent:
+
+```ts
+import { fromHex } from '@iota/bcs';
+
+const { body } = await client.getCheckpoint(
+    { sequenceNumber },
+    {
+        readMask: [CheckpointResponseField.TRANSACTIONS_TRANSACTION_DIGEST],
+        transactionsFilter: {
+            filter: { case: 'sender', value: { address: { address: fromHex(sender) } } },
+        },
+    },
+);
+```
+
+A filter only works if the read mask asks for what it filters. `transactionsFilter` needs a `TRANSACTIONS…` field in `readMask`, and `eventsFilter` needs an `EVENTS…` field. Otherwise the whole call fails with `InvalidArgument`.
+
+The same filters work with [`streamCheckpoints`](stream-checkpoints.mdx), which can also skip checkpoints that contain no match.
+
+## Read the epoch and the gas price
+
+`getEpoch` returns the current epoch, or the one you pass:
+
+```ts
+const { body: current } = await client.getEpoch();
+const { body: previous } = await client.getEpoch({ epoch: current.epoch! - 1n });
+
+console.log(previous.firstCheckpoint, previous.lastCheckpoint);
+```
+
+The epoch's protocol config is left out by default. Ask for all of it with `EpochField.PROTOCOL_CONFIG`, or for single keys with `epochFeatureFlag` and `epochAttribute`:
+
+```ts
+import { epochAttribute, epochFeatureFlag, EpochField } from '@iota/grpc';
+
+const { body } = await client.getEpoch({
+    readMask: [
+        EpochField.PROTOCOL_CONFIG_PROTOCOL_VERSION,
+        epochFeatureFlag('enable_vdf'),
+        epochAttribute('max_tx_gas'),
+    ],
+});
+
+const { protocolVersion, featureFlags, attributes } = body.protocolConfig!;
+console.log(protocolVersion, featureFlags?.flags.enable_vdf, attributes?.attributes.max_tx_gas);
+```
+
+`getReferenceGasPrice` returns the current epoch's reference gas price, in NANOS, as a `bigint`:
+
+```ts
+const { body: referenceGasPrice } = await client.getReferenceGasPrice();
+```

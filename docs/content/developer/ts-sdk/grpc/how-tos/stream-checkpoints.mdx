@@ -1,0 +1,133 @@
+---
+description: 'How to follow the chain checkpoint by checkpoint with IotaGrpcClient.streamCheckpoints, filter what it sends, resume after a dropped stream and stop it.'
+tags:
+  - how-to
+  - ts-sdk
+  - typescript
+  - grpc
+teams:
+  - iotaledger/tooling
+---
+
+# Stream Checkpoints
+
+`streamCheckpoints` delivers checkpoints as the network produces them, so a long-running process can follow the chain without polling.
+
+## Follow the chain
+
+Without options, the stream starts at the latest checkpoint and keeps going until you stop it. Read it with `for await`:
+
+```ts
+import { CheckpointResponseField, IotaGrpcClient } from '@iota/grpc';
+
+const client = new IotaGrpcClient({ network: 'testnet' });
+
+const stream = client.streamCheckpoints({
+    readMask: [
+        CheckpointResponseField.CHECKPOINT_SUMMARY,
+        CheckpointResponseField.TRANSACTIONS_TRANSACTION_DIGEST,
+    ],
+});
+
+for await (const item of stream.items) {
+    if (item.kind === 'checkpoint') {
+        console.log(`checkpoint ${item.sequenceNumber}: ${item.transactions.length} transactions`);
+    }
+}
+```
+
+Each `checkpoint` item looks like a [`getCheckpoint`](read-ledger.mdx#read-a-checkpoint) response, and the read mask works the same way: you get only the summary unless you ask for transactions or events.
+
+Large checkpoints arrive split across several messages. The client puts them back together, so every item you get is a complete checkpoint.
+
+The request goes out only when you start reading `stream.items`. `stream.metadata` is a promise for the [response metadata](../responses.mdx#body-and-metadata), which settles when the first response arrives.
+
+## Read a range
+
+Set `startSequenceNumber` to begin at an older checkpoint, and `endSequenceNumber` to stop after a given one. With an end set, the stream finishes on its own:
+
+```ts
+const stream = client.streamCheckpoints({
+    startSequenceNumber: 1_000_000n,
+    endSequenceNumber: 1_000_099n,
+});
+```
+
+A node can only stream checkpoints it has not pruned. `lowestAvailableCheckpoint` in the metadata of any call tells you where its history begins.
+
+## Filter what the stream sends
+
+`transactionsFilter` and `eventsFilter` drop the transactions and events that do not match. Add `filterCheckpoints: true` to also skip checkpoints with no match at all.
+
+The node rejects the stream with `InvalidArgument` if `transactionsFilter` is set without a `TRANSACTIONS…` field in `readMask`, if `eventsFilter` is set without an `EVENTS…` field, or if `filterCheckpoints` is set without either filter.
+
+Matches can be far apart, so while it skips, the node sends `progress` items that say how far it has scanned, at most once every `progressIntervalMs`. You only get them with `filterCheckpoints`. This stream picks out staking requests:
+
+```ts
+const stream = client.streamCheckpoints({
+    readMask: [CheckpointResponseField.CHECKPOINT_SUMMARY, CheckpointResponseField.EVENTS],
+    eventsFilter: {
+        filter: {
+            case: 'moveEventType',
+            value: { structTag: '0x3::validator::StakingRequestEvent' },
+        },
+    },
+    filterCheckpoints: true,
+    progressIntervalMs: 5_000,
+});
+
+for await (const item of stream.items) {
+    if (item.kind === 'progress') {
+        console.log('scanned up to', item.latestScannedSequenceNumber);
+    } else {
+        console.log(`${item.events.length} stake requests in ${item.sequenceNumber}`);
+    }
+}
+```
+
+## Resume after the stream drops
+
+If the connection drops, the `for await` loop throws, and the client does not reconnect by itself. Because every item is a complete checkpoint, you can safely carry on from the last one you received. Start a new stream at the next sequence number:
+
+```ts
+import { setTimeout as sleep } from 'node:timers/promises';
+
+let next: bigint | undefined;
+
+while (true) {
+    try {
+        const stream = client.streamCheckpoints({ startSequenceNumber: next });
+
+        for await (const item of stream.items) {
+            if (item.kind !== 'checkpoint') continue;
+
+            await handle(item);
+            next = item.sequenceNumber + 1n;
+        }
+    } catch (error) {
+        console.warn('stream dropped, resuming at', next, error);
+        await sleep(1_000);
+    }
+}
+```
+
+Move `next` forward only after you have handled a checkpoint, so none is skipped. If the process has to pick up where it left off after a restart, store `next` somewhere durable.
+
+The [checkpoint follower example](https://github.com/iotaledger/ts-packages/blob/develop/sdk/examples/src/grpc-checkpoint-follower.ts) builds on this with exponential backoff and a cap on consecutive failures.
+
+## Stop the stream
+
+Pass a `signal` and abort it when you are done. The loop then throws a `TransportError` with code `Canceled`. Check the signal to tell this apart from a real failure:
+
+```ts
+const controller = new AbortController();
+process.on('SIGINT', () => controller.abort());
+
+try {
+    for await (const item of client.streamCheckpoints({ signal: controller.signal }).items) {
+        // ...
+    }
+} catch (error) {
+    if (!controller.signal.aborted) throw error;
+}
+```
