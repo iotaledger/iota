@@ -26,7 +26,9 @@ use iota_types::{
 use tracing::error;
 
 use self::{
-    block_log::BlockReason, client_access::ClientAccessManager, metrics::TrafficControllerMetrics,
+    block_log::BlockReason,
+    client_access::{ClientAccessManager, validate_blocklist_ttls},
+    metrics::TrafficControllerMetrics,
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
 
@@ -150,6 +152,8 @@ impl TrafficController {
                 validate_threshold(policy, threshold, kind)?;
             }
         }
+        validate_blocklist_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
+            .map_err(IotaError::InvalidAdminRequest)?;
         for (threshold, policy, gauge, _) in updates {
             if let (Some(threshold), Some(policy)) = (threshold, policy) {
                 policy.set_client_threshold(threshold);
@@ -509,13 +513,10 @@ mod tests {
 
     #[tokio::test]
     async fn a_breach_after_the_block_expired_logs_again() {
-        // A TTL of zero expires each block at once.
-        let controller = TrafficController::init_for_test(PolicyConfig {
-            connection_blocklist_ttl_sec: 0,
-            ..policy_config(false, PolicyKind::Spam)
-        });
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
         let log = capture_plain(|| {
             controller.tally(breach(PolicyKind::Spam));
+            controller.client_access.expire_client_blocks();
             controller.tally(breach(PolicyKind::Spam));
         });
         assert_eq!(log.block_lines().len(), 2);
@@ -572,16 +573,9 @@ mod tests {
     #[tokio::test]
     async fn test_the_admin_api_changes_the_blocklist_ttl() {
         let controller = TrafficController::init_for_test(PolicyConfig {
-            spam_policy_type: PolicyType::TestNConnIP(1),
-            spam_sample_rate: Weight::one(),
-            connection_blocklist_ttl_sec: 0,
-            dry_run: false,
-            ..Default::default()
+            connection_blocklist_ttl_sec: 60,
+            ..policy_config(false, PolicyKind::Spam)
         });
-
-        // A TTL of zero expires the block at once, thus the client gets through.
-        controller.tally(breach(PolicyKind::Spam));
-        assert!(controller.check(&Some(CLIENT), &None));
 
         controller
             .admin_reconfigure(TrafficControlReconfigParams {
@@ -594,9 +588,37 @@ mod tests {
             .expect("the request changes only the connection blocklist TTL");
 
         // The next block must take the new TTL, not the TTL at startup.
-        controller.tally(breach(PolicyKind::Spam));
+        let log = capture_plain(|| controller.tally(breach(PolicyKind::Spam)));
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(line.ends_with(" ttl_secs=120"), "{line}");
         assert!(!controller.check(&Some(CLIENT), &None));
         assert_eq!(controller.metrics.connection_blocklist_ttl_sec.get(), 120);
+    }
+
+    #[tokio::test]
+    async fn test_the_admin_api_rejects_a_zero_blocklist_ttl() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in
+            [(Some(0), None), (None, Some(0))]
+        {
+            let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(true),
+                connection_blocklist_ttl_sec,
+                proxy_blocklist_ttl_sec,
+            });
+            assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+        }
+
+        // A rejected request applies nothing, not even its valid settings.
+        let state = controller.get_current_state();
+        assert_eq!(state.dry_run, Some(false));
+        assert_eq!(state.connection_blocklist_ttl_sec, Some(120));
+        assert_eq!(
+            state.proxy_blocklist_ttl_sec,
+            Some(default_blocklist_ttl_sec())
+        );
     }
 
     /// The tallies the shipped default policy tolerates from one client before
