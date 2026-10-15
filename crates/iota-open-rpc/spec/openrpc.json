@@ -1352,6 +1352,7 @@
                 "pass_calculated_validator_scores_to_advance_epoch": true,
                 "pass_validator_scores_to_advance_epoch": true,
                 "passkey_auth": true,
+                "pcool_deterministic_validation": false,
                 "pcool_skip_immutable_object_locks": true,
                 "pcool_verifier_limits_from_protocol_config": true,
                 "pre_consensus_sponsor_only_move_authentication": false,
