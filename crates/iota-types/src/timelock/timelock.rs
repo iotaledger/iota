@@ -1,10 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
-use crate::{error::IotaError, gas_coin::GasCoin, id::UID, object::Object};
+use crate::{error::IotaError, gas_coin::GasCoin, object::Object};
 
 /// All basic outputs whose IDs start with this prefix represent vested rewards
 /// that were created during the stardust upgrade on IOTA mainnet.
