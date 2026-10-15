@@ -3,12 +3,52 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use iota_sdk_types::ObjectId;
-use iota_types::{object::Object, storage::ObjectKey};
-use typed_store::database::wait_for_database_close;
+use iota_sdk_types::{ObjectId, Owner, Version};
+use iota_types::{committee::EpochId, object::Object, storage::ObjectKey};
+use prometheus_filtered::Registry;
+use tempfile::TempDir;
+use typed_store::{
+    database::wait_for_database_close,
+    rocks::{DBMap, ReadWriteOptions, TaggedDBMap, default_db_options},
+    traits::Map,
+};
 
-use super::HistoricObjects;
-use crate::authority::authority_store_tables::AuthorityPerpetualTables;
+use super::{
+    DB_PREFIX_HISTORIC_TOMBSTONES, EARLIEST_RETAINED_CF, HistoricObjects,
+    TOMBSTONE_DELETE_BATCH_SIZE,
+};
+use crate::authority::{
+    AuthorityStore,
+    authority_store_tables::AuthorityPerpetualTables,
+    authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+};
+
+/// A perpetual store, its historic buckets, and an [`AuthorityStore`] over
+/// both. The directory is returned so it outlives the databases.
+fn test_store() -> (
+    Arc<AuthorityPerpetualTables>,
+    Arc<HistoricObjects>,
+    Arc<AuthorityStore>,
+    TempDir,
+) {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let perpetual = Arc::new(perpetual);
+    let historic = Arc::new(historic);
+    let store = AuthorityStore::open_no_genesis(
+        perpetual.clone(),
+        historic.clone(),
+        false,
+        &Registry::new(),
+    )
+    .unwrap();
+    (perpetual, historic, store, dir)
+}
+
+fn object_at(id: ObjectId, version: u64) -> Object {
+    Object::with_id_owner_version_for_testing(id, version.into(), Owner::Immutable)
+}
 
 /// A relocated version is readable from the bucket of the epoch it was
 /// relocated into, and a version never relocated is absent.
@@ -92,12 +132,10 @@ async fn test_relocated_version_survives_a_reopen() {
     assert_eq!(historic.get(&key).unwrap().as_ref(), Some(&object));
 }
 
-/// `iota-tool`'s table dump reaches a bucket and the retention floor through
-/// [`HistoricObjects::dump_column_family`], since neither is a field of
-/// `AuthorityPerpetualTables`, and gets nothing for a name that belongs to
-/// neither.
+/// A tombstone head recorded alongside a relocated version survives a
+/// restart, and the bucket has no expiring marker until one is set.
 #[tokio::test]
-async fn test_dump_reads_a_bucket_and_the_retention_floor() {
+async fn test_tombstone_heads_survive_a_reopen() {
     let dir = iota_common::tempdir();
     let (perpetual, historic) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
@@ -108,7 +146,46 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
     let bucket = historic.ensure(3).unwrap();
     let mut batch = perpetual.objects.batch();
     batch
+        .insert_batch_tagged(&bucket.tombstones, [(key, ())])
+        .unwrap();
+    batch.write().unwrap();
+
+    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    drop(bucket);
+    drop(historic);
+    drop(perpetual);
+    assert!(wait_for_database_close(weak_db).await);
+
+    let (_perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let bucket = historic.ensure(3).unwrap();
+    assert!(bucket.tombstones.get(&key).unwrap().is_some());
+    assert!(bucket.expiring.get(&()).unwrap().is_none());
+}
+
+/// [`HistoricObjects::dump_column_family`] dumps a bucket (relocated
+/// versions, tombstone heads and expiring marker) and the retention floor,
+/// and returns nothing for any other name.
+#[tokio::test]
+async fn test_dump_reads_a_bucket_and_the_retention_floor() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let key = ObjectKey(object.id(), object.version());
+    let tombstone_key = ObjectKey(ObjectId::random(), object.version());
+
+    let bucket = historic.ensure(3).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
         .insert_batch_tagged(&bucket.objects, [(key, object)])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(tombstone_key, ())])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.expiring, [((), ())])
         .unwrap();
     batch.write().unwrap();
     // The dump reads through a secondary handle, which only sees what the
@@ -121,8 +198,10 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
     let rows = HistoricObjects::dump_column_family(db, "hist_obj_e3", 100, 0)
         .unwrap()
         .expect("a bucket's column family is dumpable");
-    assert_eq!(rows.len(), 1);
+    assert_eq!(rows.len(), 3);
     assert!(rows.contains_key(&format!("{key:?}")));
+    assert!(rows.contains_key(&format!("tombstone:{tombstone_key:?}")));
+    assert!(rows.contains_key("expiring:()"));
 
     assert_eq!(
         HistoricObjects::dump_column_family(db, "hist_obj_retention", 100, 0).unwrap(),
@@ -132,4 +211,536 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
         HistoricObjects::dump_column_family(db, "objects", 100, 0).unwrap(),
         None
     );
+}
+
+/// Expiring an epoch deletes its relocated versions and the tombstone heads
+/// it recorded in the live `objects` table; pruning again is harmless.
+#[tokio::test]
+async fn test_expiry_deletes_the_epochs_tombstone_heads() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let deleted = ObjectKey(ObjectId::random(), 4.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(deleted, ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [(deleted, StoreObjectWrapper::from(StoreObject::Deleted))],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    assert!(perpetual.objects.get(&deleted).unwrap().is_none());
+    assert_eq!(historic.get(&relocated).unwrap(), None);
+
+    assert_eq!(historic.prune(1).unwrap(), Some(2));
+}
+
+/// An epoch holding more tombstone heads than fit in one write batch has all
+/// of them deleted, the remainder past the last full batch included.
+#[tokio::test]
+async fn test_expiry_deletes_heads_past_the_batch_boundary() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let deleted: Vec<ObjectKey> = (0..TOMBSTONE_DELETE_BATCH_SIZE + 1)
+        .map(|version| ObjectKey(ObjectId::random(), (version as u64 + 1).into()))
+        .collect();
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, deleted.iter().map(|key| (*key, ())))
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            deleted
+                .iter()
+                .map(|key| (*key, StoreObjectWrapper::from(StoreObject::Deleted))),
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    for key in &deleted {
+        assert!(
+            perpetual.objects.get(key).unwrap().is_none(),
+            "{key:?} was left in the live table"
+        );
+    }
+}
+
+/// Reads skip a bucket marked expiring, since its tombstone heads may already
+/// be gone from the live table and serving its versions would resurrect
+/// deleted objects.
+#[tokio::test]
+async fn test_a_bucket_marked_expiring_is_skipped_by_reads() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let key = ObjectKey(object.id(), object.version());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(key, object.clone())])
+        .unwrap();
+    batch.write().unwrap();
+    assert_eq!(historic.get(&key).unwrap().as_ref(), Some(&object));
+
+    bucket.mark_expiring().unwrap();
+    assert_eq!(historic.get(&key).unwrap(), None);
+    assert!(bucket.objects.get(&key).unwrap().is_some());
+}
+
+/// An expiry interrupted after its marker was written is finished at the next
+/// open, before any query can reach the bucket.
+#[tokio::test]
+async fn test_an_interrupted_expiry_is_finished_at_open() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let deleted = ObjectKey(ObjectId::random(), 4.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(deleted, ())])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.expiring, [((), ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [(deleted, StoreObjectWrapper::from(StoreObject::Deleted))],
+        )
+        .unwrap();
+    batch.write().unwrap();
+
+    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    drop(bucket);
+    drop(historic);
+    drop(perpetual);
+    assert!(wait_for_database_close(weak_db).await);
+
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    assert!(perpetual.objects.get(&deleted).unwrap().is_none());
+    assert_eq!(historic.get(&relocated).unwrap(), None);
+}
+
+/// An unmarked bucket below the retention floor, left by a crash during a
+/// prune, has its expiry finished at the next open, tombstone heads included.
+#[tokio::test]
+async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let deleted = ObjectKey(ObjectId::random(), 4.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(deleted, ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [(deleted, StoreObjectWrapper::from(StoreObject::Deleted))],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    historic.ensure(2).unwrap();
+
+    let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
+        &perpetual.objects.db,
+        Some(EARLIEST_RETAINED_CF),
+        &ReadWriteOptions::default(),
+        true,
+    )
+    .unwrap();
+    earliest_retained_table.insert(&(), &2).unwrap();
+    assert!(bucket.expiring.get(&()).unwrap().is_none());
+
+    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    drop(earliest_retained_table);
+    drop(bucket);
+    drop(historic);
+    drop(perpetual);
+    assert!(wait_for_database_close(weak_db).await);
+
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    assert!(perpetual.objects.get(&deleted).unwrap().is_none());
+    assert_eq!(historic.get(&relocated).unwrap(), None);
+    assert_eq!(historic.earliest_bucket_epoch(), Some(2));
+}
+
+/// Recovery at open goes oldest bucket first and stops at the first bucket it
+/// cannot finish, leaving newer buckets untouched.
+#[tokio::test]
+async fn test_interrupted_expiries_are_resumed_oldest_first() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let older_tombstone = ObjectKey(ObjectId::random(), 4.into());
+    let newer_tombstone = ObjectKey(ObjectId::random(), 7.into());
+
+    for (epoch, tombstone) in [(1, older_tombstone), (2, newer_tombstone)] {
+        let bucket = historic.ensure(epoch).unwrap();
+        let mut batch = perpetual.objects.batch();
+        batch
+            .insert_batch_tagged(&bucket.tombstones, [(tombstone, ())])
+            .unwrap();
+        batch
+            .insert_batch_tagged(&bucket.expiring, [((), ())])
+            .unwrap();
+        batch
+            .insert_batch(
+                &perpetual.objects,
+                [(tombstone, StoreObjectWrapper::from(StoreObject::Deleted))],
+            )
+            .unwrap();
+        batch.write().unwrap();
+    }
+
+    // A value of another type under the tombstone tag, so reading it fails.
+    let unreadable: TaggedDBMap<ObjectKey, u64> = TaggedDBMap::reopen(
+        &perpetual.objects.db,
+        "hist_obj_e1",
+        DB_PREFIX_HISTORIC_TOMBSTONES,
+        &ReadWriteOptions::default(),
+        true,
+    )
+    .unwrap();
+    let mut batch = unreadable.batch();
+    batch
+        .insert_batch_tagged(&unreadable, [(older_tombstone, 7u64)])
+        .unwrap();
+    batch.write().unwrap();
+    drop(historic);
+
+    assert!(
+        HistoricObjects::open(
+            perpetual.objects.db.clone(),
+            &default_db_options(),
+            perpetual.objects.clone(),
+        )
+        .is_err()
+    );
+    assert!(perpetual.objects.get(&newer_tombstone).unwrap().is_some());
+}
+
+/// The version-bounded read never serves a version relocated from under a
+/// tombstone in place of the deleted object.
+#[tokio::test]
+async fn test_a_deleted_object_stays_deleted_across_the_buckets() {
+    let (perpetual, historic, store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    // Version 5 relocated into epoch 1's bucket, with the object deleted at
+    // version 9 and its tombstone still in the live table.
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.objects,
+            [(ObjectKey(id, 5.into()), object_at(id, 5))],
+        )
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [(
+                ObjectKey(id, 9.into()),
+                StoreObjectWrapper::from(StoreObject::Deleted),
+            )],
+        )
+        .unwrap();
+    batch.write().unwrap();
+
+    // Bounded above the tombstone: the object is gone.
+    let (key, row) = perpetual
+        .find_object_lt_or_eq_version(id, 12.into())
+        .unwrap()
+        .expect("the tombstone is in range");
+    assert_eq!(key, ObjectKey(id, 9.into()));
+    assert!(matches!(row.into_inner(), StoreObject::Deleted));
+    assert_eq!(
+        store
+            .find_object_lt_or_eq_version_with_historic_fallback(id, 12.into())
+            .unwrap(),
+        None
+    );
+
+    // Bounded below the tombstone: the relocated version is the answer.
+    assert!(
+        perpetual
+            .find_object_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        historic
+            .find_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .map(|object| object.version()),
+        Some(Version::from(5))
+    );
+    assert_eq!(
+        store
+            .find_object_lt_or_eq_version_with_historic_fallback(id, 6.into())
+            .unwrap()
+            .map(|object| object.version()),
+        Some(Version::from(5))
+    );
+}
+
+/// The bounded read finds the newest version within the bound, whether it is
+/// in a bucket or still in the live table.
+#[tokio::test]
+async fn test_the_newest_relocated_version_in_range_is_served() {
+    let (perpetual, historic, store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    // Versions 3 and 4 relocated in epoch 1, version 7 in epoch 2, version 11
+    // still live.
+    for (epoch, versions) in [(1, vec![3, 4]), (2, vec![7])] {
+        let bucket = historic.ensure(epoch).unwrap();
+        let mut batch = perpetual.objects.batch();
+        batch
+            .insert_batch_tagged(
+                &bucket.objects,
+                versions
+                    .into_iter()
+                    .map(|version| (ObjectKey(id, version.into()), object_at(id, version))),
+            )
+            .unwrap();
+        batch.write().unwrap();
+    }
+    let live = object_at(id, 11);
+    perpetual
+        .objects
+        .insert(&ObjectKey(id, 11.into()), &get_store_object(live, None))
+        .unwrap();
+
+    for (bound, expected) in [
+        (11, Some(11)),
+        (9, Some(7)),
+        (7, Some(7)),
+        (6, Some(4)),
+        (3, Some(3)),
+        (2, None),
+    ] {
+        assert_eq!(
+            store
+                .find_object_lt_or_eq_version_with_historic_fallback(id, bound.into())
+                .unwrap()
+                .map(|object| object.version()),
+            expected.map(Version::from),
+            "bound {bound}"
+        );
+    }
+
+    // The walk on its own, without the live table in front of it.
+    assert_eq!(
+        historic
+            .find_lt_or_eq_version(id, 9.into())
+            .unwrap()
+            .map(|object| object.version()),
+        Some(Version::from(7))
+    );
+}
+
+/// For an object wrapped and later unwrapped, the bounded read returns a
+/// relocated version above the old tombstone rather than the tombstone.
+#[tokio::test]
+async fn test_a_tombstone_below_the_relocated_version_is_not_the_answer() {
+    let (perpetual, historic, store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    // Wrapped at version 2, unwrapped since, version 7 relocated, version 8
+    // live.
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.objects,
+            [(ObjectKey(id, 7.into()), object_at(id, 7))],
+        )
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [
+                (
+                    ObjectKey(id, 2.into()),
+                    StoreObjectWrapper::from(StoreObject::Wrapped),
+                ),
+                (
+                    ObjectKey(id, 8.into()),
+                    get_store_object(object_at(id, 8), None),
+                ),
+            ],
+        )
+        .unwrap();
+    batch.write().unwrap();
+
+    for (bound, expected) in [(8, Some(8)), (7, Some(7)), (6, None), (2, None)] {
+        assert_eq!(
+            store
+                .find_object_lt_or_eq_version_with_historic_fallback(id, bound.into())
+                .unwrap()
+                .map(|object| object.version()),
+            expected.map(Version::from),
+            "bound {bound}"
+        );
+    }
+}
+
+/// The version-bounded bucket walk skips a bucket marked expiring, like an
+/// exact-key read does.
+#[tokio::test]
+async fn test_a_bucket_marked_expiring_is_left_out_of_the_walk() {
+    let (perpetual, historic, _store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.objects,
+            [(ObjectKey(id, 5.into()), object_at(id, 5))],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    assert!(
+        historic
+            .find_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .is_some()
+    );
+
+    bucket.mark_expiring().unwrap();
+    assert!(
+        historic
+            .find_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .is_none()
+    );
+}
+
+/// Expiry keeps a tombstone head that still has a version beneath it in the
+/// live table, or the deleted object would read as alive.
+#[tokio::test]
+async fn test_expiry_keeps_a_head_that_still_buries_a_live_version() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    // A version the pre-bucket backlog sweep failed to relocate, and the
+    // tombstone that buried it.
+    let id = ObjectId::random();
+    let stale = ObjectKey(id, 4.into());
+    let head = ObjectKey(id, 7.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(head, ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [
+                (stale, get_store_object(object_at(id, 4), None)),
+                (head, StoreObjectWrapper::from(StoreObject::Deleted)),
+            ],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    assert_eq!(historic.prune(1).unwrap(), Some(2));
+
+    assert!(
+        perpetual.objects.get(&head).unwrap().is_some(),
+        "the head must stay, so the object stays deleted",
+    );
+    assert!(
+        perpetual.objects.get(&stale).unwrap().is_some(),
+        "the version beneath it is untouched, and still older than the head",
+    );
+}
+
+/// An object wrapped and then unwrapped and deleted in one epoch leaves two
+/// tombstone heads in that epoch's bucket. Expiry deletes both: the older
+/// head is a tombstone, not a live version the newer one still buries.
+#[tokio::test]
+async fn test_expiry_deletes_every_head_an_object_left_in_the_epoch() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic, _historic_ledger) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let id = ObjectId::random();
+    let wrapped = ObjectKey(id, 3.into());
+    let deleted = ObjectKey(id, 4.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(wrapped, ()), (deleted, ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [
+                (wrapped, StoreObjectWrapper::from(StoreObject::Wrapped)),
+                (deleted, StoreObjectWrapper::from(StoreObject::Deleted)),
+            ],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+
+    assert!(perpetual.objects.get(&wrapped).unwrap().is_none());
+    assert!(perpetual.objects.get(&deleted).unwrap().is_none());
 }

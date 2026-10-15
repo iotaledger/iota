@@ -1142,10 +1142,11 @@ pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
-    /// number of epochs to keep the latest version of objects for.
-    /// Note that a zero value corresponds to an aggressive pruner.
-    /// This mode is experimental and needs to be used with caution.
-    /// Use `u64::MAX` to disable the pruner for the objects.
+    /// Number of historic epochs of object versions to keep, on top of the
+    /// current epoch's bucket.
+    ///   0        — keep the current epoch's bucket only (default).
+    ///   N        — keep the current epoch's bucket plus the N previous ones.
+    ///   u64::MAX — keep every bucket; object pruning is off.
     #[serde(default)]
     pub num_epochs_to_retain: u64,
     /// enables periodic background compaction for old SST files whose last
