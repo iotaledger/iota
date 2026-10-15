@@ -696,28 +696,48 @@ impl CheckpointStore {
         Ok(())
     }
 
+    /// Marks `checkpoint` as synced. Returns whether the watermark moved; see
+    /// [`Self::multi_update_highest_synced_checkpoint`].
     pub fn update_highest_synced_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         self.multi_update_highest_synced_checkpoint(std::slice::from_ref(checkpoint))
     }
 
     /// Marks a consecutive run of checkpoints as synced: writes the watermark
     /// once, for the last checkpoint, and notifies the waiters that write
     /// releases. Does nothing when another writer has already carried the
-    /// watermark past the run.
+    /// watermark past the run, or when the run starts above the checkpoint
+    /// after the watermark. Returns whether the watermark moved.
+    ///
+    /// Tooling that has to set the watermark regardless uses
+    /// [`Self::set_highest_synced_checkpoint_subtle`].
     pub fn multi_update_highest_synced_checkpoint(
         &self,
         checkpoints: &[VerifiedCheckpoint],
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         let Some(last) = checkpoints.last() else {
-            return Ok(());
+            return Ok(false);
         };
 
         // Only ever forwards, like the other two: another writer advances this
         // as well, and moving it back offers contents that may not be there.
         let previous = self.get_highest_synced_checkpoint_seq_number()?;
+        // The watermark promises that the contents of every checkpoint up to
+        // it are stored, and a writer stores them only for the run it marks.
+        // A run that starts above the checkpoint after the watermark would
+        // pass checkpoints whose contents may still be missing; they are
+        // marked synced once the checkpoints before them are.
+        let first = checkpoints[0].sequence_number();
+        if previous.is_some_and(|previous_seq_number| first > previous_seq_number + 1) {
+            debug!(
+                checkpoint_seq = first,
+                highest_synced = previous,
+                "Not marking checkpoints synced before the ones below them",
+            );
+            return Ok(false);
+        }
         if previous.is_none_or(|previous_seq_number| previous_seq_number < last.sequence_number()) {
             debug!(
                 checkpoint_seq = last.sequence_number(),
@@ -736,8 +756,9 @@ impl CheckpointStore {
                 self.synced_checkpoint_notify_read
                     .notify(&checkpoint.sequence_number(), checkpoint);
             }
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
     async fn notify_read_checkpoint_watermark<F>(

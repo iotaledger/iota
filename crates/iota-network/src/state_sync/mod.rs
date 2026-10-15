@@ -486,6 +486,10 @@ struct StateSyncEventLoop<S> {
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
+    /// The highest checkpoint received from consensus. Until the content sync
+    /// task marks it synced, it is a reason to run that task whatever the
+    /// peers report.
+    highest_checkpoint_from_consensus: Option<CheckpointSequenceNumber>,
 }
 
 impl<S> StateSyncEventLoop<S>
@@ -738,13 +742,30 @@ where
             self.store
                 .try_update_highest_verified_checkpoint(&checkpoint)
                 .expect("store operation should not fail");
+            self.highest_checkpoint_from_consensus = self
+                .highest_checkpoint_from_consensus
+                .max(Some(checkpoint.sequence_number()));
 
             // INVARIANT: checkpoint contents must exist in the store for
             // every checkpoint up to the synced watermark. The checkpoint
             // executor will panic if it encounters missing contents.
-            self.store
+            //
+            // State sync may have verified the checkpoints before this one
+            // and still be downloading their contents. The store then leaves
+            // the watermark where it is, and the content sync task marks this
+            // checkpoint synced once it gets past them, finding its contents
+            // in the store.
+            let synced = self
+                .store
                 .try_update_highest_synced_checkpoint(&checkpoint)
                 .expect("store operation should not fail");
+            if !synced {
+                debug!(
+                    "checkpoint {} from consensus waits for the contents of the checkpoints before it",
+                    checkpoint.sequence_number(),
+                );
+                return;
+            }
         }
 
         // We don't care if no one is listening as this is a broadcast channel
@@ -986,13 +1007,16 @@ where
         );
 
         if target > highest_synced_checkpoint
-            // Skip if we aren't connected to any peers that can help
-            && self
+            // Skip if we aren't connected to any peers that can help, unless a
+            // checkpoint from consensus waits for the task: its contents are
+            // in the store already.
+            && (self
                 .peer_heights
                 .read()
                 .unwrap()
                 .highest_known_checkpoint_sequence_number()
                 > Some(highest_synced_checkpoint)
+                || self.highest_checkpoint_from_consensus > Some(highest_synced_checkpoint))
         {
             let _ = target_sequence_channel.send_if_modified(|num| {
                 let new_num = target;

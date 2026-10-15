@@ -31,10 +31,13 @@ pub trait WriteStore: ReadStore {
             .expect("storage access failed")
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
+    /// Marks `checkpoint` as synced. Returns whether the synced watermark
+    /// moved: it does not when it is at or past `checkpoint` already.
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint)
+    -> Result<bool>;
 
     /// Non-fallible version of `try_update_highest_synced_checkpoint`.
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
+    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> bool {
         self.try_update_highest_synced_checkpoint(checkpoint)
             .expect("storage access failed")
     }
@@ -121,7 +124,10 @@ impl<T: WriteStore + ?Sized> WriteStore for &T {
         (*self).try_update_highest_verified_checkpoint(checkpoint)
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_update_highest_synced_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<bool> {
         (*self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
@@ -170,7 +176,10 @@ impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
         (**self).try_update_highest_verified_checkpoint(checkpoint)
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_update_highest_synced_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<bool> {
         (**self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
@@ -219,7 +228,10 @@ impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
         (**self).try_update_highest_verified_checkpoint(checkpoint)
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+    fn try_update_highest_synced_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<bool> {
         (**self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
