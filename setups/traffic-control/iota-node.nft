@@ -1,0 +1,90 @@
+#!/usr/sbin/nft -f
+# Host firewall for an IOTA node.
+#
+# Check:  nft -c -f iota-node.nft
+# Load:   nft -f iota-node.nft
+#
+# Reloading replaces only the `iota_node` table, so rules of other tools
+# (Docker, fail2ban, the CrowdSec bouncer) stay in place.
+
+# Ports the node serves to the public. Keep only the ones your node config
+# uses:
+#   8080/tcp   validator: `network-address`
+#   8081/tcp   validator: consensus (`primary-address`)
+#   9000/tcp   fullnode:  `json-rpc-address`
+#   50051/tcp  fullnode:  `grpc-api-config.address`
+#   8084/udp   validator and fullnode: `p2p-config.listen-address`
+define PUBLIC_TCP_PORTS = { 8080, 8081, 9000, 50051 }
+define PUBLIC_UDP_PORTS = { 8084 }
+
+# Ports that get the per-client limits below: the ones that serve clients
+# rather than other validators.
+define CLIENT_TCP_PORTS = { 8080, 9000, 50051 }
+
+# Port of your SSH server. Without it, loading this file locks you out.
+define SSH_PORT = 22
+
+table inet iota_node
+delete table inet iota_node
+
+table inet iota_node {
+    set connections_v4 {
+        type ipv4_addr
+        size 65535
+        flags dynamic
+    }
+
+    set connections_v6 {
+        type ipv6_addr
+        size 65535
+        flags dynamic
+    }
+
+    set new_connections_v4 {
+        type ipv4_addr
+        size 65535
+        flags dynamic,timeout
+        timeout 1m
+    }
+
+    set new_connections_v6 {
+        type ipv6_addr
+        size 65535
+        flags dynamic,timeout
+        timeout 1m
+    }
+
+    # Tune the numbers to your traffic. A validator's clients are fullnodes,
+    # which keep a few long-lived connections; a public RPC fullnode serves
+    # many clients, some of them behind one NAT address.
+    chain client_limits {
+        # At most 64 open connections per client address.
+        ct state new add @connections_v4 { ip saddr ct count over 64 } reject with tcp reset
+        ct state new add @connections_v6 { ip6 saddr ct count over 64 } reject with tcp reset
+        # At most 20 new connections per second per client address, with
+        # bursts of up to 40.
+        ct state new add @new_connections_v4 { ip saddr limit rate over 20/second burst 40 packets } drop
+        ct state new add @new_connections_v6 { ip6 saddr limit rate over 20/second burst 40 packets } drop
+    }
+
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        iifname "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+
+        # IPv6 needs ICMPv6 for neighbor discovery and path MTU discovery.
+        meta l4proto ipv6-icmp accept
+        meta l4proto icmp accept
+
+        tcp dport $SSH_PORT accept
+
+        tcp dport $CLIENT_TCP_PORTS jump client_limits
+        tcp dport $PUBLIC_TCP_PORTS accept
+        udp dport $PUBLIC_UDP_PORTS accept
+
+        # Everything else, including metrics (9184) and the admin interface
+        # (1337), stays closed to the public.
+    }
+}

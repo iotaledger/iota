@@ -1,0 +1,10 @@
+# Profile for the bans of the `iotaledger/iota-node-block` scenario. Put it
+# above the other profiles in `/etc/crowdsec/profiles.yaml`, and set `duration`
+# to the node's `connection-blocklist-ttl-sec` (60 seconds by default).
+name: iota_node_block
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "iotaledger/iota-node-block"
+decisions:
+  - type: ban
+    duration: 1m
+on_success: break

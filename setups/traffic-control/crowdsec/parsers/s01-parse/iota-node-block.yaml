@@ -1,0 +1,30 @@
+# Parses the line an IOTA node logs when it blocks a client:
+#
+#   client_blocked client=<ip> reason=<spam|error> ttl_secs=<n>
+#
+# Both patterns match the line only from its start and under the
+# `iota_node::client_blocked` target, so text a client gets into another
+# log line cannot ban an address. The first matches the plain-text log, the
+# second the JSON log (`RUST_LOG_JSON`).
+onsuccess: next_stage
+filter: "evt.Parsed.program == 'iota-node'"
+name: iotaledger/iota-node-block
+description: "Parse the block log line of an IOTA node"
+nodes:
+  - grok:
+      pattern: '^%{TIMESTAMP_ISO8601:timestamp}\s+INFO iota_node::client_blocked: client_blocked client=%{IP:source_ip} reason=%{WORD:reason} ttl_secs=%{INT:ttl_secs}$'
+      apply_on: message
+  - grok:
+      pattern: '^\{"timestamp":"%{TIMESTAMP_ISO8601:timestamp}","level":"INFO","fields":\{"message":"client_blocked client=%{IP:source_ip} reason=%{WORD:reason} ttl_secs=%{INT:ttl_secs}"\},"target":"iota_node::client_blocked"'
+      apply_on: message
+statics:
+  - meta: log_type
+    value: iota_node_block
+  - meta: service
+    value: iota-node
+  - meta: source_ip
+    expression: evt.Parsed.source_ip
+  - meta: reason
+    expression: evt.Parsed.reason
+  - target: evt.StrTime
+    expression: evt.Parsed.timestamp

@@ -1,0 +1,27 @@
+## Monitoring and Tuning
+
+After enabling the `TrafficController`, monitor your node's metrics to ensure legitimate traffic isn't being blocked. Key metrics to watch:
+
+- `tallies`
+- `connection_ip_blocklist_len`
+- `proxy_ip_blocklist_len`
+- `requests_blocked_at_protocol`
+- `traffic_control_num_dry_run_blocked_requests`
+- `traffic_control_unresolved_client_requests`
+- `connection_blocklist_ttl_sec`
+- `proxy_blocklist_ttl_sec`
+
+Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.
+
+## Troubleshooting
+
+If legitimate traffic is being blocked:
+
+1. Increase the `client-threshold` and `proxied-client-threshold` values.
+2. Decrease the `connection-blocklist-ttl-sec` and `proxy-blocklist-ttl-sec` values.
+3. Increase `burst-secs` to permit larger bursts.
+
+If you're still experiencing DoS attacks:
+
+1. Decrease the thresholds.
+2. Increase the blocklist TTL values.
