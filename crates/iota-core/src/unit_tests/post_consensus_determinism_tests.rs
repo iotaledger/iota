@@ -223,6 +223,9 @@ struct HistorySpec {
     /// Receivable objects (by bit) whose previous version is still in the
     /// store.
     receivable_stale_mask: u8,
+    /// Receivable objects (by bit) deleted before the epoch, their tombstone
+    /// latest and the previous version retained.
+    receivable_deleted_mask: u8,
     commits: Vec<Vec<CandidateSpec>>,
 }
 
@@ -315,6 +318,7 @@ fn history_spec() -> impl Strategy<Value = HistorySpec> {
         any::<bool>(),
         prop_oneof![1 => Just(0u8), 2 => 1..=2u8],
         any::<u8>(),
+        prop_oneof![3 => Just(0u8), 1 => 1..=3u8],
         proptest::collection::vec(proptest::collection::vec(candidate_spec(), 1..=4), 3..=6),
     )
         .prop_map(
@@ -327,6 +331,7 @@ fn history_spec() -> impl Strategy<Value = HistorySpec> {
                 package_pre_epoch,
                 receivable,
                 receivable_stale_mask,
+                receivable_deleted_mask,
                 commits,
             )| {
                 HistorySpec {
@@ -338,6 +343,7 @@ fn history_spec() -> impl Strategy<Value = HistorySpec> {
                     package_pre_epoch,
                     receivable,
                     receivable_stale_mask,
+                    receivable_deleted_mask,
                     commits,
                 }
             },
@@ -578,12 +584,20 @@ fn build_history(spec: &HistorySpec) -> History {
     }
     let receivable_ids: Vec<ObjectId> = (0..spec.receivable).map(|i| object_id(0xA2, i)).collect();
     for (i, id) in receivable_ids.iter().enumerate() {
+        let deleted = spec.receivable_deleted_mask & (1 << i) != 0;
+        let stale = spec.receivable_stale_mask & (1 << i) != 0;
         let owner = Owner::Address(SENDER);
-        epoch_start.slots.insert(
-            *id,
-            Slot::Live(coin(*id, Version::from_u64(EPOCH_START_VERSION), owner)),
-        );
-        if spec.receivable_stale_mask & (1 << i) != 0 {
+        if deleted {
+            epoch_start
+                .slots
+                .insert(*id, Slot::Deleted(Version::from_u64(EPOCH_START_VERSION)));
+        } else {
+            epoch_start.slots.insert(
+                *id,
+                Slot::Live(coin(*id, Version::from_u64(EPOCH_START_VERSION), owner)),
+            );
+        }
+        if deleted || stale {
             retained.push(coin(*id, Version::from_u64(RETAINED_VERSION), owner));
         }
     }
