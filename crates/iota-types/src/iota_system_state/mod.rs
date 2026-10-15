@@ -263,11 +263,11 @@ impl IotaSystemState {
             validators: ValidatorSetV1 {
                 total_stake: 0,
                 active_validators: Vec::new(),
-                pending_active_validators: TableVec::new(Table::new(UID::new(ObjectId::ZERO), 0)),
+                pending_active_validators: TableVec::new(Table::new(ObjectId::ZERO.into(), 0)),
                 pending_removals: Vec::new(),
-                staking_pool_mappings: Table::new(UID::new(ObjectId::ZERO), 0),
-                inactive_validators: Table::new(UID::new(ObjectId::ZERO), 0),
-                validator_candidates: Table::new(UID::new(ObjectId::ZERO), 0),
+                staking_pool_mappings: Table::new(ObjectId::ZERO.into(), 0),
+                inactive_validators: Table::new(ObjectId::ZERO.into(), 0),
+                validator_candidates: Table::new(ObjectId::ZERO.into(), 0),
                 at_risk_validators: VecMap {
                     contents: Vec::new(),
                 },
