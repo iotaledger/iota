@@ -17,7 +17,7 @@ use iota_sdk_types::{
     ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, Version,
 };
 use iota_types::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestationRecord},
     committee::EpochId,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -66,6 +66,18 @@ pub struct TransactionManager {
     inner: RwLock<RwLock<Inner>>,
 }
 
+/// Where the verdict on a transaction's attestation comes from.
+#[derive(Clone, Debug)]
+pub enum AttestationSource {
+    /// No attestation, e.g. `UserTransactionV1` or a system transaction.
+    Unattested,
+    /// The attestation from consensus, judged at execution.
+    Attestation(Attestation),
+    /// The verdict a certified checkpoint carries, when executing from it;
+    /// `None` when the transaction was not attested.
+    Certified(Option<AttestationRecord>),
+}
+
 /// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
 /// [`Attestation`] (if any). Carrying the full attestation lets downstream code
 /// consult both scheduling metadata and attestor identity / observed object
@@ -76,39 +88,56 @@ pub struct TransactionManager {
 #[derive(Clone, Debug)]
 pub struct VerifiedExecutableAttestedTransaction {
     tx: VerifiedExecutableTransaction,
-    /// `None` for unattested transactions (e.g., `UserTransactionV1`).
-    attestation: Option<Attestation>,
+    attestation: AttestationSource,
 }
 
 impl VerifiedExecutableAttestedTransaction {
     pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
+        let attestation = attestation.map_or(
+            AttestationSource::Unattested,
+            AttestationSource::Attestation,
+        );
         Self { tx, attestation }
     }
 
-    /// Returns the attached attestation, or `None` if the transaction was
-    /// not attested.
-    pub fn attestation(&self) -> Option<&Attestation> {
-        self.attestation.as_ref()
+    /// For transactions executed from a certified checkpoint, which carry no
+    /// attestation but whose verdict is already certified.
+    pub fn new_certified(
+        tx: VerifiedExecutableTransaction,
+        certified_record: Option<AttestationRecord>,
+    ) -> Self {
+        Self {
+            tx,
+            attestation: AttestationSource::Certified(certified_record),
+        }
+    }
+
+    pub fn attestation(&self) -> &AttestationSource {
+        &self.attestation
     }
 
     /// Returns the attestor's estimated computation units, or `None` if the
     /// transaction was not attested.
     pub fn attested_computation_units(&self) -> Option<u64> {
-        self.attestation.as_ref().map(|a| a.computation_units())
+        match &self.attestation {
+            AttestationSource::Attestation(attestation) => Some(attestation.computation_units()),
+            AttestationSource::Unattested | AttestationSource::Certified(_) => None,
+        }
     }
 
     /// Consume the wrapper and return its parts.
     pub fn into_parts(self) -> (VerifiedExecutableTransaction, Option<Attestation>) {
-        (self.tx, self.attestation)
+        let attestation = match self.attestation {
+            AttestationSource::Attestation(attestation) => Some(attestation),
+            AttestationSource::Unattested | AttestationSource::Certified(_) => None,
+        };
+        (self.tx, attestation)
     }
 }
 
 impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
     fn from(tx: VerifiedExecutableTransaction) -> Self {
-        Self {
-            tx,
-            attestation: None,
-        }
+        Self::new(tx, None)
     }
 }
 
