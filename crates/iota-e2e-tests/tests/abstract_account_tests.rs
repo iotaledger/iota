@@ -908,6 +908,338 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
     Ok(())
 }
 
+/// Under P-COOL with deterministic validation, a transaction from an account
+/// whose authenticate function lives in a package the deny rules name is
+/// dropped at the commit on every validator, even when the validator that
+/// submits it skips its admission checks, as a faulty one can. Nobody executes
+/// it, so the denied package's authenticate function does not run, and the
+/// validators keep building the certified checkpoints, which the fullnode keeps
+/// executing. The same transaction from an account whose authenticate function
+/// lives in a second copy of the package, which is not denied, executes.
+///
+/// The deny rules in force under deterministic validation are the ones the
+/// validators agree on through consensus, from their local deny configs. The
+/// package only exists once the cluster runs, so every validator is restarted
+/// with a config that denies it, and an epoch change follows, after which the
+/// fullnode's authority clients reach the restarted validators again.
+///
+/// Simulator only, for the reason given on the tests above and because the
+/// admission skip is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_deterministic_validation()
+-> Result<(), anyhow::Error> {
+    use std::time::Duration;
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_macros::{clear_fail_point, register_fail_point_if};
+    use iota_sdk_types::ExecutionStatus;
+    use iota_types::messages_grpc::TxStatusUpdate;
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    let mut test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_epoch_duration_ms(600_000)
+            .build()
+            .await,
+    );
+    for handle in test_env.test_cluster.all_validator_handles() {
+        handle.with(|node| {
+            let epoch_store = node.state().epoch_store_for_testing();
+            let protocol_config = epoch_store.protocol_config();
+            assert!(
+                protocol_config.pcool_deterministic_validation()
+                    && protocol_config.deny_authenticator_packages(),
+                "deterministic validation and the authenticator package deny check must be on"
+            );
+        });
+    }
+
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let owner = test_env.owner.unwrap();
+    let denied_package = test_env.aa_package_id.unwrap();
+    let denied_account = test_env.aa_ref.unwrap();
+    let (allowed_package, allowed_package_metadata_ref) =
+        test_env.publish_account_abstraction_package().await;
+    let effects = test_env
+        .create_abstract_account_with(
+            owner,
+            AA_AUTHENTICATE_FN_NAME_ED25519,
+            allowed_package,
+            allowed_package_metadata_ref,
+        )
+        .await?;
+    let allowed_account = abstract_account_from_all_changed_objects(&effects.all_changed_objects());
+
+    // A gas coin and a coin to transfer for each account.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let fund = |account: ObjectReference, amount: u64| {
+        test_env.test_cluster.fund_address_and_return_gas(
+            rgp,
+            Some(amount),
+            account.object_id.into(),
+        )
+    };
+    let denied_gas = fund(denied_account, 20_000_000_000).await;
+    let denied_coin = fund(denied_account, 1_000_000).await;
+    let allowed_gas = fund(allowed_account, 20_000_000_000).await;
+    let allowed_coin = fund(allowed_account, 1_000_000).await;
+
+    for name in test_env.test_cluster.get_validator_pubkeys() {
+        test_env
+            .test_cluster
+            .update_transaction_deny_config_on(
+                &name,
+                TransactionDenyConfigBuilder::new()
+                    .add_denied_package(denied_package)
+                    .build(),
+            )
+            .await;
+    }
+    test_env.test_cluster.force_new_epoch().await;
+    tokio::time::timeout(Duration::from_secs(60), async {
+        while !test_env
+            .test_cluster
+            .all_validator_handles()
+            .iter()
+            .all(|handle| {
+                handle.with(|node| {
+                    node.state()
+                        .epoch_store_for_testing()
+                        .get_active_transaction_deny_rules()
+                        .denied_packages
+                        .contains(&denied_package)
+                })
+            })
+        {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("the deny rules must deny the package on every validator within 60s");
+
+    // A plain transfer, so the account's package is named by the authenticator
+    // alone.
+    let account_tx = |account: ObjectReference, gas: ObjectReference, coin: ObjectReference| {
+        let test_env = &test_env;
+        async move {
+            let pt = test_env.craft_object_transfer(coin, owner)?;
+            let tx_data = test_env
+                .craft_tx_from_pt(pt, gas, account.object_id.into(), None)
+                .await?;
+            let tx_digest = tx_data.digest().into_bytes();
+            let signatures =
+                vec![test_env.create_move_authenticator_for_ed25519_for_ref(account, &tx_digest)?];
+            anyhow::Ok(TransactionEnvelope::from_user_sig_data(tx_data, signatures))
+        }
+    };
+
+    // One validator skips its admission checks and submits both transactions,
+    // as a faulty one can.
+    let faulty = test_env.test_cluster.get_validator_pubkeys()[0];
+    let faulty_sim_id = test_env
+        .test_cluster
+        .swarm
+        .node(&faulty)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|_| iota_simulator::current_simnode_id());
+    register_fail_point_if("admit-without-input-checks", move || {
+        iota_simulator::current_simnode_id() == faulty_sim_id
+    });
+    let faulty_client = test_env
+        .test_cluster
+        .authority_aggregator()
+        .authority_clients[&faulty]
+        .clone();
+    let submit = |tx: TransactionEnvelope| {
+        let faulty_client = faulty_client.clone();
+        async move {
+            let digest = *tx.digest();
+            let submitted = tokio::time::timeout(
+                Duration::from_secs(60),
+                faulty_client
+                    .authority_client()
+                    .submit_tx(vec![tx], Some(client_ip)),
+            )
+            .await
+            .expect("the submission must be answered within 60s")
+            .unwrap();
+            assert!(
+                matches!(
+                    submitted.as_slice(),
+                    [(submitted_digest, TxStatusUpdate::Submitted)] if *submitted_digest == digest
+                ),
+                "the validator skipping its admission checks must submit the transaction, got \
+                 {submitted:?}"
+            );
+            digest
+        }
+    };
+
+    let allowed_digest =
+        submit(account_tx(allowed_account, allowed_gas, allowed_coin).await?).await;
+    let denied_digest = submit(account_tx(denied_account, denied_gas, denied_coin).await?).await;
+    clear_fail_point("admit-without-input-checks");
+
+    let allowed_effects = tokio::time::timeout(
+        Duration::from_secs(60),
+        test_env
+            .test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &[allowed_digest])
+                    .await
+            }),
+    )
+    .await
+    .expect("the transaction from the account of the package not denied must execute within 60s")?
+    .remove(0);
+    assert_eq!(
+        allowed_effects.status(),
+        &ExecutionStatus::Success,
+        "the transaction from the account of the package not denied must succeed"
+    );
+
+    // Every validator drops the transaction from the account of the denied
+    // package, with the error the deny check gives at admission.
+    for handle in test_env.test_cluster.all_validator_handles() {
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(60),
+            handle.with_async(|node| async move {
+                let state = node.state();
+                let cache = state.get_transaction_cache_reader();
+                let epoch_store = state.epoch_store_for_testing();
+                let digests = [denied_digest];
+                tokio::select! {
+                    error = epoch_store.notify_read_dropped_digests(denied_digest) => Ok(error),
+                    effects = cache.try_notify_read_executed_effects("", &digests) => {
+                        Err(effects)
+                    }
+                }
+            }),
+        )
+        .await
+        .expect("every validator must drop or execute the transaction within 60s");
+        let error = match outcome {
+            Ok(error) => error,
+            Err(effects) => panic!(
+                "a validator executed the transaction from the account of the denied package: \
+                 {:?}",
+                effects.map(|effects| effects[0].status().clone())
+            ),
+        };
+        let IotaError::UserInput {
+            error: UserInputError::TransactionDenied { error },
+        } = &error
+        else {
+            panic!("expected TransactionDenied, got: {error:?}");
+        };
+        assert!(
+            error.contains(&denied_package.to_string()),
+            "expected the denied authenticator package to be named, got: {error}"
+        );
+    }
+
+    // Every validator keeps executing checkpoints well past the horizon
+    // distance after the drop, and the ones it builds itself are the certified
+    // ones.
+    let highest_executed = |handle: &iota_node::IotaNodeHandle| {
+        handle.with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default()
+        })
+    };
+    let last_built = |handle: &iota_node::IotaNodeHandle| {
+        handle.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .last_built_checkpoint_builder_summary()
+                .unwrap()
+                .map(|summary| summary.summary.sequence_number)
+                .unwrap_or_default()
+        })
+    };
+    let validators = test_env.test_cluster.all_validator_handles();
+    let first_compared = validators.iter().map(highest_executed).min().unwrap();
+    let target = validators.iter().map(highest_executed).max().unwrap() + 20;
+    for handle in &validators {
+        tokio::time::timeout(Duration::from_secs(180), async {
+            while highest_executed(handle) < target || last_built(handle) < target {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        })
+        .await
+        .expect("every validator must execute and build checkpoints past the drop");
+        handle.with(|node| {
+            let store = node.state().get_checkpoint_store().clone();
+            for sequence_number in first_compared..=target {
+                let local = store
+                    .get_locally_computed_checkpoint(sequence_number)
+                    .unwrap();
+                let certified = store
+                    .get_checkpoint_by_sequence_number(sequence_number)
+                    .unwrap();
+                if let (Some(local), Some(certified)) = (local, certified) {
+                    assert_eq!(
+                        local.digest(),
+                        *certified.digest(),
+                        "a validator's checkpoint {sequence_number} must match the certified one"
+                    );
+                }
+            }
+        });
+    }
+    tokio::time::timeout(Duration::from_secs(60), async {
+        while highest_executed(&test_env.test_cluster.fullnode_handle.iota_node) < target {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("the fullnode must keep executing checkpoints past the drop");
+
+    // Nobody executed the dropped transaction, and its gas coin is untouched.
+    // The authenticate function runs at admission, which the submitting
+    // validator skipped, and at execution, so it ran nowhere.
+    for handle in test_env.test_cluster.all_node_handles() {
+        let executed = handle.with(|node| {
+            node.state()
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&denied_digest)
+                .unwrap()
+        });
+        assert!(
+            executed.is_none(),
+            "no node may execute the transaction from the account of the denied package"
+        );
+    }
+    assert_eq!(
+        test_env
+            .test_cluster
+            .get_latest_object_ref(&denied_gas.object_id)
+            .await,
+        denied_gas,
+        "the dropped transaction's gas coin must keep its version"
+    );
+
+    Ok(())
+}
+
 /// Under P-COOL with deterministic validation, a transaction that names, as an
 /// owned input, a version that a receive already used never reaches
 /// execution: every validator reports it missing, and drops it once
