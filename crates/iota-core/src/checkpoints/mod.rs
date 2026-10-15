@@ -696,23 +696,25 @@ impl CheckpointStore {
         Ok(())
     }
 
+    /// Marks `checkpoint` as synced. Returns whether the watermark moved; see
+    /// [`Self::multi_update_highest_synced_checkpoint`].
     pub fn update_highest_synced_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         self.multi_update_highest_synced_checkpoint(std::slice::from_ref(checkpoint))
     }
 
     /// Marks a consecutive run of checkpoints as synced: writes the watermark
     /// once, for the last checkpoint, and notifies the waiters that write
     /// releases. Does nothing when another writer has already carried the
-    /// watermark past the run.
+    /// watermark past the run. Returns whether the watermark moved.
     pub fn multi_update_highest_synced_checkpoint(
         &self,
         checkpoints: &[VerifiedCheckpoint],
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         let Some(last) = checkpoints.last() else {
-            return Ok(());
+            return Ok(false);
         };
 
         // Only ever forwards, like the other two: another writer advances this
@@ -736,8 +738,9 @@ impl CheckpointStore {
                 self.synced_checkpoint_notify_read
                     .notify(&checkpoint.sequence_number(), checkpoint);
             }
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
     async fn notify_read_checkpoint_watermark<F>(

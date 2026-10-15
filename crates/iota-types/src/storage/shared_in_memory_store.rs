@@ -195,10 +195,13 @@ impl WriteStore for SharedInMemoryStore {
         Ok(())
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.inner_mut()
-            .update_highest_synced_checkpoint(checkpoint);
-        Ok(())
+    fn try_update_highest_synced_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<bool> {
+        Ok(self
+            .inner_mut()
+            .update_highest_synced_checkpoint(checkpoint))
     }
 
     fn try_insert_checkpoint_contents(
@@ -458,16 +461,18 @@ impl InMemoryStore {
             Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
-    pub fn update_highest_synced_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
+    /// Marks `checkpoint` as synced. Returns whether the watermark moved.
+    pub fn update_highest_synced_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) -> bool {
         if !self.checkpoints.contains_key(checkpoint.digest()) {
             panic!("store should already contain checkpoint");
         }
         if let Some(highest_synced_checkpoint) = self.highest_synced_checkpoint {
             if highest_synced_checkpoint.0 >= checkpoint.sequence_number {
-                return;
+                return false;
             }
         }
         self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
+        true
     }
 
     pub fn checkpoints(&self) -> &HashMap<CheckpointDigest, VerifiedCheckpoint> {
@@ -668,9 +673,11 @@ impl WriteStore for SingleCheckpointSharedInMemoryStore {
         Ok(())
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.0.try_update_highest_synced_checkpoint(checkpoint)?;
-        Ok(())
+    fn try_update_highest_synced_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<bool> {
+        self.0.try_update_highest_synced_checkpoint(checkpoint)
     }
 
     fn try_insert_checkpoint_contents(
