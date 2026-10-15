@@ -37,8 +37,8 @@ use typed_store::{
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     epoch_buckets::{
-        EpochBuckets, bucket_cf_epoch, bucket_cf_name, bucket_cf_options,
-        extra_column_family_options,
+        BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_name,
+        bucket_cf_options, extra_column_family_options,
     },
 };
 
@@ -97,7 +97,7 @@ pub struct HistoricObjectsBucket {
     expiring_marked: AtomicBool,
 }
 
-impl HistoricObjectsBucket {
+impl BucketReopen for HistoricObjectsBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         let expiring: TaggedDBMap<(), ()> = TaggedDBMap::reopen(
             db,
@@ -126,11 +126,12 @@ impl HistoricObjectsBucket {
             expiring_marked,
         })
     }
+}
 
+impl HistoricObjectsBucket {
     /// Whether this bucket has been marked expiring, in which case its rows
-    /// must no longer be served: the tombstone heads it recorded may already
-    /// be deleted from the live `objects` table, and a version served from
-    /// under a deleted tombstone resurrects a deleted object.
+    /// must no longer be served: its tombstone heads may already be deleted
+    /// from the live `objects` table.
     fn is_expiring(&self) -> bool {
         self.expiring_marked.load(Ordering::Relaxed)
     }
@@ -268,7 +269,6 @@ impl HistoricObjects {
             cf_options,
             earliest_retained_table,
             buckets,
-            HistoricObjectsBucket::reopen,
         )?;
         Ok(Self {
             buckets,
@@ -302,9 +302,7 @@ impl HistoricObjects {
     /// its bucket has since been dropped).
     pub fn get(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
         for bucket in self.readable_buckets(true) {
-            if let Some(object) = bucket
-                .objects
-                .get(key)
+            if let Some(object) = absent_if_dropped(bucket.objects.get(key))
                 .map_err(|e| IotaError::Storage(e.to_string()))?
             {
                 return Ok(Some(object));
@@ -347,12 +345,14 @@ impl HistoricObjects {
         // Versions are relocated in increasing order, so the newest bucket
         // with a match holds the newest version.
         for bucket in self.readable_buckets(true) {
-            let newest = bucket
-                .objects
-                .safe_range_iter_reversed(ObjectKey::min_for_id(&id)..=ObjectKey(id, version))
-                .next()
-                .transpose()
-                .map_err(|e| IotaError::Storage(e.to_string()))?;
+            let newest = absent_if_dropped(
+                bucket
+                    .objects
+                    .safe_range_iter_reversed(ObjectKey::min_for_id(&id)..=ObjectKey(id, version))
+                    .next()
+                    .transpose(),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
             if let Some((_, object)) = newest {
                 return Ok(Some(object));
             }

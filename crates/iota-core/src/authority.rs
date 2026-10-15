@@ -227,6 +227,7 @@ pub mod authority_per_epoch_store_pruner;
 
 pub mod authority_store_tables;
 pub mod authority_store_types;
+pub mod epoch_markers;
 pub mod epoch_start_configuration;
 pub mod historic_ledger;
 pub mod historic_objects;
@@ -3241,6 +3242,14 @@ impl AuthorityState {
             }
         }
         *execution_lock = new_epoch;
+        // Not before the lock reads the new epoch: `try_execute_immediately`
+        // reads a receiving object's marker before it takes the lock.
+        if let Err(err) = self
+            .get_reconfig_api()
+            .expire_epoch_markers(new_epoch, &execution_lock)
+        {
+            error!("Failed to expire the epoch marker buckets: {err:?}");
+        }
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match

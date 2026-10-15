@@ -31,6 +31,7 @@ use crate::authority::{
     authority_store_types::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
+    epoch_markers::EpochMarkers,
     epoch_start_configuration::EpochStartConfiguration,
     historic_ledger::HistoricLedger,
     historic_objects::HistoricObjects,
@@ -193,20 +194,15 @@ pub struct AuthorityPerpetualTables {
     /// storage_fund_balance - sum(storage_rebate).
     pub(crate) expected_storage_fund_imbalance: DBMap<(), i64>,
 
-    /// Table that stores the set of received objects and deleted objects and
-    /// the version at which they were received. This is used to prevent
-    /// possible race conditions around receiving objects (since they are
-    /// not locked by the transaction manager) and for tracking shared
-    /// objects that have been deleted. This table is meant to be pruned
-    /// per-epoch, and all previous epochs other than the current epoch may
-    /// be pruned safely.
+    /// Superseded by [`EpochMarkers`]; the rows still here are read only by
+    /// the one-time migration into the buckets.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
 
-    /// How far the one-time sweep of the object versions superseded before
-    /// this build has got through `objects`, and whether it has reached the
-    /// end. Empty until the sweep first writes a slice.
-    /// TODO: remove this table once every database has swept the pre-bucket
-    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    /// How far the one-time sweep of superseded object versions has got
+    /// through `objects`, and whether it is done. Empty until the sweep first
+    /// writes a slice.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 
     /// The last checkpoint the objects pruner pruned, copied out of
@@ -261,7 +257,7 @@ impl AuthorityPerpetualTables {
     pub fn open_with_historic_objects(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
-    ) -> Result<(Self, HistoricObjects, HistoricLedger), TypedStoreError> {
+    ) -> Result<(Self, HistoricObjects, HistoricLedger, EpochMarkers), TypedStoreError> {
         let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
         let mut historic_objects = HistoricObjects::open(
             tables.objects.db.clone(),
@@ -270,7 +266,8 @@ impl AuthorityPerpetualTables {
         )?;
         historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
         let historic_ledger = HistoricLedger::open(tables.objects.db.clone(), &db_options)?;
-        Ok((tables, historic_objects, historic_ledger))
+        let epoch_markers = EpochMarkers::open(tables.objects.db.clone(), &db_options)?;
+        Ok((tables, historic_objects, historic_ledger, epoch_markers))
     }
 
     /// The perpetual tables and the base options their column families were
@@ -312,6 +309,10 @@ impl AuthorityPerpetualTables {
             &db_options,
         ));
         table_options.extend(HistoricLedger::extra_column_family_options(
+            &path,
+            &db_options,
+        ));
+        table_options.extend(EpochMarkers::extra_column_family_options(
             &path,
             &db_options,
         ));
