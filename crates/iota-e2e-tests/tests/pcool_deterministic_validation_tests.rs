@@ -324,3 +324,143 @@ async fn test_crash_after_post_consensus_verdicts_recovers() {
         }
     }
 }
+
+/// A faulty validator can sequence a transaction admission would refuse. One
+/// whose receiving argument names an object nobody created must not be kept:
+/// the scheduler would wait for that object forever, its commit would never
+/// complete, and every handler would park at the horizon wait. Validation
+/// reports the object missing instead, nobody executes the transaction, and
+/// checkpoints keep coming on every validator.
+#[sim_test]
+async fn test_receiving_an_object_nobody_created_does_not_halt_the_cluster() {
+    use std::{net::SocketAddr, path::PathBuf};
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_macros::{clear_fail_point, register_fail_point_if};
+    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Owner, Version};
+    use iota_test_transaction_builder::publish_package;
+    use iota_types::{messages_grpc::TxStatusUpdate, transaction::CallArg};
+
+    let _guard = enable_deterministic_validation_for_testing();
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    let node_handle = |name| {
+        test_cluster
+            .swarm
+            .node(&name)
+            .unwrap()
+            .get_node_handle()
+            .unwrap()
+    };
+
+    let package = {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests/move_test_code");
+        publish_package(&test_cluster.wallet, path).await.object_id
+    };
+    let start = test_cluster
+        .test_transaction_builder()
+        .await
+        .move_call(package, "tto", "start", vec![])
+        .build();
+    let start_effects = test_cluster.sign_and_execute_transaction(&start).await;
+    // `start` creates a parent and a child owned by the parent's id.
+    let created = start_effects.created();
+    let parent = created
+        .iter()
+        .find(|parent| {
+            created.iter().any(|child| {
+                matches!(child.owner(), Owner::Address(owner)
+                    if ObjectId::from(*owner) == parent.reference().object_id)
+            })
+        })
+        .map(|parent| *parent.reference())
+        .expect("start creates a child owned by the parent's id");
+    let unseen = ObjectReference::new(ObjectId::random(), Version::from(1), ObjectDigest::random());
+    let receive = test_cluster
+        .test_transaction_builder()
+        .await
+        .move_call(
+            package,
+            "tto",
+            "receiver",
+            vec![
+                CallArg::ImmutableOrOwned(parent),
+                CallArg::Receiving(unseen),
+            ],
+        )
+        .build();
+    let receive = test_cluster.wallet.sign_transaction(&receive);
+    let digest = *receive.digest();
+
+    // One validator skips its input checks and submits it, as a faulty one can.
+    let faulty = test_cluster.get_validator_pubkeys()[0];
+    let faulty_sim_id = node_handle(faulty).with(|_| iota_simulator::current_simnode_id());
+    register_fail_point_if("admit-without-input-checks", move || {
+        iota_simulator::current_simnode_id() == faulty_sim_id
+    });
+    let authority_clients = test_cluster
+        .authority_aggregator()
+        .authority_clients
+        .clone();
+    let submitted = tokio::time::timeout(
+        Duration::from_secs(60),
+        authority_clients[&faulty]
+            .authority_client()
+            .submit_tx(vec![receive], Some(client_ip)),
+    )
+    .await;
+    clear_fail_point("admit-without-input-checks");
+    let submitted = submitted
+        .expect("the submission must be answered within 60s")
+        .unwrap();
+    assert!(
+        matches!(
+            submitted.as_slice(),
+            [(submitted_digest, TxStatusUpdate::Submitted)] if *submitted_digest == digest
+        ),
+        "the validator skipping its input checks must submit the transaction, got {submitted:?}"
+    );
+
+    // Every validator keeps executing checkpoints well past the horizon
+    // distance after the submission.
+    let highest_executed = |name| {
+        node_handle(name).with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default()
+        })
+    };
+    for validator in test_cluster.get_validator_pubkeys() {
+        let target = highest_executed(validator) + 20;
+        tokio::time::timeout(Duration::from_secs(180), async {
+            while highest_executed(validator) < target {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| {
+            panic!("validator {validator:?} must keep executing checkpoints, stuck below {target}")
+        });
+    }
+
+    // Nobody executed the transaction.
+    for validator in test_cluster.get_validator_pubkeys() {
+        let executed = node_handle(validator).with(|node| {
+            node.state()
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&digest)
+                .unwrap()
+        });
+        assert!(
+            executed.is_none(),
+            "validator {validator:?} executed a receive of an object nobody created"
+        );
+    }
+}

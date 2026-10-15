@@ -23,7 +23,8 @@ use crate::{
     },
     execution_cache::ObjectCacheRead,
     post_consensus_input_reader::{
-        InputResolution, OwnedVerdict, PackageVerdict, SharedVerdict, reader::CommitIndexedReader,
+        InputResolution, OwnedVerdict, PackageVerdict, ReceivingObjectsResolution, SharedVerdict,
+        reader::CommitIndexedReader,
     },
 };
 
@@ -363,5 +364,35 @@ impl TransactionInputLoader {
             });
         }
         Ok(InputResolution::Loaded(input_results.into()))
+    }
+
+    /// Reads the receiving objects of a transaction being validated
+    /// post-consensus, as of the commit `reader` was built for. Each goes
+    /// through the reader as an owned input does, so a kept one was live at
+    /// the declared version on every validator and execution can always run
+    /// it. No lock is taken on it and nothing checks that the sender owns it.
+    /// A drop or a missing is reported under the owned kind of the reference,
+    /// so the caller's error names its id and version.
+    #[instrument(level = "trace", skip_all)]
+    pub fn read_receiving_objects_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        receiving_objects: &[ObjectReference],
+    ) -> IotaResult<ReceivingObjectsResolution> {
+        let mut receiving_results = Vec::with_capacity(receiving_objects.len());
+        for reference in receiving_objects {
+            let kind = InputObjectKind::ImmOrOwnedMoveObject(*reference);
+            let object = match reader.read_owned(*reference)? {
+                OwnedVerdict::Keep(kept) => kept.into_object(),
+                OwnedVerdict::Drop(reason) => {
+                    return Ok(ReceivingObjectsResolution::Drop(kind, reason));
+                }
+                OwnedVerdict::Missing(reason) => {
+                    return Ok(ReceivingObjectsResolution::Missing(kind, reason));
+                }
+            };
+            receiving_results.push(ReceivingObjectReadResult::new(*reference, object.into()));
+        }
+        Ok(ReceivingObjectsResolution::Loaded(receiving_results.into()))
     }
 }
