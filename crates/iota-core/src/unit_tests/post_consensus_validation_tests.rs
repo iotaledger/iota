@@ -6775,7 +6775,8 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
 
 /// Saves the switch to synced checkpoints after commit `last`, then executes
 /// `deletion` as a synced checkpoint does, without a commit assigned by the
-/// handler, so it leaves no handler row, and restarts the epoch store.
+/// handler, checks that it leaves no handler row, and restarts the epoch
+/// store.
 async fn switch_execute_synced_and_restart(
     s: &mut BookkeepingSetup,
     last: CommitIndex,
@@ -6783,7 +6784,12 @@ async fn switch_execute_synced_and_restart(
 ) {
     s.epoch_store.record_handled_commit(last);
     s.epoch_store.start_executing_synced_checkpoints().await;
-    s.execute_with_assigned_shared_versions(deletion);
+    let effects = s.execute_with_assigned_shared_versions(deletion);
+    let written = handler_processed_upserts(&effects, last);
+    assert!(!written.is_empty(), "{effects:?}");
+    for (ObjectKey(id, version), _) in written {
+        s.assert_no_handler_row(&id, version);
+    }
     s.epoch_store = reopen(&s.authority, &s.epoch_store);
     assert_eq!(
         s.epoch_store
