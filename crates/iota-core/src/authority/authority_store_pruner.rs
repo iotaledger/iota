@@ -4,7 +4,7 @@
 
 use std::{
     cmp::{max, min},
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -16,7 +16,9 @@ use iota_sdk_types::{CheckpointContents, CheckpointDigest, ObjectId, Transaction
 use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp},
+    messages_checkpoint::{
+        CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp, VerifiedCheckpoint,
+    },
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
@@ -103,6 +105,7 @@ pub struct AuthorityStorePruner {
     /// Executor -> pruner: latest executed checkpoint sequence number. Updating
     /// it both records progress and wakes the pruner task to drain.
     executed: watch::Sender<CheckpointSequenceNumber>,
+    object_retention: Arc<ObjectRetention>,
 }
 
 impl AuthorityStorePruner {
@@ -110,6 +113,75 @@ impl AuthorityStorePruner {
     /// available (watermark bumped, subscribers notified). Wakes the pruner.
     pub fn nudge(&self, executed_seq: CheckpointSequenceNumber) {
         self.executed.send_replace(executed_seq);
+    }
+
+    /// Keeps the objects pruner from pruning the highest executed checkpoint
+    /// and every checkpoint after it until the returned guard is dropped, so
+    /// that the object versions their transactions supersede stay readable.
+    pub fn retain_objects(
+        &self,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<ObjectRetentionGuard, TypedStoreError> {
+        ObjectRetention::retain(&self.object_retention, checkpoint_store)
+    }
+}
+
+/// The checkpoints from which readers have asked the objects pruner to retain
+/// superseded object versions. The pruner stays below the lowest of them.
+///
+/// Retaining objects and the pruner both read the highest executed checkpoint
+/// under the lock. A guard the pruner does not see therefore starts at or
+/// above the executed checkpoint the pruner stops before.
+#[derive(Default)]
+pub struct ObjectRetention(Mutex<BTreeMap<CheckpointSequenceNumber, usize>>);
+
+impl ObjectRetention {
+    fn retain(
+        object_retention: &Arc<Self>,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<ObjectRetentionGuard, TypedStoreError> {
+        let mut retained = object_retention.0.lock().unwrap();
+        let from = checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()?
+            .unwrap_or_default();
+        *retained.entry(from).or_default() += 1;
+        Ok(ObjectRetentionGuard {
+            object_retention: object_retention.clone(),
+            from,
+        })
+    }
+
+    /// The highest executed checkpoint, and the lowest retained checkpoint.
+    fn executed_and_lowest_retained_checkpoint(
+        &self,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(Option<VerifiedCheckpoint>, Option<CheckpointSequenceNumber>), TypedStoreError>
+    {
+        let retained = self.0.lock().unwrap();
+        Ok((
+            checkpoint_store.get_highest_executed_checkpoint()?,
+            retained.keys().next().copied(),
+        ))
+    }
+}
+
+/// Keeps the objects pruner from pruning a checkpoint and every checkpoint
+/// after it, until dropped.
+#[must_use]
+pub struct ObjectRetentionGuard {
+    object_retention: Arc<ObjectRetention>,
+    from: CheckpointSequenceNumber,
+}
+
+impl Drop for ObjectRetentionGuard {
+    fn drop(&mut self) {
+        let mut retained = self.object_retention.0.lock().unwrap();
+        if let Some(count) = retained.get_mut(&self.from) {
+            *count -= 1;
+            if *count == 0 {
+                retained.remove(&self.from);
+            }
+        }
     }
 }
 
@@ -389,10 +461,12 @@ impl AuthorityStorePruner {
         metrics: Arc<AuthorityStorePruningMetrics>,
         epoch_duration_ms: u64,
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
+        object_retention: &ObjectRetention,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneObjectsForEligibleEpochs");
-        let (max_eligible_checkpoint_number, cutoff_timestamp_ms) = checkpoint_store
-            .get_highest_executed_checkpoint()?
+        let (executed_checkpoint, lowest_hold) =
+            object_retention.executed_and_lowest_retained_checkpoint(checkpoint_store)?;
+        let (max_eligible_checkpoint_number, cutoff_timestamp_ms) = executed_checkpoint
             .map(|c| {
                 let window_ms = config
                     .num_epochs_to_retain
@@ -403,6 +477,10 @@ impl AuthorityStorePruner {
                 )
             })
             .unwrap_or_default();
+        let max_eligible_checkpoint_number = lowest_hold
+            .map_or(max_eligible_checkpoint_number, |lowest| {
+                min(max_eligible_checkpoint_number, lowest)
+            });
         let pruned_checkpoint_number = perpetual_db
             .get_highest_pruned_checkpoint()?
             .unwrap_or_default();
@@ -734,6 +812,7 @@ impl AuthorityStorePruner {
         metrics: Arc<AuthorityStorePruningMetrics>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         mut executed_rx: watch::Receiver<CheckpointSequenceNumber>,
+        object_retention: Arc<ObjectRetention>,
     ) -> Sender<()> {
         let (sender, mut recv) = tokio::sync::oneshot::channel();
         debug!(
@@ -856,6 +935,7 @@ impl AuthorityStorePruner {
                         metrics.clone(),
                         epoch_duration_ms,
                         progress_tracker.as_ref(),
+                        &object_retention,
                     )
                     .await
                     {
@@ -942,6 +1022,7 @@ impl AuthorityStorePruner {
         // task. The pruner task receives nudges (`executed_rx`); the sending
         // end is kept on the returned handle for `nudge`.
         let (executed, executed_rx) = watch::channel(0);
+        let object_retention = Arc::new(ObjectRetention::default());
         AuthorityStorePruner {
             _objects_pruner_cancel_handle: Self::setup_pruning(
                 pruning_config,
@@ -953,8 +1034,10 @@ impl AuthorityStorePruner {
                 AuthorityStorePruningMetrics::new(registry),
                 progress_tracker,
                 executed_rx,
+                object_retention.clone(),
             ),
             executed,
+            object_retention,
         }
     }
 
@@ -972,6 +1055,7 @@ impl AuthorityStorePruner {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
+    use iota_config::node::AuthorityStorePruningConfig;
     use iota_sdk_types::{
         ObjectDigest, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, Version,
     };
@@ -992,7 +1076,9 @@ mod tests {
         rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options},
     };
 
-    use super::{AuthorityStorePruner, PruningMode};
+    use super::{
+        AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING, ObjectRetention, PruningMode,
+    };
     use crate::{
         authority::{
             authority_store_pruner::AuthorityStorePruningMetrics,
@@ -1547,12 +1633,88 @@ mod tests {
         );
     }
 
+    /// Retaining objects keeps the objects pruner below the checkpoint that was
+    /// the highest executed at that moment, however far execution gets, and
+    /// pruning resumes once the guard is dropped.
+    #[tokio::test]
+    async fn object_pruning_stays_below_a_retained_checkpoint() {
+        let perpetual_dir = iota_common::tempdir();
+        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(perpetual_dir.path(), None));
+        let checkpoint_store = CheckpointStore::new_for_tests();
+        let committee =
+            CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+        let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
+        let checkpoints = committee.make_checkpoints_with_timestamps(&timestamps, None);
+        // All empty checkpoints share the same content digest, so a single
+        // insert covers every checkpoint's content lookup during pruning.
+        checkpoint_store
+            .insert_checkpoint_contents(empty_contents().into_inner().into_checkpoint_contents())
+            .unwrap();
+        for checkpoint in &checkpoints {
+            checkpoint_store
+                .insert_certified_checkpoint(checkpoint)
+                .unwrap();
+        }
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain: 0,
+            ..Default::default()
+        };
+        let prune = |object_retention: Arc<ObjectRetention>| {
+            let perpetual_db = perpetual_db.clone();
+            let checkpoint_store = checkpoint_store.clone();
+            let config = config.clone();
+            async move {
+                AuthorityStorePruner::prune_objects_for_eligible_epochs(
+                    &perpetual_db,
+                    &checkpoint_store,
+                    None,
+                    config,
+                    AuthorityStorePruningMetrics::new_for_test(),
+                    EPOCH_DURATION_MS_FOR_TESTING,
+                    None,
+                    &object_retention,
+                )
+                .await
+                .unwrap();
+                perpetual_db.get_highest_pruned_checkpoint().unwrap()
+            }
+        };
+
+        let (executed, to_execute) = checkpoints.split_at(5);
+        let retained = executed.last().unwrap();
+        let last = to_execute.last().unwrap();
+        for checkpoint in executed {
+            checkpoint_store
+                .update_highest_executed_checkpoint(checkpoint)
+                .unwrap();
+        }
+        let object_retention = Arc::new(ObjectRetention::default());
+        let guard = ObjectRetention::retain(&object_retention, &checkpoint_store).unwrap();
+        for checkpoint in to_execute {
+            checkpoint_store
+                .update_highest_executed_checkpoint(checkpoint)
+                .unwrap();
+        }
+
+        assert_eq!(
+            prune(object_retention.clone()).await,
+            Some(retained.sequence_number() - 1)
+        );
+
+        drop(guard);
+        assert_eq!(
+            prune(object_retention).await,
+            Some(last.sequence_number() - 1)
+        );
+    }
+
     // A nudge wakes the pruner task's subscription.
     #[tokio::test]
     async fn test_nudge_wakes_subscriber() {
         let pruner = AuthorityStorePruner {
             _objects_pruner_cancel_handle: oneshot::channel().0,
             executed: watch::channel(0).0,
+            object_retention: Default::default(),
         };
         let mut rx = pruner.executed.subscribe();
         pruner.nudge(42);

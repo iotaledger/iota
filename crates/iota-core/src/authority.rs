@@ -147,7 +147,9 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
-        authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
+        authority_store_pruner::{
+            AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING, ObjectRetentionGuard,
+        },
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
@@ -4282,6 +4284,15 @@ impl AuthorityState {
     /// after each checkpoint.
     pub fn pruner(&self) -> &AuthorityStorePruner {
         &self.pruner
+    }
+
+    /// Keeps the object versions that transactions in the highest executed
+    /// checkpoint, and in every later one, supersede readable until the
+    /// returned guard is dropped. Take it before submitting a transaction whose
+    /// input or output objects are read from the store once it is
+    /// checkpointed.
+    pub fn retain_objects(&self) -> IotaResult<ObjectRetentionGuard> {
+        Ok(self.pruner.retain_objects(&self.checkpoint_store)?)
     }
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {

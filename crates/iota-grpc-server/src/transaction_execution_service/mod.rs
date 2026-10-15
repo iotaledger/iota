@@ -340,6 +340,12 @@ pub async fn execute_transactions(
     // finality, so we instruct the executor to skip its 2f+1 effects
     // certification. Otherwise the executor performs the full certification.
     let skip_certification = checkpoint_timeout.is_some();
+    // Finalizing reads the objects of each transaction from the cache, after
+    // the transactions are checkpointed.
+    let _cached_object_retention = skip_certification
+        .then(|| executor.retain_cached_objects())
+        .transpose()
+        .map_err(anyhow::Error::from)?;
 
     // Drive the per-tx executions concurrently so a slow validator submission
     // on one item doesn't stall the rest of the batch. Results are collected
