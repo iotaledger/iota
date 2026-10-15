@@ -708,7 +708,11 @@ impl CheckpointStore {
     /// Marks a consecutive run of checkpoints as synced: writes the watermark
     /// once, for the last checkpoint, and notifies the waiters that write
     /// releases. Does nothing when another writer has already carried the
-    /// watermark past the run. Returns whether the watermark moved.
+    /// watermark past the run, or when the run starts above the checkpoint
+    /// after the watermark. Returns whether the watermark moved.
+    ///
+    /// Tooling that has to set the watermark regardless uses
+    /// [`Self::set_highest_synced_checkpoint_subtle`].
     pub fn multi_update_highest_synced_checkpoint(
         &self,
         checkpoints: &[VerifiedCheckpoint],
@@ -720,6 +724,20 @@ impl CheckpointStore {
         // Only ever forwards, like the other two: another writer advances this
         // as well, and moving it back offers contents that may not be there.
         let previous = self.get_highest_synced_checkpoint_seq_number()?;
+        // The watermark promises that the contents of every checkpoint up to
+        // it are stored, and a writer stores them only for the run it marks.
+        // A run that starts above the checkpoint after the watermark would
+        // pass checkpoints whose contents may still be missing; they are
+        // marked synced once the checkpoints before them are.
+        let first = checkpoints[0].sequence_number();
+        if previous.is_some_and(|previous_seq_number| first > previous_seq_number + 1) {
+            debug!(
+                checkpoint_seq = first,
+                highest_synced = previous,
+                "Not marking checkpoints synced before the ones below them",
+            );
+            return Ok(false);
+        }
         if previous.is_none_or(|previous_seq_number| previous_seq_number < last.sequence_number()) {
             debug!(
                 checkpoint_seq = last.sequence_number(),

@@ -742,9 +742,23 @@ where
             // INVARIANT: checkpoint contents must exist in the store for
             // every checkpoint up to the synced watermark. The checkpoint
             // executor will panic if it encounters missing contents.
-            self.store
+            //
+            // State sync may have verified the checkpoints before this one
+            // and still be downloading their contents. The store then leaves
+            // the watermark where it is, and the content sync task marks this
+            // checkpoint synced once it gets past them, finding its contents
+            // in the store.
+            let synced = self
+                .store
                 .try_update_highest_synced_checkpoint(&checkpoint)
                 .expect("store operation should not fail");
+            if !synced {
+                debug!(
+                    "checkpoint {} from consensus waits for the contents of the checkpoints before it",
+                    checkpoint.sequence_number(),
+                );
+                return;
+            }
         }
 
         // We don't care if no one is listening as this is a broadcast channel

@@ -461,15 +461,18 @@ impl InMemoryStore {
             Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
-    /// Marks `checkpoint` as synced. Returns whether the watermark moved.
+    /// Marks `checkpoint` as synced if it is the checkpoint right after the
+    /// watermark, or the store has none synced yet, like the node's checkpoint
+    /// store. Returns whether the watermark moved.
     pub fn update_highest_synced_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) -> bool {
         if !self.checkpoints.contains_key(checkpoint.digest()) {
             panic!("store should already contain checkpoint");
         }
-        if let Some(highest_synced_checkpoint) = self.highest_synced_checkpoint {
-            if highest_synced_checkpoint.0 >= checkpoint.sequence_number {
-                return false;
-            }
+        if self
+            .highest_synced_checkpoint
+            .is_some_and(|(seq, _)| seq + 1 != checkpoint.sequence_number)
+        {
+            return false;
         }
         self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
         true

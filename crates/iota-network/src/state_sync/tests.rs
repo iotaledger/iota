@@ -182,15 +182,13 @@ async fn server_get_checkpoint() {
         assert!(response.is_none());
     }
 
-    // Populate the node's store with some checkpoints
+    // Populate the node's store with some checkpoints, synced in order.
     for checkpoint in ordered_checkpoints.clone() {
-        builder.store.inner_mut().insert_checkpoint(&checkpoint)
+        let mut store = builder.store.inner_mut();
+        store.insert_checkpoint(&checkpoint);
+        store.update_highest_synced_checkpoint(&checkpoint);
     }
     let latest = ordered_checkpoints.last().unwrap().clone();
-    builder
-        .store
-        .inner_mut()
-        .update_highest_synced_checkpoint(&latest);
 
     let request = Request::new(GetCheckpointSummaryRequest::Latest);
     let response = server
@@ -1113,6 +1111,81 @@ fn test_required_executed_checkpoint() {
     // to, so that inserting stays exactly at the cap.
     assert_eq!(required_executed_checkpoint(31, 30), 1);
     assert_eq!(required_executed_checkpoint(51, 30), 21);
+}
+
+/// State sync can verify a checkpoint and still be downloading its contents
+/// when consensus hands it the next checkpoint. The synced watermark promises
+/// that the contents of every checkpoint up to it are stored, and the
+/// checkpoint executor panics when they are missing, so the checkpoint from
+/// consensus must not move the watermark past the one still downloading. Once
+/// those contents are stored, both checkpoints are synced.
+#[tokio::test]
+async fn a_checkpoint_from_consensus_waits_for_the_contents_before_it() {
+    telemetry_subscribers::init_for_testing();
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, random_contents);
+    let genesis_checkpoint = ordered_checkpoints[0].clone();
+    let genesis_contents = contents[0].clone();
+
+    // Node 1 has verified checkpoint 1, but not yet downloaded its contents.
+    let store_1 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        genesis_contents.clone(),
+        committee.committee().to_owned(),
+    );
+    store_1
+        .inner_mut()
+        .insert_checkpoint(&ordered_checkpoints[1]);
+    let (builder, server) = Builder::new()
+        .store(store_1)
+        .config(StateSyncConfig {
+            interval_period_ms: Some(50),
+            ..Default::default()
+        })
+        .build();
+    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_1, handle_1) = builder.build(network_1.clone());
+    let store_1 = event_loop_1.store.clone();
+
+    // Node 2 has synced both checkpoints and serves their contents.
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint,
+        genesis_contents,
+        committee.committee().to_owned(),
+    );
+    for (checkpoint, contents) in ordered_checkpoints.iter().zip(&contents).skip(1) {
+        let mut store_2 = store_2.inner_mut();
+        store_2.insert_checkpoint_contents(checkpoint, contents.clone());
+        store_2.insert_checkpoint(checkpoint);
+        store_2.update_highest_synced_checkpoint(checkpoint);
+    }
+    let (builder, server) = Builder::new().store(store_2).build();
+    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
+
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+
+    // Consensus hands node 1 checkpoint 2, whose contents it built itself,
+    // before node 1 can reach a peer for the contents of checkpoint 1.
+    store_1
+        .inner_mut()
+        .insert_checkpoint_contents(&ordered_checkpoints[2], contents[2].clone());
+    store_1.insert_certified_checkpoint(&ordered_checkpoints[2]);
+    handle_1
+        .send_checkpoint(ordered_checkpoints[2].clone())
+        .await;
+    wait_for_watermarks(&store_1, 2, 0).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(
+        store_1.get_highest_synced_checkpoint_seq_number(),
+        0,
+        "the synced watermark passed checkpoint 1, whose contents are not stored",
+    );
+
+    // Once node 1 can download the contents of checkpoint 1, it syncs both.
+    network_1.connect(network_2.local_addr()).await.unwrap();
+    wait_for_watermarks(&store_1, 2, 2).await;
 }
 
 #[tokio::test]
