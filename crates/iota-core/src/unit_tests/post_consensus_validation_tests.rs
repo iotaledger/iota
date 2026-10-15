@@ -4566,7 +4566,7 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
         let effects =
             s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, index);
         let (parent, child) = parent_and_child(effects.created());
-        (*parent.reference(), *child.reference())
+        (*parent.reference(), *child.reference(), effects.created())
     };
     let receive = |parent: ObjectReference, child: ObjectReference, index| {
         s.handler_known_move_call(
@@ -4579,10 +4579,22 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
             index,
         );
     };
-    let (parent_a, child_a) = start(5);
+    let (parent_a, child_a, _) = start(5);
     receive(parent_a, child_a, 6);
-    let (parent_b, child_b) = start(7);
-    let (parent_c, child_c) = start(8);
+    let (parent_b, child_b, _) = start(7);
+    let (parent_c, child_c, created_c) = start(8);
+    // `start` also creates a shared object, an immutable one and the child of
+    // a dynamic object field, none of which an address owns.
+    let created_with = |owned: fn(&Owner) -> bool| {
+        created_c
+            .iter()
+            .find(|object| owned(object.owner()))
+            .map(|object| *object.reference())
+            .expect("`start` creates an object with that owner")
+    };
+    let shared = created_with(|owner| matches!(owner, Owner::Shared(_)));
+    let immutable = created_with(|owner| matches!(owner, Owner::Immutable));
+    let object_owned = created_with(|owner| matches!(owner, Owner::Object(_)));
     // The gas coin as of commit 8: the receive at commit 11 consumes it above
     // the horizon, which keeps it, where its newer version would be missing.
     let gas_ref = s.latest_ref(&gas_id);
@@ -4684,6 +4696,39 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
             ),
         vec![false],
         "the scheduler must never find the unseen receiving object available"
+    );
+
+    // A shared object's creation version drops from its creation row, as
+    // when it is named as an owned input.
+    match validate(shared, None).unwrap() {
+        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, shared);
+            assert_eq!(reason.kind(), DropKind::HandlerRowSharedObject);
+        }
+        other => panic!("expected the receive of a shared object to drop, got {other:?}"),
+    }
+
+    // An immutable object and an object owned by another object are live at
+    // the horizon, and the receiving checks reject them from their bytes.
+    let result = validate(immutable, None);
+    assert!(
+        matches!(
+            result,
+            Err(IotaError::UserInput {
+                error: UserInputError::MutableParameterExpected { object_id }
+            }) if object_id == immutable.object_id
+        ),
+        "receiving an immutable object must reject, got {result:?}"
+    );
+    let result = validate(object_owned, None);
+    assert!(
+        matches!(
+            result,
+            Err(IotaError::UserInput {
+                error: UserInputError::InvalidChildObjectArgument { child_id, .. }
+            }) if child_id == object_owned.object_id
+        ),
+        "receiving an object owned by an object must reject, got {result:?}"
     );
 
     // Receiving an input still rejects.
