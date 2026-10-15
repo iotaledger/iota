@@ -5,9 +5,10 @@
 use anyhow::Result;
 use iota_sdk_move_types::{
     iota_framework::{
-        bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+        bag::Bag, object::ID, system_admin_cap::IotaSystemAdminCap, table::Table,
+        table_vec::TableVec, vec_map::VecMap, vec_set::VecSet,
     },
-    iota_system::iota_system_state_inner::SystemParametersV1,
+    iota_system::{iota_system_state_inner::SystemParametersV1, validator_wrapper::Validator},
 };
 use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,6 @@ use crate::iota_system_state::epoch_start_iota_system_state::{
 };
 use crate::{
     balance::Balance,
-    collection_types::{Table, TableVec},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -50,11 +50,11 @@ pub struct ValidatorSetV2 {
     /// Indices of validators in `active_validators` field that are actively
     /// taking part in consensus process.
     pub committee_members: Vec<u64>,
-    pub pending_active_validators: TableVec,
+    pub pending_active_validators: TableVec<ValidatorV1>,
     pub pending_removals: Vec<u64>,
-    pub staking_pool_mappings: Table,
-    pub inactive_validators: Table,
-    pub validator_candidates: Table,
+    pub staking_pool_mappings: Table<ID, Address>,
+    pub inactive_validators: Table<ID, Validator>,
+    pub validator_candidates: Table<Address, Validator>,
     pub at_risk_validators: VecMap<Address, u64>,
     pub extra_fields: Bag,
 }
@@ -167,7 +167,12 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
         &self,
         object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
-        let table_id = self.validators.pending_active_validators.contents.id;
+        let table_id = *self
+            .validators
+            .pending_active_validators
+            .contents
+            .id
+            .object_id();
         let table_size = self.validators.pending_active_validators.contents.size;
         let validators: Vec<ValidatorV1> =
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
@@ -220,6 +225,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                                 Table {
                                     id: pending_active_validators_id,
                                     size: pending_active_validators_size,
+                                    ..
                                 },
                         },
                     pending_removals,
@@ -227,16 +233,19 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                         Table {
                             id: staking_pool_mappings_id,
                             size: staking_pool_mappings_size,
+                            ..
                         },
                     inactive_validators:
                         Table {
                             id: inactive_pools_id,
                             size: inactive_pools_size,
+                            ..
                         },
                     validator_candidates:
                         Table {
                             id: validator_candidates_id,
                             size: validator_candidates_size,
+                            ..
                         },
                     at_risk_validators:
                         VecMap {
@@ -296,14 +305,14 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                 .into_iter()
                 .map(|v| v.into_iota_validator_summary(Some(protocol_version)))
                 .collect(),
-            pending_active_validators_id,
+            pending_active_validators_id: *pending_active_validators_id.object_id(),
             pending_active_validators_size,
             pending_removals,
-            staking_pool_mappings_id,
+            staking_pool_mappings_id: *staking_pool_mappings_id.object_id(),
             staking_pool_mappings_size,
-            inactive_pools_id,
+            inactive_pools_id: *inactive_pools_id.object_id(),
             inactive_pools_size,
-            validator_candidates_id,
+            validator_candidates_id: *validator_candidates_id.object_id(),
             validator_candidates_size,
             at_risk_validators: at_risk_validators
                 .into_iter()

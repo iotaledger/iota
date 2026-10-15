@@ -235,7 +235,8 @@ impl IotaSystemState {
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
         use iota_sdk_move_types::{
             iota_framework::{
-                bag::Bag, object::UID, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap,
+                bag::Bag, object::UID, system_admin_cap::IotaSystemAdminCap, table::Table,
+                table_vec::TableVec, vec_map::VecMap,
             },
             iota_system::iota_system_state_inner::SystemParametersV1,
         };
@@ -244,7 +245,6 @@ impl IotaSystemState {
         use crate::{
             balance::{Balance, Supply},
             coin::TreasuryCap,
-            collection_types::{Table, TableVec},
             gas_coin::IotaTreasuryCap,
             iota_system_state::iota_system_state_inner_v1::{
                 IotaSystemStateV1, StorageFundV1, ValidatorSetV1,
@@ -263,11 +263,11 @@ impl IotaSystemState {
             validators: ValidatorSetV1 {
                 total_stake: 0,
                 active_validators: Vec::new(),
-                pending_active_validators: TableVec::default(),
+                pending_active_validators: TableVec::new(Table::new(UID::new(ObjectId::ZERO), 0)),
                 pending_removals: Vec::new(),
-                staking_pool_mappings: Table::default(),
-                inactive_validators: Table::default(),
-                validator_candidates: Table::default(),
+                staking_pool_mappings: Table::new(UID::new(ObjectId::ZERO), 0),
+                inactive_validators: Table::new(UID::new(ObjectId::ZERO), 0),
+                validator_candidates: Table::new(UID::new(ObjectId::ZERO), 0),
                 at_risk_validators: VecMap {
                     contents: Vec::new(),
                 },
