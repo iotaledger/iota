@@ -72,6 +72,7 @@ use iota_types::{
 use tracing::{debug, warn};
 
 use crate::{
+    attestation_checks::check_attested_units,
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
@@ -249,35 +250,18 @@ pub async fn validate_and_resolve_conflicts(
         if let Some(attestation) = attestation {
             let block_author = u8::try_from(tx.0.certificate_author_index)
                 .expect("consensus committee indices fit in a u8");
-            let protocol_config = epoch_store.protocol_config();
-            let min_attested_units = protocol_config
-                .base_tx_cost_fixed()
-                .min(protocol_config.gas_rounding_step());
-            let attested_units = attestation.computation_units();
-            let txn = transaction.data().transaction();
-            let max_attested_units = txn.gas_budget().checked_div(txn.gas_price()).unwrap_or(0);
             let Attestation::Validator {
                 validator_index, ..
             } = attestation;
-            let error = if *validator_index != block_author {
-                Some(IotaError::AttestationAuthorMismatch {
+            let checked = if *validator_index != block_author {
+                Err(IotaError::AttestationAuthorMismatch {
                     expected: *validator_index,
                     actual: block_author,
                 })
-            } else if attested_units < min_attested_units {
-                Some(IotaError::AttestationUnitsBelowMinimum {
-                    actual: attested_units,
-                    minimum: min_attested_units,
-                })
-            } else if attested_units > max_attested_units {
-                Some(IotaError::AttestationUnitsAboveBudget {
-                    actual: attested_units,
-                    maximum: max_attested_units,
-                })
             } else {
-                None
+                check_attested_units(epoch_store.protocol_config(), transaction, attestation)
             };
-            if let Some(e) = error {
+            if let Err(e) = checked {
                 warn!(
                     ?digest,
                     error = ?e,
@@ -287,6 +271,11 @@ pub async fn validate_and_resolve_conflicts(
                 keep[i] = false;
                 continue;
             }
+            authority_state
+                .metrics
+                .post_consensus_attested_tx
+                .with_label_values(&["validator"])
+                .inc();
         }
 
         // Check #4: Extract owned input objects for lock conflict detection.

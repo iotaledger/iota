@@ -449,10 +449,7 @@ impl ValidatorService {
 
             ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
                 verified_tx.into_inner(),
-                Attestation::Validator {
-                    payload: attestation_data,
-                    validator_index,
-                },
+                Attestation::new_validator(attestation_data, validator_index),
             ))
         } else {
             ConsensusTransaction::new_user_transaction_v1(verified_tx.into_inner())

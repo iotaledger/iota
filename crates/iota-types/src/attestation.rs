@@ -61,6 +61,14 @@ pub struct AttestedTransaction {
 }
 
 impl Attestation {
+    /// An attestation by the block-proposing validator at `validator_index`.
+    pub fn new_validator(payload: AttestationData, validator_index: AuthorityIndex) -> Self {
+        Self::Validator {
+            payload,
+            validator_index,
+        }
+    }
+
     pub fn computation_units(&self) -> u64 {
         let Attestation::Validator { payload, .. } = self;
         let AttestationData::V1 {

@@ -263,6 +263,9 @@ pub struct AuthorityMetrics {
     total_cert_attempts: IntCounter,
     total_effects: IntCounter,
     pub shared_obj_tx: IntCounter,
+    /// Attested transactions that passed post-consensus attestor
+    /// verification, by attestation kind.
+    pub(crate) post_consensus_attested_tx: IntCounterVec,
     sponsored_tx: IntCounter,
     tx_already_processed: IntCounter,
     num_input_objs: Histogram,
@@ -459,6 +462,14 @@ impl AuthorityMetrics {
                 MetricLevel::Warn,
             )
                 .unwrap(),
+
+            post_consensus_attested_tx: register_int_counter_vec_with_registry!(
+                "authority_state_post_consensus_attested_tx",
+                "Number of attested transactions that passed post-consensus attestor verification, by attestation kind",
+                &["attestation"],
+                registry,
+            )
+            .unwrap(),
 
             sponsored_tx: register_int_counter_with_registry!(
                 "num_sponsored_tx",
