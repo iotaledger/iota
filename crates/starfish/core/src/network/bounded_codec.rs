@@ -22,10 +22,11 @@ use tonic::{
 };
 use tonic_prost::{ProstCodec, ProstEncoder};
 
-/// A message whose decoding refuses more than `MAX_ENTRIES` fields.
+/// A message whose decoding refuses more than `MAX_ENTRIES` entries.
 pub(crate) trait EntryLimit {
-    /// Most fields one message may carry. Each entry of a repeated `bytes`
-    /// field is a field of its own; a packed repeated number field is one.
+    /// Maximum number of entries one encoded message may contain. Each element
+    /// of a `Vec<Bytes>` field counts as one entry, and a whole `Vec<u32>` field
+    /// counts as one, because protobuf encodes the numbers together.
     const MAX_ENTRIES: usize;
 }
 
@@ -115,7 +116,7 @@ fn decode_bounded<U: Message + Default + EntryLimit>(buf: impl Buf) -> Result<U,
     Ok(bounded.message)
 }
 
-/// `M` decoded up to its first `M::MAX_ENTRIES` fields; a field past them
+/// `M` decoded up to its first `M::MAX_ENTRIES` entries; an entry past them
 /// drops the rest of the message unread.
 #[derive(Debug, Default)]
 struct Bounded<M> {

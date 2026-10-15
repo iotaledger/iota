@@ -1808,8 +1808,8 @@ pub(crate) struct FetchBlockHeadersRequest {
 }
 
 impl EntryLimit for FetchBlockHeadersRequest {
-    // A client asks for at most its own header cap, and prost packs the rounds
-    // into one field.
+    // A client asks for at most its own header cap, plus one entry for the
+    // whole rounds vector.
     const MAX_ENTRIES: usize = MAX_HEADERS_PER_FETCH + 1;
 }
 
