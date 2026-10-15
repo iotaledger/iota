@@ -3440,12 +3440,16 @@ impl AuthorityPerEpochStore {
             .map(|_| VerifiedAuthorityCapabilitiesV1::new_from_verified(authority_capabilities))
     }
 
-    /// Verifies transaction signatures and other data
-    /// Important: This function can potentially be called in parallel and you
-    /// can not rely on order of transactions to perform verification
-    /// If this function return an error, transaction is skipped and is not
-    /// passed to handle_consensus_transaction This function returns unit
-    /// error and is responsible for emitting log messages for internal errors
+    /// Checks a sequenced consensus transaction before its commit is processed.
+    /// Returns `None` if the transaction must be skipped, so it is not passed
+    /// to `process_consensus_transactions_and_commit_boundary`, and logs the
+    /// reason.
+    ///
+    /// Must be called for the transactions of a commit in consensus order,
+    /// after all earlier commits were processed. The result may depend on the
+    /// state left by earlier commits, but not on other transactions of the
+    /// same commit. Within a commit, a transaction is skipped as a duplicate
+    /// only of an earlier one with the same key that passed this check.
     pub(crate) fn verify_consensus_transaction(
         &self,
         transaction: SequencedConsensusTransaction,
@@ -3462,6 +3466,25 @@ impl AuthorityPerEpochStore {
                 "handle_consensus_transaction UserTransaction [skip]",
             );
             skipped_consensus_txns.inc();
+            return None;
+        }
+        // A user transaction from an authority that has sent EndOfPublish must not be processed.
+        // Drop it here, before its key enters the duplicate checks of this commit, so that it
+        // cannot make a later transaction with the same key be skipped.
+        if self
+            .protocol_config()
+            .consensus_dedup_only_recorded_messages()
+            && transaction.transaction.user_transaction_digest().is_some()
+            && self
+                .has_sent_end_of_publish(&transaction.certificate_author)
+                .expect("the end-of-publish set is readable")
+        {
+            warn!(
+                "[Byzantine authority] Authority {:?} sent user transaction {:?} after it sent \
+                 EndOfPublish message to consensus",
+                transaction.certificate_author.concise(),
+                transaction.transaction.user_transaction_digest(),
+            );
             return None;
         }
         // Signatures are verified as part of the consensus payload verification in
@@ -3659,6 +3682,11 @@ impl AuthorityPerEpochStore {
             .expect("test should not be write past end of epoch")
     }
 
+    /// Processes one consensus commit. Returns the transactions to schedule,
+    /// their assigned versions, and the keys the commit recorded as processed.
+    /// The keys are returned only with
+    /// `consensus_dedup_only_recorded_messages` on; otherwise the list
+    /// is empty.
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
@@ -3671,7 +3699,11 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
-    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+    ) -> IotaResult<(
+        Vec<Schedulable>,
+        AssignedTxAndVersions,
+        Vec<SequencedConsensusTransactionKey>,
+    )> {
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
@@ -4164,6 +4196,15 @@ impl AuthorityPerEpochStore {
             }
         }
 
+        let processed_keys = if self
+            .protocol_config
+            .consensus_dedup_only_recorded_messages()
+        {
+            output.consensus_messages_processed().cloned().collect()
+        } else {
+            Vec::new()
+        };
+
         // Write details of the this consensus commit to consensus output quarantine.
         self.consensus_quarantine
             .write()
@@ -4231,7 +4272,7 @@ impl AuthorityPerEpochStore {
         ]
         .concat();
 
-        Ok((all_txns, assigned_versions))
+        Ok((all_txns, assigned_versions, processed_keys))
     }
 
     fn calculate_pending_checkpoint_height(&self, consensus_round: u64) -> u64 {
@@ -4496,6 +4537,7 @@ impl AuthorityPerEpochStore {
             authority_state,
         )
         .await
+        .map(|(schedulables, assigned_versions, _)| (schedulables, assigned_versions))
     }
 
     pub fn assign_shared_object_versions_for_tests(
@@ -4735,11 +4777,12 @@ impl AuthorityPerEpochStore {
                     filter_roots = true;
                 }
                 // Note: ignored external transactions must not be recorded as processed. Otherwise
-                // they may not get reverted after restart during epoch change.
-                // TODO: once the P-COOL flow is rolled out there is no pre-consensus execution
-                // left to revert, so ignored transactions can be recorded as processed too. That
-                // keeps the consensus handler's duplicate cache and this table in agreement and
-                // lets waiters on `consensus_messages_processed_notify` learn about the drop.
+                // they may not get reverted after restart during epoch change. A later copy of
+                // an ignored transaction is then processed like a new one, so every validator
+                // must reach it: the consensus handler's processed-transaction cache must hold
+                // only recorded keys (see `consensus_dedup_only_recorded_messages`).
+                // TODO: waiters on `consensus_messages_processed_notify` do not learn about the
+                // drop.
                 ConsensusTransactionResult::Ignored => {
                     ignored = true;
                     filter_roots = true;
@@ -5074,6 +5117,8 @@ impl AuthorityPerEpochStore {
                     );
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
                 if self.has_sent_end_of_publish(certificate_author)?
                     && !previously_deferred_tx_digests.contains_key(certificate.digest())
                 {
@@ -5323,6 +5368,8 @@ impl AuthorityPerEpochStore {
                     warn!("UserTransactionV1 contains system transaction, ignoring");
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
                 if self.has_sent_end_of_publish(certificate_author)?
                     && !previously_deferred_tx_digests.contains_key(transaction.digest())
                 {
