@@ -10,6 +10,7 @@ use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_types::{
+    account_abstraction::authenticator_function::derive_authenticator_function_ref_v1_dynamic_field_id,
     deny_list_v1::coin_deny_list_v1_denial,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
@@ -20,7 +21,8 @@ use iota_types::{
 };
 
 use super::{
-    DenyListField, DropKind, DropReason, KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
+    AccountVerdict, DenyListField, DropKind, DropReason, KeptObject, MissingKind, MissingReason,
+    OwnedVerdict, PackageVerdict, SharedVerdict,
     deny_list::{DenyListFieldReader, HighestRowLookup, RowLookup},
     owned::{
         LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
@@ -255,6 +257,23 @@ impl CommitIndexedReader {
                 RowLookup::AboveHorizon(above) => above.read_row_below(self)?,
             };
         }
+    }
+
+    /// Whether `account_id` had its authenticator function field at the
+    /// horizon. An object can receive only while it is not an account, and a
+    /// receive takes no lock. So every receive through an account whose
+    /// field is at the horizon is at or below it too, where the owned machine
+    /// sees what the receive consumed. The field changes only through the
+    /// account object, in the order of the commits that change it, as the
+    /// deny-list machine requires. Storage errors propagate.
+    pub fn read_account(&self, account_id: ObjectId) -> IotaResult<AccountVerdict> {
+        let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id)?;
+        Ok(match self.read_deny_list_field(field_id)? {
+            DenyListField::Live(_) => AccountVerdict::Account,
+            DenyListField::Absent => {
+                AccountVerdict::Missing(MissingReason(MissingKind::AuthenticatorFunctionNotFound))
+            }
+        })
     }
 
     /// An object of the kept shared input `id` declared at

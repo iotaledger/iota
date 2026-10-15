@@ -177,7 +177,8 @@ use crate::{
         overload_monitor_accept_tx,
     },
     post_consensus_input_reader::{
-        InputResolution, ReceivingObjectsResolution, ValidationAtCommit, ValidationInputsAtCommit,
+        AccountVerdict, InputResolution, ReceivingObjectsResolution, ValidationAtCommit,
+        ValidationInputsAtCommit,
         reader::{CommitIndexedReader, DenyListAtCommit},
     },
     stake_aggregator::StakeAggregator,
@@ -1286,7 +1287,9 @@ impl AuthorityState {
     /// `Err` as at admission, except that the coin deny list is read as of the
     /// reader's horizon, with changes counting from there rather than from the
     /// next epoch. The Move authenticator's account is not resolved and the
-    /// authenticators are not run here: both happen at execution.
+    /// authenticators are not run here: both happen at execution. Instead,
+    /// each account must have had its authenticator function field at the
+    /// horizon, or the transaction is reported missing.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1342,7 +1345,9 @@ impl AuthorityState {
         // shared input at the version consensus assigned, so both happen
         // there, and a failure there produces failure effects. What is left
         // here asks only what the rows can answer: whether each authenticator
-        // input exists and is what the transaction declares.
+        // input exists and is what the transaction declares, and, last,
+        // whether each account had its authenticator function field at the
+        // horizon.
         let (tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_at_commit(
                 protocol_config,
@@ -1402,6 +1407,20 @@ impl AuthorityState {
         );
         if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
             return Err(denial.into());
+        }
+
+        // Last, so a check that rejects the transaction outright is reported
+        // rather than a missing verdict that invites a resubmission.
+        for move_authenticator in &move_authenticators {
+            let account_kind = move_authenticator
+                .object_to_authenticate()
+                .input_object_kind()
+                .expect("the object to authenticate is validated before consensus");
+            if let AccountVerdict::Missing(reason) =
+                reader.read_account(account_kind.object_id())?
+            {
+                return Ok(ValidationAtCommit::Missing(account_kind, reason));
+            }
         }
 
         Ok(ValidationAtCommit::Keep(

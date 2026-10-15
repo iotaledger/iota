@@ -167,6 +167,14 @@ pub enum DenyListField {
     Absent,
 }
 
+/// The reader's result for a Move authenticator's account.
+#[must_use]
+pub enum AccountVerdict {
+    /// The account had its authenticator function field at the horizon.
+    Account,
+    Missing(MissingReason),
+}
+
 /// The object of a kept input, loaded at exactly the version the
 /// transaction names. Only the reader creates it.
 pub struct KeptObject(Object);
@@ -249,6 +257,9 @@ pub enum MissingKind {
     PackageNotFound,
     /// The package's row was produced above the horizon.
     PackageAboveHorizon,
+    /// A Move authenticator's account had no authenticator function field at
+    /// the horizon: it was not an account yet, or never became one.
+    AuthenticatorFunctionNotFound,
 }
 
 /// The loader's result for one transaction's inputs at a commit. `Loaded`
