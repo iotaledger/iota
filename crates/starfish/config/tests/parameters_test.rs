@@ -180,3 +180,29 @@ fn validate_rejects_header_fetch_caps_above_the_response_ceiling() {
     .validate()
     .unwrap();
 }
+
+#[test]
+fn validate_rejects_transaction_fetch_caps_above_the_response_ceiling() {
+    let parameters = starfish_config::Parameters {
+        max_transactions_per_transaction_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH
+            + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_transactions_per_transaction_sync_fetch"));
+
+    let parameters = starfish_config::Parameters {
+        max_transactions_per_commit_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_transactions_per_commit_sync_fetch"));
+
+    starfish_config::Parameters {
+        max_transactions_per_transaction_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH,
+        max_transactions_per_commit_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}

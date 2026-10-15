@@ -21,6 +21,14 @@ pub const MAX_HEADERS_OR_SHARDS_PER_BUNDLE: usize = 1024;
 /// are materialised.
 pub const MAX_HEADERS_PER_FETCH: usize = 1024;
 
+/// Ceiling on the transaction entries a fetch request or response may carry,
+/// for transaction sync and regular commit sync alike. A client requests at
+/// most its own `max_transactions_per_transaction_sync_fetch` or
+/// `max_transactions_per_commit_sync_fetch`, both validated against this at
+/// startup, and the server returns at most one entry per requested reference.
+/// Enforced while decoding each message, before its entries are materialised.
+pub const MAX_TRANSACTIONS_PER_FETCH: usize = 1024;
+
 /// Operational configurations of a consensus authority.
 ///
 /// All fields should tolerate inconsistencies among authorities, without
@@ -412,6 +420,23 @@ impl Parameters {
         for (name, value) in header_fetch_fields {
             if value > MAX_HEADERS_PER_FETCH {
                 return Err(format!("{name} must not exceed {MAX_HEADERS_PER_FETCH}"));
+            }
+        }
+        let transaction_fetch_fields = [
+            (
+                "max_transactions_per_transaction_sync_fetch",
+                self.max_transactions_per_transaction_sync_fetch,
+            ),
+            (
+                "max_transactions_per_commit_sync_fetch",
+                self.max_transactions_per_commit_sync_fetch,
+            ),
+        ];
+        for (name, value) in transaction_fetch_fields {
+            if value > MAX_TRANSACTIONS_PER_FETCH {
+                return Err(format!(
+                    "{name} must not exceed {MAX_TRANSACTIONS_PER_FETCH}"
+                ));
             }
         }
         Ok(())
