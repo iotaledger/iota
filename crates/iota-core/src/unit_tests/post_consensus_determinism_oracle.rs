@@ -23,8 +23,9 @@
 //!    unknown; a shared input is visible if the object is live with the declared initial shared
 //!    version, stale if it is live otherwise or deleted, and missing if it is absent; a package is
 //!    visible if present and missing otherwise. A shared object deleted above the horizon is
-//!    therefore visible, and its transaction executes against the deletion. Receiving objects are
-//!    not checked, as at a commit they are checked by reference only;
+//!    therefore visible, and its transaction executes against the deletion. A receiving object is
+//!    checked as an owned input is, after every input, so a kept one was live at its named version
+//!    at the horizon and execution can always run it;
 //! 5. a candidate with every input visible is kept: its owned inputs are locked, its digest is
 //!    processed, and unless deferred it executes at `C`. Receiving references take no lock.
 //!
@@ -112,8 +113,8 @@ pub struct Candidate {
     /// deleted, and no deletion marker when already deleted.
     pub read_only_shared: Vec<ObjectId>,
     pub packages: Vec<ObjectId>,
-    /// Objects received at the named versions. They take no lock, and no
-    /// check at the commit reads them.
+    /// Objects received at the named versions. Checked at the commit as
+    /// owned inputs are, after every input, but they take no lock.
     pub receiving: Vec<ObjectReference>,
     pub writes: Vec<Write>,
     /// The execution fails: it only charges gas, mutating its mutable inputs
@@ -126,15 +127,20 @@ pub struct Candidate {
     pub deferral_reload: bool,
 }
 
-/// One input of a candidate, as the oracle and the reader identify it.
+/// One input of a candidate, as the oracle and the reader identify it. A
+/// receiving object is read as an owned input is, with no lock and no check
+/// that the sender owns it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Input {
     Owned(ObjectReference),
     Shared(ObjectId, Version),
     Package(ObjectId),
+    Receiving(ObjectReference),
 }
 
 impl Candidate {
+    /// Every input in the order the reader reads them: the inputs as named,
+    /// then the receiving objects.
     pub fn inputs(&self) -> Vec<Input> {
         self.owned_inputs
             .iter()
@@ -145,6 +151,11 @@ impl Candidate {
                     .map(|(id, initial)| Input::Shared(*id, *initial)),
             )
             .chain(self.packages.iter().map(|id| Input::Package(*id)))
+            .chain(
+                self.receiving
+                    .iter()
+                    .map(|reference| Input::Receiving(*reference)),
+            )
             .collect()
     }
 }
@@ -365,24 +376,26 @@ impl Oracle {
 /// Rule 4 for one input against the state at the horizon.
 pub fn input_class(state: &State, input: &Input) -> InputClass {
     match input {
-        Input::Owned(reference) => match state.slots.get(&reference.object_id) {
-            None => InputClass::Missing,
-            Some(Slot::Live(object)) => match object.version().cmp(&reference.version) {
-                std::cmp::Ordering::Less => InputClass::Missing,
-                std::cmp::Ordering::Greater => InputClass::Stale,
-                std::cmp::Ordering::Equal if object.digest() == reference.digest => {
-                    InputClass::Visible
-                }
-                std::cmp::Ordering::Equal => InputClass::Stale,
-            },
-            Some(Slot::Deleted(version) | Slot::Wrapped(version)) => {
-                if *version >= reference.version {
-                    InputClass::Stale
-                } else {
-                    InputClass::Missing
+        Input::Owned(reference) | Input::Receiving(reference) => {
+            match state.slots.get(&reference.object_id) {
+                None => InputClass::Missing,
+                Some(Slot::Live(object)) => match object.version().cmp(&reference.version) {
+                    std::cmp::Ordering::Less => InputClass::Missing,
+                    std::cmp::Ordering::Greater => InputClass::Stale,
+                    std::cmp::Ordering::Equal if object.digest() == reference.digest => {
+                        InputClass::Visible
+                    }
+                    std::cmp::Ordering::Equal => InputClass::Stale,
+                },
+                Some(Slot::Deleted(version) | Slot::Wrapped(version)) => {
+                    if *version >= reference.version {
+                        InputClass::Stale
+                    } else {
+                        InputClass::Missing
+                    }
                 }
             }
-        },
+        }
         Input::Shared(id, declared) => match state.slots.get(id) {
             None => InputClass::Missing,
             Some(Slot::Live(object)) => match object.owner {

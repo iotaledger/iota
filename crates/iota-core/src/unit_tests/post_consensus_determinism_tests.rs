@@ -2678,7 +2678,11 @@ impl<'a> Validator<'a> {
             let ctx = self.reader(commit);
             let horizon = self.horizon(commit);
             let read = match input {
-                Input::Owned(reference) => self.read_owned(&ctx, horizon, *reference, writers)?,
+                // A receiving object goes through the owned machine, as in
+                // the input loader, with no lock and no sender check after.
+                Input::Owned(reference) | Input::Receiving(reference) => {
+                    self.read_owned(&ctx, horizon, *reference, writers)?
+                }
                 Input::Shared(id, initial) => {
                     self.read_shared(&ctx, horizon, *id, *initial, writers)?
                 }
@@ -2711,7 +2715,11 @@ impl<'a> Validator<'a> {
             }
             if !visible && verdict.decision == PostConsensusDecision::Kept {
                 let kind = match input {
-                    Input::Owned(reference) => InputObjectKind::ImmOrOwnedMoveObject(*reference),
+                    // The loader reports a receiving reference under its
+                    // owned kind.
+                    Input::Owned(reference) | Input::Receiving(reference) => {
+                        InputObjectKind::ImmOrOwnedMoveObject(*reference)
+                    }
                     Input::Shared(id, initial) => InputObjectKind::SharedMoveObject {
                         id: *id,
                         initial_shared_version: *initial,
