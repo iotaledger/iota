@@ -232,6 +232,16 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         block_transactions: ConsensusOutputTransactions,
     ) {
         let epoch_store = self.epoch_store.clone();
+        // Only deterministic validation switches a validator to executing
+        // synced checkpoints within an epoch.
+        if !epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+        {
+            self.process_consensus_output(consensus_output, block_transactions)
+                .await;
+            return;
+        }
         if epoch_store.is_executing_synced_checkpoints() {
             debug!("not processing consensus commit: executing synced checkpoints");
             return;
@@ -1166,6 +1176,10 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
         telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
         let state = TestAuthorityBuilder::new()

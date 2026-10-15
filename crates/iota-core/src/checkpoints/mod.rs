@@ -1716,8 +1716,14 @@ impl CheckpointBuilder {
         }
 
         batch.write()?;
-        self.store
-            .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
+        if self
+            .epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+        {
+            self.store
+                .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
+        }
 
         // Cache the full contents only now that the checkpoint_content rows
         // are durable

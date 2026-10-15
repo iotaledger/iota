@@ -1054,7 +1054,7 @@ impl IotaNode {
                 .authority_exists(&config.authority_public_key())
             && epoch_store
                 .protocol_config()
-                .committee_validators_skip_synced_checkpoint_execution()
+                .pcool_deterministic_validation()
     }
 
     fn create_p2p_network(

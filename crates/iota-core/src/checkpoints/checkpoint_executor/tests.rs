@@ -208,14 +208,14 @@ pub async fn test_notify_read_epoch_last_checkpoint() {
     assert_eq!(seq, end_of_epoch.sequence_number());
 }
 
-/// With `committee_validators_skip_synced_checkpoint_execution`, a committee validator does not
+/// With `pcool_deterministic_validation`, a committee validator does not
 /// execute a synced checkpoint it has not built while its epoch is running.
 /// Once the certified last checkpoint of the epoch is known, it switches to
 /// executing synced checkpoints for the rest of the epoch.
 #[tokio::test]
 pub async fn test_validator_waits_for_local_build_until_epoch_end() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(true);
+        config.set_pcool_deterministic_validation_for_testing(true);
         config
     });
     let checkpoint_store = CheckpointStore::new_for_tests();
@@ -269,7 +269,7 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
 #[tokio::test]
 pub async fn test_switched_validator_executes_synced_data_of_locally_built_checkpoint() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(true);
+        config.set_pcool_deterministic_validation_for_testing(true);
         config
     });
     let checkpoint_store = CheckpointStore::new_for_tests();
@@ -301,12 +301,12 @@ pub async fn test_switched_validator_executes_synced_data_of_locally_built_check
     executor_handle.abort();
 }
 
-/// Without `committee_validators_skip_synced_checkpoint_execution`, a committee validator executes
+/// Without `pcool_deterministic_validation`, a committee validator executes
 /// a synced checkpoint it has not built at once.
 #[tokio::test]
 pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(false);
+        config.set_pcool_deterministic_validation_for_testing(false);
         config
     });
     let checkpoint_store = CheckpointStore::new_for_tests();
