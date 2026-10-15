@@ -751,13 +751,17 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
 
-    // If true, P-COOL deterministic validation is on. A committee validator
-    // does not execute state-synced checkpoints while its epoch is running: it
-    // waits for its own checkpoint builder and takes only randomness signatures
-    // from state sync. Once the certified last checkpoint of the epoch is
-    // known, it executes the rest of the epoch from state sync and stops
-    // processing consensus commits. Requires `enable_pcool_flow`,
-    // `deny_rule_governance` and `consensus_dedup_only_recorded_messages`.
+    // If true, P-COOL deterministic validation is on. Post-consensus
+    // validation reads object state as of the commit height being processed,
+    // and checks the sender against the coin deny list for the coin types of
+    // its inputs there, with changes made this epoch counting; execution no
+    // longer checks inputs against it. A committee validator does not execute
+    // state-synced checkpoints while its epoch is running: it waits for its own
+    // checkpoint builder and takes only randomness signatures from state sync.
+    // Once the certified last checkpoint of the epoch is known, it executes the
+    // rest of the epoch from state sync and stops processing consensus commits.
+    // Requires `enable_pcool_flow`, `deny_rule_governance` and
+    // `consensus_dedup_only_recorded_messages`.
     #[serde(skip_serializing_if = "is_false")]
     pcool_deterministic_validation: bool,
 

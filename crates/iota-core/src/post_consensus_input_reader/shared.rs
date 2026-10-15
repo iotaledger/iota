@@ -90,7 +90,9 @@ pub enum SharedTablesLookup {
 
 impl SharedReader<Start> {
     /// Starts reading shared input `id` declared at `initial_shared_version`,
-    /// with the horizon `C - K`. Every later step is reached from here.
+    /// with the horizon `C - K`. Together with
+    /// [`SharedReader::start_type_read`], this is how every later step is
+    /// reached.
     pub fn start(
         id: ObjectId,
         initial_shared_version: Version,
@@ -302,6 +304,102 @@ impl SharedReader<ObjectAbsent> {
                 ))),
             },
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Type: an object of a kept input, for its type
+// ---------------------------------------------------------------------------
+//
+// A separate read, after the read above kept the input. The coin deny
+// check at the commit needs the coin type of every input, and a shared
+// input's object is not read for the keep. An object's type never changes, so
+// any stored version gives it, and the latest store object is used even when
+// rows exist: that answer is the same on every validator. Once the object is
+// gone, the version its deletion replaced gives it. The deletion is above the
+// horizon, since one at or below it drops the input, so pruning still keeps
+// that version.
+
+/// A kept shared input whose type is wanted. Nothing read yet.
+pub struct TypeStart;
+impl SharedState for TypeStart {}
+
+/// Outcome of the store read for the type.
+#[must_use]
+pub enum TypeObjectLookup {
+    /// The live object.
+    Live(Object),
+    /// Gone from the store. Next: the deletion row.
+    Deleted(SharedReader<TypeDeleted>),
+}
+
+impl SharedReader<TypeStart> {
+    /// Begins the type read of the kept shared input `id` declared at
+    /// `initial_shared_version`.
+    pub fn start_type_read(
+        id: ObjectId,
+        initial_shared_version: Version,
+        horizon: CommitIndex,
+    ) -> SharedReader<TypeStart> {
+        SharedReader {
+            id,
+            initial_shared_version,
+            horizon,
+            state: TypeStart,
+        }
+    }
+
+    /// The latest object by id.
+    pub fn read_object(self, ctx: &CommitIndexedReader) -> IotaResult<TypeObjectLookup> {
+        Ok(match ctx.cache.try_get_object(&self.id)? {
+            Some(object) => TypeObjectLookup::Live(object),
+            None => TypeObjectLookup::Deleted(self.into_state(TypeDeleted)),
+        })
+    }
+}
+
+/// The kept input is gone from the store.
+pub struct TypeDeleted;
+impl SharedState for TypeDeleted {}
+
+impl SharedReader<TypeDeleted> {
+    /// Reads the version the deletion replaced from the highest row of `id`:
+    /// the deleting execution writes its row before the object leaves the
+    /// store, and no later write adds a row. A missing row or version is a
+    /// storage error, never a result.
+    pub fn read_deletion_row(
+        self,
+        ctx: &CommitIndexedReader,
+    ) -> IotaResult<SharedReader<TypeNeedBytes>> {
+        let version = ctx
+            .epoch_store
+            .highest_handler_processed_row(&self.id)?
+            .and_then(|(_, row)| row.replaced_version)
+            .ok_or_else(|| {
+                IotaError::Storage(format!(
+                    "kept shared input {} is not in the object store and has no handler row \
+                     with the version it replaced",
+                    self.id
+                ))
+            })?;
+        Ok(self.into_state(TypeNeedBytes { version }))
+    }
+}
+
+/// The version the deletion of the kept input replaced.
+pub struct TypeNeedBytes {
+    version: Version,
+}
+impl SharedState for TypeNeedBytes {}
+
+impl SharedReader<TypeNeedBytes> {
+    /// Loads the object at exactly that version. Pruning keeps it, so a
+    /// missing object is a storage error.
+    pub fn load_bytes(self, ctx: &CommitIndexedReader) -> IotaResult<Object> {
+        let key = ObjectKey(self.id, self.state.version);
+        ctx.cache
+            .try_get_object_by_key(&key.0, key.1)?
+            .ok_or_else(|| IotaError::Storage(format!("no bytes for {key:?} in the object store")))
     }
 }
 

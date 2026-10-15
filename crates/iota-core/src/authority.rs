@@ -67,7 +67,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
-    deny_list_v1::check_coin_deny_list_v1,
+    deny_list_v1::{check_coin_deny_list_v1, coin_types_for_denylist_check},
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
@@ -178,7 +178,7 @@ use crate::{
     },
     post_consensus_input_reader::{
         InputResolution, ReceivingObjectsResolution, ValidationAtCommit, ValidationInputsAtCommit,
-        reader::CommitIndexedReader,
+        reader::{CommitIndexedReader, DenyListAtCommit},
     },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
@@ -1061,6 +1061,12 @@ impl AuthorityState {
     ///   admission policy can limit how many deterministically-dropped transactions reach
     ///   consensus.
     ///
+    /// With `pcool_deterministic_validation`, post-consensus validation does
+    /// not call this function: [`Self::handle_transaction_validation_checks_at_commit`]
+    /// reads the deny list as of the commit's horizon, where a change made
+    /// this epoch counts from the horizon distance after the commit that
+    /// made it.
+    ///
     /// `verifier_limits_source` says where the metered bytecode verifier takes
     /// its limits for the packages the transaction publishes. Validator-local
     /// admission passes this validator's own `VerifierSigningConfig`;
@@ -1277,9 +1283,10 @@ impl AuthorityState {
     /// inputs and receiving objects are read as of that commit through the
     /// commit-indexed reader. Returns `Drop` or `Missing` when one of them is
     /// dropped or not visible yet. Any other failed check returns the same
-    /// `Err` as at admission. The Move authenticator's account is not
-    /// resolved, the authenticators are not run and the coin deny list is not
-    /// checked here: all three happen at execution.
+    /// `Err` as at admission, except that the coin deny list is read as of the
+    /// reader's horizon, with changes counting from there rather than from the
+    /// next epoch. The Move authenticator's account is not resolved and the
+    /// authenticators are not run here: both happen at execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1358,9 +1365,44 @@ impl AuthorityState {
             "Move authenticator input objects must not contain owned objects"
         );
 
-        // The coin deny list is not checked here either. It reads the coin
-        // type of every input, and neither a live shared input nor a
-        // receiving object is read here.
+        // The sender against the coin types of its inputs, as at admission,
+        // but with the deny list as of the horizon, the same on every
+        // validator. A shared input's object is not loaded, so its type is
+        // read on its own. Receiving objects are not read here: execution
+        // checks the coins Move code receives, and the coins it writes.
+        let mut shared_objects = Vec::new();
+        for input in tx_checked_input_objects.inner().iter().chain(
+            per_authenticator_checked_input_objects
+                .iter()
+                .flat_map(|objects| objects.inner().iter()),
+        ) {
+            if let (
+                InputObjectKind::SharedMoveObject {
+                    id,
+                    initial_shared_version,
+                    ..
+                },
+                None,
+            ) = (input.input_object_kind, input.as_object())
+            {
+                shared_objects
+                    .push(reader.read_shared_object_for_type(id, initial_shared_version)?);
+            }
+        }
+        let coin_types = coin_types_for_denylist_check(
+            tx_checked_input_objects
+                .inner()
+                .iter_objects()
+                .chain(
+                    per_authenticator_checked_input_objects
+                        .iter()
+                        .flat_map(|objects| objects.inner().iter_objects()),
+                )
+                .chain(&shared_objects),
+        );
+        if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
+            return Err(denial.into());
+        }
 
         Ok(ValidationAtCommit::Keep(
             tx_checked_input_objects.inner().filter_owned_objects(),

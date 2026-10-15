@@ -417,8 +417,8 @@ pub async fn validate_and_resolve_conflicts(
             // missing input drops the transaction from this commit only: the
             // decision is saved as `Missing`, which does not stop a
             // resubmission from being kept at a later commit. The Move
-            // authenticator and the coin deny list are checked at execution
-            // instead.
+            // authenticator is checked at execution instead. The coin deny
+            // list is read as of the horizon.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,
