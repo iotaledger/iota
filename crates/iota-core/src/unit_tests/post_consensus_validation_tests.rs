@@ -2384,6 +2384,7 @@ fn enable_validator_attestation() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     })
 }
@@ -4862,6 +4863,7 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
             new_live_object_markers_to_init: vec![],
             written: Default::default(),
             record_superseded_versions: false,
+            attestation_record: None,
         }),
     );
     assert!(s.authority.get_object(&shared_id).is_none());

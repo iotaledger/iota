@@ -14,6 +14,7 @@ use iota_macros::fail_point_arg;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::VerifiedExecutionData,
     error::UserInputError,
     execution::TypeLayoutStore,
@@ -522,6 +523,18 @@ impl AuthorityStore {
             .multi_get_executed_effects_digests_in_epoch(epoch, digests)
     }
 
+    /// The attestation records of transactions that can only have been
+    /// executed in `epoch`, read from that epoch's records alone; `None` for
+    /// an unattested transaction or one executed in another epoch.
+    pub fn multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        self.historic_ledger
+            .multi_get_attestation_records_in_epoch(epoch, digests)
+    }
+
     /// Given a list of transaction digests, returns a list of the corresponding
     /// effects only if they have been executed. For transactions that have
     /// not been executed, None is returned.
@@ -950,6 +963,7 @@ impl AuthorityStore {
             live_object_markers_to_delete,
             new_live_object_markers_to_init,
             superseded,
+            attestation_record,
             ..
         } = tx_outputs;
 
@@ -1031,6 +1045,13 @@ impl AuthorityStore {
                 &ledger_bucket.executed_effects,
                 [(transaction_digest, effects_digest)],
             )?;
+
+        if let Some(record) = attestation_record {
+            write_batch.insert_batch_tagged(
+                &ledger_bucket.attestation_records,
+                [(transaction_digest, *record)],
+            )?;
+        }
 
         debug!(effects_digest = ?effects.digest(), "commit_transaction finished");
 

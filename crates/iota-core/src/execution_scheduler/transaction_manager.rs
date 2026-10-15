@@ -15,7 +15,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest, Version};
 use iota_types::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestationRecord},
     committee::EpochId,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -79,6 +79,9 @@ pub enum AttestationSource {
     Unattested,
     /// The attestation from consensus, judged at execution.
     Attestation(Attestation),
+    /// The verdict a certified checkpoint carries, when executing from it;
+    /// `None` when the transaction was not attested.
+    Certified(Option<AttestationRecord>),
 }
 
 /// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
@@ -112,7 +115,7 @@ impl VerifiedExecutableAttestedTransaction {
     pub fn attested_computation_units(&self) -> Option<u64> {
         match &self.attestation {
             AttestationSource::Attestation(attestation) => Some(attestation.computation_units()),
-            AttestationSource::Unattested => None,
+            AttestationSource::Unattested | AttestationSource::Certified(_) => None,
         }
     }
 

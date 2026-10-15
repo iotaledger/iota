@@ -2504,6 +2504,7 @@ impl AuthorityPerEpochStore {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         self.process_constructed_checkpoint(height, NonEmpty::new((summary.clone(), contents)));
         summary
