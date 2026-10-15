@@ -55,7 +55,7 @@ use crate::{
         },
         authority_tests::{init_state_with_objects_and_object_basics, publish_object_basics},
         move_integration_tests::build_and_try_publish_test_package,
-        shared_object_version_manager::Schedulable,
+        shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
@@ -63,6 +63,7 @@ use crate::{
         ConsensusCommitInfo, ExecutionWatcher, SequencedConsensusTransaction,
         VerifiedSequencedConsensusTransaction,
     },
+    execution_scheduler::ExecutionSchedulerAPI,
     post_consensus_input_reader::{
         DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
         reader::CommitIndexedReader,
@@ -2276,13 +2277,28 @@ async fn setup_bookkeeping_with_package(
     sender: Address,
     gas_id: ObjectId,
 ) -> BookkeepingSetup {
-    let _config_guard = Some(ProtocolConfig::apply_overrides_for_testing(
-        |_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
-            config
-        },
-    ));
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    setup_bookkeeping_with_package_and_config_guard(
+        package_name,
+        sender,
+        gas_id,
+        Some(config_guard),
+    )
+    .await
+}
 
+/// [`setup_bookkeeping_with_package`] under the protocol config override the
+/// caller installed, or none, for a second validator sharing the override
+/// another one holds.
+async fn setup_bookkeeping_with_package_and_config_guard(
+    package_name: &str,
+    sender: Address,
+    gas_id: ObjectId,
+    _config_guard: Option<OverrideGuard>,
+) -> BookkeepingSetup {
     let authority = TestAuthorityBuilder::new().build().await;
     authority.insert_genesis_object(Object::with_id_owner_for_testing(gas_id, sender));
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2472,20 +2488,26 @@ impl BookkeepingSetup {
         self.execute_as_handler_known(vec![tx], index).remove(0)
     }
 
-    /// Commits the outputs of `committed` to the database in order, then
-    /// removes every version `consumer` consumed from the object store, as
-    /// the pruner does once the consumer's checkpoint is executed.
-    /// `committed` must hold, oldest first, every uncommitted transaction
-    /// that wrote those objects, `consumer` included.
+    /// Commits the outputs of `committed` to the database in order, as the
+    /// checkpoint executor does. `committed` must hold, oldest first, every
+    /// uncommitted transaction that wrote the objects they touched.
+    fn commit_outputs(&self, committed: &[TransactionDigest]) {
+        let epoch = self.epoch_store.epoch();
+        let cache_commit = self.authority.get_cache_commit();
+        let batch = cache_commit.build_db_batch(epoch, 1, committed);
+        cache_commit.commit_transaction_outputs(epoch, batch, committed);
+    }
+
+    /// [`Self::commit_outputs`] of `committed`, then removes every version
+    /// `consumer` consumed from the object store, as the pruner does once
+    /// the consumer's checkpoint is executed. `consumer` must be one of
+    /// `committed`.
     async fn prune_versions_consumed_by(
         &self,
         committed: &[TransactionDigest],
         consumer: &TransactionEffects,
     ) {
-        let epoch = self.epoch_store.epoch();
-        let cache_commit = self.authority.get_cache_commit();
-        let batch = cache_commit.build_db_batch(epoch, 1, committed);
-        cache_commit.commit_transaction_outputs(epoch, batch, committed);
+        self.commit_outputs(committed);
         self.authority
             .database_for_testing()
             .prune_objects_immediately_for_testing(vec![consumer.clone()])
@@ -2880,6 +2902,16 @@ impl BookkeepingSetup {
         index: CommitIndex,
         transactions: &[VerifiedTransaction],
     ) -> Vec<VerifiedExecutableTransaction> {
+        self.process_at_with_versions(index, transactions).await.0
+    }
+
+    /// [`Self::process_at`], also returning the versions the handler
+    /// assigned, for executing a scheduled transaction with them.
+    async fn process_at_with_versions(
+        &self,
+        index: CommitIndex,
+        transactions: &[VerifiedTransaction],
+    ) -> (Vec<VerifiedExecutableTransaction>, AssignedTxAndVersions) {
         let verified = transactions
             .iter()
             .cloned()
@@ -2890,7 +2922,7 @@ impl BookkeepingSetup {
                 )
             })
             .collect();
-        let (scheduled, ..) = self
+        let (scheduled, assigned_versions, _) = self
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 verified,
@@ -2903,10 +2935,11 @@ impl BookkeepingSetup {
             )
             .await
             .unwrap();
-        scheduled
+        let scheduled = scheduled
             .into_iter()
             .map(|tx| tx.as_tx().unwrap().clone())
-            .collect()
+            .collect();
+        (scheduled, assigned_versions)
     }
 
     /// Validates `transactions` at commit `index` with deterministic
@@ -2970,6 +3003,57 @@ impl BookkeepingSetup {
         reopened.set_effects_store(self.authority.get_transaction_cache_reader().clone());
         self.epoch_store = reopened;
         self.initialize_randomness().await;
+    }
+
+    /// The protocol config's horizon distance: validation at commit `C`
+    /// trusts what commits up to `C` minus this distance produced.
+    fn horizon_distance(&self) -> CommitIndex {
+        self.epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation_horizon_distance_or_default()
+    }
+
+    /// Moves the authority to the next epoch under the same protocol config
+    /// and prepares the new epoch store for commit processing. Releases the
+    /// override this setup holds, since the epoch change installs its own;
+    /// the caller reinstalls one afterwards if the test needs it.
+    async fn advance_epoch(&mut self) {
+        drop(self._config_guard.take());
+        self.authority.reconfigure_for_testing().await;
+        self.epoch_store = self.authority.epoch_store_for_testing().clone();
+        self.initialize_randomness().await;
+    }
+
+    /// Hands `executable`, which the handler kept at a commit, to the
+    /// execution scheduler with the versions the handler assigned, as the
+    /// handler's scheduler task does, and returns its effects, or `None`
+    /// when it has not executed within a few seconds.
+    async fn schedule_kept_transaction(
+        &self,
+        executable: VerifiedExecutableTransaction,
+        assigned_versions: AssignedTxAndVersions,
+    ) -> Option<TransactionEffects> {
+        let digest = *executable.digest();
+        let assigned_versions = assigned_versions
+            .into_map()
+            .remove(&executable.key())
+            .unwrap_or_default();
+        self.authority.execution_scheduler().enqueue(
+            vec![(
+                Schedulable::Transaction(executable),
+                ExecutionEnv::new().with_assigned_versions(assigned_versions),
+            )],
+            &self.epoch_store,
+        );
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            self.authority
+                .get_transaction_cache_reader()
+                .try_notify_read_executed_effects("", &[digest]),
+        )
+        .await
+        .ok()
+        .map(|effects| effects.unwrap().remove(0))
     }
 }
 
@@ -4742,6 +4826,373 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
         ),
         "receiving an input must reject, got {result:?}"
     );
+}
+
+/// A receive run through the handler's path at `commit`. When kept, it is
+/// handed to the execution scheduler, and `effects` is `None` when it has not
+/// executed within a few seconds. `watcher` must stay alive for the commit
+/// to become fully executed.
+struct ScheduledReceive {
+    setup: BookkeepingSetup,
+    watcher: ExecutionWatcher,
+    commit: CommitIndex,
+    kept: bool,
+    effects: Option<TransactionEffects>,
+}
+
+/// Executes `M1::start` as the root of commit 1 with the execution watcher
+/// running, and with `consume` set, `M1::<consume>(parent, Receiving(child))`
+/// as the root of commit 2, with `child` the object `start` made receivable.
+/// Then runs `M1::receiver(parent, Receiving(receiving(child)))` through the
+/// handler's processing of the first commit whose horizon reaches commit
+/// `horizon`, and hands it, if kept, to the execution scheduler with the
+/// versions the handler assigned, as the handler's scheduler task does.
+async fn schedule_receive_through_the_handler(
+    consume: Option<&'static str>,
+    receiving: impl FnOnce(ObjectReference) -> ObjectReference,
+    horizon: CommitIndex,
+) -> ScheduledReceive {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let watcher = s.start_execution_watcher();
+
+    let start_effects =
+        s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 1);
+    s.wait_for_fully_executed_commit(1).await;
+    let (parent, child) = parent_and_child(start_effects.created());
+    let parent_id = parent.reference().object_id;
+    if let Some(consume) = consume {
+        let consume_effects = s.handler_known_move_call(
+            "M1",
+            consume,
+            vec![
+                CallArg::ImmutableOrOwned(*parent.reference()),
+                CallArg::Receiving(*child.reference()),
+            ],
+            &gas_id,
+            sender,
+            &sender_key,
+            2,
+        );
+        assert!(
+            consume_effects.status().is_success(),
+            "{:?}",
+            consume_effects.status()
+        );
+        s.wait_for_fully_executed_commit(2).await;
+    }
+    let receive = s.build_move_call(
+        "M1",
+        "receiver",
+        vec![
+            CallArg::ImmutableOrOwned(s.latest_ref(&parent_id)),
+            CallArg::Receiving(receiving(*child.reference())),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+
+    let commit = horizon + s.horizon_distance();
+    let (scheduled, assigned_versions) = s
+        .process_at_with_versions(commit, std::slice::from_ref(&receive))
+        .await;
+    let Some(executable) = scheduled.into_iter().next() else {
+        return ScheduledReceive {
+            setup: s,
+            watcher,
+            commit,
+            kept: false,
+            effects: None,
+        };
+    };
+    let effects = s
+        .schedule_kept_transaction(executable, assigned_versions)
+        .await;
+    ScheduledReceive {
+        setup: s,
+        watcher,
+        commit,
+        kept: true,
+        effects,
+    }
+}
+
+/// Asserts that a kept receive executed and aborted in `iota::transfer` as
+/// unable to receive, with the sender charged.
+fn assert_receive_aborted(s: &BookkeepingSetup, effects: Option<TransactionEffects>) {
+    let effects = effects.unwrap_or_else(|| {
+        panic!(
+            "the receive must execute: {} transaction(s) still pending in the execution \
+             scheduler, highest fully executed commit {}",
+            s.authority.execution_scheduler().num_pending_transactions(),
+            s.highest_fully_executed_commit(),
+        )
+    });
+    assert!(
+        matches!(
+            effects.status(),
+            ExecutionStatus::Failure {
+                error: ExecutionErrorKind::MoveAbort { location, code: 3 },
+                ..
+            } if location.module.as_str() == "transfer"
+        ),
+        "the receive must abort in `iota::transfer` as unable to receive, got {:?}",
+        effects.status()
+    );
+    assert!(effects.gas_cost_summary().gas_used() > 0);
+}
+
+/// A receive naming a version of the child that never existed is not kept at
+/// the commit: no validator could make it ready for execution, so keeping it
+/// would stop the commit from ever becoming fully executed.
+#[tokio::test]
+async fn receive_of_a_version_that_never_existed_is_not_kept() {
+    let ScheduledReceive {
+        setup: s,
+        watcher: _watcher,
+        commit,
+        kept,
+        ..
+    } = schedule_receive_through_the_handler(
+        None,
+        |child| ObjectReference::new(child.object_id, child.version + 1_000, child.digest),
+        1,
+    )
+    .await;
+
+    assert!(!kept, "the receive must not be kept at commit {commit}");
+    s.wait_for_fully_executed_commit(commit).await;
+}
+
+/// A receive naming a version of the child that a commit above the horizon
+/// consumed, by deleting or by wrapping it, is kept: the version was live at
+/// the horizon. Execution finds the receiving object available from this
+/// epoch's marker, and the receive aborts with the sender charged. The parent
+/// is shared, as the consumption mutates an owned parent's version above the
+/// horizon, and another gas coin pays for the consumption, so every other
+/// input of the receive is live at the horizon.
+#[tokio::test]
+async fn receive_of_a_version_consumed_above_the_horizon_is_kept_and_aborts() {
+    for consume in ["deleter", "wrapper"] {
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+        let gas_id = ObjectId::random();
+        let consumer_gas_id = ObjectId::random();
+        let s = setup_bookkeeping_with_package("tto_shared", sender, gas_id).await;
+        s.authority
+            .insert_genesis_object(Object::with_id_owner_for_testing(consumer_gas_id, sender));
+        let _watcher = s.start_execution_watcher();
+
+        // `M::start` as the root of commit 1, then
+        // `M::<consume>(parent, Receiving(child))` as the root of commit 2.
+        let start_effects =
+            s.handler_known_move_call("M", "start", vec![], &gas_id, sender, &sender_key, 1);
+        s.wait_for_fully_executed_commit(1).await;
+        let (parent, child) = parent_and_child(start_effects.created());
+        let parent_id = parent.reference().object_id;
+        let child = *child.reference();
+        let consumption = s.build_move_call(
+            "M",
+            consume,
+            vec![s.shared_arg(&parent_id), CallArg::Receiving(child)],
+            &consumer_gas_id,
+            sender,
+            &sender_key,
+        );
+        s.epoch_store
+            .assign_commit_to_transactions(2, vec![TransactionKey::Digest(*consumption.digest())]);
+        s.execute_with_assigned_shared_versions(consumption);
+        s.wait_for_fully_executed_commit(2).await;
+
+        let commit = 1 + s.horizon_distance();
+        assert!(
+            commit > 2,
+            "the consumption at commit 2 must be above the horizon of commit {commit}"
+        );
+        let receive = s.build_move_call(
+            "M",
+            "receiver",
+            vec![s.shared_arg(&parent_id), CallArg::Receiving(child)],
+            &gas_id,
+            sender,
+            &sender_key,
+        );
+        let (scheduled, assigned_versions) = s
+            .process_at_with_versions(commit, std::slice::from_ref(&receive))
+            .await;
+        let executable = scheduled
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("the receive after `{consume}` must be kept"));
+        let effects = s
+            .schedule_kept_transaction(executable, assigned_versions)
+            .await;
+        assert_receive_aborted(&s, effects);
+        s.wait_for_fully_executed_commit(commit).await;
+    }
+}
+
+/// The same receive at the first commit whose horizon reaches the
+/// consumption is dropped, and that commit becomes fully executed.
+#[tokio::test]
+async fn receive_of_a_version_consumed_at_the_horizon_is_dropped() {
+    for consume in ["deleter", "wrapper"] {
+        let ScheduledReceive {
+            setup: s,
+            watcher: _watcher,
+            commit,
+            kept,
+            ..
+        } = schedule_receive_through_the_handler(Some(consume), |child| child, 2).await;
+
+        assert!(!kept, "the receive after `{consume}` must not be kept");
+        s.wait_for_fully_executed_commit(commit).await;
+    }
+}
+
+/// The same receive naming the child's current version executes and receives
+/// the child, so the commit becomes fully executed.
+#[tokio::test]
+async fn kept_receive_of_the_current_version_executes_through_the_scheduler() {
+    let ScheduledReceive {
+        setup: s,
+        watcher: _watcher,
+        commit,
+        kept,
+        effects,
+    } = schedule_receive_through_the_handler(None, |child| child, 1).await;
+
+    assert!(kept, "the receive must be kept at commit {commit}");
+    let effects = effects.expect("the receive must execute");
+    assert!(effects.status().is_success(), "{:?}", effects.status());
+    s.wait_for_fully_executed_commit(commit).await;
+}
+
+/// A receive naming the version of a child that a receive deleted in the
+/// previous epoch is dropped at a commit of the next epoch on every
+/// validator, whether it has pruned the deleted version or not: the deletion
+/// marker belongs to the previous epoch, so a kept receive would leave the
+/// scheduler's view of the receiving object to whether the deleted version is
+/// still stored. The version was superseded before the epoch, which the
+/// store's tombstone and the empty handler rows show on both validators.
+#[tokio::test]
+async fn receive_of_a_version_deleted_last_epoch_is_dropped_on_every_node() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let mut pruning = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    // Shares the override `pruning` holds.
+    let mut keeping =
+        setup_bookkeeping_with_package_and_config_guard("tto", sender, gas_id, None).await;
+
+    // `M1::start` as the root of commit 1, then
+    // `M1::deleter(parent, Receiving(child))` as the root of commit 2, which
+    // receives the child and deletes it.
+    let delete_the_child = |s: &BookkeepingSetup| {
+        let start_effects =
+            s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 1);
+        s.complete_commit(1, &[&start_effects]);
+        let (parent, child) = parent_and_child(start_effects.created());
+        let delete_effects = s.handler_known_move_call(
+            "M1",
+            "deleter",
+            vec![
+                CallArg::ImmutableOrOwned(*parent.reference()),
+                CallArg::Receiving(*child.reference()),
+            ],
+            &gas_id,
+            sender,
+            &sender_key,
+            2,
+        );
+        s.complete_commit(2, &[&delete_effects]);
+        assert_eq!(
+            delete_effects
+                .deleted()
+                .iter()
+                .map(|deleted| deleted.object_id)
+                .collect::<Vec<_>>(),
+            vec![child.reference().object_id]
+        );
+        (
+            parent.reference().object_id,
+            *child.reference(),
+            vec![
+                *start_effects.transaction_digest(),
+                *delete_effects.transaction_digest(),
+            ],
+            delete_effects,
+        )
+    };
+    let (parent_id, child, committed, delete_effects) = delete_the_child(&pruning);
+    assert_eq!(
+        delete_the_child(&keeping).1,
+        child,
+        "both validators must hold the same child"
+    );
+
+    pruning
+        .prune_versions_consumed_by(&committed, &delete_effects)
+        .await;
+    keeping.commit_outputs(&committed);
+    assert!(
+        keeping
+            .store_object(&child.object_id, child.version)
+            .is_some()
+    );
+
+    for s in [&mut pruning, &mut keeping] {
+        s.advance_epoch().await;
+        assert_eq!(s.epoch_store.epoch(), 1);
+        assert!(
+            s.epoch_store
+                .protocol_config()
+                .pcool_deterministic_validation()
+        );
+    }
+    pruning._config_guard = Some(ProtocolConfig::apply_overrides_for_testing(
+        |_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        },
+    ));
+
+    // The same transaction on both validators: their stores agree on the
+    // parent's and the gas coin's latest versions.
+    let receive = pruning.build_move_call(
+        "M1",
+        "receiver",
+        vec![
+            CallArg::ImmutableOrOwned(pruning.latest_ref(&parent_id)),
+            CallArg::Receiving(child),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    assert_eq!(
+        keeping.latest_ref(&parent_id),
+        pruning.latest_ref(&parent_id)
+    );
+    assert_eq!(keeping.latest_ref(&gas_id), pruning.latest_ref(&gas_id));
+
+    for s in [&pruning, &keeping] {
+        let _watcher = s.start_execution_watcher();
+        let (scheduled, _) = s
+            .process_at_with_versions(1, std::slice::from_ref(&receive))
+            .await;
+        assert!(
+            scheduled.is_empty(),
+            "the receive must not be kept at commit 1 of the new epoch"
+        );
+        assert!(matches!(
+            s.epoch_store
+                .post_consensus_verdict(1, *receive.digest())
+                .unwrap(),
+            Some(PostConsensusVerdict::Dropped(_))
+        ));
+        s.wait_for_fully_executed_commit(1).await;
+    }
 }
 
 // ---------------------------------------------------------------------------
