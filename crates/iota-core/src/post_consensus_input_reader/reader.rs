@@ -21,9 +21,9 @@ use iota_types::{
 };
 
 use super::{
-    AccountVerdict, DenyListField, DropKind, DropReason, KeptObject, MissingKind, MissingReason,
-    OwnedVerdict, PackageVerdict, SharedVerdict,
-    deny_list::{DenyListFieldReader, HighestRowLookup, RowLookup},
+    AccountVerdict, DropKind, DropReason, DynamicFieldAtHorizon, KeptObject, MissingKind,
+    MissingReason, OwnedVerdict, PackageVerdict, SharedVerdict,
+    dynamic_field::{DynamicFieldReader, HighestRowLookup, RowLookup},
     owned::{
         LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
         TablesRecheck,
@@ -240,17 +240,17 @@ impl CommitIndexedReader {
         )))
     }
 
-    /// The deny-list field `id` as of the horizon, live or absent. Storage
-    /// errors propagate, and so does a version the read needs but the store
-    /// no longer holds.
-    pub fn read_deny_list_field(&self, id: ObjectId) -> IotaResult<DenyListField> {
-        let mut lookup =
-            match DenyListFieldReader::start(id, self.horizon).read_highest_row(self)? {
-                HighestRowLookup::Row(lookup) => lookup,
-                HighestRowLookup::NoRow(no_row) => {
-                    no_row.read_object(self)?.reread_highest_row(self)?
-                }
-            };
+    /// The dynamic field `id` as of the horizon, live or absent. The field
+    /// must change only through its shared parent object, as a field of the
+    /// coin deny list does. Storage errors propagate, and so does a version
+    /// the read needs but the store no longer holds.
+    pub fn read_dynamic_field(&self, id: ObjectId) -> IotaResult<DynamicFieldAtHorizon> {
+        let mut lookup = match DynamicFieldReader::start(id, self.horizon).read_highest_row(self)? {
+            HighestRowLookup::Row(lookup) => lookup,
+            HighestRowLookup::NoRow(no_row) => {
+                no_row.read_object(self)?.reread_highest_row(self)?
+            }
+        };
         loop {
             lookup = match lookup {
                 RowLookup::NeedBytes(need_bytes) => return need_bytes.load_bytes(self),
@@ -266,12 +266,12 @@ impl CommitIndexedReader {
     /// field is at the horizon is at or below it too, where the owned machine
     /// sees what the receive consumed. The field changes only through the
     /// account object, in the order of the commits that change it, as the
-    /// deny-list machine requires. Storage errors propagate.
+    /// [`Self::read_dynamic_field`] requires. Storage errors propagate.
     pub fn read_account(&self, account_id: ObjectId) -> IotaResult<AccountVerdict> {
         let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id)?;
-        Ok(match self.read_deny_list_field(field_id)? {
-            DenyListField::Live(_) => AccountVerdict::Account,
-            DenyListField::Absent => {
+        Ok(match self.read_dynamic_field(field_id)? {
+            DynamicFieldAtHorizon::Live(_) => AccountVerdict::Account,
+            DynamicFieldAtHorizon::Absent => {
                 AccountVerdict::Missing(MissingReason(MissingKind::AuthenticatorFunctionNotFound))
             }
         })
@@ -330,10 +330,10 @@ impl<'a> DenyListAtCommit<'a> {
 impl ObjectStore for DenyListAtCommit<'_> {
     fn try_get_object(&self, object_id: &ObjectId) -> StorageResult<Option<Object>> {
         self.reader
-            .read_deny_list_field(*object_id)
+            .read_dynamic_field(*object_id)
             .map(|field| match field {
-                DenyListField::Live(object) => Some(object),
-                DenyListField::Absent => None,
+                DynamicFieldAtHorizon::Live(object) => Some(object),
+                DynamicFieldAtHorizon::Absent => None,
             })
             .map_err(|error| {
                 let storage_error = StorageError::custom(error.to_string());

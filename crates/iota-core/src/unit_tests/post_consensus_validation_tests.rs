@@ -67,7 +67,7 @@ use crate::{
     },
     execution_scheduler::ExecutionSchedulerAPI,
     post_consensus_input_reader::{
-        DenyListField, DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
+        DropKind, DynamicFieldAtHorizon, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
         ValidationAtCommit, reader::CommitIndexedReader,
     },
     post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
@@ -9770,11 +9770,11 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
         consume_a_dynamic_field_child_without_a_lock(&s, &gas_id, sender, &sender_key);
     let read = |commit| match s
         .reader_at(commit)
-        .read_deny_list_field(field_ref.object_id)
+        .read_dynamic_field(field_ref.object_id)
         .unwrap()
     {
-        DenyListField::Live(object) => Some(object.object_ref()),
-        DenyListField::Absent => None,
+        DynamicFieldAtHorizon::Live(object) => Some(object.object_ref()),
+        DynamicFieldAtHorizon::Absent => None,
     };
     assert_eq!(read(6), None, "created above horizon 4");
     assert_eq!(read(7), Some(field_ref), "created at horizon 5");
@@ -9782,7 +9782,7 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
 
     s.prune_versions_consumed_by(&committed, &remove_effects)
         .await;
-    let result = s.reader_at(7).read_deny_list_field(field_ref.object_id);
+    let result = s.reader_at(7).read_dynamic_field(field_ref.object_id);
     assert!(
         matches!(result, Err(IotaError::Storage(_))),
         "unexpected result: {result:?}"
