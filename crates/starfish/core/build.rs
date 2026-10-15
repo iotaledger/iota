@@ -21,7 +21,6 @@ fn main() -> Result<()> {
 
 fn build_tonic_services(out_dir: &Path) {
     let codec_path = "tonic_prost::ProstCodec";
-    // Refuses a message carrying more entries than its type allows.
     let bounded_codec_path = "crate::network::bounded_codec::BoundedProstCodec";
 
     let service = tonic_build::manual::Service::builder()
