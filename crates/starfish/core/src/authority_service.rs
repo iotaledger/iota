@@ -1036,7 +1036,7 @@ fn transaction_chunk_stream(cursor: TransactionCursor) -> TransactionChunkStream
 
 /// Wraps a payload and its ref into the entry a transaction-fetch response
 /// carries.
-fn serialize_transactions_entry(
+pub(crate) fn serialize_transactions_entry(
     transaction_ref: TransactionRef,
     serialized_transactions: Bytes,
 ) -> ConsensusResult<Bytes> {
@@ -1428,7 +1428,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             if let Err(err) = self
                 .transactions_synchronizer
                 .fetch_transactions(missing_committed_txns)
-                .await
             {
                 warn!(
                     "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
