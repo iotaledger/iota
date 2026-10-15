@@ -1442,7 +1442,9 @@ mod tests {
 
     mod get_total_supply_tests {
         use iota_sdk_move_types::{
-            iota_framework::{bag::Bag, object::UID, vec_map::VecMap},
+            iota_framework::{
+                bag::Bag, object::UID, table::Table, table_vec::TableVec, vec_map::VecMap,
+            },
             iota_system::iota_system_state_inner::SystemParametersV1,
         };
         use iota_types::{
@@ -1607,11 +1609,11 @@ mod tests {
                     total_stake: Default::default(),
                     active_validators: Default::default(),
                     committee_members: Default::default(),
-                    pending_active_validators: Default::default(),
+                    pending_active_validators: TableVec::new(Table::new(ObjectId::ZERO.into(), 0)),
                     pending_removals: Default::default(),
-                    staking_pool_mappings: Default::default(),
-                    inactive_validators: Default::default(),
-                    validator_candidates: Default::default(),
+                    staking_pool_mappings: Table::new(ObjectId::ZERO.into(), 0),
+                    inactive_validators: Table::new(ObjectId::ZERO.into(), 0),
+                    validator_candidates: Table::new(ObjectId::ZERO.into(), 0),
                     at_risk_validators: VecMap {
                         contents: Default::default(),
                     },

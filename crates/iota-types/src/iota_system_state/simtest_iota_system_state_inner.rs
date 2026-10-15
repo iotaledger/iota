@@ -4,14 +4,16 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
-use iota_sdk_move_types::iota_framework::{bag::Bag, system_admin_cap::IotaSystemAdminCap};
+use iota_sdk_move_types::{
+    iota_framework::{bag::Bag, object::ID, system_admin_cap::IotaSystemAdminCap, table::Table},
+    iota_system::validator_wrapper::Validator,
+};
 use iota_sdk_types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Balance,
-    collection_types::Table,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
     error::IotaError,
@@ -49,7 +51,7 @@ pub struct SimTestSystemParametersV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorSetV1 {
     pub active_validators: Vec<SimTestValidatorV1>,
-    pub inactive_validators: Table,
+    pub inactive_validators: Table<ID, Validator>,
     pub extra_fields: Bag,
 }
 
@@ -358,7 +360,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorSetDeepV1 {
     pub active_validators: Vec<SimTestValidatorDeepV1>,
-    pub inactive_validators: Table,
+    pub inactive_validators: Table<ID, Validator>,
     pub extra_fields: Bag,
 }
 
