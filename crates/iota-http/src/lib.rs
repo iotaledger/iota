@@ -1100,4 +1100,33 @@ mod tests {
             Some(17)
         );
     }
+
+    /// An id derived from the connection's address in memory comes back as
+    /// soon as the allocator reuses that address, so two live connections can
+    /// share one. The listener's table is keyed by it: the second insertion
+    /// would replace the first, and the first connection's own close would
+    /// then remove the newcomer's entry.
+    #[test]
+    fn a_connection_id_is_never_reused() {
+        let connection = || {
+            ConnectionInfo::new(
+                "127.0.0.1:1".parse::<std::net::SocketAddr>().unwrap(),
+                None,
+                tokio_util::sync::CancellationToken::new(),
+            )
+        };
+
+        // Dropped before the next is made, which is what frees the address for
+        // the next allocation to be handed.
+        let first = connection();
+        let first_id = first.id();
+        drop(first);
+
+        let second = connection();
+        assert_ne!(
+            first_id,
+            second.id(),
+            "an id must not be reused once its connection has gone"
+        );
+    }
 }
