@@ -12,7 +12,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_move_types::iota_framework::deny_list::AddressKey;
 use iota_sdk_types::{
-    Address, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
+    Address, Argument, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
     MoveAuthenticatorV1, MoveStruct, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference,
     Owner, ProgrammableTransaction, SharedObjectReference, StructTag, Transaction,
     TransactionDigest, TransactionEffects, TypeTag, UserSignature, Version,
@@ -10072,15 +10072,14 @@ impl AccountSetup {
         );
     }
 
-    /// Makes `account` an account whose authenticator always passes, at
-    /// commit `index`.
-    fn make_account(&self, account: &ObjectId, index: CommitIndex) {
+    /// Adds to `builder` the authenticator function reference of a
+    /// `TestAccount` whose authenticator always passes.
+    fn passing_function_ref(&self, builder: &mut ProgrammableTransactionBuilder) -> Argument {
         let metadata_ref = self
             .s
             .latest_ref(&move_package::derive_package_metadata_id(self.package_id));
         let account_type =
             TypeTag::from_str(&format!("{}::test_account::TestAccount", self.package_id)).unwrap();
-        let mut builder = ProgrammableTransactionBuilder::new();
         let arguments = vec![
             builder
                 .obj(CallArg::ImmutableOrOwned(metadata_ref))
@@ -10088,13 +10087,47 @@ impl AccountSetup {
             builder.pure("test_account").unwrap(),
             builder.pure("authenticate_pass").unwrap(),
         ];
-        let function_ref = builder.programmable_move_call(
+        builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::from_static("authenticator_function"),
             Identifier::from_static("create_auth_function_ref_v1"),
             vec![account_type],
             arguments,
+        )
+    }
+
+    /// Creates an account whose authenticator always passes, with its
+    /// authenticator function field in the same transaction, at commit
+    /// `index`, and returns its id.
+    fn create_account(&self, index: CommitIndex) -> ObjectId {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let function_ref = self.passing_function_ref(&mut builder);
+        builder.programmable_move_call(
+            self.package_id,
+            Identifier::from_static("test_account"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![function_ref],
         );
+        let effects = self.execute(
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * 10,
+            index,
+        );
+        *effects
+            .created()
+            .into_iter()
+            .find(|created| matches!(created.owner(), Owner::Shared(_)))
+            .expect("the call must share the account")
+            .reference()
+            .object_id()
+    }
+
+    /// Makes `account` an account whose authenticator always passes, at
+    /// commit `index`.
+    fn make_account(&self, account: &ObjectId, index: CommitIndex) {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let function_ref = self.passing_function_ref(&mut builder);
         let account = builder.obj(self.shared(account, true)).unwrap();
         builder.programmable_move_call(
             self.package_id,
@@ -10110,15 +10143,34 @@ impl AccountSetup {
         );
     }
 
+    /// A transaction of `account` that names no owned input of its own: it
+    /// pays 1 nano out of the gas coin `sender` sponsors with
+    /// `sponsor_gas_id`.
+    fn account_payment(&self, account: &ObjectId) -> VerifiedTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(Address::ZERO, Some(1));
+        self.sponsored_account_call(account, builder.finish())
+    }
+
     /// The account's transfer of `object`, authenticated by `account` and
     /// sponsored by `sender` with `sponsor_gas_id`.
     fn account_transfer(&self, account: &ObjectId, object: ObjectReference) -> VerifiedTransaction {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_object(Address::ZERO, object).unwrap();
+        self.sponsored_account_call(account, builder.finish())
+    }
+
+    /// `pt` sent by `account`, authenticated by its Move authenticator and
+    /// sponsored by `sender` with `sponsor_gas_id`.
+    fn sponsored_account_call(
+        &self,
+        account: &ObjectId,
+        pt: ProgrammableTransaction,
+    ) -> VerifiedTransaction {
         let tx = Transaction::new_programmable_allow_sponsor(
             (*account).into(),
             vec![self.s.latest_ref(&self.sponsor_gas_id)],
-            builder.finish(),
+            pt,
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.s.rgp,
             self.s.rgp,
             self.sender,
@@ -10179,6 +10231,33 @@ async fn validation_at_commit_reports_an_account_missing_until_it_is_one_at_the_
             let mut expected = vec![coin, a.s.latest_ref(&a.sponsor_gas_id)];
             expected.sort();
             assert_eq!(owned, expected);
+        }
+        other => panic!("expected keep, got {other:?}"),
+    }
+}
+
+/// An account created with its authenticator function field in one
+/// transaction waits for nothing more than any shared object does: it is
+/// missing while its creation is above the horizon, for that reason, and
+/// kept from the commit whose horizon reaches it.
+#[tokio::test]
+async fn validation_at_commit_keeps_a_new_account_as_soon_as_its_creation_is_at_the_horizon() {
+    let a = AccountSetup::new().await;
+    let distance = a.s.horizon_distance();
+    let created_at = 3;
+    let account = a.create_account(created_at);
+    let tx = a.account_payment(&account);
+
+    match a.validate(&tx, created_at + distance - 1) {
+        ValidationAtCommit::Missing(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(id, account);
+            assert_eq!(reason.kind(), MissingKind::SharedCreationAboveHorizon);
+        }
+        other => panic!("expected the account's creation missing, got {other:?}"),
+    }
+    match a.validate(&tx, created_at + distance) {
+        ValidationAtCommit::Keep(owned) => {
+            assert_eq!(owned, vec![a.s.latest_ref(&a.sponsor_gas_id)])
         }
         other => panic!("expected keep, got {other:?}"),
     }
