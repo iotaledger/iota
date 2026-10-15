@@ -35,10 +35,12 @@ policy-config:
   # does not run in this mode. Omit the field to rate limit instead.
   # allow-list: ["10.0.0.1", "10.0.0.2"]
   
-  # How long to block direct client IPs (in seconds)
+  # How long to block direct client IPs (in seconds). Must be at least 1: the
+  # node does not start with 0, and the admin interface rejects 0.
   connection-blocklist-ttl-sec: 60
   
-  # How long to block proxied client IPs (in seconds)
+  # How long to block proxied client IPs (in seconds). 0 ends each block at
+  # once, which turns these blocks off.
   proxy-blocklist-ttl-sec: 60
   
   # Policy for handling spam traffic
