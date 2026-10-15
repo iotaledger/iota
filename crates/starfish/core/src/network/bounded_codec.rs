@@ -89,10 +89,6 @@ impl<U: Message + Default + EntryLimit> Decoder for BoundedProstDecoder<U> {
     fn decode(&mut self, buf: &mut DecodeBuf<'_>) -> Result<Option<U>, Status> {
         decode_bounded(buf).map(Some)
     }
-
-    fn buffer_settings(&self) -> BufferSettings {
-        BufferSettings::default()
-    }
 }
 
 fn decode_bounded<U: Message + Default + EntryLimit>(buf: impl Buf) -> Result<U, Status> {
