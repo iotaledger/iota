@@ -23,9 +23,7 @@ use iota_network_stack::{
 };
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
-use starfish_config::{
-    AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH, NetworkKeyPair, NetworkPublicKey,
-};
+use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_FETCH, NetworkKeyPair, NetworkPublicKey};
 use tokio::sync::Mutex;
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
@@ -36,6 +34,7 @@ use super::{
     BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
     SerializedBlockBundle, TransactionChunkStream,
     admission::AdmissionLayer,
+    bounded_codec::{EntryLimit, TooManyEntries},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -85,7 +84,7 @@ fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
     if commit_sync {
         context.parameters.max_headers_per_commit_sync_fetch
     } else {
-        MAX_HEADERS_PER_HEADER_SYNC_FETCH
+        MAX_HEADERS_PER_FETCH
     }
 }
 
@@ -685,6 +684,17 @@ where
                 break;
             }
             Err(e) => {
+                // The decoder refuses a message at the first header past its
+                // ceiling, so the message carried at least one more.
+                if let Some(refused) = TooManyEntries::from_status(&e) {
+                    return Err(ConsensusError::TooManyFetchedHeadersReturned {
+                        peer,
+                        requested: max_headers,
+                        received: vec_serialized_block_header
+                            .len()
+                            .saturating_add(refused.limit + 1),
+                    });
+                }
                 if vec_serialized_block_header.is_empty() {
                     if e.code() == tonic::Code::DeadlineExceeded {
                         return Err(ConsensusError::NetworkRequestTimeout(format!(
@@ -1791,10 +1801,20 @@ pub(crate) struct FetchBlockHeadersRequest {
     highest_accepted_rounds: Vec<Round>,
 }
 
+impl EntryLimit for FetchBlockHeadersRequest {
+    // A client asks for at most its own header cap, and prost packs the rounds
+    // into one field.
+    const MAX_ENTRIES: usize = MAX_HEADERS_PER_FETCH + 1;
+}
+
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlockHeadersResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]
     vec_serialized_block_header: Vec<Bytes>,
+}
+
+impl EntryLimit for FetchBlockHeadersResponse {
+    const MAX_ENTRIES: usize = MAX_HEADERS_PER_FETCH;
 }
 
 #[allow(unused)]
@@ -1954,7 +1974,7 @@ mod tests {
 
     use bytes::Bytes;
     use futures::{StreamExt as _, stream};
-    use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH};
+    use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_FETCH};
 
     use super::{
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
@@ -2317,17 +2337,17 @@ mod tests {
     async fn header_sync_rejects_headers_past_the_ceiling() {
         let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let flood = stream::iter([Ok(header_chunk(MAX_HEADERS_PER_HEADER_SYNC_FETCH + 1, 1))]);
+        let flood = stream::iter([Ok(header_chunk(MAX_HEADERS_PER_FETCH + 1, 1))]);
 
         let result = collect_block_headers(&context, peer, flood, false).await;
 
         assert!(matches!(
             result,
             Err(ConsensusError::TooManyFetchedHeadersReturned {
-                requested: MAX_HEADERS_PER_HEADER_SYNC_FETCH,
+                requested: MAX_HEADERS_PER_FETCH,
                 received,
                 ..
-            }) if received == MAX_HEADERS_PER_HEADER_SYNC_FETCH + 1
+            }) if received == MAX_HEADERS_PER_FETCH + 1
         ));
     }
 
@@ -2475,7 +2495,7 @@ mod tests {
         // since the peer's gap-fill follows its own cap.
         assert_eq!(
             max_fetch_block_headers_response_bytes(&context, false),
-            MAX_HEADERS_PER_HEADER_SYNC_FETCH * header_entry
+            MAX_HEADERS_PER_FETCH * header_entry
         );
         // The transaction budget is one maximum-size entry per requested
         // reference, independent of the transaction caps above.
@@ -3095,6 +3115,124 @@ mod tests {
             received.last(),
             Some(Err(ConsensusError::NetworkRequest(_)))
         ));
+    }
+
+    /// Sent through the tonic server and client, a header response at the
+    /// ceiling arrives whole, and one past it is refused while it is decoded
+    /// and charged to the peer.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_header_response_past_the_ceiling_is_refused_while_decoding() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::{FetchBlockHeadersRequest, TonicManager, TooManyEntries};
+        use crate::network::{NetworkClient as _, test_network::TestService};
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let service = Arc::new(Mutex::new(TestService::new()));
+        let mut server = TonicManager::new(
+            Arc::new(context.clone().with_authority_index(server_index)),
+            keys[0].0.clone(),
+        );
+        server.install_service(service.clone()).await;
+        let client = TonicManager::<Mutex<TestService>>::new(
+            Arc::new(
+                context
+                    .clone()
+                    .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+            ),
+            keys[1].0.clone(),
+        )
+        .client();
+        // Header sync, which accepts any peer's response up to the ceiling.
+        let fetch =
+            || client.fetch_block_headers(server_index, vec![], vec![0; 4], Duration::from_secs(5));
+
+        // Empty headers, which the server sends as a single message.
+        service.lock().fetch_block_headers_response = vec![Bytes::new(); MAX_HEADERS_PER_FETCH];
+        let headers = fetch().await.expect("a response at the ceiling is kept");
+        assert_eq!(headers.len(), MAX_HEADERS_PER_FETCH);
+
+        service.lock().fetch_block_headers_response = vec![Bytes::new(); MAX_HEADERS_PER_FETCH + 1];
+        let mut stub = client
+            .get_client(server_index, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let mut stream = stub
+            .fetch_block_headers(FetchBlockHeadersRequest {
+                block_refs: vec![],
+                highest_accepted_rounds: vec![0; 4],
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let status = stream.message().await.unwrap_err();
+        assert!(TooManyEntries::from_status(&status).is_some());
+        assert!(matches!(
+            fetch().await,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: MAX_HEADERS_PER_FETCH,
+                received,
+                ..
+            }) if received == MAX_HEADERS_PER_FETCH + 1
+        ));
+    }
+
+    /// A header request past the ceiling is refused while the server decodes
+    /// it, before the service sees it; one at the ceiling is served.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_header_request_past_the_ceiling_is_refused_while_decoding() {
+        use parking_lot::Mutex;
+
+        use super::{FetchBlockHeadersRequest, TonicManager};
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let service = Arc::new(Mutex::new(TestService::new()));
+        let mut server = TonicManager::new(
+            Arc::new(context.clone().with_authority_index(server_index)),
+            keys[0].0.clone(),
+        );
+        server.install_service(service.clone()).await;
+        let client = TonicManager::<Mutex<TestService>>::new(
+            Arc::new(
+                context
+                    .clone()
+                    .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+            ),
+            keys[1].0.clone(),
+        )
+        .client();
+        let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchBlockHeaders");
+        let fetch = |block_refs: usize| {
+            unread_call::<_, FetchBlockHeadersResponse>(
+                &client,
+                server_index,
+                &path,
+                FetchBlockHeadersRequest {
+                    block_refs: vec![vec![]; block_refs],
+                    highest_accepted_rounds: vec![0; 4],
+                },
+            )
+        };
+
+        let served = fetch(MAX_HEADERS_PER_FETCH)
+            .await
+            .expect("a request at the ceiling is served");
+        assert!(served.into_inner().message().await.unwrap().is_none());
+        assert_eq!(service.lock().handle_fetch_block_headers.len(), 1);
+
+        let status = match fetch(MAX_HEADERS_PER_FETCH + 1).await {
+            Err(status) => status,
+            Ok(response) => response.into_inner().message().await.unwrap_err(),
+        };
+        assert_eq!(status.code(), tonic::Code::OutOfRange);
+        assert_eq!(service.lock().handle_fetch_block_headers.len(), 1);
     }
 
     /// Opens a server-streaming call and returns its response stream without
