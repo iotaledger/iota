@@ -9,7 +9,7 @@
 //! `Bytes` once decoded, so the message size limit alone lets a peer make the
 //! decoder build 16 times the message in `Bytes`.
 
-use std::{error::Error as _, marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 use bytes::{Buf, BufMut};
 use prost::{
@@ -28,22 +28,19 @@ pub(crate) trait EntryLimit {
     /// of a `Vec<Bytes>` field counts as one entry, and a whole `Vec<u32>` field
     /// counts as one, because protobuf encodes the numbers together.
     const MAX_ENTRIES: usize;
+    /// Message of the status the decoder returns when it refuses a message of
+    /// this type: `TOO_MANY_ENTRIES_IN_REQUEST` or
+    /// `TOO_MANY_ENTRIES_IN_RESPONSE`.
+    const REFUSAL: &'static str;
 }
 
-/// The decoder refused a message carrying more than `limit` entries.
-#[derive(Debug, thiserror::Error)]
-#[error("message carries more than {limit} entries")]
-pub(crate) struct TooManyEntries {
-    pub(crate) limit: usize,
-}
+/// Refusal message for a request carrying more entries than its type allows.
+pub(crate) const TOO_MANY_ENTRIES_IN_REQUEST: &str =
+    "request carries more entries than its type allows";
 
-impl TooManyEntries {
-    /// The refusal behind `status`, if our decoder refused the message. A
-    /// status received from the peer never carries one.
-    pub(crate) fn from_status(status: &Status) -> Option<&Self> {
-        status.source()?.downcast_ref()
-    }
-}
+/// Refusal message for a response carrying more entries than its type allows.
+pub(crate) const TOO_MANY_ENTRIES_IN_RESPONSE: &str =
+    "response carries more entries than its type allows";
 
 /// A prost codec whose decoder refuses a message carrying more entries than
 /// its type allows.
@@ -105,13 +102,8 @@ fn decode_bounded<U: Message + Default + EntryLimit>(buf: impl Buf) -> Result<U,
         .merge(buf)
         .map_err(|e| Status::internal(e.to_string()))?;
     if bounded.entries > U::MAX_ENTRIES {
-        let refused = TooManyEntries {
-            limit: U::MAX_ENTRIES,
-        };
         // OUT_OF_RANGE, as tonic answers a message over its size limit.
-        let mut status = Status::out_of_range(refused.to_string());
-        status.set_source(Arc::new(refused));
-        return Err(status);
+        return Err(Status::out_of_range(U::REFUSAL));
     }
     Ok(bounded.message)
 }
@@ -168,6 +160,7 @@ mod tests {
 
     impl EntryLimit for Entries {
         const MAX_ENTRIES: usize = 4;
+        const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
     }
 
     fn encoded(entries: Vec<Bytes>) -> Bytes {
@@ -188,10 +181,7 @@ mod tests {
         let status = decode_bounded::<Entries>(encoded(vec![Bytes::new(); 5])).unwrap_err();
 
         assert_eq!(status.code(), tonic::Code::OutOfRange);
-        assert_eq!(
-            TooManyEntries::from_status(&status).map(|refused| refused.limit),
-            Some(4)
-        );
+        assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_RESPONSE);
     }
 
     /// However many entries a message carries, decoding builds at most the
@@ -215,6 +205,6 @@ mod tests {
         let status = decode_bounded::<Entries>(Bytes::from_static(&[0x0a, 0x05])).unwrap_err();
 
         assert_eq!(status.code(), tonic::Code::Internal);
-        assert!(TooManyEntries::from_status(&status).is_none());
+        assert_ne!(status.message(), TOO_MANY_ENTRIES_IN_RESPONSE);
     }
 }

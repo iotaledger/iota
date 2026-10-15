@@ -37,7 +37,7 @@ use super::{
     BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
     SerializedBlockBundle, TransactionChunkStream,
     admission::AdmissionLayer,
-    bounded_codec::{EntryLimit, TooManyEntries},
+    bounded_codec::{EntryLimit, TOO_MANY_ENTRIES_IN_REQUEST, TOO_MANY_ENTRIES_IN_RESPONSE},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -689,13 +689,13 @@ where
             Err(e) => {
                 // The decoder refuses a message at the first header past its
                 // ceiling, so the message carried at least one more.
-                if let Some(refused) = TooManyEntries::from_status(&e) {
+                if e.message() == TOO_MANY_ENTRIES_IN_RESPONSE {
                     return Err(ConsensusError::TooManyFetchedHeadersReturned {
                         peer,
                         requested: max_headers,
                         received: vec_serialized_block_header
                             .len()
-                            .saturating_add(refused.limit + 1),
+                            .saturating_add(FetchBlockHeadersResponse::MAX_ENTRIES + 1),
                     });
                 }
                 if vec_serialized_block_header.is_empty() {
@@ -770,7 +770,7 @@ where
                 break;
             }
             Err(e) => {
-                if TooManyEntries::from_status(&e).is_some() {
+                if e.message() == TOO_MANY_ENTRIES_IN_RESPONSE {
                     return Err(ConsensusError::TooManyFetchedTransactionsReturned(peer));
                 }
                 if vec_serialized_transactions.is_empty() {
@@ -1811,6 +1811,7 @@ impl EntryLimit for FetchBlockHeadersRequest {
     // A client asks for at most its own header cap, plus one entry for the
     // whole rounds vector.
     const MAX_ENTRIES: usize = MAX_HEADERS_PER_FETCH + 1;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
 }
 
 #[derive(Clone, prost::Message)]
@@ -1821,6 +1822,7 @@ pub(crate) struct FetchBlockHeadersResponse {
 
 impl EntryLimit for FetchBlockHeadersResponse {
     const MAX_ENTRIES: usize = MAX_HEADERS_PER_FETCH;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
 }
 
 #[allow(unused)]
@@ -1915,6 +1917,7 @@ pub(crate) struct FetchTransactionsRequest {
 
 impl EntryLimit for FetchTransactionsRequest {
     const MAX_ENTRIES: usize = MAX_TRANSACTIONS_PER_FETCH;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
 }
 
 #[derive(Clone, prost::Message)]
@@ -1925,6 +1928,7 @@ pub(crate) struct FetchTransactionsResponse {
 
 impl EntryLimit for FetchTransactionsResponse {
     const MAX_ENTRIES: usize = MAX_TRANSACTIONS_PER_FETCH;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
 }
 
 /// Packs the commits and certifier headers of a fast commit-sync response into
@@ -3141,7 +3145,7 @@ mod tests {
     async fn a_header_response_past_the_ceiling_is_refused_while_decoding() {
         use std::time::Duration;
 
-        use super::{FetchBlockHeadersRequest, TooManyEntries};
+        use super::{FetchBlockHeadersRequest, TOO_MANY_ENTRIES_IN_RESPONSE};
         use crate::network::NetworkClient as _;
 
         let service = Arc::new(Mutex::new(TestService::new()));
@@ -3169,7 +3173,7 @@ mod tests {
             .unwrap()
             .into_inner();
         let status = stream.message().await.unwrap_err();
-        assert!(TooManyEntries::from_status(&status).is_some());
+        assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_RESPONSE);
         assert!(matches!(
             fetch().await,
             Err(ConsensusError::TooManyFetchedHeadersReturned {
@@ -3181,11 +3185,15 @@ mod tests {
     }
 
     /// A header request past the ceiling is refused while the server decodes
-    /// it, before the service sees it; one at the ceiling is served.
+    /// it, before the service sees it, and the client does not charge the
+    /// server for it; one at the ceiling is served.
     #[cfg(not(msim))]
     #[tokio::test]
     async fn a_header_request_past_the_ceiling_is_refused_while_decoding() {
-        use super::FetchBlockHeadersRequest;
+        use std::time::Duration;
+
+        use super::{FetchBlockHeadersRequest, TOO_MANY_ENTRIES_IN_REQUEST};
+        use crate::{block_header::BlockRef, network::NetworkClient as _};
 
         let service = Arc::new(Mutex::new(TestService::new()));
         let (_server, client, server_index) = serve(service.clone()).await;
@@ -3213,6 +3221,16 @@ mod tests {
             Ok(response) => response.into_inner().message().await.unwrap_err(),
         };
         assert_eq!(status.code(), tonic::Code::OutOfRange);
+        assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_REQUEST);
+        let refused = client
+            .fetch_block_headers(
+                server_index,
+                vec![BlockRef::MIN; MAX_HEADERS_PER_FETCH + 1],
+                vec![0; 4],
+                Duration::from_secs(5),
+            )
+            .await;
+        assert!(matches!(refused, Err(ConsensusError::NetworkRequest(_))));
         assert_eq!(service.lock().handle_fetch_block_headers.len(), 1);
     }
 
@@ -3226,7 +3244,7 @@ mod tests {
 
         use starfish_config::MAX_TRANSACTIONS_PER_FETCH;
 
-        use super::{FetchTransactionsRequest, TooManyEntries};
+        use super::{FetchTransactionsRequest, TOO_MANY_ENTRIES_IN_RESPONSE};
         use crate::{network::NetworkClient as _, transaction_ref::TransactionRef};
 
         let service = Arc::new(Mutex::new(TestService::new()));
@@ -3254,7 +3272,7 @@ mod tests {
             .unwrap()
             .into_inner();
         let status = stream.message().await.unwrap_err();
-        assert!(TooManyEntries::from_status(&status).is_some());
+        assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_RESPONSE);
         assert!(matches!(
             fetch().await,
             Err(ConsensusError::TooManyFetchedTransactionsReturned(peer)) if peer == server_index
@@ -3262,13 +3280,17 @@ mod tests {
     }
 
     /// A transaction request past the ceiling is refused while the server
-    /// decodes it, before the service sees it; one at the ceiling is served.
+    /// decodes it, before the service sees it, and the client does not charge
+    /// the server for it; one at the ceiling is served.
     #[cfg(not(msim))]
     #[tokio::test]
     async fn a_transaction_request_past_the_ceiling_is_refused_while_decoding() {
+        use std::time::Duration;
+
         use starfish_config::MAX_TRANSACTIONS_PER_FETCH;
 
-        use super::FetchTransactionsRequest;
+        use super::{FetchTransactionsRequest, TOO_MANY_ENTRIES_IN_REQUEST};
+        use crate::{network::NetworkClient as _, transaction_ref::TransactionRef};
 
         let service = Arc::new(Mutex::new(TestService::new()));
         let (_server, client, server_index) = serve(service.clone()).await;
@@ -3295,6 +3317,15 @@ mod tests {
             Ok(response) => response.into_inner().message().await.unwrap_err(),
         };
         assert_eq!(status.code(), tonic::Code::OutOfRange);
+        assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_REQUEST);
+        let refused = client
+            .fetch_transactions(
+                server_index,
+                vec![TransactionRef::default(); MAX_TRANSACTIONS_PER_FETCH + 1],
+                Duration::from_secs(5),
+            )
+            .await;
+        assert!(matches!(refused, Err(ConsensusError::NetworkRequest(_))));
         assert_eq!(service.lock().handle_fetch_transactions.len(), 1);
     }
 
