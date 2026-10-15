@@ -25,13 +25,13 @@ use prometheus_filtered::Registry;
 use tempfile::TempDir;
 use typed_store::{database::wait_for_database_close, traits::Map};
 
-use super::{KEYS_PER_SLICE, ObjectBacklogSweep, ObjectBacklogSweepProgress, sweep};
+use super::{KEYS_PER_SLICE, ObjectBacklogSweep, ObjectBacklogSweepProgress, WALK_RANGES, sweep};
 use crate::{
     authority::{
         AuthorityStore,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
-        ledger_backlog_migration::migrate,
+        ledger_backlog_migration::{RangeProgress, migrate},
     },
     checkpoints::CheckpointStore,
     test_utils::executed_checkpoint,
@@ -120,8 +120,14 @@ fn sweeper(store: &AuthorityStore, keys_per_slice: usize) -> ObjectBacklogSweep 
 
 /// Runs the whole walk, in slices of `keys_per_slice`.
 fn sweep_all(store: &AuthorityStore, keys_per_slice: usize) {
-    let sweep = sweeper(store, keys_per_slice);
-    while sweep.sweep_slice(SWEEP_EPOCH).unwrap().1 {}
+    sweeper(store, keys_per_slice)
+        .walk_in_parallel(SWEEP_EPOCH)
+        .unwrap();
+}
+
+/// The walk range holding `id`'s versions.
+fn walk_range_of(id: ObjectId) -> usize {
+    usize::from(id.as_bytes()[0]) * WALK_RANGES / 256
 }
 
 fn live_keys(store: &AuthorityStore) -> Vec<ObjectKey> {
@@ -383,6 +389,46 @@ async fn a_relocated_version_is_readable_from_the_current_epoch_bucket() {
     }
 }
 
+/// Every range of the walk sweeps the objects whose ids fall in it,
+/// including the first and the last range.
+#[tokio::test]
+async fn every_walk_range_sweeps_its_own_objects() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let ids: Vec<ObjectId> = [0x00, 0x07, 0x08, 0x80, 0xff]
+        .into_iter()
+        .map(|first| {
+            let mut bytes = [0x11; 32];
+            bytes[0] = first;
+            ObjectId::new(bytes)
+        })
+        .collect();
+    store
+        .perpetual_tables
+        .objects
+        .multi_insert(
+            ids.iter()
+                .flat_map(|id| [value(*id, 1), value(*id, 2), value(*id, 3)]),
+        )
+        .unwrap();
+
+    sweep_all(&store, 1);
+
+    assert_eq!(
+        live_keys(&store),
+        ids.iter()
+            .map(|id| ObjectKey(*id, 3.into()))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        ids.iter()
+            .flat_map(|id| [ObjectKey(*id, 1.into()), ObjectKey(*id, 2.into())])
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
+}
+
 /// One call walks the whole table, however many slices that takes.
 #[tokio::test]
 async fn one_call_drives_the_walk_past_the_slice_boundary() {
@@ -425,13 +471,24 @@ async fn the_sweep_resumes_from_its_watermark() {
     let interrupted = open_store(&dir);
     seed(&interrupted);
     let sweep = sweeper(&interrupted, 1);
-    assert_eq!(sweep.sweep_slice(SWEEP_EPOCH).unwrap(), (1, true));
+    let range = walk_range_of(live_id());
+    let (mut batch, decided, next) = sweep.sweep_slice(range, None, SWEEP_EPOCH).unwrap();
+    assert_eq!(decided, 1);
+    let mut positions = vec![RangeProgress::At(None); WALK_RANGES];
+    positions[range] = next;
+    batch
+        .insert_batch(
+            &interrupted.perpetual_tables.object_backlog_sweep_progress,
+            [((), ObjectBacklogSweepProgress::Walking(positions))],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    let Some(ObjectBacklogSweepProgress::Walking(recorded)) = progress(&interrupted) else {
+        panic!("the interrupted walk must have recorded its ranges");
+    };
     assert_eq!(
-        progress(&interrupted),
-        Some(ObjectBacklogSweepProgress::SweptThrough(ObjectKey(
-            live_id(),
-            1.into()
-        )))
+        recorded[range],
+        RangeProgress::At(Some(ObjectKey(live_id(), 1.into())))
     );
     assert_eq!(live_keys(&interrupted).len(), 8);
     assert_eq!(
