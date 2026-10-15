@@ -202,7 +202,7 @@ impl ClientAccessManager {
                 client,
                 ttl_secs,
                 reason,
-                !self.dry_run(),
+                || !self.dry_run(),
             ) {
                 log_block(client, reason, ttl_secs);
             }
@@ -220,7 +220,7 @@ impl ClientAccessManager {
                 client,
                 self.blocklist_ttls.proxy_blocklist_ttl_sec(),
                 reason,
-                false,
+                || false,
             );
         }
     }
@@ -298,19 +298,24 @@ fn blocked(client: &Option<IpAddr>, blocklist: &Blocklist) -> bool {
 
 /// Blocks a client for `ttl_secs`, counting it only when it was not already
 /// blocked so that the gauge matches the blocklist length. Returns whether to
-/// log the block: with `log` set, once per block rather than once per breach,
-/// and again once the block has expired.
+/// log the block: when `log` returns true, once per block rather than once per
+/// breach, and again once the block has expired.
 fn insert_block(
     blocklist: &Blocklist,
     len_gauge: &IntGauge,
     client: IpAddr,
     ttl_secs: u64,
     reason: BlockReason,
-    log: bool,
+    log: impl FnOnce() -> bool,
 ) -> bool {
     let now = SystemTime::now();
     let expiration = now + Duration::from_secs(ttl_secs);
-    match blocklist.entry(client) {
+    let entry = blocklist.entry(client);
+    // Asked under the entry lock, which `log_unlogged_blocks` also takes, so
+    // that a block applied while dry run is turned off is logged either here
+    // or there.
+    let log = log();
+    match entry {
         Entry::Vacant(entry) => {
             debug!("Adding client {client:?} to blocklist");
             len_gauge.inc();
