@@ -98,7 +98,7 @@ mod package;
 pub mod reader;
 mod shared;
 
-#[cfg(test)]
+#[cfg(all(test, not(msim)))]
 #[path = "../unit_tests/post_consensus_determinism_tests.rs"]
 mod post_consensus_determinism_tests;
 
