@@ -5,17 +5,23 @@
 //! and the store handles, and takes each input through its read steps, from
 //! the first read to a result.
 
-use std::sync::Arc;
+use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, ObjectReference, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_types::{
-    error::{IotaError, IotaResult},
-    storage::{BackingPackageStore, ObjectKey, PackageObject},
+    deny_list_v1::coin_deny_list_v1_denial,
+    error::{IotaError, IotaResult, UserInputError},
+    object::Object,
+    storage::{
+        BackingPackageStore, ObjectKey, ObjectStore, PackageObject,
+        error::{Error as StorageError, Result as StorageResult},
+    },
 };
 
 use super::{
-    DropKind, DropReason, KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
+    DenyListField, DropKind, DropReason, KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
+    deny_list::{DenyListFieldReader, HighestRowLookup, RowLookup},
     owned::{
         LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
         TablesRecheck,
@@ -23,7 +29,7 @@ use super::{
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
         CreatedObjectLookup, DeletionRowLookup, ObjectAbsent, SharedReader, SharedTablesLookup,
-        SharedTablesRecheck,
+        SharedTablesRecheck, TypeObjectLookup,
     },
 };
 use crate::{
@@ -229,6 +235,101 @@ impl CommitIndexedReader {
         }
         Err(IotaError::Storage(format!(
             "kept input {key:?} has no bytes in the object store and no handler row above it"
+        )))
+    }
+
+    /// The deny-list field `id` as of the horizon, live or absent. Storage
+    /// errors propagate, and so does a version the read needs but the store
+    /// no longer holds.
+    pub fn read_deny_list_field(&self, id: ObjectId) -> IotaResult<DenyListField> {
+        let mut lookup =
+            match DenyListFieldReader::start(id, self.horizon).read_highest_row(self)? {
+                HighestRowLookup::Row(lookup) => lookup,
+                HighestRowLookup::NoRow(no_row) => {
+                    no_row.read_object(self)?.reread_highest_row(self)?
+                }
+            };
+        loop {
+            lookup = match lookup {
+                RowLookup::NeedBytes(need_bytes) => return need_bytes.load_bytes(self),
+                RowLookup::Decided(field) => return Ok(field),
+                RowLookup::AboveHorizon(above) => above.read_row_below(self)?,
+            };
+        }
+    }
+
+    /// An object of the kept shared input `id` declared at
+    /// `initial_shared_version`, for its type. Storage errors propagate, and
+    /// so does an input with neither a live object nor the version its
+    /// deletion replaced.
+    pub fn read_shared_object_for_type(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<Object> {
+        match SharedReader::start_type_read(id, initial_shared_version, self.horizon)
+            .read_object(self)?
+        {
+            TypeObjectLookup::Live(object) => Ok(object),
+            TypeObjectLookup::Deleted(deleted) => deleted.read_deletion_row(self)?.load_bytes(self),
+        }
+    }
+}
+
+/// The coin deny list as of a commit's horizon, for the deny check at the
+/// commit. It reads through the commit's one reader, so every transaction in
+/// the commit sees the same deny list. Only latest-object reads are answered:
+/// reading an exact version through it is a storage error.
+pub struct DenyListAtCommit<'a> {
+    reader: &'a CommitIndexedReader,
+    /// The reader's error behind the storage error the last failed read
+    /// returned, which keeps only its text.
+    reader_error: RefCell<Option<IotaError>>,
+}
+
+impl<'a> DenyListAtCommit<'a> {
+    pub fn new(reader: &'a CommitIndexedReader) -> Self {
+        Self {
+            reader,
+            reader_error: RefCell::new(None),
+        }
+    }
+
+    /// [`coin_deny_list_v1_denial`] as of the horizon. A failed read returns
+    /// the reader's own error, so the end of the epoch stays
+    /// `IotaError::EpochEnded`.
+    pub fn denial(
+        &self,
+        address: Address,
+        coin_types: BTreeSet<String>,
+    ) -> IotaResult<Option<UserInputError>> {
+        coin_deny_list_v1_denial(address, coin_types, self)
+            .map_err(|error| self.reader_error.take().unwrap_or(error))
+    }
+}
+
+impl ObjectStore for DenyListAtCommit<'_> {
+    fn try_get_object(&self, object_id: &ObjectId) -> StorageResult<Option<Object>> {
+        self.reader
+            .read_deny_list_field(*object_id)
+            .map(|field| match field {
+                DenyListField::Live(object) => Some(object),
+                DenyListField::Absent => None,
+            })
+            .map_err(|error| {
+                let storage_error = StorageError::custom(error.to_string());
+                *self.reader_error.borrow_mut() = Some(error);
+                storage_error
+            })
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> StorageResult<Option<Object>> {
+        Err(StorageError::custom(format!(
+            "the deny list at a commit reads no exact version, asked for {object_id} at {version}"
         )))
     }
 }

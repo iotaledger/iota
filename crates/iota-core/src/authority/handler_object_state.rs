@@ -714,6 +714,46 @@ impl HandlerObjectState {
         })
     }
 
+    /// The handler-processed row of `id` at its highest version below
+    /// `version`, from the overlay or the durable table, whichever holds the
+    /// higher version. A key present in both carries the same row. Returns
+    /// the row unconditionally and, like
+    /// [`Self::highest_handler_processed_row`], bypasses the read-through
+    /// cache.
+    ///
+    /// A caller walking down from the highest row to find the version live
+    /// at a horizon relies on the versions of `id` rising with
+    /// `produced_at`. That holds for an object that changes only through a
+    /// shared parent, such as a dynamic field of the coin deny list: its
+    /// versions are assigned in the order of the commits that change it.
+    pub fn highest_handler_processed_row_below(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let below = ObjectKey::min_for_id(id)..ObjectKey(*id, version);
+        let overlay_row = self
+            .handler_processed_overlay
+            .read()
+            .range(below.clone())
+            .next_back()
+            .map(|(key, row)| (*key, *row));
+        let durable_row = tables
+            .handler_processed_objects
+            .safe_range_iter_reversed(below)
+            .next()
+            .transpose()?;
+        Ok(match (overlay_row, durable_row) {
+            (Some(overlay), Some(durable)) => Some(if overlay.0 >= durable.0 {
+                overlay
+            } else {
+                durable
+            }),
+            (overlay, durable) => overlay.or(durable),
+        })
+    }
+
     /// Stages a commit's handler-processed rows into `batch`, the quarantine
     /// flush of the commit's own output, atomic with `last_consensus_stats`.
     /// After the batch is durably written - never before - pass the same

@@ -3,7 +3,9 @@
 
 //! Reads the inputs of a transaction for post-consensus validation as of a
 //! consensus commit, so that every validator reaches the same result,
-//! however far its own execution has got.
+//! however far its own execution has got. It also reads the dynamic fields
+//! of the coin deny list as of the horizon, for the coin deny check at the
+//! commit. That read answers present or absent, not keep, drop or missing.
 //!
 //! Terms used here and in the submodules:
 //! - `C` is the commit being validated.
@@ -91,6 +93,21 @@
 //! still holds the object: the input checks reject a child named as an owned
 //! input, and a received object unless the sender is the address of the
 //! object it was sent to.
+//!
+//! # The coin deny list as of the horizon
+//!
+//! The deny list reader walks down from a field's highest row to the highest
+//! one at or below the horizon. That needs the field's versions to rise with
+//! the commits that change it, which holds for the fields of the deny list:
+//! they change only through the shared deny list object, so in the order of
+//! the commits that change them. A field with no row reads the store and then
+//! the rows again, as explained under "Why the store answer for an id with no
+//! row is the epoch-start state" above.
+//!
+//! The coin deny check also needs the type of a kept shared input, whose
+//! object the shared reader does not read. That read takes the latest store
+//! object even when rows exist, because an object's type never changes, and
+//! once the object is gone, the version its deletion replaced.
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
@@ -99,6 +116,7 @@ use iota_types::{
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
 };
 
+mod deny_list;
 mod owned;
 mod package;
 pub mod reader;
@@ -142,6 +160,17 @@ pub enum PackageVerdict {
     /// package, for the input loader and the deny check.
     Visible(PackageObject),
     Missing(MissingReason),
+}
+
+/// The reader's result for one dynamic field of the coin deny list, as of
+/// the horizon. The coin deny check decides from it.
+#[must_use]
+#[derive(Debug, PartialEq, Eq)]
+pub enum DenyListField {
+    /// The field's object at the version live at the horizon.
+    Live(Object),
+    /// The field did not exist at the horizon, or was deleted by then.
+    Absent,
 }
 
 /// The object of a kept input, loaded at exactly the version the
