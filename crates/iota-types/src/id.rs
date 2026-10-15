@@ -19,30 +19,10 @@ pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
     ident_str!("ID"),
 );
 
-mod uid_ext {
-    pub trait Sealed {}
-    impl Sealed for super::UID {}
-}
-
-pub trait UIDExt: Sized + uid_ext::Sealed {
-    fn layout() -> MoveStructLayout;
-}
-
-impl UIDExt for UID {
-    fn layout() -> MoveStructLayout {
-        MoveStructLayout {
-            type_: struct_tag_sdk_to_core(&StructTag::new_uid()),
-            fields: vec![MoveFieldLayout::new(
-                ident_str!("id").to_owned(),
-                MoveTypeLayout::Struct(Box::new(ID::layout())),
-            )],
-        }
-    }
-}
-
 mod id_ext {
     pub trait Sealed {}
     impl Sealed for super::ID {}
+    impl Sealed for super::UID {}
 }
 
 pub trait IDExt: Sized + id_ext::Sealed {
@@ -56,6 +36,18 @@ impl IDExt for ID {
             fields: vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Address,
+            )],
+        }
+    }
+}
+
+impl IDExt for UID {
+    fn layout() -> MoveStructLayout {
+        MoveStructLayout {
+            type_: struct_tag_sdk_to_core(&StructTag::new_uid()),
+            fields: vec![MoveFieldLayout::new(
+                ident_str!("id").to_owned(),
+                MoveTypeLayout::Struct(Box::new(ID::layout())),
             )],
         }
     }

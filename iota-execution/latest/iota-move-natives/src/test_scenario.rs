@@ -19,7 +19,7 @@ use iota_sdk_types::{
 use iota_types::{
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
-    id::UIDExt,
+    id::IDExt,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{MoveStructExt, Object},

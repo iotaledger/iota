@@ -79,7 +79,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::id::UIDExt;
+    use crate::id::IDExt;
 
     #[test]
     fn test_traverse_balance() {

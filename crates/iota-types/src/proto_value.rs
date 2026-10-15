@@ -12,7 +12,7 @@ use prost_types::{Struct, Value, value::Kind};
 use crate::{
     balance::Balance,
     base_types::{RESOLVED_STD_OPTION, move_ascii_str_layout, move_utf8_str_layout, url_layout},
-    id::{IDExt, UIDExt},
+    id::IDExt,
     object::option_visitor as OV,
 };
 
