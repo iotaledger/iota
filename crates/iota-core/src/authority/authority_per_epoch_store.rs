@@ -1930,8 +1930,8 @@ impl AuthorityPerEpochStore {
     /// Records one executed transaction's object writes for the P-COOL
     /// deterministic-validation bookkeeping; see
     /// [`HandlerObjectState::record_executed_transaction`]. The caller skips
-    /// genesis and the change-epoch transaction, which run outside any
-    /// commit.
+    /// genesis transactions, the epoch-0 migration transactions among them,
+    /// and the change-epoch transaction, which run outside any commit.
     ///
     /// Every other execution belongs to a commit the handler has assigned,
     /// unless this node executes synced checkpoints for the rest of the
