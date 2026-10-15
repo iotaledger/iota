@@ -54,7 +54,7 @@ impl Metrics {
                 &format!("{prefix}_pending_handshakes_peak"),
                 "The most TLS handshakes pending at the same time over the last 2 minutes. \
                  At the configured maximum of pending connections the accept loop stops \
-                 accepting",
+                 accepting, or resets new connections if the listener has a connection limit",
                 module_path!(),
                 registry,
                 level,

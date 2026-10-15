@@ -23,8 +23,8 @@ Use this guide to install and configure an full node locally using Docker.
 
 Before you begin, ensure you have the following:
 
-- [Docker](https://docs.docker.com/get-docker/) installed.
-- [Docker Compose](https://docs.docker.com/compose/install/) installed.
+- [Docker](https://docs.docker.com/get-docker/) Engine 28 or later installed.
+- [Docker Compose](https://docs.docker.com/compose/install/) 2.33.1 or later installed.
 
 <Ports/>
 
@@ -58,6 +58,8 @@ The command will perform the following steps:
 
 You can modify the node configuration file (`data/config/fullnode.yaml`) according to your needs.
 
+The setup runs HAProxy in front of the JSON-RPC port (9000). HAProxy limits the connections of each client address and writes the client address for the node. The node does not publish its own JSON-RPC port. The metrics of the node (9184) and of HAProxy (8404) are published on `127.0.0.1` only. For the values and how to change them, and for the upgrade of a setup that you downloaded before, see [Proxy and Firewall Setup](../proxy-and-firewall.mdx).
+
 ## Prepare your Full Node
 
 Run the following command in the same directory:
@@ -87,7 +89,7 @@ docker compose logs -f
 ```
 
 :::tip
-These commands assume you are using Docker Compose V2. In Docker Compose V1, the `docker compose` command uses a dash (`docker-compose`). If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
+These commands use Docker Compose V2 (`docker compose`). Docker Compose V1 (`docker-compose`) cannot read the compose file of this setup.
 :::
 
 ## Stop the Full Node

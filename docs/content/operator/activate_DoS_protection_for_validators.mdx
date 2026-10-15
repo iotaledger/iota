@@ -24,7 +24,9 @@ Set `dry-run: false` to make the node block them, for `connection-blocklist-ttl-
 The TrafficController monitors incoming requests to your validator node and can block IP addresses that exceed certain thresholds. It can operate in two modes:
 
 1. **Non-proxy mode** - For validators that receive traffic directly from clients.
-2. **Proxy mode** - For validators behind load balancers or proxies.
+2. **Proxy mode** - For nodes behind load balancers or proxies that add the `x-forwarded-for` header, such as the JSON-RPC port of a full node behind HAProxy.
+
+For connection limits per client address in front of the node, see [Proxy and Firewall Setup](./proxy-and-firewall.mdx).
 
 ## Configuration Parameters
 
@@ -100,6 +102,8 @@ firewall-config:
   drain-timeout-secs: 300
 ```
 
+A `policy-config` block replaces the whole default policy. Fields that the block does not set get their own defaults, which are not the values of the default policy: for example, a block that sets only `client-id-source` turns off the spam and error policies. Write out all fields.
+
 While `dry-run` is enabled, the node sends no blocks to the firewall. Set `dry-run: false` in `policy-config` to start delegating.
 
 The `burst-secs` key had the name `window-size-secs` before. The node continues to accept the old name, but the old name is deprecated. Change your configuration to `burst-secs`.
@@ -125,7 +129,11 @@ policy-config:
 
 ## Proxy Mode Configuration
 
-If your validator is behind a load balancer or proxy, use this configuration:
+Use this mode if a proxy in front of the node adds the client address in the `x-forwarded-for` header, for example HAProxy in front of the JSON-RPC port of a full node. Only the proxy must be able to reach the port of the node, because the node uses the address in the header as the address of the client.
+
+A validator keeps `client-id-source: socket-addr`. The gRPC port of a validator (8080) uses TLS, and clients check the network key of the validator. A proxy in front of this port can only pass the TLS connections through, so it cannot add a header.
+
+Proxy mode configuration:
 
 ```yaml
 policy-config:
@@ -247,6 +255,8 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.
 
 ## Troubleshooting
+
+If clients get TCP resets or JSON-RPC errors from HAProxy, check the connection limits in [Proxy and Firewall Setup](./proxy-and-firewall.mdx).
 
 If legitimate traffic is being blocked:
 

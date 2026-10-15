@@ -100,6 +100,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable iota-node.service
 ```
 
+To limit the connections of each client address on the gRPC port (8080) with nftables, install the `iota-node-limits` unit as in [Proxy and Firewall Setup](../proxy-and-firewall.mdx#systemd-validator).
+
 ### 2.4. Download the Configuration Template
 
 ```bash
@@ -111,6 +113,8 @@ cd /opt/iota/config
 ### 2.5. Configure the P2P Settings
 
 <ValidatorP2P />
+
+Set `metrics-address: "127.0.0.1:9184"` in `validator.yaml`, so that the metrics port is reachable from this host only.
 
 ### 2.6. Download the Genesis Blobs
 

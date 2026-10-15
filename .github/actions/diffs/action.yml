@@ -69,6 +69,8 @@ runs:
             - "Cargo.lock"
             - "rust-toolchain.toml"
             - ".config/nextest.toml"
+            # Read by a test in iota-config (see .github/crates-filters.yml).
+            - "setups/fullnode/fullnode-*.yaml"
           isRustWorkspaceConfig:
             - "Cargo.toml"
             - "Cargo.lock"

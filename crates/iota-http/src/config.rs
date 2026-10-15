@@ -38,6 +38,7 @@ pub struct Config {
     pub(crate) max_connection_age: Option<Duration>,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
+    pub(crate) max_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
     pub(crate) metrics: Option<ListenerMetrics>,
@@ -93,6 +94,7 @@ impl Default for Config {
             max_connection_age: None,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
+            max_connections: None,
             max_connections_per_peer: None,
             on_peer_connection_event: None,
             metrics: None,
@@ -127,7 +129,7 @@ impl Config {
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
     /// connections.
     ///
-    /// Default is no limit (`None`).
+    /// `None` keeps the transport's own default, currently 200.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#n-stream-concurrency
     pub fn max_concurrent_streams(self, max: impl Into<Option<u32>>) -> Self {
@@ -274,14 +276,33 @@ impl Config {
     }
 
     /// Sets how many accepted connections may be handshaking at the same time.
-    /// While the limit is reached the server stops accepting, leaving new
-    /// connections in the kernel backlog instead of holding file descriptors
-    /// for them.
+    /// While the limit is reached, a server with `max_connections` resets new
+    /// connections right after it accepts them. A server without it stops
+    /// accepting, leaving new connections in the kernel backlog instead of
+    /// holding file descriptors for them.
     ///
     /// Default is 4096. `None` removes the limit.
     pub fn max_pending_connections(self, max_pending_connections: Option<usize>) -> Self {
         Self {
             max_pending_connections,
+            ..self
+        }
+    }
+
+    /// Sets the most connections the listener holds at once, counted from the
+    /// TCP accept to the close, TLS handshakes included. A connection over the
+    /// limit is closed with a TCP reset right after it is accepted, before any
+    /// TLS work.
+    ///
+    /// The limit bounds the file descriptors of the listener. A connection that
+    /// switches protocols with an HTTP/1 upgrade, such as a WebSocket, leaves
+    /// the count when the upgrade completes, while its socket stays open.
+    ///
+    /// Default is no limit (`None`). `Some(0)` is rejected when the server
+    /// starts.
+    pub fn max_connections(self, max_connections: Option<usize>) -> Self {
+        Self {
+            max_connections,
             ..self
         }
     }
@@ -334,12 +355,19 @@ impl Config {
                 .into());
         }
 
+        if self.max_connections == Some(0) {
+            return Err("'max_connections' must be greater than zero, \
+                        a server that holds no connection is never useful"
+                .into());
+        }
+
         match self.max_pending_connections {
             Some(0) => Err("'max_pending_connections' must be greater than zero, \
                             a server that accepts no connection is never useful"
                 .into()),
-            // Reaching the limit stops accepting until a handshake finishes, so
-            // without a deadline enough silent peers stall the server for good.
+            // Reaching the limit stops accepting, or refuses every new connection,
+            // until a handshake finishes, so without a deadline enough silent peers
+            // stall the server for good.
             Some(_) if self.handshake_timeout.is_none() => Err(
                 "'max_pending_connections' requires a 'handshake_timeout' to release its \
                      slots"
@@ -372,12 +400,19 @@ impl Config {
             .http2_keepalive_timeout
             .unwrap_or_else(|| Duration::new(DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS, 0));
 
+        // hyper replaces its default with the value it is given, so `None`
+        // would remove the limit.
+        if let Some(max_concurrent_streams) = self.max_concurrent_streams {
+            builder
+                .http2()
+                .max_concurrent_streams(max_concurrent_streams);
+        }
+
         builder
             .http2()
             .timer(hyper_util::rt::TokioTimer::new())
             .initial_connection_window_size(self.init_connection_window_size)
             .initial_stream_window_size(self.init_stream_window_size)
-            .max_concurrent_streams(self.max_concurrent_streams)
             .keep_alive_interval(self.http2_keepalive_interval)
             .keep_alive_timeout(http2_keepalive_timeout)
             .adaptive_window(self.http2_adaptive_window.unwrap_or_default())

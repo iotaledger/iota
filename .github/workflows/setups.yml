@@ -1,0 +1,78 @@
+name: Setups
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "setups/**"
+      - ".github/workflows/setups.yml"
+  workflow_dispatch:
+    inputs:
+      node_image:
+        description: "Image with iota-node and iota-localnet for the end-to-end test"
+        type: string
+        default: "iotaledger/iota-tools:devnet"
+      node_grpc_max_connections:
+        description: "The node in the image has grpc-max-connections (runs check V8)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: setups-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+permissions:
+  contents: read
+
+jobs:
+  config-checks:
+    name: Config checks
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check the compose files
+        run: |
+          for file in setups/fullnode/docker/docker-compose.yaml setups/validator/docker-compose-*.yml; do
+            echo "$file"
+            docker compose -f "$file" config -q
+          done
+      - name: Check the HAProxy config
+        run: |
+          image=$(docker compose -f setups/fullnode/docker/docker-compose.yaml config --images | grep haproxy)
+          docker run --rm -e IOTA_JSONRPC_SERVER=fullnode:9000 \
+            -v "$PWD/setups/fullnode/docker/haproxy:/usr/local/etc/haproxy:ro" \
+            "$image" haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg
+          # The systemd guide copies the files of haproxy/ into an empty
+          # directory and uses the defaults of the environment variables.
+          dir=$(mktemp -d)
+          cp setups/fullnode/docker/haproxy/* "$dir/"
+          chmod 755 "$dir"
+          docker run --rm -v "$dir:/usr/local/etc/haproxy:ro" "$image" haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg
+      - name: Install nftables
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nftables
+      - name: Test the nftables rules generator
+        run: sh setups/validator/node-limits/tests/run.sh
+
+  end-to-end:
+    name: End-to-end test of the compose files
+    needs: config-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install nftables
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nftables
+      - name: Run the end-to-end test
+        run: bash setups/tests/compose-e2e/run.sh
+        env:
+          NODE_IMAGE: ${{ inputs.node_image || 'iotaledger/iota-tools:devnet' }}
+          NODE_GRPC_MAX_CONNECTIONS: ${{ inputs.node_grpc_max_connections && '1' || '0' }}
+          E2E_LOGDIR: ${{ runner.temp }}/compose-e2e-logs
+      - name: Upload the container logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compose-e2e-logs
+          retention-days: 7
+          path: ${{ runner.temp }}/compose-e2e-logs/*.log

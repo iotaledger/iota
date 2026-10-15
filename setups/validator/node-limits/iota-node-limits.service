@@ -1,0 +1,23 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# Keeps the connection limits of node-limits.sh loaded on a systemd host. The
+# service loads the rules again within 30 s if the table is removed (for
+# example by "nft -f" of a file that starts with "flush ruleset") or the
+# values file changes. "systemctl reload" loads a changed values file at once.
+[Unit]
+Description=Connection limits per client address for the IOTA validator ports
+After=nftables.service
+PartOf=nftables.service
+ReloadPropagatedFrom=nftables.service
+Before=iota-node.service
+
+[Service]
+Type=exec
+ExecStart=/bin/sh /opt/iota/node-limits/node-limits.sh run /etc/iota-node/node-limits.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

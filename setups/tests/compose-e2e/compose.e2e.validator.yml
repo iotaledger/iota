@@ -1,0 +1,9 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# Overrides of setups/validator/docker-compose-testnet.yml for run.sh.
+services:
+  iota-node:
+    image: ${NODE_IMAGE}
+    environment:
+      - RUST_LOG=info

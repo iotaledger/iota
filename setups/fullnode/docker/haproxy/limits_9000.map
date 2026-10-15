@@ -1,0 +1,10 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# Connection limit per client address on port 9000 for a network. The limit
+# is per IPv4 address or per IPv6 /64 inside the network. The longest prefix
+# wins. 0 means no limit. Networks that are not in this file get 64.
+#
+# <network> <connections>
+# 203.0.113.0/24 256
+# 2001:db8:1::/48 0

@@ -3,8 +3,8 @@ services:
     image: iotaledger/iota-node:_network_placeholder_
     ports:
       - "8084:8084/udp" # P2P port
-      - "9000:9000/tcp" # JSON-RPC port
-      - "9184:9184/tcp" # Metrics port
+      - "127.0.0.1:9184:9184/tcp" # Metrics port, this host only
+    # The JSON-RPC port (9000) is reached through the haproxy service only.
     volumes:
       - ./data:/opt/iota/:rw
     #environment:
@@ -19,3 +19,47 @@ services:
       "--config-path",
       "/opt/iota/config/fullnode.yaml",
     ]
+
+  # JSON-RPC port with connection limits per client address and timers. See
+  # haproxy/haproxy.cfg.
+  haproxy:
+    image: haproxy:3.4.7-alpine
+    ports:
+      - "9000:9000/tcp" # JSON-RPC port
+      - "127.0.0.1:8404:8404/tcp" # HAProxy metrics port, this host only
+    environment:
+      - IOTA_JSONRPC_SERVER=fullnode:9000
+      - IOTA_HAPROXY_METRICS_ADDRESS=0.0.0.0:8404
+    volumes:
+      # Without the haproxy directory, "up" fails and does not start HAProxy
+      # with an empty directory.
+      - type: bind
+        source: ./haproxy
+        target: /usr/local/etc/haproxy
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      default: {}
+      # The published ports use this network, so HAProxy sees the IPv6
+      # address of a client.
+      dual-stack:
+        gw_priority: 1
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+networks:
+  # The fullnode stays on the default network, which has IPv4 only. If its
+  # network had IPv6, Docker would send IPv6 traffic for the P2P port to the
+  # IPv6 address of the container, where the node does not listen.
+  dual-stack:
+    enable_ipv6: true

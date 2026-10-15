@@ -38,7 +38,7 @@ pub struct Config {
 
     /// Sets the SETTINGS_MAX_CONCURRENT_STREAMS option for HTTP2 connections.
     ///
-    /// Default is no limit (None).
+    /// `None` keeps the transport's own default, currently 200.
     pub http2_max_concurrent_streams: Option<u32>,
 
     /// Set whether TCP keepalive messages are enabled on accepted connections.
@@ -67,6 +67,13 @@ pub struct Config {
     ///
     /// Default is 20 seconds.
     pub http2_keepalive_timeout: Option<Duration>,
+
+    /// Only affects servers. The most connections the server holds at once,
+    /// TLS handshakes included; a connection over the limit is reset right
+    /// after it is accepted.
+    ///
+    /// Default is no limit (`None`).
+    pub max_connections: Option<usize>,
 
     // Only affects servers
     pub load_shed: Option<bool>,
@@ -110,5 +117,51 @@ impl Config {
             .http2_keepalive_timeout(self.http2_keepalive_timeout)
             .http2_keepalive_interval(self.http2_keepalive_interval)
             .tcp_keepalive(self.tcp_keepalive)
+            .max_connections(self.max_connections)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tokio::{io::AsyncReadExt, net::TcpStream};
+
+    use crate::config::Config;
+
+    /// The connection limit of the config is the one the listener enforces.
+    #[tokio::test]
+    async fn max_connections_reaches_the_listener() {
+        let config = Config {
+            max_connections: Some(2),
+            ..Config::new()
+        };
+        let server = config
+            .server_builder()
+            .bind(&"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(), None)
+            .await
+            .unwrap();
+        let addr = *server.handle().local_addr();
+
+        let _held = [
+            TcpStream::connect(addr).await.unwrap(),
+            TcpStream::connect(addr).await.unwrap(),
+        ];
+        // On loopback the reset can arrive before the connect completes.
+        let third = match TcpStream::connect(addr).await {
+            Ok(mut stream) => {
+                let mut buf = [0u8; 1];
+                tokio::time::timeout(Duration::from_secs(10), stream.read(&mut buf))
+                    .await
+                    .expect("the server must close a connection over the limit at once")
+            }
+            Err(e) => Err(e),
+        };
+        assert!(
+            matches!(&third, Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset),
+            "the third connection must be reset, got {third:?}"
+        );
+
+        server.trigger_shutdown();
     }
 }

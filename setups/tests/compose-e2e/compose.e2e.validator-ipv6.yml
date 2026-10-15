@@ -1,0 +1,7 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# IPv6 on the network of the validator, for the control of check V7.
+networks:
+  default:
+    enable_ipv6: true

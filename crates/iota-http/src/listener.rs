@@ -109,12 +109,19 @@ impl TcpListenerWithOptions {
         }
 
         if let Some(timeout) = self.keepalive {
-            let sock_ref = socket2::SockRef::from(&stream);
-            let sock_keepalive = socket2::TcpKeepalive::new().with_time(timeout);
+            // The simulator's `TcpStream` has no file descriptor: `SockRef`
+            // panics on it.
+            #[cfg(not(msim))]
+            {
+                let sock_ref = socket2::SockRef::from(&stream);
+                let sock_keepalive = socket2::TcpKeepalive::new().with_time(timeout);
 
-            if let Err(e) = sock_ref.set_tcp_keepalive(&sock_keepalive) {
-                tracing::warn!("error trying to set TCP keepalive: {}", e);
+                if let Err(e) = sock_ref.set_tcp_keepalive(&sock_keepalive) {
+                    tracing::warn!("error trying to set TCP keepalive: {}", e);
+                }
             }
+            #[cfg(msim)]
+            let _ = timeout;
         }
     }
 }
