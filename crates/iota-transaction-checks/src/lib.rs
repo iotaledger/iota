@@ -345,24 +345,6 @@ mod checked {
         Ok(gas_status)
     }
 
-    /// Checks the receiving references against the bytes of the transaction
-    /// alone: every version is below [`Version::MAX_VALID_EXCL`], and no
-    /// object is received twice or both received and taken as an input. The
-    /// receiving objects themselves are not read, so the answer is the same on
-    /// every validator.
-    #[instrument(level = "trace", skip_all)]
-    pub fn check_receiving_object_references(
-        input_objects: &InputObjects,
-        receiving_object_refs: &[ObjectReference],
-    ) -> Result<(), IotaError> {
-        let mut objects_in_txn = input_object_ids(input_objects);
-        for object_ref in receiving_object_refs {
-            check_receiving_version_bound(object_ref)?;
-            check_not_already_in_transaction(&mut objects_in_txn, object_ref)?;
-        }
-        Ok(())
-    }
-
     fn input_object_ids(input_objects: &InputObjects) -> HashSet<ObjectId> {
         input_objects
             .object_kinds()

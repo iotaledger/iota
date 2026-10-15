@@ -90,7 +90,7 @@ use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
     object::Object,
     storage::PackageObject,
-    transaction::{InputObjectKind, InputObjects, ObjectReadResult},
+    transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
 };
 
 mod owned;
@@ -217,12 +217,22 @@ pub enum MissingKind {
 
 /// The loader's result for one transaction's inputs at a commit. `Loaded`
 /// holds every input as the input checks expect it. Receiving objects are
-/// read by the caller. `Drop` and `Missing` name the first input that
-/// decided. A missing input is not an error, so the caller must handle it
-/// rather than turn it into one.
+/// read separately, see [`ReceivingObjectsResolution`]. `Drop` and `Missing`
+/// name the first input that decided. A missing input is not an error, so
+/// the caller must handle it rather than turn it into one.
 #[must_use]
 pub enum InputResolution {
     Loaded(InputObjects),
+    Drop(InputObjectKind, DropReason),
+    Missing(InputObjectKind, MissingReason),
+}
+
+/// The loader's answer for one transaction's receiving objects at a commit.
+/// `Loaded` holds every one as the existing receiving checks expect it. The
+/// other two name the first reference that decided, under its owned kind.
+#[must_use]
+pub enum ReceivingObjectsResolution {
+    Loaded(ReceivingObjects),
     Drop(InputObjectKind, DropReason),
     Missing(InputObjectKind, MissingReason),
 }
@@ -233,6 +243,7 @@ pub enum InputResolution {
 pub enum ValidationInputsAtCommit {
     Loaded {
         tx_input_objects: InputObjects,
+        tx_receiving_objects: ReceivingObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
     },
     Drop(InputObjectKind, DropReason),

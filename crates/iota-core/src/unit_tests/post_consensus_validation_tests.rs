@@ -4529,30 +4529,55 @@ async fn denied_packages_leave_a_package_above_the_horizon_missing() {
     }
 }
 
-/// Receiving objects are checked by reference only at a commit. A receive of
-/// an object this validator never saw keeps, so the verdict does not depend
-/// on which receives a validator has executed. Receiving an input still
-/// rejects.
+/// Receiving objects go through the commit-indexed reader as owned inputs do,
+/// without the sender check, so a kept one was live at the horizon on every
+/// validator and execution can always run it. A reference nobody can execute
+/// is never kept: the scheduler would wait on it forever and the commit would
+/// never complete. Receiving an input still rejects.
 #[tokio::test]
-async fn validation_at_commit_checks_receiving_objects_by_reference_only() {
+async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
+    use std::collections::HashSet;
+
+    use iota_types::storage::InputKey;
+
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
     let deny_config = &s.authority.config.transaction_deny_config;
 
-    let start = s.build_move_call("M1", "start", vec![], &gas_id, sender, &sender_key);
-    let start_effects = s.execute_as_handler_known(vec![start], 5).remove(0);
-    let (parent, child) = parent_and_child(start_effects.created());
-    let parent_ref = *parent.reference();
+    // Three parent and child pairs. The first child is received at commit 6,
+    // at or below the horizon of commit 12, the second at commit 11, above
+    // it, the third not at all.
+    let start = |index| {
+        let effects =
+            s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, index);
+        let (parent, child) = parent_and_child(effects.created());
+        (*parent.reference(), *child.reference())
+    };
+    let receive = |parent: ObjectReference, child: ObjectReference, index| {
+        s.handler_known_move_call(
+            "M1",
+            "receiver",
+            vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)],
+            &gas_id,
+            sender,
+            &sender_key,
+            index,
+        );
+    };
+    let (parent_a, child_a) = start(5);
+    receive(parent_a, child_a, 6);
+    let (parent_b, child_b) = start(7);
+    let (parent_c, child_c) = start(8);
+    // The gas coin as of commit 8: the receive at commit 11 consumes it above
+    // the horizon, which keeps it, where its newer version would be missing.
     let gas_ref = s.latest_ref(&gas_id);
-    let unseen = ObjectReference::new(
-        ObjectId::random(),
-        child.reference().version,
-        child.reference().digest,
-    );
-    // `M1::receiver(parent, Receiving(unseen))`, with `extra_input` appended
-    // as an unused input.
-    let validate = |extra_input: Option<CallArg>| {
+    receive(parent_b, child_b, 11);
+
+    // `M1::receiver(parent_c, Receiving(receiving))`, with `extra_input`
+    // appended as an unused input. Validation does not pair a child with its
+    // parent, so the one untouched parent serves every case.
+    let validate = |receiving: ObjectReference, extra_input: Option<CallArg>| {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
@@ -4561,8 +4586,8 @@ async fn validation_at_commit_checks_receiving_objects_by_reference_only() {
                 Identifier::from_static("receiver"),
                 vec![],
                 vec![
-                    CallArg::ImmutableOrOwned(parent_ref),
-                    CallArg::Receiving(unseen),
+                    CallArg::ImmutableOrOwned(parent_c),
+                    CallArg::Receiving(receiving),
                 ],
             )
             .unwrap();
@@ -4588,12 +4613,67 @@ async fn validation_at_commit_checks_receiving_objects_by_reference_only() {
         )
     };
 
-    match validate(None).unwrap() {
-        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_ref, gas_ref]),
-        other => panic!("expected the receive of an unseen object to keep, got {other:?}"),
+    // Live at the horizon: kept, and not among the owned objects to lock.
+    match validate(child_c, None).unwrap() {
+        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
+        other => panic!("expected the receive of a live object to keep, got {other:?}"),
     }
 
-    let result = validate(Some(CallArg::Receiving(parent_ref)));
+    // Received at commit 6: the receive's row above the version drops it.
+    match validate(child_a, None).unwrap() {
+        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, child_a);
+            assert_eq!(reason.kind(), DropKind::HandlerRowSuperseded);
+        }
+        other => panic!("expected the receive of a consumed version to drop, got {other:?}"),
+    }
+
+    // Received at commit 11: kept, as on a validator that has not executed
+    // the receive. Execution fails it.
+    match validate(child_b, None).unwrap() {
+        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
+        other => panic!("expected the receive above the horizon to keep, got {other:?}"),
+    }
+
+    // A wrong digest at a live version drops.
+    let wrong_digest =
+        ObjectReference::new(child_c.object_id, child_c.version, ObjectDigest::random());
+    match validate(wrong_digest, None).unwrap() {
+        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, wrong_digest);
+            assert_eq!(reason.kind(), DropKind::HandlerRowDigestMismatch);
+        }
+        other => panic!("expected a wrong digest to drop, got {other:?}"),
+    }
+
+    // Never existed: missing, so not kept. The scheduler never finds such a
+    // key available, so a kept transaction would never execute.
+    let unseen = ObjectReference::new(ObjectId::random(), child_c.version, child_c.digest);
+    match validate(unseen, None).unwrap() {
+        ValidationAtCommit::Missing(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, unseen);
+            assert_eq!(reason.kind(), MissingKind::StoreNotFound);
+        }
+        other => panic!("expected the receive of an unseen object to be missing, got {other:?}"),
+    }
+    let unseen_key = InputKey::VersionedObject {
+        id: unseen.object_id,
+        version: unseen.version,
+    };
+    assert_eq!(
+        s.authority
+            .get_object_cache_reader()
+            .multi_input_objects_available(
+                &[unseen_key],
+                &HashSet::from([unseen_key]),
+                s.epoch_store.epoch(),
+            ),
+        vec![false],
+        "the scheduler must never find the unseen receiving object available"
+    );
+
+    // Receiving an input still rejects.
+    let result = validate(child_c, Some(CallArg::Receiving(parent_c)));
     assert!(
         matches!(
             result,
