@@ -135,25 +135,6 @@ impl<K: Eq + Hash + Clone, V: Clone> NotifyRead<K, V> {
         self.count_pending.load(Ordering::Relaxed)
     }
 
-    /// The keys that have a registered read and satisfy `pred`. Returns at
-    /// once when no read is registered.
-    pub fn pending_keys(&self, pred: impl Fn(&K) -> bool) -> Vec<K> {
-        if self.num_pending() == 0 {
-            return Vec::new();
-        }
-        self.pending
-            .iter()
-            .flat_map(|shard| {
-                shard
-                    .lock()
-                    .keys()
-                    .filter(|key| pred(key))
-                    .cloned()
-                    .collect::<Vec<_>>()
-            })
-            .collect()
-    }
-
     fn cleanup(&self, key: &K) {
         let mut pending = self.pending(key);
         // it is possible that registration was fulfilled before we get here
