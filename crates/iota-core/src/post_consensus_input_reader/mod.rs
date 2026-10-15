@@ -3,9 +3,10 @@
 
 //! Reads the inputs of a transaction for post-consensus validation as of a
 //! consensus commit, so that every validator reaches the same result,
-//! however far its own execution has got. It also reads the dynamic fields
-//! of the coin deny list as of the horizon, for the coin deny check at the
-//! commit. That read answers present or absent, not keep, drop or missing.
+//! however far its own execution has got. It also reads a dynamic field as
+//! of the horizon for the deny checks at the commit, such as a field of the
+//! coin deny list. That read answers present or absent, not keep, drop or
+//! missing.
 //!
 //! Terms used here and in the submodules:
 //! - `C` is the commit being validated.
@@ -88,15 +89,16 @@
 //! input, and a received object unless the sender is the address of the
 //! object it was sent to.
 //!
-//! # The coin deny list as of the horizon
+//! # Dynamic fields as of the horizon
 //!
-//! The deny list reader walks down from a field's highest row to the highest
-//! one at or below the horizon. That needs the field's versions to rise with
-//! the commits that change it, which holds for the fields of the deny list:
-//! they change only through the shared deny list object, so in the order of
-//! the commits that change them. A field with no row reads the store and then
-//! the rows again, as explained under "Why the store answer for an id with no
-//! row is the epoch-start state" above.
+//! The dynamic field reader walks down from a field's highest row to the
+//! highest one at or below the horizon. That needs the field's versions to
+//! rise with the commits that change it, which holds for a field that changes
+//! only through its shared parent object, so in the order of the commits that
+//! change it. The fields of the coin deny list change only through the
+//! shared deny list object. A field with no row reads the store and then the
+//! rows again, as explained under "Why the store answer for an id with no row
+//! is the epoch-start state" above.
 //!
 //! The coin deny check also needs the type of a kept shared input, whose
 //! object the shared reader does not read. That read takes the latest store
@@ -110,7 +112,7 @@ use iota_types::{
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
 };
 
-mod deny_list;
+mod dynamic_field;
 mod owned;
 mod package;
 pub mod reader;
@@ -156,11 +158,11 @@ pub enum PackageVerdict {
     Missing(MissingReason),
 }
 
-/// The reader's result for one dynamic field of the coin deny list, as of
-/// the horizon. The coin deny check decides from it.
+/// The reader's result for one dynamic field, as of the horizon. The deny
+/// check that reads the field decides from it.
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
-pub enum DenyListField {
+pub enum DynamicFieldAtHorizon {
     /// The field's object at the version live at the horizon.
     Live(Object),
     /// The field did not exist at the horizon, or was deleted by then.
