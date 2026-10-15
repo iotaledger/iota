@@ -226,9 +226,16 @@ pub fn verify_checkpoint_with_committee(
     checkpoint: CertifiedCheckpointSummary,
 ) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
     let checkpoint = verify_checkpoint_linkage(current, checkpoint)?;
+    verify_checkpoint_signatures(&committee, checkpoint)
+}
 
+#[expect(clippy::result_large_err)]
+fn verify_checkpoint_signatures(
+    committee: &Committee,
+    checkpoint: CertifiedCheckpointSummary,
+) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
     checkpoint
-        .verify_authority_signatures(&committee)
+        .verify_authority_signatures(committee)
         .map_err(|e| {
             debug!("error verifying checkpoint: {e}");
             checkpoint.clone()
@@ -245,13 +252,16 @@ pub fn verify_checkpoint<S>(
 where
     S: WriteStore,
 {
-    let committee = store.get_committee(checkpoint.epoch()).unwrap_or_else(|| {
-        panic!(
-            "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
-            checkpoint.epoch(),
-            checkpoint.sequence_number()
-        )
-    });
+    let checkpoint = verify_checkpoint_linkage(current, checkpoint)?;
 
-    verify_checkpoint_with_committee(committee, current, checkpoint)
+    let Some(committee) = store.get_committee(checkpoint.epoch()) else {
+        debug!(
+            checkpoint_seq = checkpoint.sequence_number(),
+            checkpoint_epoch = checkpoint.epoch(),
+            "no committee for checkpoint epoch",
+        );
+        return Err(checkpoint);
+    };
+
+    verify_checkpoint_signatures(&committee, checkpoint)
 }

@@ -36,8 +36,8 @@ use tokio::time::{Instant, timeout};
 
 use crate::{
     state_sync::{
-        Builder, GetCheckpointSummaryRequest, PeerStateSyncInfo, StateSync, StateSyncMessage,
-        UnstartedStateSync,
+        Builder, GetCheckpointSummaryRequest, PeerStateSyncInfo, StateSync, StateSyncHandshake,
+        StateSyncMessage, UnstartedStateSync,
     },
     utils::build_network,
 };
@@ -1348,6 +1348,57 @@ async fn pushed_summaries_above_the_sync_target_are_dropped() {
     // Dropping them does not cost node 2 the peers' height, so sync resumes.
     store_2.inner_mut().set_highest_executed_checkpoint(3);
     wait_for_watermarks(&store_2, last_checkpoint_seq, last_checkpoint_seq).await;
+}
+
+#[tokio::test]
+// Test that a peer's checkpoint from an epoch we have no committee for is
+// rejected instead of crashing the sync task.
+async fn peer_checkpoint_with_unknown_epoch_is_rejected() {
+    telemetry_subscribers::init_for_testing();
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 1, None, empty_contents);
+    let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
+    let store = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+
+    let (_, (forged_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(42, 4, 1, Some(genesis_checkpoint.clone()), empty_contents);
+    let forged_checkpoint = forged_checkpoints.first().cloned().unwrap().into_inner();
+    assert_eq!(forged_checkpoint.sequence_number(), 1);
+
+    let (builder, server) = Builder::new().store(store).build_internal();
+    let (mut event_loop, _handle) = builder.build(build_network(|router| router));
+
+    let handshake = StateSyncHandshake {
+        genesis_checkpoint: genesis_checkpoint.into_inner(),
+        highest_synced_checkpoint: forged_checkpoint,
+        lowest_available_checkpoint: 0,
+    };
+    server
+        .exchange_state_sync_handshake(Request::new(handshake).with_extension(PeerId([9; 32])))
+        .await
+        .unwrap();
+
+    event_loop.maybe_start_checkpoint_summary_sync_task();
+    event_loop.tasks.join_next().await.unwrap().unwrap();
+
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        0
+    );
+    assert!(
+        event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .get_checkpoint_by_sequence_number(1)
+            .is_none()
+    );
 }
 
 /// Waits for a store to reach the given verified and synced watermarks,
