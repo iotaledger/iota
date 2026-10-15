@@ -131,3 +131,8 @@ sed -i 's/127.0.0.1/0.0.0.0/' fullnode.yaml
 -json-rpc-address: "127.0.0.1:9000"
 +json-rpc-address: "0.0.0.0:9000"
 ```
+
+## Clients Overload the Node
+
+If clients send more requests than the node can serve, or the node refuses legitimate clients, see [Protect a Full Node Against DoS](dos-protection.mdx).
+It covers the TrafficController thresholds, the [block log line](dos-protection.mdx#read-the-block-log-line), a host firewall, and bans from the block log.

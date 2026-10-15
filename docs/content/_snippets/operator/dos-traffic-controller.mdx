@@ -1,0 +1,107 @@
+:::warning
+
+This guide explains how to configure the TrafficController for your node.
+A node whose configuration has no `policy-config` runs the shipped default policy.
+That default runs with `dry-run: true`, thus it only counts and logs the clients it would block.
+Set `dry-run: false` to make the node block them, for `connection-blocklist-ttl-sec` seconds each.
+
+:::
+
+## TrafficController Overview
+
+The TrafficController monitors incoming requests to your node and can block IP addresses that exceed certain thresholds. On a validator it covers the transaction interface (`network-address`), and on a full node the JSON-RPC and gRPC endpoints. It can operate in two modes:
+
+1. **Non-proxy mode** - For nodes that receive traffic directly from clients.
+2. **Proxy mode** - For nodes behind load balancers or proxies.
+
+## Configuration Parameters
+
+The TrafficController is configured through the `policy-config` section of the node configuration:
+
+### PolicyConfig
+
+This structure defines the traffic control policies:
+
+```yaml
+# The following parameters are defined in the PolicyConfig struct, which controls
+# how the TrafficController identifies clients and applies rate limiting policies.
+# The struct provides configuration for both direct client connections and proxied
+# connections through load balancers.
+policy-config:
+  # How to identify client IPs (socket-addr or x-forwarded-for)
+  client-id-source: socket-addr  # or x-forwarded-for: <hops>, where hops is the number of proxy hops
+  
+  # Serve these client IPs only, and refuse every other request. Rate limiting
+  # does not run in this mode. Omit the field to rate limit instead.
+  # allow-list: ["10.0.0.1", "10.0.0.2"]
+  
+  # How long to block direct client IPs (in seconds)
+  connection-blocklist-ttl-sec: 60
+  
+  # How long to block proxied client IPs (in seconds)
+  proxy-blocklist-ttl-sec: 60
+  
+  # Policy for handling spam traffic
+  spam-policy-type:
+    freq-threshold:
+      client-threshold: 1000  # Sustained tallies per second per direct client; requests are sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
+      proxied-client-threshold: 10  # Sustained tallies per second per proxied client
+      burst-secs: 30  # Burst allowance: a client can send client-threshold * burst-secs tallies back to back
+  
+  # Policy for handling error traffic
+  error-policy-type: NoOp  # NoOp, or a freq-threshold map like the spam policy above
+  
+  # Sampling rate for spam detection (0.0 to 1.0)
+  spam-sample-rate: 0.2
+  
+  # Whether to run in dry-run mode (log but don't block)
+  dry-run: false
+```
+
+The `burst-secs` key had the name `window-size-secs` before. The node continues to accept the old name, but the old name is deprecated. Change your configuration to `burst-secs`.
+
+## Non-Proxy Mode Configuration
+
+If your node receives traffic directly from clients (no proxy or load balancer in front), use this configuration:
+
+```yaml
+policy-config:
+  client-id-source: socket-addr
+  connection-blocklist-ttl-sec: 60
+  proxy-blocklist-ttl-sec: 0
+  spam-policy-type:
+    freq-threshold:
+      client-threshold: 100  # Sustained tallies per second
+      proxied-client-threshold: 10  # Currently ignored, as proxied client tallies are not reported; 0 would block every proxied client
+      burst-secs: 30
+  error-policy-type: NoOp
+  spam-sample-rate: 0.2
+  dry-run: false  # Set to true initially to monitor without blocking
+```
+
+## Proxy Mode Configuration
+
+If your node is behind a load balancer or proxy, use this configuration:
+
+```yaml
+policy-config:
+  # Configure with the number of proxy hops between client and node
+  # For example, if you have one proxy: client -> proxy -> node, use 1
+  client-id-source:
+    x-forwarded-for: 1  # Adjust based on your infrastructure
+  
+  connection-blocklist-ttl-sec: 60
+  proxy-blocklist-ttl-sec: 60
+  spam-policy-type:
+    freq-threshold:
+      client-threshold: 1000  # Higher threshold for proxies that aggregate traffic
+      proxied-client-threshold: 10  # Threshold for individual clients behind proxies
+      burst-secs: 30
+  error-policy-type: NoOp
+  spam-sample-rate: 0.2
+  dry-run: false
+```
+
+The node reads the entry your proxy appended, so a client cannot hide itself by putting unreadable bytes in the part of the header it sent. The node still ends up with no client when the header is absent, when the entry it selects is not an address, or when the header holds fewer entries than the configured hop count. With a rate-limiting policy such a request is served and charged to no client, which means it is not rate limited. In allowlist mode it is refused, because an allowlist admits the clients it names.
+
+The `traffic_control_unresolved_client_requests` metric counts these requests. A rise above its usual level means that client traffic reaches the node on another path, or that the configured hop count does not match the number of proxies.

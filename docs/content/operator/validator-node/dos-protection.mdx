@@ -1,0 +1,40 @@
+---
+title: Protect a Validator Against DoS
+tags: [node-operation]
+teams:
+  - iotaledger/node
+description: Configure the TrafficController, a host firewall, and log-based bans to protect a validator node against denial of service.
+---
+
+import DosTrafficController from '../../_snippets/operator/dos-traffic-controller.mdx';
+import DosProxyHops from '../../_snippets/operator/dos-proxy-hops.mdx';
+import DosBlockLog from '../../_snippets/operator/dos-block-log.mdx';
+import DosHostFirewall from '../../_snippets/operator/dos-host-firewall.mdx';
+import DosMonitoring from '../../_snippets/operator/dos-monitoring.mdx';
+
+# Protect a Validator Against DoS
+
+A validator serves transactions to full nodes and exchanges consensus traffic with the other validators, so it should be protected against denial of service (DoS). This guide covers the layers of that protection, from the inside out:
+
+1. The [TrafficController](#trafficcontroller-overview), built into the node, refuses requests from clients that exceed a rate limit.
+2. A [host firewall](#set-up-a-host-firewall) closes the ports the validator does not serve and limits connections per client.
+3. [Bans from the block log](#ban-blocked-clients-in-the-firewall) make the host firewall drop the packets of every client the node blocks, before they cost the node a connection.
+4. [Upstream DDoS protection](#use-upstream-ddos-protection) keeps the network link usable when a flood exceeds what the host can drop.
+
+<DosTrafficController />
+
+On a validator this metric does not sit at zero: other nodes call the validator directly, their requests carry no header, and each one is counted. Read it as a change from its usual level rather than as an absolute number.
+
+An `allow-list` on a validator has to name every other node that calls it, because those calls arrive on the same listener. Two configurations are possible, and only one of them works. With `client-id-source: socket-addr` the node resolves the address of each caller, so listing the other nodes does admit them, at the cost of a list that has to change with the committee. With `x-forwarded-for` listing them does not help at all: their requests carry no header, the node resolves no address to match against the list, and it refuses them whatever the list holds. Prefer to leave an `allow-list` off a validator.
+
+<DosProxyHops />
+
+<DosBlockLog />
+
+## Set Up a Host Firewall
+
+On a validator, keep TCP port `8080` (`network-address`), TCP port `8081` (consensus) and UDP port `8084` (peer-to-peer) in the ruleset below, and remove the RPC ports `9000` and `50051` unless the validator also serves RPC. The clients of a validator are full nodes, which keep a few long-lived connections each.
+
+<DosHostFirewall />
+
+<DosMonitoring />

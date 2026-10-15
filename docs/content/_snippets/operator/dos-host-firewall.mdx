@@ -1,0 +1,96 @@
+A host firewall is useful on every node and needs no integration with it. The following nftables ruleset:
+
+- drops all inbound traffic except to the ports the node serves, so that metrics (`9184`) and the admin interface (`1337`) stay closed to the public;
+- caps the open connections per client address on the ports that serve clients;
+- limits the rate of new connections per client address on those ports.
+
+Keep only the ports your node configuration uses, set the port of your SSH server, and tune the limits to your traffic. On a node behind a reverse proxy, every client connection comes from the proxy, so remove the per-client limits there and set them in the proxy instead (see [Behind a Reverse Proxy](#behind-a-reverse-proxy)).
+
+```text file=<rootDir>/setups/traffic-control/iota-node.nft
+```
+
+Check the file, then load it:
+
+```bash
+sudo nft -c -f iota-node.nft
+sudo nft -f iota-node.nft
+```
+
+The ruleset replaces only its own `iota_node` table when you reload it, so the rules of Docker, fail2ban, or the CrowdSec bouncer stay in place. To load it at boot, include it from `/etc/nftables.conf` and enable the `nftables` service.
+
+Floods of TCP connection requests from spoofed addresses cannot be blocked by address. The kernel handles them with SYN cookies, which are on by default (`net.ipv4.tcp_syncookies = 1`).
+
+## Ban Blocked Clients in the Firewall
+
+The TrafficController refuses a blocked client, but each refused request still costs the node a connection, and the block ends when the node restarts. fail2ban and CrowdSec can read the [block log line](#read-the-block-log-line) and add the client to an nftables set, so that the kernel drops its packets for the same time. Use one of the two.
+
+Both tools ban for a time set in their own configuration, not in the log line. Set it to the node's `connection-blocklist-ttl-sec`. The bans expire on their own.
+
+The filters below match the line only from its start and under its target, so text a client manages to get into another log line cannot ban an address.
+
+### fail2ban
+
+1. Install fail2ban and copy the filter to `/etc/fail2ban/filter.d/iota-node.conf`:
+
+   ```ini file=<rootDir>/setups/traffic-control/fail2ban/filter.d/iota-node.conf
+   ```
+
+2. Copy the jail to `/etc/fail2ban/jail.d/iota-node.conf`. It reads the journal of the `iota-node` systemd unit and bans each blocked client on the ports that serve clients:
+
+   ```ini file=<rootDir>/setups/traffic-control/fail2ban/jail.d/iota-node.conf
+   ```
+
+   For a node in Docker, run the container with the `journald` log driver (`--log-driver=journald`, or `logging: driver: journald` in Docker Compose) and add `journalmatch = CONTAINER_NAME=<container name>` to the jail. The default `json-file` driver wraps each line in JSON of its own, which the filter does not match.
+
+3. Check the filter against the node's log, then restart fail2ban:
+
+   ```bash
+   sudo fail2ban-regex systemd-journal /etc/fail2ban/filter.d/iota-node.conf
+   sudo systemctl restart fail2ban
+   sudo fail2ban-client status iota-node
+   ```
+
+### CrowdSec
+
+1. Install CrowdSec and the nftables firewall bouncer (`crowdsec-firewall-bouncer-nftables`).
+
+2. Copy the acquisition to `/etc/crowdsec/acquis.d/iota-node.yaml`. It reads the journal of the `iota-node` systemd unit, and its comment shows how to read the log of a container instead:
+
+   ```yaml file=<rootDir>/setups/traffic-control/crowdsec/acquis.d/iota-node.yaml
+   ```
+
+3. Copy the parser to `/etc/crowdsec/parsers/s01-parse/iota-node-block.yaml`:
+
+   ```yaml file=<rootDir>/setups/traffic-control/crowdsec/parsers/s01-parse/iota-node-block.yaml
+   ```
+
+4. Copy the scenario to `/etc/crowdsec/scenarios/iota-node-block.yaml`. It bans a client on the first block line:
+
+   ```yaml file=<rootDir>/setups/traffic-control/crowdsec/scenarios/iota-node-block.yaml
+   ```
+
+5. Add the profile to the top of `/etc/crowdsec/profiles.yaml`, followed by a `---` line. Without it, the default profile bans for 4 hours:
+
+   ```yaml file=<rootDir>/setups/traffic-control/crowdsec/profiles.yaml
+   ```
+
+6. Check that the parser reads the node's log, then restart CrowdSec:
+
+   ```bash
+   sudo journalctl -u iota-node -o short --no-pager -n 1000 > /tmp/iota-node.log
+   sudo cscli explain --file /tmp/iota-node.log --type syslog
+   sudo systemctl restart crowdsec
+   sudo cscli decisions list
+   ```
+
+## Behind a Reverse Proxy
+
+When a reverse proxy sits in front of the node, every connection on the node host comes from the proxy. A ban on the node host would ban the proxy, and with it every client.
+
+- Set `client-id-source: x-forwarded-for: <hops>` so that the TrafficController blocks the client and not the proxy. The node trusts only the entry of the header that your own proxy writes; see [Proxy Mode Configuration](#proxy-mode-configuration).
+- Apply the bans on the proxy host, where the client addresses arrive. With CrowdSec, run the agent where it can read the node's log and the bouncer on the proxy host. With fail2ban, send the node's log to the proxy host.
+- Limit connections per client in the proxy rather than in the node host's firewall. For Traefik, the `InFlightReq` and `RateLimit` middlewares limit concurrent and new requests per client, and the entry point's `respondingTimeouts` (`readTimeout`, `idleTimeout`) close slow and idle connections.
+
+## Use Upstream DDoS Protection
+
+No host firewall helps once a flood fills the network link to the host. Put nodes that serve a public RPC endpoint behind the DDoS protection of your hosting provider, or behind a scrubbing service.

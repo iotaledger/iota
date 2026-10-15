@@ -40,6 +40,11 @@ Ensure that port `8084` is open and set up an external address for node discover
 
 See more useful ports and network configuration options [here](configs/network.mdx)
 
+### DoS protection
+
+A full node that serves a public RPC endpoint should rate limit its clients and run behind a host firewall.
+See [Protect a Full Node Against DoS](dos-protection.mdx).
+
 ### Storage and pruning (optional)
 
 To keep disk usage in check or save storage space, you can:

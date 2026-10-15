@@ -1,0 +1,38 @@
+---
+title: Protect a Full Node Against DoS
+tags: [node-operation]
+teams:
+  - iotaledger/node
+description: Configure the TrafficController, a host firewall, and log-based bans to protect a full node with a public RPC endpoint against denial of service.
+---
+
+import DosTrafficController from '../../_snippets/operator/dos-traffic-controller.mdx';
+import DosProxyHops from '../../_snippets/operator/dos-proxy-hops.mdx';
+import DosBlockLog from '../../_snippets/operator/dos-block-log.mdx';
+import DosHostFirewall from '../../_snippets/operator/dos-host-firewall.mdx';
+import DosMonitoring from '../../_snippets/operator/dos-monitoring.mdx';
+
+# Protect a Full Node Against DoS
+
+A full node that serves a public RPC endpoint accepts requests from anyone, which makes it the most exposed kind of node, and it should be protected against denial of service (DoS). This guide covers the layers of that protection, from the inside out:
+
+1. The [TrafficController](#trafficcontroller-overview), built into the node, refuses requests from clients that exceed a rate limit.
+2. A [host firewall](#set-up-a-host-firewall) closes the ports the full node does not serve and limits connections per client.
+3. [Bans from the block log](#ban-blocked-clients-in-the-firewall) make the host firewall drop the packets of every client the node blocks, before they cost the node a connection.
+4. [Upstream DDoS protection](#use-upstream-ddos-protection) keeps the network link usable when a flood exceeds what the host can drop.
+
+<DosTrafficController />
+
+On a full node that serves clients only, and where every request arrives through the proxy, the metric sits at zero.
+
+<DosProxyHops />
+
+<DosBlockLog />
+
+## Set Up a Host Firewall
+
+On a full node, keep TCP ports `9000` (JSON-RPC) and `50051` (gRPC) and UDP port `8084` (peer-to-peer) in the ruleset below, and remove the validator ports `8080` and `8081`. A public RPC endpoint serves many clients, some of them behind one NAT address, so set the per-client limits with that in mind.
+
+<DosHostFirewall />
+
+<DosMonitoring />

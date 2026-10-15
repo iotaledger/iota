@@ -1,0 +1,11 @@
+# Bans a client as soon as the IOTA node blocks it. How long the ban lasts is
+# set by the profile in `profiles.yaml`, not by this scenario.
+type: trigger
+name: iotaledger/iota-node-block
+description: "Ban a client that an IOTA node blocked"
+filter: "evt.Meta.log_type == 'iota_node_block'"
+groupby: evt.Meta.source_ip
+blackhole: 1m
+labels:
+  service: iota-node
+  remediation: true
