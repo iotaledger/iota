@@ -366,6 +366,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Some(
                 RpcIndexesStore::new(
                     storage_dir.join(RPC_INDEXES_DIR),
+                    None,
                     &registry,
                     BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
                     epoch_store

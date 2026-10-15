@@ -127,6 +127,25 @@ been growing without bound.
 
 :::
 
+## Where the History Is Kept
+
+The retained epochs of all three kinds of history are kept in one directory
+inside the live database directory, `<db-path>/live/historic`, with a
+subdirectory per epoch:
+
+```text
+<db-path>/live/historic/
+  epoch_594/
+    objects/        superseded object versions
+    ledger/         transactions, effects and events
+    checkpoints/    checkpoint contents and summaries
+    indexes/        JSON-RPC and gRPC index history
+  epoch_595/
+    ...
+```
+
+An expired epoch's directory is removed together with its data.
+
 ## Configuration Examples
 
 The following examples cover common operator use cases. Each example shows the key parameters for the scenario — parameters not listed use their defaults from the [reference block above](#pruning-parameters).
