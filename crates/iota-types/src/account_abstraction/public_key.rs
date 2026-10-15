@@ -3,10 +3,7 @@
 
 use eyre::eyre;
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, Identifier, SignatureScheme, StructTag,
-    crypto::MultisigCommittee,
-};
+use iota_sdk_types::{Address, Identifier, SignatureScheme, StructTag, crypto::MultisigCommittee};
 use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
