@@ -27,7 +27,7 @@ use tracing::error;
 
 use self::{
     block_log::BlockReason,
-    client_access::{ClientAccessManager, validate_blocklist_ttls},
+    client_access::{ClientAccessManager, client_network, validate_blocklist_ttls},
     metrics::TrafficControllerMetrics,
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
@@ -171,11 +171,19 @@ impl TrafficController {
 
     /// Charges the tally against the spam and error policies, and has the
     /// client access manager refuse each client that breaches one, before
-    /// returning. No-op in allowlist mode.
-    pub fn tally(&self, tally: TrafficTally) {
+    /// returning. An IPv6 client is charged for its network of
+    /// `ipv6-prefix-len` bits. No-op in allowlist mode.
+    pub fn tally(&self, mut tally: TrafficTally) {
         let Some(policies) = &self.policies else {
             return;
         };
+        let ipv6_prefix_len = self.policy_config.ipv6_prefix_len;
+        tally.direct = tally
+            .direct
+            .map(|client| client_network(client, ipv6_prefix_len));
+        tally.through_fullnode = tally
+            .through_fullnode
+            .map(|client| client_network(client, ipv6_prefix_len));
         self.metrics.tallies.inc();
         if tally.spam_weight.is_sampled() && self.policy_config.spam_sample_rate.is_sampled() {
             let response = policies.spam.charge(&tally);
@@ -552,6 +560,29 @@ mod tests {
             line.ends_with("client_blocked client=10.0.0.1 reason=spam ttl_secs=120"),
             "{line}"
         );
+    }
+
+    #[tokio::test]
+    async fn the_addresses_of_one_ipv6_network_are_counted_and_blocked_together() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: PolicyType::TestNConnIP(2),
+            ..policy_config(false, PolicyKind::Spam)
+        });
+        let address =
+            |last| IpAddr::V6(std::net::Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, last));
+        let tally = |client| TrafficTally::new(Some(client), None, None, Weight::one());
+
+        // Neither address reaches the threshold of two alone.
+        let log = capture_plain(|| {
+            controller.tally(tally(address(1)));
+            controller.tally(tally(address(2)));
+        });
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(
+            line.ends_with("client_blocked client=2001:db8:1:2::/64 reason=spam ttl_secs=120"),
+            "{line}"
+        );
+        assert!(!controller.check(&Some(address(3)), &None));
     }
 
     #[tokio::test]
