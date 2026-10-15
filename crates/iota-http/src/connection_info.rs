@@ -4,7 +4,10 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
@@ -14,7 +17,13 @@ use crate::config::{OnPeerConnectionEvent, PeerConnectionEvent};
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
     Arc<RwLock<HashMap<ConnectionId, ConnectionInfo<A>>>>;
 
+/// Identifies one connection for as long as this process runs. Never reused,
+/// so an entry in a table of live connections cannot be taken for a different
+/// connection than the one that put it there.
 pub type ConnectionId = usize;
+
+/// Handed out by [`ConnectionInfo::new`], one per connection.
+static NEXT_CONNECTION_ID: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug)]
 pub struct ConnectionInfo<A>(Arc<Inner<A>>);
@@ -35,6 +44,7 @@ impl<A> ConnectionInfo<A> {
         graceful_shutdown_token: tokio_util::sync::CancellationToken,
     ) -> Self {
         Self(Arc::new(Inner {
+            id: NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed),
             address,
             time_established: std::time::Instant::now(),
             peer_certificates: peer_certificates.map(PeerCertificates),
@@ -56,9 +66,10 @@ impl<A> ConnectionInfo<A> {
         self.0.peer_certificates.as_ref()
     }
 
-    /// A stable identifier for this connection
+    /// A stable identifier for this connection, unique for the life of the
+    /// process.
     pub fn id(&self) -> ConnectionId {
-        &*self.0 as *const _ as usize
+        self.0.id
     }
 
     /// Trigger a graceful shutdown of this connection
@@ -69,6 +80,8 @@ impl<A> ConnectionInfo<A> {
 
 #[derive(Debug)]
 struct Inner<A = std::net::SocketAddr> {
+    id: ConnectionId,
+
     address: A,
 
     // Time that the connection was established
