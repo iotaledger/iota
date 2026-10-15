@@ -32,7 +32,10 @@ use iota_types::{
     },
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
-use tokio::time::{Instant, timeout};
+use tokio::{
+    sync::watch,
+    time::{Instant, timeout},
+};
 
 use crate::{
     state_sync::{
@@ -1186,6 +1189,52 @@ async fn a_checkpoint_from_consensus_waits_for_the_contents_before_it() {
     // Once node 1 can download the contents of checkpoint 1, it syncs both.
     network_1.connect(network_2.local_addr()).await.unwrap();
     wait_for_watermarks(&store_1, 2, 2).await;
+}
+
+/// A checkpoint from consensus that waits for the contents of the checkpoints
+/// before it is marked synced by the content sync task, which finds its
+/// contents in the store. The content sync target must cover it even when no
+/// peer reports a checkpoint above the one this node has synced.
+#[tokio::test]
+async fn a_waiting_checkpoint_from_consensus_raises_the_content_sync_target() {
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, random_contents);
+    let store = store_with_genesis_state(
+        ordered_checkpoints[0].clone(),
+        contents[0].clone(),
+        committee.committee().to_owned(),
+    );
+    // Checkpoint 1 is verified, but its contents are not stored yet.
+    store.inner_mut().insert_checkpoint(&ordered_checkpoints[1]);
+    let (builder, _server) = Builder::new().store(store).build();
+    let (mut event_loop, _handle) = builder.build(build_network(|router| router));
+    // The only peer reports nothing above what this node has synced.
+    event_loop.peer_heights.write().unwrap().peers.insert(
+        PeerId([9; 32]),
+        PeerStateSyncInfo {
+            genesis_checkpoint_digest: *ordered_checkpoints[0].digest(),
+            on_same_chain_as_us: true,
+            height: 0,
+            lowest: 0,
+        },
+    );
+
+    event_loop
+        .store
+        .inner_mut()
+        .insert_checkpoint_contents(&ordered_checkpoints[2], contents[2].clone());
+    event_loop
+        .store
+        .insert_certified_checkpoint(&ordered_checkpoints[2]);
+    event_loop.handle_checkpoint_from_consensus(Box::new(ordered_checkpoints[2].clone()));
+    assert_eq!(
+        event_loop.store.get_highest_synced_checkpoint_seq_number(),
+        0
+    );
+
+    let (target_sender, target_receiver) = watch::channel(0);
+    event_loop.maybe_trigger_checkpoint_contents_sync_task(&target_sender);
+    assert_eq!(*target_receiver.borrow(), 2);
 }
 
 #[tokio::test]
