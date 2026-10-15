@@ -102,6 +102,9 @@ async fn create_txes(test_cluster: &TestCluster) -> BTreeMap<CommonTransactionCo
 
     let mut ret = BTreeMap::new();
     let (sender, mut gas_objects) = test_cluster.wallet.get_one_account().await.unwrap();
+    // In object-id order rather than the listing's balance order, which puts
+    // the coins the setup above spent from last, where `pop` takes them first.
+    gas_objects.sort_by_key(|gas| gas.object_id);
     let gas_price = test_cluster.get_reference_gas_price().await;
 
     // Publish
