@@ -9,9 +9,9 @@ use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
+    Balance, Coin, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
     IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
+    IotaTransactionBlockResponseOptions, IotaTypeTag, OwnedObjectCursor, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
@@ -102,7 +102,12 @@ fn get_coins_basic_scenario() {
             get_coins_fullnode_indexer(cluster, client, *owner, None, None, None).await;
 
         assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        assert_eq!(result_fullnode.has_next_page, result_indexer.has_next_page);
+        assert_eq!(
+            sorted_by_object_id(&result_fullnode),
+            sorted_by_object_id(&result_indexer),
+            "both stores must list the same coins"
+        );
     });
 }
 
@@ -116,18 +121,35 @@ fn get_coins_with_cursor() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        let all_coins = cluster
-            .rpc_client()
-            .get_coins(*owner, None, None, None)
-            .await
-            .unwrap();
-        let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
 
-        let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, Some(cursor), None).await;
+        // Each store orders its coins its own way and only resumes from its
+        // own cursors, so each is paged on its own.
+        let fullnode = cluster.rpc_client();
+        let mut listings = Vec::new();
+        for store in [fullnode, client] {
+            let all_coins = store.get_coins(*owner, None, None, None).await.unwrap();
+            assert!(!all_coins.has_next_page);
+            let first_page = store.get_coins(*owner, None, None, Some(3)).await.unwrap();
+            assert!(first_page.has_next_page);
+            let second_page = store
+                .get_coins(*owner, None, first_page.next_cursor, None)
+                .await
+                .unwrap();
+            assert!(!second_page.has_next_page);
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+            let merged: Vec<_> = first_page
+                .data
+                .into_iter()
+                .chain(second_page.data)
+                .collect();
+            assert_eq!(all_coins.data, merged, "the pages must cover the listing");
+            listings.push(all_coins);
+        }
+        assert_eq!(
+            sorted_by_object_id(&listings[0]),
+            sorted_by_object_id(&listings[1]),
+            "both stores must list the same coins"
+        );
     });
 }
 
@@ -142,11 +164,20 @@ fn get_coins_with_limit() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, None, Some(2)).await;
-
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        let tested_limit = 2;
+        for store in [cluster.rpc_client(), client] {
+            let all_coins = store.get_coins(*owner, None, None, None).await.unwrap();
+            let limited = store
+                .get_coins(*owner, None, None, Some(tested_limit))
+                .await
+                .unwrap();
+            assert_eq!(limited.data.len(), tested_limit);
+            assert_eq!(
+                limited.data,
+                all_coins.data[..tested_limit],
+                "a limited page must be the start of the store's listing"
+            );
+        }
     });
 }
 
@@ -172,7 +203,7 @@ fn get_coins_custom_coin() {
         .await;
 
         assert_eq!(result_indexer.data.len(), 1);
-        assert_eq!(result_fullnode, result_indexer);
+        assert_same_coin_page(&result_fullnode, &result_indexer);
     });
 }
 
@@ -223,11 +254,10 @@ fn get_all_coins_with_cursor() {
 
         let first_page_results = client.get_all_coins(*owner, None, Some(4)).await.unwrap();
         assert!(first_page_results.has_next_page);
-        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectId> =
-            client
-                .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
-                .await
-                .unwrap();
+        let second_page_results: iota_json_rpc_types::CoinPage = client
+            .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
+            .await
+            .unwrap();
         assert!(!second_page_results.has_next_page);
 
         let merged_page_contents: Vec<_> = first_page_results
@@ -651,12 +681,33 @@ fn get_total_supply_with_nonexistent_coin() {
     });
 }
 
+/// The coins of `page` in object-id order, for comparing two stores that order
+/// their coins differently.
+fn sorted_by_object_id(page: &CoinPage) -> Vec<&Coin> {
+    page.data
+        .iter()
+        .sorted_by_key(|coin| coin.coin_object_id)
+        .collect()
+}
+
+/// Compares two pages of the same coins; of the cursors, only the object id is
+/// compared, as the full node's also carries a position in its owner index.
+fn assert_same_coin_page(fullnode: &CoinPage, indexer: &CoinPage) {
+    assert_eq!(fullnode.data, indexer.data);
+    assert_eq!(fullnode.has_next_page, indexer.has_next_page);
+    assert_eq!(
+        fullnode.next_cursor.map(|cursor| cursor.object_id()),
+        indexer.next_cursor.map(|cursor| cursor.object_id()),
+        "both cursors must name the same coin",
+    );
+}
+
 async fn get_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: Address,
     coin_type: Option<String>,
-    cursor: Option<ObjectId>,
+    cursor: Option<OwnedObjectCursor>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
@@ -675,7 +726,7 @@ async fn get_all_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: Address,
-    cursor: Option<ObjectId>,
+    cursor: Option<OwnedObjectCursor>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
