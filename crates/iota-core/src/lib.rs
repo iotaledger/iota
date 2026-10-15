@@ -5,6 +5,7 @@
 
 extern crate core;
 
+pub(crate) mod attestation_checks;
 pub mod authority;
 pub mod authority_aggregator;
 pub mod authority_client;

@@ -66,10 +66,10 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
 }
 
 /// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
-/// the given `attestor_index` and `computation_units`.
+/// the given `validator_index` and `computation_units`.
 fn make_user_tx_v2(
     tx: TransactionEnvelope,
-    attestor_index: u8,
+    validator_index: u8,
     computation_units: u64,
 ) -> VerifiedSequencedConsensusTransaction {
     let attestation = Attestation::Validator {
@@ -77,7 +77,7 @@ fn make_user_tx_v2(
             computation_units,
             object_versions: vec![],
         },
-        attestor_index,
+        validator_index,
     };
     let attested = AttestedTransaction::new(tx, attestation);
     let consensus_tx = ConsensusTransaction {
@@ -1779,7 +1779,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     .await;
 }
 
-/// A `UserTransactionV2` whose `attestor_index` matches the block's
+/// A `UserTransactionV2` whose `validator_index` matches the block's
 /// `certificate_author_index` (both `0`) passes attestor verification (Check
 /// #3) and is treated the same as a valid V1 transaction.
 #[sim_test]
@@ -1810,7 +1810,7 @@ async fn test_v2_passes() {
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
 
-    // attestor_index 0 == certificate_author_index 0 set by new_test → match.
+    // validator_index 0 == certificate_author_index 0 set by new_test → match.
     let protocol_config = epoch_store.protocol_config();
     let min_units = protocol_config
         .base_tx_cost_fixed()
@@ -1840,7 +1840,7 @@ async fn test_v2_passes() {
     assert_eq!(user_tx_digests, vec![digest]);
 }
 
-/// A `UserTransactionV2` whose `attestor_index` does not match the block's
+/// A `UserTransactionV2` whose `validator_index` does not match the block's
 /// `certificate_author_index` is dropped via Check #3. Critically, its digest
 /// must still appear in `all_user_tx_digests` so the caller can release the
 /// pre-consensus soft lock — this is the invariant the loop restructure
@@ -1873,7 +1873,7 @@ async fn test_v2_attestor_mismatch() {
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
 
-    // attestor_index 1 != certificate_author_index 0 → mismatch.
+    // validator_index 1 != certificate_author_index 0 → mismatch.
     // Cost is also below the protocol floor (`min_units - 1`), so BOTH the
     // mismatch and the floor checks would fire. This pins the check order:
     // mismatch must be reported before the floor.

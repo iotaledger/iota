@@ -8,7 +8,6 @@ use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
-    attestation::Attestation,
     base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -149,24 +148,15 @@ impl IotaTxValidator {
                         });
                     }
 
-                    match &attested_tx.attestation {
-                        Attestation::Validator { .. } => {
-                            self.epoch_store
-                                .signature_verifier
-                                .verify_tx(attested_tx.transaction.data())
-                                .tap_err(|e| {
-                                    warn!("UserTransactionV2 signature verification failed: {}", e)
-                                })?;
-                            user_tx_count += 1;
-                        }
-                        Attestation::Explicit { .. } => {
-                            // TODO: verify explicit attestor signature against the trusted
-                            // attestor registry (Phase 2).
-                            return Err(IotaError::UnsupportedFeature {
-                                error: "Explicit attestation not yet supported".into(),
-                            });
-                        }
-                    }
+                    // A validator attestation is authenticated by the block
+                    // signature; only the user signature is verified here.
+                    self.epoch_store
+                        .signature_verifier
+                        .verify_tx(attested_tx.transaction.data())
+                        .tap_err(|e| {
+                            warn!("UserTransactionV2 signature verification failed: {}", e)
+                        })?;
+                    user_tx_count += 1;
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)
@@ -575,7 +565,7 @@ mod tests {
                             computation_units: 0,
                             object_versions: vec![],
                         },
-                        attestor_index: 0,
+                        validator_index: 0,
                     },
                 ))),
             ),
