@@ -68,6 +68,13 @@ pub struct Config {
     /// Default is 20 seconds.
     pub http2_keepalive_timeout: Option<Duration>,
 
+    /// Only affects servers. How many connections this listener may hold at
+    /// once, counting those still in their TLS handshake. Further connections
+    /// are closed as soon as they are accepted, before any handshake.
+    ///
+    /// Default is no limit (`None`).
+    pub max_connections: Option<usize>,
+
     /// Only affects servers. How long a connection may serve no request
     /// before it is closed. Keepalive closes a connection whose peer has
     /// gone; this closes one whose peer is present and doing nothing.
@@ -120,6 +127,7 @@ impl Config {
             .http2_keepalive_timeout(self.http2_keepalive_timeout)
             .http2_keepalive_interval(self.http2_keepalive_interval)
             .tcp_keepalive(self.tcp_keepalive)
+            .max_connections(self.max_connections)
             .max_connection_idle(self.max_connection_idle)
     }
 }
