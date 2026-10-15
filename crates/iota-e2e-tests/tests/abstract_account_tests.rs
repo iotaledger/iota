@@ -908,6 +908,285 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
     Ok(())
 }
 
+/// Under P-COOL with deterministic validation, a transaction that names, as an
+/// owned input, a version that a receive already used never reaches
+/// execution: every validator reports it missing, and drops it once
+/// resubmitted.
+///
+/// An object can be received from its parent only while the parent is not an
+/// account, but the parent can become one afterwards and then send
+/// transactions whose owned inputs are the objects sent to its address. Bob
+/// receives a coin from the delayed account object, the object becomes an
+/// account, and the account names the coin's received version as an owned
+/// input. Admission rejects that transaction on an honest validator, so the
+/// test has one validator skip its input checks and submit it to consensus, as
+/// a faulty validator can. Post-consensus validation reports the account
+/// missing until the horizon reaches the commit that made it one. By then the
+/// receive is at or below the horizon too, so a resubmission drops on the
+/// received version.
+///
+/// Simulator only, because the admission bypass is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_received_version_named_as_owned_input_never_executes_under_deterministic_validation()
+-> Result<(), anyhow::Error> {
+    use std::time::Duration;
+
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_macros::{clear_fail_point, register_fail_point_if};
+    use iota_types::messages_grpc::{GetTxStatusRequest, TxStatusQuery, TxStatusUpdate};
+
+    // Wide enough that the receive, the account creation and the first
+    // submission fit within it.
+    const HORIZON_DISTANCE: u64 = 50;
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(HORIZON_DISTANCE);
+        config
+    });
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    let mut test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_epoch_duration_ms(600_000)
+            .build()
+            .await,
+    );
+    test_env
+        .setup_delayed_abstract_account_object(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    let bob = {
+        let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+        keystore
+            .generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)
+            .expect("ED25519 key generation should not fail")
+            .0
+    };
+    let bob_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
+        .await;
+    let received_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let account_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Every input above must be older than the horizon distance, or post-
+    // consensus validation reports it missing for that reason instead.
+    let stale_validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let stale_node = test_env
+        .test_cluster
+        .swarm
+        .node(&stale_validator)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    let flushed_commit = || {
+        stale_node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .tables()
+                .unwrap()
+                .get_last_consensus_index()
+                .unwrap()
+                .map(|indices| indices.sub_dag_index)
+                .unwrap_or_default()
+        })
+    };
+    let wait_for_commit = |target: u64| async move {
+        tokio::time::timeout(Duration::from_secs(300), async {
+            while flushed_commit() < target {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        })
+        .await
+        .expect("the commits must advance within 300s");
+    };
+    wait_for_commit(flushed_commit() + HORIZON_DISTANCE + 5).await;
+
+    // Bob receives the coin while the object is not an account yet.
+    let pt = test_env.craft_aa_receive_gas_ptb(
+        received_coin,
+        AA_DELAYED_MODULE_NAME,
+        AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK,
+    )?;
+    let tx_data = test_env.craft_tx_from_pt(pt, bob_gas, bob, None).await?;
+    let receive_tx = test_env.test_cluster.wallet.sign_transaction(&tx_data);
+    let effects = test_env
+        .test_cluster
+        .wallet
+        .execute_transaction_may_fail(receive_tx)
+        .await?
+        .effects
+        .unwrap();
+    assert!(
+        effects.status().is_ok(),
+        "the receive must succeed while the object is not an account, got {:?}",
+        effects.status()
+    );
+
+    let effects = test_env.make_delayed_abstract_account().await?;
+    assert!(
+        effects.status().is_success(),
+        "making the object an account must succeed, got {:?}",
+        effects.status()
+    );
+    let made_account_commit = flushed_commit();
+
+    // The account names the received version as an owned input.
+    let pt = test_env.craft_object_transfer(received_coin, Address::ZERO)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, account_gas, aa_sender, None)
+        .await?;
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    let stale_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+    let stale_digest = *stale_tx.digest();
+
+    let stale_sim_id = stale_node.with(|_| iota_simulator::current_simnode_id());
+    let authority_clients = test_env
+        .test_cluster
+        .authority_aggregator()
+        .authority_clients
+        .clone();
+    // Submits the transaction through the validator that skips its input
+    // checks, and waits for every validator to reject it with the "object not
+    // found" error of the input that decided. A missing verdict is not
+    // recorded as the transaction's status, only sent to the queries waiting
+    // for it, so the queries start before the submission.
+    let submit_and_expect_rejection = |object_id: ObjectId| {
+        let stale_tx = stale_tx.clone();
+        let authority_clients = authority_clients.clone();
+        async move {
+            let queries = authority_clients
+                .iter()
+                .map(|(validator, client)| {
+                    let (validator, client) = (*validator, client.clone());
+                    tokio::spawn(async move {
+                        let statuses = tokio::time::timeout(
+                            Duration::from_secs(60),
+                            client.authority_client().get_tx_status(
+                                GetTxStatusRequest {
+                                    queries: vec![TxStatusQuery {
+                                        transaction_digest: stale_digest,
+                                        include_details: false,
+                                    }],
+                                },
+                                Some(client_ip),
+                            ),
+                        )
+                        .await
+                        .unwrap_or_else(|_| {
+                            panic!(
+                                "validator {validator:?} must decide the stale transaction within \
+                                 60s"
+                            )
+                        })
+                        .unwrap();
+                        (validator, statuses)
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            register_fail_point_if("admit-without-input-checks", move || {
+                iota_simulator::current_simnode_id() == stale_sim_id
+            });
+            let submitted = tokio::time::timeout(
+                Duration::from_secs(60),
+                authority_clients[&stale_validator]
+                    .authority_client()
+                    .submit_tx(vec![stale_tx], Some(client_ip)),
+            )
+            .await;
+            clear_fail_point("admit-without-input-checks");
+            let submitted = submitted
+                .expect("the submission must be answered within 60s")
+                .unwrap();
+            assert!(
+                matches!(
+                    submitted.as_slice(),
+                    [(digest, TxStatusUpdate::Submitted)] if *digest == stale_digest
+                ),
+                "the validator skipping its input checks must submit the stale transaction, \
+                 got {submitted:?}"
+            );
+
+            for query in queries {
+                let (validator, statuses) = query.await.unwrap();
+                let [(digest, update)] = <[_; 1]>::try_from(statuses).unwrap_or_else(|statuses| {
+                    panic!("validator {validator:?} must report one status, got {statuses:?}")
+                });
+                assert_eq!(digest, stale_digest);
+                assert!(
+                    matches!(
+                        &update,
+                        TxStatusUpdate::Rejected {
+                            error: IotaError::UserInput {
+                                error: UserInputError::ObjectNotFound { object_id: id, .. }
+                            }
+                        } if *id == object_id
+                    ),
+                    "expected validator {validator:?} to reject the stale transaction on \
+                     {object_id}, got {update:?}"
+                );
+            }
+        }
+    };
+
+    // Submitted while the account's creation is above the horizon: the
+    // account is missing on every validator.
+    submit_and_expect_rejection(aa_ref.object_id).await;
+    assert!(
+        flushed_commit() < made_account_commit + HORIZON_DISTANCE,
+        "the first submission must be decided before the horizon reaches the account's creation"
+    );
+
+    // Resubmitted once the horizon is past the account's creation, and with
+    // it past the receive: the received version drops on every validator.
+    wait_for_commit(made_account_commit + HORIZON_DISTANCE + 5).await;
+    submit_and_expect_rejection(received_coin.object_id).await;
+
+    // No validator executed it, and the coin is where the receive left it.
+    for validator in test_env.test_cluster.get_validator_pubkeys() {
+        let executed = test_env
+            .test_cluster
+            .swarm
+            .node(&validator)
+            .unwrap()
+            .get_node_handle()
+            .unwrap()
+            .with(|node| {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_get_executed_effects(&stale_digest)
+                    .unwrap()
+            });
+        assert!(
+            executed.is_none(),
+            "validator {validator:?} executed the stale transaction"
+        );
+    }
+    let coin_now = test_env
+        .test_cluster
+        .get_latest_object_ref(&received_coin.object_id)
+        .await;
+    assert!(
+        coin_now.version > received_coin.version,
+        "the receive must have moved the coin past the version the stale transaction named"
+    );
+
+    Ok(())
+}
+
 /// Test that a certified Abstract Account transaction is cancelled
 /// post-consensus when the (shared) AA object it touches is congested.
 ///
