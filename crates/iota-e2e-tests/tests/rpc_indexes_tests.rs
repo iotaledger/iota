@@ -82,13 +82,10 @@ async fn indexes_chain_across_epoch_buckets_on_a_live_node() {
     assert_eq!(reverse, vec![digest_epoch_1, digest_epoch_0]);
 }
 
-/// Retention this test configures, in epochs. Small enough that the test can
-/// advance past it, large enough that recent history survives.
 const EPOCHS_TO_RETAIN: u64 = 2;
 
-/// With `num_epochs_to_retain_for_indexes` configured, the pruner drops
-/// expired epochs' history on a running node while recent history and the
-/// live-state tables keep serving.
+/// The epoch boundary drops index history outside
+/// `num_epochs_to_retain_for_indexes` while recent history keeps serving.
 #[sim_test]
 async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     let cluster = TestClusterBuilder::new()
@@ -112,7 +109,7 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
         .clone()
         .unwrap();
 
-    // The pruner runs on its own schedule; wait for it to drop epoch 0.
+    // Expiry runs asynchronously after the epoch boundary.
     let mut pruned = false;
     for _ in 0..60 {
         if indexes.lookup_digest(&old_digest).unwrap().is_none() {
@@ -199,9 +196,7 @@ async fn node_without_jsonrpc_api_mounts_no_http_server() {
 async fn transaction_checkpoint_survives_a_shorter_index_window() {
     let cluster = TestClusterBuilder::new()
         .with_fullnode_num_epochs_to_retain_for_indexes(Some(1))
-        // The ledger must outlive the index window for the test to say
-        // anything, so keep every transaction rather than leaving that to
-        // how far the transaction pruner happens to have got.
+        // The ledger must outlive the index window.
         .disable_fullnode_pruning()
         .with_fullnode_enable_grpc_api(true)
         .build()
@@ -217,9 +212,13 @@ async fn transaction_checkpoint_survives_a_shorter_index_window() {
     for _ in 0..=1 {
         cluster.force_new_epoch().await;
     }
+    let current_epoch = cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
     tokio::task::spawn_blocking({
         let indexes = indexes.clone();
-        move || indexes.prune()
+        move || indexes.prune(current_epoch)
     })
     .await
     .unwrap()

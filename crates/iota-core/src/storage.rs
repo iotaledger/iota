@@ -368,6 +368,10 @@ impl WriteStore for RocksDbStore {
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
     ) -> Result<(), iota_types::storage::error::Error> {
+        // Transactions go into the bucket of the epoch that executed them, the
+        // contents into that of the epoch that closed the checkpoint. State
+        // sync runs ahead of execution, so either may be an epoch this node
+        // has not begun executing.
         self.cache_traits
             .state_sync_store
             .try_multi_insert_transaction_and_effects(contents.transactions())
