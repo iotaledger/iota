@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The dynamic-field machine. Reads a dynamic field as it stood once every
-//! commit up to the horizon had executed, for the deny checks at the commit,
-//! such as a field of the coin deny list. It answers live or absent, not
-//! keep, drop or missing.
+//! commit up to the horizon had executed, for the deny checks at the commit:
+//! a field of the coin deny list, or an account's authenticator function
+//! field. It answers live or absent, not keep, drop or missing.
 //!
 //! The read walks down from the id's highest handler row to the highest one
 //! at or below the horizon, so it relies on the field's versions rising with
 //! the commits that change it. That holds for a field that changes only
 //! through its shared parent object, in the order of the commits that change
-//! it, as the deny list's fields change only through the shared deny list
-//! object. When every row is above the horizon, the field is
+//! it: the deny list's fields change only through the shared deny list
+//! object, and an account's authenticator function field only through the
+//! shared account. When every row is above the horizon, the field is
 //! as the epoch started: the version the lowest row replaced, or absent if
 //! that row created it. An id with no row reads the store and then the rows
 //! again, for the reason the module doc gives for the owned and shared

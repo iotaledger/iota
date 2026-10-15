@@ -4,9 +4,9 @@
 //! Reads the inputs of a transaction for post-consensus validation as of a
 //! consensus commit, so that every validator reaches the same result,
 //! however far its own execution has got. It also reads a dynamic field as
-//! of the horizon for the deny checks at the commit, such as a field of the
-//! coin deny list. That read answers present or absent, not keep, drop or
-//! missing.
+//! of the horizon for the deny checks at the commit: a field of the coin deny
+//! list, or an account's authenticator function field. That read answers
+//! present or absent, not keep, drop or missing.
 //!
 //! Terms used here and in the submodules:
 //! - `C` is the commit being validated.
@@ -102,9 +102,10 @@
 //! rise with the commits that change it, which holds for a field that changes
 //! only through its shared parent object, so in the order of the commits that
 //! change it. The fields of the coin deny list change only through the
-//! shared deny list object. A field with no row reads the store and then the
-//! rows again, as explained under "Why the store answer for an id with no row
-//! is the epoch-start state" above.
+//! shared deny list object, and an account's authenticator function field
+//! only through the shared account. A field with no row reads the store and
+//! then the rows again, as explained under "Why the store answer for an id
+//! with no row is the epoch-start state" above.
 //!
 //! The coin deny check also needs the type of a kept shared input, whose
 //! object the shared reader does not read. That read takes the latest store
@@ -178,8 +179,9 @@ pub enum DynamicFieldAtHorizon {
 /// The reader's result for a Move authenticator's account.
 #[must_use]
 pub enum AccountVerdict {
-    /// The account had its authenticator function field at the horizon.
-    Account,
+    /// The account had its authenticator function field at the horizon: the
+    /// field's object at the version live then.
+    Account(Object),
     Missing(MissingReason),
 }
 
