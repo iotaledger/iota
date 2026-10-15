@@ -614,11 +614,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     always_advance_dkg_to_resolution: bool,
 
-    // If true, keep DKG pending after its timeout so that it can complete later
-    // in the epoch.
-    #[serde(skip_serializing_if = "is_false")]
-    allow_dkg_completion_after_timeout: bool,
-
     // If true, enables the P-COOL (post-consensus owned-object locking) flow:
     // transactions bypass pre-consensus certification and owned-object locking,
     // and conflicts are resolved deterministically post-consensus (white-flag
@@ -744,6 +739,11 @@ struct FeatureFlags {
     // Validate PTB input and result indices before signing.
     #[serde(skip_serializing_if = "is_false")]
     validate_ptb_argument_indices: bool,
+
+    // If true, keep DKG pending after its timeout so that it can complete later
+    // in the epoch.
+    #[serde(skip_serializing_if = "is_false")]
+    allow_dkg_completion_after_timeout: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2074,10 +2074,6 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution
     }
 
-    pub fn allow_dkg_completion_after_timeout(&self) -> bool {
-        self.feature_flags.allow_dkg_completion_after_timeout
-    }
-
     pub fn enable_pcool_flow(&self) -> bool {
         self.feature_flags.enable_pcool_flow
     }
@@ -2258,6 +2254,10 @@ impl ProtocolConfig {
 
     pub fn validate_ptb_argument_indices(&self) -> bool {
         self.feature_flags.validate_ptb_argument_indices
+    }
+
+    pub fn allow_dkg_completion_after_timeout(&self) -> bool {
+        self.feature_flags.allow_dkg_completion_after_timeout
     }
 }
 
@@ -3950,10 +3950,6 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
-    pub fn set_allow_dkg_completion_after_timeout_for_testing(&mut self, val: bool) {
-        self.feature_flags.allow_dkg_completion_after_timeout = val;
-    }
-
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
     }
@@ -4035,6 +4031,10 @@ impl ProtocolConfig {
     pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
         self.feature_flags
             .consensus_enable_absolute_score_leader_schedule = val;
+    }
+
+    pub fn set_allow_dkg_completion_after_timeout_for_testing(&mut self, val: bool) {
+        self.feature_flags.allow_dkg_completion_after_timeout = val;
     }
 }
 
