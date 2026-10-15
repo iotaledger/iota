@@ -159,22 +159,22 @@ fn validate_rejects_bundle_caps_above_the_decoding_ceiling() {
 #[test]
 fn validate_rejects_header_fetch_caps_above_the_response_ceiling() {
     let parameters = starfish_config::Parameters {
-        max_headers_per_header_sync_fetch: starfish_config::MAX_HEADERS_PER_FETCH + 1,
+        max_headers_per_header_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING + 1,
         ..Default::default()
     };
     let error = parameters.validate().unwrap_err();
     assert!(error.contains("max_headers_per_header_sync_fetch"));
 
     let parameters = starfish_config::Parameters {
-        max_headers_per_commit_sync_fetch: starfish_config::MAX_HEADERS_PER_FETCH + 1,
+        max_headers_per_commit_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING + 1,
         ..Default::default()
     };
     let error = parameters.validate().unwrap_err();
     assert!(error.contains("max_headers_per_commit_sync_fetch"));
 
     starfish_config::Parameters {
-        max_headers_per_header_sync_fetch: starfish_config::MAX_HEADERS_PER_FETCH,
-        max_headers_per_commit_sync_fetch: starfish_config::MAX_HEADERS_PER_FETCH,
+        max_headers_per_header_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING,
+        max_headers_per_commit_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING,
         ..Default::default()
     }
     .validate()
@@ -184,7 +184,7 @@ fn validate_rejects_header_fetch_caps_above_the_response_ceiling() {
 #[test]
 fn validate_rejects_transaction_fetch_caps_above_the_response_ceiling() {
     let parameters = starfish_config::Parameters {
-        max_transactions_per_transaction_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH
+        max_transactions_per_transaction_sync_fetch: starfish_config::TRANSACTIONS_PER_FETCH_CEILING
             + 1,
         ..Default::default()
     };
@@ -192,15 +192,16 @@ fn validate_rejects_transaction_fetch_caps_above_the_response_ceiling() {
     assert!(error.contains("max_transactions_per_transaction_sync_fetch"));
 
     let parameters = starfish_config::Parameters {
-        max_transactions_per_commit_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH + 1,
+        max_transactions_per_commit_sync_fetch: starfish_config::TRANSACTIONS_PER_FETCH_CEILING + 1,
         ..Default::default()
     };
     let error = parameters.validate().unwrap_err();
     assert!(error.contains("max_transactions_per_commit_sync_fetch"));
 
     starfish_config::Parameters {
-        max_transactions_per_transaction_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH,
-        max_transactions_per_commit_sync_fetch: starfish_config::MAX_TRANSACTIONS_PER_FETCH,
+        max_transactions_per_transaction_sync_fetch:
+            starfish_config::TRANSACTIONS_PER_FETCH_CEILING,
+        max_transactions_per_commit_sync_fetch: starfish_config::TRANSACTIONS_PER_FETCH_CEILING,
         ..Default::default()
     }
     .validate()

@@ -24,8 +24,8 @@ use iota_network_stack::{
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{
-    AuthorityIndex, MAX_HEADERS_PER_FETCH, MAX_TRANSACTIONS_PER_FETCH, NetworkKeyPair,
-    NetworkPublicKey,
+    AuthorityIndex, HEADERS_PER_FETCH_CEILING, NetworkKeyPair, NetworkPublicKey,
+    TRANSACTIONS_PER_FETCH_CEILING,
 };
 use tokio::sync::Mutex;
 use tokio_stream::iter;
@@ -87,7 +87,7 @@ fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
     if commit_sync {
         context.parameters.max_headers_per_commit_sync_fetch
     } else {
-        MAX_HEADERS_PER_FETCH
+        HEADERS_PER_FETCH_CEILING
     }
 }
 
@@ -1810,7 +1810,7 @@ pub(crate) struct FetchBlockHeadersRequest {
 impl EntryLimit for FetchBlockHeadersRequest {
     // A client asks for at most its own header cap, plus one entry for the
     // whole rounds vector.
-    const MAX_ENTRIES: usize = MAX_HEADERS_PER_FETCH + 1;
+    const MAX_ENTRIES: usize = HEADERS_PER_FETCH_CEILING + 1;
     const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
 }
 
@@ -1821,7 +1821,7 @@ pub(crate) struct FetchBlockHeadersResponse {
 }
 
 impl EntryLimit for FetchBlockHeadersResponse {
-    const MAX_ENTRIES: usize = MAX_HEADERS_PER_FETCH;
+    const MAX_ENTRIES: usize = HEADERS_PER_FETCH_CEILING;
     const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
 }
 
@@ -1916,7 +1916,7 @@ pub(crate) struct FetchTransactionsRequest {
 }
 
 impl EntryLimit for FetchTransactionsRequest {
-    const MAX_ENTRIES: usize = MAX_TRANSACTIONS_PER_FETCH;
+    const MAX_ENTRIES: usize = TRANSACTIONS_PER_FETCH_CEILING;
     const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
 }
 
@@ -1927,7 +1927,7 @@ pub(crate) struct FetchTransactionsResponse {
 }
 
 impl EntryLimit for FetchTransactionsResponse {
-    const MAX_ENTRIES: usize = MAX_TRANSACTIONS_PER_FETCH;
+    const MAX_ENTRIES: usize = TRANSACTIONS_PER_FETCH_CEILING;
     const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
 }
 
@@ -1993,7 +1993,7 @@ mod tests {
     use bytes::Bytes;
     use futures::{StreamExt as _, stream};
     use parking_lot::Mutex;
-    use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_FETCH};
+    use starfish_config::{AuthorityIndex, HEADERS_PER_FETCH_CEILING};
 
     use super::{
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
@@ -2357,17 +2357,17 @@ mod tests {
     async fn header_sync_rejects_headers_past_the_ceiling() {
         let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let flood = stream::iter([Ok(header_chunk(MAX_HEADERS_PER_FETCH + 1, 1))]);
+        let flood = stream::iter([Ok(header_chunk(HEADERS_PER_FETCH_CEILING + 1, 1))]);
 
         let result = collect_block_headers(&context, peer, flood, false).await;
 
         assert!(matches!(
             result,
             Err(ConsensusError::TooManyFetchedHeadersReturned {
-                requested: MAX_HEADERS_PER_FETCH,
+                requested: HEADERS_PER_FETCH_CEILING,
                 received,
                 ..
-            }) if received == MAX_HEADERS_PER_FETCH + 1
+            }) if received == HEADERS_PER_FETCH_CEILING + 1
         ));
     }
 
@@ -2515,7 +2515,7 @@ mod tests {
         // since the peer's gap-fill follows its own cap.
         assert_eq!(
             max_fetch_block_headers_response_bytes(&context, false),
-            MAX_HEADERS_PER_FETCH * header_entry
+            HEADERS_PER_FETCH_CEILING * header_entry
         );
         // The transaction budget is one maximum-size entry per requested
         // reference, independent of the transaction caps above.
@@ -3155,11 +3155,12 @@ mod tests {
             || client.fetch_block_headers(server_index, vec![], vec![0; 4], Duration::from_secs(5));
 
         // Empty headers, which the server sends as a single message.
-        service.lock().fetch_block_headers_response = vec![Bytes::new(); MAX_HEADERS_PER_FETCH];
+        service.lock().fetch_block_headers_response = vec![Bytes::new(); HEADERS_PER_FETCH_CEILING];
         let headers = fetch().await.expect("a response at the ceiling is kept");
-        assert_eq!(headers.len(), MAX_HEADERS_PER_FETCH);
+        assert_eq!(headers.len(), HEADERS_PER_FETCH_CEILING);
 
-        service.lock().fetch_block_headers_response = vec![Bytes::new(); MAX_HEADERS_PER_FETCH + 1];
+        service.lock().fetch_block_headers_response =
+            vec![Bytes::new(); HEADERS_PER_FETCH_CEILING + 1];
         let mut stub = client
             .get_client(server_index, Duration::from_secs(5))
             .await
@@ -3177,10 +3178,10 @@ mod tests {
         assert!(matches!(
             fetch().await,
             Err(ConsensusError::TooManyFetchedHeadersReturned {
-                requested: MAX_HEADERS_PER_FETCH,
+                requested: HEADERS_PER_FETCH_CEILING,
                 received,
                 ..
-            }) if received == MAX_HEADERS_PER_FETCH + 1
+            }) if received == HEADERS_PER_FETCH_CEILING + 1
         ));
     }
 
@@ -3210,13 +3211,13 @@ mod tests {
             )
         };
 
-        let served = fetch(MAX_HEADERS_PER_FETCH)
+        let served = fetch(HEADERS_PER_FETCH_CEILING)
             .await
             .expect("a request at the ceiling is served");
         assert!(served.into_inner().message().await.unwrap().is_none());
         assert_eq!(service.lock().handle_fetch_block_headers.len(), 1);
 
-        let status = match fetch(MAX_HEADERS_PER_FETCH + 1).await {
+        let status = match fetch(HEADERS_PER_FETCH_CEILING + 1).await {
             Err(status) => status,
             Ok(response) => response.into_inner().message().await.unwrap_err(),
         };
@@ -3225,7 +3226,7 @@ mod tests {
         let refused = client
             .fetch_block_headers(
                 server_index,
-                vec![BlockRef::MIN; MAX_HEADERS_PER_FETCH + 1],
+                vec![BlockRef::MIN; HEADERS_PER_FETCH_CEILING + 1],
                 vec![0; 4],
                 Duration::from_secs(5),
             )
@@ -3242,24 +3243,25 @@ mod tests {
     async fn a_transaction_response_past_the_ceiling_is_refused_while_decoding() {
         use std::time::Duration;
 
-        use starfish_config::MAX_TRANSACTIONS_PER_FETCH;
+        use starfish_config::TRANSACTIONS_PER_FETCH_CEILING;
 
         use super::{FetchTransactionsRequest, TOO_MANY_ENTRIES_IN_RESPONSE};
         use crate::{network::NetworkClient as _, transaction_ref::TransactionRef};
 
         let service = Arc::new(Mutex::new(TestService::new()));
         let (_server, client, server_index) = serve(service.clone()).await;
-        let requested = vec![TransactionRef::default(); MAX_TRANSACTIONS_PER_FETCH];
+        let requested = vec![TransactionRef::default(); TRANSACTIONS_PER_FETCH_CEILING];
         let fetch =
             || client.fetch_transactions(server_index, requested.clone(), Duration::from_secs(5));
 
         // Empty entries, which the server sends as a single message.
-        service.lock().fetch_transactions_response = vec![Bytes::new(); MAX_TRANSACTIONS_PER_FETCH];
+        service.lock().fetch_transactions_response =
+            vec![Bytes::new(); TRANSACTIONS_PER_FETCH_CEILING];
         let transactions = fetch().await.expect("a response at the ceiling is kept");
-        assert_eq!(transactions.len(), MAX_TRANSACTIONS_PER_FETCH);
+        assert_eq!(transactions.len(), TRANSACTIONS_PER_FETCH_CEILING);
 
         service.lock().fetch_transactions_response =
-            vec![Bytes::new(); MAX_TRANSACTIONS_PER_FETCH + 1];
+            vec![Bytes::new(); TRANSACTIONS_PER_FETCH_CEILING + 1];
         let mut stub = client
             .get_client(server_index, Duration::from_secs(5))
             .await
@@ -3287,7 +3289,7 @@ mod tests {
     async fn a_transaction_request_past_the_ceiling_is_refused_while_decoding() {
         use std::time::Duration;
 
-        use starfish_config::MAX_TRANSACTIONS_PER_FETCH;
+        use starfish_config::TRANSACTIONS_PER_FETCH_CEILING;
 
         use super::{FetchTransactionsRequest, TOO_MANY_ENTRIES_IN_REQUEST};
         use crate::{network::NetworkClient as _, transaction_ref::TransactionRef};
@@ -3306,13 +3308,13 @@ mod tests {
             )
         };
 
-        let served = fetch(MAX_TRANSACTIONS_PER_FETCH)
+        let served = fetch(TRANSACTIONS_PER_FETCH_CEILING)
             .await
             .expect("a request at the ceiling is served");
         assert!(served.into_inner().message().await.unwrap().is_none());
         assert_eq!(service.lock().handle_fetch_transactions.len(), 1);
 
-        let status = match fetch(MAX_TRANSACTIONS_PER_FETCH + 1).await {
+        let status = match fetch(TRANSACTIONS_PER_FETCH_CEILING + 1).await {
             Err(status) => status,
             Ok(response) => response.into_inner().message().await.unwrap_err(),
         };
@@ -3321,7 +3323,7 @@ mod tests {
         let refused = client
             .fetch_transactions(
                 server_index,
-                vec![TransactionRef::default(); MAX_TRANSACTIONS_PER_FETCH + 1],
+                vec![TransactionRef::default(); TRANSACTIONS_PER_FETCH_CEILING + 1],
                 Duration::from_secs(5),
             )
             .await;
