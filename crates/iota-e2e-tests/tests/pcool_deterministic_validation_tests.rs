@@ -1720,6 +1720,17 @@ impl RegulatedCoin {
             .build()
     }
 
+    /// A transaction by `owner` that sends its whole regulated coin to
+    /// `recipient`.
+    async fn transfer_tx(&self, test_cluster: &TestCluster, recipient: Address) -> Transaction {
+        let coin = test_cluster.get_latest_object_ref(&self.coin).await;
+        test_cluster
+            .test_transaction_builder_with_sender(self.owner)
+            .await
+            .transfer(coin, recipient)
+            .build()
+    }
+
     /// A transaction by `owner` that receives `coin`, sent to `parent`, and
     /// sends it on to `recipient`.
     async fn receive_tx(
@@ -1795,7 +1806,7 @@ impl RegulatedCoin {
 
     /// Executes `tx`, which admission accepts and post-consensus validation
     /// keeps, and checks that execution fails it with the denial of `owner` on
-    /// every validator, charging gas.
+    /// every validator and the fullnode, charging gas.
     async fn assert_denied_at_execution(&self, test_cluster: &TestCluster, tx: &Transaction) {
         let (effects, _) = test_cluster
             .execute_transaction_return_raw_effects(test_cluster.sign_transaction(tx))
@@ -1834,7 +1845,37 @@ impl RegulatedCoin {
                 "validators must hold the same effects"
             );
         }
+        assert_eq!(
+            effects_on_fullnode(test_cluster, &effects).await,
+            on_validators[0],
+            "the fullnode must hold the validators' effects"
+        );
     }
+}
+
+/// The effects of the transaction that `effects` describes, as the fullnode
+/// holds them once it has executed the transaction from a checkpoint.
+async fn effects_on_fullnode(
+    test_cluster: &TestCluster,
+    effects: &TransactionEffects,
+) -> TransactionEffects {
+    let digest = *effects.transaction_digest();
+    tokio::time::timeout(
+        Duration::from_secs(60),
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &[digest])
+                    .await
+            }),
+    )
+    .await
+    .expect("the fullnode must execute the transaction within 60s")
+    .expect("the executed effects must be readable")
+    .remove(0)
 }
 
 /// The effects of the transaction that `effects` describes, as every validator
@@ -1875,27 +1916,33 @@ async fn owner_of(test_cluster: &TestCluster, object_id: &ObjectId) -> Owner {
 }
 
 /// A sender denied for a coin type, with the denial settled at an epoch
-/// boundary and removed in the epoch after it, is admitted and kept by
-/// post-consensus validation. On every validator, execution then fails a
-/// transaction that spends a coin of that type and one that receives such a
-/// coin: both end with the denial in their effects, are charged gas, and move
-/// nothing.
+/// boundary and removed in the epoch after it. Post-consensus validation
+/// reads the deny list for the inputs as of the commit's horizon, so once the
+/// removal is the horizon distance of commits old, every transaction below is
+/// kept. Execution still checks the owners of the coins it writes and the
+/// coins Move code receives against the deny list settled before this epoch:
+/// - a split that leaves a coin with the sender fails with the denial;
+/// - a transfer of the sender's whole coin succeeds;
+/// - a transaction receiving such a coin fails with the denial and moves nothing.
+///
+/// Each one has the same effects on every validator and the fullnode, and a
+/// failure is charged gas.
 #[sim_test]
-async fn test_denied_sender_spending_and_receiving_a_coin_fails_with_effects() {
+async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizon() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(600_000)
         .build()
         .await;
-    test_cluster.all_validator_handles()[0].with(|node| {
+    let horizon_distance = test_cluster.all_validator_handles()[0].with(|node| {
+        let epoch_store = node.state().epoch_store_for_testing();
+        let protocol_config = epoch_store.protocol_config();
         assert!(
-            node.state()
-                .epoch_store_for_testing()
-                .protocol_config()
-                .pcool_deterministic_validation(),
+            protocol_config.pcool_deterministic_validation(),
             "the protocol-config override must reach the validators"
         );
+        protocol_config.pcool_deterministic_validation_horizon_distance_or_default()
     });
 
     let regulated = RegulatedCoin::publish(&test_cluster).await;
@@ -1907,10 +1954,9 @@ async fn test_denied_sender_spending_and_receiving_a_coin_fails_with_effects() {
     let effects = test_cluster.sign_and_execute_transaction(&send_tx).await;
     let received = effects.created()[0].reference().object_id;
 
-    // The denial settles at the epoch boundary, and its removal takes effect
-    // only at the next one. After the removal, the latest deny list allows the
-    // sender while the list settled before this epoch still denies it:
-    // admission reads the first, and execution the second.
+    // The denial settles at the epoch boundary. Its removal in the next epoch
+    // counts for the inputs once the horizon reaches it, and for received
+    // coins only at the next epoch boundary.
     regulated.deny(&test_cluster).await;
     test_cluster.force_new_epoch().await;
     let removal = regulated.undeny(&test_cluster).await;
@@ -1918,11 +1964,40 @@ async fn test_denied_sender_spending_and_receiving_a_coin_fails_with_effects() {
     // Admission reads the latest deny list on the validator that takes the
     // submission, so every validator must have executed the removal first.
     effects_on_validators(&test_cluster, &removal).await;
+    // Each transaction is submitted once the one before it has executed, so
+    // it is sequenced in a later commit: after these, the spend's commit is
+    // more than the horizon distance above the removal's.
+    for _ in 0..horizon_distance {
+        transfer(&test_cluster).await;
+    }
 
-    let spend_tx = regulated.send_tx(&test_cluster, dbg_addr(2)).await;
+    let split_tx = regulated.send_tx(&test_cluster, dbg_addr(2)).await;
     regulated
-        .assert_denied_at_execution(&test_cluster, &spend_tx)
+        .assert_denied_at_execution(&test_cluster, &split_tx)
         .await;
+
+    let transfer_tx = regulated.transfer_tx(&test_cluster, dbg_addr(2)).await;
+    let (effects, _) = test_cluster
+        .execute_transaction_return_raw_effects(test_cluster.sign_transaction(&transfer_tx))
+        .await
+        .expect("the transfer must be admitted and kept");
+    assert_eq!(effects.status(), &ExecutionStatus::Success);
+    for on_validator in effects_on_validators(&test_cluster, &effects).await {
+        assert_eq!(
+            on_validator, effects,
+            "validators must hold the same effects"
+        );
+    }
+    assert_eq!(
+        effects_on_fullnode(&test_cluster, &effects).await,
+        effects,
+        "the fullnode must hold the validators' effects"
+    );
+    assert_eq!(
+        owner_of(&test_cluster, &regulated.coin).await,
+        Owner::Address(dbg_addr(2)),
+        "the transfer must move the coin"
+    );
 
     let receive_tx = regulated
         .receive_tx(&test_cluster, parent, received, dbg_addr(2))
