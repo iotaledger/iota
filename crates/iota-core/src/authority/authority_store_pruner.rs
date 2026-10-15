@@ -122,7 +122,7 @@ impl AuthorityStorePruner {
         &self,
         checkpoint_store: &CheckpointStore,
     ) -> Result<ObjectRetentionGuard, TypedStoreError> {
-        ObjectRetention::retain(&self.object_retention, checkpoint_store)
+        self.object_retention.retain(checkpoint_store)
     }
 }
 
@@ -131,22 +131,26 @@ impl AuthorityStorePruner {
 ///
 /// Retaining objects and the pruner both read the highest executed checkpoint
 /// under the lock. A guard the pruner does not see therefore starts at or
-/// above the executed checkpoint the pruner stops before.
+/// above the executed checkpoint the pruner stops before. Reading it outside
+/// the lock would let a guard read the watermark, the pruner then read a
+/// higher one and miss the guard not yet added, and prune the guard's
+/// checkpoint.
 #[derive(Default)]
 pub struct ObjectRetention(Mutex<BTreeMap<CheckpointSequenceNumber, usize>>);
 
 impl ObjectRetention {
     fn retain(
-        object_retention: &Arc<Self>,
+        self: &Arc<Self>,
         checkpoint_store: &CheckpointStore,
     ) -> Result<ObjectRetentionGuard, TypedStoreError> {
-        let mut retained = object_retention.0.lock().unwrap();
+        // Read the watermark under the lock; see the type's documentation.
+        let mut retained = self.0.lock().unwrap();
         let from = checkpoint_store
             .get_highest_executed_checkpoint_seq_number()?
             .unwrap_or_default();
         *retained.entry(from).or_default() += 1;
         Ok(ObjectRetentionGuard {
-            object_retention: object_retention.clone(),
+            object_retention: self.clone(),
             from,
         })
     }
@@ -157,6 +161,7 @@ impl ObjectRetention {
         checkpoint_store: &CheckpointStore,
     ) -> Result<(Option<VerifiedCheckpoint>, Option<CheckpointSequenceNumber>), TypedStoreError>
     {
+        // Read the watermark under the lock; see the type's documentation.
         let retained = self.0.lock().unwrap();
         Ok((
             checkpoint_store.get_highest_executed_checkpoint()?,
@@ -1689,7 +1694,7 @@ mod tests {
                 .unwrap();
         }
         let object_retention = Arc::new(ObjectRetention::default());
-        let guard = ObjectRetention::retain(&object_retention, &checkpoint_store).unwrap();
+        let guard = object_retention.retain(&checkpoint_store).unwrap();
         for checkpoint in to_execute {
             checkpoint_store
                 .update_highest_executed_checkpoint(checkpoint)
