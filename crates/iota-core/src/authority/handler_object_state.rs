@@ -445,10 +445,11 @@ impl HandlerObjectState {
     /// If the commit is not fully executed and the execution watcher has
     /// stopped on an error. The commit would then complete only through a
     /// flush, which needs its checkpoint certified with signatures carried by
-    /// commits the caller has not processed. The panic stops the caller's
-    /// task, the consensus handler; the process exits only when it runs with
-    /// `CRASH_ON_PANIC` set. A restart of the process re-seeds the highest
-    /// fully executed commit from the durable resume point.
+    /// commits the caller has not processed. Release builds abort on any
+    /// panic, so this stops the node. Builds that unwind, such as tests and
+    /// the simulator, stop only the caller's task, the consensus handler,
+    /// unless `CRASH_ON_PANIC` is set. A restart of the process re-seeds the
+    /// highest fully executed commit from the durable resume point.
     pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
         let mut highest = self.highest_fully_executed_commit.subscribe();
         while *highest.borrow_and_update() < index {

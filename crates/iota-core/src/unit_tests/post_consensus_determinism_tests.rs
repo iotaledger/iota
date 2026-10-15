@@ -19,12 +19,12 @@
 //!
 //! The executor runs a transaction only once the handler assigned its commit,
 //! until the switch; from then on it runs every commit, with no handler rows,
-//! and the handler validates no further commit. Two parts of the schedule
-//! model behaviour the node does not have yet: pruning waits until no
-//! validation can keep a consumed version, and a node that crashes after the
-//! switch switches again on restart. The scenario
-//! `restart_after_the_switch_validates_against_synced_outputs` shows what the
-//! node does today instead.
+//! and the handler validates no further commit. As on the node, pruning
+//! deletes no consumed version a validation above the resume point can still
+//! keep, and a node that crashes after the switch replays the commits up to
+//! the switch on restart and switches again at the next one; the scenario
+//! `restart_after_the_switch_replays_only_up_to_the_switch` covers the
+//! restart.
 //!
 //! What is real: the bookkeeping state and its durable tables, the reader
 //! machines, the horizon distance from the protocol config, the saved
