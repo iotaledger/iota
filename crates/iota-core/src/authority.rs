@@ -2121,7 +2121,8 @@ impl AuthorityState {
         // commit, so no commit would ever clear entries recorded for them.
         // Without entries, the reader takes what they wrote as epoch-start
         // state: genesis writes the first epoch's, the change-epoch transaction
-        // the next epoch's.
+        // the next epoch's. The migration transactions executed at epoch 0 are
+        // genesis transactions too; node startup asserts their kind.
         if epoch_store.pcool_bookkeeping_enabled()
             && !transaction.transaction().is_genesis_tx()
             && !transaction.transaction().is_end_of_epoch_tx()

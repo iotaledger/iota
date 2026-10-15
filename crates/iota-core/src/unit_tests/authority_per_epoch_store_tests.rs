@@ -2341,8 +2341,8 @@ mod handler_object_state_storage {
 
     /// An execution whose commit the handler has not assigned is a bug, until
     /// this node executes synced checkpoints for the rest of the epoch; then
-    /// it writes nothing. In test builds `debug_fatal!` panics, so the first
-    /// call runs under `catch_unwind`.
+    /// it writes nothing. The report is a `fatal!`, which panics, so the
+    /// first call runs under `catch_unwind`.
     #[tokio::test]
     async fn map_miss_is_reported_unless_executing_synced_checkpoints() {
         let _guard =
