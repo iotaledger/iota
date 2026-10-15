@@ -96,7 +96,12 @@ struct TransactionTable;
 impl IngestionTest for TransactionTable {
     type ExpectedState = (TransactionEnvelope, TransactionEffects, VerifiedCheckpoint);
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         let (transaction, effects, _) = sim.execute_transfer();
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.inner.create_checkpoint();
@@ -152,7 +157,12 @@ impl TxGlobalOrderTable {
 impl IngestionTest for TxGlobalOrderTable {
     type ExpectedState = TransactionDigest;
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         let (_, effects, _) = sim.execute_transfer();
         sim.inner.create_checkpoint();
         let digest = *effects.transaction_digest();

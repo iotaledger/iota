@@ -149,14 +149,21 @@ impl TestSim {
 }
 
 pub(crate) trait IngestionTest {
+    /// The lowest level that ingests the tables of the test.
+    const MIN_LEVEL: OperationalLevel = OperationalLevel::Basic;
+
     /// Any values produced through the setup phase to compare against the database.
     type ExpectedState;
 
     /// Sets up the test fixtures.
     ///
-    /// Typically executes transactions, starts the indexer and constructs any state to compare
-    /// against the database.
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState);
+    /// Typically creates a [`TestSim`] on `level` with the database `database_name`, executes
+    /// transactions, starts the indexer and constructs any state to compare against the database.
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState);
 
     /// Verifies the database tables, using also the given expected state if any.
     async fn assert_ingested(
@@ -165,11 +172,23 @@ pub(crate) trait IngestionTest {
         state: Self::ExpectedState,
     ) -> Result<(), IndexerError>;
 
+    /// Verifies that the tables of the test are empty.
+    ///
+    /// # Panics
+    ///
+    /// The default panics. A test with `MIN_LEVEL` above `Basic` must override it.
+    async fn assert_not_ingested(&self, _pg_store: &PgIndexerStore) -> Result<(), IndexerError> {
+        unimplemented!("a test with MIN_LEVEL above Basic must override assert_not_ingested")
+    }
+
     /// Runs the test on `level`, using `database_name` as the test database.
     async fn run(&self, level: OperationalLevel, database_name: &str) -> Result<(), IndexerError> {
-        let sim = TestSim::new(level, database_name);
-        let (pg_store, state) = self.setup(&sim).await;
-        self.assert_ingested(&pg_store, state).await
+        let (pg_store, state) = self.setup(level, database_name).await;
+        if level.includes(Self::MIN_LEVEL) {
+            self.assert_ingested(&pg_store, state).await
+        } else {
+            self.assert_not_ingested(&pg_store).await
+        }
     }
 }
 

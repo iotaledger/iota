@@ -13,7 +13,7 @@ use iota_indexer::{
         obj_indices::StoredObjectVersion,
         objects::{StoredCheckpointedObject, StoredObject},
     },
-    schema::{checkpointed_objects, objects},
+    schema::{checkpointed_objects, objects, objects_backward_history},
     store::{PgIndexerStore, indexer_store::IndexerStore},
     types::ObjectStatus,
 };
@@ -80,87 +80,14 @@ pub async fn checkpointed_objects_match_objects(
         .await
 }
 
-/// Verify that `objects_backward_history` is populated correctly, including
-/// when multiple transactions land in the same checkpoint.
-///
-/// `transfer_txn` splits a coin from the gas object and transfers it.
-/// Each such transaction produces:
-///   - a CREATED coin  → NOT_YET_CREATED backward entry (version=lamport-1)
-///   - a MUTATED gas   → ACTIVE backward entry with previous version/data
+#[rstest]
 #[tokio::test]
-pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new(OperationalLevel::default(), "ingestion_backward_history");
-
-    // --- checkpoint 1: TWO transfers in the same checkpoint ---
-    // This exercises the case where multiple transactions produce backward
-    // history entries for the same checkpoint, and where the same object
-    // (the gas coin) is mutated by both transactions within one checkpoint.
-    let (tx1, _, created_coin_1) = sim.execute_transfer();
-    let gas_object_id = tx1.gas()[0].object_id;
-    let gas_version_before_tx1 = tx1.gas()[0].version;
-
-    // Second transfer in the same checkpoint — uses the same gas object
-    // (now at an updated version).
-    let (tx2, _, created_coin_2) = sim.execute_transfer();
-    let gas_version_before_tx2 = tx2.gas()[0].version;
-    assert!(
-        gas_version_before_tx2 > gas_version_before_tx1,
-        "gas should have been bumped after tx1"
-    );
-
-    // Both transactions land in checkpoint 1.
-    sim.inner.create_checkpoint();
-
-    // --- checkpoint 2: one more transfer ---
-    let (tx3, _, created_coin_3) = sim.execute_transfer();
-    let gas_version_before_tx3 = tx3.gas()[0].version;
-    sim.inner.create_checkpoint();
-
-    let pg_store = sim.start_indexer(None).await;
-    indexer_wait_for_checkpoint(&pg_store, 2).await;
-
-    // === checkpoint 1 assertions (two transactions) ===
-
-    assert_not_yet_created(&pg_store, created_coin_1, 1).await?;
-    assert_not_yet_created(&pg_store, created_coin_2, 1).await?;
-
-    // The gas object was mutated twice in checkpoint 1 — there should be
-    // two ACTIVE entries with different previous versions.
-    let gas_entries =
-        find_all_entries_at_checkpoint(&pg_store, gas_object_id.as_bytes(), 1).await?;
-    assert_eq!(
-        gas_entries.len(),
-        2,
-        "gas object should have 2 backward history entries in cp 1 (one per tx)"
-    );
-    assert_eq!(gas_entries[0].object_status, ObjectStatus::Active as i16);
-    assert_eq!(
-        gas_entries[0].object_version,
-        gas_version_before_tx1.as_u64() as i64
-    );
-    assert!(gas_entries[0].serialized_object.is_some());
-    assert!(gas_entries[0].object_digest.is_some());
-    assert!(gas_entries[0].owner_type.is_some());
-
-    assert_eq!(gas_entries[1].object_status, ObjectStatus::Active as i16);
-    assert_eq!(
-        gas_entries[1].object_version,
-        gas_version_before_tx2.as_u64() as i64
-    );
-    assert!(gas_entries[1].serialized_object.is_some());
-
-    // === checkpoint 2 assertions (single transaction) ===
-
-    assert_not_yet_created(&pg_store, created_coin_3, 2).await?;
-
-    let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)
-        .await?
-        .expect("gas object must have a backward history entry at cp 2");
-    assert_eq!(entry.object_status, ObjectStatus::Active as i16);
-    assert_eq!(entry.object_version, gas_version_before_tx3.as_u64() as i64);
-    assert!(entry.serialized_object.is_some());
-
-    Ok(())
+pub async fn backward_history_ingestion(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
+    BackwardHistoryIngestion
+        .run(level, "ingestion_backward_history")
+        .await
 }
 
 /// Verify that `objects_version` is populated correctly: one row per output
@@ -194,7 +121,12 @@ struct ObjectType;
 impl IngestionTest for ObjectType {
     type ExpectedState = ObjectId;
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         let (transaction, ..) = sim.execute_transfer();
         sim.inner.create_checkpoint();
 
@@ -238,7 +170,12 @@ struct CheckpointObjectsAreFinalized;
 impl IngestionTest for CheckpointObjectsAreFinalized {
     type ExpectedState = ();
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         sim.execute_transfer();
         sim.inner.create_checkpoint();
 
@@ -280,7 +217,12 @@ struct CheckpointedObjectsMatchObjects;
 impl IngestionTest for CheckpointedObjectsMatchObjects {
     type ExpectedState = ();
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         // Execute several transfers to create mutations on the gas object.
         for _ in 0..3 {
             sim.execute_transfer();
@@ -404,6 +346,145 @@ impl IngestionTest for CheckpointedObjectsMatchObjects {
     }
 }
 
+struct BackwardHistoryIngestion;
+
+struct BackwardHistoryExpected {
+    /// The gas object that all transfers use.
+    gas_object_id: ObjectId,
+    /// The input version of the gas object in each transfer.
+    gas_input_versions: [Version; 3],
+    /// The coin that each transfer creates.
+    created_coins: [ObjectReference; 3],
+}
+
+impl IngestionTest for BackwardHistoryIngestion {
+    const MIN_LEVEL: OperationalLevel = ObjectsHistory;
+
+    type ExpectedState = BackwardHistoryExpected;
+
+    /// Executes three transfers: two in checkpoint 1 and one in checkpoint 2.
+    ///
+    /// Each transfer splits a coin from the gas object and transfers it, so
+    /// it adds two entries to `objects_backward_history`:
+    ///   - the created coin → a NOT_YET_CREATED entry (version = lamport - 1)
+    ///   - the mutated gas object → an ACTIVE entry with the previous version and data
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
+        // --- checkpoint 1: TWO transfers in the same checkpoint ---
+        // This exercises the case where multiple transactions produce backward
+        // history entries for the same checkpoint, and where the same object
+        // (the gas coin) is mutated by both transactions within one checkpoint.
+        let (tx1, _, created_coin_1) = sim.execute_transfer();
+        let gas_object_id = tx1.gas()[0].object_id;
+        let gas_version_before_tx1 = tx1.gas()[0].version;
+
+        // Second transfer in the same checkpoint — uses the same gas object
+        // (now at an updated version).
+        let (tx2, _, created_coin_2) = sim.execute_transfer();
+        let gas_version_before_tx2 = tx2.gas()[0].version;
+        assert!(
+            gas_version_before_tx2 > gas_version_before_tx1,
+            "gas should have been bumped after tx1"
+        );
+
+        // Both transactions land in checkpoint 1.
+        sim.inner.create_checkpoint();
+
+        // --- checkpoint 2: one more transfer ---
+        let (tx3, _, created_coin_3) = sim.execute_transfer();
+        let gas_version_before_tx3 = tx3.gas()[0].version;
+        sim.inner.create_checkpoint();
+
+        let pg_store = sim.start_indexer(None).await;
+        indexer_wait_for_checkpoint(&pg_store, 2).await;
+        (
+            pg_store,
+            BackwardHistoryExpected {
+                gas_object_id,
+                gas_input_versions: [
+                    gas_version_before_tx1,
+                    gas_version_before_tx2,
+                    gas_version_before_tx3,
+                ],
+                created_coins: [created_coin_1, created_coin_2, created_coin_3],
+            },
+        )
+    }
+
+    async fn assert_ingested(
+        &self,
+        pg_store: &PgIndexerStore,
+        expected: Self::ExpectedState,
+    ) -> Result<(), IndexerError> {
+        let BackwardHistoryExpected {
+            gas_object_id,
+            gas_input_versions:
+                [
+                    gas_version_before_tx1,
+                    gas_version_before_tx2,
+                    gas_version_before_tx3,
+                ],
+            created_coins: [created_coin_1, created_coin_2, created_coin_3],
+        } = expected;
+
+        // === checkpoint 1 assertions (two transactions) ===
+
+        assert_not_yet_created(pg_store, created_coin_1, 1).await?;
+        assert_not_yet_created(pg_store, created_coin_2, 1).await?;
+
+        // The gas object was mutated twice in checkpoint 1 — there should be
+        // two ACTIVE entries with different previous versions.
+        let gas_entries =
+            find_all_entries_at_checkpoint(pg_store, gas_object_id.as_bytes(), 1).await?;
+        assert_eq!(
+            gas_entries.len(),
+            2,
+            "gas object should have 2 backward history entries in cp 1 (one per tx)"
+        );
+        assert_eq!(gas_entries[0].object_status, ObjectStatus::Active as i16);
+        assert_eq!(
+            gas_entries[0].object_version,
+            gas_version_before_tx1.as_u64() as i64
+        );
+        assert!(gas_entries[0].serialized_object.is_some());
+        assert!(gas_entries[0].object_digest.is_some());
+        assert!(gas_entries[0].owner_type.is_some());
+
+        assert_eq!(gas_entries[1].object_status, ObjectStatus::Active as i16);
+        assert_eq!(
+            gas_entries[1].object_version,
+            gas_version_before_tx2.as_u64() as i64
+        );
+        assert!(gas_entries[1].serialized_object.is_some());
+
+        // === checkpoint 2 assertions (single transaction) ===
+
+        assert_not_yet_created(pg_store, created_coin_3, 2).await?;
+
+        let entry = find_backward_entry(pg_store, gas_object_id.as_bytes(), 2)
+            .await?
+            .expect("gas object must have a backward history entry at cp 2");
+        assert_eq!(entry.object_status, ObjectStatus::Active as i16);
+        assert_eq!(entry.object_version, gas_version_before_tx3.as_u64() as i64);
+        assert!(entry.serialized_object.is_some());
+
+        Ok(())
+    }
+
+    async fn assert_not_ingested(&self, pg_store: &PgIndexerStore) -> Result<(), IndexerError> {
+        let count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            objects_backward_history::table.count().get_result(conn)
+        })
+        .context("failed reading objects_backward_history")?;
+        assert_eq!(count, 0, "objects_backward_history must be empty");
+        Ok(())
+    }
+}
+
 /// Asserts that `coin` has a NOT_YET_CREATED entry in
 /// `objects_backward_history` at `cp`, with object_version = lamport - 1
 /// (the version assigned by the create tx, minus one).
@@ -430,7 +511,12 @@ impl IngestionTest for ObjectVersionsIngestion {
     /// The sorted rows of checkpoints 1 and 2.
     type ExpectedState = (Vec<StoredObjectVersion>, Vec<StoredObjectVersion>);
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         // checkpoint 1: gas mutated twice + two coins created
         let mut cp1_expected = [
             sim.execute_transfer_version_rows(1),
@@ -475,7 +561,12 @@ impl IngestionTest for ObjectsVersionIngestionWrapsAndRemovals {
     /// version and a label for the assert message.
     type ExpectedState = Vec<(i64, ObjectId, Version, &'static str)>;
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         let sender = sim.sender();
         let rgp = sim.inner.reference_gas_price();
 

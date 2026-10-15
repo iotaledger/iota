@@ -32,7 +32,12 @@ struct EpochBoundary;
 impl IngestionTest for EpochBoundary {
     type ExpectedState = ();
 
-    async fn setup(&self, sim: &TestSim) -> (PgIndexerStore, Self::ExpectedState) {
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
         sim.execute_transfer();
         sim.inner.create_checkpoint(); // checkpoint 1
         sim.inner.advance_epoch(false); // checkpoint 2 and epoch 1
