@@ -109,6 +109,9 @@ const AA_BUILTIN_CREATE_FN: &str = "create";
 
 // The framework module that checks a key holder's approval of attaching a key.
 const PUBLIC_KEY_PROOF_MODULE_NAME: &str = "public_key_proof";
+// The framework module whose factories give out the nonces of approvals for new
+// accounts.
+const NONCE_FACTORY_MODULE_NAME: &str = "nonce_factory";
 // The last epoch in which the key proofs these tests make are valid.
 const PROOF_VALID_UNTIL_EPOCH: u64 = u64::MAX;
 
@@ -3442,8 +3445,8 @@ struct TestEnvironment {
     aa_package_metadata_ref: Option<ObjectReference>,
     aa_ref: Option<ObjectReference>,
     aa_create_transaction: Option<TransactionEnvelope>,
-    account_factory: Option<(ObjectId, Address)>,
-    account_factory_sequence: u64,
+    nonce_factory: Option<(ObjectId, Address)>,
+    nonce_factory_next_value: u64,
 }
 
 impl TestEnvironment {
@@ -3475,8 +3478,8 @@ impl TestEnvironment {
             aa_package_metadata_ref: None,
             aa_ref: None,
             aa_create_transaction: None,
-            account_factory: None,
-            account_factory_sequence: 0,
+            nonce_factory: None,
+            nonce_factory_next_value: 0,
         }
     }
 
@@ -4372,46 +4375,47 @@ impl TestEnvironment {
         self.aa_ref = Some(abstract_account_from_all_changed_objects(
             &effects.all_changed_objects(),
         ));
-        self.account_factory_sequence += 1;
+        self.nonce_factory_next_value += 1;
         Ok(())
     }
 
     /// Returns the message the holder of the `scheme` key `raw_bytes` signs, as
     /// a personal message, to approve the next built-in account this
-    /// environment creates. The account is created under nonce key 0 of this
-    /// environment's owned `AccountFactory`, which is created on first use.
+    /// environment creates. The approval takes the next nonce under nonce key 0
+    /// of this environment's `NonceFactory`, which is created on first use.
     async fn creation_proof_message(
         &mut self,
         scheme: SignatureScheme,
         raw_bytes: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
-        let (factory, sender) = self.account_factory().await?;
+        let (factory, sender) = self.nonce_factory().await?;
         Ok(creation_proof_message(
             scheme,
             raw_bytes,
-            factory,
             sender,
+            factory,
             0,
-            self.account_factory_sequence,
+            self.nonce_factory_next_value,
             PROOF_VALID_UNTIL_EPOCH,
         ))
     }
 
-    /// Returns the ID of this environment's owned `AccountFactory` and its
-    /// owner, the sender of the creation transactions, creating it on first
-    /// use.
-    async fn account_factory(&mut self) -> anyhow::Result<(ObjectId, Address)> {
-        if let Some(factory) = self.account_factory {
+    /// Returns the ID of this environment's `NonceFactory`, with one nonce
+    /// key, and its owner, the sender of the creation transactions, creating it
+    /// on first use.
+    async fn nonce_factory(&mut self) -> anyhow::Result<(ObjectId, Address)> {
+        if let Some(factory) = self.nonce_factory {
             return Ok(factory);
         }
 
         let mut builder = ProgrammableTransactionBuilder::new();
+        let nonce_keys = builder.pure(1u64)?;
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::new(PUBLIC_KEY_PROOF_MODULE_NAME)?,
-            Identifier::new("new_owned_factory")?,
+            Identifier::new(NONCE_FACTORY_MODULE_NAME)?,
+            Identifier::new("new")?,
             vec![],
-            vec![],
+            vec![nonce_keys],
         );
         let tx_data = self
             .test_cluster
@@ -4430,10 +4434,10 @@ impl TestEnvironment {
             .first()
             .ok_or_else(|| anyhow::anyhow!("the factory transaction created no object"))?;
         let Owner::Address(sender) = *factory.owner() else {
-            anyhow::bail!("the account factory is not owned by an address");
+            anyhow::bail!("the nonce factory is not owned by an address");
         };
         let factory = (factory.reference().object_id, sender);
-        self.account_factory = Some(factory);
+        self.nonce_factory = Some(factory);
         Ok(factory)
     }
 
@@ -4449,8 +4453,8 @@ impl TestEnvironment {
         let Some(aa_package_id) = self.aa_package_id else {
             anyhow::bail!("AA package id not set — call init_abstract_account_state first");
         };
-        let Some((factory, _)) = self.account_factory else {
-            anyhow::bail!("Account factory not set — call creation_proof_message first");
+        let Some((factory, _)) = self.nonce_factory else {
+            anyhow::bail!("Nonce factory not set — call creation_proof_message first");
         };
         let factory_ref = self.test_cluster.wallet.get_object_ref(factory).await?;
 
@@ -4486,6 +4490,7 @@ impl TestEnvironment {
                 public_key,
                 builder.obj(CallArg::ImmutableOrOwned(factory_ref))?,
                 builder.pure(0u64)?,
+                builder.pure(self.nonce_factory_next_value)?,
                 builder.pure(PROOF_VALID_UNTIL_EPOCH)?,
                 builder.pure(proof.to_vec())?,
             ];

@@ -21,9 +21,9 @@
 ///
 /// A key is attached only with a `public_key_proof::VerifiedPublicKey`, the proof that its holder
 /// approved it: from `public_key_proof::verify_for_new_account` for `builder_v1`, and from
-/// `public_key_proof::verify_for_account`, naming the address of the account's current key or
-/// `none`, for `rotate_to_builtin_auth_v1` and `rotate_public_key`. Make the proof in an earlier
-/// command of the same transaction.
+/// `public_key_proof::verify_for_account`, naming the account and the next value of its counter
+/// (`next_proof_nonce`), for `rotate_to_builtin_auth_v1` and `rotate_public_key`. Make the proof in
+/// an earlier command of the same transaction.
 ///
 /// Claiming an existing address through the `ClaimAccount` transaction kind drives the private
 /// `claim_account_v1` below.
@@ -85,12 +85,17 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
     builtin_authenticator_functions::borrow_public_key(account.uid())
 }
 
+/// Returns the nonce the next public key proof for the account must name.
+public fun next_proof_nonce(account: &SmartAccount): u64 {
+    public_key_proof::next_account_nonce(account.uid())
+}
+
 // === Admin Functions ===
 
 /// Attaches the public key of `verified` to the account and rotates its authenticator to the
 /// built-in one, which checks signatures against that key. Returns the previous authenticator.
 ///
-/// `verified` must be a proof for this account, made while it had no public key attached.
+/// `verified` must be a proof for this account that names the next value of its counter.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
 /// `account::AuthenticatorFunctionRefV1Rotated` event on success.
@@ -98,8 +103,8 @@ public fun borrow_public_key(account: &SmartAccount): &PublicKey {
 /// Aborts if the transaction sender is not the account.
 /// Aborts if the built-in authenticator is already set; use `rotate_public_key` to replace its
 /// key.
-/// Aborts if `verified` was made for another account, or while the account had a public key
-/// attached.
+/// Aborts if `verified` was made for another account, or names a nonce other than the next value
+/// of the account's counter.
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun rotate_to_builtin_auth_v1(
     account: &mut SmartAccount,
@@ -145,14 +150,14 @@ public fun rotate_to_custom_auth_v1(
 /// and returns the previous key. The built-in authenticator stays as it is and checks signatures
 /// against the new key.
 ///
-/// `verified` must be a proof for this account that names the address of its current public key.
+/// `verified` must be a proof for this account that names the next value of its counter.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if the built-in authenticator is not set; use `rotate_to_builtin_auth_v1`.
-/// Aborts if `verified` was made for another account, or while the account had another public
-/// key attached.
+/// Aborts if `verified` was made for another account or for a new account, or names a nonce other
+/// than the next value of the account's counter.
 public fun rotate_public_key(
     account: &mut SmartAccount,
     verified: VerifiedPublicKey,

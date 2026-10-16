@@ -9,8 +9,9 @@
 /// using that key's signature scheme.
 ///
 /// A key is attached or rotated only with a `public_key_proof::VerifiedPublicKey`, the proof that
-/// its holder approved it. A proof for an existing account names the address of the key attached
-/// to it, so it works only while that key is attached.
+/// its holder approved it. A proof for an existing account names the account and the next value
+/// of its counter (`public_key_proof::next_account_nonce`), which the attach or rotation moves on,
+/// so the proof works only once.
 ///
 /// # Account creation
 /// To create a new account backed by the built-in authenticator, attach the public key with a
@@ -18,7 +19,7 @@
 /// `account::create_account_v1`:
 ///
 /// ```move
-/// let verified = public_key_proof::verify_for_new_account(public_key, &mut factory, nonce_key, valid_until_epoch, signature, ctx);
+/// let verified = public_key_proof::verify_for_new_account(public_key, &mut factory, nonce_key, nonce, valid_until_epoch, signature, ctx);
 /// builtin_authenticator_functions::attach_public_key(&mut account.id, verified);
 /// let authenticator_function_ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<Account>();
 /// account::create_account_v1(account, authenticator_function_ref);
@@ -26,12 +27,12 @@
 ///
 /// # Public key rotation
 /// To replace the public key, including switching to a different signature scheme, rotate the
-/// stored key with a proof for the account that names the address of its current key. The
-/// authenticator function ref stays the same:
+/// stored key with a proof for the account that names the nonce its holder signed, read with
+/// `public_key_proof::next_account_nonce` before signing. The authenticator function ref stays
+/// the same:
 ///
 /// ```move
-/// let current_key_address = option::some(builtin_authenticator_functions::borrow_public_key(&account.id).to_iota_address());
-/// let verified = public_key_proof::verify_for_account(new_public_key, account_address, current_key_address, valid_until_epoch, signature, ctx);
+/// let verified = public_key_proof::verify_for_account(new_public_key, account_address, nonce, valid_until_epoch, signature, ctx);
 /// let old_public_key = builtin_authenticator_functions::rotate_public_key(&mut account.id, verified);
 /// ```
 ///
@@ -46,6 +47,7 @@
 /// ```
 module iota::builtin_authenticator_functions;
 
+use iota::account_nonce;
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::dynamic_field as df;
 use iota::event;
@@ -69,9 +71,6 @@ const EInvalidSignature: vector<u8> = b"Invalid signature.";
 
 #[error(code = 30)]
 const EProofForAnotherAccount: vector<u8> = b"The public key proof was made for another account.";
-#[error(code = 31)]
-const EProofForAnotherCurrentPublicKey: vector<u8> =
-    b"The public key proof was made while the account had another public key.";
 #[error(code = 32)]
 const ENewAccountProofForAccountWithPublicKey: vector<u8> =
     b"A proof for a new account only attaches a key to an account that has none.";
@@ -155,7 +154,8 @@ public fun builtin_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
 ///
 /// Emits a `PublicKeyAttached` event on success.
 ///
-/// Aborts if `verified` was made for another account, or while the account had a key attached.
+/// Aborts if `verified` was made for another account, or names a nonce other than the next value
+/// of the account's counter.
 /// Aborts if a public key is already attached.
 public fun attach_public_key(account_id: &mut UID, verified: VerifiedPublicKey) {
     let public_key = consume_proof(account_id, verified);
@@ -199,8 +199,8 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
 /// Emits a `PublicKeyRotated` event on success.
 ///
 /// Aborts if no public key is currently attached.
-/// Aborts if `verified` was made for another account, while the account had another key
-/// attached, or for a new account.
+/// Aborts if `verified` was made for another account or for a new account, or names a nonce other
+/// than the next value of the account's counter.
 public fun rotate_public_key(account_id: &mut UID, verified: VerifiedPublicKey): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
     let public_key = consume_proof(account_id, verified);
@@ -255,20 +255,14 @@ public fun borrow_public_key(account_id: &UID): &PublicKey {
 
 /// Checks that `verified` can attach a key to the account and returns that key.
 ///
-/// A proof for an existing account must name this account and the address of the key attached
-/// to it now, or `none` if it has none. A proof for a new account is accepted only by an account
-/// with no key.
-fun consume_proof(account_id: &UID, verified: VerifiedPublicKey): PublicKey {
-    let (public_key, account, current_key_address) = verified.unpack();
+/// A proof for an existing account must name this account and the next value of its counter,
+/// which this moves on. A proof for a new account is accepted only by an account with no key.
+fun consume_proof(account_id: &mut UID, verified: VerifiedPublicKey): PublicKey {
+    let (public_key, account, nonce) = verified.unpack();
 
     if (account.is_some()) {
         assert!(account.destroy_some() == account_id.to_address(), EProofForAnotherAccount);
-        let attached_key_address = if (has_public_key(account_id)) {
-            option::some(borrow_public_key(account_id).to_iota_address())
-        } else {
-            option::none()
-        };
-        assert!(current_key_address == attached_key_address, EProofForAnotherCurrentPublicKey);
+        account_nonce::use_nonce<VerifiedPublicKey>(account_id, nonce.destroy_some());
     } else {
         assert!(!has_public_key(account_id), ENewAccountProofForAccountWithPublicKey);
     };
