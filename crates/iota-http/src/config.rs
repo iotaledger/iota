@@ -377,7 +377,6 @@ impl Config {
             .timer(hyper_util::rt::TokioTimer::new())
             .initial_connection_window_size(self.init_connection_window_size)
             .initial_stream_window_size(self.init_stream_window_size)
-            .max_concurrent_streams(self.max_concurrent_streams)
             .keep_alive_interval(self.http2_keepalive_interval)
             .keep_alive_timeout(http2_keepalive_timeout)
             .adaptive_window(self.http2_adaptive_window.unwrap_or_default())
@@ -386,6 +385,14 @@ impl Config {
 
         if let Some(max_header_list_size) = self.http2_max_header_list_size {
             builder.http2().max_header_list_size(max_header_list_size);
+        }
+
+        // Left alone when unset: passing `None` through would replace the
+        // transport's own default with no limit at all.
+        if let Some(max_concurrent_streams) = self.max_concurrent_streams {
+            builder
+                .http2()
+                .max_concurrent_streams(max_concurrent_streams);
         }
 
         builder

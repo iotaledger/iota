@@ -1027,4 +1027,77 @@ mod tests {
             "removing both bounds stays allowed"
         );
     }
+
+    /// Reads the `SETTINGS_MAX_CONCURRENT_STREAMS` value a server advertises,
+    /// or `None` when it advertises no limit.
+    async fn advertised_max_concurrent_streams(addr: &std::net::SocketAddr) -> Option<u32> {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        /// Frame header: 3-byte length, 1-byte type, 1-byte flags, 4-byte
+        /// stream id.
+        const FRAME_HEADER_LEN: usize = 9;
+        const SETTINGS_FRAME_TYPE: u8 = 0x4;
+        const SETTINGS_MAX_CONCURRENT_STREAMS: u16 = 0x3;
+        /// Each setting is a 2-byte identifier and a 4-byte value.
+        const SETTING_LEN: usize = 6;
+
+        let mut connection = tokio::net::TcpStream::connect(addr).await.unwrap();
+        // The preface plus an empty SETTINGS frame of our own.
+        connection.write_all(PREFACE).await.unwrap();
+        connection
+            .write_all(&[0, 0, 0, SETTINGS_FRAME_TYPE, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        // The server's own SETTINGS frame is the first thing it sends.
+        let mut header = [0u8; FRAME_HEADER_LEN];
+        connection.read_exact(&mut header).await.unwrap();
+        let length = u32::from_be_bytes([0, header[0], header[1], header[2]]) as usize;
+        assert_eq!(
+            header[3], SETTINGS_FRAME_TYPE,
+            "expected the server to open with SETTINGS"
+        );
+
+        let mut payload = vec![0u8; length];
+        connection.read_exact(&mut payload).await.unwrap();
+        payload
+            .as_chunks::<SETTING_LEN>()
+            .0
+            .iter()
+            .find_map(|setting| {
+                (u16::from_be_bytes([setting[0], setting[1]]) == SETTINGS_MAX_CONCURRENT_STREAMS)
+                    .then(|| u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]))
+            })
+    }
+
+    /// An unset `max_concurrent_streams` must leave the transport's own limit
+    /// in place. Forwarding `None` to hyper would replace its default with no
+    /// limit at all, letting one connection open as many streams as it likes.
+    #[tokio::test]
+    async fn an_unset_stream_cap_keeps_the_transport_default() {
+        let handle = Builder::new()
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(200),
+            "a server with no opinion must still advertise a stream limit"
+        );
+    }
+
+    /// A configured limit is advertised as given.
+    #[tokio::test]
+    async fn a_configured_stream_cap_is_advertised() {
+        let handle = Builder::new()
+            .config(Config::default().max_concurrent_streams(17))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(17)
+        );
+    }
 }
