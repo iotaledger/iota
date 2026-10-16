@@ -146,6 +146,12 @@ impl HistoricCheckpoints {
         self.buckets.earliest_epoch()
     }
 
+    /// The earliest epoch [`Self::prune`] retains; the checkpoint history of
+    /// every epoch below it is gone.
+    pub fn earliest_retained_epoch(&self) -> EpochId {
+        self.buckets.earliest_retained()
+    }
+
     /// The bucket holding `epoch`'s checkpoint history, created if absent.
     pub fn ensure(
         &self,
