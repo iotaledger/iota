@@ -340,6 +340,14 @@ pub async fn execute_transactions(
     // finality, so we instruct the executor to skip its 2f+1 effects
     // certification. Otherwise the executor performs the full certification.
     let skip_certification = checkpoint_timeout.is_some();
+    let flags = ReadFlags::from_mask(&read_mask);
+    // The input and output objects are read from the cache once a transaction
+    // is checkpointed: when finalizing after the inclusion wait, and for a
+    // duplicate submission whose first submission's driver was cancelled.
+    let _cached_object_retention = (flags.include_input_objects || flags.include_output_objects)
+        .then(|| executor.retain_cached_objects())
+        .transpose()
+        .map_err(anyhow::Error::from)?;
 
     // Drive the per-tx executions concurrently so a slow validator submission
     // on one item doesn't stall the rest of the batch. Results are collected
@@ -400,7 +408,6 @@ pub async fn execute_transactions(
                 (std::collections::BTreeMap::new(), Some(format!("{e}")))
             }
         };
-        let flags = ReadFlags::from_mask(&read_mask);
         let flags_ref = &flags;
         let read_mask_ref = &read_mask;
         let wait_error_ref = wait_error.as_deref();

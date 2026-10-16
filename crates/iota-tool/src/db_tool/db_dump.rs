@@ -18,6 +18,7 @@ use iota_core::{
         authority_per_epoch_store::AuthorityEpochTables,
         authority_store_pruner::{
             AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
+            ObjectRetention,
         },
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreData, StoreObject},
@@ -231,6 +232,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,
         None,
+        &ObjectRetention::default(),
     )
     .await?;
     Ok(())
