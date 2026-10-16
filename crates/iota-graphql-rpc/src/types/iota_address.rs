@@ -136,6 +136,13 @@ impl FromStr for IotaAddress {
             return Err(FromStrError::NoPrefix);
         };
 
+        // Rejecting non-hex input first guarantees every remaining character is
+        // one byte, so the byte-length check and the character-based padding
+        // below agree with each other.
+        if let Some((i, c)) = s.char_indices().find(|(_, c)| !c.is_ascii_hexdigit()) {
+            return Err(FromStrError::BadHex(c, i + 2));
+        }
+
         if s.is_empty() || s.len() > IOTA_ADDRESS_LENGTH * 2 {
             return Err(FromStrError::WrongLength(s.len()));
         }
@@ -249,6 +256,34 @@ mod tests {
     #[test]
     fn test_unicode_gibberish() {
         let parsed = IotaAddress::from_str("aAௗ0㌀0");
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn test_parse_two_byte_char() {
+        // One character but two bytes: padding to 64 characters would yield an
+        // odd byte length.
+        let err = IotaAddress::from_str("0x\u{e9}").unwrap_err();
+        assert_eq!(FromStrError::BadHex('\u{e9}', 2), err);
+    }
+
+    #[test]
+    fn test_parse_three_byte_char() {
+        // One character but three bytes: padding to 64 characters would yield
+        // an even byte length that is still not 64.
+        let err = IotaAddress::from_str("0x\u{20ac}").unwrap_err();
+        assert_eq!(FromStrError::BadHex('\u{20ac}', 2), err);
+    }
+
+    #[test]
+    fn test_parse_multibyte_char_after_valid_hex() {
+        let err = IotaAddress::from_str("0xab\u{e9}").unwrap_err();
+        assert_eq!(FromStrError::BadHex('\u{e9}', 4), err);
+    }
+
+    #[test]
+    fn test_scalar_parse_multibyte_char() {
+        let parsed = <IotaAddress as ScalarType>::parse(Value::String("0x\u{e9}".to_string()));
         assert!(parsed.is_err());
     }
 
