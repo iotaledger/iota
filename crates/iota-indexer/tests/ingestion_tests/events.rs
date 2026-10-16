@@ -16,10 +16,8 @@ use crate::utils::TestSim;
 /// ```
 #[tokio::test]
 pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
-    let pg_store = sim
-        .start_indexer_with(Some("indexer_ingestion_event_indices_db"), None)
-        .await;
+    let sim = TestSim::new("indexer_ingestion_event_indices_db");
+    let pg_store = sim.start_indexer(None).await;
 
     // By creating 2000 random event indices we ensure that the
     // persist_event_indices function will flatten each EventIndex by
