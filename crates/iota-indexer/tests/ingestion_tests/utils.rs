@@ -38,6 +38,26 @@ macro_rules! read_only_blocking {
         .expect("failed to join Tokio blocking task")
     }};
 }
+
+macro_rules! assert_row_count {
+    ($pg_store:expr, $table:ident, $ingested:expr) => {
+        async {
+            let table_name = stringify!($table);
+            let count = read_only_blocking!($pg_store.blocking_cp(), |conn| {
+                $table::table.count().get_result::<i64>(conn)
+            })
+            .context(&format!("failed reading {table_name}"))?;
+            if $ingested {
+                assert!(count > 0, "{table_name} is empty");
+            } else {
+                assert_eq!(count, 0, "{table_name} is not empty");
+            };
+            Ok::<(), IndexerError>(())
+        }
+    };
+}
+
+pub(crate) use assert_row_count;
 pub(crate) use read_only_blocking;
 
 pub(crate) struct TestSim {

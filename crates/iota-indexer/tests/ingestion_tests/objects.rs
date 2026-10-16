@@ -554,7 +554,7 @@ impl IngestionTest for ObjectVersionsIngestion {
     }
 }
 
-struct ObjectsVersionIngestionWrapsAndRemovals;
+pub(crate) struct ObjectsVersionIngestionWrapsAndRemovals;
 
 impl IngestionTest for ObjectsVersionIngestionWrapsAndRemovals {
     /// The `objects_version` rows to find, as the checkpoint, the object, its
