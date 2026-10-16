@@ -919,9 +919,8 @@ impl AuthorityStore {
                 .iter()
                 .map(|(key, object)| (*key, object.clone())),
         )?;
-        // The tombstones written above stay in the live table; recording them
-        // here is what lets the bucket's expiry delete them, once every
-        // version they sit above has expired with it.
+        // Lets the bucket's expiry delete the tombstones written above from the
+        // live table.
         write_batch.insert_batch_tagged(
             &historic_bucket.tombstones,
             deleted.iter().chain(wrapped.iter()).map(|key| (*key, ())),
@@ -1291,19 +1290,13 @@ impl AuthorityStore {
     }
 
     /// The newest version of `object_id` at or below `version`, from the live
-    /// `objects` table and the historic buckets together: the newer of the two
-    /// answers wins. Both are asked every time, because an unwrap leaves a
-    /// tombstone in the live table below a newer relocated version.
+    /// `objects` table and the historic buckets together. `None` if the object
+    /// was deleted or wrapped at or below the bound, or has no version in
+    /// range.
     ///
-    /// `None` means the object was deleted or wrapped at or below the bound,
-    /// or has no version in range. A live tombstone newer than every relocated
-    /// version in range is the answer, so a deleted object stays deleted.
-    ///
-    /// Read the live table first; see the `tombstones` table on
-    /// [`HistoricObjectsBucket`] for why. Execution's answer never depends on
-    /// retention: a relocation it can observe is in the current epoch's
-    /// bucket, which every retention setting keeps, and expiry runs only at
-    /// reconfiguration with execution halted.
+    /// Safe for execution regardless of retention: what execution can observe
+    /// is in the current epoch's bucket, which is always kept, and expiry runs
+    /// only while execution is halted.
     pub fn find_object_lt_or_eq_version_with_historic_fallback(
         &self,
         object_id: ObjectId,
@@ -1312,6 +1305,9 @@ impl AuthorityStore {
         let live = self
             .perpetual_tables
             .find_object_lt_or_eq_version(object_id, version)?;
+        // Asked even when the live table has an answer: an unwrap leaves a
+        // tombstone in the live table below a newer relocated version. Read
+        // after the live table; see `HistoricObjectsBucket::tombstones`.
         let relocated = self
             .historic_objects
             .find_lt_or_eq_version(object_id, version)?;

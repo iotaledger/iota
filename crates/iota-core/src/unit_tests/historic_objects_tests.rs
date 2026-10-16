@@ -24,8 +24,7 @@ use crate::authority::{
 };
 
 /// A perpetual store, its historic buckets, and an [`AuthorityStore`] over
-/// both, for the reads that consult the live `objects` table and the buckets
-/// together. The directory is returned so it outlives the databases.
+/// both. The directory is returned so it outlives the databases.
 fn test_store() -> (
     Arc<AuthorityPerpetualTables>,
     Arc<HistoricObjects>,
@@ -134,8 +133,7 @@ async fn test_relocated_version_survives_a_reopen() {
 }
 
 /// A tombstone head recorded alongside a relocated version survives a
-/// restart the same way the version itself does, and the bucket has no
-/// expiring marker until something sets one.
+/// restart, and the bucket has no expiring marker until one is set.
 #[tokio::test]
 async fn test_tombstone_heads_survive_a_reopen() {
     let dir = iota_common::tempdir();
@@ -165,12 +163,9 @@ async fn test_tombstone_heads_survive_a_reopen() {
     assert!(bucket.expiring.get(&()).unwrap().is_none());
 }
 
-/// `iota-tool`'s table dump reaches a bucket and the retention floor through
-/// [`HistoricObjects::dump_column_family`], since neither is a field of
-/// `AuthorityPerpetualTables`, and gets nothing for a name that belongs to
-/// neither. A bucket's dump covers its relocated versions, its tombstone
-/// heads and its expiring marker alike, since all three share the bucket's
-/// column family.
+/// [`HistoricObjects::dump_column_family`] dumps a bucket (relocated
+/// versions, tombstone heads and expiring marker) and the retention floor,
+/// and returns nothing for any other name.
 #[tokio::test]
 async fn test_dump_reads_a_bucket_and_the_retention_floor() {
     let dir = iota_common::tempdir();
@@ -218,9 +213,8 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
     );
 }
 
-/// Expiring an epoch deletes the tombstone heads it recorded from the live
-/// `objects` table together with its relocated versions, and a second prune
-/// over the same retention window is harmless.
+/// Expiring an epoch deletes its relocated versions and the tombstone heads
+/// it recorded in the live `objects` table; pruning again is harmless.
 #[tokio::test]
 async fn test_expiry_deletes_the_epochs_tombstone_heads() {
     let dir = iota_common::tempdir();
@@ -294,10 +288,9 @@ async fn test_expiry_deletes_heads_past_the_batch_boundary() {
     }
 }
 
-/// A bucket already marked expiring is skipped by reads before its column
-/// family is dropped: its tombstone heads may be gone from the live table by
-/// then, and a version served from under a deleted tombstone would resurrect
-/// a deleted object.
+/// Reads skip a bucket marked expiring, since its tombstone heads may already
+/// be gone from the live table and serving its versions would resurrect
+/// deleted objects.
 #[tokio::test]
 async fn test_a_bucket_marked_expiring_is_skipped_by_reads() {
     let dir = iota_common::tempdir();
@@ -317,14 +310,11 @@ async fn test_a_bucket_marked_expiring_is_skipped_by_reads() {
 
     bucket.mark_expiring().unwrap();
     assert_eq!(historic.get(&key).unwrap(), None);
-    // The row is still there; it is the marker that takes the bucket out of
-    // the read path.
     assert!(bucket.objects.get(&key).unwrap().is_some());
 }
 
 /// An expiry interrupted after its marker was written is finished at the next
-/// open: the bucket's tombstone heads are deleted from the live table and its
-/// column family is dropped, before any query can reach it.
+/// open, before any query can reach the bucket.
 #[tokio::test]
 async fn test_an_interrupted_expiry_is_finished_at_open() {
     let dir = iota_common::tempdir();
@@ -366,11 +356,8 @@ async fn test_an_interrupted_expiry_is_finished_at_open() {
     assert_eq!(historic.get(&relocated).unwrap(), None);
 }
 
-/// A prune persists its retention floor before it marks the first bucket, so
-/// a crash in between leaves a bucket below the floor and unmarked. Its expiry
-/// is finished at the next open all the same: dropping its column family on
-/// its own would leave its tombstone heads in the live `objects` table with
-/// nothing left to delete them.
+/// An unmarked bucket below the retention floor, left by a crash during a
+/// prune, has its expiry finished at the next open, tombstone heads included.
 #[tokio::test]
 async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
     let dir = iota_common::tempdir();
@@ -398,8 +385,6 @@ async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
     batch.write().unwrap();
     historic.ensure(2).unwrap();
 
-    // The floor a prune persists first, without the marker it would have
-    // written next.
     let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
         &perpetual.objects.db,
         Some(EARLIEST_RETAINED_CF),
@@ -425,9 +410,7 @@ async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
 }
 
 /// Recovery at open goes oldest bucket first and stops at the first bucket it
-/// cannot finish, here one whose tombstone heads no longer deserialize: the
-/// newer bucket's tombstone is still in the live table, because the versions
-/// beneath it are still readable from the bucket below.
+/// cannot finish, leaving newer buckets untouched.
 #[tokio::test]
 async fn test_interrupted_expiries_are_resumed_oldest_first() {
     let dir = iota_common::tempdir();
@@ -455,8 +438,7 @@ async fn test_interrupted_expiries_are_resumed_oldest_first() {
         batch.write().unwrap();
     }
 
-    // A value of another type under the tombstone tag of the older bucket, so
-    // that reading its tombstone heads back fails.
+    // A value of another type under the tombstone tag, so reading it fails.
     let unreadable: TaggedDBMap<ObjectKey, u64> = TaggedDBMap::reopen(
         &perpetual.objects.db,
         "hist_obj_e1",
@@ -483,9 +465,8 @@ async fn test_interrupted_expiries_are_resumed_oldest_first() {
     assert!(perpetual.objects.get(&newer_tombstone).unwrap().is_some());
 }
 
-/// A tombstone at or below the bound and nothing at or below the bound are
-/// different answers. The version-bounded scan keeps them apart, so a version
-/// relocated under a tombstone is never served in the deleted object's place.
+/// The version-bounded read never serves a version relocated from under a
+/// tombstone in place of the deleted object.
 #[tokio::test]
 async fn test_a_deleted_object_stays_deleted_across_the_buckets() {
     let (perpetual, historic, store, _dir) = test_store();
@@ -512,8 +493,7 @@ async fn test_a_deleted_object_stays_deleted_across_the_buckets() {
         .unwrap();
     batch.write().unwrap();
 
-    // Bounded above the tombstone: the object is gone, and the relocated
-    // version beneath it must not be served in its place.
+    // Bounded above the tombstone: the object is gone.
     let (key, row) = perpetual
         .find_object_lt_or_eq_version(id, 12.into())
         .unwrap()
@@ -550,9 +530,8 @@ async fn test_a_deleted_object_stays_deleted_across_the_buckets() {
     );
 }
 
-/// The bucket walk answers with the newest relocated version within the
-/// bound, whichever bucket holds it, and the live table still answers for a
-/// version that never left it.
+/// The bounded read finds the newest version within the bound, whether it is
+/// in a bucket or still in the live table.
 #[tokio::test]
 async fn test_the_newest_relocated_version_in_range_is_served() {
     let (perpetual, historic, store, _dir) = test_store();
@@ -607,11 +586,8 @@ async fn test_the_newest_relocated_version_in_range_is_served() {
     );
 }
 
-/// An object wrapped and later unwrapped keeps its tombstone in the live
-/// table below its newer versions, and those versions relocate out from
-/// between the two. The bounded read answers with the relocated version
-/// above the tombstone rather than reading the tombstone as the object's
-/// end.
+/// For an object wrapped and later unwrapped, the bounded read returns a
+/// relocated version above the old tombstone rather than the tombstone.
 #[tokio::test]
 async fn test_a_tombstone_below_the_relocated_version_is_not_the_answer() {
     let (perpetual, historic, store, _dir) = test_store();
@@ -656,10 +632,8 @@ async fn test_a_tombstone_below_the_relocated_version_is_not_the_answer() {
     }
 }
 
-/// A bucket marked expiring is left out of the walk as it is left out of an
-/// exact-key probe: its tombstone heads may already be gone from the live
-/// table, and a version served from under a deleted tombstone would resurrect
-/// a deleted object.
+/// The version-bounded bucket walk skips a bucket marked expiring, like an
+/// exact-key read does.
 #[tokio::test]
 async fn test_a_bucket_marked_expiring_is_left_out_of_the_walk() {
     let (perpetual, historic, _store, _dir) = test_store();
@@ -690,10 +664,8 @@ async fn test_a_bucket_marked_expiring_is_left_out_of_the_walk() {
     );
 }
 
-/// A tombstone head with a live version still beneath it is kept rather than
-/// deleted. Its buried versions should have gone into the bucket being
-/// dropped; one left in the live table would become the newest again and the
-/// deleted object would read as alive.
+/// Expiry keeps a tombstone head that still has a version beneath it in the
+/// live table, or the deleted object would read as alive.
 #[tokio::test]
 async fn test_expiry_keeps_a_head_that_still_buries_a_live_version() {
     let dir = iota_common::tempdir();

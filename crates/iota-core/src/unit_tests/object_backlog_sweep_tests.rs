@@ -36,8 +36,7 @@ use crate::{
     test_utils::executed_checkpoint,
 };
 
-/// The epoch that is current while the sweep runs, and whose bucket it
-/// records the tombstones it finds in.
+/// The epoch that is current while the sweep runs.
 const SWEEP_EPOCH: EpochId = 7;
 
 /// An object with three live versions, walked first.
@@ -87,9 +86,8 @@ fn tombstone(id: ObjectId, version: u64, row: StoreObject) -> (ObjectKey, StoreO
     (ObjectKey(id, version.into()), StoreObjectWrapper::from(row))
 }
 
-/// Writes the live table an earlier build would have left behind: every
-/// object still carries the versions superseded before the upgrade next to
-/// its newest row.
+/// Writes a live table in which every object still has its superseded
+/// versions next to its newest row.
 fn seed(store: &AuthorityStore) {
     store
         .perpetual_tables
@@ -163,9 +161,7 @@ fn progress(store: &AuthorityStore) -> Option<ObjectBacklogSweepProgress> {
 }
 
 /// Writes a checkpoint whose single transaction superseded `mutated` and
-/// wrote a tombstone over each of `deleted`, the way the build before the
-/// buckets recorded it: the summary and its contents in the checkpoint
-/// store, the effects in the flat perpetual table.
+/// deleted `deleted`, with its effects in the flat perpetual table.
 fn seed_checkpoint(
     store: &AuthorityStore,
     checkpoint_store: &CheckpointStore,
@@ -199,8 +195,8 @@ fn seed_checkpoint(
         *transaction.digest(),
         effects_digest,
     )]);
-    // Like `test_utils::certified_summary`, but naming the contents above:
-    // the sweep resolves them through the summary's digest.
+    // Unlike `test_utils::certified_summary`, this names the contents above,
+    // which the sweep resolves through the summary.
     let summary = CheckpointSummary {
         epoch: 0,
         sequence_number,
@@ -233,7 +229,7 @@ fn seed_checkpoint(
     effects
 }
 
-/// Records the watermark an earlier build's objects pruner would have left.
+/// Records the objects pruner's watermark the bounded walk starts from.
 fn seed_pruner_watermark(store: &AuthorityStore, watermark: CheckpointSequenceNumber) {
     store
         .perpetual_tables
@@ -242,11 +238,10 @@ fn seed_pruner_watermark(store: &AuthorityStore, watermark: CheckpointSequenceNu
         .unwrap();
 }
 
-/// The live table is left with the newest version of every object and with
-/// every tombstone, including the one an unwrap left below a newer version.
-/// Every superseded version is relocated into the current epoch's bucket, and
-/// each tombstone is recorded there too, so that ordinary retention deletes
-/// the two together later.
+/// The live table keeps the newest version of every object and every
+/// tombstone, including one an unwrap left below a newer version. Superseded
+/// versions are relocated into the current epoch's bucket, where each
+/// tombstone is recorded too.
 #[tokio::test]
 async fn the_sweep_keeps_the_latest_version_and_the_tombstones() {
     let dir = iota_common::tempdir();
@@ -284,10 +279,8 @@ async fn the_sweep_keeps_the_latest_version_and_the_tombstones() {
     assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
 }
 
-/// A relocated version is the object it was in the live table, and the
-/// bounded read serves it from the bucket once it is no longer live. A
-/// version relocated from under a tombstone is served below that tombstone
-/// and never above it.
+/// A relocated version is served by the bounded read from the bucket, and one
+/// relocated from under a tombstone is never served above that tombstone.
 #[tokio::test]
 async fn a_relocated_version_is_readable_from_the_current_epoch_bucket() {
     let dir = iota_common::tempdir();
@@ -314,15 +307,11 @@ async fn a_relocated_version_is_readable_from_the_current_epoch_bucket() {
     );
 
     for (id, bound, expected) in [
-        // Relocated out of the live table, and answered from the bucket.
         (live_id(), 1, Some(1)),
         (live_id(), 2, Some(2)),
-        // Still the newest live version.
         (live_id(), 3, Some(3)),
-        // Below the tombstone the deletion left in the live table.
         (deleted_id(), 2, Some(2)),
-        // At and above it the object is gone, and the versions relocated
-        // from beneath it are not served in its place.
+        // At and above the tombstone.
         (deleted_id(), 3, None),
         (deleted_id(), 4, None),
     ] {
@@ -337,9 +326,7 @@ async fn a_relocated_version_is_readable_from_the_current_epoch_bucket() {
     }
 }
 
-/// One call walks the whole table, however many slices that takes, so a
-/// caller that awaits it is left with no backlog at all: the versions the
-/// slices after the first one decide on are relocated too.
+/// One call walks the whole table, however many slices that takes.
 #[tokio::test]
 async fn one_call_drives_the_walk_past_the_slice_boundary() {
     let dir = iota_common::tempdir();
@@ -402,8 +389,6 @@ async fn the_sweep_resumes_from_its_watermark() {
         vec![ObjectKey(live_id(), 1.into())]
     );
 
-    // Release every handle on the database before reopening the same path,
-    // as a restart does.
     let weak_db = Arc::downgrade(&interrupted.perpetual_tables.objects.db);
     drop(sweep);
     drop(interrupted);
@@ -425,8 +410,7 @@ async fn the_sweep_resumes_from_its_watermark() {
 }
 
 /// Once the walk has reached the end of the table, a later start does
-/// nothing: from then on a superseded version leaves the live table in the
-/// batch that supersedes it, and there is no backlog left to drain.
+/// nothing: from then on, commit relocates superseded versions itself.
 #[tokio::test]
 async fn a_finished_sweep_leaves_later_starts_nothing_to_do() {
     let dir = iota_common::tempdir();
@@ -454,12 +438,8 @@ async fn a_finished_sweep_leaves_later_starts_nothing_to_do() {
     );
 }
 
-/// With the earlier build's watermark to hand, the walk reads the effects of
-/// the checkpoints above it instead of the live table, and relocates exactly
-/// the versions those checkpoints superseded. The versions below the
-/// watermark are the pruner's business and are left alone — here, a
-/// superseded version deliberately left in the table stays put, which is what
-/// tells the bounded walk apart from the unbounded one.
+/// With an objects pruner watermark, the walk relocates exactly the versions
+/// the checkpoints above it superseded, and leaves the rows below it alone.
 #[tokio::test]
 async fn the_bounded_walk_relocates_what_the_checkpoints_above_the_watermark_superseded() {
     let dir = iota_common::tempdir();
@@ -470,11 +450,9 @@ async fn the_bounded_walk_relocates_what_the_checkpoints_above_the_watermark_sup
         .perpetual_tables
         .objects
         .multi_insert([
-            // Superseded by checkpoint 8, above the watermark.
             value(live_id(), 1),
             value(live_id(), 2),
-            // Superseded before the watermark and never deleted, standing in
-            // for a row the unbounded walk would have moved.
+            // A row only the unbounded walk would move.
             value(deleted_id(), 1),
             value(deleted_id(), 2),
         ])
@@ -503,9 +481,8 @@ async fn the_bounded_walk_relocates_what_the_checkpoints_above_the_watermark_sup
     assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
 }
 
-/// A tombstone written above the watermark is recorded as a head in the
-/// bucket and left in the live table, so that a bounded read still answers
-/// "deleted" and retention can collect it later.
+/// A tombstone written above the watermark is recorded in the bucket and
+/// left in the live table.
 #[tokio::test]
 async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
     let dir = iota_common::tempdir();
@@ -514,9 +491,7 @@ async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
 
     seed_pruner_watermark(&store, 3);
     let effects = seed_checkpoint(&store, &checkpoint_store, 4, &[], &[(deleted_id(), 2)]);
-    // The tombstone sits at the transaction's lamport version, which the
-    // effects decide, so the live table is seeded from them rather than from
-    // a version guessed here.
+    // The tombstone's version is the lamport version the effects decide.
     let heads: Vec<ObjectKey> = effects
         .all_tombstones()
         .into_iter()
@@ -587,8 +562,7 @@ async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
     let checkpoint_store = empty_checkpoint_store(&dir);
 
     seed(&store);
-    // The objects pruner stopped at 5; the checkpoint pruner went on to 9, so
-    // the summaries that would name the backlog are gone.
+    // The checkpoints above the objects pruner's watermark are pruned.
     seed_pruner_watermark(&store, 5);
     checkpoint_store
         .update_highest_pruned_checkpoint(&executed_checkpoint(0, 9))
@@ -598,8 +572,7 @@ async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
         .await
         .unwrap();
 
-    // The unbounded walk's outcome, which the bounded one could not have
-    // reached from a watermark of 5.
+    // The unbounded walk's outcome.
     assert_eq!(
         relocated_keys(&store, SWEEP_EPOCH),
         vec![
@@ -612,8 +585,7 @@ async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
     );
 }
 
-/// The bounded walk resumes at the checkpoint after the last slice it wrote,
-/// so an interrupted run neither repeats a slice nor skips one.
+/// The bounded walk resumes at the checkpoint after the last slice it wrote.
 #[tokio::test]
 async fn the_bounded_walk_resumes_at_the_checkpoint_it_recorded() {
     let dir = iota_common::tempdir();
@@ -633,7 +605,6 @@ async fn the_bounded_walk_resumes_at_the_checkpoint_it_recorded() {
     seed_checkpoint(&store, &checkpoint_store, 1, &[(live_id(), 1)], &[]);
     seed_checkpoint(&store, &checkpoint_store, 2, &[(live_id(), 2)], &[]);
 
-    // Stand where a run interrupted after checkpoint 1 would have left it.
     store
         .perpetual_tables
         .object_backlog_sweep_checkpoint
@@ -651,8 +622,7 @@ async fn the_bounded_walk_resumes_at_the_checkpoint_it_recorded() {
     );
 }
 
-/// Without a watermark there is nothing to bound the walk with, so the whole
-/// table is walked — the case of a database no objects pruner ever ran on.
+/// Without an objects pruner watermark, the whole table is walked.
 #[tokio::test]
 async fn no_watermark_walks_the_whole_table() {
     let dir = iota_common::tempdir();
@@ -677,10 +647,9 @@ async fn no_watermark_walks_the_whole_table() {
     );
 }
 
-/// A checkpoint whose effects are committed but whose execution watermark was
-/// never bumped — an earlier build crashed between the two — is still walked.
-/// Stopping at the executed watermark would leave its superseded versions in
-/// the live table for good, since the sweep records itself done regardless.
+/// A checkpoint whose effects are committed but which is above the executed
+/// watermark, as a crash between the two leaves it, is still walked: the
+/// sweep records itself done either way, so a skipped version stays for good.
 #[tokio::test]
 async fn the_walk_reaches_a_committed_checkpoint_above_the_executed_watermark() {
     let dir = iota_common::tempdir();
@@ -697,8 +666,6 @@ async fn the_walk_reaches_a_committed_checkpoint_above_the_executed_watermark() 
     seed_checkpoint(&store, &checkpoint_store, 9, &[(live_id(), 1)], &[]);
     let _ = executed;
 
-    // Checkpoint 9's effects are committed and it is synced, but the crash
-    // left the executed watermark at 8.
     let eight = checkpoint_store
         .get_checkpoint_by_sequence_number(8)
         .unwrap()

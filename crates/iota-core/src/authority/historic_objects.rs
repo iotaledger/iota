@@ -3,10 +3,9 @@
 
 //! Superseded object versions, bucketed by the epoch that superseded them.
 //!
-//! The buckets are extra column families of the perpetual database rather
-//! than a store of their own (see [`crate::epoch_buckets`]), so relocating a
-//! version out of the live `objects` table and in here is one atomic
-//! [`typed_store::rocks::DBBatch`] instead of a cross-database move.
+//! The buckets are column families of the perpetual database (see
+//! [`crate::epoch_buckets`]), so moving a version out of the live `objects`
+//! table and into a bucket is one atomic [`typed_store::rocks::DBBatch`].
 
 use std::{
     collections::BTreeMap,
@@ -55,14 +54,11 @@ const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
 const DB_PREFIX_HISTORIC_EXPIRING: u8 = 2;
 
 /// Tombstone heads deleted from the live `objects` table per write batch when
-/// a bucket expires. An epoch can hold millions of them, so they are streamed
-/// out in batches of this size rather than gathered into one; the whole epoch
-/// is still deleted before the bucket's column family is dropped.
+/// a bucket expires.
 const TOMBSTONE_DELETE_BATCH_SIZE: usize = 10_000;
 
 /// Column family holding the earliest-retained-epoch marker
-/// [`EpochBuckets`] persists on a prune. It is empty until the first prune,
-/// which is the same as retaining every bucket.
+/// [`EpochBuckets`] persists on a prune; empty until the first prune.
 ///
 /// The name must not begin with [`HISTORIC_OBJECTS_CF_PREFIX`], since that is
 /// how a bucket's column family is told from every other one in this
@@ -79,27 +75,21 @@ pub struct HistoricObjectsBucket {
     /// stay in the live `objects` table until this bucket expires: a
     /// tombstone has to outlive every version beneath it, and a tombstone
     /// written in this epoch can only sit above versions relocated in this
-    /// epoch or an earlier one.
+    /// epoch or an earlier one. Hence expiry goes oldest epoch first.
     ///
-    /// This is why expiry goes oldest epoch first, and why a reader that
-    /// consults the live `objects` table as well must read it **before**
-    /// asking the buckets. Bucket handles outlive the buckets read lock, so a
-    /// reader holding one from before an expiry started would keep reading a
-    /// bucket whose tombstone heads are being deleted meanwhile, and a live
-    /// read taken afterwards would no longer find the tombstone covering
-    /// those rows. Reading live first closes that window: either the live
-    /// read precedes the deletion and finds the tombstone, or the bucket read
-    /// waits on the lock until the expiry has taken the bucket out of the map.
+    /// A reader that also consults the live `objects` table must read it
+    /// **before** asking the buckets. Bucket handles outlive the buckets read
+    /// lock, so otherwise a bucket read could race an expiry that has already
+    /// deleted the tombstone covering those rows. Reading live first means
+    /// either the live read finds the tombstone, or the bucket read waits on
+    /// the lock until the expiry has taken the bucket out of the map.
     pub(crate) tombstones: TaggedDBMap<ObjectKey, ()>,
 
-    /// Present once this bucket has been scheduled for expiry. A bucket
-    /// carrying it is skipped by reads and its expiry is resumed at open.
-    /// Write it through [`Self::mark_expiring`], which also stops the reads.
+    /// Present once this bucket is scheduled for expiry, after which reads
+    /// skip it. Write it through [`Self::mark_expiring`].
     pub(crate) expiring: TaggedDBMap<(), ()>,
 
-    /// Mirrors the `expiring` row, read once when the bucket is opened and
-    /// set again when the marker is written, so a query does not pay a
-    /// lookup to find out whether the bucket may still be read.
+    /// Mirrors the `expiring` row, so a query need not look it up.
     expiring_marked: AtomicBool,
 }
 
@@ -141,12 +131,11 @@ impl HistoricObjectsBucket {
         self.expiring_marked.load(Ordering::Relaxed)
     }
 
-    /// Marks this bucket expiring and makes the marker durable, then stops
-    /// serving its rows.
+    /// Durably marks this bucket expiring, then stops serving its rows.
     ///
     /// Synced, because a column-family drop is durable at once while a
-    /// default write may still be lost, which would leave a bucket whose
-    /// tombstone heads are gone readable again after a crash.
+    /// default write may be lost, which after a crash would make a bucket
+    /// whose tombstone heads are gone readable again.
     fn mark_expiring(&self) -> Result<(), TypedStoreError> {
         let mut batch = self.expiring.batch();
         batch.insert_batch_tagged(&self.expiring, [((), ())])?;
@@ -157,14 +146,10 @@ impl HistoricObjectsBucket {
 }
 
 /// Superseded object versions, bucketed by the epoch that superseded them.
-///
-/// The buckets are column families of the perpetual database rather than a
-/// store of their own, so a version can leave `objects` and arrive here in
-/// one atomic batch.
 pub struct HistoricObjects {
     buckets: EpochBuckets<HistoricObjectsBucket>,
-    /// The live objects table of the same database, holding the tombstones a
-    /// bucket's heads point at until that bucket expires.
+    /// The live objects table of the same database, which holds the
+    /// tombstones of every bucket that has not expired.
     objects: DBMap<ObjectKey, StoreObjectWrapper>,
 }
 
@@ -257,16 +242,13 @@ impl HistoricObjects {
         let earliest_retained = earliest_retained_table.get(&())?.unwrap_or(0);
 
         // A prune persists the floor before it marks anything, so a bucket
-        // below the floor is one whose expiry did not finish, whether or not
-        // it got as far as its marker. Left to `EpochBuckets::open` it would
-        // have its column family dropped with its tombstone heads still in
-        // the live `objects` table, which nothing would ever delete.
+        // below the floor is an unfinished expiry even without its marker.
+        // `EpochBuckets::open` would just drop it, leaving its tombstone heads
+        // in the live `objects` table for good.
         //
-        // Ascending, oldest first. A bucket below the floor may have its
-        // marker written (heads already deleted, versions still on disk) or
-        // not. A bounded read that stops at one of those deleted heads falls
-        // through to the older buckets, so every older bucket must be gone
-        // before this one is finished.
+        // Oldest first: a bounded read that stops at one of this bucket's
+        // deleted heads falls through to the older buckets, so those must be
+        // gone first.
         let interrupted: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = buckets
             .iter()
             .filter(|(&epoch, bucket)| epoch < earliest_retained || bucket.is_expiring())
@@ -308,13 +290,9 @@ impl HistoricObjects {
         Ok(Self { buckets, objects })
     }
 
-    /// The oldest epoch this store still holds a bucket for, `None` when it
-    /// holds none at all. No object version superseded before this epoch is
-    /// readable any more.
-    ///
-    /// This is what the store holds, not what its retention would keep: a node
-    /// restored from a formal snapshot starts with no bucket at all, whatever
-    /// the retention says.
+    /// The oldest epoch this store holds a bucket for, `None` when it holds
+    /// none; versions superseded before it are not readable. A node restored
+    /// from a formal snapshot starts with no bucket, whatever the retention.
     pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
         self.buckets.earliest_epoch()
     }
@@ -326,9 +304,8 @@ impl HistoricObjects {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// The object relocated under `key`, probed newest-epoch bucket first,
-    /// `None` if it was never relocated (or its bucket has since been
-    /// dropped).
+    /// The object relocated under `key`, `None` if it was never relocated (or
+    /// its bucket has since been dropped).
     pub fn get(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
         for bucket in self.readable_buckets(true) {
             if let Some(object) = bucket
@@ -361,23 +338,20 @@ impl HistoricObjects {
         Ok(())
     }
 
-    /// The newest version of `id` at or below `version` among the relocated
-    /// versions, newest bucket first, `None` if no version of it in range was
-    /// ever relocated (or its bucket has since been dropped).
+    /// The newest relocated version of `id` at or below `version`, `None` if
+    /// there is none (or its bucket has since been dropped).
     ///
-    /// Buckets are searched newest first because an object's versions are
-    /// relocated in increasing version order, so the first bucket holding
-    /// anything within the bound holds the newest such version.
-    ///
-    /// A caller must read the live `objects` table first, for the ordering
-    /// [`Self::readable_buckets`] requires, and take whichever of the two
-    /// answers is the newer one: this knows nothing of tombstones, so only a
-    /// live tombstone newer than what it returns means the object is gone.
+    /// A caller must read the live `objects` table first (see
+    /// [`HistoricObjectsBucket::tombstones`]) and take the newer of the two
+    /// answers: this ignores tombstones, so only a live tombstone newer than
+    /// what it returns means the object is gone.
     pub fn find_lt_or_eq_version(
         &self,
         id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
+        // Versions are relocated in increasing order, so the newest bucket
+        // with a match holds the newest version.
         for bucket in self.readable_buckets(true) {
             let newest = bucket
                 .objects
@@ -392,13 +366,11 @@ impl HistoricObjects {
         Ok(None)
     }
 
-    /// The buckets a query may read, in scan order: ascending epochs for
-    /// forward scans, descending for reverse scans. A bucket marked expiring
-    /// is left out.
+    /// The buckets a query may read, by ascending epoch or descending if
+    /// `reverse`, leaving out any marked expiring.
     ///
-    /// A caller that consults the live `objects` table as well must read it
-    /// **before** calling this. See
-    /// [`HistoricObjectsBucket::tombstones`] for why.
+    /// A caller that also reads the live `objects` table must read it
+    /// **before** calling this; see [`HistoricObjectsBucket::tombstones`].
     fn readable_buckets(&self, reverse: bool) -> Vec<Arc<HistoricObjectsBucket>> {
         self.buckets
             .iter(reverse)
@@ -407,14 +379,10 @@ impl HistoricObjects {
             .collect()
     }
 
-    /// Drops the buckets outside `epochs_to_retain` — the newest bucket and
-    /// the `epochs_to_retain - 1` below it — and deletes the tombstone heads
-    /// each dropped epoch recorded. Returns the earliest epoch still
-    /// retained, `None` when there is no bucket at all.
-    ///
-    /// A head is only deleted once nothing of that object is left beneath it,
-    /// which for a relocated version follows from expiring oldest epoch
-    /// first; [`Self::expire_bucket`] checks the live table for the rest.
+    /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
+    /// below it, drops older ones, and deletes the tombstone heads each
+    /// dropped epoch recorded. Returns the earliest epoch still retained,
+    /// `None` when there is no bucket at all.
     ///
     /// Blocks queries for the duration, so an async caller must use
     /// `spawn_blocking`.
@@ -440,23 +408,18 @@ impl HistoricObjects {
     ) -> Result<(), TypedStoreError> {
         bucket.mark_expiring()?;
 
-        // Synced, as the marker and the retention floor are: a column-family
-        // drop is durable at once, so a deletion still in the write-ahead log
-        // when the machine stops would leave the bucket gone and its tombstone
-        // heads in the live `objects` table with nothing left to delete them.
+        // Synced: a column-family drop is durable at once, so a lost deletion
+        // would leave tombstone heads with nothing left to delete them.
         let delete = |heads: Vec<ObjectKey>| -> Result<(), TypedStoreError> {
             let mut batch = objects.batch();
             batch.delete_batch(objects, heads)?;
             batch.write_opt(&synced_write_options())
         };
 
-        // A head may only go if nothing of that object is left beneath it.
-        // The versions it buried belong to this bucket and are dropped with
-        // it, so the head is the last trace of the object; one version left
-        // in the live table would become the newest again and the deleted
-        // object would come back. That can only happen where the pre-bucket
-        // backlog was not swept through, so the head stays — the object stays
-        // deleted — and the count says how often it happened.
+        // A version left beneath a head in the live table would become the
+        // newest again once the head is deleted, bringing the object back.
+        // That only happens where the backlog sweep did not relocate it, so
+        // such a head is kept.
         let buried_alive = |head: &ObjectKey| -> Result<bool, TypedStoreError> {
             let Some(row) = objects.safe_range_iter_reversed(..*head).next() else {
                 return Ok(false);
@@ -505,9 +468,7 @@ impl HistoricObjects {
     }
 
     /// Writes a row of the wrong type into `epoch`'s tombstone-head table, so
-    /// that reading its heads back fails and that bucket's expiry cannot
-    /// finish. For exercising what a node does when a bucket cannot be
-    /// expired; there is no production hook that makes one fail.
+    /// that expiring that bucket fails.
     #[cfg(test)]
     pub(super) fn corrupt_tombstone_heads_for_testing(
         db: &Arc<Database>,
@@ -525,20 +486,12 @@ impl HistoricObjects {
         batch.write()
     }
 
-    /// One page of the rows `cf_name` holds, if it is one of this store's
-    /// column families: a bucket of relocated versions, or the
-    /// retention-floor family. `None` for any other name, leaving the caller
-    /// to report it as unknown.
+    /// One page of the rows of `cf_name` if it is one of this store's column
+    /// families, `None` otherwise. For the `iota-tool` table dump, which
+    /// cannot reach these through `AuthorityPerpetualTables`.
     ///
-    /// A bucket packs its tombstone heads and its expiring marker into the
-    /// same column family as its relocated versions, tagged apart; the page
-    /// carries all three, the tombstone and marker rows prefixed by table
-    /// name to keep them apart from an object key formatted the same way.
-    ///
-    /// For the table dump of `iota-tool`, which walks the perpetual
-    /// database's column families by name: these are not fields of
-    /// `AuthorityPerpetualTables`, so the dump derived from it cannot read
-    /// them. `db` may be a read-only or secondary handle.
+    /// Tombstone-head and expiring-marker rows are prefixed by table name.
+    /// `db` may be a read-only or secondary handle.
     pub fn dump_column_family(
         db: &Arc<Database>,
         cf_name: &str,
