@@ -805,19 +805,19 @@ async fn start(
 
     // Taken off the built config rather than off `--fullnode-rpc-port`, since an
     // override can move the address.
-    let fullnode_url = swarm
+    let fullnode_rpc_address = swarm
         .fullnodes()
         .next()
         .map(|node| node.config().json_rpc_address)
         .unwrap_or(fullnode_url);
-    // the indexer requires a fullnode url with protocol specified
-    let fullnode_url = format!("http://{fullnode_url}");
-    info!("Fullnode URL: {}", fullnode_url);
+    if !no_full_node {
+        info!("Fullnode URL: {}", log_url(fullnode_rpc_address));
+    }
 
     // Reported off the built config rather than off `--with-grpc`, since an
     // override can turn the API on too.
     if let Some(address) = fullnode_grpc_address {
-        info!("gRPC URL: {}", local_url(address));
+        info!("gRPC URL: {}", log_url(address));
     }
     // Empty only when no service below reads it, as checked before launch.
     let fullnode_grpc_url = fullnode_grpc_address.map(local_url).unwrap_or_default();
@@ -925,7 +925,7 @@ async fn start(
             let address: Address = kp.public_key().derive_address();
             keystore.add_key(None, kp).unwrap();
             IotaClientConfig::new(keystore)
-                .with_envs([IotaEnv::new("localnet", fullnode_url)])
+                .with_envs([IotaEnv::new("localnet", local_url(fullnode_rpc_address))])
                 .with_active_address(address)
                 .with_active_env("localnet".to_string())
                 .persisted(faucet_config_dir.join(IOTA_CLIENT_CONFIG).as_path())
@@ -1429,6 +1429,17 @@ fn local_url(mut address: SocketAddr) -> String {
     format!("http://{address}")
 }
 
+/// The URL to log for a server that listens at `address`: the URL a client on
+/// this host connects to, followed by `address` when the two differ.
+fn log_url(address: SocketAddr) -> String {
+    let url = local_url(address);
+    if address.ip().is_unspecified() {
+        format!("{url} (listening on {address})")
+    } else {
+        url
+    }
+}
+
 /// Translate the deprecated `--with-grpc` value into node config overrides.
 ///
 /// The API is off on a generated fullnode, which leaves `grpc-api-config`
@@ -1679,6 +1690,22 @@ mod tests {
             ("[::1]:50051", "http://[::1]:50051"),
         ] {
             assert_eq!(local_url(address.parse().unwrap()), expected);
+        }
+    }
+
+    /// A logged URL is one a client on this host can connect to, and still
+    /// shows a wildcard listen address.
+    #[test]
+    fn a_logged_url_names_a_wildcard_listen_address() {
+        for (address, expected) in [
+            (
+                "0.0.0.0:50051",
+                "http://127.0.0.1:50051 (listening on 0.0.0.0:50051)",
+            ),
+            ("[::]:50051", "http://[::1]:50051 (listening on [::]:50051)"),
+            ("127.0.0.1:50051", "http://127.0.0.1:50051"),
+        ] {
+            assert_eq!(log_url(address.parse().unwrap()), expected);
         }
     }
 
