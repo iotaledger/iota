@@ -797,6 +797,16 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
 
+    // If true, enables the authentication with built-in Move authenticators.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_builtin_move_authenticators: bool,
+
+    // If true, the `ClaimAccount` user transaction kind is accepted. It creates an
+    // account object whose id is the sender's address, so a usable account also
+    // requires `enable_builtin_move_authenticators`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_account_transaction: bool,
+
     // If true, a consensus message is skipped as a duplicate of an earlier message with the same
     // key that was recorded as processed or passed verification in the same commit:
     // - The consensus handler adds a message to its processed-transaction cache only after the
@@ -1868,11 +1878,6 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `multisig::multisig_validate_pubkey(public_key:
     // &vector<u8>): bool`
     multisig_multisig_validate_pubkey_cost_base: Option<u64>,
-    // Per-member cost params for `multisig::multisig_validate_pubkey`, charged once per committee
-    // member according to its key scheme (Passkey members reuse the secp256r1 cost).
-    multisig_multisig_validate_pubkey_cost_per_ed25519_member: Option<u64>,
-    multisig_multisig_validate_pubkey_cost_per_secp256k1_member: Option<u64>,
-    multisig_multisig_validate_pubkey_cost_per_secp256r1_member: Option<u64>,
     // Cost param for the Move native function `public_key::to_iota_address_impl(flag: u8,
     // raw_bytes: &vector<u8>): address`
     public_key_to_iota_address_impl_cost_base: Option<u64>,
@@ -2445,10 +2450,6 @@ impl ProtocolConfig {
 
     pub fn allow_dkg_completion_after_timeout(&self) -> bool {
         self.feature_flags.allow_dkg_completion_after_timeout
-    }
-
-    pub fn disallow_self_identifier_in_transactions(&self) -> bool {
-        self.feature_flags.disallow_self_identifier_in_transactions
     }
 
     pub fn enable_builtin_move_authenticators(&self) -> bool {
@@ -3252,9 +3253,6 @@ impl ProtocolConfig {
             ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
             ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
             multisig_multisig_validate_pubkey_cost_base: None,
-            multisig_multisig_validate_pubkey_cost_per_ed25519_member: None,
-            multisig_multisig_validate_pubkey_cost_per_secp256k1_member: None,
-            multisig_multisig_validate_pubkey_cost_per_secp256r1_member: None,
             public_key_to_iota_address_impl_cost_base: None,
 
             claim_account_max_computation_units: None,
@@ -4006,6 +4004,7 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
+
                     cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
 
                     // Raise the minimum validator joining stake to 6M IOTA, the low
@@ -4073,6 +4072,19 @@ impl ProtocolConfig {
                     }
                 }
                 41 => {
+                    // Commit a block's transactions once its header is
+                    // traversed, also when their acknowledgment quorum came
+                    // first.
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .consensus_commit_transactions_once_traversed = true;
+                    }
+
+                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
+                    // whose restored x-coordinate is not below the field
+                    // modulus.
+                    cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
+
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
@@ -4093,24 +4105,7 @@ impl ProtocolConfig {
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
                     cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
-                    cfg.multisig_multisig_validate_pubkey_cost_per_ed25519_member = Some(52);
-                    cfg.multisig_multisig_validate_pubkey_cost_per_secp256k1_member = Some(52);
-                    cfg.multisig_multisig_validate_pubkey_cost_per_secp256r1_member = Some(52);
                     cfg.public_key_to_iota_address_impl_cost_base = Some(52);
-                }
-                41 => {
-                    // Commit a block's transactions once its header is
-                    // traversed, also when their acknowledgment quorum came
-                    // first.
-                    if chain != Chain::Mainnet {
-                        cfg.feature_flags
-                            .consensus_commit_transactions_once_traversed = true;
-                    }
-
-                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
-                    // whose restored x-coordinate is not below the field
-                    // modulus.
-                    cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
                 }
                 // Use this template when making changes:
                 //
@@ -4570,6 +4565,10 @@ impl ProtocolConfig {
 
     pub fn set_allow_dkg_completion_after_timeout_for_testing(&mut self, val: bool) {
         self.feature_flags.allow_dkg_completion_after_timeout = val;
+    }
+
+    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authenticators = val;
     }
 
     /// Turning the flag off also turns off `enable_pcool_flow`, which requires
