@@ -112,33 +112,32 @@ pub struct AuthorityStorePruner {
 impl AuthorityStorePruner {
     /// Called by the executor after a checkpoint has been executed and made
     /// available (watermark bumped, subscribers notified). Wakes the pruner.
+    ///
+    /// Also records `executed_seq` as the checkpoint new
+    /// [`retain_objects`](Self::retain_objects) guards start from; the objects
+    /// pruner never goes past the highest checkpoint recorded here, so object
+    /// pruning only advances as this is called.
     pub fn nudge(&self, executed_seq: CheckpointSequenceNumber) {
         self.object_retention.record_executed(executed_seq);
         self.executed.send_replace(executed_seq);
     }
 
-    /// Keeps the objects pruner from pruning the highest executed checkpoint
-    /// and every checkpoint after it until the returned guard is dropped, so
-    /// that the object versions their transactions supersede stay readable.
+    /// Keeps the objects pruner from pruning the highest checkpoint passed to
+    /// [`nudge`](Self::nudge) and every checkpoint after it until the returned
+    /// guard is dropped, so that the object versions their transactions
+    /// supersede stay readable.
     pub fn retain_objects(&self) -> ObjectRetentionGuard {
         self.object_retention.retain()
     }
 }
 
 /// The checkpoints from which readers have asked the objects pruner to retain
-/// superseded object versions. The pruner stays below the lowest of them.
-///
-/// The highest executed checkpoint is kept here, set by
-/// [`AuthorityStorePruner::nudge`] after the executed checkpoint watermark is
-/// written; it only increases. A guard reads it and joins the queue under the
-/// lock, and the pruner reads it before taking the lock to find the lowest
-/// retained checkpoint. A guard the pruner does not see therefore read the
-/// highest executed checkpoint after the pruner did, so it starts at or above
-/// the checkpoint the pruner stops before. If a guard read it before taking
-/// the lock, the pruner could read a higher one in between, miss the guard not
-/// yet queued, and prune the guard's checkpoint.
-#[derive(Default)]
+/// superseded object versions. The pruner stays below the lowest of them, and
+/// does not go past the highest executed checkpoint recorded by
+/// [`AuthorityStorePruner::nudge`].
 pub struct ObjectRetention {
+    /// The highest executed checkpoint recorded by
+    /// [`AuthorityStorePruner::nudge`]; it only increases.
     executed: AtomicU64,
     /// One entry per retained checkpoint, in increasing order, shared by every
     /// guard of that checkpoint. An entry no guard holds any more has a
@@ -162,6 +161,11 @@ impl ObjectRetention {
 
     fn retain(&self) -> ObjectRetentionGuard {
         let mut retained = self.retained.lock();
+        // Read under the lock: the pruner reads it before taking the lock, so
+        // a guard the pruner does not see read it after the pruner did and
+        // starts at or above the pruner's limit. Read before the lock, the
+        // pruner could read a higher one in between, miss this guard not yet
+        // queued, and prune its checkpoint.
         let executed = self.executed.load(Ordering::Acquire);
         Self::remove_released(&mut retained);
         if let Some(seq) = retained.back().filter(|seq| ***seq == executed) {
@@ -174,28 +178,28 @@ impl ObjectRetention {
         ObjectRetentionGuard { _retained: seq }
     }
 
-    /// The highest executed checkpoint, and the lowest retained checkpoint.
-    fn executed_and_lowest_retained_checkpoint(
-        &self,
-    ) -> (CheckpointSequenceNumber, Option<CheckpointSequenceNumber>) {
+    /// The highest checkpoint the objects pruner may prune up to: the lowest
+    /// retained checkpoint, or the highest executed checkpoint if no
+    /// checkpoint is retained.
+    fn pruning_limit(&self) -> CheckpointSequenceNumber {
         // Read before the lowest retained checkpoint: an older executed
         // checkpoint only lowers the pruner's limit, while one read after it
         // could pass a checkpoint retained in between.
         let executed = self.executed.load(Ordering::Acquire);
         let mut retained = self.retained.lock();
         Self::remove_released(&mut retained);
-        (executed, retained.front().map(|seq| **seq))
+        retained.front().map_or(executed, |seq| executed.min(**seq))
     }
 
-    /// Removes the leading entries no guard holds. Dropping the last reference
-    /// to an entry synchronizes with every guard of it that was dropped, so
-    /// the reads those guards protected happen before any pruning that
-    /// follows.
+    /// Removes the leading entries no guard holds.
     fn remove_released(retained: &mut VecDeque<Arc<CheckpointSequenceNumber>>) {
         while retained
             .front()
             .is_some_and(|seq| Arc::strong_count(seq) == 1)
         {
+            // Dropping the last reference synchronizes with every guard of the
+            // entry that was dropped, so the reads those guards protected
+            // happen before any pruning that follows.
             retained.pop_front();
         }
     }
@@ -499,13 +503,10 @@ impl AuthorityStorePruner {
                 )
             })
             .unwrap_or_default();
-        let max_eligible_checkpoint_number = max_eligible_checkpoint_number.min(
-            object_retention.map_or(u64::MAX, |object_retention| {
-                let (executed, lowest_retained) =
-                    object_retention.executed_and_lowest_retained_checkpoint();
-                executed.min(lowest_retained.unwrap_or(u64::MAX))
-            }),
-        );
+        let max_eligible_checkpoint_number = object_retention
+            .map_or(max_eligible_checkpoint_number, |object_retention| {
+                max_eligible_checkpoint_number.min(object_retention.pruning_limit())
+            });
         let pruned_checkpoint_number = perpetual_db
             .get_highest_pruned_checkpoint()?
             .unwrap_or_default();
@@ -1715,7 +1716,7 @@ mod tests {
             }
         };
 
-        let object_retention = Arc::new(ObjectRetention::default());
+        let object_retention = Arc::new(ObjectRetention::new(0));
         let execute = |checkpoint: &VerifiedCheckpoint| {
             checkpoint_store
                 .update_highest_executed_checkpoint(checkpoint)
@@ -1741,12 +1742,12 @@ mod tests {
         );
     }
 
-    /// The lowest retained checkpoint is the lowest one some guard still
-    /// holds, whatever order guards are dropped in.
+    /// The pruning limit is the lowest checkpoint some guard still holds,
+    /// whatever order guards are dropped in, and the highest executed
+    /// checkpoint once no guard is held.
     #[test]
-    fn lowest_retained_checkpoint_follows_held_guards() {
-        let object_retention = ObjectRetention::default();
-        let lowest = || object_retention.executed_and_lowest_retained_checkpoint().1;
+    fn pruning_limit_follows_held_guards() {
+        let object_retention = ObjectRetention::new(0);
 
         object_retention.record_executed(5);
         let first_at_5 = object_retention.retain();
@@ -1754,43 +1755,43 @@ mod tests {
         object_retention.record_executed(6);
         object_retention.record_executed(7);
         let at_7 = object_retention.retain();
-        assert_eq!(lowest(), Some(5));
+        assert_eq!(object_retention.pruning_limit(), 5);
 
         drop(first_at_5);
-        assert_eq!(lowest(), Some(5));
+        assert_eq!(object_retention.pruning_limit(), 5);
         drop(at_7);
-        assert_eq!(lowest(), Some(5));
+        assert_eq!(object_retention.pruning_limit(), 5);
         drop(second_at_5);
-        assert_eq!(lowest(), None);
+        assert_eq!(object_retention.pruning_limit(), 7);
 
         object_retention.record_executed(8);
         let at_8 = object_retention.retain();
-        assert_eq!(lowest(), Some(8));
+        object_retention.record_executed(9);
+        assert_eq!(object_retention.pruning_limit(), 8);
         drop(at_8);
-        assert_eq!(lowest(), None);
+        assert_eq!(object_retention.pruning_limit(), 9);
     }
 
     /// The executed checkpoint a guard starts from never goes back, even if
     /// executed checkpoints are recorded out of order.
     #[test]
     fn recorded_executed_checkpoint_only_increases() {
-        let object_retention = ObjectRetention::default();
+        let object_retention = ObjectRetention::new(0);
         object_retention.record_executed(9);
         object_retention.record_executed(4);
         let _guard = object_retention.retain();
-        assert_eq!(
-            object_retention.executed_and_lowest_retained_checkpoint(),
-            (9, Some(9))
-        );
+        object_retention.record_executed(10);
+        assert_eq!(object_retention.pruning_limit(), 9);
     }
 
-    // A nudge wakes the pruner task's subscription.
+    // A nudge wakes the pruner task's subscription and raises the object
+    // pruning limit.
     #[tokio::test]
     async fn test_nudge_wakes_subscriber() {
         let pruner = AuthorityStorePruner {
             _objects_pruner_cancel_handle: oneshot::channel().0,
             executed: watch::channel(0).0,
-            object_retention: Default::default(),
+            object_retention: Arc::new(ObjectRetention::new(0)),
         };
         let mut rx = pruner.executed.subscribe();
         pruner.nudge(42);
