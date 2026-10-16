@@ -8,12 +8,11 @@ use futures::Stream;
 use iota_json_rpc_types::Filter;
 use iota_metrics::{metered_channel::Sender, spawn_monitored_task};
 use iota_sdk_types::ObjectId;
-use iota_types::error::IotaError;
 use parking_lot::RwLock;
 use prometheus_filtered::Registry;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 use crate::subscription_handler::{EVENT_DISPATCH_BUFFER_SIZE, SubscriptionMetrics};
 
@@ -142,23 +141,21 @@ where
         ReceiverStream::new(rx)
     }
 
-    pub fn try_send(&self, data: T) -> Result<(), IotaError> {
-        // Only attempt to send if there are active subscribers
-        if self.has_subscribers() {
-            self.streamer_queue.try_send(data).map_err(|e| {
-                self.metrics
-                    .dropped_submissions
-                    .with_label_values(&[self.metrics_label])
-                    .inc();
-
-                IotaError::FailedToDispatchSubscription {
-                    error: e.to_string(),
-                }
-            })
-        } else {
-            // Silently drop the data if no subscribers - this is expected behavior
-            Ok(())
+    /// Queues `data` for the subscribers, waiting while the queue is full.
+    /// Without a subscriber, `data` is dropped.
+    pub async fn send(&self, data: T) {
+        if self.has_subscribers() && self.streamer_queue.send(data).await.is_err() {
+            self.metrics
+                .dropped_submissions
+                .with_label_values(&[self.metrics_label])
+                .inc();
+            error!("the {} streamer task has stopped", self.metrics_label);
         }
+    }
+
+    /// Ends every subscription.
+    pub fn drop_subscribers(&self) {
+        self.subscribers.write().clear();
     }
 
     /// Check if there are any active subscribers
