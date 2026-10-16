@@ -249,6 +249,12 @@ impl AuthorityPerpetualTables {
             tables.objects.clone(),
         )?;
         historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
+        if matches!(
+            tables.object_backlog_sweep_progress.get(&())?,
+            Some(ObjectBacklogSweepProgress::Done)
+        ) {
+            historic_objects.mark_backlog_swept();
+        }
         Ok((tables, historic_objects))
     }
 
@@ -556,6 +562,16 @@ impl AuthorityPerpetualTables {
     pub fn mark_object_backlog_swept(&self) -> IotaResult {
         self.object_backlog_sweep_progress
             .insert(&(), &ObjectBacklogSweepProgress::Done)?;
+        Ok(())
+    }
+
+    /// Marks the one-time object-backlog sweep as skipped, so that a later
+    /// node start does not run it, on a database that may still hold
+    /// superseded versions in the live `objects` table. Reads keep checking
+    /// the historic buckets behind such a version.
+    pub fn mark_object_backlog_sweep_skipped(&self) -> IotaResult {
+        self.object_backlog_sweep_progress
+            .insert(&(), &ObjectBacklogSweepProgress::Skipped)?;
         Ok(())
     }
 
@@ -1093,5 +1109,28 @@ mod tests {
             perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
             Some(ObjectBacklogSweepProgress::Done)
         );
+    }
+
+    /// Only a sweep that ran, not one recorded as skipped, tells the reopened
+    /// historic store that the live table holds no superseded version.
+    #[tokio::test]
+    async fn only_a_finished_sweep_marks_the_backlog_swept_at_open() {
+        for (skip, swept) in [(true, false), (false, true)] {
+            let tmp_dir = iota_common::tempdir();
+            {
+                let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+                if skip {
+                    perpetual_db.mark_object_backlog_sweep_skipped().unwrap();
+                } else {
+                    perpetual_db.mark_object_backlog_swept().unwrap();
+                }
+                let weak_db = Arc::downgrade(&perpetual_db.objects.db);
+                drop(perpetual_db);
+                assert!(typed_store::database::wait_for_database_close(weak_db).await);
+            }
+            let (_perpetual_db, historic_objects, ..) =
+                AuthorityPerpetualTables::open_with_historic_objects(tmp_dir.path(), None).unwrap();
+            assert_eq!(historic_objects.backlog_swept(), swept, "skipped: {skip}");
+        }
     }
 }

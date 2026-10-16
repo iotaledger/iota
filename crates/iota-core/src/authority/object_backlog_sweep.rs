@@ -85,6 +85,10 @@ pub enum ObjectBacklogSweepProgress {
     /// The sweep has finished, by either route, and later node starts do
     /// nothing.
     Done,
+    /// Recorded without a sweep, by `iota-tool db-tool
+    /// mark-object-backlog-swept`. Later node starts do nothing, but the
+    /// versions a sweep had not reached stay in the live table.
+    Skipped,
 }
 
 /// Moves the superseded object versions left in the live `objects` table into
@@ -170,7 +174,7 @@ impl ObjectBacklogSweep {
             self.perpetual_tables
                 .object_backlog_sweep_progress
                 .get(&())?,
-            Some(ObjectBacklogSweepProgress::Done)
+            Some(ObjectBacklogSweepProgress::Done | ObjectBacklogSweepProgress::Skipped)
         ))
     }
 
@@ -329,7 +333,9 @@ impl ObjectBacklogSweep {
     }
 
     fn mark_done(&self) -> IotaResult<()> {
-        self.perpetual_tables.mark_object_backlog_swept()
+        self.perpetual_tables.mark_object_backlog_swept()?;
+        self.historic_objects.mark_backlog_swept();
+        Ok(())
     }
 
     /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key and
@@ -344,7 +350,9 @@ impl ObjectBacklogSweep {
         let objects = &self.perpetual_tables.objects;
         let progress = &self.perpetual_tables.object_backlog_sweep_progress;
         let lower_bound = match progress.get(&())? {
-            Some(ObjectBacklogSweepProgress::Done) => return Ok(false),
+            Some(ObjectBacklogSweepProgress::Done | ObjectBacklogSweepProgress::Skipped) => {
+                return Ok(false);
+            }
             Some(ObjectBacklogSweepProgress::SweptThrough(key)) => Bound::Excluded(key),
             None => Bound::Unbounded,
         };
