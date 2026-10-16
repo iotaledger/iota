@@ -469,6 +469,10 @@ async fn start(
         ensure!(!no_full_node, "Cannot enable gRPC without a fullnode.");
     }
 
+    if with_faucet.is_some() {
+        ensure!(!no_full_node, "Cannot start the faucet without a fullnode.");
+    }
+
     if write_config.is_some() {
         ensure!(
             with_faucet.is_none(),
