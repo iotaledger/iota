@@ -467,14 +467,10 @@ impl CheckpointExecutor {
         fail_point!("crash");
 
         self.bump_highest_executed_checkpoint(&ckpt_state.data.checkpoint);
+        self.state
+            .record_executed_for_object_retention(ckpt_state.data.checkpoint.sequence_number());
 
         self.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref());
-
-        // Nudge the pruner now that this checkpoint is executed and available;
-        // pruning of aged-out data runs off the propagation path.
-        self.state
-            .pruner()
-            .nudge(ckpt_state.data.checkpoint.sequence_number());
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);
 
