@@ -12,7 +12,7 @@ use iota_sdk_move_types::iota_framework::{
     deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
     dynamic_object_field::Wrapper,
 };
-use iota_sdk_types::{Address, Identifier, ObjectId, Version};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, Version};
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
@@ -72,10 +72,10 @@ pub fn check_coin_deny_list_v1(
 
 /// Fails if `sender` is denied for one of `coin_types`, or one of them is
 /// paused for every address. `coin_types` are the coin types of the objects
-/// execution loaded as the transaction's inputs. This is the check that
-/// [`check_coin_deny_list_v1`] makes before submission, with the deny list
-/// read as it stood at the start of `cur_epoch`, so every validator reaches
-/// the same result.
+/// execution loaded as the transaction's inputs, or of the coins the Move
+/// code received. This is the check that [`check_coin_deny_list_v1`] makes
+/// before submission, with the deny list read as it stood at the start of
+/// `cur_epoch`, so every validator reaches the same result.
 pub fn check_coin_deny_list_v1_for_sender_during_execution(
     sender: Address,
     coin_types: BTreeSet<String>,
@@ -316,12 +316,21 @@ pub fn coin_types_for_denylist_check<'a>(
     objects
         .into_iter()
         .filter_map(|obj| {
-            if obj.is_gas_coin() {
-                None
-            } else {
-                obj.opt_coin_type()
-                    .map(|type_tag| type_tag.to_canonical_string(false))
-            }
+            obj.as_opt_struct()
+                .and_then(|move_object| coin_type_for_denylist_check(move_object.struct_tag()))
         })
         .collect()
+}
+
+/// Returns the coin type of `struct_tag` in canonical string form. It returns
+/// `None` for a type that is not a coin, and for the IOTA coin since it's known
+/// that it's not a regulated coin.
+pub fn coin_type_for_denylist_check(struct_tag: &StructTag) -> Option<String> {
+    if struct_tag.is_gas_coin() {
+        None
+    } else {
+        struct_tag
+            .opt_coin_type()
+            .map(|coin_type| coin_type.to_canonical_string(false))
+    }
 }

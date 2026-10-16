@@ -537,13 +537,13 @@ async fn test_execution_fails_tx_spending_coin_unpaused_this_epoch() {
     );
 }
 
-// Under P-COOL with deterministic validation, the check of the sender against
-// the coin types of the inputs does not see a received coin: execution loads a
-// receiving object only when the Move code receives it, after the check. A
-// sender denied for a coin type can receive a coin of that type and send it on
-// to an address that is not denied, in one transaction.
+// Under P-COOL with deterministic validation, the sender is also checked
+// against the coins the Move code receives, which the check of the inputs does
+// not see: execution loads a receiving object only when it is received. A
+// sender denied for a coin type fails when it receives a coin of that type and
+// sends it on to an address that is not denied.
 #[tokio::test]
-async fn test_execution_lets_denied_sender_forward_a_received_coin() {
+async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.enable_pcool_deterministic_validation_for_testing();
         config
@@ -570,23 +570,28 @@ async fn test_execution_lets_denied_sender_forward_a_received_coin() {
     let effects = env.execute(receive_tx).await;
     assert_eq!(
         effects.status(),
-        &ExecutionStatus::Success,
-        "the sender check at execution does not see the received coin"
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::AddressDeniedForCoin {
+                address: env.env.sender,
+                coin_type: env.coin_type(),
+            },
+            command: None,
+        },
+        "execution must fail the kept transaction for the denial settled before this epoch"
     );
-    assert_eq!(
-        env.env.get_latest_object_ref(&env.coin_id).await.version,
-        effects.lamport_version(),
-        "the received coin must be written by the transaction"
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
     );
     assert_eq!(
         env.env.authority.get_object(&env.coin_id).unwrap().owner,
-        Owner::Address(dbg_addr(2)),
-        "the denied sender forwarded the regulated coin"
+        Owner::Address(parent_id.into()),
+        "the regulated coin must stay with the parent"
     );
 }
 
 // Without `pcool_deterministic_validation`, the transaction of
-// `test_execution_lets_denied_sender_forward_a_received_coin` is dropped by
+// `test_execution_fails_denied_sender_forwarding_a_received_coin` is dropped by
 // post-consensus validation, which reads the receiving object, so the
 // epoch-gated sender check sees the coin type.
 #[tokio::test]
@@ -621,6 +626,138 @@ async fn test_post_consensus_drops_denied_sender_receiving_a_coin() {
         ),
         "unexpected drop reason: {:?}",
         dropped[0].1
+    );
+}
+
+// Under P-COOL with deterministic validation, a transaction receiving a coin
+// whose global pause was settled at the epoch boundary and lifted in this
+// epoch is admitted and kept by post-consensus validation, and execution
+// fails it, charging gas.
+#[tokio::test]
+async fn test_execution_fails_tx_receiving_coin_unpaused_this_epoch() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+    let parent_id = env.create_parent().await;
+    env.transfer_coin(parent_id.into()).await;
+
+    env.pause().await;
+    drop(guard);
+    env.reconfigure().await;
+    env.unpause().await;
+
+    let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
+    env.validation_check(&receive_tx, false)
+        .await
+        .expect("admission must accept a coin the latest deny list does not pause");
+    env.assert_kept_at_commit(&receive_tx);
+
+    let effects = env.execute(receive_tx).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::CoinTypeGlobalPause {
+                coin_type: env.coin_type(),
+            },
+            command: None,
+        },
+        "execution must fail the kept transaction for the pause settled before this epoch"
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
+    );
+}
+
+// Under P-COOL with deterministic validation, a sender that is not denied for
+// a coin type receives a coin of that type and sends it on, and execution does
+// not fail the transaction.
+#[tokio::test]
+async fn test_execution_lets_sender_forward_a_received_coin() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+
+    // The regulated coin is sent to an object the sender owns, to be received
+    // from it later.
+    let parent_id = env.create_parent().await;
+    env.transfer_coin(parent_id.into()).await;
+
+    let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
+    let effects = env.execute(receive_tx).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Success,
+        "execution must not fail a sender that is not denied"
+    );
+    assert_eq!(
+        env.env.authority.get_object(&env.coin_id).unwrap().owner,
+        Owner::Address(dbg_addr(2)),
+        "the sender forwarded the regulated coin"
+    );
+}
+
+// Under P-COOL with deterministic validation, the sender is not checked for a
+// received IOTA coin. A sender denied for the regulated coin type receives an
+// IOTA coin and sends it on. Execution succeeds, and the effects do not record
+// the deny list as read.
+#[tokio::test]
+async fn test_execution_does_not_check_sender_for_a_received_iota_coin() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+    let parent_id = env.create_parent().await;
+
+    let iota_coin = Object::with_owner_for_testing(env.env.sender);
+    env.env.authority.insert_genesis_object(iota_coin.clone());
+    let send_tx = TestTransactionBuilder::new(env.env.sender, env.fresh_gas_ref(), env.rgp())
+        .transfer(iota_coin.object_ref(), parent_id.into())
+        .build_and_sign(&env.env.private_key);
+    let effects = env.execute(send_tx).await;
+    assert!(effects.status().is_success(), "{:?}", effects.status());
+
+    env.deny_sender().await;
+    drop(guard);
+    env.reconfigure().await;
+
+    let receive_tx = TestTransactionBuilder::new(env.env.sender, env.fresh_gas_ref(), env.rgp())
+        .move_call(
+            env.package_id,
+            "receiver",
+            "receive_and_send",
+            vec![
+                CallArg::ImmutableOrOwned(env.env.get_latest_object_ref(&parent_id).await),
+                CallArg::Receiving(env.env.get_latest_object_ref(&iota_coin.id()).await),
+                CallArg::pure(&dbg_addr(2)),
+            ],
+        )
+        .with_type_args(vec![TypeTag::Struct(Box::new(StructTag::new_gas()))])
+        .build_and_sign(&env.env.private_key);
+    let effects = env.execute(receive_tx).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Success,
+        "execution must not check the sender for an IOTA coin"
+    );
+    assert_eq!(
+        env.env.authority.get_object(&iota_coin.id()).unwrap().owner,
+        Owner::Address(dbg_addr(2)),
+        "the denied sender forwarded the IOTA coin"
+    );
+    assert!(
+        !effects
+            .unchanged_shared_objects()
+            .contains(&(ObjectId::DENY_LIST, UnchangedSharedKind::PerEpochConfig)),
+        "no regulated coin type was looked up"
     );
 }
 
@@ -821,6 +958,7 @@ impl RegulatedCoinEnv {
                     CallArg::pure(&to),
                 ],
             )
+            .with_type_args(vec![self.regulated_coin_type.clone()])
             .build_and_sign(&self.env.private_key)
     }
 
