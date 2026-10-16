@@ -35,13 +35,20 @@ policy-config:
   # does not run in this mode. Omit the field to rate limit instead.
   # allow-list: ["10.0.0.1", "10.0.0.2"]
   
-  # How long to block direct client IPs (in seconds). Must be at least 1: the
-  # node does not start with 0, and the admin interface rejects 0.
+  # How long to block direct client IPs (in seconds), at most 2592000 (30
+  # days). 0 turns blocking off.
   connection-blocklist-ttl-sec: 60
   
-  # How long to block proxied client IPs (in seconds). 0 ends each block at
-  # once, which turns these blocks off.
+  # How long to block clients whose requests reach the node through a full
+  # node (in seconds), at most 2592000 (30 days). 0 turns these blocks off.
+  # The node does not track such clients yet, so this has no effect for now.
   proxy-blocklist-ttl-sec: 60
+  
+  # How many leading bits of an IPv6 address identify a client, from 1 to 128.
+  # The policies count, and the node blocks, that network rather than each
+  # address, since one subscriber usually holds a whole /64. 128 treats every
+  # address as a client of its own. IPv4 clients are always their full address.
+  ipv6-prefix-len: 64
   
   # Policy for handling spam traffic
   spam-policy-type:

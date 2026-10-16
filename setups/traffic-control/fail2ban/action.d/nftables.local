@@ -1,0 +1,11 @@
+# Lets fail2ban's nftables actions ban a network such as 2001:db8:1:2::/64,
+# which the IOTA node logs for an IPv6 client. Before fail2ban 1.1.1, these
+# actions create their set without the interval flag, so nftables rejects a
+# network. From 1.1.1 on, this file changes nothing.
+#
+# A set that fail2ban created before you added this file keeps its old flags.
+# Delete it once, or restart fail2ban after `nft delete table inet f2b-table`.
+
+[Definition]
+
+_nft_add_set = <nftables> add set <table_family> <table> <addr_set> \{ type <addr_type>\; flags interval\; \}
