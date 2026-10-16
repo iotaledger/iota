@@ -37,6 +37,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -133,6 +134,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -229,6 +231,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -325,6 +328,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -421,6 +425,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -517,6 +522,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -613,6 +619,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4

@@ -1186,7 +1186,7 @@ pub struct AuthorityStorePruningConfig {
     ///   0        — refused by [`NodeConfig::validate`].
     ///   N        — keep the epoch the node is in plus the N epochs before it.
     ///   u64::MAX — keep every epoch's bucket; transaction pruning is off.
-    ///   None     — the same as `u64::MAX`.
+    ///   None     — [`DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
     /// Number of historic epochs of RPC index history (the transaction and
@@ -1204,6 +1204,11 @@ pub struct AuthorityStorePruningConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
+
+/// The historic epochs of transactions, effects, events and checkpoint data
+/// kept when `num-epochs-to-retain-for-checkpoints` is not set: about a month
+/// at the networks' one-day epochs.
+pub const DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS: u64 = 30;
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
     3
@@ -1246,10 +1251,14 @@ impl AuthorityStorePruningConfig {
 
     /// Historic epochs of transactions, effects, events and checkpoint data
     /// to keep on top of the epoch the node is in, `None` when transaction
-    /// pruning is off.
+    /// pruning is off. Unset is
+    /// [`DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS`].
     pub fn num_epochs_to_retain_for_checkpoints(&self) -> Option<u64> {
-        self.num_epochs_to_retain_for_checkpoints
-            .filter(|&n| n != u64::MAX)
+        match self.num_epochs_to_retain_for_checkpoints {
+            Some(u64::MAX) => None,
+            Some(n) => Some(n),
+            None => Some(DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS),
+        }
     }
 
     /// Historic epochs of RPC index history to keep on top of the epoch the
@@ -1766,9 +1775,9 @@ mod tests {
     use serde_yaml::Value;
 
     use super::{
-        AuthorityStorePruningConfig, Genesis, GrpcApiConfig, ObjectStoreConfig,
-        default_grpc_api_config, default_periodic_compaction_threshold_days,
-        default_traffic_controller_policy_config,
+        AuthorityStorePruningConfig, DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS, Genesis,
+        GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
+        default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
     };
     use crate::{ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType};
 
@@ -1886,10 +1895,28 @@ mod tests {
     #[test]
     fn unbounded_ledger_retention_accepts_any_index_retention() {
         let config = AuthorityStorePruningConfig {
-            num_epochs_to_retain_for_checkpoints: None,
+            num_epochs_to_retain_for_checkpoints: Some(u64::MAX),
             num_epochs_to_retain_for_indexes: Some(1000),
             ..Default::default()
         };
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn unset_ledger_retention_keeps_the_default_and_the_index_follows_it() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: None,
+            num_epochs_to_retain_for_indexes: None,
+            ..Default::default()
+        };
+        assert_eq!(
+            config.num_epochs_to_retain_for_checkpoints(),
+            Some(DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS)
+        );
+        assert_eq!(
+            config.num_epochs_to_retain_for_indexes(),
+            Some(DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS)
+        );
         assert!(config.check_index_retention_within_ledger().is_ok());
     }
 
