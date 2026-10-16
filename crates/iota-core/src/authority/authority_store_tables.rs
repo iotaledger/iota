@@ -266,7 +266,8 @@ impl AuthorityPerpetualTables {
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
     ) -> Result<(Self, HistoricObjects, HistoricLedger), TypedStoreError> {
-        let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
+        let (tables, db_options, ledger_db_options) =
+            Self::open_with_db_options(parent_path, db_options_override);
         let mut historic_objects = HistoricObjects::open(
             tables.objects.db.clone(),
             &db_options,
@@ -279,23 +280,26 @@ impl AuthorityPerpetualTables {
         ) {
             historic_objects.mark_backlog_swept();
         }
-        let historic_ledger = HistoricLedger::open(tables.objects.db.clone(), &db_options)?;
+        let historic_ledger = HistoricLedger::open(tables.objects.db.clone(), &ledger_db_options)?;
         Ok((tables, historic_objects, historic_ledger))
     }
 
-    /// The perpetual tables and the base options their column families were
-    /// opened with. The historic buckets clone these, so they share the base
+    /// The perpetual tables, the base options their column families were
+    /// opened with, and the base options of the historic ledger buckets. The
+    /// historic object buckets clone the former, so they share the base
     /// options' block cache with each other and with every column family that
     /// takes those options unchanged; `objects`, `live_owned_object_markers`,
-    /// `transactions` and `effects` install caches of their own.
+    /// `transactions`, `effects` and the ledger buckets install caches of
+    /// their own.
     fn open_with_db_options(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
-    ) -> (Self, DBOptions) {
+    ) -> (Self, DBOptions, DBOptions) {
         let db_options_override = db_options_override.unwrap_or_default();
         let db_options =
             db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
         let path = Self::path(parent_path);
+        let ledger_db_options = historic_ledger_db_options(&db_options);
         let mut table_options = BTreeMap::from([
             (
                 "objects".to_string(),
@@ -323,7 +327,7 @@ impl AuthorityPerpetualTables {
         ));
         table_options.extend(HistoricLedger::extra_column_family_options(
             &path,
-            &db_options,
+            &ledger_db_options,
         ));
         let table_options = DBMapTableConfigMap::new(table_options);
         let tables = Self::open_tables_read_write(
@@ -333,7 +337,7 @@ impl AuthorityPerpetualTables {
             Some(db_options.options.clone()),
             Some(table_options),
         );
-        (tables, db_options)
+        (tables, db_options, ledger_db_options)
     }
 
     pub fn open_readonly(parent_path: &Path) -> AuthorityPerpetualTablesReadOnly {
@@ -934,6 +938,18 @@ fn effects_table_config(db_options: DBOptions) -> DBOptions {
         .optimize_for_point_lookup(
             read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
         )
+}
+
+/// `db_options` with one block cache that every historic ledger bucket opened
+/// from them shares, as large as the transactions and effects caches together,
+/// since the buckets hold what those tables held. Build them once per open of
+/// the database: each call makes a new cache.
+fn historic_ledger_db_options(db_options: &DBOptions) -> DBOptions {
+    db_options.clone().set_block_options(
+        read_size_from_env(ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE).unwrap_or(512)
+            + read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
+        16 << 10,
+    )
 }
 
 #[cfg(test)]
