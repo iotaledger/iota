@@ -1302,19 +1302,26 @@ impl AuthorityStore {
         object_id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
-        let live = self
+        let live = match self
             .perpetual_tables
-            .find_object_lt_or_eq_version(object_id, version)?;
-        // Asked even when the live table has an answer: an unwrap leaves a
-        // tombstone in the live table below a newer relocated version. Read
-        // after the live table; see `HistoricObjectsBucket::tombstones`.
+            .find_object_lt_or_eq_version(object_id, version)?
+        {
+            Some((key, row)) => match self.perpetual_tables.object(&key, row)? {
+                Some(object) if self.historic_objects.backlog_swept() => return Ok(Some(object)),
+                object => Some((key.1, object)),
+            },
+            None => None,
+        };
+        // Asked for a live tombstone too: an unwrap leaves one in the live
+        // table below a newer relocated version. Read after the live table;
+        // see `HistoricObjectsBucket::tombstones`.
         let relocated = self
             .historic_objects
             .find_lt_or_eq_version(object_id, version)?;
         match live {
-            Some((key, row)) => match relocated {
-                Some(object) if key.1 < object.version() => Ok(Some(object)),
-                _ => self.perpetual_tables.object(&key, row),
+            Some((live_version, object)) => match relocated {
+                Some(relocated) if live_version < relocated.version() => Ok(Some(relocated)),
+                _ => Ok(object),
             },
             None => Ok(relocated),
         }

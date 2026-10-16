@@ -155,6 +155,13 @@ pub struct HistoricObjects {
     /// The checkpoint through which the objects pruner of earlier releases
     /// deleted superseded versions, `None` on a database it never ran on.
     pub(crate) objects_pruned_through: Option<CheckpointSequenceNumber>,
+    /// Set once the one-time backlog sweep is done; see
+    /// [`Self::backlog_swept`].
+    backlog_swept: AtomicBool,
+
+    /// Counts the bucket walks of [`Self::find_lt_or_eq_version`].
+    #[cfg(test)]
+    bucket_walks: std::sync::atomic::AtomicU64,
 }
 
 impl HistoricObjects {
@@ -295,7 +302,31 @@ impl HistoricObjects {
             buckets,
             objects,
             objects_pruned_through: None,
+            backlog_swept: AtomicBool::new(false),
+            #[cfg(test)]
+            bucket_walks: std::sync::atomic::AtomicU64::new(0),
         })
+    }
+
+    /// Whether the live `objects` table holds no superseded version, so that a
+    /// live version that is not a tombstone is newer than every version
+    /// relocated for its object. Until the one-time backlog sweep is done, a
+    /// version it has yet to relocate can sit in the live table below a newer
+    /// relocated one.
+    pub(crate) fn backlog_swept(&self) -> bool {
+        self.backlog_swept.load(Ordering::Acquire)
+    }
+
+    /// Records that the live `objects` table holds no superseded version. Call
+    /// this only once that is persisted; see [`Self::backlog_swept`].
+    pub(crate) fn mark_backlog_swept(&self) {
+        self.backlog_swept.store(true, Ordering::Release);
+    }
+
+    /// How many bucket walks [`Self::find_lt_or_eq_version`] has done.
+    #[cfg(test)]
+    pub(crate) fn bucket_walks(&self) -> u64 {
+        self.bucket_walks.load(Ordering::Relaxed)
     }
 
     /// The oldest epoch this store holds a bucket for, `None` when it holds
@@ -358,6 +389,8 @@ impl HistoricObjects {
         id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
+        #[cfg(test)]
+        self.bucket_walks.fetch_add(1, Ordering::Relaxed);
         // Versions are relocated in increasing order, so the newest bucket
         // with a match holds the newest version.
         for bucket in self.readable_buckets(true) {
