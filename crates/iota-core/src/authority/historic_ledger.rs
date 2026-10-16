@@ -1,13 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Checkpoint-keyed transaction history in the perpetual database, bucketed
-//! by the epoch that executed it.
+//! Transaction history, bucketed by the epoch that executed it.
 //!
-//! The buckets are extra column families of the perpetual database rather
-//! than a store of their own (see [`crate::epoch_buckets`]), the same way
-//! [`crate::authority::historic_objects`] holds superseded object versions:
-//! written once, in the epoch that produced them, and read back by digest.
+//! The buckets are column families of the perpetual database (see
+//! [`crate::epoch_buckets`]), as in [`crate::authority::historic_objects`].
 
 use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
 
@@ -46,19 +43,15 @@ const DB_PREFIX_HISTORIC_EVENTS: u8 = 3;
 const DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT: u8 = 4;
 
 /// Column family holding the earliest-retained-epoch marker
-/// [`EpochBuckets`] persists on a prune. It is empty until the first prune,
-/// which is the same as retaining every bucket.
+/// [`EpochBuckets`] persists on a prune; empty until the first prune.
 ///
 /// The name must not begin with [`HISTORIC_LEDGER_CF_PREFIX`], since that is
 /// how a bucket's column family is told from every other one in this
 /// database.
 const EARLIEST_RETAINED_CF: &str = "hist_ledger_retention";
 
-/// One epoch's checkpoint-keyed ledger history.
-///
-/// Everything about a single transaction is in one bucket, so a caller that
-/// has found the epoch for a digest reads the rest directly rather than
-/// probing again.
+/// One epoch's transaction history. All rows of a transaction are in the same
+/// bucket.
 pub struct HistoricLedgerBucket {
     pub(crate) transactions: TaggedDBMap<TransactionDigest, TrustedTransaction>,
     pub(crate) effects: TaggedDBMap<TransactionEffectsDigest, TransactionEffects>,
@@ -109,38 +102,24 @@ impl HistoricLedgerBucket {
     }
 }
 
-/// Checkpoint-keyed transaction history, bucketed by the epoch that executed
-/// it.
+/// Transaction history, bucketed by the epoch that executed it.
 ///
-/// The buckets are column families of the perpetual database rather than a
-/// store of their own, so a transaction's outputs can be committed alongside
-/// the rest of that commit's batch.
-///
-/// A bucket's existence does **not** mean its epoch has been executed. State
-/// sync records a checkpoint's transactions and effects before this node
-/// executes them, in the bucket of the checkpoint's epoch, and it runs ahead
-/// of execution and across epoch boundaries — so the newest bucket here can
-/// belong to an epoch whose first transaction this node has yet to execute.
-/// [`crate::authority::historic_objects::HistoricObjects`] has no such
-/// bucket, since its rows only ever appear at commit.
-///
-/// Anything that decides how much history to keep must therefore count from
-/// the epoch being executed rather than from the newest bucket, which may be
-/// one state sync has run ahead into. [`Self::prune`] is where that counting
-/// lives.
+/// A bucket's existence does **not** mean its epoch has been executed: state
+/// sync writes a checkpoint's transactions and effects into the bucket of its
+/// epoch ahead of execution, also across epoch boundaries. Retention must
+/// therefore count from the epoch being executed, not from the newest bucket;
+/// see [`Self::prune`].
 pub struct HistoricLedger {
     buckets: EpochBuckets<HistoricLedgerBucket>,
 
-    /// Counts the bucket walks this store has done, for the tests that assert
-    /// a read resolves one transaction's whole record in a single walk.
+    /// Counts the bucket walks this store has done.
     #[cfg(test)]
     bucket_walks: std::sync::atomic::AtomicU64,
 }
 
 impl HistoricLedger {
     /// The `(name, options)` pairs of the column families this store needs,
-    /// for the perpetual store's open path to list alongside its own tables.
-    /// See
+    /// for the perpetual store to open alongside its own tables. See
     /// [`extra_column_family_options`](crate::epoch_buckets::extra_column_family_options).
     pub fn extra_column_family_options(
         perpetual_path: &Path,
@@ -204,24 +183,14 @@ impl HistoricLedger {
     }
 
     /// How many bucket walks this store has done.
-    ///
-    /// Reading a transaction's effects, events and checkpoint adds one, since
-    /// [`Self::find_epoch`] names the bucket and the rest are exact-key reads
-    /// on it. Its body and its effects-by-digest are separate walks of their
-    /// own — see [`Self::get_transaction`] and [`Self::get_effects`] for why
-    /// they cannot go through `find_epoch`.
     #[cfg(test)]
     pub(crate) fn bucket_walks(&self) -> u64 {
         self.bucket_walks.load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    /// The oldest epoch this store still holds a bucket for, `None` when it
-    /// holds none at all. No transaction executed before this epoch is
-    /// readable any more.
-    ///
-    /// This is what the store holds, not what its retention would keep: a node
-    /// restored from a formal snapshot starts with no bucket at all, whatever
-    /// the retention says.
+    /// The oldest epoch this store holds a bucket for, `None` when it holds
+    /// none; transactions executed before it are not readable. A node restored
+    /// from a formal snapshot starts with no bucket, whatever the retention.
     pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
         self.buckets.earliest_epoch()
     }
@@ -242,40 +211,30 @@ impl HistoricLedger {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// Drops the buckets of the epochs that have fallen outside
-    /// `epochs_to_retain`, counted back from `current_epoch` and including
-    /// it, and returns the earliest epoch retained.
+    /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
+    /// below it, drops older ones, and returns the earliest epoch retained.
     ///
-    /// `current_epoch` must be the epoch this node is executing rather than
-    /// the newest bucket, for the reason given on [`HistoricLedger`]; the
-    /// buckets above it are left alone. Blocks for as long as the drops take,
-    /// so a caller on an async runtime must use `spawn_blocking`.
+    /// `current_epoch` must be the epoch this node is executing, not the
+    /// newest bucket (see [`HistoricLedger`]); buckets above it are left
+    /// alone. Blocks for as long as the drops take, so a caller on an async
+    /// runtime must use `spawn_blocking`.
     pub fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
     ) -> IotaResult<Option<EpochId>> {
         self.buckets
-            // Nothing here lives in a live table, so a drop has no side
-            // effect to prepare.
+            // No live table holds rows that depend on a bucket.
             .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// The bucket holding `digest`'s history, newest epoch first, with the
-    /// epoch it was found in.
+    /// The bucket holding the execution record of `digest`, with its epoch;
+    /// `None` if this node has not executed it or the bucket was dropped.
     ///
-    /// Everything a transaction wrote is in one bucket, so a caller resolves
-    /// the epoch once here and then reads its effects, events and checkpoint
-    /// straight from the returned bucket instead of probing again. A digest
-    /// no bucket holds was never executed or has been dropped, and both
-    /// answer `None`.
-    ///
-    /// The probe is `executed_effects`, the one table of a bucket that the
-    /// commit batch writes for every transaction this node executed. A
-    /// transaction body alone — synced ahead of execution, or persisted
-    /// before it — is not an execution record, so it is found through
-    /// [`Self::get_transaction`] instead.
+    /// Read the transaction's effects, events and checkpoint from the returned
+    /// bucket rather than probing again. A transaction stored but not yet
+    /// executed is not found here; see [`Self::get_transaction`].
     pub fn find_epoch(
         &self,
         digest: &TransactionDigest,
@@ -294,10 +253,6 @@ impl HistoricLedger {
 
     /// The effects of `digest` as this node executed it, `None` if no bucket
     /// holds an execution record for it.
-    ///
-    /// The hop from the execution record to the effects stays inside the
-    /// bucket [`Self::find_epoch`] returned, since the commit batch writes
-    /// both.
     pub fn get_executed_effects(
         &self,
         digest: &TransactionDigest,
@@ -324,21 +279,14 @@ impl HistoricLedger {
         let Some((epoch, bucket)) = self.find_epoch(digest)? else {
             return Ok(None);
         };
-        // The bucket's epoch is the epoch of the checkpoint, which is why the
-        // row itself holds only the sequence number.
+        // A bucket's epoch is also the epoch of its checkpoints.
         Ok(absent_if_dropped(bucket.tx_to_checkpoint.get(digest))
             .map_err(|e| IotaError::Storage(e.to_string()))?
             .map(|sequence| (epoch, sequence)))
     }
 
-    /// The transaction stored under `digest`, newest bucket first, `None` if
-    /// no bucket holds it.
-    ///
-    /// Keyed on its own rather than resolved through [`Self::find_epoch`],
-    /// because a transaction body is also written before the transaction
-    /// executes — synced from a peer, or persisted so that a re-execution
-    /// after a crash can find it — and at that point there is no execution
-    /// record to find it by.
+    /// The transaction stored under `digest`, `None` if no bucket holds it.
+    /// Also finds a transaction stored before it was executed.
     pub fn get_transaction(
         &self,
         digest: &TransactionDigest,
@@ -355,13 +303,10 @@ impl HistoricLedger {
         Ok(None)
     }
 
-    /// The effects stored under `digest`, newest bucket first, `None` if no
-    /// bucket holds them.
+    /// The effects stored under `digest`, `None` if no bucket holds them.
     ///
-    /// Keyed by effects digest, which is not a transaction digest, so this
-    /// cannot go through [`Self::find_epoch`]. A caller that has the
-    /// transaction digest reads the effects from the bucket that call
-    /// returned instead.
+    /// A caller that has the transaction digest should read the effects from
+    /// the bucket [`Self::find_epoch`] returns instead.
     pub fn get_effects(
         &self,
         digest: &TransactionEffectsDigest,
@@ -392,16 +337,12 @@ impl HistoricLedger {
         Ok(false)
     }
 
-    /// One page of the rows `cf_name` holds, if it is one of this store's
-    /// column families: a bucket of transaction history, or the
-    /// retention-floor family. `None` for any other name, leaving the caller
-    /// to report it as unknown.
+    /// One page of the rows of `cf_name` if it is one of this store's column
+    /// families, `None` otherwise. For the `iota-tool` table dump, which
+    /// cannot reach these through `AuthorityPerpetualTables`.
     ///
-    /// For the table dump of `iota-tool`, which walks the perpetual
-    /// database's column families by name: these are not fields of
-    /// `AuthorityPerpetualTables`, so the dump derived from it cannot read
-    /// them. `db` may be a read-only or secondary handle — nothing here
-    /// writes, and no column family is created.
+    /// Rows are prefixed by table name. `db` may be a read-only or secondary
+    /// handle.
     pub fn dump_column_family(
         db: &Arc<Database>,
         cf_name: &str,

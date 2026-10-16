@@ -18,9 +18,8 @@ const COMMIT_EPOCH: u64 = 1;
 /// The checkpoint the tests below finalize their transaction at.
 const CHECKPOINT: u64 = 7;
 
-/// A row written into an epoch's ledger bucket survives a restart: the next
-/// open rediscovers the bucket's column family on disk instead of serving an
-/// empty store.
+/// A row written into an epoch's ledger bucket survives a reopen of the
+/// database.
 #[tokio::test]
 async fn ledger_rows_survive_a_reopen() {
     let dir = iota_common::tempdir();
@@ -35,8 +34,7 @@ async fn ledger_rows_survive_a_reopen() {
         .unwrap();
     batch.write().unwrap();
 
-    // Release every handle on the database before reopening the same path,
-    // as a restart does.
+    // Release every handle on the database before reopening it.
     let weak_db = Arc::downgrade(&perpetual.objects.db);
     drop(bucket);
     drop(historic);
@@ -135,9 +133,7 @@ async fn a_committed_transaction_is_read_from_its_epoch_bucket() {
 }
 
 /// A transaction's whole record stays in the bucket of the epoch that
-/// committed it, however many epochs follow: one `find_epoch` names that
-/// bucket and every table for the transaction is read out of it, with the
-/// later buckets holding nothing for it.
+/// committed it, and later buckets hold nothing of it.
 #[tokio::test]
 async fn one_probe_resolves_every_table_for_a_transaction() {
     telemetry_subscribers::init_for_testing();
@@ -208,8 +204,7 @@ async fn reading_a_committed_transactions_effects_walks_the_buckets_once() {
             s.store.get_historic_ledger().ensure(epoch).unwrap();
         }
 
-        // Both reads must reach the store rather than the cache the commit
-        // populated.
+        // Both reads must reach the store, not the cache.
         s.evict_caches();
         let before = s.store.get_historic_ledger().bucket_walks();
         assert!(
@@ -239,14 +234,12 @@ async fn reading_a_committed_transactions_effects_walks_the_buckets_once() {
 }
 
 /// A transaction state sync records ahead of execution goes into the bucket of
-/// the epoch that executed it — the epoch its effects record — and into no
-/// other, whether it arrives on its own or as part of a checkpoint's contents.
+/// the epoch its effects record, and no other, through either insert path.
 #[tokio::test]
 async fn a_state_synced_transaction_lands_in_the_executing_epochs_bucket() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
-        // An epoch of its own, so that landing in it cannot be confused with
-        // landing in the epoch `Scenario` commits in or the genesis epoch.
+        // Distinct from `COMMIT_EPOCH` and the genesis epoch.
         let executed_in = COMMIT_EPOCH + 4;
         let ledger = s.store.get_historic_ledger().clone();
         let other_bucket = ledger.ensure(executed_in + 1).unwrap();
@@ -261,8 +254,8 @@ async fn a_state_synced_transaction_lands_in_the_executing_epochs_bucket() {
             synced.push((transaction, effects));
         }
 
-        // State sync inserts a checkpoint's whole contents; the change-epoch
-        // transaction arrives on its own.
+        // State sync inserts the change-epoch transaction on its own, and a
+        // checkpoint's other transactions together.
         let (transaction, effects) = synced.pop().unwrap();
         s.store
             .insert_transaction_and_effects(&transaction, &effects)
