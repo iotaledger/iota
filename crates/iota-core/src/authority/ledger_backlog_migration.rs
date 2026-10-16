@@ -12,8 +12,9 @@
 //! epochs the node's retention has already left behind are deleted instead.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, btree_map::Entry},
     ops::Bound,
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -21,8 +22,8 @@ use std::{
 };
 
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEffectsDigest,
-    TransactionEvents, TransactionKind,
+    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, TransactionKind,
 };
 use iota_types::{
     committee::EpochId,
@@ -36,14 +37,15 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info, warn};
 use typed_store::{
     DbIterator,
-    rocks::{DBBatch, DBMap},
+    rocks::{DBBatch, DBMap, SstFileBuffer, bulk_ingestion_options},
     traits::Map,
 };
 
 use crate::{
     authority::{
-        AuthorityStore, authority_store_tables::AuthorityPerpetualTables,
-        historic_ledger::HistoricLedger,
+        AuthorityStore,
+        authority_store_tables::AuthorityPerpetualTables,
+        historic_ledger::{HistoricLedger, HistoricLedgerBucket},
     },
     checkpoints::{CheckpointStore, EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents},
     progress_logger::ProgressLogger,
@@ -58,6 +60,10 @@ const KEYS_PER_SLICE: usize = 5_000;
 const KEY_RANGES: usize = 8;
 
 const BACKLOG_PASS: &str = "ledger and checkpoint backlog migration";
+
+/// Where the ledger drain keeps its SST files inside the perpetual
+/// database's directory until it ingests them.
+const LEDGER_SST_DIR: &str = "ledger_backlog_migration";
 const CHECKPOINT_PASS: &str = "checkpoint backlog migration";
 
 /// How far one key range of a flat table has been drained.
@@ -131,6 +137,9 @@ struct LedgerBacklogMigration {
     /// deleted rather than moved.
     floor: EpochId,
     keys_per_slice: usize,
+    /// How much memory one ledger range's rows may take before they are
+    /// written to SST files and ingested.
+    sst_buffer_limit: usize,
 }
 
 #[derive(Default)]
@@ -147,7 +156,6 @@ impl MigrationCounts {
 }
 
 /// The latest position of every key range of the ledger drain.
-#[derive(Clone)]
 struct LedgerRanges {
     transactions: Vec<RangeProgress<TransactionDigest>>,
     effects: Vec<RangeProgress<TransactionEffectsDigest>>,
@@ -187,7 +195,123 @@ impl ParallelProgress {
     }
 }
 
-/// One slice of a key range, ready to be written.
+/// The SST files the ledger drain writes, kept in a directory of their own
+/// until they are ingested into the buckets.
+struct LedgerSstFiles {
+    dir: PathBuf,
+    /// The buckets' column family options.
+    options: typed_store::rocksdb::Options,
+    next_file: AtomicUsize,
+}
+
+impl LedgerSstFiles {
+    /// Writes `buffer` to a new file and adds its path to `paths`, if it holds
+    /// any rows.
+    fn write<K: Serialize, V: Serialize>(
+        &self,
+        buffer: &mut SstFileBuffer<K, V>,
+        paths: &mut Vec<PathBuf>,
+    ) -> IotaResult<()> {
+        if buffer.is_empty() {
+            return Ok(());
+        }
+        let path = self.dir.join(format!(
+            "{}.sst",
+            self.next_file.fetch_add(1, Ordering::Relaxed)
+        ));
+        buffer.write_file(&path, &self.options)?;
+        paths.push(path);
+        Ok(())
+    }
+}
+
+/// The rows of one bucket a ledger range has read but not yet ingested, one
+/// buffer per table.
+struct BucketRows {
+    bucket: Arc<HistoricLedgerBucket>,
+    transactions: SstFileBuffer<(u8, TransactionDigest), TrustedTransaction>,
+    events: SstFileBuffer<(u8, TransactionDigest), TransactionEvents>,
+    executed_effects: SstFileBuffer<(u8, TransactionDigest), TransactionEffectsDigest>,
+    tx_to_checkpoint: SstFileBuffer<(u8, TransactionDigest), CheckpointSequenceNumber>,
+    effects: SstFileBuffer<(u8, TransactionEffectsDigest), TransactionEffects>,
+}
+
+impl BucketRows {
+    fn new(bucket: Arc<HistoricLedgerBucket>) -> Self {
+        Self {
+            bucket,
+            transactions: SstFileBuffer::new(),
+            events: SstFileBuffer::new(),
+            executed_effects: SstFileBuffer::new(),
+            tx_to_checkpoint: SstFileBuffer::new(),
+            effects: SstFileBuffer::new(),
+        }
+    }
+
+    fn size_in_bytes(&self) -> usize {
+        self.transactions.size_in_bytes()
+            + self.events.size_in_bytes()
+            + self.executed_effects.size_in_bytes()
+            + self.tx_to_checkpoint.size_in_bytes()
+            + self.effects.size_in_bytes()
+    }
+
+    /// Writes the rows to one SST file per table and moves them into the
+    /// bucket.
+    ///
+    /// The files of one call hold different tables, so they do not overlap;
+    /// and since a range reads its keys in order, neither do they overlap the
+    /// files of the range's earlier calls nor those of other ranges. RocksDB
+    /// can therefore place them in the bucket's bottom level, where they need
+    /// no compaction.
+    fn ingest(mut self, files: &LedgerSstFiles) -> IotaResult<()> {
+        let mut paths = Vec::new();
+        files.write(&mut self.transactions, &mut paths)?;
+        files.write(&mut self.events, &mut paths)?;
+        files.write(&mut self.executed_effects, &mut paths)?;
+        files.write(&mut self.tx_to_checkpoint, &mut paths)?;
+        files.write(&mut self.effects, &mut paths)?;
+        self.bucket.transactions.ingest_sst_files(&paths)?;
+        Ok(())
+    }
+}
+
+/// The rows a ledger range has read but not yet ingested, per bucket.
+#[derive(Default)]
+struct PendingRows {
+    buckets: BTreeMap<EpochId, BucketRows>,
+}
+
+impl PendingRows {
+    fn bucket(&mut self, ledger: &HistoricLedger, epoch: EpochId) -> IotaResult<&mut BucketRows> {
+        Ok(match self.buckets.entry(epoch) {
+            Entry::Occupied(rows) => rows.into_mut(),
+            Entry::Vacant(rows) => rows.insert(BucketRows::new(ledger.ensure(epoch)?)),
+        })
+    }
+
+    fn size_in_bytes(&self) -> usize {
+        self.buckets.values().map(BucketRows::size_in_bytes).sum()
+    }
+
+    fn ingest(&mut self, files: &LedgerSstFiles) -> IotaResult<()> {
+        for rows in std::mem::take(&mut self.buckets).into_values() {
+            rows.ingest(files)?;
+        }
+        Ok(())
+    }
+}
+
+/// What reading one slice of a ledger key range found.
+struct LedgerSlice<K> {
+    counts: MigrationCounts,
+    /// Keys read from the flat tables.
+    read: usize,
+    /// Where the key range stands once the slice's rows are ingested.
+    next: RangeProgress<K>,
+}
+
+/// One slice of a key range of the checkpoint summaries, ready to be written.
 struct SliceBatch<K> {
     batch: DBBatch,
     counts: MigrationCounts,
@@ -286,6 +410,8 @@ impl LedgerBacklogMigration {
             epoch,
             floor,
             keys_per_slice: KEYS_PER_SLICE,
+            // Shared by the transaction and effects ranges, which run at once.
+            sst_buffer_limit: bulk_ingestion_options().sst_buffer_limit(2 * KEY_RANGES),
         }
     }
 
@@ -404,9 +530,13 @@ impl LedgerBacklogMigration {
     /// Drains the flat ledger tables and the flat checkpoint summaries, each
     /// table in [`KEY_RANGES`] key ranges with a thread per range. None of
     /// these passes deletes what it reads, so they do not depend on each
-    /// other. Each slice records its range's progress in the same write
-    /// batch; the writes are serialized, so the single progress row of each
-    /// store always holds every range's latest position.
+    /// other.
+    ///
+    /// A ledger range writes its rows to SST files and records its progress
+    /// only once they are ingested; a summary range records its progress in
+    /// the write batch of its rows. The progress writes of a store are
+    /// serialized, so its single progress row always holds every range's
+    /// latest position.
     fn drain_in_parallel(&self) -> IotaResult<MigrationCounts> {
         let ledger = match self
             .perpetual_tables
@@ -462,17 +592,37 @@ impl LedgerBacklogMigration {
             })
         });
         let summaries = summaries.map(Mutex::new);
+        let sst_files = ledger
+            .as_ref()
+            .map(|_| self.ledger_sst_files())
+            .transpose()?;
 
         let results: Vec<IotaResult<()>> = std::thread::scope(|scope| {
             let mut workers = Vec::new();
             for range in 0..KEY_RANGES {
                 let progress = &progress;
-                if let Some(ledger) = &ledger {
+                if let (Some(ledger), Some(files)) = (&ledger, &sst_files) {
                     workers.push(scope.spawn(move || {
-                        progress.watch(|| self.drain_transactions_range(range, ledger, progress))
+                        progress.watch(|| {
+                            self.drain_ledger_range(
+                                ledger,
+                                files,
+                                progress,
+                                |ranges| &mut ranges.transactions[range],
+                                |from, pending| self.transactions_slice(range, from, pending),
+                            )
+                        })
                     }));
                     workers.push(scope.spawn(move || {
-                        progress.watch(|| self.drain_effects_range(range, ledger, progress))
+                        progress.watch(|| {
+                            self.drain_ledger_range(
+                                ledger,
+                                files,
+                                progress,
+                                |ranges| &mut ranges.effects[range],
+                                |from, pending| self.effects_slice(range, from, pending),
+                            )
+                        })
                     }));
                 }
                 if let Some(summaries) = &summaries {
@@ -502,6 +652,14 @@ impl LedgerBacklogMigration {
         logger.into_inner().finish();
 
         // Every range finished, as an error would have returned above.
+        if let Some(files) = sst_files {
+            std::fs::remove_dir_all(&files.dir).map_err(|e| {
+                IotaError::Storage(format!(
+                    "unable to remove the SST file directory {:?}: {e}",
+                    files.dir
+                ))
+            })?;
+        }
         if ledger.is_some() {
             self.perpetual_tables
                 .ledger_backlog_migration_progress
@@ -522,53 +680,65 @@ impl LedgerBacklogMigration {
         })
     }
 
-    /// Drains key range `range` of the four tables keyed by transaction digest.
-    fn drain_transactions_range(
-        &self,
-        range: usize,
-        ledger: &Mutex<LedgerRanges>,
-        progress: &ParallelProgress,
-    ) -> IotaResult<()> {
-        loop {
-            let RangeProgress::At(from) = ledger.lock().transactions[range] else {
-                return Ok(());
-            };
-            if progress.stopped() {
-                return Ok(());
-            }
-            let slice = self.transactions_slice(range, from)?;
-            let mut ranges = ledger.lock();
-            let mut written = ranges.clone();
-            written.transactions[range] = slice.next;
-            self.write_ledger_slice(slice.batch, &written)?;
-            *ranges = written;
-            drop(ranges);
-            progress.record(&slice.counts, slice.read);
+    /// The directory the ledger drain writes its SST files to, emptied of
+    /// those an interrupted run left.
+    fn ledger_sst_files(&self) -> IotaResult<LedgerSstFiles> {
+        let dir = self
+            .perpetual_tables
+            .objects
+            .db
+            .path_for_pruning()
+            .join(LEDGER_SST_DIR);
+        let io_error = |e: std::io::Error| {
+            IotaError::Storage(format!(
+                "unable to prepare the SST file directory {dir:?}: {e}"
+            ))
+        };
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).map_err(io_error)?;
         }
+        std::fs::create_dir_all(&dir).map_err(io_error)?;
+        Ok(LedgerSstFiles {
+            dir,
+            options: self.historic_ledger.sst_file_options().clone(),
+            next_file: AtomicUsize::new(0),
+        })
     }
 
-    /// Drains key range `range` of the effects table.
-    fn drain_effects_range(
+    /// Drains one ledger key range, whose position `position` selects, one
+    /// slice at a time. The rows of the slices are ingested once they reach
+    /// [`Self::sst_buffer_limit`], and the position is recorded only after
+    /// that, so a run resumed after a crash starts at rows the buckets
+    /// already hold or read again.
+    fn drain_ledger_range<K: Copy>(
         &self,
-        range: usize,
         ledger: &Mutex<LedgerRanges>,
+        files: &LedgerSstFiles,
         progress: &ParallelProgress,
+        position: impl Fn(&mut LedgerRanges) -> &mut RangeProgress<K>,
+        read_slice: impl Fn(Option<K>, &mut PendingRows) -> IotaResult<LedgerSlice<K>>,
     ) -> IotaResult<()> {
+        let RangeProgress::At(mut from) = *position(&mut ledger.lock()) else {
+            return Ok(());
+        };
+        let mut pending = PendingRows::default();
         loop {
-            let RangeProgress::At(from) = ledger.lock().effects[range] else {
-                return Ok(());
-            };
             if progress.stopped() {
                 return Ok(());
             }
-            let slice = self.effects_slice(range, from)?;
-            let mut ranges = ledger.lock();
-            let mut written = ranges.clone();
-            written.effects[range] = slice.next;
-            self.write_ledger_slice(slice.batch, &written)?;
-            *ranges = written;
-            drop(ranges);
+            let slice = read_slice(from, &mut pending)?;
             progress.record(&slice.counts, slice.read);
+            let finished = matches!(slice.next, RangeProgress::Done);
+            if finished || pending.size_in_bytes() >= self.sst_buffer_limit {
+                pending.ingest(files)?;
+                let mut ranges = ledger.lock();
+                *position(&mut ranges) = slice.next;
+                self.write_ledger_progress(&ranges)?;
+            }
+            let RangeProgress::At(next) = slice.next else {
+                return Ok(());
+            };
+            from = next;
         }
     }
 
@@ -609,23 +779,18 @@ impl LedgerBacklogMigration {
         }
     }
 
-    /// Writes a ledger slice together with every range's latest position. The
-    /// caller holds the ranges' lock, which serializes these writes, and
-    /// stores `ranges` as the latest positions only once this succeeds: before
-    /// that, another range could record a position whose rows a failed write
-    /// left behind.
-    fn write_ledger_slice(&self, mut batch: DBBatch, ranges: &LedgerRanges) -> IotaResult<()> {
-        batch.insert_batch(
-            &self.perpetual_tables.ledger_backlog_migration_progress,
-            [(
-                (),
-                LedgerBacklogMigrationProgress::Draining {
+    /// Records every ledger range's latest position. The caller holds the
+    /// ranges' lock, which serializes these writes.
+    fn write_ledger_progress(&self, ranges: &LedgerRanges) -> IotaResult<()> {
+        self.perpetual_tables
+            .ledger_backlog_migration_progress
+            .insert(
+                &(),
+                &LedgerBacklogMigrationProgress::Draining {
                     transactions: ranges.transactions.clone(),
                     effects: ranges.effects.clone(),
                 },
-            )],
-        )?;
-        batch.write()?;
+            )?;
         Ok(())
     }
 
@@ -822,8 +987,8 @@ impl LedgerBacklogMigration {
         Ok(slice)
     }
 
-    /// Builds the write batch moving the next slice of key range `range` of
-    /// the four tables keyed by transaction digest into the buckets.
+    /// Reads the next slice of key range `range` of the four tables keyed by
+    /// transaction digest into `pending`.
     ///
     /// The tables are walked together, so each transaction's epoch is
     /// resolved once for all of its rows: from its finalizing checkpoint, or
@@ -837,7 +1002,8 @@ impl LedgerBacklogMigration {
         &self,
         range: usize,
         from: Option<TransactionDigest>,
-    ) -> IotaResult<SliceBatch<TransactionDigest>> {
+        pending: &mut PendingRows,
+    ) -> IotaResult<LedgerSlice<TransactionDigest>> {
         let tables = &self.perpetual_tables;
         let range = key_range(range, from, TransactionDigest::new);
         let mut transactions = tables.transactions.safe_range_iter(range).peekable();
@@ -887,9 +1053,7 @@ impl LedgerBacklogMigration {
             .filter_map(|(digest, effects)| Some((digest, effects?.epoch())))
             .collect();
 
-        let mut batch = tables.transactions.batch();
         let mut counts = MigrationCounts::default();
-        let mut by_epoch: BTreeMap<EpochId, Vec<TransactionRows>> = BTreeMap::new();
         for row in rows.iter() {
             let epoch = match (&row.finalized, &row.executed, &row.transaction) {
                 (Some((epoch, _)), _, _) => Some(*epoch),
@@ -902,73 +1066,78 @@ impl LedgerBacklogMigration {
                 },
                 _ => None,
             };
-            match epoch {
-                Some(epoch) if epoch >= self.floor => {
-                    counts.moved += row.len();
-                    by_epoch.entry(epoch).or_default().push(row.clone());
-                }
-                _ => counts.expired += row.len(),
+            let Some(epoch) = epoch.filter(|epoch| *epoch >= self.floor) else {
+                counts.expired += row.len();
+                continue;
+            };
+            counts.moved += row.len();
+            let bucket = pending.bucket(&self.historic_ledger, epoch)?;
+            let target = Arc::clone(&bucket.bucket);
+            if let Some(transaction) = &row.transaction {
+                bucket.transactions.insert_tagged(
+                    &target.transactions,
+                    &row.digest,
+                    transaction,
+                )?;
             }
-        }
-        for (epoch, rows) in by_epoch {
-            let bucket = self.historic_ledger.ensure(epoch)?;
-            batch.insert_batch_tagged(
-                &bucket.transactions,
-                rows.iter()
-                    .filter_map(|row| Some((row.digest, row.transaction.clone()?))),
-            )?;
-            batch.insert_batch_tagged(
-                &bucket.events,
-                rows.iter()
-                    .filter_map(|row| Some((row.digest, row.events.clone()?))),
-            )?;
-            batch.insert_batch_tagged(
-                &bucket.executed_effects,
-                rows.iter()
-                    .filter_map(|row| Some((row.digest, row.executed?))),
-            )?;
+            if let Some(events) = &row.events {
+                bucket
+                    .events
+                    .insert_tagged(&target.events, &row.digest, events)?;
+            }
+            if let Some(executed) = &row.executed {
+                bucket.executed_effects.insert_tagged(
+                    &target.executed_effects,
+                    &row.digest,
+                    executed,
+                )?;
+            }
             // The bucket's epoch is the checkpoint's epoch, so only the
             // sequence number is kept.
-            batch.insert_batch_tagged(
-                &bucket.tx_to_checkpoint,
-                rows.iter()
-                    .filter_map(|row| Some((row.digest, row.finalized?.1))),
-            )?;
+            if let Some((_, sequence)) = &row.finalized {
+                bucket.tx_to_checkpoint.insert_tagged(
+                    &target.tx_to_checkpoint,
+                    &row.digest,
+                    sequence,
+                )?;
+            }
         }
         let next = match rows.last() {
             Some(last) if sliced => RangeProgress::At(Some(last.digest)),
             _ => RangeProgress::Done,
         };
-        Ok(SliceBatch {
-            batch,
+        Ok(LedgerSlice {
             counts,
             read: rows.len(),
             next,
         })
     }
 
-    /// Builds the write batch moving the next slice of key range `range` of
-    /// the effects table into the buckets.
+    /// Reads the next slice of key range `range` of the effects table into
+    /// `pending`.
     fn effects_slice(
         &self,
         range: usize,
         from: Option<TransactionEffectsDigest>,
-    ) -> IotaResult<SliceBatch<TransactionEffectsDigest>> {
+        pending: &mut PendingRows,
+    ) -> IotaResult<LedgerSlice<TransactionEffectsDigest>> {
         let flat = &self.perpetual_tables.effects;
         let slice = self.read_slice(
             flat,
             key_range(range, from, TransactionEffectsDigest::new),
             |_, effects| Ok(Some(effects.epoch())),
         )?;
-        let mut batch = flat.batch();
         let mut moved = 0;
         for (epoch, rows) in slice.by_epoch.iter() {
-            let bucket = self.historic_ledger.ensure(*epoch)?;
+            let bucket = pending.bucket(&self.historic_ledger, *epoch)?;
             moved += rows.len();
-            batch.insert_batch_tagged(&bucket.effects, rows.iter().map(|(k, v)| (k, v)))?;
+            for (digest, effects) in rows {
+                bucket
+                    .effects
+                    .insert_tagged(&bucket.bucket.effects, digest, effects)?;
+            }
         }
-        Ok(SliceBatch {
-            batch,
+        Ok(LedgerSlice {
             counts: MigrationCounts {
                 moved,
                 expired: slice.expired.len(),
@@ -1117,7 +1286,6 @@ impl LedgerBacklogMigration {
 }
 
 /// One transaction's rows in the four flat tables keyed by its digest.
-#[derive(Clone)]
 struct TransactionRows {
     digest: TransactionDigest,
     transaction: Option<TrustedTransaction>,
