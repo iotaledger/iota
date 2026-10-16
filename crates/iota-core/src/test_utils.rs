@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_protocol_config::ProtocolConfig;
@@ -101,16 +101,23 @@ where
     (genesis, authority_key)
 }
 
-/// Waits for `future`, and panics if it does not finish within 30 s. `what`
-/// says in the panic message what the test waits for.
-pub async fn wait_for<T>(what: &str, future: impl Future<Output = T>) -> T {
+/// Waits for `future`. Panics if `future` does not finish within 30 s, with a
+/// message that names `what`.
+///
+/// Use it for a wait whose time the test does not check. Such a wait usually
+/// takes milliseconds, so the timeout only turns a hang into a failure that
+/// says what the test waited for. Without it, nextest stops a hanging test
+/// only after 5 minutes.
+#[cfg(test)]
+pub(crate) async fn wait_for<T>(what: &str, future: impl std::future::Future<Output = T>) -> T {
     timeout(Duration::from_secs(30), future)
         .await
         .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
 }
 
-/// Waits until `condition` is true, and panics if it is not true within 30 s.
-pub async fn wait_until(what: &str, condition: impl Fn() -> bool) {
+/// Waits until `condition` is true, as [`wait_for`] does.
+#[cfg(test)]
+pub(crate) async fn wait_until(what: &str, condition: impl Fn() -> bool) {
     wait_for(what, async {
         while !condition() {
             tokio::time::sleep(Duration::from_millis(10)).await;
