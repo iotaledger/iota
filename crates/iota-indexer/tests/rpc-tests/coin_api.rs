@@ -691,15 +691,18 @@ fn sorted_by_object_id(page: &CoinPage) -> Vec<&Coin> {
 }
 
 /// Compares two pages of the same coins; of the cursors, only the object id is
-/// compared, as the full node's also carries a position in its owner index.
+/// compared, as the full node's also carries a position in its owner index,
+/// and only with a next page, as only the indexer returns one on the last.
 fn assert_same_coin_page(fullnode: &CoinPage, indexer: &CoinPage) {
     assert_eq!(fullnode.data, indexer.data);
     assert_eq!(fullnode.has_next_page, indexer.has_next_page);
-    assert_eq!(
-        fullnode.next_cursor.map(|cursor| cursor.object_id()),
-        indexer.next_cursor.map(|cursor| cursor.object_id()),
-        "both cursors must name the same coin",
-    );
+    if fullnode.has_next_page {
+        assert_eq!(
+            fullnode.next_cursor.map(|cursor| cursor.object_id()),
+            indexer.next_cursor.map(|cursor| cursor.object_id()),
+            "both cursors must name the same coin",
+        );
+    }
 }
 
 async fn get_coins_fullnode_indexer(
