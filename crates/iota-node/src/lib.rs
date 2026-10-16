@@ -237,6 +237,10 @@ pub struct IotaNode {
     /// executed; set for each epoch from `sync_summaries_to_epoch_end`.
     sync_summaries_to_epoch_end: Arc<AtomicBool>,
     checkpoint_store: Arc<CheckpointStore>,
+    /// Checked by the checkpoint store before its saved synced watermark
+    /// passes a checkpoint; see
+    /// [`CheckpointStore::hold_synced_watermark_in_memory`].
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
     state_sync_store: RocksDbStore,
     global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
@@ -489,11 +493,16 @@ impl IotaNode {
                 FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
             ),
         );
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => chain_identifier.chain(),
+        };
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
         let perpetual_tables_for_progress = perpetual_tables.clone();
         let perpetual_tables_for_snapshots = perpetual_tables.clone();
+        let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -533,11 +542,6 @@ impl IotaNode {
             )))
         };
 
-        let chain = match config.chain_override_for_testing {
-            Some(chain) => chain,
-            None => chain_identifier.chain(),
-        };
-
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
             config.authority_public_key(),
@@ -558,6 +562,18 @@ impl IotaNode {
         )?;
 
         info!("created epoch store");
+        // As at an epoch change; must come before anything marks a checkpoint
+        // synced.
+        if epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+            && epoch_store
+                .committee()
+                .authority_exists(&config.authority_public_key())
+        {
+            checkpoint_store
+                .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
+        }
 
         replay_log!(
             "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
@@ -928,6 +944,7 @@ impl IotaNode {
             randomness_handle,
             sync_summaries_to_epoch_end,
             checkpoint_store,
+            perpetual_tables: perpetual_tables_for_synced_watermark,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
@@ -2313,6 +2330,18 @@ impl IotaNode {
             .expect("Reconfigure authority state cannot fail");
         info!(next_epoch, "Node State has been reconfigured");
         assert_eq!(next_epoch, new_epoch_store.epoch());
+        // Every checkpoint of the ending epoch has executed, so the saved
+        // synced watermark is safe to go on from while readers' value is held
+        // in memory. Nodes outside the committee build no checkpoints, so
+        // their saved watermark never falls behind and is not held.
+        if new_epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+            && self.state.is_committee_validator(&new_epoch_store)
+        {
+            self.checkpoint_store
+                .hold_synced_watermark_in_memory(self.perpetual_tables.clone())?;
+        }
         self.state.get_reconfig_api().update_epoch_flags_metrics(
             cur_epoch_store.epoch_start_config().flags(),
             new_epoch_store.epoch_start_config().flags(),
