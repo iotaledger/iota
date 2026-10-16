@@ -10,6 +10,7 @@ use std::{
 };
 
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use tokio::sync::Notify;
 
 /// The checkpoints from which readers have asked for superseded object versions
 /// to stay readable. Bucket expiry keeps the buckets from the epoch of the
@@ -22,6 +23,8 @@ pub struct ObjectRetention {
     /// guard of that checkpoint. An entry no guard holds any more has a
     /// strong count of 1.
     retained: parking_lot::Mutex<VecDeque<Arc<CheckpointSequenceNumber>>>,
+    /// Notified each time a guard is dropped.
+    released: Arc<Notify>,
 }
 
 impl ObjectRetention {
@@ -30,6 +33,7 @@ impl ObjectRetention {
         Self {
             executed: AtomicU64::new(executed),
             retained: Default::default(),
+            released: Default::default(),
         }
     }
 
@@ -54,12 +58,23 @@ impl ObjectRetention {
         Self::remove_released(&mut retained);
         if let Some(seq) = retained.back().filter(|seq| ***seq == executed) {
             return ObjectRetentionGuard {
-                _retained: seq.clone(),
+                retained: Some(seq.clone()),
+                released: self.released.clone(),
             };
         }
         let seq = Arc::new(executed);
         retained.push_back(seq.clone());
-        ObjectRetentionGuard { _retained: seq }
+        ObjectRetentionGuard {
+            retained: Some(seq),
+            released: self.released.clone(),
+        }
+    }
+
+    /// Notified each time a guard is dropped, which may let an expiry drop a
+    /// bucket the guard kept. A drop while nobody waits is remembered for the
+    /// next wait.
+    pub(crate) fn released(&self) -> Arc<Notify> {
+        self.released.clone()
     }
 
     /// The lowest checkpoint a guard still holds, `None` when no guard is
@@ -88,7 +103,18 @@ impl ObjectRetention {
 /// expiring, until dropped.
 #[must_use]
 pub struct ObjectRetentionGuard {
-    _retained: Arc<CheckpointSequenceNumber>,
+    /// Always `Some` until the guard is dropped.
+    retained: Option<Arc<CheckpointSequenceNumber>>,
+    released: Arc<Notify>,
+}
+
+impl Drop for ObjectRetentionGuard {
+    fn drop(&mut self) {
+        // Released before notifying, or the woken expiry could still count
+        // this guard as held.
+        drop(self.retained.take());
+        self.released.notify_one();
+    }
 }
 
 #[cfg(test)]
