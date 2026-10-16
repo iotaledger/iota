@@ -688,29 +688,21 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
     );
 }
 
-/// The longest time a test waits for the executor when it does not check how
-/// long the executor takes.
-const EXECUTION_DEADLINE: Duration = Duration::from_secs(30);
-
-/// Longer than the warning timeout of the checkpoint executor: 5 s by
-/// default, set by `NEW_CHECKPOINT_WARNING_TIMEOUT_MS`.
-const LONGER_THAN_WARNING_TIMEOUT: Duration = Duration::from_secs(6);
-
-/// Shorter than the warning timeout of the checkpoint executor: 5 s by
-/// default, set by `NEW_CHECKPOINT_WARNING_TIMEOUT_MS`.
-const SHORTER_THAN_WARNING_TIMEOUT: Duration = Duration::from_secs(1);
+/// The longest time a test waits for the checkpoint executor when it does not
+/// check how long the executor takes.
+const EXECUTOR_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
 
 async fn wait_for_executed_checkpoint(
     checkpoint_store: &CheckpointStore,
     seq: CheckpointSequenceNumber,
-    deadline: Duration,
+    wait_timeout: Duration,
 ) {
     timeout(
-        deadline,
+        wait_timeout,
         checkpoint_store.notify_read_executed_checkpoint(seq),
     )
     .await
-    .unwrap_or_else(|_| panic!("checkpoint {seq} was not executed within {deadline:?}"));
+    .unwrap_or_else(|_| panic!("checkpoint {seq} was not executed within {wait_timeout:?}"));
 }
 
 /// Checkpoint 1 is verified, but its contents are not stored yet. Any node is
@@ -756,14 +748,18 @@ async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stor
     );
 
     let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
-    wait_for_executed_checkpoint(&checkpoint_store, 0, EXECUTION_DEADLINE).await;
+    wait_for_executed_checkpoint(&checkpoint_store, 0, EXECUTOR_WAIT_TIMEOUT).await;
 
     // The test checks what the executor gets, not what the write returns.
     let _ = checkpoint_store
         .update_highest_synced_checkpoint(&checkpoints[2])
         .unwrap();
-    // The clock of the test starts paused, so this wait takes no real time.
-    tokio::time::sleep(LONGER_THAN_WARNING_TIMEOUT).await;
+    // Longer than the warning timeout of the executor (5 s by default, set by
+    // `NEW_CHECKPOINT_WARNING_TIMEOUT_MS`), after which the executor reads the
+    // synced watermark again. The clock of the test starts paused, so this
+    // wait takes no real time.
+    let past_warning_timeout = Duration::from_secs(6);
+    tokio::time::sleep(past_warning_timeout).await;
     assert!(
         !executor_handle.is_finished(),
         "the executor stopped: it got checkpoint 1, whose contents are not in the store"
@@ -783,7 +779,7 @@ async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stor
             .update_highest_synced_checkpoint(checkpoint)
             .unwrap();
     }
-    wait_for_executed_checkpoint(&checkpoint_store, 2, EXECUTION_DEADLINE).await;
+    wait_for_executed_checkpoint(&checkpoint_store, 2, EXECUTOR_WAIT_TIMEOUT).await;
     executor_handle.abort();
 }
 
@@ -804,11 +800,11 @@ async fn executor_executes_synced_checkpoint_before_warning_timeout() {
         .unwrap();
 
     let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
-    wait_for_executed_checkpoint(&checkpoint_store, 0, EXECUTION_DEADLINE).await;
+    wait_for_executed_checkpoint(&checkpoint_store, 0, EXECUTOR_WAIT_TIMEOUT).await;
     // A waiter that registers after the write returns at once, with or without
     // a wake-up. On the single-threaded test runtime, a registered waiter has
     // also read the watermark.
-    timeout(EXECUTION_DEADLINE, async {
+    timeout(EXECUTOR_WAIT_TIMEOUT, async {
         while checkpoint_store.num_synced_checkpoint_waiters_for_testing() == 0 {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -819,6 +815,9 @@ async fn executor_executes_synced_checkpoint_before_warning_timeout() {
     checkpoint_store
         .update_highest_synced_checkpoint(&checkpoints[1])
         .unwrap();
-    wait_for_executed_checkpoint(&checkpoint_store, 1, SHORTER_THAN_WARNING_TIMEOUT).await;
+    // Shorter than the warning timeout of the executor (5 s by default, set by
+    // `NEW_CHECKPOINT_WARNING_TIMEOUT_MS`).
+    let before_warning_timeout = Duration::from_secs(1);
+    wait_for_executed_checkpoint(&checkpoint_store, 1, before_warning_timeout).await;
     executor_handle.abort();
 }

@@ -21,10 +21,10 @@ use crate::{
 
 /// The longest time a test waits for state sync or for a waiter. The waiters
 /// in these tests have no fallback, so a lost wake-up never resolves.
-const DEADLINE: Duration = Duration::from_secs(30);
+const WAIT_TIMEOUT: Duration = Duration::from_secs(30);
 
 async fn wait_until(what: &str, condition: impl Fn() -> bool) {
-    timeout(DEADLINE, async {
+    timeout(WAIT_TIMEOUT, async {
         while !condition() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -195,7 +195,7 @@ impl Node {
             "{failure}; the highest synced checkpoint is {:?}",
             self.stores.highest_synced(),
         );
-        let released = timeout(DEADLINE, &mut self.waiter)
+        let released = timeout(WAIT_TIMEOUT, &mut self.waiter)
             .await
             .expect("a released waiter returns")
             .unwrap();
@@ -242,7 +242,7 @@ async fn checkpoint_from_consensus_marked_synced_only_after_previous_checkpoint_
 
     node.download_checkpoint_1_contents();
     for seq in [1, 2] {
-        let checkpoint = timeout(DEADLINE, synced_checkpoints.recv())
+        let checkpoint = timeout(WAIT_TIMEOUT, synced_checkpoints.recv())
             .await
             .unwrap_or_else(|_| {
                 panic!("timed out waiting for state sync to send synced checkpoint {seq}")
@@ -338,7 +338,7 @@ async fn run_of_checkpoints_marked_synced_only_after_checkpoint_before_run_synce
         "the run did not release the waiter of each checkpoint in it"
     );
     for (seq, waiter) in (1..=3).zip(waiters) {
-        let released = timeout(DEADLINE, waiter)
+        let released = timeout(WAIT_TIMEOUT, waiter)
             .await
             .expect("a released waiter returns")
             .unwrap();
@@ -360,7 +360,7 @@ async fn run_of_checkpoints_marked_synced_only_after_checkpoint_before_run_synce
         0,
         "the run did not release the waiter for checkpoint 4"
     );
-    let released = timeout(DEADLINE, waiter)
+    let released = timeout(WAIT_TIMEOUT, waiter)
         .await
         .expect("a released waiter returns")
         .unwrap();
