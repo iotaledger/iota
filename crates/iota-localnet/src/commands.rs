@@ -1212,18 +1212,9 @@ async fn genesis(
         client_config.set_active_address(active_address);
     }
 
-    // On windows, using 0.0.0.0 will usually yield in an networking error. This
-    // localnet ip address must bind to 127.0.0.1 if the default 0.0.0.0 is
-    // used.
-    let json_rpc_address = iota_config::node::default_json_rpc_address();
-    let localnet_ip = if json_rpc_address.ip() == IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)) {
-        "127.0.0.1".to_string()
-    } else {
-        json_rpc_address.ip().to_string()
-    };
     client_config.set_env(IotaEnv::new(
         "localnet",
-        format!("http://{}:{}", localnet_ip, json_rpc_address.port()),
+        local_url(iota_config::node::default_json_rpc_address()),
     ));
     client_config.add_env(IotaEnv::devnet());
 
