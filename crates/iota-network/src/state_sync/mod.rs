@@ -490,7 +490,8 @@ struct StateSyncEventLoop<S> {
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
-    /// The highest checkpoint received from consensus. Until the content sync
+    /// The highest checkpoint received from consensus, or found by
+    /// [`Self::note_stored_contents_above_synced`]. Until the content sync
     /// task marks it synced, it is a reason to run that task whatever the
     /// peers report.
     highest_checkpoint_from_consensus: Option<CheckpointSequenceNumber>,
@@ -920,6 +921,52 @@ where
 
         if let Some(layer) = self.download_limit_layer.as_ref() {
             layer.maybe_prune_map();
+        }
+
+        if self.sync_summaries_to_epoch_end.load(Ordering::Relaxed) {
+            self.note_stored_contents_above_synced();
+        }
+    }
+
+    /// Counts the checkpoint right above the synced watermark as a reason to
+    /// run the content sync task when its contents are in the store, as for a
+    /// checkpoint from consensus.
+    ///
+    /// After a restart a node can hold checkpoints it verified whose contents
+    /// only it can provide, such as the last checkpoint of an epoch that no
+    /// node executed: no checkpoint comes from consensus after it, and no peer
+    /// reports it. The node's own replay puts their contents in the store.
+    fn note_stored_contents_above_synced(&mut self) {
+        let highest_synced = self
+            .store
+            .try_get_highest_synced_checkpoint_seq_number()
+            .expect("store operation should not fail");
+        if self.highest_checkpoint_from_consensus > Some(highest_synced)
+            || self
+                .peer_heights
+                .read()
+                .unwrap()
+                .highest_known_checkpoint_sequence_number()
+                > Some(highest_synced)
+        {
+            return;
+        }
+        let next = highest_synced
+            .checked_add(1)
+            .expect("the synced checkpoint is below the highest sequence number");
+        let Some(checkpoint) = self.store.get_checkpoint_by_sequence_number(next) else {
+            return;
+        };
+        if self
+            .store
+            .get_full_checkpoint_contents_by_sequence_number(next)
+            .or_else(|| {
+                self.store
+                    .get_full_checkpoint_contents(&checkpoint.contents_digest)
+            })
+            .is_some()
+        {
+            self.highest_checkpoint_from_consensus = Some(next);
         }
     }
 

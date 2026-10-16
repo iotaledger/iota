@@ -1238,6 +1238,42 @@ async fn a_waiting_checkpoint_from_consensus_raises_the_content_sync_target() {
     assert_eq!(*target_receiver.borrow(), 2);
 }
 
+/// A node can restart with verified checkpoints above its synced watermark
+/// whose contents only it can provide, from the store or from its own replay,
+/// such as the last checkpoint of an epoch that no node has executed. No new
+/// checkpoint comes from consensus after the epoch's last one, and no peer
+/// reports a higher checkpoint, so the content sync task must start for the
+/// verified checkpoints on its own and mark them synced.
+#[tokio::test]
+async fn verified_checkpoints_with_stored_contents_are_synced_after_a_restart() {
+    telemetry_subscribers::init_for_testing();
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, random_contents);
+    let store = store_with_genesis_state(
+        ordered_checkpoints[0].clone(),
+        contents[0].clone(),
+        committee.committee().to_owned(),
+    );
+    for (checkpoint, contents) in ordered_checkpoints.iter().zip(&contents).skip(1) {
+        let mut store = store.inner_mut();
+        store.insert_checkpoint_contents(checkpoint, contents.clone());
+        store.insert_checkpoint(checkpoint);
+    }
+    let (builder, server) = Builder::new()
+        .store(store.clone())
+        .config(StateSyncConfig {
+            interval_period_ms: Some(50),
+            ..Default::default()
+        })
+        .sync_summaries_to_epoch_end(Arc::new(AtomicBool::new(true)))
+        .build();
+    let network = build_network(|router| router.add_rpc_service(server));
+    let (event_loop, _handle) = builder.build(network.clone());
+    tokio::spawn(event_loop.start());
+
+    wait_for_watermarks(&store, 2, 2).await;
+}
+
 #[tokio::test]
 async fn peer_sync_pauses_while_too_far_ahead_of_execution() {
     telemetry_subscribers::init_for_testing();
