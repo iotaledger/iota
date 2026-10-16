@@ -84,13 +84,10 @@ pub(crate) struct EpochBuckets<B> {
     /// call, mirroring the persisted row; never moves backwards.
     earliest_retained_epoch: AtomicU64,
     earliest_retained_table: DBMap<(), EpochId>,
-    /// Mirrors the oldest epoch in `buckets`, republished on every change to
-    /// the map while its write lock is held, and [`NO_BUCKET`] when the map is
-    /// empty.
-    ///
-    /// Read on the gRPC request path, which is why it is not read off the map:
-    /// [`Self::prune`] holds the write lock for as long as its whole expiry
-    /// takes, so a reader taking the read lock there would block on it.
+    /// Mirrors the oldest epoch in `buckets` ([`NO_BUCKET`] when empty),
+    /// updated under the map's write lock. Kept apart from the map so that
+    /// request-path readers do not block on a [`Self::prune`], which holds
+    /// the write lock throughout.
     earliest_bucket_epoch: AtomicU64,
 }
 
@@ -150,17 +147,15 @@ impl<B> EpochBuckets<B> {
     }
 
     /// Republishes the mirror of the oldest epoch in `buckets`. The caller
-    /// holds the write lock, which is what keeps the mirror in step with the
-    /// map.
+    /// must hold the write lock.
     fn publish_earliest_epoch(&self, buckets: &BTreeMap<EpochId, Arc<B>>) {
         self.earliest_bucket_epoch
             .store(Self::earliest_epoch_of(buckets), Ordering::Relaxed);
     }
 
-    /// The retained buckets in scan order: ascending epochs for forward
-    /// scans, descending for reverse scans. Buckets are disjoint,
-    /// epoch-ordered segments of the history, so chaining per-bucket scans
-    /// in this order preserves the global order.
+    /// The retained buckets in scan order: ascending epochs, or descending
+    /// when `reverse`. Chaining per-bucket scans in this order preserves the
+    /// global order.
     pub(crate) fn iter(&self, reverse: bool) -> Vec<Arc<B>> {
         let buckets = self.buckets.read();
         if reverse {
@@ -178,12 +173,9 @@ impl<B> EpochBuckets<B> {
             .map(|(&epoch, _)| epoch)
     }
 
-    /// The oldest epoch holding a bucket, `None` when there is none. Unlike
-    /// [`Self::earliest_retained`] this is what the store actually holds: a
-    /// node that never wrote the epochs above the retention floor — one
-    /// restored from a formal snapshot, say — has no bucket for them.
-    ///
-    /// Takes no lock, so it is safe to call on a request path.
+    /// The oldest epoch holding a bucket, `None` when there is none. This can
+    /// be above [`Self::earliest_retained`], e.g. on a node restored from a
+    /// formal snapshot. Takes no lock, so it is safe to call on a request path.
     pub(crate) fn earliest_epoch(&self) -> Option<EpochId> {
         match self.earliest_bucket_epoch.load(Ordering::Relaxed) {
             NO_BUCKET => None,
@@ -251,10 +243,8 @@ impl<B> EpochBuckets<B> {
     /// bucket can no longer be read, and the next open drops the column
     /// family it left on disk instead of serving that epoch again.
     ///
-    /// A query racing a drop may report an error for the dropped epoch's
-    /// rows; a retry no longer sees the bucket. Queries block for the
-    /// duration of the drops, so callers on an async runtime must use
-    /// `spawn_blocking`.
+    /// Queries block for the duration of the drops, so callers on an async
+    /// runtime must use `spawn_blocking`.
     ///
     /// `before_drop` runs for each expiring epoch, in ascending epoch order,
     /// while the write lock is held and before the column family is dropped.
@@ -313,8 +303,6 @@ impl<B> EpochBuckets<B> {
             .range(..earliest_retained)
             .map(|(&e, bucket)| (e, bucket.clone()))
             .collect();
-        // One column-family drop per epoch: constant time, no per-row
-        // deletes and no compaction churn.
         for (epoch, bucket) in expired {
             before_drop(epoch, &bucket)?;
             info!(
@@ -325,12 +313,9 @@ impl<B> EpochBuckets<B> {
                 warn!(epoch, "failed to drop an expired bucket column family: {e}");
             }
             // RocksDB unregisters the column family before it attempts the
-            // drop, so a failed drop leaves a bucket that can neither be read
-            // nor dropped again; keeping it in the map would only break every
-            // query that walks it.
+            // drop, so even after a failed drop the bucket cannot be read.
             buckets.remove(&epoch);
-            // Republished per epoch rather than once at the end, so that a
-            // `before_drop` error returning early still leaves the mirror
+            // Per epoch, so an early `before_drop` error leaves the mirror
             // matching the map.
             self.publish_earliest_epoch(&buckets);
         }
@@ -397,8 +382,7 @@ mod tests {
     }
 
     /// An `EpochBuckets` with one bucket per epoch in `epochs`, backed by a
-    /// fresh temporary database. The returned guard must outlive the
-    /// buckets, or the directory is removed while they still hold it open.
+    /// fresh temporary database whose directory must outlive the buckets.
     fn test_buckets(
         epochs: &[EpochId],
     ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {

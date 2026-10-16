@@ -36,14 +36,9 @@ const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 
 /// Copies the objects pruner's progress watermark out of `pruned_checkpoint`
 /// into `object_backlog_sweep_bound`, so that the one-time sweep can still
-/// read it after the deprecated column family has been dropped.
-///
-/// The pruner of an earlier build wrote that watermark in the same batch as
-/// its deletes, so it says exactly how far the deletes reached. Nothing is
-/// written when the table is absent or empty, which leaves the sweep to walk
-/// the whole table as it would have anyway.
-// TODO: remove this together with the sweep it bounds,
-// <https://github.com/iotaledger/iota/issues/12712>
+/// read it after the deprecated column family has been dropped. Writes nothing
+/// when there is no watermark.
+// TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
 fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreError> {
     let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
         db,
@@ -60,8 +55,6 @@ fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreE
         &ReadWriteOptions::default(),
         false,
     )?;
-    // Only ever written here, and this runs once before the column family it
-    // reads is dropped, so there is nothing to overwrite.
     bound.insert(&(), &watermark)?;
     info!(
         watermark,
@@ -172,11 +165,8 @@ pub struct AuthorityPerpetualTables {
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
 
-    /// Deprecated: was the objects pruner's progress watermark. The objects
-    /// pruner has been replaced by per-epoch bucket expiry, which has no use
-    /// for this table — but the one-time sweep does, so the watermark is
-    /// copied into `object_backlog_sweep_bound` before the column family is
-    /// dropped.
+    /// The objects pruner's progress watermark, copied into
+    /// `object_backlog_sweep_bound` before the column family is dropped.
     #[allow(dead_code)]
     #[deprecated_db_map(migration = "rescue_objects_pruner_watermark")]
     pruned_checkpoint: Option<DBMap<(), CheckpointSequenceNumber>>,
@@ -208,15 +198,11 @@ pub struct AuthorityPerpetualTables {
     /// backlog, <https://github.com/iotaledger/iota/issues/12712>
     pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 
-    /// The last checkpoint the objects pruner of an earlier build reported
-    /// having pruned, copied out of `pruned_checkpoint` before that column
-    /// family was dropped. Absent on a database no such build ever pruned.
-    ///
-    /// The pruner wrote it in the same batch as its deletes, so every version
-    /// superseded at or below it is already gone and the sweep only has to
-    /// look above it. See [`crate::authority::object_backlog_sweep`].
-    /// TODO: remove this table once every database has swept the pre-bucket
-    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    /// The last checkpoint the objects pruner pruned, copied out of
+    /// `pruned_checkpoint`; absent if the pruner never ran. Every version
+    /// superseded at or below it is already deleted, so the sweep only looks
+    /// above it.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_backlog_sweep_bound: DBMap<(), CheckpointSequenceNumber>,
 
     /// The last checkpoint whose superseded versions the bounded sweep has
@@ -324,11 +310,9 @@ impl AuthorityPerpetualTables {
 
     /// The newest row for `object_id` at or below `version`, still wrapped.
     ///
-    /// A `StoreObject::Value` is a live version; a `Deleted` or `Wrapped`
-    /// row means the object was deleted or wrapped at or below the bound,
-    /// which is a different answer from `None` — nothing at all in range —
-    /// and callers must not collapse the two. Use [`Self::object`] to
-    /// resolve a row once the two cases have been told apart.
+    /// A `Deleted` or `Wrapped` row means the object was deleted or wrapped
+    /// at or below the bound, which callers must not treat like `None` (no
+    /// row in range). Use [`Self::object`] to resolve a row.
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
@@ -563,16 +547,11 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    /// Marks the one-time object-backlog sweep as already done, so that a
-    /// later node start does not walk `objects` looking for versions to
-    /// relocate.
+    /// Marks the one-time object-backlog sweep as done, so that a later node
+    /// start skips it.
     ///
-    /// Call this only on a database that cannot hold a backlog to begin
-    /// with, such as one just populated by a formal-snapshot restore: a
-    /// snapshot is taken at an epoch boundary and carries only the live
-    /// object set, so there are no superseded versions for the sweep to
-    /// find, and recording `Done` up front skips a walk that would relocate
-    /// nothing.
+    /// Call this only on a database that holds no superseded object
+    /// versions, such as one just restored from a formal snapshot.
     pub fn mark_object_backlog_swept(&self) -> IotaResult {
         self.object_backlog_sweep_progress
             .insert(&(), &ObjectBacklogSweepProgress::Done)?;
@@ -1050,16 +1029,13 @@ mod tests {
         assert_eq!(reconstructed.object_ref(), object_ref);
     }
 
-    /// `rescue_objects_pruner_watermark` copies the objects pruner's watermark
-    /// into the table the sweep reads, since the column family it was written
-    /// to is dropped on the same open; without it the sweep loses its bound
-    /// and walks the whole live table.
+    /// The objects pruner's watermark is copied into the table the sweep
+    /// reads its bound from.
     #[tokio::test]
     async fn the_objects_pruner_watermark_is_carried_over() {
         let tmp_dir = iota_common::tempdir();
         let db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
 
-        // Stand where a database written by a build with the pruner does.
         db.objects
             .db
             .create_cf(
@@ -1082,8 +1058,7 @@ mod tests {
         assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), Some(4_242));
     }
 
-    /// A database no such build ever pruned has no watermark to carry, and
-    /// the hook leaves the sweep to walk the whole table.
+    /// Without a watermark, no bound is written.
     #[tokio::test]
     async fn no_watermark_is_carried_over_when_the_pruner_never_ran() {
         let tmp_dir = iota_common::tempdir();

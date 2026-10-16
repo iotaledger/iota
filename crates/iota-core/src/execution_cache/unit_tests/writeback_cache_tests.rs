@@ -936,11 +936,7 @@ async fn test_commit_relocates_superseded_versions() {
 }
 
 /// Committing a transaction that deletes or wraps an object records a
-/// tombstone head for each, in the bucket of the epoch that committed the
-/// transaction, alongside the relocation
-/// `test_commit_relocates_superseded_versions` checks. Both joining the same
-/// `DBBatch` as the relocation is what lets a later bucket expiry delete a
-/// tombstone only once every version beneath it is gone too.
+/// tombstone head for each in the bucket of the committing epoch.
 #[tokio::test]
 async fn test_commit_writes_tombstone_heads() {
     telemetry_subscribers::init_for_testing();
