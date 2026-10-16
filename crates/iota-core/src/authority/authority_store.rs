@@ -1306,8 +1306,7 @@ impl AuthorityStore {
     /// range.
     ///
     /// Safe for execution regardless of retention: what execution can observe
-    /// is in the current epoch's bucket, which is always kept, and expiry runs
-    /// only while execution is halted.
+    /// is in the current epoch's bucket, which expiry never drops.
     pub fn find_object_lt_or_eq_version_with_historic_fallback(
         &self,
         object_id: ObjectId,
