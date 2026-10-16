@@ -1083,7 +1083,12 @@ impl AuthorityStorePruner {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
+    use std::{
+        collections::HashSet,
+        path::Path,
+        sync::{Arc, atomic::Ordering},
+        time::Duration,
+    };
 
     use iota_config::node::AuthorityStorePruningConfig;
     use iota_sdk_types::{
@@ -1789,6 +1794,7 @@ mod tests {
         };
         let mut rx = pruner.executed.subscribe();
         pruner.nudge(42);
+        assert_eq!(42, pruner.object_retention.executed.load(Ordering::Relaxed));
         rx.changed().await.expect("nudge should notify subscriber");
         assert_eq!(*rx.borrow(), 42);
     }
