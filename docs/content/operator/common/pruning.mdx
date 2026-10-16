@@ -1,7 +1,7 @@
 
 Sustainable disk usage requires IOTA full nodes to prune the information about historic object versions as well as historic transactions with the corresponding effects and events, including old checkpoint data.
 
-All three kinds of pruning below run at the epoch boundary, where an expired epoch's data is dropped as a whole set of RocksDB column families. Most of the disk space comes back with those files. What is left is a small amount of row-by-row deletion in the live object table, which RocksDB reclaims through background compaction, so the last part of the effect on disk usage is not immediate — see `periodic-compaction-threshold-days` below.
+All three kinds of pruning below run in the background right after each epoch boundary, where an expired epoch's data is dropped as a whole set of RocksDB column families; the node keeps executing transactions meanwhile. Most of the disk space comes back with those files. What is left is a small amount of row-by-row deletion in the live object table, which RocksDB reclaims through background compaction, so the last part of the effect on disk usage is not immediate — see `periodic-compaction-threshold-days` below.
 
 :::tip
 
@@ -103,7 +103,7 @@ authority-store-pruning-config:
   periodic-compaction-threshold-days: 1
 ```
 
-All three run at the epoch boundary, where the node drops the epochs that have
+All three run right after the epoch boundary, where the node drops the epochs that have
 fallen outside each retention window, and all three count that window the same
 way: `N` historic epochs on top of the epoch the node is in, keeping `N + 1`
 epochs in total. `u64::MAX` turns a pruning task off. Leaving

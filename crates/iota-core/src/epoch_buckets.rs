@@ -20,7 +20,7 @@ use std::{
 };
 
 use iota_types::committee::EpochId;
-use parking_lot::{RwLock, RwLockUpgradableReadGuard};
+use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
 use tracing::{info, warn};
 use typed_store::{
     TypedStoreError,
@@ -334,9 +334,12 @@ pub(crate) struct EpochBuckets<B> {
     earliest_retained_table: DBMap<(), EpochId>,
     /// Mirrors the oldest epoch in `buckets` ([`NO_BUCKET`] when empty),
     /// updated under the map's write lock. Kept apart from the map so that
-    /// request-path readers do not block on a [`Self::prune`], which holds
-    /// the write lock throughout.
+    /// request-path readers do not block on a [`Self::prune`] dropping a
+    /// column family.
     earliest_bucket_epoch: AtomicU64,
+    /// Held for the whole of a [`Self::prune`], so that two prunes never
+    /// expire the same bucket at once.
+    pruning: Mutex<()>,
 }
 
 impl<B: BucketReopen> EpochBuckets<B> {
@@ -409,6 +412,7 @@ impl<B: BucketReopen> EpochBuckets<B> {
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
             earliest_bucket_epoch: AtomicU64::new(earliest_bucket_epoch),
+            pruning: Mutex::new(()),
         })
     }
 
@@ -558,56 +562,66 @@ impl<B: BucketReopen> EpochBuckets<B> {
     /// `epochs_to_retain`. An epoch whose drop failed is gone all the same,
     /// and the next open drops it.
     ///
-    /// Queries block for the duration of the drops, so callers on an async
-    /// runtime must use `spawn_blocking`.
+    /// Blocks for as long as `before_drop` and the drops take, so callers on
+    /// an async runtime must use `spawn_blocking`. Queries and [`Self::ensure`]
+    /// block only while a column family is dropped.
     ///
-    /// `before_drop` runs for each expiring epoch in ascending order, under
-    /// the write lock and before the drop. Its error stops the prune and keeps
-    /// that epoch's bucket, without rolling back what `before_drop` already
-    /// wrote, so it must be safe to run again on the same epoch and must not
-    /// durably change how a bucket may be read until it has made that safe.
+    /// `before_drop` runs for each expiring epoch in ascending order, before
+    /// the drop and without the lock, so queries still reach the bucket while
+    /// it runs. Its error stops the prune and keeps that epoch's bucket,
+    /// without rolling back what `before_drop` already wrote, so it must be
+    /// safe to run again on the same epoch and must not durably change how a
+    /// bucket may be read until it has made that safe.
     pub(crate) fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
         mut before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
     ) -> Result<Option<EpochId>, TypedStoreError> {
-        // Runs once per executed checkpoint, usually with nothing to do, so
-        // it takes the write lock queries block on only when it has to.
-        let buckets = self.buckets.upgradable_read();
-        let persisted = self.earliest_retained();
-        let Some(earliest_retained) =
-            Self::earliest_epoch_to_retain(&buckets, current_epoch, epochs_to_retain, persisted)
-        else {
-            return Ok(None);
+        let _pruning = self.pruning.lock();
+        let (earliest_retained, expired) = {
+            // Usually has nothing to do, so it takes the write lock queries
+            // block on only when it has to.
+            let buckets = self.buckets.upgradable_read();
+            let persisted = self.earliest_retained();
+            let Some(earliest_retained) = Self::earliest_epoch_to_retain(
+                &buckets,
+                current_epoch,
+                epochs_to_retain,
+                persisted,
+            ) else {
+                return Ok(None);
+            };
+            let expired: Vec<(EpochId, Arc<B>)> = buckets
+                .range(..earliest_retained)
+                .map(|(&e, bucket)| (e, bucket.clone()))
+                .collect();
+            if earliest_retained == persisted && expired.is_empty() {
+                return Ok(Some(earliest_retained));
+            }
+            if earliest_retained != persisted {
+                // Under the write lock, so `ensure` cannot hand out a bucket
+                // below the new floor.
+                let _buckets = RwLockUpgradableReadGuard::upgrade(buckets);
+                // Synced before any drop: RocksDB makes a column-family drop
+                // durable at once, and a lost floor would let a reopen
+                // backfill the dropped epochs again.
+                let mut batch = self.earliest_retained_table.batch();
+                batch.insert_batch(&self.earliest_retained_table, [((), earliest_retained)])?;
+                batch.write_opt(&synced_write_options())?;
+                self.earliest_retained_epoch
+                    .store(earliest_retained, Ordering::Relaxed);
+            }
+            (earliest_retained, expired)
         };
-        if earliest_retained == persisted && buckets.range(..earliest_retained).next().is_none() {
-            return Ok(Some(earliest_retained));
-        }
 
-        // Under the write lock, so `ensure` cannot hand out a bucket whose
-        // column family is about to be dropped.
-        let mut buckets = RwLockUpgradableReadGuard::upgrade(buckets);
-        if earliest_retained != persisted {
-            // Synced before any drop: RocksDB makes a column-family drop
-            // durable at once, and a lost floor would let a reopen backfill
-            // the dropped epochs again.
-            let mut batch = self.earliest_retained_table.batch();
-            batch.insert_batch(&self.earliest_retained_table, [((), earliest_retained)])?;
-            batch.write_opt(&synced_write_options())?;
-            self.earliest_retained_epoch
-                .store(earliest_retained, Ordering::Relaxed);
-        }
-        let expired: Vec<(EpochId, Arc<B>)> = buckets
-            .range(..earliest_retained)
-            .map(|(&e, bucket)| (e, bucket.clone()))
-            .collect();
         for (epoch, bucket) in expired {
             before_drop(epoch, &bucket)?;
             info!(
                 store = self.name,
                 epoch, "dropping the bucket of an expired epoch"
             );
+            let mut buckets = self.buckets.write();
             if let Err(e) = self.db.drop_cf(&bucket_cf_name(self.cf_prefix, epoch)) {
                 warn!(epoch, "failed to drop an expired bucket column family: {e}");
             }
@@ -742,6 +756,22 @@ mod tests {
         let paths = BucketPaths::new(dir.path(), "test");
         paths.existing_cf_options(&rocksdb::Options::default(), 3);
         assert!(paths.bucket_dir(3).exists());
+    }
+
+    /// `before_drop` runs without the lock queries take, so they keep being
+    /// answered while it runs.
+    #[tokio::test]
+    async fn before_drop_runs_while_queries_can_take_the_lock() {
+        let (buckets, _dir) = test_buckets(&[0, 1, 2]);
+        let mut called = Vec::new();
+        buckets
+            .prune(2, 0, |epoch, _| {
+                assert!(buckets.buckets.try_write().is_some());
+                called.push(epoch);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(called, vec![0, 1]);
     }
 
     /// The name mapping must round-trip and reject other stores' prefixes:
