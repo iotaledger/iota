@@ -12,14 +12,11 @@ use iota_types::{
     storage::WriteStore,
 };
 use prometheus_filtered::Registry;
-use tokio::{sync::broadcast::error::TryRecvError, task::JoinHandle};
+use tokio::{sync::broadcast::error::TryRecvError, task::JoinHandle, time::timeout};
 
 use crate::{
-    authority::test_authority_builder::TestAuthorityBuilder,
-    checkpoints::CheckpointStore,
-    execution_cache::build_execution_cache_from_env,
-    storage::RocksDbStore,
-    test_utils::{wait_for, wait_until},
+    authority::test_authority_builder::TestAuthorityBuilder, checkpoints::CheckpointStore,
+    execution_cache::build_execution_cache_from_env, storage::RocksDbStore,
 };
 
 /// A `RocksDbStore` on a new checkpoint store, with checkpoint 0 synced, and
@@ -85,10 +82,13 @@ impl Stores {
         // A waiter that registers after the watermark passed `seq` returns at
         // once, whether or not a write released it. On the single-threaded
         // test runtime, a registered waiter has also read the watermark.
-        wait_until("the waiter to register", || {
-            self.num_waiters() == registered
+        timeout(Duration::from_secs(30), async {
+            while self.num_waiters() != registered {
+                tokio::task::yield_now().await;
+            }
         })
-        .await;
+        .await
+        .expect("the waiter did not register");
         waiter
     }
 
@@ -155,14 +155,19 @@ impl Node {
             .insert_certified_checkpoint(checkpoint)
             .unwrap();
         self.state_sync.send_checkpoint(checkpoint.clone()).await;
-        wait_until("checkpoint 2 to be verified", || {
-            self.stores
+        timeout(Duration::from_secs(30), async {
+            while self
+                .stores
                 .checkpoint_store
                 .get_highest_verified_checkpoint_seq_number()
                 .unwrap()
-                == Some(2)
+                != Some(2)
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
         })
-        .await;
+        .await
+        .expect("state sync did not verify checkpoint 2");
     }
 
     /// Stores the full contents of checkpoint 1, as state sync does after it
@@ -184,8 +189,9 @@ impl Node {
             "{failure}; the highest synced checkpoint is {:?}",
             self.stores.highest_synced(),
         );
-        let released = wait_for("the released waiter to return", &mut self.waiter)
+        let released = timeout(Duration::from_secs(30), &mut self.waiter)
             .await
+            .expect("the released waiter did not return")
             .unwrap();
         assert_eq!(released.sequence_number(), 1);
     }
@@ -230,12 +236,10 @@ async fn checkpoint_from_consensus_marked_synced_only_after_previous_checkpoint_
 
     node.download_checkpoint_1_contents();
     for seq in [1, 2] {
-        let checkpoint = wait_for(
-            &format!("state sync to send synced checkpoint {seq}"),
-            synced_checkpoints.recv(),
-        )
-        .await
-        .unwrap();
+        let checkpoint = timeout(Duration::from_secs(30), synced_checkpoints.recv())
+            .await
+            .unwrap_or_else(|_| panic!("state sync did not send synced checkpoint {seq}"))
+            .unwrap();
         assert_eq!(
             checkpoint.sequence_number(),
             seq,
@@ -274,10 +278,14 @@ async fn waiter_for_previous_checkpoint_released_after_checkpoint_from_consensus
     node.send_checkpoint_2_from_consensus().await;
 
     node.download_checkpoint_1_contents();
-    wait_until("checkpoints 1 and 2 to be synced", || {
-        node.stores.highest_synced() == Some(2)
-    })
-    .await;
+    timeout(
+        Duration::from_secs(30),
+        node.stores
+            .checkpoint_store
+            .notify_read_synced_checkpoint(2),
+    )
+    .await
+    .expect("checkpoints 1 and 2 were not synced");
     node.assert_waiter_released(
         "the synced watermark passed checkpoint 1 without releasing its waiter",
     )
@@ -326,8 +334,9 @@ async fn run_of_checkpoints_marked_synced_only_after_checkpoint_before_run_synce
         "the run did not release the waiter of each checkpoint in it"
     );
     for (seq, waiter) in (1..=3).zip(waiters) {
-        let released = wait_for("the released waiter to return", waiter)
+        let released = timeout(Duration::from_secs(30), waiter)
             .await
+            .expect("the released waiter did not return")
             .unwrap();
         assert_eq!(released.sequence_number(), seq);
     }
@@ -347,8 +356,9 @@ async fn run_of_checkpoints_marked_synced_only_after_checkpoint_before_run_synce
         0,
         "the run did not release the waiter for checkpoint 4"
     );
-    let released = wait_for("the released waiter to return", waiter)
+    let released = timeout(Duration::from_secs(30), waiter)
         .await
+        .expect("the released waiter did not return")
         .unwrap();
     assert_eq!(released.sequence_number(), 4);
 }

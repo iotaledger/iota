@@ -31,7 +31,6 @@ use crate::{
         FullCheckpointContentsCacheMetrics, test_checkpoint_with_contents,
     },
     global_state_hasher::GlobalStateHasher,
-    test_utils::{wait_for, wait_until},
 };
 
 /// The fallback (per-item) load path runs when contents were not synced via
@@ -689,17 +688,6 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
     );
 }
 
-async fn wait_for_executed_checkpoint(
-    checkpoint_store: &CheckpointStore,
-    seq: CheckpointSequenceNumber,
-) {
-    wait_for(
-        &format!("checkpoint {seq} to be executed"),
-        checkpoint_store.notify_read_executed_checkpoint(seq),
-    )
-    .await;
-}
-
 /// Checkpoint 1 is verified without contents, as on any node while state sync
 /// downloads them, and a write tries to mark checkpoint 2 synced. The test
 /// checks that the checkpoint executor does not get checkpoint 1, also not
@@ -737,7 +725,12 @@ async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stor
     );
 
     let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
-    wait_for_executed_checkpoint(&checkpoint_store, 0).await;
+    timeout(
+        Duration::from_secs(30),
+        checkpoint_store.notify_read_executed_checkpoint(0),
+    )
+    .await
+    .expect("checkpoint 0 was not executed");
 
     // The test checks what the executor gets, not what the write returns.
     let _ = checkpoint_store
@@ -768,7 +761,12 @@ async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stor
             .update_highest_synced_checkpoint(checkpoint)
             .unwrap();
     }
-    wait_for_executed_checkpoint(&checkpoint_store, 2).await;
+    timeout(
+        Duration::from_secs(30),
+        checkpoint_store.notify_read_executed_checkpoint(2),
+    )
+    .await
+    .expect("checkpoints 1 and 2 were not executed");
     executor_handle.abort();
 }
 
@@ -789,14 +787,22 @@ async fn executor_executes_synced_checkpoint_before_warning_timeout() {
         .unwrap();
 
     let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
-    wait_for_executed_checkpoint(&checkpoint_store, 0).await;
+    timeout(
+        Duration::from_secs(30),
+        checkpoint_store.notify_read_executed_checkpoint(0),
+    )
+    .await
+    .expect("checkpoint 0 was not executed");
     // A waiter that registers after the write returns at once, with or without
     // a wake-up. On the single-threaded test runtime, a registered waiter has
     // also read the watermark.
-    wait_until("the executor to wait for checkpoint 1", || {
-        checkpoint_store.num_synced_checkpoint_waiters_for_testing() > 0
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store.num_synced_checkpoint_waiters_for_testing() == 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
     })
-    .await;
+    .await
+    .expect("the executor did not wait for checkpoint 1");
 
     checkpoint_store
         .update_highest_synced_checkpoint(&checkpoints[1])

@@ -101,31 +101,6 @@ where
     (genesis, authority_key)
 }
 
-/// Waits for `future`. Panics if `future` does not finish within 30 s, with a
-/// message that names `what`.
-///
-/// Use it for a wait whose time the test does not check. Such a wait usually
-/// takes milliseconds, so the timeout only turns a hang into a failure that
-/// says what the test waited for. Without it, nextest stops a hanging test
-/// only after 5 minutes.
-#[cfg(test)]
-pub(crate) async fn wait_for<T>(what: &str, future: impl std::future::Future<Output = T>) -> T {
-    timeout(Duration::from_secs(30), future)
-        .await
-        .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
-}
-
-/// Waits until `condition` is true, as [`wait_for`] does.
-#[cfg(test)]
-pub(crate) async fn wait_until(what: &str, condition: impl Fn() -> bool) {
-    wait_for(what, async {
-        while !condition() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-}
-
 pub async fn wait_for_tx(digest: TransactionDigest, state: Arc<AuthorityState>) {
     match timeout(
         WAIT_FOR_TX_TIMEOUT,
