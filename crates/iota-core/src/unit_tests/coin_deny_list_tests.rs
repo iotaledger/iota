@@ -1175,6 +1175,7 @@ impl RegulatedCoinEnv {
                 &epoch_store,
                 1,
                 false,
+                &Default::default(),
                 &mut transactions,
             )
             .await

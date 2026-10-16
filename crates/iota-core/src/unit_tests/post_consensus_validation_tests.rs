@@ -154,6 +154,7 @@ async fn test_valid_user_transaction_passes() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -223,6 +224,7 @@ async fn drop_error_for_gas_version_below_canceled_range(
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -290,6 +292,7 @@ async fn test_non_user_transaction_passes_through() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -348,6 +351,7 @@ async fn test_duplicate_transaction_deduplicated() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -422,6 +426,7 @@ async fn test_mixed_batch_filtering() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -512,6 +517,7 @@ async fn test_simple_conflict() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -620,6 +626,7 @@ async fn test_stale_version_dropped_fresh_kept() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -728,6 +735,7 @@ async fn test_no_conflict() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -831,6 +839,7 @@ async fn test_chain_conflict() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -957,6 +966,7 @@ async fn test_multiple_conflicts_in_batch() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -1051,6 +1061,7 @@ async fn test_gas_object_conflict() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -1169,6 +1180,7 @@ async fn test_winner_blocks_multiple_losers() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -1293,6 +1305,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
             &epoch_store,
             1,
             false,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -1747,6 +1760,7 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
         &s.epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -1785,6 +1799,7 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
         &s.epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -1838,6 +1853,7 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
         &setup.epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -1924,6 +1940,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
         &s.epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await;
@@ -1996,6 +2013,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
         &epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -2055,6 +2073,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         &epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -2110,6 +2129,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
         &epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -2162,6 +2182,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         &epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -2185,6 +2206,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         &epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -3061,6 +3083,7 @@ impl BookkeepingSetup {
             &self.epoch_store,
             index,
             true,
+            &Default::default(),
             &mut sequenced,
         )
         .await
@@ -6362,6 +6385,7 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
             &s.epoch_store,
             16,
             true,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -6550,6 +6574,7 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         &s.epoch_store,
         12,
         true,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -6761,6 +6786,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
         &s.epoch_store,
         1,
         true,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -7287,6 +7313,7 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
             &epoch_store,
             2,
             true,
+            &Default::default(),
             &mut vec![make_user_tx_v1_verified(tx)],
         )
         .await
@@ -7477,6 +7504,7 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
         &s.epoch_store,
         11,
         true,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -7965,6 +7993,7 @@ impl ImmutableInputSetup {
             &self.epoch_store,
             1,
             false,
+            &Default::default(),
             transactions,
         )
         .await
@@ -8173,6 +8202,7 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
         &epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -8208,6 +8238,7 @@ async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_di
         &epoch_store,
         1,
         false,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -8452,6 +8483,7 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
         &f.s.epoch_store,
         failed_at + f.s.horizon_distance(),
         true,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -8551,6 +8583,7 @@ async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
         &s.epoch_store,
         failed_at,
         true,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -8587,6 +8620,7 @@ async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
         &s.epoch_store,
         failed_at + s.horizon_distance(),
         true,
+        &Default::default(),
         &mut transactions,
     )
     .await
@@ -9480,6 +9514,7 @@ async fn run_shared_coin_deletion_replay(options: RegulatedCoinOptions) {
             &epoch_store,
             12,
             true,
+            &Default::default(),
             &mut transactions,
         )
         .await
@@ -9823,6 +9858,7 @@ async fn pruned_dynamic_field_child_gets_the_verdict_of_a_validator_that_kept_it
                 &epoch_store,
                 7,
                 true,
+                &Default::default(),
                 &mut transactions,
             )
             .await
