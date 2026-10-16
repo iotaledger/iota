@@ -219,10 +219,8 @@ pub fn dump_table(
                     .dump(table_name, page_size, page_number)
                     .map_err(|err| anyhow!(err.to_string()));
             }
-            // The historic object and ledger buckets and their retention
-            // floors are column families of the perpetual database that its
-            // table struct does not declare, so the dump derived from that
-            // struct cannot reach them.
+            // The historic buckets and their retention floors are column
+            // families the perpetual table struct does not declare.
             if let Some(rows) = HistoricObjects::dump_column_family(
                 &perpetual_tables.objects.db,
                 table_name,

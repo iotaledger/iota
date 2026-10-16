@@ -30,51 +30,44 @@ use crate::{
     },
 };
 
-/// The epoch the node is starting in while the migration runs, and so the
-/// newest epoch the seed below writes history for.
+/// The epoch the node starts in while the migration runs, and the newest
+/// epoch the seed writes history for.
 const RUNNING_EPOCH: EpochId = 3;
 
-/// The two values that give the narrowest window a node can really be given:
-/// both keep the epoch the migration is running in and the one below it, so
-/// with the migration running in epoch 3 they keep epochs 2 and 3 and leave
-/// epoch 1 behind.
+/// The narrowest retentions a node can be given: both keep epochs 2 and 3
+/// and leave epoch 1 behind.
 const NARROWEST_RETENTIONS: [u64; 2] = [0, 1];
 
-/// The epoch the executed and synced watermarks are seeded in. A node
-/// restarted between publishing the new epoch and executing its first
-/// checkpoint carries watermarks from the epoch below, which is the case the
-/// migration's floor has to leave resolvable.
+/// The epoch the executed and synced watermarks are seeded in, as on a node
+/// restarted before executing the running epoch's first checkpoint.
 const WATERMARK_EPOCH: EpochId = RUNNING_EPOCH - 1;
 
-/// Where a seeded transaction's epoch is recorded, which is what the
-/// migration has to read it back from.
+/// Where a seeded transaction's epoch is recorded.
 #[derive(Clone, Copy)]
 enum EpochSource {
-    /// `executed_transactions_to_checkpoint` holds it, as it does on a
-    /// fullnode.
+    /// `executed_transactions_to_checkpoint` holds it, as on a fullnode.
     FinalizingCheckpoint,
     /// Only the effects hold it, as on a validator, which never writes that
     /// table.
     Effects,
-    /// Nothing on disk holds it: a body persisted or synced but never
-    /// executed.
+    /// Nothing on disk holds it: a body synced but never executed.
     Nothing,
 }
 
-/// One transaction's worth of seeded flat rows, and the epoch the migration
-/// must file every one of them under.
+/// One transaction's seeded flat rows, and the epoch the migration must file
+/// them under.
 struct SeededTransaction {
     digest: TransactionDigest,
     effects_digest: Option<TransactionEffectsDigest>,
     epoch: EpochId,
 }
 
-/// What the seed wrote, so the assertions can name it back.
+/// What the seed wrote.
 struct Seeded {
     transactions: Vec<SeededTransaction>,
     checkpoints: Vec<VerifiedCheckpoint>,
-    /// A contents row the seed deliberately left without a summary, standing
-    /// for the crash window between the two writes.
+    /// A contents row left without a summary, as after a crash between the
+    /// two writes.
     contents_without_summary: CheckpointContentsDigest,
 }
 
@@ -95,16 +88,13 @@ fn open(store_dir: &Path, checkpoint_dir: &Path) -> (Arc<AuthorityStore>, Arc<Ch
 fn random_transaction() -> VerifiedTransaction {
     let (sender, keypair): (Address, AccountPrivateKey) =
         deterministic_random_account_private_key();
-    // The gas object reference is random on every call, so every transaction
-    // built here has a digest of its own.
     let transaction = TestTransactionBuilder::new(sender, random_object_ref(), 100)
         .transfer(random_object_ref(), sender)
         .build_and_sign(&keypair);
     VerifiedTransaction::new_unchecked(transaction)
 }
 
-/// Writes one transaction's flat rows the way the build before the buckets
-/// wrote them.
+/// Writes one transaction's rows into the flat tables.
 fn seed_transaction(
     store: &AuthorityStore,
     epoch: EpochId,
@@ -154,10 +144,9 @@ fn seed_transaction(
     }
 }
 
-/// Writes one checkpoint's summary and contents into the flat tables the way
-/// the build before the buckets wrote them, together with the sequence-keyed
-/// summary and the epoch boundary — both of which that build wrote in the same
-/// batch as the digest-keyed summary, and neither of which is ever bucketed.
+/// Writes one checkpoint's summary and contents into the flat tables,
+/// together with the sequence-keyed summary and the epoch boundary, which are
+/// never bucketed.
 fn seed_checkpoint(
     checkpoint_store: &CheckpointStore,
     epoch: EpochId,
@@ -187,18 +176,9 @@ fn seed_checkpoint(
     checkpoint
 }
 
-/// Writes the flat tables an earlier build would have left behind: three
-/// epochs of transaction and checkpoint history, with none of it in a bucket.
-///
-/// Epoch 2 gets a second transaction whose epoch only its effects record, so
-/// that the validator shape — no `executed_transactions_to_checkpoint` row at
-/// all — is covered, and the running epoch gets a body with no effects, which
-/// nothing on disk places.
-///
-/// The executed and synced watermarks are left in [`WATERMARK_EPOCH`], as they
-/// are on a node restarted before the running epoch's first checkpoint has
-/// been executed. Both resolve their checkpoint by digest through the buckets,
-/// so a migration that dropped that epoch would leave them unresolvable.
+/// Writes three epochs of transaction and checkpoint history into the flat
+/// tables, covering every [`EpochSource`], and leaves the executed and synced
+/// watermarks in [`WATERMARK_EPOCH`].
 fn seed(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> Seeded {
     let transactions = vec![
         seed_transaction(store, 1, 10, EpochSource::FinalizingCheckpoint),
@@ -269,7 +249,7 @@ fn checkpoint_progress(
         .unwrap()
 }
 
-/// How many rows are left in the eight flat tables the migration drains.
+/// How many rows are left in the flat tables the migration drains.
 fn flat_rows(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> usize {
     let ledger = &store.perpetual_tables;
     let checkpoints = &checkpoint_store.tables;
@@ -289,9 +269,6 @@ fn flat_rows(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> usiz
 /// that epoch's bucket, that the rows below `floor` are gone, that the
 /// executed and synced watermarks still resolve, and that no flat row is left
 /// in either store.
-///
-/// `earliest_bucket_epoch` is read before anything calls `ensure`, since
-/// `ensure` would create the very bucket an absent one is asserted by.
 fn assert_migrated(
     store: &AuthorityStore,
     checkpoint_store: &CheckpointStore,
@@ -300,16 +277,15 @@ fn assert_migrated(
 ) {
     let historic_ledger = store.get_historic_ledger();
     let historic_checkpoints = &checkpoint_store.historic_checkpoints;
-    // The seed's oldest epoch is 1, so the oldest bucket either store should
-    // be left holding is the floor, or 1 when there is no floor.
+    // Read before any `ensure`, which would create the bucket asserted absent.
     let oldest_bucket = Some(floor.max(1));
     assert_eq!(historic_ledger.earliest_bucket_epoch(), oldest_bucket);
     assert_eq!(historic_checkpoints.earliest_bucket_epoch(), oldest_bucket);
 
     for transaction in &seeded.transactions {
         let digest = &transaction.digest;
-        // A body with no execution record names no epoch, so the migration
-        // drops it rather than guessing; state sync fetches it again.
+        // A body with no execution record names no epoch; state sync fetches
+        // it again.
         if transaction.effects_digest.is_none() {
             assert!(
                 historic_ledger.get_transaction(digest).unwrap().is_none(),
@@ -375,12 +351,8 @@ fn assert_migrated(
                     .is_none(),
                 "a summary below the floor must be gone"
             );
-            // The contents are not deleted with the summary: a contents row
-            // is shared by every checkpoint with the same transactions, so a
-            // retained checkpoint may still name it. They are left to
-            // `move_contents_without_summary`, which files them in the
-            // migration epoch's bucket, where ordinary retention reclaims
-            // them a window later.
+            // A retained checkpoint may share the contents row, so it is
+            // filed in the running epoch's bucket instead of deleted.
             assert!(
                 checkpoint_store
                     .historic_checkpoints
@@ -415,8 +387,7 @@ fn assert_migrated(
         );
     }
 
-    // A contents row no summary names cannot be placed, so it is kept under
-    // the epoch the migration ran in rather than dropped.
+    // A contents row no summary names is kept under the running epoch.
     assert!(
         historic_checkpoints
             .ensure(RUNNING_EPOCH)
@@ -427,10 +398,8 @@ fn assert_migrated(
             .is_some()
     );
 
-    // Whatever the retention, the migration must not delete the epoch the
-    // executed and synced watermarks name: both resolve their checkpoint by
-    // digest through the buckets, and the checkpoint executor turns an
-    // unresolvable executed watermark into a panic on every start.
+    // The checkpoint executor panics on start if the executed watermark does
+    // not resolve.
     let watermarked = seeded
         .checkpoints
         .iter()
@@ -465,9 +434,7 @@ fn assert_migrated(
 }
 
 /// With no retention limit every row lands in the bucket of the epoch it
-/// belongs to — the epoch its finalizing checkpoint recorded, the epoch its
-/// effects recorded where no such row exists, and the running epoch where
-/// nothing on disk places it — and the flat tables are left empty.
+/// belongs to, and the flat tables are left empty.
 #[tokio::test]
 async fn rows_land_in_their_true_epoch() {
     let store_dir = iota_common::tempdir();
@@ -482,14 +449,8 @@ async fn rows_land_in_their_true_epoch() {
     assert_migrated(&store, &checkpoint_store, &seeded, 0);
 }
 
-/// A node whose retention has already left epochs behind deletes their rows
-/// rather than building buckets the next reconfiguration would drop again,
-/// and it reports the checkpoint range it no longer holds.
-///
-/// Run at both of the values that give the narrowest window there is, since
-/// the two must leave the same epochs behind: expiry counts `retained - 1`
-/// epochs below its anchor and 0 saturates there, so 0 and 1 both keep the
-/// anchor epoch and the running one.
+/// Rows of epochs outside the retention are deleted rather than bucketed,
+/// and the checkpoint range no longer held is reported as pruned.
 #[tokio::test]
 async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
     for retained in NARROWEST_RETENTIONS {
@@ -502,12 +463,9 @@ async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
             .run()
             .unwrap();
 
-        // The floor the last boundary applied is the epoch below the running
-        // one, so only epoch 1 left no bucket behind in either store.
         assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
 
-        // Epoch 1's last checkpoint is the highest the node no longer holds,
-        // so that a state-sync peer is not told a dropped checkpoint is
+        // Otherwise a state-sync peer would be told a dropped checkpoint is
         // available.
         assert_eq!(
             checkpoint_store
@@ -522,17 +480,10 @@ async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
     }
 }
 
-/// Two checkpoints in different epochs can name one contents row — every
-/// checkpoint carrying no transaction has the same contents digest — and the
-/// flat table holds a single row for the pair. Each epoch's bucket must end up
-/// with a copy of its own, or expiring the older epoch would leave the
-/// retained checkpoint with a summary and no contents.
-///
-/// A slice of one puts the two summaries in different slices, so whichever is
-/// processed first takes the flat row and the other has to read the contents
-/// back out of the bucket that first one went into. Which of the two comes
-/// first is decided by the digest order the summaries are walked in, so the
-/// assertion covers both.
+/// Two checkpoints in different epochs naming one contents row each get a
+/// copy in their own epoch's bucket, so expiring the older epoch leaves the
+/// newer one its contents. A slice of one puts the two summaries in
+/// different slices.
 #[tokio::test]
 async fn two_epochs_naming_one_contents_row_each_keep_a_copy() {
     let store_dir = iota_common::tempdir();
@@ -580,8 +531,8 @@ async fn two_epochs_naming_one_contents_row_each_keep_a_copy() {
     assert_eq!(tables.checkpoint_content.safe_iter().count(), 0);
 }
 
-/// With the retention unset there is no floor, so every seeded epoch keeps its
-/// own bucket and nothing is deleted.
+/// With the retention unset every seeded epoch keeps its own bucket and
+/// nothing is deleted.
 #[tokio::test]
 async fn unlimited_retention_buckets_every_epoch() {
     let store_dir = iota_common::tempdir();
@@ -626,7 +577,6 @@ async fn unlimited_retention_buckets_every_epoch() {
         );
     }
 
-    // Nothing was deleted, so the node claims no pruned range at all.
     assert_eq!(
         checkpoint_store
             .tables
@@ -637,10 +587,8 @@ async fn unlimited_retention_buckets_every_epoch() {
     );
 }
 
-/// A run stopped part-way resumes from the watermark it recorded, across a
-/// restart, and leaves the same state an uninterrupted run does — the state
-/// [`assert_migrated`] describes, which the uninterrupted tests above assert
-/// as well.
+/// A run stopped part-way resumes from its recorded watermark across a
+/// restart and leaves the same state an uninterrupted run does.
 #[tokio::test]
 async fn the_migration_resumes_from_its_watermark() {
     let store_dir = iota_common::tempdir();
@@ -648,9 +596,8 @@ async fn the_migration_resumes_from_its_watermark() {
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
     let seeded = seed(&store, &checkpoint_store);
 
-    // One slice of one row, so the run stops in the middle of the first of
-    // the eight tables: the seed holds five transaction bodies, so four are
-    // left for the resumed run to find in that table alone.
+    // One slice of one row stops the run inside the first table, leaving four
+    // of the five seeded bodies.
     let interrupted = migration(&store, checkpoint_store.clone(), None, 1);
     interrupted.move_transactions(None).unwrap();
     let watermark = match ledger_progress(&store) {
@@ -662,10 +609,8 @@ async fn the_migration_resumes_from_its_watermark() {
         4,
         "one row moved and four left, or the slice size is not being honoured"
     );
-    // The watermark names a row this run decided, which for a body with an
-    // execution record means a bucket and for one without means deletion.
-    // Which of the five the single-row slice took depends on digest order, so
-    // the seed says which outcome to expect.
+    // Which row the slice took depends on digest order, so the seed says
+    // whether it should have been bucketed or deleted.
     let attributable = seeded
         .transactions
         .iter()
@@ -711,9 +656,7 @@ async fn the_migration_resumes_from_its_watermark() {
     assert_migrated(&resumed_store, &resumed_checkpoints, &seeded, 0);
 }
 
-/// Once both stores' flat tables are drained, a later start does nothing: from
-/// then on every row of this history is written straight into its epoch's
-/// bucket.
+/// Once both stores' flat tables are drained, a later start does nothing.
 #[tokio::test]
 async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
     let store_dir = iota_common::tempdir();
@@ -725,9 +668,8 @@ async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
         .run()
         .unwrap();
 
-    // A row an earlier build could not have written, standing for one a later
-    // write puts in the flat table by mistake: a finished migration must not
-    // pick it up.
+    // A row written to the flat table after the migration finished must not
+    // be picked up.
     let stray = random_transaction();
     store
         .perpetual_tables
@@ -756,11 +698,9 @@ async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
     );
 }
 
-/// A node whose state sync has run ahead of execution holds transactions the
-/// migration cannot attribute, because only execution records name an epoch.
-/// Those rows are dropped, so the synced watermark has to come back to the
-/// executed one: the checkpoint executor reads transactions by digest and
-/// panics on a missing one, and it takes its work from the synced watermark.
+/// Transactions synced ahead of execution name no epoch and are dropped, so
+/// the synced watermark is rewound to the executed one; otherwise the
+/// checkpoint executor would panic on the missing transactions.
 #[tokio::test]
 async fn the_synced_watermark_rewinds_so_dropped_checkpoints_are_fetched_again() {
     let store_dir = tempfile::tempdir().unwrap();
@@ -773,8 +713,6 @@ async fn the_synced_watermark_rewinds_so_dropped_checkpoints_are_fetched_again()
         .unwrap()
         .expect("the seed sets the executed watermark");
 
-    // State sync ran on past what execution reached, staging a body that no
-    // execution record places.
     let ahead = seed_checkpoint(&checkpoint_store, RUNNING_EPOCH, 90);
     let staged = seed_transaction(&store, RUNNING_EPOCH, 90, EpochSource::Nothing);
     checkpoint_store
@@ -809,9 +747,8 @@ async fn the_synced_watermark_rewinds_so_dropped_checkpoints_are_fetched_again()
     );
 }
 
-/// The rewind only ever moves the watermark back. A node whose execution has
-/// caught up with its sync — every node that is not behind — must come out of
-/// the migration with both watermarks where it left them.
+/// The rewind only moves the synced watermark back, so a node whose
+/// execution has caught up with its sync keeps it.
 #[tokio::test]
 async fn a_node_that_is_not_behind_keeps_its_synced_watermark() {
     let store_dir = tempfile::tempdir().unwrap();
@@ -842,10 +779,9 @@ async fn a_node_that_is_not_behind_keeps_its_synced_watermark() {
     );
 }
 
-/// The rewind belongs to the run that deletes rows, not to every later start.
-/// A migrated node keeps whatever state sync has fetched ahead of execution,
-/// which on a healthy node is a large and expensive buffer: rewinding it on
-/// each restart would make the node fetch those checkpoints again every time.
+/// Only the run that deletes rows rewinds the synced watermark; a later
+/// start must not, or the node would fetch those checkpoints again on every
+/// restart.
 #[tokio::test]
 async fn a_restart_after_the_migration_keeps_the_synced_watermark() {
     let store_dir = tempfile::tempdir().unwrap();
@@ -853,13 +789,10 @@ async fn a_restart_after_the_migration_keeps_the_synced_watermark() {
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
     seed(&store, &checkpoint_store);
 
-    // First start: the migration runs and rewinds, as it must.
     migration(&store, checkpoint_store.clone(), Some(1), 2)
         .run()
         .unwrap();
 
-    // State sync then runs ahead of execution again, as it does on any node
-    // that is keeping up.
     let ahead = seed_checkpoint(&checkpoint_store, RUNNING_EPOCH, 91);
     checkpoint_store
         .update_highest_synced_checkpoint(&ahead)
@@ -868,7 +801,6 @@ async fn a_restart_after_the_migration_keeps_the_synced_watermark() {
         .get_highest_synced_checkpoint_seq_number()
         .unwrap();
 
-    // Second start: nothing left to migrate, so nothing may be given back.
     migration(&store, checkpoint_store.clone(), Some(1), 2)
         .run()
         .unwrap();
@@ -882,15 +814,9 @@ async fn a_restart_after_the_migration_keeps_the_synced_watermark() {
     );
 }
 
-/// A contents row shared by an expired checkpoint and a retained one must
-/// survive the expired one. Contents are keyed by digest, so checkpoints with
-/// the same transactions share a row — every checkpoint carrying none does —
-/// and deleting it with the expired summary would leave the retained
-/// checkpoint with a summary and nothing to serve.
-///
-/// A slice of one puts the two summaries in different slices, so the expired
-/// one is processed first for one of the two digest orders; the assertion
-/// holds either way.
+/// A contents row shared by an expired checkpoint and a retained one
+/// survives for the retained one. A slice of one puts the two summaries in
+/// different slices.
 #[tokio::test]
 async fn an_expired_checkpoint_does_not_take_a_retained_one_s_contents() {
     let store_dir = iota_common::tempdir();
@@ -933,10 +859,8 @@ async fn an_expired_checkpoint_does_not_take_a_retained_one_s_contents() {
     );
 }
 
-/// The checkpoint pruner of earlier releases deleted the contents row every
-/// empty checkpoint shares, even while a later empty checkpoint still named it.
-/// The migration must give a retained empty checkpoint its contents back
-/// rather than move its summary into a bucket without them.
+/// A retained empty checkpoint whose shared contents row was deleted by the
+/// checkpoint pruner gets its contents back in its bucket.
 #[tokio::test]
 async fn a_retained_empty_checkpoint_gets_back_the_contents_row_a_pruner_deleted() {
     let store_dir = iota_common::tempdir();
