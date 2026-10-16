@@ -17,6 +17,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 use iota_types::committee::EpochId;
@@ -284,6 +285,10 @@ pub(crate) fn absent_if_dropped<T: Default>(
     }
 }
 
+/// How long [`EpochBuckets::prune`] waits for the readers still holding a
+/// bucket it took out of the map before it drops the column family anyway.
+const READERS_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Stands for "no bucket at all" in [`EpochBuckets::earliest_bucket_epoch`].
 /// No real epoch reaches it.
 const NO_BUCKET: EpochId = EpochId::MAX;
@@ -334,8 +339,7 @@ pub(crate) struct EpochBuckets<B> {
     earliest_retained_table: DBMap<(), EpochId>,
     /// Mirrors the oldest epoch in `buckets` ([`NO_BUCKET`] when empty),
     /// updated under the map's write lock. Kept apart from the map so that
-    /// request-path readers do not block on a [`Self::prune`] dropping a
-    /// column family.
+    /// request-path readers do not take the map's lock.
     earliest_bucket_epoch: AtomicU64,
     /// Held for the whole of a [`Self::prune`], so that two prunes never
     /// expire the same bucket at once.
@@ -564,7 +568,8 @@ impl<B: BucketReopen> EpochBuckets<B> {
     ///
     /// Blocks for as long as `before_drop` and the drops take, so callers on
     /// an async runtime must use `spawn_blocking`. Queries and [`Self::ensure`]
-    /// block only while a column family is dropped.
+    /// block only while the floor moves and while a bucket is taken out of
+    /// the map, not while its column family is dropped.
     ///
     /// `before_drop` runs for each expiring epoch in ascending order, before
     /// the drop and without the lock, so queries still reach the bucket while
@@ -621,16 +626,33 @@ impl<B: BucketReopen> EpochBuckets<B> {
                 store = self.name,
                 epoch, "dropping the bucket of an expired epoch"
             );
-            let mut buckets = self.buckets.write();
+            {
+                let mut buckets = self.buckets.write();
+                buckets.remove(&epoch);
+                // Per epoch, so an early `before_drop` error leaves the mirror
+                // matching the map.
+                self.publish_earliest_epoch(&buckets);
+            }
+            // A reader that took the bucket before it left the map finishes
+            // against the open column family rather than failing; no new
+            // reader can take it now.
+            let deadline = Instant::now() + READERS_DRAIN_TIMEOUT;
+            while Arc::strong_count(&bucket) > 1 && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            if Arc::strong_count(&bucket) > 1 {
+                warn!(
+                    store = self.name,
+                    epoch, "dropping an expired bucket that a reader still holds"
+                );
+            }
+            drop(bucket);
+            // Outside the lock: a large column family takes seconds to drop.
+            // A failed drop leaves a column family below the floor, which the
+            // next open drops.
             if let Err(e) = self.db.drop_cf(&bucket_cf_name(self.cf_prefix, epoch)) {
                 warn!(epoch, "failed to drop an expired bucket column family: {e}");
             }
-            // RocksDB unregisters the column family before it attempts the
-            // drop, so even after a failed drop the bucket cannot be read.
-            buckets.remove(&epoch);
-            // Per epoch, so an early `before_drop` error leaves the mirror
-            // matching the map.
-            self.publish_earliest_epoch(&buckets);
         }
         if let Some(paths) = &self.paths {
             paths.remove_empty_dirs_below(earliest_retained);
@@ -772,6 +794,30 @@ mod tests {
             })
             .unwrap();
         assert_eq!(called, vec![0, 1]);
+    }
+
+    /// A reader holding an expired bucket keeps its column family open until
+    /// it lets go, and the prune drops it after.
+    #[tokio::test]
+    async fn a_held_bucket_is_dropped_once_its_reader_lets_go() {
+        let (buckets, _dir) = test_buckets(&[0, 1]);
+        let held = buckets.iter(false)[0].clone();
+        let cf_name = bucket_cf_name(TEST_CF_PREFIX, 0);
+
+        std::thread::scope(|scope| {
+            let reader = scope.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let open = buckets.db.cf_handle(&cf_name).is_some();
+                drop(held);
+                open
+            });
+            buckets.prune(1, 0, |_, _| Ok(())).unwrap();
+            assert!(
+                reader.join().unwrap(),
+                "the column family must stay open while a reader holds the bucket"
+            );
+        });
+        assert!(buckets.db.cf_handle(&cf_name).is_none());
     }
 
     /// The name mapping must round-trip and reject other stores' prefixes:
