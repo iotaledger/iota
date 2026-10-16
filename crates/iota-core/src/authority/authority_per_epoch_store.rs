@@ -4743,8 +4743,9 @@ impl AuthorityPerEpochStore {
         // Post-consensus validation and owned-object conflict resolution in a
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
-        // already have persistent locks, giving them natural precedence.
-        // Also collects all UserTransactionV1 digests for soft lock release
+        // still hold the locks they took there, giving them natural precedence;
+        // with deterministic validation they are kept without being validated
+        // again. Also collects all UserTransactionV1 digests for soft lock release
         // after the consensus output is quarantined.
         let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
 
@@ -4809,6 +4810,7 @@ impl AuthorityPerEpochStore {
                     self,
                     consensus_commit_info.index,
                     deterministic_validation,
+                    &previously_deferred_tx_digests,
                     &mut sequenced_transactions,
                 )
                 .await?;

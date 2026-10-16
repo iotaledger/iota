@@ -24,11 +24,14 @@
 //!    executed is retained as below. Otherwise, an already-executed transaction is **retained** as
 //!    a committee-agreed winner (registers the locks its own effects report, skips re-validation);
 //!    not dropped. See issue #11649. With deterministic validation, a transaction with no saved
-//!    decision goes through the checks below even if it has executed.
+//!    decision goes through the checks below even if it has executed, unless it was deferred at an
+//!    earlier commit: such a transaction is kept without checks and takes no new locks, since it
+//!    was validated at the commit that kept it and still holds the locks it took there.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
-//!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt.
-//!    Cheap; performed before expensive checks.
+//!    lock held by the same transaction (with deterministic validation off, a deferred tx's own
+//!    lock from the commit that kept it), which is exempt. Cheap; performed before expensive
+//!    checks.
 //! 6. `handle_transaction_validation_checks()` — drop with error. Only reached when all locks are
 //!    free.
 //! 7. All passed — acquire locks in the local tracking map, keep transaction.
@@ -67,7 +70,8 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{
-            AuthorityPerEpochStore, LockDetails, handler_object_state::CommitIndex,
+            AuthorityPerEpochStore, LockDetails, PreviouslyDeferredTransactions,
+            handler_object_state::CommitIndex,
         },
     },
     consensus_handler::{
@@ -105,12 +109,14 @@ pub enum PostConsensusVerdict {
 ///   effects report (the raw input set without the flag) and skips re-validation. See issue #11649.
 ///   With deterministic validation, this holds only for a transaction whose keep at this commit was
 ///   saved; one with no saved decision is validated like any other.
+/// - With deterministic validation, a transaction in `previously_deferred` is kept without checks
+///   and takes no new locks: the locks it took at the commit that kept it stay in place.
 ///
 /// With deterministic validation, the decision for every candidate is saved before returning,
 /// including keeps that the caller then defers. When the commit is replayed after a restart, a
 /// saved drop is repeated without checks, and a saved keep is validated again unless it has
-/// executed. Panics if the saved decisions are incomplete, the candidates differ from the saved
-/// ones, or a saved keep is now dropped.
+/// executed or was deferred at an earlier commit. Panics if the saved decisions are incomplete, the
+/// candidates differ from the saved ones, or a saved keep is now dropped.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -122,6 +128,8 @@ pub enum PostConsensusVerdict {
 ///   inputs are read as of this commit.
 /// * `deterministic_validation` — The `pcool_deterministic_validation` flag, read once per commit
 ///   by the caller so every step of the commit decides on the same value.
+/// * `previously_deferred` — The transactions deferred at earlier commits and reloaded into
+///   `transactions`, randomness-using ones included. Read only with deterministic validation.
 /// * `transactions` — All sequenced transactions for this consensus commit; modified in-place.
 ///
 /// # Returns
@@ -138,6 +146,7 @@ pub async fn validate_and_resolve_conflicts(
     epoch_store: &Arc<AuthorityPerEpochStore>,
     commit_index: CommitIndex,
     deterministic_validation: bool,
+    previously_deferred: &PreviouslyDeferredTransactions,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
@@ -286,6 +295,16 @@ pub async fn validate_and_resolve_conflicts(
             );
             continue;
         }
+        // Validating it again could drop it, and the locks it took at the
+        // commit that kept it would then stay until the epoch ends. Later
+        // contenders find those locks in the quarantine or the lock table.
+        if deterministic_validation && previously_deferred.contains_key(&digest) {
+            debug!(
+                ?digest,
+                "Keeping a transaction deferred at an earlier commit without validating it again"
+            );
+            continue;
+        }
 
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
@@ -392,9 +411,10 @@ pub async fn validate_and_resolve_conflicts(
             if let Some(locked_by) =
                 find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
             {
-                // A lock held by this same transaction is its own lock from a
-                // prior round: it acquired owned-object locks, was then deferred,
-                // and is reloaded this round. A self-held lock is NOT a conflict
+                // With deterministic validation off, a lock held by this same
+                // transaction is its own lock from an earlier commit: it acquired
+                // owned-object locks, was then deferred, and is reloaded and
+                // validated again in this commit. A self-held lock is NOT a conflict
                 // - without this guard, the transaction will be dropped with
                 // `ObjectLockConflict` and never executed. Issue #11649 mirrors
                 // this guard for the already-executed branch in Check #1.
