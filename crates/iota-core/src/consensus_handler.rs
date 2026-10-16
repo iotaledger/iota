@@ -1196,6 +1196,7 @@ mod tests {
             get_key_pair,
         },
         effects::TransactionEffectsAPI,
+        error::{IotaError, UserInputError},
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -1206,7 +1207,9 @@ mod tests {
         transaction::{
             CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionKey,
         },
-        utils::to_sender_signed_transaction,
+        utils::{
+            make_move_authenticator_tx_with_inconsistent_shared_input, to_sender_signed_transaction,
+        },
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
@@ -2203,6 +2206,72 @@ mod tests {
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats, last_consensus_stats_2);
         }
+    }
+
+    /// Block verification checks only signatures, so a committed
+    /// `UserTransactionV1` can carry a Move authenticator that names one of
+    /// the transaction's shared objects with another initial shared version.
+    /// The handler reads the transaction's shared inputs before validating it,
+    /// and must still process the commit, with post-consensus validation
+    /// dropping the transaction. Callers set the protocol config.
+    async fn assert_user_transaction_with_inconsistent_shared_input_is_dropped() {
+        // GIVEN
+        let (state, mut consensus_handler, _) = handler_with_impersonated_authority().await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+
+        // AND a transaction whose authenticator disagrees with it on a shared
+        // object
+        let (transaction, shared) = make_move_authenticator_tx_with_inconsistent_shared_input(
+            Address::random(),
+            epoch_store.epoch(),
+        );
+        let digest = *transaction.digest();
+        // The first commit, so deterministic validation has no earlier commit
+        // to wait for.
+        let commit = commit_with_transactions(
+            1,
+            100,
+            vec![(0, ConsensusTransaction::new_user_transaction(transaction))],
+        );
+
+        // WHEN processing the commit
+        consensus_handler
+            .handle_consensus_output_for_test(commit)
+            .await;
+
+        // THEN post-consensus validation drops the transaction
+        let error = tokio::time::timeout(
+            Duration::from_secs(60),
+            epoch_store.notify_read_dropped_digests(digest),
+        )
+        .await
+        .expect("the transaction must be dropped by post-consensus validation");
+        assert_eq!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::InconsistentInput {
+                    object_id: shared.object_id,
+                },
+            }
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_drops_inconsistent_shared_input() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+        assert_user_transaction_with_inconsistent_shared_input_is_dropped().await;
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_drops_inconsistent_shared_input_with_validation() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        assert_user_transaction_with_inconsistent_shared_input_is_dropped().await;
     }
 
     /// Builds a commit in which every entry is a separate block authored by the
