@@ -138,7 +138,7 @@ pub(crate) fn addr(bytes: impl AsRef<[u8]>) -> Result<IotaAddress, Error> {
 
 #[cfg(test)]
 mod tests {
-    use async_graphql::Value;
+    use async_graphql::{Pos, Value};
 
     use super::*;
 
@@ -210,14 +210,14 @@ mod tests {
     }
 
     #[test]
-    fn test_unicode_gibberish() {
-        let parsed = IotaAddress::from_str("aAௗ0㌀0");
-        assert!(parsed.is_err());
+    fn test_parse_empty_hex_is_zero_address() {
+        let parsed = IotaAddress::from_str("0x").unwrap();
+        assert_eq!(parsed, IotaAddress([0; IOTA_ADDRESS_LENGTH]));
     }
 
     #[test]
     fn test_parse_multibyte_chars() {
-        for input in ["0x\u{e9}", "0x\u{20ac}", "0xab\u{e9}"] {
+        for input in ["0x\u{e9}", "0x\u{20ac}", "0xab\u{e9}", "0xaAௗ0㌀0"] {
             let err = IotaAddress::from_str(input).unwrap_err();
             assert_eq!(AddressParseError::NonAsciiCharacter, err, "{input}");
         }
@@ -225,8 +225,15 @@ mod tests {
 
     #[test]
     fn test_scalar_parse_multibyte_char() {
-        let parsed = <IotaAddress as ScalarType>::parse(Value::String("0x\u{e9}".to_string()));
-        assert!(parsed.is_err());
+        let err = <IotaAddress as ScalarType>::parse(Value::String("0x\u{e9}".to_string()))
+            .unwrap_err()
+            .into_server_error(Pos::default());
+        assert!(
+            err.message
+                .contains(&AddressParseError::NonAsciiCharacter.to_string()),
+            "{}",
+            err.message
+        );
     }
 
     #[test]
