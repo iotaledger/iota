@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{TransactionDigest, TransactionEvents};
 use iota_types::{base_types::VerifiedExecutionData, effects::TestEffectsBuilder};
 use typed_store::{database::wait_for_database_close, traits::Map};
 
@@ -54,6 +54,42 @@ async fn ledger_rows_survive_a_reopen() {
             .unwrap(),
         Some(42)
     );
+}
+
+/// The reads of a transaction's events and execution record answer a dropped
+/// bucket as holding nothing, rather than as an error.
+#[tokio::test]
+async fn a_read_of_a_dropped_ledger_bucket_finds_nothing() {
+    let dir = iota_common::tempdir();
+    let (perpetual, _historic_objects, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let digest = TransactionDigest::random();
+    let bucket = historic.ensure(3).unwrap();
+    let mut batch = bucket.executed_effects.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.executed_effects,
+            [(digest, iota_sdk_types::TransactionEffectsDigest::random())],
+        )
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.events, [(digest, TransactionEvents::default())])
+        .unwrap();
+    batch.write().unwrap();
+    assert!(historic.get_events(&digest).unwrap().is_some());
+
+    perpetual
+        .objects
+        .db
+        .drop_cf(&crate::epoch_buckets::bucket_cf_name(
+            super::HISTORIC_LEDGER_CF_PREFIX,
+            3,
+        ))
+        .unwrap();
+
+    assert_eq!(historic.get_events(&digest).unwrap(), None);
+    assert_eq!(historic.get_executed_effects_digest(&digest).unwrap(), None);
 }
 
 /// Everything the commit path writes for a transaction goes into the bucket of

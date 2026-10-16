@@ -269,6 +269,28 @@ impl HistoricLedger {
         Ok(effects)
     }
 
+    /// The digest of the effects of `digest` as this node executed it, `None`
+    /// if no bucket holds an execution record for it.
+    pub fn get_executed_effects_digest(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TransactionEffectsDigest>> {
+        let Some((_, bucket)) = self.find_epoch(digest)? else {
+            return Ok(None);
+        };
+        absent_if_dropped(bucket.executed_effects.get(digest))
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// The events `digest` emitted as this node executed it, `None` if no
+    /// bucket holds an execution record for it.
+    pub fn get_events(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEvents>> {
+        let Some((_, bucket)) = self.find_epoch(digest)? else {
+            return Ok(None);
+        };
+        absent_if_dropped(bucket.events.get(digest)).map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
     /// The checkpoint that finalized `digest`, with the epoch that checkpoint
     /// belongs to, `None` while the transaction is executed but not yet
     /// finalized, and for a transaction no bucket holds.
