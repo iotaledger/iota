@@ -20,10 +20,9 @@
 ///
 /// **Validation scope**: `create` checks that the scheme is recognized, that the raw bytes form
 /// a valid curve point (which implicitly rejects wrong-length inputs), and — for MultiSig — that
-/// the BCS structure is well-formed (signer count, weights, threshold), each member's key is a
-/// valid curve point, every signer weight is non-zero, and no signer is duplicated. These
-/// MultiSig rules match the canonical Rust verifier, so a key accepted here is guaranteed to be
-/// authenticatable rather than bricking the account at verification time.
+/// the BCS structure is well-formed (signer count, weights, threshold), every signer weight is
+/// non-zero, and no signer is duplicated. These MultiSig rules match the committee validation of
+/// the SDK. MultiSig member keys are not checked against their curves.
 module iota::public_key;
 
 use iota::ecdsa_k1;
@@ -39,7 +38,7 @@ const EPublicKeyBytesEmpty: vector<u8> = b"Public key bytes are empty.";
 #[error(code = 1)]
 const EUnknownPublicKeyScheme: vector<u8> = b"Unknown public key scheme.";
 #[error(code = 2)]
-const EInvalidPublicKeyBytes: vector<u8> = b"Public key bytes are not a valid point on the curve.";
+const EInvalidPublicKeyBytes: vector<u8> = b"Public key bytes are not a valid key for the scheme.";
 
 // === Structs ===
 
@@ -77,8 +76,7 @@ public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
 /// weight > 0, threshold > 0, total weight ≥ threshold).
 ///
 /// Aborts if `raw_bytes` is empty, if `scheme` is not a recognized scheme, if the bytes do not
-/// form a valid curve point, or if a MultiSig payload fails structural validation or contains
-/// an invalid member key.
+/// form a valid curve point, or if a MultiSig payload fails structural validation.
 public fun create(scheme: SignatureScheme, raw_bytes: vector<u8>): PublicKey {
     assert!(!raw_bytes.is_empty(), EPublicKeyBytesEmpty);
 

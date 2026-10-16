@@ -1509,6 +1509,12 @@
                 "checkpoint_summary_version_specific_data": {
                   "u64": "1"
                 },
+                "claim_account_max_computation_units": {
+                  "u64": "5000"
+                },
+                "claim_account_storage_bytes_bound": {
+                  "u64": "2000"
+                },
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"
                 },
@@ -2097,15 +2103,6 @@
                   "u32": "7"
                 },
                 "multisig_multisig_validate_pubkey_cost_base": {
-                  "u64": "52"
-                },
-                "multisig_multisig_validate_pubkey_cost_per_ed25519_member": {
-                  "u64": "52"
-                },
-                "multisig_multisig_validate_pubkey_cost_per_secp256k1_member": {
-                  "u64": "52"
-                },
-                "multisig_multisig_validate_pubkey_cost_per_secp256r1_member": {
                   "u64": "52"
                 },
                 "obj_access_cost_delete_per_byte": {

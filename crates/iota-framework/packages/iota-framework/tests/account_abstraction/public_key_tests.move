@@ -82,6 +82,18 @@ fun create_multisig_key_multiple_signers() {
     assert_ref_eq(public_key.raw_bytes(), &raw);
 }
 
+#[test]
+fun create_multisig_key_secp256k1_member_not_on_curve() {
+    // Multisig with a Secp256k1 member whose bytes are all-zero (prefix 0x00 is invalid). Member
+    // keys are not checked against their curves, so the key is created.
+    // vec_len(1) | tag(1=Secp256k1) | 33 zero bytes | weight(1) | threshold_le(1)
+    let raw = x"0101000000000000000000000000000000000000000000000000000000000000000000010100";
+    let public_key = public_key::create(signature_scheme::multisig(), raw);
+
+    assert_eq(public_key.scheme(), signature_scheme::multisig());
+    assert_ref_eq(public_key.raw_bytes(), &raw);
+}
+
 // === Failure: empty bytes ===
 
 #[test]
@@ -330,17 +342,6 @@ fun create_passkey_invalid_curve_point_aborts() {
     public_key::create(
         signature_scheme::passkey(),
         x"000000000000000000000000000000000000000000000000000000000000000000",
-    );
-}
-
-#[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
-fun create_multisig_secp256k1_invalid_curve_point_aborts() {
-    // Multisig with a Secp256k1 member whose bytes are all-zero (prefix 0x00 is invalid).
-    // vec_len(1) | tag(1=Secp256k1) | 33 zero bytes | weight(1) | threshold_le(1)
-    public_key::create(
-        signature_scheme::multisig(),
-        x"0101000000000000000000000000000000000000000000000000000000000000000000010100",
     );
 }
 

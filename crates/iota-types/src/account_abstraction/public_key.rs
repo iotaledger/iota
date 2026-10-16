@@ -2,15 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::eyre;
-use fastcrypto::{
-    ed25519::Ed25519PublicKey, secp256k1::Secp256k1PublicKey, secp256r1::Secp256r1PublicKey,
-    traits::ToFromBytes,
-};
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, Identifier, SignatureScheme, StructTag,
-    crypto::{MultisigCommittee, PublicKey as SdkPublicKey},
-};
+use iota_sdk_types::{Address, Identifier, SignatureScheme, StructTag, crypto::MultisigCommittee};
 use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +19,8 @@ pub const PUBLIC_KEY_STRUCT_NAME: Identifier = Identifier::from_static("PublicKe
 /// [`Self::new`] applies the same validation as the Move `public_key::create`
 /// function: a supported scheme, non-empty bytes, and a valid curve point for
 /// the declared scheme — or, for `MultiSig`, a canonically encoded committee
-/// whose structure and member keys are themselves valid.
+/// that passes `MultisigCommittee::validate()`. MultiSig member keys are not
+/// checked against their curves.
 ///
 /// Deserialization performs none of that, so a `MovePublicKey` read from chain
 /// may hold bytes that do not represent a valid key. Code consuming a
@@ -57,19 +51,11 @@ impl MovePublicKey {
         if scheme == SignatureScheme::Multisig {
             // Mirrors the `iota::multisig::multisig_validate_pubkey` native: a
             // canonical BCS decode (which rejects trailing bytes and
-            // unsupported member schemes), then committee validation, then each
-            // member key against its curve. Committee validation alone does not
-            // check curve points.
-            let committee = bcs::from_bytes::<MultisigCommittee>(&raw_bytes)
-                .map_err(|e| eyre!("Invalid MultisigCommittee: {e}"))?;
-            committee
+            // unsupported member schemes), then committee validation.
+            bcs::from_bytes::<MultisigCommittee>(&raw_bytes)
+                .map_err(|e| eyre!("Invalid MultisigCommittee: {e}"))?
                 .validate()
                 .map_err(|e| eyre!("Invalid MultisigCommittee: {e}"))?;
-            for member in committee.members() {
-                if !member_public_key_is_on_curve(member.public_key()) {
-                    return Err(eyre!("Invalid MultiSig member public key"));
-                }
-            }
         } else {
             PublicKey::try_from_bytes(scheme, &raw_bytes)
                 .map_err(|e| eyre!("Invalid public key bytes: {e}"))?;
@@ -125,23 +111,6 @@ impl From<&SimpleKeypair> for MovePublicKey {
         let public_key = key_pair.public_key();
         Self::new(public_key.scheme(), public_key.as_ref().to_vec())
             .expect("SimpleKeypair always yields valid MovePublicKey")
-    }
-}
-
-/// Whether a MultiSig member's key is a point on its scheme's curve.
-///
-/// Any scheme not listed here is rejected: `PublicKey` is `#[non_exhaustive]`,
-/// so a member scheme added upstream stays rejected until it is handled here.
-///
-/// Shared with the `iota::multisig::multisig_validate_pubkey` native so that
-/// the on-chain check and [`MovePublicKey::new`] cannot disagree.
-pub fn member_public_key_is_on_curve(public_key: &SdkPublicKey) -> bool {
-    match public_key {
-        SdkPublicKey::Ed25519(pk) => Ed25519PublicKey::from_bytes(pk.as_ref()).is_ok(),
-        SdkPublicKey::Secp256k1(pk) => Secp256k1PublicKey::from_bytes(pk.as_ref()).is_ok(),
-        SdkPublicKey::Secp256r1(pk) => Secp256r1PublicKey::from_bytes(pk.as_ref()).is_ok(),
-        SdkPublicKey::Passkey(pk) => Secp256r1PublicKey::from_bytes(pk.as_ref()).is_ok(),
-        _ => false,
     }
 }
 
