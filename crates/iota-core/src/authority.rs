@@ -77,6 +77,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -84,7 +85,7 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    layout_resolver::into_struct_layout,
+    layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
