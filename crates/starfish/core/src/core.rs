@@ -2005,8 +2005,10 @@ impl CoreTestFixture {
             LeaderSchedule::from_store(context.clone(), dag_state.clone())
                 .with_num_commits_per_schedule(10),
         );
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2074,7 +2076,7 @@ mod test {
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
-        transaction::{BlockStatus, TransactionClient},
+        transaction::{BlockStatus, Priority, TransactionClient},
         transaction_ref::TransactionRef,
     };
 
@@ -2092,8 +2094,10 @@ mod test {
             .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
         // Create a fully connected DAG with 6 rounds.
@@ -2221,8 +2225,10 @@ mod test {
             .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0). For
         // round 4 only produce f+1 blocks, so skip authority 1 as well.
@@ -2357,8 +2363,10 @@ mod test {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
-        let (transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let mut block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2390,7 +2398,7 @@ mod test {
             total += transaction.len();
             index += 1;
             let _w = transaction_client
-                .submit_no_wait(vec![transaction])
+                .submit_no_wait(vec![transaction], Priority::Normal)
                 .await
                 .unwrap();
 
@@ -2528,8 +2536,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2680,8 +2690,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -2902,8 +2914,10 @@ mod test {
             dag_state.clone(),
         ));
 
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
@@ -4012,8 +4026,10 @@ mod test {
         let context = Arc::new(context);
 
         let store = Arc::new(MemStore::new());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
 
         // Create a fully connected DAG with 8 rounds.
