@@ -44,7 +44,7 @@ struct Stores {
 
 impl Stores {
     /// `count` is the number of checkpoints, checkpoint 0 included.
-    async fn with_checkpoint_0_synced(count: usize) -> Self {
+    async fn new_with_checkpoint_0_synced(count: usize) -> Self {
         telemetry_subscribers::init_for_testing();
         let state = TestAuthorityBuilder::new().build().await;
         let checkpoint_store = CheckpointStore::new_for_tests();
@@ -122,8 +122,10 @@ struct Node {
 }
 
 impl Node {
-    async fn start_with_checkpoint_1_verified() -> Self {
-        let stores = Stores::with_checkpoint_0_synced(3).await;
+    /// Starts state sync on a new `RocksDbStore` with checkpoint 1 verified,
+    /// and registers a waiter for checkpoint 1.
+    async fn new_with_checkpoint_1_verified() -> Self {
+        let stores = Stores::new_with_checkpoint_0_synced(3).await;
         stores
             .checkpoint_store
             .insert_verified_checkpoint(&stores.checkpoints[1])
@@ -214,8 +216,8 @@ impl Node {
 /// checkpoint builder stores the contents of checkpoint 1 before checkpoint 2
 /// can be certified.
 #[tokio::test]
-async fn a_checkpoint_from_consensus_is_marked_synced_only_after_the_checkpoint_before_it() {
-    let mut node = Node::start_with_checkpoint_1_verified().await;
+async fn checkpoint_from_consensus_marked_synced_only_after_previous_checkpoint_synced() {
+    let mut node = Node::new_with_checkpoint_1_verified().await;
     let mut synced_checkpoints = node.state_sync.subscribe_to_synced_checkpoints();
     node.send_checkpoint_2_from_consensus().await;
     // Lets state sync retry checkpoint 1 before the test checks the watermark.
@@ -271,8 +273,8 @@ async fn a_checkpoint_from_consensus_is_marked_synced_only_after_the_checkpoint_
 /// checkpoint 1 releases the waiter for checkpoint 1. It does not check how
 /// long the waiter waits.
 #[tokio::test]
-async fn a_checkpoint_from_consensus_does_not_strand_the_waiter_for_the_checkpoint_before_it() {
-    let mut node = Node::start_with_checkpoint_1_verified().await;
+async fn checkpoint_from_consensus_releases_waiter_for_previous_checkpoint() {
+    let mut node = Node::new_with_checkpoint_1_verified().await;
     // The test stores only the contents of checkpoint 1, not its transactions
     // and effects, which a validator has executed by then. Without them state
     // sync cannot read the full contents of checkpoint 1 from the store, as if
@@ -299,8 +301,8 @@ async fn a_checkpoint_from_consensus_does_not_strand_the_waiter_for_the_checkpoi
 /// write releases the waiter of each checkpoint that the synced watermark
 /// passes.
 #[tokio::test]
-async fn a_run_of_checkpoints_is_marked_synced_only_after_the_checkpoint_before_it() {
-    let stores = Stores::with_checkpoint_0_synced(5).await;
+async fn run_of_checkpoints_marked_synced_only_after_checkpoint_before_run_synced() {
+    let stores = Stores::new_with_checkpoint_0_synced(5).await;
     let mut waiters = Vec::new();
     for seq in 1..=3 {
         waiters.push(stores.spawn_waiter(seq).await);
