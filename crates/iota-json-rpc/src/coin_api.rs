@@ -540,7 +540,12 @@ impl CoinReadInternal for CoinReadInternalImpl {
         self.metrics
             .get_coins_result_size_total
             .inc_by(data.len() as u64);
-        let next_cursor = data.last().map(|(_, cursor)| *cursor);
+        // Only with a next page, as `getOwnedObjects` does: clients released
+        // before the cursor became a position read it as an object id, and
+        // then still read every response that has a single page.
+        let next_cursor = has_next_page
+            .then(|| data.last().map(|(_, cursor)| *cursor))
+            .flatten();
         Ok(CoinPage {
             data: data.into_iter().map(|(coin, _)| coin).collect(),
             next_cursor,
@@ -761,9 +766,7 @@ mod tests {
                 result,
                 CoinPage {
                     data: vec![gas_coin.clone()],
-                    next_cursor: Some(OwnedObjectCursor::from_position(position(
-                        gas_coin.coin_object_id,
-                    ))),
+                    next_cursor: None,
                     has_next_page: false,
                     oldest_available_checkpoint: None,
                 }
@@ -851,9 +854,7 @@ mod tests {
                 result,
                 CoinPage {
                     data: vec![coin.clone()],
-                    next_cursor: Some(OwnedObjectCursor::from_position(position(
-                        coin.coin_object_id,
-                    ))),
+                    next_cursor: None,
                     has_next_page: false,
                     oldest_available_checkpoint: None,
                 }
