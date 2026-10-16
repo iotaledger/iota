@@ -180,9 +180,9 @@ impl ValidatorConfigBuilder {
             ..Default::default()
         };
 
-        let mut pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = local_network_pruning_config();
         if self.force_unpruned_checkpoints {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
         }
         let pruning_config = pruning_config;
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -608,12 +608,12 @@ impl FullnodeConfigBuilder {
             ..Default::default()
         };
 
-        let mut pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = local_network_pruning_config();
         if let Some(epochs) = self.num_epochs_to_retain_for_indexes {
             pruning_config.num_epochs_to_retain_for_indexes = Some(epochs);
         }
         if self.disable_pruning {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
             pruning_config.set_num_epochs_to_retain(u64::MAX);
         };
 
@@ -751,6 +751,18 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
     // being unique.
     key_path.truncate(12);
     key_path
+}
+
+/// The pruning config of the nodes of a local network (localnet, test
+/// clusters): the transaction, checkpoint and index history is kept in full,
+/// since such networks run short epochs that the operators' default retention
+/// would expire within minutes. Simulator tests keep their short retention.
+fn local_network_pruning_config() -> AuthorityStorePruningConfig {
+    let mut pruning_config = AuthorityStorePruningConfig::default();
+    if !cfg!(msim) {
+        pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
+    }
+    pruning_config
 }
 
 #[cfg(test)]

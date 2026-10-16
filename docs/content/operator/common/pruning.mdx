@@ -32,8 +32,8 @@ Object pruning and transaction pruning are independent of one another, and each 
 | Pruning task          | Controlling parameter                  | Enabled when                                        |
 | --------------------- | -------------------------------------- | --------------------------------------------------- |
 | Object pruning        | `num-epochs-to-retain`                 | value is not `u64::MAX`                             |
-| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | set and not `u64::MAX`                              |
-| Index pruning         | `num-epochs-to-retain-for-indexes`     | set and not `u64::MAX`, or transaction pruning is on |
+| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | value is not `u64::MAX`                             |
+| Index pruning         | `num-epochs-to-retain-for-indexes`     | value is not `u64::MAX`, or transaction pruning is on when unset |
 
 All pruning parameters are configured in `fullnode.yaml`. The following annotated block shows every parameter with its default value — copy it into your config and adjust as needed:
 
@@ -69,8 +69,8 @@ authority-store-pruning-config:
   #   N        — keeps the epoch the node is in plus the N epochs before it,
   #              so N + 1 epochs in total.
   #   u64::MAX — disables transaction pruning entirely (18446744073709551615).
-  #   unset    — the same as u64::MAX (default keeps everything).
-  # num-epochs-to-retain-for-checkpoints: 2
+  #   unset    — 30 (default), about a month at one-day epochs.
+  # num-epochs-to-retain-for-checkpoints: 30
 
   # Number of historic epochs to retain in the rpc_indexes store, on top of
   # the current one. The store serves both the JSON-RPC and the gRPC API.
@@ -106,11 +106,11 @@ authority-store-pruning-config:
 All three run at the epoch boundary, where the node drops the epochs that have
 fallen outside each retention window, and all three count that window the same
 way: `N` historic epochs on top of the epoch the node is in, keeping `N + 1`
-epochs in total. `u64::MAX` turns a pruning task off, and so does leaving
-`num-epochs-to-retain-for-checkpoints` unset. Leaving
-`num-epochs-to-retain-for-indexes` unset does not: the index is a set of
-pointers into the transaction history, so it follows that history's retention
-rather than outliving it.
+epochs in total. `u64::MAX` turns a pruning task off. Leaving
+`num-epochs-to-retain-for-checkpoints` unset keeps `30` historic epochs, and
+leaving `num-epochs-to-retain-for-indexes` unset follows the transaction
+retention: the index is a set of pointers into the transaction history, so it
+follows that history's retention rather than outliving it.
 
 :::info
 
@@ -127,6 +127,17 @@ it used to be silently treated as `1`, and leaving
 instead of turning index pruning off. A node that prunes transactions and left
 the index setting unset therefore starts pruning its index history, which had
 been growing without bound.
+
+:::
+
+:::warning
+
+Leaving `num-epochs-to-retain-for-checkpoints` unset used to keep the whole
+transaction and checkpoint history. It now keeps `30` historic epochs. A node
+that relied on the old default no longer carries the older epochs over in the
+one-time migration at its first start on this release, and drops them for good.
+To keep the whole history, set the value to `18446744073709551615` before
+upgrading.
 
 :::
 
