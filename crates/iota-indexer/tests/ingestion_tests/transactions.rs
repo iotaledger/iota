@@ -22,7 +22,7 @@ use iota_types::effects::TransactionEffectsAPI;
 
 use crate::{
     common::indexer_wait_for_checkpoint,
-    utils::{DB_NAME, TestSim, read_only_blocking},
+    utils::{TestSim, read_only_blocking},
 };
 
 async fn read_tx_global_order(
@@ -64,12 +64,12 @@ fn emulate_insertion_order_set_earlier_by_optimistic_indexing(
 
 #[tokio::test]
 pub async fn transaction_table() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_transaction_table");
     let (transaction, effects, _) = sim.execute_transfer();
     // Create a checkpoint which should include the transaction we executed.
     let checkpoint = sim.inner.create_checkpoint();
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let digest = *effects.transaction_digest();
@@ -99,11 +99,11 @@ pub async fn transaction_table() -> Result<(), IndexerError> {
 
 #[tokio::test]
 pub async fn tx_global_order_table() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_tx_global_order");
     let (_, effects, _) = sim.execute_transfer();
     sim.inner.create_checkpoint();
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let stored = read_tx_global_order(&pg_store, *effects.transaction_digest()).await?;
@@ -119,18 +119,15 @@ pub async fn tx_global_order_table() -> Result<(), IndexerError> {
 
 #[tokio::test]
 pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_tx_global_order_on_conflict_do_nothing");
     let (_, effects, _) = sim.execute_transfer();
     sim.inner.create_checkpoint();
     let digest = *effects.transaction_digest();
 
     let pg_store = sim
-        .start_indexer_with(
-            Some(DB_NAME),
-            Some(emulate_insertion_order_set_earlier_by_optimistic_indexing(
-                digest,
-            )),
-        )
+        .start_indexer(Some(
+            emulate_insertion_order_set_earlier_by_optimistic_indexing(digest),
+        ))
         .await;
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
@@ -157,10 +154,8 @@ pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), Indexe
 /// ```
 #[tokio::test]
 pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
-    let pg_store = sim
-        .start_indexer_with(Some("indexer_ingestion_tx_indices_db"), None)
-        .await;
+    let sim = TestSim::new("indexer_ingestion_tx_indices_db");
+    let pg_store = sim.start_indexer(None).await;
 
     // By creating 1000 random tx indices we ensure that the
     // persist_event_indices function will flatten each TxIndex by

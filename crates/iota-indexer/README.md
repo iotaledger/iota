@@ -269,7 +269,7 @@ The crate provides following tests currently:
 
 ```sh
 # run tests requiring only postgres integration
-cargo test --features pg_integration -- --test-threads 1
+cargo test --features pg_integration
 # run rpc tests with shared runtime
 cargo test --profile simulator --features shared_test_runtime
 ```
@@ -285,5 +285,5 @@ For a better testing experience is possible to use [nextest](https://nexte.st/)
 
 ```sh
 # run tests requiring only postgres integration
-cargo nextest run --features pg_integration --test-threads 1
+cargo nextest run --features pg_integration
 ```

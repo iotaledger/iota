@@ -16,14 +16,14 @@ use crate::{
 
 #[tokio::test]
 pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_epoch_boundary");
     sim.execute_transfer();
     sim.inner.create_checkpoint(); // checkpoint 1
     sim.inner.advance_epoch(false); // checkpoint 2 and epoch 1
     sim.execute_transfer();
     sim.inner.create_checkpoint(); // checkpoint 3
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
     let db_checkpoint = read_only_blocking!(&pg_store.blocking_cp(), |conn| {

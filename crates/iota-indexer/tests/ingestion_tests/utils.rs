@@ -19,8 +19,6 @@ use simulacrum::Simulacrum;
 
 use crate::common::start_simulacrum_grpc_with_write_indexer;
 
-pub(crate) const DB_NAME: &str = "indexer_ingestion_tests_db";
-
 macro_rules! read_only_blocking {
     ($pool:expr, $query:expr) => {{
         let pool = $pool.clone();
@@ -44,36 +42,31 @@ pub(crate) use read_only_blocking;
 pub(crate) struct TestSim {
     pub(crate) inner: Arc<Simulacrum>,
     data_dir: TempDir,
+    database_name: String,
 }
 
 impl TestSim {
-    pub(crate) fn new() -> Self {
+    /// Creates a simulacrum with an indexer writer.
+    ///
+    /// The indexer writes to the database `database_name`.
+    pub(crate) fn new(database_name: &str) -> Self {
         let data_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
         sim.set_data_ingestion_path(data_dir.path().to_path_buf());
         Self {
             inner: Arc::new(sim),
             data_dir,
+            database_name: database_name.to_string(),
         }
     }
 
-    /// Starts a writer indexer on [`DB_NAME`] that ingests the
-    /// checkpoints.
-    pub(crate) async fn start_indexer(&self) -> PgIndexerStore {
-        self.start_indexer_with(Some(DB_NAME), None).await
-    }
-
     /// Starts a writer indexer that ingests the checkpoints.
-    pub(crate) async fn start_indexer_with(
-        &self,
-        database_name: Option<&str>,
-        db_init_hook: Option<DBInitHook>,
-    ) -> PgIndexerStore {
+    pub(crate) async fn start_indexer(&self, db_init_hook: Option<DBInitHook>) -> PgIndexerStore {
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             self.inner.clone(),
             self.data_dir.path().to_path_buf(),
             None,
-            database_name,
+            Some(&self.database_name),
             db_init_hook,
         )
         .await;

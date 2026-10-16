@@ -32,8 +32,8 @@ use crate::{
 
 #[tokio::test]
 pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
-    let pg_store = sim.start_indexer().await;
+    let sim = TestSim::new("ingestion_checkpoint_objects");
+    let pg_store = sim.start_indexer(None).await;
 
     let checkpoint_objects = (0..1000)
         .map(|_| CheckpointObjectChanges::random())
@@ -44,11 +44,11 @@ pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
 
 #[tokio::test]
 pub async fn object_type() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_object_type");
     let (transaction, ..) = sim.execute_transfer();
     sim.inner.create_checkpoint();
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let obj_id = transaction.gas()[0].object_id;
@@ -79,11 +79,11 @@ pub async fn object_type() -> Result<(), IndexerError> {
 
 #[tokio::test]
 pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_checkpoint_objects_are_finalized");
     sim.execute_transfer();
     sim.inner.create_checkpoint();
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 1).await;
 
     let max_cp = IndexerStore::get_latest_checkpoint_sequence_number(&pg_store)
@@ -113,7 +113,7 @@ pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
 /// deletions.
 #[tokio::test]
 pub async fn checkpointed_objects_match_objects() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_checkpointed_objects_match_objects");
 
     // Execute several transfers to create mutations on the gas object.
     for _ in 0..3 {
@@ -121,7 +121,7 @@ pub async fn checkpointed_objects_match_objects() -> Result<(), IndexerError> {
         sim.inner.create_checkpoint();
     }
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 3).await;
 
     // Read all rows from both tables.
@@ -259,7 +259,7 @@ async fn assert_not_yet_created(
 ///   - a MUTATED gas   → ACTIVE backward entry with previous version/data
 #[tokio::test]
 pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_backward_history");
 
     // --- checkpoint 1: TWO transfers in the same checkpoint ---
     // This exercises the case where multiple transactions produce backward
@@ -286,7 +286,7 @@ pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
     let gas_version_before_tx3 = tx3.gas()[0].version;
     sim.inner.create_checkpoint();
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 2).await;
 
     // === checkpoint 1 assertions (two transactions) ===
@@ -338,7 +338,7 @@ pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
 /// single checkpoint.
 #[tokio::test]
 pub async fn object_versions_ingestion() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_object_versions");
 
     // checkpoint 1: gas mutated twice + two coins created
     let mut cp1_expected = [
@@ -352,7 +352,7 @@ pub async fn object_versions_ingestion() -> Result<(), IndexerError> {
     let mut cp2_expected = sim.execute_transfer_version_rows(2).to_vec();
     sim.inner.create_checkpoint();
 
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 2).await;
 
     cp1_expected.sort();
@@ -413,7 +413,7 @@ async fn assert_present(
 /// `unwrapped_then_deleted`.
 #[tokio::test]
 pub async fn objects_version_ingestion_wraps_and_removals() -> Result<(), IndexerError> {
-    let sim = TestSim::new();
+    let sim = TestSim::new("ingestion_objects_version_wraps_and_removals");
     let sender = sim.sender();
     let rgp = sim.inner.reference_gas_price();
 
@@ -554,7 +554,7 @@ pub async fn objects_version_ingestion_wraps_and_removals() -> Result<(), Indexe
     sim.inner.create_checkpoint();
 
     // spin up the indexer
-    let pg_store = sim.start_indexer().await;
+    let pg_store = sim.start_indexer(None).await;
     indexer_wait_for_checkpoint(&pg_store, 6).await;
 
     // cp3: warrior created (output) + sword wrapped (removed)
