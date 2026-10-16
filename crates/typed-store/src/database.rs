@@ -267,8 +267,17 @@ impl Database {
             )));
         }
         match &self.storage {
-            Storage::Rocks(db) => nondeterministic!(db.underlying.drop_cf(name))
-                .map_err(typed_store_err_from_rocks_err),
+            Storage::Rocks(db) => {
+                // RocksDB deletes a dropped column family's files once its
+                // last handle is released. Holding one across the drop moves
+                // that past the drop, which blocks every column family lookup
+                // of this database while it runs.
+                let handle = db.underlying.cf_handle(name);
+                let dropped = nondeterministic!(db.underlying.drop_cf(name))
+                    .map_err(typed_store_err_from_rocks_err);
+                drop(handle);
+                dropped
+            }
             Storage::InMemory(db) => {
                 db.drop_cf(name);
                 Ok(())
