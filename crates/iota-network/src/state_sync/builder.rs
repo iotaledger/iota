@@ -75,9 +75,11 @@ impl<S> Builder<S> {
 
     /// While `enabled` is set, lets summary sync go past
     /// `max_checkpoints_ahead_of_execution` until the summary that ends the
-    /// epoch being executed is stored. The node sets it for each epoch in
-    /// which it waits for its own checkpoints and so needs that summary to
-    /// finish an epoch its consensus can no longer build.
+    /// epoch being executed is stored, and starts content sync for the
+    /// checkpoint right above the synced one when its contents are stored.
+    /// The node sets it for each epoch in which it waits for its own
+    /// checkpoints and so needs that summary to finish an epoch its consensus
+    /// can no longer build.
     pub fn sync_summaries_to_epoch_end(mut self, enabled: Arc<AtomicBool>) -> Self {
         self.sync_summaries_to_epoch_end = enabled;
         self
