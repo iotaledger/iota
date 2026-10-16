@@ -448,6 +448,12 @@ impl<B: BucketReopen> EpochBuckets<B> {
 
     /// The bucket holding `epoch`'s rows, `None` when nothing has been
     /// written for that epoch yet or it has been pruned. Never creates one.
+    /// The options a bucket's column family is created with, which SST files
+    /// ingested into it must be written with.
+    pub(crate) fn cf_options(&self) -> &rocksdb::Options {
+        &self.cf_options
+    }
+
     pub(crate) fn get(&self, epoch: EpochId) -> Option<Arc<B>> {
         self.buckets.read().get(&epoch).cloned()
     }

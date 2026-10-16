@@ -210,6 +210,11 @@ impl HistoricLedger {
         self.buckets.earliest_retained()
     }
 
+    /// The options SST files for a bucket must be written with.
+    pub(crate) fn sst_file_options(&self) -> &typed_store::rocksdb::Options {
+        self.buckets.cf_options()
+    }
+
     /// The bucket holding `epoch`'s transaction history, created if absent.
     pub fn ensure(&self, epoch: EpochId) -> IotaResult<Arc<HistoricLedgerBucket>> {
         self.buckets
