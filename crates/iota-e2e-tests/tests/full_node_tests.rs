@@ -1345,11 +1345,8 @@ async fn test_access_old_object_pruned() {
                         .get_object_by_key(&gas_object.object_id, gas_object.version)
                         .is_none()
                 );
-                // Relocation alone would already have taken that version out of
-                // the live table. It is gone from the historic bucket as well,
-                // which nothing here drives: the epoch boundary crossed above
-                // expired the bucket of the epoch the transfer ran in, at these
-                // validators' default retention of zero historic epochs.
+                // The epoch boundary crossed above expired the bucket, since
+                // validators retain no historic epochs by default.
                 assert!(
                     state
                         .get_historic_objects()

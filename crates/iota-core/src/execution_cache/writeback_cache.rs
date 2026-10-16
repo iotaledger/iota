@@ -1324,13 +1324,10 @@ impl WritebackCache {
     }
 
     /// Drops everything held for committed data, leaving the uncommitted
-    /// `dirty` set alone.
+    /// `dirty` set alone, so reads answer from the store as after a restart.
     ///
-    /// Only what the store already holds is dropped, so reads answer from the
-    /// store afterwards instead of from memory — the state a node comes up in
-    /// after a restart. Unlike `clear_caches_and_assert_empty` nothing is
-    /// asserted, so this is safe to call while the node keeps executing and
-    /// warming the caches again.
+    /// Unlike `clear_caches_and_assert_empty`, this asserts nothing and is safe
+    /// to call while the node keeps executing.
     pub fn clear_caches(&self) {
         info!("clearing caches");
         self.cached.clear();
