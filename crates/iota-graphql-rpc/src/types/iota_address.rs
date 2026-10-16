@@ -217,8 +217,6 @@ mod tests {
 
     #[test]
     fn test_parse_multibyte_chars() {
-        // One character each, but two and three bytes in UTF-8. A parser that
-        // pads by character count would produce a wrong byte length here.
         for input in ["0x\u{e9}", "0x\u{20ac}", "0xab\u{e9}"] {
             let err = IotaAddress::from_str(input).unwrap_err();
             assert_eq!(AddressParseError::NonAsciiCharacter, err, "{input}");
