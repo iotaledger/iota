@@ -20,7 +20,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::AuthorityName,
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
@@ -428,7 +428,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             }
         }
 
-        let (transactions_to_schedule, assigned_versions) = self
+        let (transactions_to_schedule, assigned_versions) = match self
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 all_transactions,
@@ -440,7 +440,20 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 &self.state,
             )
             .await
-            .expect("Unrecoverable error in consensus handler");
+        {
+            Ok(result) => result,
+            // The wait for the execution frontier was cut short by the end of
+            // the epoch. Nothing in this commit is scheduled: the epoch is
+            // over and reconfiguration drops this handler.
+            Err(IotaError::EpochEnded(epoch)) => {
+                info!(
+                    epoch,
+                    "consensus commit abandoned: the epoch ended during validation"
+                );
+                return;
+            }
+            Err(e) => panic!("Unrecoverable error in consensus handler: {e}"),
+        };
 
         publish_scoring_gauges(&self.epoch_store, &self.committee, &self.metrics);
 
