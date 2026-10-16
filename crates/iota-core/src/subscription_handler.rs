@@ -84,6 +84,16 @@ impl SubscriptionHandler {
 }
 
 impl SubscriptionHandler {
+    /// Whether any transaction subscription is active.
+    pub fn has_transaction_subscribers(&self) -> bool {
+        self.transaction_streamer.has_subscribers()
+    }
+
+    /// Whether any event subscription is active.
+    pub fn has_event_subscribers(&self) -> bool {
+        self.event_streamer.has_subscribers()
+    }
+
     #[instrument(level = "trace", skip_all, fields(tx_digest =? effects.transaction_digest()), err)]
     pub fn process_tx(
         &self,
@@ -106,7 +116,6 @@ impl SubscriptionHandler {
 
         // serially dispatch event processing to honor events' orders.
         for event in events.data.clone() {
-            // Send to unified event streamer (serves both JSON-RPC and gRPC subscribers)
             if let Err(e) = self.event_streamer.try_send(event) {
                 error!(error =? e, "Failed to send event to dispatch");
             }
