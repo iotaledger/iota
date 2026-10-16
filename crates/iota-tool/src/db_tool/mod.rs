@@ -417,7 +417,7 @@ pub fn mark_object_backlog_swept(path: &Path) -> anyhow::Result<()> {
         bail!("no perpetual store under {}", store.display());
     }
     let perpetual = AuthorityPerpetualTables::open(&store, None);
-    perpetual.mark_object_backlog_swept()?;
+    perpetual.mark_object_backlog_sweep_skipped()?;
     println!(
         "recorded the object backlog sweep as done; the versions it had not reached stay in the \
          live objects table"
