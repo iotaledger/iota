@@ -438,10 +438,7 @@ impl AuthorityStore {
     }
 
     pub fn get_events(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEvents>> {
-        let Some((_, bucket)) = self.historic_ledger.find_epoch(digest)? else {
-            return Ok(None);
-        };
-        Ok(bucket.events.get(digest)?)
+        self.historic_ledger.get_events(digest)
     }
 
     pub fn multi_get_events(
@@ -479,12 +476,7 @@ impl AuthorityStore {
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         digests
             .iter()
-            .map(|digest| {
-                let Some((_, bucket)) = self.historic_ledger.find_epoch(digest)? else {
-                    return Ok(None);
-                };
-                Ok(bucket.executed_effects.get(digest)?)
-            })
+            .map(|digest| self.historic_ledger.get_executed_effects_digest(digest))
             .collect()
     }
 
