@@ -39,6 +39,21 @@ const ALPN_H2: &[u8] = b"h2";
 /// h1 alpn in plain format for rustls.
 const ALPN_H1: &[u8] = b"http/1.1";
 
+/// Replaces the protocols a caller advertised with the ones this crate serves.
+///
+/// The list is replaced rather than added to: appending leaves whatever the
+/// caller set in place, which advertises a protocol twice if they set one of
+/// these, and advertises HTTP/1.1 to peers this server will not serve it to if
+/// they set that.
+fn with_alpn_protocols(mut tls: rustls::ServerConfig, accept_http1: bool) -> rustls::ServerConfig {
+    tls.alpn_protocols = if accept_http1 {
+        vec![ALPN_H2.into(), ALPN_H1.into()]
+    } else {
+        vec![ALPN_H2.into()]
+    };
+    tls
+}
+
 #[derive(Default)]
 pub struct Builder {
     config: Config,
@@ -119,13 +134,9 @@ impl Builder {
         let graceful_shutdown_token = tokio_util::sync::CancellationToken::new();
         let connections = ActiveConnections::default();
 
-        let tls_config = self.tls_config.map(|mut tls| {
-            tls.alpn_protocols.push(ALPN_H2.into());
-            if self.config.accept_http1 {
-                tls.alpn_protocols.push(ALPN_H1.into());
-            }
-            Arc::new(tls)
-        });
+        let tls_config = self
+            .tls_config
+            .map(|tls| Arc::new(with_alpn_protocols(tls, self.config.accept_http1)));
 
         if let (Some(metrics), Some(_)) = (&self.config.metrics, &tls_config) {
             metrics.enable_tls();
@@ -527,6 +538,24 @@ mod tests {
             iota_tls::create_rustls_server_config(keypair.private(), SERVER_NAME.to_string()),
             iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
         )
+    }
+
+    /// A caller may hand over a `ServerConfig` that already advertises
+    /// protocols; what this listener serves is not up to them.
+    #[test]
+    fn the_listener_decides_which_protocols_it_advertises() {
+        let (server_tls_config, _) = test_tls_configs();
+        let mut caller_set_h2 = server_tls_config;
+        caller_set_h2.alpn_protocols = vec![ALPN_H2.into(), b"spdy/3".to_vec()];
+
+        let http2_only = with_alpn_protocols(caller_set_h2.clone(), false);
+        assert_eq!(http2_only.alpn_protocols, vec![ALPN_H2.to_vec()]);
+
+        let with_http1 = with_alpn_protocols(caller_set_h2, true);
+        assert_eq!(
+            with_http1.alpn_protocols,
+            vec![ALPN_H2.to_vec(), ALPN_H1.to_vec()]
+        );
     }
 
     /// The peer is unauthenticated until its handshake completes, so a peer
