@@ -144,7 +144,7 @@ impl CoinReadApi {
             ),
             move |(mut data, cursor, has_next_page, coin_type)| async move {
                 if let Some(item) = data.pop() {
-                    Some((item, (data, cursor, /* has_next_page */ true, coin_type)))
+                    Some((item, (data, cursor, has_next_page, coin_type)))
                 } else if has_next_page {
                     let page = self
                         .get_coins(owner, coin_type.clone(), cursor, Some(100))
@@ -152,12 +152,11 @@ impl CoinReadApi {
                         .ok()?;
                     let mut data = page.data;
                     data.reverse();
-                    data.pop().map(|item| {
-                        (
-                            item,
-                            (data, page.next_cursor, page.has_next_page, coin_type),
-                        )
-                    })
+                    // Without a cursor the next request would restart the
+                    // stream from the first page.
+                    let has_next_page = page.has_next_page && page.next_cursor.is_some();
+                    data.pop()
+                        .map(|item| (item, (data, page.next_cursor, has_next_page, coin_type)))
                 } else {
                     None
                 }

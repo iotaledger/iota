@@ -184,17 +184,7 @@ async fn get_coins() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(2, result.data.len(), "{result:?}");
     assert!(!result.has_next_page);
-
-    let result: CoinPage = http_client
-        .get_coins(
-            address,
-            Some("0x2::iota::IOTA".into()),
-            result.next_cursor,
-            None,
-        )
-        .await?;
-    assert_eq!(0, result.data.len(), "{result:?}");
-    assert!(!result.has_next_page);
+    assert_eq!(result.next_cursor, None, "the last page has no cursor");
 
     Ok(())
 }
@@ -583,19 +573,10 @@ async fn get_all_coins_with_cursor_boundaries() {
         .unwrap();
 
     assert!(!full_result.data.is_empty());
+    assert!(!full_result.has_next_page);
+    assert_eq!(full_result.next_cursor, None, "the last page has no cursor");
 
-    // A cursor names the row it came from, so resuming from the last row of a
-    // full page yields nothing.
-    let result: CoinPage = http_client
-        .get_all_coins(address, full_result.next_cursor, None)
-        .await
-        .unwrap();
-    assert!(
-        result.data.is_empty(),
-        "should return no coins when the cursor is at the last coin"
-    );
-
-    // And resuming from a page of one yields everything after it.
+    // Resuming from a page of one yields everything after it.
     let first_page: CoinPage = http_client
         .get_all_coins(address, None, Some(1))
         .await
