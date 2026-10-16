@@ -2879,6 +2879,17 @@ impl AuthorityState {
                 .num_latest_epoch_dbs_to_retain,
         )
         .await;
+        let num_epochs_to_retain = config.authority_store_pruning_config.num_epochs_to_retain;
+        if epoch_store.committee().authority_exists(&name)
+            && num_epochs_to_retain > 0
+            && num_epochs_to_retain < u64::MAX
+        {
+            warn!(
+                num_epochs_to_retain,
+                "this validator keeps that many epochs of superseded object versions, growing \
+                 the database with history it does not serve; 0 keeps the current epoch's only"
+            );
+        }
         let pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
@@ -3226,7 +3237,7 @@ impl AuthorityState {
             .await;
 
         let new_epoch = new_committee.epoch;
-        self.advance_historic_objects(new_epoch)?;
+        self.advance_historic_objects(new_epoch).await?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,
@@ -3255,35 +3266,62 @@ impl AuthorityState {
     /// epoch of a checkpoint a [`Self::retain_objects`] guard still holds on is
     /// kept, and expires at a later epoch boundary.
     ///
-    /// Both are blocking RocksDB operations — creating and dropping column
-    /// families — and both belong at the epoch boundary, where execution is
-    /// stopped: the first checkpoint commit of the new epoch would otherwise
-    /// wait for the bucket to be created, and a drop taken on the runtime
-    /// would block queries on the buckets lock.
-    fn advance_historic_objects(&self, new_epoch: EpochId) -> IotaResult<()> {
+    /// Creating the bucket is done here, while execution is stopped, because
+    /// creating a column family is a blocking RocksDB operation the epoch's
+    /// first checkpoint commit would otherwise wait for. It is fatal: without
+    /// its bucket the epoch has nowhere to relocate superseded versions to.
+    ///
+    /// Expiry is the same retention pass the epoch boundary is the natural
+    /// place for — a bucket can only fall out of a window counted in epochs
+    /// here — and it is not fatal. A bucket it fails to finish keeps its
+    /// durable expiring marker, so its versions stay unreadable and its
+    /// tombstones stay in the live table, and the next open finishes the job;
+    /// failing the reconfiguration instead would halt the node at a boundary
+    /// it would then fail again on every retry.
+    async fn advance_historic_objects(&self, new_epoch: EpochId) -> IotaResult<()> {
         self.historic_objects.ensure(new_epoch)?;
+
         // `num_epochs_to_retain` counts the historic epochs kept beyond the
         // current one, while `prune` counts buckets including the newest.
         let num_epochs_to_retain = self
             .config
             .authority_store_pruning_config
             .num_epochs_to_retain;
-        if num_epochs_to_retain != u64::MAX {
-            let mut buckets_to_retain = num_epochs_to_retain + 1;
-            if let Some(retained) = self.pruner.lowest_retained_checkpoint() {
-                // A retained checkpoint was executed, so its summary is here;
-                // without it, nothing is known to be safe to drop.
-                buckets_to_retain = match self
-                    .checkpoint_store
-                    .get_checkpoint_by_sequence_number(retained)?
-                {
-                    Some(checkpoint) => {
-                        buckets_to_retain.max(new_epoch.saturating_sub(checkpoint.epoch()) + 1)
-                    }
-                    None => u64::MAX,
-                };
-            }
-            self.historic_objects.prune(buckets_to_retain)?;
+        if num_epochs_to_retain == u64::MAX {
+            return Ok(());
+        }
+        let mut buckets_to_retain = num_epochs_to_retain + 1;
+        if let Some(retained) = self.pruner.lowest_retained_checkpoint() {
+            // A retained checkpoint was executed, so its summary is here;
+            // without it, nothing is known to be safe to drop.
+            buckets_to_retain = match self
+                .checkpoint_store
+                .get_checkpoint_by_sequence_number(retained)
+            {
+                Ok(Some(checkpoint)) => {
+                    buckets_to_retain.max(new_epoch.saturating_sub(checkpoint.epoch()) + 1)
+                }
+                Ok(None) => u64::MAX,
+                Err(err) => {
+                    error!(
+                        "Failed to read the epoch of retained checkpoint {retained}, keeping \
+                         every historic object bucket: {err:?}"
+                    );
+                    u64::MAX
+                }
+            };
+        }
+
+        // `prune` deletes the expiring epochs' tombstone heads and drops their
+        // column families, blocking for as long as that takes; it must not run
+        // on an async worker.
+        let historic_objects = self.historic_objects.clone();
+        let expired =
+            tokio::task::spawn_blocking(move || historic_objects.prune(buckets_to_retain)).await;
+        match expired {
+            Ok(Ok(_)) => {}
+            Ok(Err(err)) => error!("Failed to expire historic object buckets: {err:?}"),
+            Err(err) => error!("The historic object expiry task failed: {err:?}"),
         }
         Ok(())
     }
