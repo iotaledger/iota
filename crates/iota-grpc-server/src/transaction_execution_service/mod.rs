@@ -345,9 +345,7 @@ pub async fn execute_transactions(
     // is checkpointed: when finalizing after the inclusion wait, and for a
     // duplicate submission whose first submission's driver was cancelled.
     let _cached_object_retention = (flags.include_input_objects || flags.include_output_objects)
-        .then(|| executor.retain_cached_objects())
-        .transpose()
-        .map_err(anyhow::Error::from)?;
+        .then(|| executor.retain_cached_objects());
 
     // Drive the per-tx executions concurrently so a slow validator submission
     // on one item doesn't stall the rest of the batch. Results are collected

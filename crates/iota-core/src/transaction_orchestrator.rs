@@ -311,9 +311,7 @@ where
         // transaction superseded, which the objects pruner deletes once the
         // checkpoint after the transaction's is executed.
         let _object_retention = (include_input_objects || include_output_objects)
-            .then(|| self.validator_state.retain_objects())
-            .transpose()
-            .map_err(QuorumDriverError::QuorumDriverInternal)?;
+            .then(|| self.validator_state.retain_objects());
 
         // A resubmission of an already-executed transaction is answered from
         // the local cache instead of being driven through the validators
@@ -1847,8 +1845,8 @@ where
             .await
     }
 
-    fn retain_cached_objects(&self) -> Result<Box<dyn Send + Sync>, IotaError> {
-        Ok(Box::new(self.validator_state.retain_objects()?))
+    fn retain_cached_objects(&self) -> Box<dyn Send + Sync> {
+        Box::new(self.validator_state.retain_objects())
     }
 
     fn read_transaction_from_cache(
