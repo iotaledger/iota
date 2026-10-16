@@ -73,8 +73,6 @@ feature_flags:
   deprecate_global_storage_ops: true
   meter_instantiation_loops: true
   move_authenticator_type_arg_packages_as_inputs: true
-  consensus_commit_transactions_once_traversed: true
-  secp256r1_ecrecover_checks_x_below_p: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -378,3 +376,9 @@ validator_low_stake_threshold: 5500000000000000
 validator_very_low_stake_threshold: 5000000000000000
 validator_low_stake_grace_period: 7
 max_move_system_package_size: 204800
+builtin_move_authenticator_cost_base: 0
+ed25519_ed25519_validate_pubkey_cost_base: 52
+ecdsa_k1_secp256k1_validate_pubkey_cost_base: 52
+ecdsa_r1_secp256r1_validate_pubkey_cost_base: 52
+multisig_multisig_validate_pubkey_cost_base: 52
+public_key_to_iota_address_impl_cost_base: 52
