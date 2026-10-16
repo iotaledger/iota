@@ -273,7 +273,7 @@ async fn checkpoint_from_consensus_marked_synced_only_after_previous_checkpoint_
 /// checkpoint 1 releases the waiter for checkpoint 1. It does not check how
 /// long the waiter waits.
 #[tokio::test]
-async fn checkpoint_from_consensus_releases_waiter_for_previous_checkpoint() {
+async fn waiter_for_previous_checkpoint_released_after_checkpoint_from_consensus() {
     let mut node = Node::new_with_checkpoint_1_verified().await;
     // The test stores only the contents of checkpoint 1, not its transactions
     // and effects, which a validator has executed by then. Without them state
