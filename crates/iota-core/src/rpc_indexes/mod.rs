@@ -1093,7 +1093,13 @@ impl RpcIndexesStore {
         // Only expired epochs can be lost that way: `index_checkpoint`
         // created the bucket of the epoch being executed, so it is the
         // newest one, and `prune` retains at least the newest seven.
-        update.batch.write_opt(&drop_tolerant_write_options())?;
+        let mut write_options = drop_tolerant_write_options();
+        // The checkpoint is recorded as executed after this returns. Without a
+        // sync, a power loss could keep that record and lose this write, and
+        // an index watermark behind the executed checkpoint rebuilds the
+        // whole store at the next start.
+        write_options.set_sync(true);
+        update.batch.write_opt(&write_options)?;
 
         if !invalidate_caches {
             // Merging before the write would apply the delta twice if the
