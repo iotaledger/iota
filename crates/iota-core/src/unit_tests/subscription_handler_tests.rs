@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_types::IotaMoveStruct;
+use std::sync::{Arc, mpsc};
+
+use futures::StreamExt;
+use iota_json_rpc_types::{EventFilter, IotaEvent, IotaMoveStruct};
 use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
     gas_coin::GasCoin, iota_sdk_types_conversions::struct_tag_sdk_to_core,
@@ -13,8 +16,68 @@ use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
 };
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+
+use super::{CHECKPOINT_QUEUE_SIZE, SubscriptionHandler, SubscriptionMetrics};
+use crate::streamer::Streamer;
+
+fn event_of(package_id: ObjectId, event_seq: u64) -> IotaEvent {
+    let mut event = IotaEvent::random_for_testing();
+    event.package_id = package_id;
+    event.id.event_seq = event_seq;
+    event
+}
+
+/// A send to a full queue waits for room rather than dropping the data.
+#[tokio::test]
+async fn test_a_send_waits_for_a_full_queue() {
+    let streamer: Streamer<IotaEvent, IotaEvent, EventFilter> = Streamer::spawn(
+        1,
+        Arc::new(SubscriptionMetrics::new(&Registry::new())),
+        "event",
+    );
+    let package_id = ObjectId::random();
+    let mut events = Box::pin(streamer.subscribe(EventFilter::Package(package_id)));
+
+    let count = 500;
+    for event_seq in 0..count {
+        streamer.send(event_of(package_id, event_seq)).await;
+    }
+    for event_seq in 0..count {
+        assert_eq!(events.next().await.unwrap().id.event_seq, event_seq);
+    }
+}
+
+/// Once the subscribers are a full queue of checkpoints behind, every
+/// subscription ends rather than missing a checkpoint.
+#[tokio::test]
+async fn test_a_full_checkpoint_queue_ends_the_subscriptions() {
+    let handler = SubscriptionHandler::new(&Registry::new());
+    let mut events = Box::pin(handler.subscribe_events(EventFilter::Package(ObjectId::random())));
+
+    let (started, wait_started) = mpsc::channel();
+    let (release, wait_release) = mpsc::channel::<()>();
+    handler.notify_checkpoint(Box::new(move || {
+        started.send(()).unwrap();
+        wait_release.recv().unwrap();
+        Vec::new()
+    }));
+    tokio::task::spawn_blocking(move || wait_started.recv().unwrap())
+        .await
+        .unwrap();
+
+    for _ in 0..CHECKPOINT_QUEUE_SIZE {
+        handler.notify_checkpoint(Box::new(Vec::new));
+    }
+    assert!(handler.has_event_subscribers());
+    handler.notify_checkpoint(Box::new(Vec::new));
+    assert!(!handler.has_event_subscribers());
+
+    release.send(()).unwrap();
+    assert!(events.next().await.is_none());
+}
 
 #[test]
 fn test_to_json_value() {

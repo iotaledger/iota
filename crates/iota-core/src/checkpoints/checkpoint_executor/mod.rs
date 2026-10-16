@@ -473,14 +473,7 @@ impl CheckpointExecutor {
             .record_executed_for_object_retention(ckpt_state.data.checkpoint.sequence_number());
 
         if self.has_checkpoint_consumers() {
-            // The conversion of effects and event layouts for the
-            // subscribers reads RocksDB.
-            tokio::task::spawn_blocking({
-                let this = self.clone();
-                move || this.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref())
-            })
-            .await
-            .unwrap();
+            self.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref());
         }
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);

@@ -80,7 +80,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
-    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    full_checkpoint_content::CheckpointData,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -178,7 +178,7 @@ use crate::{
         schema::{IndexGroup, OwnerTypeFilter},
     },
     stake_aggregator::StakeAggregator,
-    subscription_handler::SubscriptionHandler,
+    subscription_handler::{SubscriberUpdate, SubscriptionHandler},
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
@@ -2623,15 +2623,16 @@ impl AuthorityState {
         }
     }
 
-    /// Notify the JSON-RPC transaction and event subscribers of each
-    /// transaction in `checkpoint`.
+    /// Queues the transactions and events of `checkpoint` for the JSON-RPC
+    /// subscribers. They are converted and sent off the caller's thread, in
+    /// the order of the calls.
     ///
     /// Call this in checkpoint order, after the index commit of the
     /// checkpoint.
     pub fn notify_subscribers_of_checkpoint(
         &self,
         checkpoint: &CheckpointData,
-        epoch_store: &AuthorityPerEpochStore,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         let has_transaction_subscribers = self.subscription_handler.has_transaction_subscribers();
         let has_event_subscribers = self.subscription_handler.has_event_subscribers();
@@ -2639,67 +2640,87 @@ impl AuthorityState {
             return;
         }
 
-        let _scope = monitored_scope("Execution::notify_subscribers_of_checkpoint");
         let timestamp_ms = checkpoint.checkpoint_summary.timestamp_ms;
-        // The outputs of the checkpoint are committed. Thus the packages it
-        // published are in the backing store.
-        let mut layout_resolver = epoch_store
-            .executor()
-            .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
-
-        for transaction in &checkpoint.transactions {
-            match self.notify_subscribers_of_transaction(
-                transaction,
-                timestamp_ms,
-                has_event_subscribers,
-                layout_resolver.as_mut(),
-            ) {
-                Ok(events_emitted) => {
-                    self.metrics
-                        .post_processing_total_tx_had_event_processed
-                        .inc();
-                    self.metrics
-                        .post_processing_total_events_emitted
-                        .inc_by(events_emitted);
-                }
-                Err(e) => {
-                    self.metrics.post_processing_total_failures.inc();
-                    error!(
-                        tx_digest = ?transaction.effects.transaction_digest(),
-                        "notifying subscribers failed: {e}"
-                    );
-                }
-            }
-        }
+        let transactions: Vec<_> = checkpoint
+            .transactions
+            .iter()
+            .map(|transaction| {
+                (
+                    transaction.transaction.data().transaction().clone(),
+                    transaction.effects.clone(),
+                    transaction.events.clone().filter(|_| has_event_subscribers),
+                )
+            })
+            .collect();
+        let epoch_store = epoch_store.clone();
+        let package_store = self.get_backing_package_store().clone();
+        let metrics = self.metrics.clone();
+        self.subscription_handler
+            .notify_checkpoint(Box::new(move || {
+                let _scope = monitored_scope("Execution::notify_subscribers_of_checkpoint");
+                // The outputs of the checkpoint are committed. Thus the packages it
+                // published are in the backing store.
+                let mut layout_resolver = epoch_store
+                    .executor()
+                    .type_layout_resolver(Box::new(package_store.as_ref()));
+                transactions
+                    .into_iter()
+                    .filter_map(|(input, effects, events)| {
+                        let tx_digest = *effects.transaction_digest();
+                        match Self::subscriber_update(
+                            input,
+                            effects,
+                            events,
+                            timestamp_ms,
+                            layout_resolver.as_mut(),
+                        ) {
+                            Ok(update) => {
+                                metrics.post_processing_total_tx_had_event_processed.inc();
+                                metrics
+                                    .post_processing_total_events_emitted
+                                    .inc_by(update.events.len() as u64);
+                                Some(update)
+                            }
+                            Err(e) => {
+                                metrics.post_processing_total_failures.inc();
+                                error!(?tx_digest, "notifying subscribers failed: {e}");
+                                None
+                            }
+                        }
+                    })
+                    .collect()
+            }));
     }
 
-    /// Returns the number of events sent to the event subscribers.
-    fn notify_subscribers_of_transaction(
-        &self,
-        transaction: &CheckpointTransaction,
+    /// What one transaction sends to the subscribers. Without `events`, it
+    /// sends none.
+    fn subscriber_update(
+        input: Transaction,
+        effects: TransactionEffects,
+        events: Option<TransactionEvents>,
         timestamp_ms: u64,
-        has_event_subscribers: bool,
         layout_resolver: &mut dyn LayoutResolver,
-    ) -> IotaResult<u64> {
-        let effects: IotaTransactionBlockEffects = transaction.effects.clone().try_into()?;
-        // The conversion resolves one Move layout per event. Do it only when
-        // there is an event subscriber.
-        let events = if has_event_subscribers {
-            IotaTransactionBlockEvents::try_from(
-                transaction.events.clone().unwrap_or_default(),
-                *transaction.effects.transaction_digest(),
-                Some(timestamp_ms),
-                layout_resolver,
-            )?
-        } else {
-            IotaTransactionBlockEvents::default()
+    ) -> IotaResult<SubscriberUpdate> {
+        let tx_digest = *effects.transaction_digest();
+        let effects: IotaTransactionBlockEffects = effects.try_into()?;
+        // The conversion resolves one Move layout per event.
+        let events = match events {
+            Some(events) => {
+                IotaTransactionBlockEvents::try_from(
+                    events,
+                    tx_digest,
+                    Some(timestamp_ms),
+                    layout_resolver,
+                )?
+                .data
+            }
+            None => Vec::new(),
         };
-        self.subscription_handler.process_tx(
-            transaction.transaction.data().transaction(),
-            &effects,
-            &events,
-        )?;
-        Ok(events.data.len() as u64)
+        Ok(SubscriberUpdate {
+            input,
+            effects,
+            events,
+        })
     }
 
     pub fn unixtime_now_ms() -> u64 {
