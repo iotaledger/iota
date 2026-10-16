@@ -14,7 +14,7 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator, MoveAuthenticatorV1,
-    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
+    ObjectId, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
     TransactionEffects, TypeTag, UnchangedSharedKind, UserSignature, Version, VersionAssignment,
     crypto::Intent,
 };
@@ -432,11 +432,24 @@ fn assert_no_object_created_deleted_or_wrapped(
     assert_eq!(deleted, expected, "only merged gas coins may be deleted");
 }
 
+/// Asserts that `after` is the object `before` moved to `version`, with its
+/// owner and contents unchanged.
+fn assert_moved_unchanged(before: &Object, after: &Object, version: Version) {
+    let contents = |object: &Object| object.data.as_opt_struct().unwrap().contents().to_vec();
+    assert_eq!(after.version(), version, "{} must move", before.id());
+    assert_eq!(
+        (after.owner, contents(after)),
+        (before.owner, contents(before)),
+        "{} must keep its owner and contents",
+        before.id()
+    );
+}
+
 /// With deterministic validation on, a gas owner whose account cannot be
 /// resolved did not authorize the transaction, so nobody is charged. Owned
-/// inputs, the gas coin included, keep their versions, so the account can use
-/// them again. A mutable shared input still moves to the version consensus
-/// assigned, with its contents unchanged.
+/// inputs, the gas coin included, move to their next versions with their
+/// contents unchanged, so the account can use them again. A mutable shared
+/// input moves to the version consensus assigned, with its contents unchanged.
 #[tokio::test]
 async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validation() {
     let _guard = enable_deterministic_validation();
@@ -475,42 +488,29 @@ async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validat
         None,
         "the effects must name no gas object"
     );
+    let mut changed: Vec<ObjectId> = effects
+        .old_object_metadata()
+        .iter()
+        .map(|old| old.reference().object_id)
+        .collect();
+    changed.sort();
+    let mut inputs = vec![setup.gas_id, setup.transfer_id, shared_id];
+    inputs.sort();
+    assert_eq!(changed, inputs, "every mutable input must move");
+    let version = effects.lamport_version();
+    assert_moved_unchanged(&gas_before, &object(&setup.gas_id), version);
+    assert_moved_unchanged(&transfer_before, &object(&setup.transfer_id), version);
+    assert_moved_unchanged(&shared_before, &object(&shared_id), version);
     assert_eq!(
-        effects
-            .old_object_metadata()
-            .iter()
-            .map(|old| old.reference().object_id)
-            .collect::<Vec<_>>(),
-        vec![shared_id],
-        "the mutable shared input must be the only object the effects change"
-    );
-    assert_eq!(
-        object(&setup.gas_id),
-        gas_before,
-        "the gas coin must keep its version and balance"
-    );
-    assert_eq!(
-        object(&setup.transfer_id),
-        transfer_before,
-        "the transfer must not have run"
-    );
-    let shared_after = object(&shared_id);
-    assert_eq!(
-        shared_after.version(),
-        effects.lamport_version(),
-        "the shared input must move to the version consensus assigned"
-    );
-    let contents = |object: &Object| object.data.as_opt_struct().unwrap().contents().to_vec();
-    assert_eq!(
-        (contents(&shared_after), shared_after.storage_rebate),
-        (contents(&shared_before), shared_before.storage_rebate),
-        "the shared input's contents and storage rebate must not change"
+        [setup.gas_id, setup.transfer_id, shared_id].map(|id| object(&id).storage_rebate),
+        [gas_before, transfer_before, shared_before].map(|before| before.storage_rebate),
+        "storage rebates must not change without a charge"
     );
 }
 
 /// A transaction whose gas owner did not authorize it and whose shared input
 /// was cancelled for congestion charges nobody either. The cancelled object is
-/// recorded as cancelled and the gas coin stays usable.
+/// recorded as cancelled and the gas coin stays usable at its next version.
 #[tokio::test]
 async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged() {
     let _guard = enable_deterministic_validation();
@@ -526,11 +526,7 @@ async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged()
     .await;
     setup.shared_version = Version::new_congested_with_suggested_gas_price(1_000).unwrap();
     let shared_id = setup.shared_id.unwrap();
-    let gas_before = setup
-        .authority
-        .get_object(&setup.gas_id)
-        .unwrap()
-        .object_ref();
+    let gas_before = setup.authority.get_object(&setup.gas_id).unwrap();
 
     let (effects, _) = setup.execute().unwrap();
 
@@ -550,17 +546,20 @@ async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged()
         "{:?}",
         effects.unchanged_shared_objects()
     );
+    let gas_after = setup.authority.get_object(&setup.gas_id).unwrap();
+    assert_moved_unchanged(&gas_before, &gas_after, effects.lamport_version());
     setup
         .authority
         .get_object_cache_reader()
-        .try_check_owned_objects_are_live(&[gas_before])
+        .try_check_owned_objects_are_live(&[gas_after.object_ref()])
         .expect("the gas coin must stay usable");
 }
 
 /// An account that pays with two gas coins but did not authorize the
-/// transaction keeps both: nothing is merged, so no coin is deleted.
+/// transaction keeps both: nothing is merged, so no coin is deleted, and each
+/// moves to its next version with its balance unchanged.
 #[tokio::test]
-async fn unauthorized_transaction_keeps_every_gas_coin() {
+async fn unauthorized_transaction_merges_no_gas_coin() {
     let _guard = enable_deterministic_validation();
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let second_gas_id = ObjectId::random();
@@ -574,8 +573,8 @@ async fn unauthorized_transaction_keeps_every_gas_coin() {
         None,
     )
     .await;
-    let reference = |id: &ObjectId| setup.authority.get_object(id).unwrap().object_ref();
-    let coins_before = [reference(&setup.gas_id), reference(&second_gas_id)];
+    let object = |id: &ObjectId| setup.authority.get_object(id).unwrap();
+    let coins_before = [object(&setup.gas_id), object(&second_gas_id)];
 
     let (effects, _) = setup.execute().unwrap();
 
@@ -585,26 +584,22 @@ async fn unauthorized_transaction_keeps_every_gas_coin() {
         "nobody may be charged"
     );
     assert_no_object_created_deleted_or_wrapped(&effects, &[]);
-    assert!(
-        effects.old_object_metadata().is_empty(),
-        "no object may change: {:?}",
-        effects.old_object_metadata()
-    );
-    assert_eq!(
-        [reference(&setup.gas_id), reference(&second_gas_id)],
-        coins_before
-    );
+    let coins_after = [object(&setup.gas_id), object(&second_gas_id)];
+    for (before, after) in coins_before.iter().zip(&coins_after) {
+        assert_moved_unchanged(before, after, effects.lamport_version());
+    }
     setup
         .authority
         .get_object_cache_reader()
-        .try_check_owned_objects_are_live(&coins_before)
+        .try_check_owned_objects_are_live(&coins_after.map(|coin| coin.object_ref()))
         .expect("both gas coins must stay usable");
 }
 
 /// A signing sponsor that pays with two gas coins for a sender account that
 /// cannot be resolved is charged, which merges its second coin into the
 /// first. That is the only object the failed transaction deletes; the
-/// account's owned input is left as it was.
+/// account's owned input moves to its next version with its contents
+/// unchanged.
 #[tokio::test]
 async fn paying_sponsor_loses_only_its_merged_gas_coin() {
     let _guard = enable_deterministic_validation();
@@ -621,11 +616,7 @@ async fn paying_sponsor_loses_only_its_merged_gas_coin() {
         None,
     )
     .await;
-    let transfer_before = setup
-        .authority
-        .get_object(&setup.transfer_id)
-        .unwrap()
-        .object_ref();
+    let transfer_before = setup.authority.get_object(&setup.transfer_id).unwrap();
 
     let (effects, _) = setup.execute().unwrap();
 
@@ -640,20 +631,13 @@ async fn paying_sponsor_loses_only_its_merged_gas_coin() {
         .map(|old| old.reference().object_id)
         .collect();
     changed.sort();
-    let mut gas_coins = vec![setup.gas_id, second_gas_id];
-    gas_coins.sort();
-    assert_eq!(
-        changed, gas_coins,
-        "only the sponsor's gas coins may change"
-    );
-    assert_eq!(
-        setup
-            .authority
-            .get_object(&setup.transfer_id)
-            .unwrap()
-            .object_ref(),
-        transfer_before,
-        "the account's owned input must keep its version"
+    let mut inputs = vec![setup.gas_id, second_gas_id, setup.transfer_id];
+    inputs.sort();
+    assert_eq!(changed, inputs, "every owned input must move");
+    assert_moved_unchanged(
+        &transfer_before,
+        &setup.authority.get_object(&setup.transfer_id).unwrap(),
+        effects.lamport_version(),
     );
 }
 
@@ -728,10 +712,10 @@ async fn signing_sponsor_is_charged_under_deterministic_validation() {
 
 /// With deterministic validation on, a signing sponsor pays for a sender
 /// account that cannot be resolved, but the account authorized nothing, so its
-/// owned inputs keep their versions and stay usable. Only the sponsor's gas
-/// coin changes.
+/// owned inputs move to their next versions with their contents unchanged and
+/// stay usable.
 #[tokio::test]
-async fn unresolved_sender_account_keeps_its_owned_inputs_when_a_sponsor_pays() {
+async fn unresolved_sender_accounts_owned_inputs_stay_usable_when_a_sponsor_pays() {
     let _guard = enable_deterministic_validation();
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
@@ -744,11 +728,7 @@ async fn unresolved_sender_account_keeps_its_owned_inputs_when_a_sponsor_pays() 
         None,
     )
     .await;
-    let transfer_before = setup
-        .authority
-        .get_object(&setup.transfer_id)
-        .unwrap()
-        .object_ref();
+    let transfer_before = setup.authority.get_object(&setup.transfer_id).unwrap();
 
     let (effects, _) = setup.execute().unwrap();
 
@@ -756,28 +736,12 @@ async fn unresolved_sender_account_keeps_its_owned_inputs_when_a_sponsor_pays() 
         effects.gas_cost_summary().gas_used() > 0,
         "the sponsor that signed must be charged"
     );
-    assert_eq!(
-        effects
-            .old_object_metadata()
-            .iter()
-            .map(|old| old.reference().object_id)
-            .collect::<Vec<_>>(),
-        vec![setup.gas_id],
-        "the sponsor's gas coin must be the only object the effects change"
-    );
-    assert_eq!(
-        setup
-            .authority
-            .get_object(&setup.transfer_id)
-            .unwrap()
-            .object_ref(),
-        transfer_before,
-        "the account's owned input must keep its version"
-    );
+    let transfer_after = setup.authority.get_object(&setup.transfer_id).unwrap();
+    assert_moved_unchanged(&transfer_before, &transfer_after, effects.lamport_version());
     setup
         .authority
         .get_object_cache_reader()
-        .try_check_owned_objects_are_live(&[transfer_before])
+        .try_check_owned_objects_are_live(&[transfer_after.object_ref()])
         .expect("the account's owned input must stay usable");
 }
 
@@ -811,10 +775,10 @@ async fn unresolved_sponsoring_account_is_not_charged_under_deterministic_valida
         &GasCostSummary::default(),
         "nobody may be charged"
     );
-    assert_eq!(
-        setup.authority.get_object(&setup.gas_id).unwrap(),
-        gas_before,
-        "the account's gas coin must keep its version and balance"
+    assert_moved_unchanged(
+        &gas_before,
+        &setup.authority.get_object(&setup.gas_id).unwrap(),
+        effects.lamport_version(),
     );
     assert_eq!(
         setup
@@ -1268,8 +1232,8 @@ impl MoveAccountSponsorSetup {
         }
     }
 
-    fn object_ref(&self, id: &ObjectId) -> ObjectReference {
-        self.chain.authority.get_object(id).unwrap().object_ref()
+    fn object(&self, id: &ObjectId) -> Object {
+        self.chain.authority.get_object(id).unwrap()
     }
 
     /// Executes the sponsored transfer.
@@ -1308,7 +1272,7 @@ async fn move_account_sponsor_pays_wherever_its_signature_is() {
             position,
         )
         .await;
-        let transfer_before = setup.object_ref(&setup.transfer_id);
+        let transfer_before = setup.object(&setup.transfer_id);
 
         let result = setup.execute();
 
@@ -1322,10 +1286,10 @@ async fn move_account_sponsor_pays_wherever_its_signature_is() {
             "the sponsor must be charged"
         );
         assert_eq!(result.gas_object().owner(), &Owner::Address(setup.sponsor));
-        assert_eq!(
-            setup.object_ref(&setup.transfer_id),
-            transfer_before,
-            "the sender's owned input must keep its version"
+        assert_moved_unchanged(
+            &transfer_before,
+            &setup.object(&setup.transfer_id),
+            result.lamport_version(),
         );
         effects.push(result);
     }
@@ -1375,8 +1339,8 @@ async fn move_account_sponsor_pays_when_the_sender_account_cannot_be_resolved() 
         effects
             .old_object_metadata()
             .iter()
-            .all(|old| old.reference().object_id != setup.transfer_id),
-        "the sender's owned input must keep its version"
+            .any(|old| old.reference().object_id == setup.transfer_id),
+        "the sender's owned input must move"
     );
 }
 
@@ -1392,7 +1356,7 @@ async fn failing_move_account_sponsor_is_not_charged() {
         SponsorSignature::Second,
     )
     .await;
-    let gas_before = setup.object_ref(&setup.gas_id);
+    let gas_before = setup.object(&setup.gas_id);
 
     let effects = setup.execute();
 
@@ -1402,7 +1366,11 @@ async fn failing_move_account_sponsor_is_not_charged() {
         effects.status()
     );
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
-    assert_eq!(setup.object_ref(&setup.gas_id), gas_before);
+    assert_moved_unchanged(
+        &gas_before,
+        &setup.object(&setup.gas_id),
+        effects.lamport_version(),
+    );
 }
 
 /// With deterministic validation on, when both authenticators fail, the

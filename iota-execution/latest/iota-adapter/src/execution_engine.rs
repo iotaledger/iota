@@ -292,7 +292,7 @@ mod checked {
     ///     produces transaction effects with the appropriate error status. With deterministic
     ///     validation on, a gas owner that is a Move account and did not authorize the transaction
     ///     is not charged; see `execute_without_gas_charge_to_effects`. A gas owner that did
-    ///     authorize it is charged, and its gas coins are the only owned inputs that change.
+    ///     authorize it is charged, and every owned input moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and
@@ -583,15 +583,6 @@ mod checked {
             }
             result => result,
         };
-        // The gas owner pays for a failed authentication it authorized, but the
-        // account that failed authorized nothing, so of the owned inputs only
-        // the gas coins change.
-        if authentication_execution_result.is_err()
-            && protocol_config.pcool_deterministic_validation()
-        {
-            temporary_store.leave_owned_inputs_unchanged(gas_charger.gas_coins());
-        }
-
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
         // authenticate function and a result which is either empty or an error.
@@ -626,7 +617,8 @@ mod checked {
     /// that did not authorize it: its authenticator failed, or did not run
     /// because resolution or an earlier authenticator failed. Nobody authorized
     /// paying for gas, so nobody is charged:
-    ///   - owned inputs, gas coins included, keep their versions and stay with their owners;
+    ///   - owned inputs, gas coins included, move to their next versions with their contents,
+    ///     owners and storage rebates unchanged;
     ///   - mutable shared inputs move to the version consensus assigned, with their contents and
     ///     storage rebates unchanged, so later transactions find them at the versions consensus
     ///     gave those transactions.
@@ -665,7 +657,6 @@ mod checked {
         let status = elaborate_error_logs(&error, transaction_digest);
 
         temporary_store.drop_writes();
-        temporary_store.leave_owned_inputs_unchanged(&[]);
         temporary_store.ensure_active_inputs_mutated();
 
         // Genesis writes a special digest to indicate that an object was created during
