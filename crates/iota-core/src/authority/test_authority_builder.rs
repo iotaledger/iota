@@ -70,6 +70,7 @@ pub struct TestAuthorityBuilder<'a> {
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
+    num_epochs_to_retain: Option<u64>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -180,6 +181,17 @@ impl<'a> TestAuthorityBuilder<'a> {
 
     pub fn disable_execute_genesis_transactions(mut self) -> Self {
         self.disable_execute_genesis_transactions = true;
+        self
+    }
+
+    /// The number of historic epochs whose superseded object versions are
+    /// retained beyond the current one. `u64::MAX` retains all of them.
+    pub fn with_num_epochs_to_retain(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
         self
     }
 
@@ -347,7 +359,10 @@ impl<'a> TestAuthorityBuilder<'a> {
         let certificate_deny_config = self.certificate_deny_config.unwrap_or_default();
         let verifier_signing_config = self.verifier_signing_config.unwrap_or_default();
         let authority_overload_config = self.authority_overload_config.unwrap_or_default();
-        let pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = AuthorityStorePruningConfig::default();
+        if let Some(num_epochs_to_retain) = self.num_epochs_to_retain {
+            pruning_config.set_num_epochs_to_retain(num_epochs_to_retain);
+        }
 
         config.transaction_deny_config = transaction_deny_config;
         config.certificate_deny_config = certificate_deny_config;
