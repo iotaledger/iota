@@ -182,7 +182,7 @@ impl ValidatorConfigBuilder {
 
         let mut pruning_config = AuthorityStorePruningConfig::default();
         if self.force_unpruned_checkpoints {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
         }
         let pruning_config = pruning_config;
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -613,7 +613,7 @@ impl FullnodeConfigBuilder {
             pruning_config.num_epochs_to_retain_for_indexes = Some(epochs);
         }
         if self.disable_pruning {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
             pruning_config.set_num_epochs_to_retain(u64::MAX);
         };
 
