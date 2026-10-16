@@ -139,8 +139,8 @@ pub struct ConsensusHandler<C> {
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
     /// Marks commits fully executed for the P-COOL deterministic-validation
-    /// bookkeeping; `None` unless the feature is enabled. Held only so the
-    /// task is aborted with the handler.
+    /// bookkeeping; `None` unless this node keeps the bookkeeping. Held only
+    /// so the task is aborted with the handler.
     _execution_watcher: Option<ExecutionWatcher>,
 
     backpressure_subscriber: BackpressureSubscriber,
@@ -171,8 +171,7 @@ impl<C> ConsensusHandler<C> {
         let transaction_scheduler =
             AsyncTransactionScheduler::start(execution_scheduler, epoch_store.clone());
         let execution_watcher = epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
+            .pcool_bookkeeping_enabled()
             .then(|| ExecutionWatcher::start(epoch_store.clone()));
 
         // Seed the gauges so series exist from epoch start, not only after the

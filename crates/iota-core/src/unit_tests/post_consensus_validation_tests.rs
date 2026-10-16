@@ -11,13 +11,14 @@ use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference,
-    Owner, SenderSignedTransaction, SharedObjectReference, Transaction, TransactionDigest,
-    TransactionEffects, Version,
+    Address, Command, GasCostSummary, Identifier, ObjectDigest, ObjectId, ObjectReference,
+    OwnedObjectReference, Owner, SenderSignedTransaction, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -46,7 +47,7 @@ use crate::{
                 handler_processed_upserts,
             },
         },
-        authority_tests::init_state_with_objects_and_object_basics,
+        authority_tests::{init_state_with_objects_and_object_basics, publish_object_basics},
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -2202,13 +2203,42 @@ async fn setup_bookkeeping(
     setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await
 }
 
+/// Like [`setup_bookkeeping`] with the flags on, but for a node whose authority
+/// key is not in the committee, as on a full node.
+async fn setup_bookkeeping_outside_committee(genesis_objects: Vec<Object>) -> BookkeepingSetup {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    // The builder's genesis committee holds its own generated validator keys,
+    // so a node signing with a fresh key is outside it.
+    let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
+    build_bookkeeping_setup(genesis_objects, Some(config_guard), Some(&keypair)).await
+}
+
 /// Like [`setup_bookkeeping`], under the protocol config override the caller
 /// installed. The guard lives as long as the setup.
 async fn setup_bookkeeping_with_config_guard(
     genesis_objects: Vec<Object>,
-    _config_guard: Option<OverrideGuard>,
+    config_guard: Option<OverrideGuard>,
 ) -> BookkeepingSetup {
-    let (authority, package) = init_state_with_objects_and_object_basics(genesis_objects).await;
+    build_bookkeeping_setup(genesis_objects, config_guard, None).await
+}
+
+async fn build_bookkeeping_setup(
+    genesis_objects: Vec<Object>,
+    _config_guard: Option<OverrideGuard>,
+    keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
+) -> BookkeepingSetup {
+    let builder = match keypair {
+        Some(keypair) => TestAuthorityBuilder::new().with_keypair(keypair),
+        None => TestAuthorityBuilder::new(),
+    };
+    let authority = builder.build().await;
+    for object in genesis_objects {
+        authority.insert_genesis_object(object);
+    }
+    let (authority, package) = publish_object_basics(authority).await;
     let epoch_store = (*authority.epoch_store_for_testing()).clone();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     BookkeepingSetup {
@@ -4258,6 +4288,74 @@ async fn bookkeeping_disabled_writes_nothing() {
     s.assert_not_sheltered(obj_genesis_ref);
 }
 
+/// Only a committee member keeps the bookkeeping. A node outside the
+/// committee runs no consensus handler, so every execution there would be
+/// sync-ahead and nothing would ever clear its records and sheltered bytes.
+#[rstest::rstest]
+#[tokio::test]
+async fn bookkeeping_is_kept_only_by_committee_members(#[values(true, false)] in_committee: bool) {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let [sync_obj_id, sync_gas_id, handler_obj_id, handler_gas_id] =
+        std::array::from_fn(|_| ObjectId::random());
+    let genesis_objects = [sync_obj_id, sync_gas_id, handler_obj_id, handler_gas_id]
+        .map(|id| Object::with_id_owner_for_testing(id, sender))
+        .to_vec();
+    let s = if in_committee {
+        setup_bookkeeping(genesis_objects, true).await
+    } else {
+        setup_bookkeeping_outside_committee(genesis_objects).await
+    };
+
+    let consumed_ref = s.latest_ref(&sync_obj_id);
+    let sync_effects = s.transfer(
+        &sync_obj_id,
+        &sync_gas_id,
+        sender,
+        &sender_key,
+        Address::random(),
+    );
+    let handler_effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(
+                &handler_obj_id,
+                &handler_gas_id,
+                sender,
+                &sender_key,
+                Address::random(),
+            )],
+            1,
+        )
+        .remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&sync_effects, &handler_effects])
+        .unwrap();
+
+    assert_eq!(
+        s.epoch_store
+            .durable_sync_ahead_record_for_testing(&sync_obj_id)
+            .unwrap()
+            .is_some(),
+        in_committee
+    );
+    assert_eq!(
+        s.epoch_store
+            .sheltered_object(&ObjectKey::from(consumed_ref))
+            .unwrap()
+            .is_some(),
+        in_committee
+    );
+    assert_eq!(
+        s.epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(
+                handler_obj_id,
+                handler_effects.lamport_version()
+            ))
+            .unwrap()
+            .is_some(),
+        in_committee
+    );
+}
+
 #[tokio::test]
 async fn sync_ahead_created_object_has_no_base_version() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -4275,6 +4373,70 @@ async fn sync_ahead_created_object_has_no_base_version() {
     // version of it may answer keep at validation.
     s.assert_record(created_ref.object_id(), None, effects.lamport_version());
     s.assert_not_sheltered(created_ref);
+}
+
+/// Genesis is the root of no consensus commit, so no commit would ever clear
+/// bookkeeping its execution wrote; the objects it creates are epoch-start
+/// state.
+#[tokio::test]
+async fn genesis_execution_leaves_no_bookkeeping() {
+    let s = setup_bookkeeping(vec![], true).await;
+
+    for id in [IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID] {
+        assert_eq!(s.epoch_store.sync_ahead_record(&id).unwrap(), None);
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .live_sync_ahead_records_count_for_testing(),
+        0
+    );
+}
+
+/// The change-epoch transaction is the root of no consensus commit, so no
+/// commit would ever clear bookkeeping its execution wrote; what it writes is
+/// the next epoch's epoch-start state.
+#[tokio::test]
+async fn change_epoch_execution_leaves_no_bookkeeping() {
+    let s = setup_bookkeeping(vec![], true).await;
+
+    // The checkpoint builder executes the transaction without committing it
+    // and stores it for state sync; the checkpoint executor commits it.
+    let (_, _, built_effects) = s
+        .authority
+        .create_and_execute_advance_epoch_tx(
+            &s.epoch_store,
+            &GasCostSummary::new(0, 0, 0, 0, 0),
+            1, // checkpoint
+            0, // epoch_start_timestamp_ms
+            // One full score for the single-validator test committee.
+            vec![u16::MAX as u64 + 1],
+        )
+        .await
+        .expect("advance epoch tx must succeed");
+    let tx = s
+        .authority
+        .get_transaction_cache_reader()
+        .get_transaction_block(built_effects.transaction_digest())
+        .expect("the checkpoint builder stores the change-epoch transaction");
+    assert!(tx.data().transaction().is_end_of_epoch_tx());
+    let effects = s.execute_with_assigned_shared_versions((*tx).clone());
+
+    let written = handler_processed_upserts(&effects, 0);
+    assert!(!written.is_empty());
+    for (key, _) in written {
+        assert_eq!(s.epoch_store.sync_ahead_record(&key.0).unwrap(), None);
+        s.assert_no_handler_row(&key.0, key.1);
+    }
+    for consumed in effects.old_object_metadata() {
+        s.assert_not_sheltered(*consumed.reference());
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .live_sync_ahead_records_count_for_testing(),
+        0
+    );
 }
 
 #[tokio::test]

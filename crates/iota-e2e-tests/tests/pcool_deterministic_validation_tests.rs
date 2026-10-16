@@ -62,7 +62,7 @@ fn written_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
 /// A validator killed after a checkpoint's bookkeeping batch is durable, but
 /// before the checkpoint's outputs are, re-executes the checkpoint on restart,
 /// keeps executing checkpoints, and ends up with the same handler rows as its
-/// peers.
+/// peers. The fullnode, outside the committee, keeps no bookkeeping.
 #[sim_test]
 async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
     telemetry_subscribers::init_for_testing();
@@ -132,6 +132,21 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
         })
         .unwrap()
         .expect("the fullnode has executed the transfers' checkpoints");
+
+    // The fullnode runs no consensus handler and keeps no bookkeeping: none of
+    // its executions leaves a sync-ahead record.
+    for key in transfers.iter().flat_map(written_keys) {
+        let record = test_cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .sync_ahead_record(&key.0)
+                .unwrap()
+        });
+        assert_eq!(
+            record, None,
+            "the fullnode keeps a sync-ahead record for {key:?}"
+        );
+    }
     let highest_executed = |name| {
         node_handle(name).with(|node| {
             node.state()
