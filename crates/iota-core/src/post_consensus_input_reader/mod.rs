@@ -77,11 +77,9 @@ pub enum OwnedVerdict {
 /// what the reader decided. Contents are never read.
 #[must_use]
 pub enum SharedVerdict {
-    /// Live, with owner `Shared` at the declared initial version. Carries the
-    /// object as this validator holds it, for the kind and owner checks
-    /// downstream. Its version differs between validators and decides
-    /// nothing.
-    Exists(Object),
+    /// Live, with owner `Shared` at the declared initial version. The verdict
+    /// carries no object: execution reads it at the version consensus assigns.
+    Exists,
     /// Deleted above the horizon, or by execution the handler has not
     /// reached. Kept, and handed on as `DeletedSharedObject`.
     Deleted(Version, TransactionDigest),

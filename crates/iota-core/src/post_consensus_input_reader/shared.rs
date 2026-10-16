@@ -169,8 +169,8 @@ impl SharedState for CreatedShared {}
 /// Outcome of the store object read after the creation row proved the flag.
 #[must_use]
 pub enum CreatedObjectLookup {
-    /// The object is live locally, at whatever version this validator holds.
-    Exists(Object),
+    /// The object is live locally.
+    Exists,
     /// No live object locally. Next: the deletion info.
     Absent(SharedReader<ObjectAbsent>),
 }
@@ -180,7 +180,7 @@ impl SharedReader<CreatedShared> {
     /// presence matters here.
     pub fn read_object(self, ctx: &CommitIndexedReader) -> IotaResult<CreatedObjectLookup> {
         Ok(match ctx.cache.try_get_object(&self.id)? {
-            Some(object) => CreatedObjectLookup::Exists(object),
+            Some(_) => CreatedObjectLookup::Exists,
             None => CreatedObjectLookup::Absent(self.into_state(ObjectAbsent)),
         })
     }
@@ -203,7 +203,7 @@ impl SharedState for PreSyncExisted {}
 #[must_use]
 pub enum PreSyncObjectLookup {
     /// Live with owner `Shared` at the declared initial version.
-    Exists(Object),
+    Exists,
     /// Owner not shared, or shared at another initial version, read from the
     /// object or from the record's field.
     Drop(DropReason),
@@ -218,7 +218,7 @@ impl SharedReader<PreSyncExisted> {
     pub fn read_object(self, ctx: &CommitIndexedReader) -> IotaResult<PreSyncObjectLookup> {
         Ok(match ctx.cache.try_get_object(&self.id)? {
             Some(object) => match classify_object(&object, self.initial_shared_version) {
-                ObjectClass::Exists => PreSyncObjectLookup::Exists(object),
+                ObjectClass::Exists => PreSyncObjectLookup::Exists,
                 ObjectClass::Drop(reason) => PreSyncObjectLookup::Drop(reason),
             },
             None => match classify_recorded_initial_version(
@@ -291,7 +291,7 @@ impl SharedState for ObjectAnsweredRecordReread {}
 #[must_use]
 pub enum SharedTablesRecheck {
     Created(SharedReader<CreatedShared>),
-    Exists(Object),
+    Exists,
     Missing(MissingReason),
     Drop(DropReason),
     /// No live object. Next: the deletion info.
@@ -320,7 +320,7 @@ impl SharedReader<ObjectAnsweredRecordReread> {
             // object predates every this-epoch write for `id` and stands.
             (Some(RecordClass::PreSyncExisted(_)) | None, Some(object)) => {
                 match classify_object(&object, self.initial_shared_version) {
-                    ObjectClass::Exists => SharedTablesRecheck::Exists(object),
+                    ObjectClass::Exists => SharedTablesRecheck::Exists,
                     ObjectClass::Drop(reason) => SharedTablesRecheck::Drop(reason),
                 }
             }
@@ -687,7 +687,7 @@ mod tests {
             SharedTablesRecheck::Missing(reason) => {
                 assert_eq!(reason.kind(), MissingKind::SharedCreationAboveHorizon)
             }
-            SharedTablesRecheck::Exists(_) => panic!("kept an object created above the horizon"),
+            SharedTablesRecheck::Exists => panic!("kept an object created above the horizon"),
             SharedTablesRecheck::Created(_) => panic!("the row is above the horizon"),
             SharedTablesRecheck::Drop(reason) => panic!("dropped: {reason:?}"),
             SharedTablesRecheck::Absent(_) => panic!("the object is in the store"),
