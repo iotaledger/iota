@@ -81,13 +81,18 @@ pub mod checked {
 
         // This is the only public API on IotaGasStatus, all other gas related
         // operations should go through `GasCharger`
+        //
+        // `bounded_budget` selects whether the budget itself must fall between the
+        // protocol minimum and maximum. The gas coins are required to be
+        // address-owned and to cover the budget either way.
         pub fn check_gas_balance(
             &self,
             gas_objs: &[&ObjectReadResult],
             gas_budget: u64,
+            bounded_budget: bool,
         ) -> UserInputResult {
             match self {
-                Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
+                Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget, bounded_budget),
             }
         }
 
@@ -215,46 +220,8 @@ pub mod checked {
             reported.budget = gas_used;
         }
     }
-
-    /// Checks that every object `gas` refers to is an address-owned gas coin
-    /// present in `input_objects`, and that their combined balance covers
-    /// `gas_budget`.
-    pub fn check_gas_coins_cover_budget_in_simulation(
-        input_objects: &InputObjects,
-        gas: &[ObjectReference],
-        gas_budget: u64,
-    ) -> UserInputResult {
-        let objects: HashMap<_, _> = input_objects
-            .iter()
-            .map(|object| (object.id(), object))
-            .collect();
-
-        let mut gas_balance = 0u128;
-        for gas_ref in gas {
-            let read = objects
-                .get(&gas_ref.object_id)
-                .ok_or(UserInputError::ObjectNotFound {
-                    object_id: gas_ref.object_id,
-                    version: Some(gas_ref.version),
-                })?;
-            // `as_object` returning `None` means the object was deleted, which makes
-            // it a shared one, and gas cannot be shared.
-            let object = read.as_object().ok_or(UserInputError::MissingGasPayment)?;
-            if !object.is_address_owned() {
-                return Err(UserInputError::GasObjectNotOwnedObject {
-                    owner: object.owner,
-                });
-            }
-            gas_balance += get_gas_balance(object)? as u128;
-        }
-
-        if gas_balance < gas_budget as u128 {
-            return Err(UserInputError::GasBalanceTooLow {
-                gas_balance,
-                needed_gas_amount: gas_budget as u128,
-            });
-        }
-
-        Ok(())
-    }
 }
+
+#[cfg(test)]
+#[path = "unit_tests/gas_tests.rs"]
+mod gas_tests;

@@ -19,7 +19,8 @@ does not cap the budget there.
 | Post-consensus cert exec (no authenticators)   | `check_certificate_input`                        | `0`            | `true`           | **full tx budget**               | `execute_transaction_to_effects`                   | body only                                                                                                 |
 
 The gas-coin **balance** is always checked against the full transaction budget,
-in every phase.
+in every phase. Every phase passes `InputCheckRules::STRICT`; only a dev inspect
+relaxes any check.
 
 ## SDK modes
 
@@ -28,7 +29,7 @@ effects are committed:
 
 | Mode         | Input check                                                                         | Gas price                                   | Gas budget                                                    | Mock gas coin if none supplied? | Commits to store? |
 | ------------ | ----------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------- | ------------------------------- | ----------------- |
-| `DevInspect` | `check_simulation_input` (relaxed), plus a gas balance check                        | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
+| `DevInspect` | `check_transaction_input` with `InputCheckRules::RELAXED_UNSAFE`                    | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
 | `DryRun`     | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
 | `Execute`    | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared                                    | declared                                                      | no — requires real gas          | yes, on success   |
 
@@ -40,11 +41,12 @@ effects, so it holds a transaction to its own declared gas the way a validator
 would.
 
 Whatever the budget resolves to, the gas coins have to cover it — the engine
-smashes the whole budget off them before running any command. `DryRun` gets that
-check from `check_transaction_input`; `DevInspect` skips that check and so
-carries its own, rejecting an under-funded coin with `GasBalanceTooLow` rather
-than letting the engine hit an invariant violation. A zero budget is capped at
-what the coins hold, so estimating does not require holding `max_tx_gas` — but
+smashes the whole budget off them before running any command. Every mode gets
+that check from `check_transaction_input`, which rejects an under-funded coin
+with `GasBalanceTooLow`; `RELAXED_UNSAFE` drops the bounds on the budget itself,
+not the balance check. A zero budget is capped at
+what the coins hold, and never falls below the minimum a transaction may
+declare, so estimating does not require holding `max_tx_gas` — but
 the budget is still held back for the whole programmable transaction, so a
 transaction that also pays out of its gas coin has to declare a budget leaving
 room for that.
