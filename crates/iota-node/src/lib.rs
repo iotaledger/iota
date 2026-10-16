@@ -517,7 +517,7 @@ impl IotaNode {
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
-        let perpetual_tables_for_progress = perpetual_tables.clone();
+        let historic_objects_for_progress = historic_objects.clone();
         let perpetual_tables_for_snapshots = perpetual_tables.clone();
         let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
         let store = AuthorityStore::open(
@@ -993,7 +993,7 @@ impl IotaNode {
         });
 
         node.checkpoint_progress_tracker
-            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
+            .spawn_logging_task(node.checkpoint_store.clone(), historic_objects_for_progress);
 
         Ok(node)
     }

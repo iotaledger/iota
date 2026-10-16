@@ -11036,16 +11036,12 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
 
 /// Commits the outputs of the transactions `executed` names, oldest first,
 /// and executes them as one certified checkpoint, followed by an empty one,
-/// then runs the object pruner over the executed checkpoints as the node does
-/// with aggressive pruning, within the epoch store's object pruning limit.
+/// then expires every historic objects bucket but the running epoch's, as a
+/// node with aggressive retention does.
 async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[TransactionDigest]) {
     use iota_types::{
         base_types::ExecutionData,
         messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
-    };
-
-    use crate::authority::authority_store_pruner::{
-        AuthorityStorePruner, AuthorityStorePruningMetrics,
     };
 
     let epoch = s.epoch_store.epoch();
@@ -11098,22 +11094,9 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
             .unwrap();
     }
 
-    let config = iota_config::node::AuthorityStorePruningConfig {
-        num_epochs_to_retain: 0,
-        ..Default::default()
-    };
-    AuthorityStorePruner::prune_objects_for_eligible_epochs(
-        &s.authority.database_for_testing().perpetual_tables,
-        checkpoint_store,
-        config,
-        AuthorityStorePruningMetrics::new_for_test(),
-        0,
-        None,
-        None,
-        s.epoch_store.object_pruning_limit(),
-    )
-    .await
-    .unwrap();
+    s.authority
+        .database_for_testing()
+        .expire_historic_objects_and_compact_for_testing();
     for id in consumed {
         s.authority.evict_committed_object_for_testing(&id);
     }
@@ -11226,51 +11209,6 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
     let on_keeping = validate(&keeping).await.unwrap();
     assert_eq!(on_keeping.1.len(), 1, "{on_keeping:?}");
     assert_eq!(validate(&pruning).await, Ok(on_keeping));
-}
-
-/// The object pruning limit follows the flushed commits: a commit's
-/// checkpoints become prunable once it is at or below the last flushed commit
-/// plus one minus the horizon distance. Before that, none of the epoch's
-/// checkpoints is.
-#[tokio::test]
-async fn object_pruning_limit_follows_the_flushed_commits() {
-    use crate::authority::authority_store_pruner::ObjectPruningLimit;
-
-    let s = setup_handler_object_state(vec![], true).await;
-    let epoch = s.epoch_store.epoch();
-    let limit = |highest_prunable_checkpoint| {
-        Some(ObjectPruningLimit {
-            epoch,
-            highest_prunable_checkpoint,
-        })
-    };
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
-
-    // Commit `i` flushes with checkpoint `i`; the horizon distance is 4.
-    for index in 1..=3 {
-        s.epoch_store
-            .flush_commit_through_quarantine_for_testing(index, vec![])
-            .unwrap();
-        assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
-    }
-    s.epoch_store
-        .flush_commit_through_quarantine_for_testing(4, vec![])
-        .unwrap();
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(1)));
-    for index in 5..=8 {
-        s.epoch_store
-            .flush_commit_through_quarantine_for_testing(index, vec![])
-            .unwrap();
-    }
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(5)));
-}
-
-/// A node outside the committee keeps no handler object state, so its object pruning
-/// has no limit.
-#[tokio::test]
-async fn object_pruning_limit_is_off_outside_the_committee() {
-    let s = setup_handler_object_state_outside_committee(vec![]).await;
-    assert_eq!(s.epoch_store.object_pruning_limit(), None);
 }
 
 // ---------------------------------------------------------------------------

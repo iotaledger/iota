@@ -89,7 +89,6 @@ use iota_types::{
     error::{IotaError, IotaResult},
     execution::SharedInput,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::ConsensusTransactionKey,
     object::Object,
     storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
@@ -1443,10 +1442,6 @@ impl ObjectCacheRead for FakeStore {
 
     fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         unreachable!("post-consensus validation does not read the system state")
-    }
-
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        unreachable!("post-consensus validation does not read the pruning watermark")
     }
 
     fn notify_read_input_objects<'a>(
