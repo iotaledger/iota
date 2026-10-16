@@ -253,6 +253,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Validate PTB indices at signing time.
 // Version 39: Allow random beacon DKG to complete after its timeout on devnet
 //             and testnet.
+//             Check whether consensus cancelled a transaction before running
+//             its Move authenticators, and fail the transaction with that
+//             cancellation instead of running them.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -744,6 +747,11 @@ struct FeatureFlags {
     // in the epoch.
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
+
+    // If true, check whether consensus cancelled a transaction before running its Move
+    // authenticators, and fail the transaction with that cancellation instead of running them.
+    #[serde(skip_serializing_if = "is_false")]
+    check_cancellation_before_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2259,6 +2267,11 @@ impl ProtocolConfig {
     pub fn allow_dkg_completion_after_timeout(&self) -> bool {
         self.feature_flags.allow_dkg_completion_after_timeout
     }
+
+    pub fn check_cancellation_before_move_authentication(&self) -> bool {
+        self.feature_flags
+            .check_cancellation_before_move_authentication
+    }
 }
 
 #[cfg(not(msim))]
@@ -3671,6 +3684,9 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
+
+                    cfg.feature_flags
+                        .check_cancellation_before_move_authentication = true;
                 }
                 // Use this template when making changes:
                 //
