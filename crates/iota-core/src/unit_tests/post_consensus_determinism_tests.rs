@@ -45,7 +45,7 @@
 //! [`HandlerObjectState`]: crate::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     fmt::Write as _,
     sync::{
         Arc, Mutex,
@@ -203,6 +203,118 @@ enum CandidateSpec {
     Retry(u8),
     /// A copy of an earlier candidate of the same commit.
     SameCommitDuplicate(u8),
+    /// At commit `C`, a candidate making `change` to an object picked by
+    /// `object`, and at commit `C + K - 1` a deferred candidate naming that
+    /// object as it is in `S_{C-1}`: the change is above the deferred
+    /// candidate's horizon and at its reload's.
+    ChangeUnderDeferral {
+        change: DeferredInputChange,
+        object: u8,
+        gas: u8,
+        deferred_gas: u8,
+    },
+}
+
+/// What happens, between a candidate's deferral and its reload, to an object
+/// the candidate names.
+#[derive(Clone, Copy, Debug)]
+enum DeferredInputChange {
+    /// Another candidate deletes the shared object it names, by immutable
+    /// reference with `read_only`.
+    DeleteShared { read_only: bool },
+    /// Another candidate receives the object it names as a receiving object.
+    ReceiveReceiving,
+}
+
+/// The deferred candidate of a [`CandidateSpec::ChangeUnderDeferral`], built
+/// at its own commit.
+#[derive(Clone, Copy, Debug)]
+struct DeferredUse {
+    change: DeferredInputChange,
+    object: ObjectId,
+    gas: u8,
+}
+
+impl DeferredUse {
+    /// The candidate making the change, at `S_{C-1}` versions.
+    fn change_spec(
+        &self,
+        gas: u8,
+        shared_ids: &[ObjectId],
+        receivable_ids: &[ObjectId],
+    ) -> FreshSpec {
+        match self.change {
+            DeferredInputChange::DeleteShared { .. } => FreshSpec {
+                shared: vec![SharedSpec {
+                    object: position(shared_ids, &self.object),
+                    declared: SharedDeclared::Correct,
+                    read_only: false,
+                }],
+                extra: ExtraSpec::DeleteShared,
+                ..gas_only_spec(gas)
+            },
+            DeferredInputChange::ReceiveReceiving => FreshSpec {
+                receive: Some(InputSpec {
+                    object: position(receivable_ids, &self.object),
+                    source: Source::LiveNow,
+                }),
+                ..gas_only_spec(gas)
+            },
+        }
+    }
+
+    /// The deferred candidate, naming the object at its horizon version.
+    fn spec(&self, shared_ids: &[ObjectId], receivable_ids: &[ObjectId]) -> FreshSpec {
+        let spec = match self.change {
+            DeferredInputChange::DeleteShared { read_only } => FreshSpec {
+                shared: vec![SharedSpec {
+                    object: position(shared_ids, &self.object),
+                    declared: SharedDeclared::Correct,
+                    read_only,
+                }],
+                ..gas_only_spec(self.gas)
+            },
+            DeferredInputChange::ReceiveReceiving => FreshSpec {
+                receive: Some(InputSpec {
+                    object: position(receivable_ids, &self.object),
+                    source: Source::LiveAtHorizon,
+                }),
+                ..gas_only_spec(self.gas)
+            },
+        };
+        FreshSpec {
+            defer: true,
+            ..spec
+        }
+    }
+}
+
+/// The index of `id` in `pool`, which holds it and fewer than 256 ids.
+fn position(pool: &[ObjectId], id: &ObjectId) -> u8 {
+    let index = pool
+        .iter()
+        .position(|candidate| candidate == id)
+        .expect("the pool holds the object");
+    u8::try_from(index).expect("a pool holds fewer than 256 ids")
+}
+
+/// A candidate spending gas `gas` at its horizon version, with no other
+/// input and no write beyond the gas.
+fn gas_only_spec(gas: u8) -> FreshSpec {
+    FreshSpec {
+        gas: InputSpec {
+            object: gas,
+            source: Source::LiveAtHorizon,
+        },
+        object: None,
+        shared: Vec::new(),
+        package: false,
+        receive: None,
+        object_write: ObjectWriteSpec::Mutate,
+        extra: ExtraSpec::None,
+        defer: false,
+        fails: false,
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -300,11 +412,27 @@ fn fresh_spec() -> impl Strategy<Value = FreshSpec> {
         )
 }
 
+fn deferred_input_change() -> impl Strategy<Value = DeferredInputChange> {
+    prop_oneof![
+        2 => proptest::bool::weighted(0.3)
+            .prop_map(|read_only| DeferredInputChange::DeleteShared { read_only }),
+        1 => Just(DeferredInputChange::ReceiveReceiving),
+    ]
+}
+
 fn candidate_spec() -> impl Strategy<Value = CandidateSpec> {
     prop_oneof![
         8 => fresh_spec().prop_map(CandidateSpec::Fresh),
         1 => any::<u8>().prop_map(CandidateSpec::Retry),
         1 => any::<u8>().prop_map(CandidateSpec::SameCommitDuplicate),
+        2 => (deferred_input_change(), any::<u8>(), any::<u8>(), any::<u8>()).prop_map(
+            |(change, object, gas, deferred_gas)| CandidateSpec::ChangeUnderDeferral {
+                change,
+                object,
+                gas,
+                deferred_gas,
+            }
+        ),
     ]
 }
 
@@ -628,48 +756,89 @@ fn build_history(spec: &HistorySpec) -> History {
     let mut next_created = 0u8;
     let mut next_unknown = 0u8;
     let mut commit_specs = spec.commits.iter();
+    let mut scheduled: BTreeMap<CommitIndex, Vec<DeferredUse>> = BTreeMap::new();
     loop {
         let commit = oracle.next_commit();
         let specs = commit_specs.next();
-        if specs.is_none() && pending_reloads.is_empty() {
+        if specs.is_none() && pending_reloads.is_empty() && scheduled.is_empty() {
             break;
         }
         let mut candidates = std::mem::take(&mut pending_reloads);
-        for (index, candidate_spec) in specs.into_iter().flatten().enumerate() {
-            let fresh = match candidate_spec {
-                CandidateSpec::Retry(n) if !earlier.is_empty() => {
-                    let copy = &earlier[*n as usize % earlier.len()];
-                    candidates.push(Candidate {
-                        defer: false,
-                        deferral_reload: false,
-                        ..copy.clone()
-                    });
-                    continue;
-                }
-                CandidateSpec::SameCommitDuplicate(n) if !candidates.is_empty() => {
-                    let copy = candidates[*n as usize % candidates.len()].clone();
-                    candidates.push(copy);
-                    continue;
-                }
-                CandidateSpec::Fresh(fresh) => fresh.clone(),
-                CandidateSpec::Retry(_) | CandidateSpec::SameCommitDuplicate(_) => FreshSpec {
-                    gas: InputSpec {
-                        object: 0,
-                        source: Source::LiveAtHorizon,
-                    },
-                    object: None,
-                    shared: Vec::new(),
-                    package: false,
-                    receive: None,
-                    object_write: ObjectWriteSpec::Mutate,
-                    extra: ExtraSpec::None,
-                    defer: false,
-                    fails: false,
-                },
-            };
+        let mut deferred_uses: VecDeque<DeferredUse> =
+            scheduled.remove(&commit).unwrap_or_default().into();
+        let mut specs = specs.into_iter().flatten();
+        let mut index = 0;
+        loop {
             let gas_pool: Vec<ObjectId> = owned_ids.iter().chain(&created_owned).copied().collect();
             let object_pool: Vec<ObjectId> =
                 gas_pool.iter().chain(&receivable_ids).copied().collect();
+            let fresh = if let Some(deferred_use) = deferred_uses.pop_front() {
+                deferred_use.spec(&shared_ids, &receivable_ids)
+            } else {
+                let Some(candidate_spec) = specs.next() else {
+                    break;
+                };
+                match candidate_spec {
+                    CandidateSpec::Retry(n) if !earlier.is_empty() => {
+                        let copy = &earlier[*n as usize % earlier.len()];
+                        candidates.push(Candidate {
+                            defer: false,
+                            deferral_reload: false,
+                            ..copy.clone()
+                        });
+                        index += 1;
+                        continue;
+                    }
+                    CandidateSpec::SameCommitDuplicate(n) if !candidates.is_empty() => {
+                        let copy = candidates[*n as usize % candidates.len()].clone();
+                        candidates.push(copy);
+                        index += 1;
+                        continue;
+                    }
+                    CandidateSpec::Fresh(fresh) => fresh.clone(),
+                    CandidateSpec::Retry(_) | CandidateSpec::SameCommitDuplicate(_) => {
+                        gas_only_spec(0)
+                    }
+                    CandidateSpec::ChangeUnderDeferral {
+                        change,
+                        object,
+                        gas,
+                        deferred_gas,
+                    } => {
+                        let now = oracle.state(commit - 1);
+                        let target = match change {
+                            DeferredInputChange::DeleteShared { .. } => {
+                                let live: Vec<ObjectId> = shared_ids
+                                    .iter()
+                                    .filter(|id| now.live(id).is_some())
+                                    .copied()
+                                    .collect();
+                                live.get(*object as usize % live.len().max(1)).copied()
+                            }
+                            DeferredInputChange::ReceiveReceiving => receivable_ids
+                                .get(*object as usize % receivable_ids.len().max(1))
+                                .copied(),
+                        };
+                        match target {
+                            Some(target) => {
+                                let deferred_use = DeferredUse {
+                                    change: *change,
+                                    object: target,
+                                    gas: *deferred_gas,
+                                };
+                                let use_at = commit + oracle.k - 1;
+                                if use_at == commit {
+                                    deferred_uses.push_back(deferred_use);
+                                } else {
+                                    scheduled.entry(use_at).or_default().push(deferred_use);
+                                }
+                                deferred_use.change_spec(*gas, &shared_ids, &receivable_ids)
+                            }
+                            None => gas_only_spec(*gas),
+                        }
+                    }
+                }
+            };
             let resolve = |pool: &[ObjectId], input: &InputSpec, next_unknown: &mut u8| {
                 resolve_input(&oracle, commit, pool, &retained, input, next_unknown)
             };
@@ -760,6 +929,7 @@ fn build_history(spec: &HistorySpec) -> History {
                 defer: fresh.defer,
                 deferral_reload: false,
             });
+            index += 1;
         }
         let outcome = oracle.judge_commit(&candidates);
         pending_reloads = reloads_of(&candidates, outcome);
@@ -1890,10 +2060,18 @@ impl<'a> Validator<'a> {
             .iter()
             .all(|(id, slot)| match slot {
                 Slot::Live(object) => store.by_key(id, object.version()).as_ref() == Some(object),
-                Slot::Deleted(version) | Slot::Wrapped(version) => store
-                    .objects
-                    .get(id)
-                    .is_some_and(|versions| versions.contains_key(version)),
+                // The deletion's tombstone, or the deletion marker of a later
+                // execution that named the deleted object mutably.
+                Slot::Deleted(version) | Slot::Wrapped(version) => {
+                    store
+                        .objects
+                        .get(id)
+                        .is_some_and(|versions| versions.contains_key(version))
+                        || store
+                            .markers
+                            .get(id)
+                            .is_some_and(|markers| markers.contains_key(version))
+                }
             });
         let deletions_executed = execution.deleted_shared_inputs.iter().all(|id| {
             store
@@ -2561,6 +2739,10 @@ impl<'a> Validator<'a> {
                 {
                     SavedPostConsensusDecision::kept()
                 }
+                // A deferral reload is kept without checks, and its locks from
+                // the commit that kept it stay where they are. This copies the
+                // node's rule; the unit tests check it against the real code.
+                _ if candidate.deferral_reload => SavedPostConsensusDecision::kept(),
                 // A saved keep with effects: no input is read.
                 Some(saved)
                     if saved.decision == PostConsensusDecision::Kept
@@ -2628,7 +2810,7 @@ impl<'a> Validator<'a> {
                 ));
             }
             if verdict.decision == PostConsensusDecision::Kept {
-                if last_before_switch.is_none() {
+                if last_before_switch.is_none() && !candidate.deferral_reload {
                     for reference in &candidate.owned_inputs {
                         commit_locks.insert(*reference, candidate.digest);
                     }
@@ -3156,6 +3338,43 @@ fn run_case(env: &Env, history: &History, schedule: &Schedule) -> Outcome<Vec<St
     Ok(validator.drop_or_missing_differences)
 }
 
+/// For every deferral reload of `history` with an input not visible at its
+/// commit's horizon, which a check of the reload there would have dropped: the
+/// kind and class of the first such input, and how the reload executed.
+fn reloads_with_inputs_gone(history: &History) -> Vec<String> {
+    let mut found = Vec::new();
+    for (i, candidates) in history.commits.iter().enumerate() {
+        let commit = i as CommitIndex + 1;
+        for candidate in candidates
+            .iter()
+            .filter(|candidate| candidate.deferral_reload)
+        {
+            let classes = history.oracle.input_classes(commit, candidate);
+            let Some((input, class)) = candidate
+                .inputs()
+                .into_iter()
+                .zip(classes)
+                .find(|(_, class)| *class != InputClass::Visible)
+            else {
+                continue;
+            };
+            let kind = match input {
+                Input::Owned(_) => "owned input",
+                Input::Shared(..) => "shared input",
+                Input::Package(_) => "package",
+                Input::Receiving(_) => "receiving object",
+            };
+            let execution = match history.execution(&candidate.digest) {
+                Some((_, execution)) if execution.failed => "fails",
+                Some(_) => "succeeds",
+                None => "does not execute",
+            };
+            found.push(format!("{kind} {class:?}, execution {execution}"));
+        }
+    }
+    found
+}
+
 fn case_count() -> u32 {
     std::env::var("PROPTEST_CASES")
         .ok()
@@ -3185,6 +3404,7 @@ async fn random_histories_and_schedules_match_the_oracle() {
     eprintln!("random histories: {cases} cases from PROPTEST_RNG_SEED={seed}");
     tokio::task::block_in_place(|| {
         let drop_or_missing_differences = Mutex::new(BTreeMap::<String, usize>::new());
+        let reloads_gone = Mutex::new(BTreeMap::<String, usize>::new());
         let mut runner = TestRunner::new(Config {
             cases,
             max_shrink_iters: 4096,
@@ -3199,6 +3419,14 @@ async fn random_histories_and_schedules_match_the_oracle() {
         let result = runner.run(&(history_spec(), schedule()), |(spec, schedule)| {
             let run = runs.fetch_add(1, Ordering::SeqCst) + 1;
             let history = build_history(&spec);
+            {
+                let mut counts = reloads_gone
+                    .lock()
+                    .expect("the reload counter is only locked by the harness thread");
+                for reload in reloads_with_inputs_gone(&history) {
+                    *counts.entry(reload).or_default() += 1;
+                }
+            }
             let mismatches = run_case(&env, &history, &schedule).inspect_err(|_| {
                 let _ = first_failure.compare_exchange(0, run, Ordering::SeqCst, Ordering::SeqCst);
             })?;
@@ -3222,6 +3450,14 @@ async fn random_histories_and_schedules_match_the_oracle() {
         eprintln!(
             "drop-versus-missing class differences between the reader and the oracle (same \
              verdict): {counts:#?}"
+        );
+        let reloads_gone = reloads_gone
+            .lock()
+            .expect("the reload counter is only locked by the harness thread");
+        eprintln!(
+            "deferral reloads kept with an input not visible at the horizon, over {} runs: \
+             {reloads_gone:#?}",
+            runs.load(Ordering::SeqCst)
         );
         if let Err(error) = result {
             panic!(
