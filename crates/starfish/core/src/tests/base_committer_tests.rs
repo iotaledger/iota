@@ -621,8 +621,8 @@ async fn test_byzantine_direct_commit() {
 
     // DagState Update:
     // - 'A' got a good vote from 'C' above
-    // - 'A' will then get a bad vote from 'C' indirectly through the ancenstors of
-    //   the wave 4 decision blocks of B C D
+    // - 'A' will then get a bad vote from 'C' indirectly through the ancenstors of the wave 4
+    //   decision blocks of B C D
 
     // Add block layer for wave 4 certifying round with no votes for leader A12
     // from a byzantine validator C that sent different blocks to all validators.
@@ -732,11 +732,10 @@ async fn test_byzantine_direct_commit() {
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4
-    // - We have 3 byzantine C13 nonvotes that we received as ancestors from
-    //   certifying round blocks from B, C, & D.
-    // - We have  B14, C14 & D14 that include this byzantine nonvote and A14 from
-    //   the certifying round. But all of these blocks also have good votes from A,
-    //   B, C & D.
+    // - We have 3 byzantine C13 nonvotes that we received as ancestors from certifying round blocks
+    //   from B, C, & D.
+    // - We have  B14, C14 & D14 that include this byzantine nonvote and A14 from the certifying
+    //   round. But all of these blocks also have good votes from A, B, C & D.
     // Expect a successful direct commit.
 
     tracing::info!("Try direct commit for leader {leader_wave_4}");

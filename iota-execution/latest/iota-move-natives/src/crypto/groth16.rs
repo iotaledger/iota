@@ -134,12 +134,11 @@ pub struct Groth16VerifyGroth16ProofInternalCostParams {
 /// `bn254` cost constants.   gas cost: groth16_prepare_verifying_key_cost_base
 /// | covers various fixed costs in the oper
 ///              + groth16_verify_groth16_proof_internal_public_input_cost_per_byte
-///                                                   * size_of(public_proof_inputs) | covers the cost of verifying each public input per byte
+///                                                   * size_of(public_proof_inputs) | covers the
+///                                                     cost of verifying each public input per byte
 ///              + groth16_verify_groth16_proof_internal_cost_per_public_input
-///                                                   * num_public_inputs) |
-///                                                     covers the cost of
-///                                                     verifying each public
-///                                                     input per input
+///                                                   * num_public_inputs) | covers the cost of
+///                                                     verifying each public input per input
 /// Note: every other arg is fixed size, so their costs are included in the base
 /// cost. **********************************************************************
 /// *************************

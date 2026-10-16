@@ -11,7 +11,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefForSigning,
+        AuthenticatorFunctionRefForSigning,
+        MoveAuthenticatorsForExecution,
     },
     auth_context::AuthContextData,
     base_types::TxContext,
@@ -101,11 +102,9 @@ pub trait Executor {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        // Fails the transaction before any authenticator runs when resolution
+        // failed.
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,

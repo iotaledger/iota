@@ -65,13 +65,13 @@ feature_flags:
   max_ptb_value_size_v2: true
   allow_unbounded_system_objects: true
   reject_immutable_account_objects: true
+  reject_immutable_account_creation: true
   validate_input_object_versions: true
   disallow_self_identifier: true
   check_canonical_module_version_header: true
   disallow_randomness_in_move_authenticator: true
   check_cyclic_dependencies: true
-  enable_builtin_move_authenticators: true
-  enable_claim_account_transaction: true
+  validate_ptb_argument_indices: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -375,11 +375,3 @@ validator_low_stake_threshold: 1500000000000000
 validator_very_low_stake_threshold: 1000000000000000
 validator_low_stake_grace_period: 7
 max_move_system_package_size: 204800
-builtin_move_authenticator_cost_base: 0
-ed25519_ed25519_validate_pubkey_cost_base: 52
-ecdsa_k1_secp256k1_validate_pubkey_cost_base: 52
-ecdsa_r1_secp256r1_validate_pubkey_cost_base: 52
-multisig_multisig_validate_pubkey_cost_base: 52
-public_key_to_iota_address_impl_cost_base: 52
-claim_account_max_computation_units: 5000
-claim_account_storage_bytes_bound: 2000

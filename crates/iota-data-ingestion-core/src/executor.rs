@@ -312,7 +312,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                                 .map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
-                                checkpoint_reader.send_gc_signal(seq_number).await?;
+                                checkpoint_reader.send_gc_signal(seq_number)?;
                                 reader_checkpoint_number = seq_number;
                             }
                             self.metrics.data_ingestion_checkpoint

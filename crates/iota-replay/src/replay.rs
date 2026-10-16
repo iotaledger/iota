@@ -25,8 +25,8 @@ use iota_sdk_types::{
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution,
-        authenticator_function_ref_v1_from_dynamic_field_object,
+        AuthenticatorFunctionRefForExecution, MoveAuthenticatorForExecution,
+        MoveAuthenticatorsForExecution, authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
@@ -850,11 +850,13 @@ impl LocalExec {
                             },
                         )?;
 
-                        Ok((
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref,
-                            CheckedInputObjects::new_for_replay(authenticator_inputs),
-                        ))
+                        Ok(MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref: authenticator_function_ref,
+                            input_objects: CheckedInputObjects::new_for_replay(
+                                authenticator_inputs,
+                            ),
+                        })
                     },
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
@@ -868,8 +870,8 @@ impl LocalExec {
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .map(|a| a.function_ref.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -891,7 +893,7 @@ impl LocalExec {
                 tx_info.epoch_start_timestamp,
                 gas_data,
                 gas_status,
-                move_authenticators,
+                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
                 CheckedInputObjects::new_for_replay(input_objects.clone()),
                 transaction_kind.clone(),
                 tx_info.sender,
@@ -1166,11 +1168,11 @@ impl LocalExec {
                         (move_authenticator, (_, authenticator_function_ref_for_execution)),
                         authenticator_checked_input_objects,
                     )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
+                        MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref: authenticator_function_ref_for_execution,
+                            input_objects: authenticator_checked_input_objects,
+                        }
                     },
                 )
                 .collect::<Vec<_>>();
@@ -1184,8 +1186,8 @@ impl LocalExec {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .map(|a| a.function_ref.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -1207,7 +1209,7 @@ impl LocalExec {
                 epoch_start_timestamp,
                 gas_data,
                 gas_status,
-                move_authenticators,
+                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
                 union_checked_input_objects,
                 kind,
                 signer,

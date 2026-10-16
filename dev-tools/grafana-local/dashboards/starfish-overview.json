@@ -21571,97 +21571,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Number of authorities currently in the adaptive-ack exclusion set, as observed at the most recent leader block proposal.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "stepBefore",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 842
-          },
-          "id": 405,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "editorMode": "code",
-              "expr": "consensus_adaptive_ack_excluded_authorities",
-              "legendFormat": "{{host}}",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Adaptive-ack excluded authorities",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "description": "Rate of pending acknowledgments skipped because their author was in the adaptive-ack exclusion set at leader proposal time.",
+          "description": "Rate of pending acknowledgments left out of this node's leader blocks because the voters expected to hold them, together with the acknowledgments already kept, would weigh less than a quorum. They stay pending for the next block.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21713,8 +21623,8 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
-            "x": 12,
+            "w": 24,
+            "x": 0,
             "y": 842
           },
           "id": 406,
@@ -21737,13 +21647,13 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_adaptive_ack_acks_dropped[5m])",
+              "expr": "rate(consensus_adaptive_ack_acks_deferred[5m])",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Adaptive-ack acks dropped",
+          "title": "Adaptive-ack acknowledgments deferred",
           "type": "timeseries"
         },
         {

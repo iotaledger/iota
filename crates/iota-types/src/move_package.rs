@@ -15,17 +15,14 @@
 //! The code contains terminology that may be confusing for the uninitiated,
 //! like `Module ID`, `Package ID`, `Storage ID` and `Runtime ID`. For avoidance
 //! of doubt these concepts are defined like so:
-//! - `Package ID` is the [ObjectId] representing the address by which the given
-//!   package may be found in storage.
-//! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the
-//!   initially published package. For a non upgradeable package this will
-//!   always be equal to `Storage ID`. For an upgradeable package, it will be
-//!   the `Storage ID` of the package's first deployed version.
-//! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight
-//!   that we are talking about the current `Package ID` and not the `Runtime
-//!   ID`
-//! - `Module ID` is the the type
-//!   [ModuleID](move_core_types::language_storage::ModuleId).
+//! - `Package ID` is the [ObjectId] representing the address by which the given package may be
+//!   found in storage.
+//! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the initially published
+//!   package. For a non upgradeable package this will always be equal to `Storage ID`. For an
+//!   upgradeable package, it will be the `Storage ID` of the package's first deployed version.
+//! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight that we are talking
+//!   about the current `Package ID` and not the `Runtime ID`
+//! - `Module ID` is the the type [ModuleID](move_core_types::language_storage::ModuleId).
 //!
 //! Some of these are redundant and have overlapping meaning, so whenever
 //! reasonable/necessary the possible naming will be listed. From all of these
@@ -849,7 +846,10 @@ fn build_upgraded_type_origin_table(
 /// Derived from the network's [`ProtocolConfig`], it lets those routines depend
 /// on a small, explicit set of protocol-gated flags rather than the full
 /// [`ProtocolConfig`].
-#[derive(Debug, Clone, Copy, Default)]
+///
+/// The [`Default`] value is meant for builds whose target network is unknown:
+/// it allows view functions, which every public network has enabled.
+#[derive(Debug, Clone, Copy)]
 pub struct ProtocolBuildConfig {
     /// Build the module metadata with view function information and enable the
     /// verifier to check the correctness of the view function attribute.
@@ -864,6 +864,16 @@ pub struct ProtocolBuildConfig {
     /// `max_move_package_size`, while `None` next to an unknown user bound
     /// means the real limit is unknown too.
     pub max_move_system_package_size: Option<u64>,
+}
+
+impl Default for ProtocolBuildConfig {
+    fn default() -> Self {
+        Self {
+            allow_view_function: true,
+            max_move_package_size: None,
+            max_move_system_package_size: None,
+        }
+    }
 }
 
 impl ProtocolBuildConfig {

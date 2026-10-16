@@ -26,9 +26,9 @@ const STRUCT_LAYOUTS_FILENAME: &str = "struct_layouts.yaml";
 pub struct ProtocolBuildConfigArgs {
     /// Override whether view-function metadata is emitted and the `View`
     /// attribute is verified. When unset, this follows the resolved protocol
-    /// config's `package_metadata_with_dynamic_module_metadata` feature; pass
-    /// `--allow-view-function true` or `--allow-view-function false` to force
-    /// it.
+    /// config's `package_metadata_with_dynamic_module_metadata` feature, or is
+    /// `true` when no network is resolved; pass `--allow-view-function true`
+    /// or `--allow-view-function false` to force it.
     #[arg(long, global = true)]
     pub allow_view_function: Option<bool>,
     /// Maximum on-chain package size, populated from the resolved protocol

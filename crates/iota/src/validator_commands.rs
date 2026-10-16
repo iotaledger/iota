@@ -34,7 +34,8 @@ use iota_multiaddr::Multiaddr;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_move_types::{
-    iota_framework::dynamic_field::Field, iota_system::validator_wrapper::Validator,
+    iota_framework::dynamic_field::Field,
+    iota_system::{validator_cap::UnverifiedValidatorOperationCap, validator_wrapper::Validator},
 };
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, Transaction, TypeTag,
@@ -48,7 +49,7 @@ use iota_types::{
     },
     dynamic_field::DynamicFieldName,
     iota_system_state::{
-        iota_system_state_inner_v1::{UnverifiedValidatorOperationCap, ValidatorV1},
+        iota_system_state_inner_v1::ValidatorV1,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     transaction::{CallArg, TransactionAPI, TransactionEnvelope},

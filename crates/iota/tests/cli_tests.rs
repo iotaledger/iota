@@ -934,10 +934,8 @@ async fn test_ptb_upgrade_backward_compat() -> Result<(), anyhow::Error> {
 /// Test that misuses of the `--compile-upgrade` / `--execute-upgrade` pair
 /// are rejected:
 ///   1. `--execute-upgrade` with no preceding `--compile-upgrade`.
-///   2. Two `--compile-upgrade`s in a row without an intervening
-///      `--execute-upgrade`.
-///   3. A trailing `--compile-upgrade` that is never consumed by an
-///      `--execute-upgrade`.
+///   2. Two `--compile-upgrade`s in a row without an intervening `--execute-upgrade`.
+///   3. A trailing `--compile-upgrade` that is never consumed by an `--execute-upgrade`.
 #[sim_test]
 async fn test_ptb_compile_execute_upgrade_errors() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
@@ -963,8 +961,7 @@ async fn test_ptb_compile_execute_upgrade_errors() -> Result<(), anyhow::Error> 
     .await;
     assert!(result.is_err(), "bare --execute-upgrade should be rejected");
 
-    // 2. Two `--compile-upgrade`s in a row without an intervening
-    //    `--execute-upgrade`.
+    // 2. Two `--compile-upgrade`s in a row without an intervening `--execute-upgrade`.
     let ptb = format!(
         r#"
         --compile-upgrade {package_display} @{upgrade_cap_id}
@@ -7336,11 +7333,9 @@ fn protocol_build_config_args_resolve_to_protocol_build_config() {
     use iota_move::build::ProtocolBuildConfigArgs;
     use iota_move_build::ProtocolBuildConfig;
 
-    // An unset override resolves to `ProtocolBuildConfig::default()`.
-    assert_eq!(
-        ProtocolBuildConfig::from(ProtocolBuildConfigArgs::default()).allow_view_function,
-        ProtocolBuildConfig::default().allow_view_function,
-    );
+    // An unset override resolves to `ProtocolBuildConfig::default()`, which
+    // allows view functions.
+    assert!(ProtocolBuildConfig::from(ProtocolBuildConfigArgs::default()).allow_view_function);
     // An explicit override wins over the default.
     assert!(
         ProtocolBuildConfig::from(ProtocolBuildConfigArgs {

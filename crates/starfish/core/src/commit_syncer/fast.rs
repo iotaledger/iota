@@ -12,6 +12,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use futures::StreamExt as _;
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
@@ -31,10 +32,10 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, FetchedCommits, Inner, fetch_loop as shared_fetch_loop,
-        handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
-        try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
-        verify_transactions_commitments,
+        CommitSyncType, CommitSyncerHandle, FAST_FETCH_ATTEMPT_MULTIPLIER, FetchedCommits, Inner,
+        fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
+        schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
+        verify_fetched_headers, verify_transactions_commitments,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -43,21 +44,23 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
-    network::{NetworkClient, SerializedTransactionsV2},
+    network::{FetchedCommitsAndTransactions, NetworkClient, SerializedTransactionsV2},
     sliding_window_schedule::SlidingWindowSchedule,
     task::spawn_blocking,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
-const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Demotes `authority` for subsequent header chunks after it failed to serve
 /// one, whether it errored, timed out, or returned headers that did not verify.
 fn record_headers_for_reinitialization_failure<C: NetworkClient>(
     inner: &Inner<C>,
+    failed_authorities: &mut BTreeSet<AuthorityIndex>,
     authority: AuthorityIndex,
 ) {
+    failed_authorities.insert(authority);
     inner
         .context
         .peer_responsiveness
@@ -427,8 +430,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // When close_to_quorum_mode is activated, the schedule_loop() will:
         // 1. Wait for all inflight/pending fetches to complete
         // 2. Fetch block headers for ~cached_rounds worth of commits
-        // 3. Send ReinitializeComponents to core thread to properly initialize DAG
-        //    state
+        // 3. Send ReinitializeComponents to core thread to properly initialize DAG state
         // 4. Reset fast sync state so regular syncer can take over
         if self.has_fetched_data && !self.close_to_quorum_mode {
             let current_fetch_after = self
@@ -590,7 +592,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, FastSyncOutput) {
-        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
+        shared_fetch_loop(
+            inner,
+            commit_range,
+            FAST_FETCH_ATTEMPT_MULTIPLIER,
+            Self::fetch_once,
+        )
+        .await
     }
 
     // Fetches commits and transactions from a single authority. When the
@@ -610,15 +618,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
 
-        // 1. Fetch commits, voting headers, and transactions in the commit range from
-        //    the target authority. Each transaction is serialized as
-        //    SerializedTransactionsV2 which includes the TransactionRef.
-        let (
-            serialized_commits,
-            serialized_proof_for_last_commit,
-            serialized_transactions,
-            stream_error,
-        ) = inner
+        // 1. Fetch commits, voting headers, and transactions in the commit range from the target
+        //    authority. Each transaction is serialized as SerializedTransactionsV2 which includes
+        //    the TransactionRef.
+        let FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_proof_for_last_commit,
+            transactions: mut transaction_chunks,
+        } = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await
@@ -628,8 +635,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     .record_fetch_fault(target_authority, e);
             })?;
 
-        // 2. Verify the response contains block headers that can certify the last
-        //    returned commit, and the returned commits are chained by digest,
+        // 2. Verify the response contains block headers that can certify the last returned commit,
+        //    and the returned commits are chained by digest,
         // so earlier commits are certified as well.
         let max_commits = inner.sync_type.max_commits_per_response(&commit_range);
         let (mut commits, voting_block_headers) = spawn_blocking({
@@ -646,9 +653,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         })
         .await??;
 
-        // 3. Collect the committed transaction refs of each commit. Commits passing
-        //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
-        //    legacy `BlockRef` variant is an error.
+        // 3. Collect the committed transaction refs of each commit. Commits passing verify_commits
+        //    are V2/V3, which only carry `TransactionRef`s, so the legacy `BlockRef` variant is an
+        //    error.
         let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
             .map(|c| {
@@ -661,33 +668,107 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let mut committed_tx_refs: BTreeSet<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
-        // 4. Process fetched transactions. Each serialized_transaction is a
-        //    SerializedTransactionsV2 containing both the TransactionRef and the actual
-        //    transaction data.
-        let mut fetched_transactions = process_serialized_transactions(
-            target_authority,
-            serialized_transactions,
-            &mut committed_tx_refs,
-        )
-        .inspect_err(|_| {
-            // Truncation drops whole entries and never corrupts one, so a
-            // malformed or uncommitted entry is the peer's fault.
-            inner.misbehavior_store.record_faulty_transactions(
+        // 4. Read the transactions chunk by chunk, verifying each chunk against its commitments as
+        //    it arrives and keeping only the payloads. Past the budget reading stops, but not
+        //    before the first commit is complete, so a commit larger than the budget still makes
+        //    progress; the covered prefix below is kept. The first commit's entries must come
+        //    before any other, so that it is complete before anything else is held.
+        let byte_budget = inner
+            .context
+            .parameters
+            .max_fast_commit_sync_transaction_bytes;
+        let mut first_commit_awaited: BTreeSet<TransactionRef> = commits_tx_refs
+            .first()
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect();
+        let mut transactions_map = BTreeMap::new();
+        let mut budgeted_bytes = 0usize;
+        let mut stream_error = None;
+        while let Some(chunk) = transaction_chunks.next().await {
+            let chunk = match chunk {
+                Ok(chunk) => chunk,
+                // A cut connection leaves the delivered chunks usable.
+                Err(
+                    e @ (ConsensusError::NetworkRequest(_)
+                    | ConsensusError::NetworkRequestTimeout(_)),
+                ) => {
+                    stream_error = Some(e);
+                    break;
+                }
+                Err(e) => {
+                    inner
+                        .misbehavior_store
+                        .record_fetch_fault(target_authority, &e);
+                    return Err(e);
+                }
+            };
+            let fetched_transactions = process_serialized_transactions(
                 target_authority,
-                false,
-                [target_authority],
-            );
-        })?;
+                chunk,
+                &mut committed_tx_refs,
+                &mut first_commit_awaited,
+            )
+            .inspect_err(|_| {
+                // Truncation drops whole entries and never corrupts or
+                // reorders one, so a malformed, uncommitted or out-of-order
+                // entry is the peer's fault.
+                inner.misbehavior_store.record_faulty_transactions(
+                    target_authority,
+                    false,
+                    [target_authority],
+                );
+            })?;
+            // Charged as the server charges, less each entry's ref and length
+            // prefixes, so an honest server with the same budget stops first.
+            budgeted_bytes += fetched_transactions
+                .values()
+                .map(|payload| payload.len() + size_of::<Bytes>())
+                .sum::<usize>();
+            if !fetched_transactions.is_empty() {
+                let verified = spawn_blocking({
+                    let context = inner.context.clone();
+                    move || {
+                        verify_transactions_commitments(
+                            &context,
+                            target_authority,
+                            fetched_transactions,
+                        )
+                    }
+                })
+                .await?
+                .inspect_err(|_| {
+                    // Not provable against the author, whose commitment the
+                    // peer may have forged.
+                    inner.misbehavior_store.record_faulty_transactions(
+                        target_authority,
+                        false,
+                        [target_authority],
+                    );
+                })?;
+                transactions_map.extend(verified);
+            }
+            if budgeted_bytes > byte_budget && first_commit_awaited.is_empty() {
+                info!(
+                    "[{}] Transactions from {} passed the budget of {} bytes, keeping what arrived",
+                    inner.sync_type.as_str(),
+                    target_authority,
+                    byte_budget,
+                );
+                break;
+            }
+        }
 
         // Empty payloads can be recovered from their commitments.
         fill_missing_empty_transactions(
             &inner.context,
             &mut committed_tx_refs,
-            &mut fetched_transactions,
+            &mut transactions_map,
         );
 
         // The response may be missing transactions for a suffix of the commits,
-        // e.g. when the stream was cut off by the response byte limit or a
+        // e.g. when the stream was cut off by a response byte budget or a
         // mid-stream network error. Keep the prefix of commits whose
         // transactions were all fetched so the fetch makes forward progress;
         // the scheduler requeues the range after the prefix.
@@ -697,7 +778,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 target_authority,
                 &mut commits,
                 &mut commits_tx_refs,
-                &mut fetched_transactions,
+                &mut transactions_map,
             ) {
                 // A cut stream explains the empty covered prefix: report the
                 // connection failure rather than transactions the peer was
@@ -720,34 +801,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .inc();
         }
 
-        // 5. Verify the transactions against their commitments
-        let mut transactions_map = if !fetched_transactions.is_empty() {
-            spawn_blocking({
-                let context = inner.context.clone();
-
-                move || {
-                    verify_transactions_commitments(
-                        &context,
-                        target_authority,
-                        fetched_transactions,
-                    )
-                }
-            })
-            .await?
-            .inspect_err(|_| {
-                // Not provable against the author, whose commitment the
-                // peer may have forged.
-                inner.misbehavior_store.record_faulty_transactions(
-                    target_authority,
-                    false,
-                    [target_authority],
-                );
-            })?
-        } else {
-            BTreeMap::new()
-        };
-
-        // 6. Now create the CommittedSubDags with the fetched transactions.
+        // 5. Now create the CommittedSubDags with the fetched transactions.
         // For fast commit sync, we use block headers refs and reputation scores from
         // the commit.
         let mut committed_subdags = Vec::new();
@@ -799,9 +853,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // We need headers for three purposes:
         // 1. DagState cache: at least cached_rounds commits back
         // 2. Linearizer recovery: at least gc_depth * 2 commits back
-        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or
-        //    all commits since the last stored commit info
-        //    (commits_since_schedule_update)
+        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or all commits
+        //    since the last stored commit info (commits_since_schedule_update)
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
@@ -809,7 +862,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.
-        let (commits_since_schedule_update, block_refs) = {
+        let (last_commit_index, commits_since_schedule_update, block_refs) = {
             let dag_state = inner.dag_state.read();
             let last_commit_index = dag_state.last_commit_index();
             let last_commit_info_index = dag_state.last_commit_info_index();
@@ -839,7 +892,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 num_commits
             };
             let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
-            (commits_since_schedule_update, block_refs)
+            (last_commit_index, commits_since_schedule_update, block_refs)
         };
 
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
@@ -875,6 +928,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // Fetch headers in chunks to avoid overwhelming the network
         let mut all_headers = Vec::new();
+        let mut failed_authorities = BTreeSet::new();
         for chunk in block_refs.chunks(max_headers_per_fetch) {
             let chunk_refs: Vec<_> = chunk.to_vec();
 
@@ -888,10 +942,20 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     &mut rng,
                 );
             }
+            // A peer that voted for the last commit holds these headers, while
+            // one with no observed vote may be down and cost the full timeout.
+            // A voter that failed an earlier chunk loses that preference, and
+            // sorting a copy puts it back where the ranking or shuffle placed it.
+            let mut chunk_authorities = target_authorities.clone();
+            inner.order_voters_first(
+                &mut chunk_authorities,
+                last_commit_index,
+                &failed_authorities,
+            );
 
             // Try fetching from different authorities until successful
             let mut fetched = false;
-            for &authority in &target_authorities {
+            for &authority in &chunk_authorities {
                 let started = Instant::now();
                 match tokio::time::timeout(
                     FETCH_HEADERS_TIMEOUT,
@@ -927,7 +991,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 inner
                                     .misbehavior_store
                                     .record_faulty_block(authority, authority, &e);
-                                record_headers_for_reinitialization_failure(&inner, authority);
+                                record_headers_for_reinitialization_failure(
+                                    &inner,
+                                    &mut failed_authorities,
+                                    authority,
+                                );
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
@@ -939,7 +1007,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     }
                     Ok(Err(e)) => {
                         inner.misbehavior_store.record_fetch_fault(authority, &e);
-                        record_headers_for_reinitialization_failure(&inner, authority);
+                        record_headers_for_reinitialization_failure(
+                            &inner,
+                            &mut failed_authorities,
+                            authority,
+                        );
                         warn!(
                             "[{}] Failed to fetch headers from {}: {}",
                             inner.sync_type.as_str(),
@@ -948,7 +1020,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         );
                     }
                     Err(_) => {
-                        record_headers_for_reinitialization_failure(&inner, authority);
+                        record_headers_for_reinitialization_failure(
+                            &inner,
+                            &mut failed_authorities,
+                            authority,
+                        );
                         warn!(
                             "[{}] Timed out fetching headers from {}",
                             inner.sync_type.as_str(),
@@ -1008,14 +1084,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 /// Deserializes fetched transaction entries and keys them by their
 /// `TransactionRef`, consuming the matching refs from `committed_tx_refs`.
 ///
-/// Every entry must deserialize and match a committed ref: a malformed entry
-/// is a peer fault, not a benign byte cutoff — skipping it would be
-/// indistinguishable from a truncated response and would let the peer cap
-/// every fetch at one commit of progress via the prefix fallback.
+/// Every entry must deserialize and match a committed ref, and while
+/// `first_commit_awaited` still holds refs of the first commit, every entry
+/// must be one of them: a malformed entry is a peer fault, not a benign byte
+/// cutoff — skipping it would be indistinguishable from a truncated response
+/// and would let the peer cap every fetch at one commit of progress via the
+/// prefix fallback.
 fn process_serialized_transactions(
     peer: AuthorityIndex,
     serialized_transactions: Vec<Bytes>,
     committed_tx_refs: &mut BTreeSet<TransactionRef>,
+    first_commit_awaited: &mut BTreeSet<TransactionRef>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
     let mut fetched_transactions = BTreeMap::new();
     for serialized_transaction in serialized_transactions {
@@ -1024,6 +1103,12 @@ fn process_serialized_transactions(
         let transaction_ref = tx_v2.transaction_ref;
         if !committed_tx_refs.contains(&transaction_ref) {
             return Err(ConsensusError::UnexpectedTransactionForCommit {
+                peer,
+                received: transaction_ref,
+            });
+        }
+        if !first_commit_awaited.is_empty() && !first_commit_awaited.remove(&transaction_ref) {
+            return Err(ConsensusError::TransactionsOutOfCommitOrder {
                 peer,
                 received: transaction_ref,
             });
@@ -1037,13 +1122,13 @@ fn process_serialized_transactions(
 fn fill_missing_empty_transactions(
     context: &Context,
     committed_tx_refs: &mut BTreeSet<TransactionRef>,
-    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, CommitmentVerifiedTransactions>,
 ) {
     committed_tx_refs.retain(|transaction_ref| {
         let Some(empty) = context.empty_transactions_for_ref((*transaction_ref).into()) else {
             return true;
         };
-        fetched_transactions.insert(*transaction_ref, empty.serialized().clone());
+        fetched_transactions.insert(*transaction_ref, empty);
         false
     });
 }
@@ -1058,11 +1143,11 @@ fn fill_missing_empty_transactions(
 /// Returns an error naming `peer` when even the first commit is missing
 /// transactions, since the response then allows no forward progress. Not
 /// recorded as misbehavior: an honest response can be cut to any prefix.
-fn truncate_to_fully_fetched_prefix(
+fn truncate_to_fully_fetched_prefix<T>(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
     commits_tx_refs: &mut Vec<Vec<TransactionRef>>,
-    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, T>,
 ) -> ConsensusResult<()> {
     let prefix_len = commits_tx_refs
         .iter()
@@ -1115,7 +1200,10 @@ mod tests {
 
     mod fetch_once {
         use std::{
-            sync::{Arc, atomic::AtomicBool},
+            sync::{
+                Arc,
+                atomic::{AtomicBool, Ordering},
+            },
             time::Duration,
         };
 
@@ -1130,16 +1218,18 @@ mod tests {
                 VerifiedBlockHeader,
             },
             block_verifier::NoopBlockVerifier,
-            commit::{CommitDigest, TrustedCommit},
+            commit::{CommitDigest, CommitRange, TrustedCommit},
             commit_syncer::{
-                CommitSyncType, Inner, fast::FastCommitSyncer, tests::FakeNetworkClient,
+                CommitSyncType, Inner,
+                fast::{FastCommitSyncer, FastSyncOutput},
+                tests::FakeNetworkClient,
             },
             commit_vote_monitor::CommitVoteMonitor,
             context::Context,
             core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
             dag_state::DagState,
             encoder::create_encoder,
-            error::ConsensusError,
+            error::{ConsensusError, ConsensusResult},
             header_synchronizer::HeaderSynchronizer,
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
@@ -1214,67 +1304,76 @@ mod tests {
         pub(crate) fn two_commit_response(
             context: &Arc<Context>,
         ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
-            two_commit_response_with_payloads(
+            commit_response(
                 context,
-                [
-                    vec![Transaction::new(vec![1u8; 16])],
-                    vec![Transaction::new(vec![2u8; 16])],
+                vec![
+                    vec![vec![Transaction::new(vec![1u8; 16])]],
+                    vec![vec![Transaction::new(vec![2u8; 16])]],
                 ],
             )
         }
 
-        fn two_commit_response_with_payloads(
+        /// A complete response for commit range 1..=N, one chained commit per
+        /// element of `payloads`. Commit `i` commits one block payload per
+        /// element, authored by 0, 1, ... at round `i`, and the entries follow
+        /// commit order.
+        fn commit_response(
             context: &Arc<Context>,
-            transactions: [Vec<Transaction>; 2],
+            payloads: Vec<Vec<Vec<Transaction>>>,
         ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
             let mut encoder = create_encoder(context);
-
-            // Two chained commits, each committing one transaction.
-            let mut transaction_refs = Vec::new();
-            let mut serialized_transactions = Vec::new();
-            for (round, transactions) in (1..=2u32).zip(transactions) {
-                let serialized = Transaction::serialize(&transactions).unwrap();
-                let commitment = TransactionsCommitment::compute_transactions_commitment(
-                    &serialized,
+            let mut commits: Vec<TrustedCommit> = Vec::new();
+            let mut response_transactions = Vec::new();
+            for ((index, leader_author), blocks) in (1..).zip((0..4).cycle()).zip(payloads) {
+                let mut transaction_refs = Vec::new();
+                for (author, transactions) in (0..).zip(blocks) {
+                    let serialized = Transaction::serialize(&transactions).unwrap();
+                    let transaction_ref = TransactionRef {
+                        round: index,
+                        author: AuthorityIndex::new_for_test(author),
+                        transactions_commitment:
+                            TransactionsCommitment::compute_transactions_commitment(
+                                &serialized,
+                                context,
+                                &mut encoder,
+                            )
+                            .unwrap(),
+                    };
+                    response_transactions.push(
+                        bcs::to_bytes(&SerializedTransactionsV2 {
+                            transaction_ref,
+                            serialized_transactions: serialized,
+                        })
+                        .unwrap()
+                        .into(),
+                    );
+                    transaction_refs.push(GenericTransactionRef::TransactionRef(transaction_ref));
+                }
+                let leader = BlockRef::new(
+                    index,
+                    AuthorityIndex::new_for_test(leader_author),
+                    BlockHeaderDigest::MIN,
+                );
+                let previous_digest = commits
+                    .last()
+                    .map_or(CommitDigest::MIN, |commit| commit.digest());
+                commits.push(TrustedCommit::new_for_test(
                     context,
-                    &mut encoder,
-                )
-                .unwrap();
-                transaction_refs.push(TransactionRef {
-                    round,
-                    author: AuthorityIndex::new_for_test(0),
-                    transactions_commitment: commitment,
-                });
-                serialized_transactions.push(serialized);
+                    index,
+                    previous_digest,
+                    0,
+                    leader,
+                    vec![leader],
+                    transaction_refs,
+                ));
             }
-            let leader_1 =
-                BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
-            let commit_1 = TrustedCommit::new_for_test(
-                context,
-                1,
-                CommitDigest::MIN,
-                0,
-                leader_1,
-                vec![leader_1],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
-            );
-            let leader_2 =
-                BlockRef::new(2, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN);
-            let commit_2 = TrustedCommit::new_for_test(
-                context,
-                2,
-                commit_1.digest(),
-                0,
-                leader_2,
-                vec![leader_2],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
-            );
 
             // Vote headers from a quorum, certifying the last commit.
+            let last_commit = commits.last().unwrap();
             let vote_headers: Vec<Bytes> = (0..3)
                 .map(|author| {
-                    let header = TestBlockHeader::new(3, author)
-                        .set_commit_votes(vec![commit_2.reference()])
+                    let header = TestBlockHeader::new(last_commit.reference().index + 1, author)
+                        .set_commit_votes(vec![last_commit.reference()])
                         .build();
                     VerifiedBlockHeader::new_for_test(header)
                         .serialized()
@@ -1282,21 +1381,11 @@ mod tests {
                 })
                 .collect();
 
-            let response_transactions: Vec<Bytes> = transaction_refs
-                .iter()
-                .zip(&serialized_transactions)
-                .map(|(transaction_ref, serialized)| {
-                    bcs::to_bytes(&SerializedTransactionsV2 {
-                        transaction_ref: *transaction_ref,
-                        serialized_transactions: serialized.clone(),
-                    })
-                    .unwrap()
-                    .into()
-                })
-                .collect();
-
             (
-                vec![commit_1.serialized().clone(), commit_2.serialized().clone()],
+                commits
+                    .iter()
+                    .map(|commit| commit.serialized().clone())
+                    .collect(),
                 vote_headers,
                 response_transactions,
             )
@@ -1308,6 +1397,140 @@ mod tests {
                 .protocol_config
                 .set_consensus_fast_commit_sync_for_testing(true);
             Arc::new(context)
+        }
+
+        fn fast_sync_context_with_budget(byte_budget: usize) -> Arc<Context> {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.max_fast_commit_sync_transaction_bytes = byte_budget;
+            Arc::new(context)
+        }
+
+        /// One block payload holding a single transaction filled with `byte`.
+        fn block_payload(byte: u8) -> Vec<Transaction> {
+            vec![Transaction::new(vec![byte; 16])]
+        }
+
+        /// Runs `fetch_once` for `commit_range` against `network_client`,
+        /// served by authority 1.
+        async fn fetch_range(
+            context: Arc<Context>,
+            network_client: Arc<FakeNetworkClient>,
+            commit_range: CommitRange,
+        ) -> ConsensusResult<FastSyncOutput> {
+            FastCommitSyncer::fetch_once(
+                make_inner(context, network_client),
+                AuthorityIndex::new_for_test(1),
+                commit_range,
+                Duration::from_millis(100),
+            )
+            .await
+        }
+
+        /// Past the budget the fetch stops reading and keeps the commits the
+        /// chunks read so far cover.
+        #[tokio::test]
+        async fn stops_reading_past_the_budget() {
+            // Room for one entry and a half: the first commit's entry is
+            // charged, and the second commit's entry passes the budget.
+            let entry_charge =
+                Transaction::serialize(&block_payload(1)).unwrap().len() + size_of::<Bytes>();
+            let context = fast_sync_context_with_budget(entry_charge * 3 / 2);
+            let response = commit_response(
+                &context,
+                vec![
+                    vec![block_payload(1)],
+                    vec![block_payload(2)],
+                    vec![block_payload(3)],
+                ],
+            );
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some(response),
+                transactions_per_chunk: Some(1),
+                ..Default::default()
+            });
+
+            let output = fetch_range(context, network_client.clone(), (1..=3).into())
+                .await
+                .unwrap();
+
+            // The second commit's chunk passes the budget and is the last one
+            // read.
+            assert_eq!(output.commits.len(), 2);
+            assert_eq!(network_client.chunks_read.load(Ordering::Relaxed), 2);
+        }
+
+        /// A first commit larger than the budget is read whole, across chunks,
+        /// so a fetch of it makes progress, and reading stops right after it.
+        #[tokio::test]
+        async fn reads_a_first_commit_larger_than_the_budget() {
+            let context = fast_sync_context_with_budget(1);
+            let response = commit_response(
+                &context,
+                vec![
+                    vec![block_payload(1), block_payload(2)],
+                    vec![block_payload(3)],
+                    vec![block_payload(4)],
+                ],
+            );
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some(response),
+                transactions_per_chunk: Some(1),
+                ..Default::default()
+            });
+
+            let output = fetch_range(context, network_client.clone(), (1..=3).into())
+                .await
+                .unwrap();
+
+            assert_eq!(output.commits.len(), 1);
+            assert_eq!(output.committed_subdags[0].transactions.len(), 2);
+            assert_eq!(network_client.chunks_read.load(Ordering::Relaxed), 2);
+        }
+
+        /// Within a commit, entries may arrive in any order.
+        #[tokio::test]
+        async fn takes_the_entries_of_a_commit_in_any_order() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = commit_response(
+                &context,
+                vec![
+                    vec![block_payload(1), block_payload(2)],
+                    vec![block_payload(3)],
+                ],
+            );
+            response_transactions.swap(0, 1);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, response_transactions)),
+                ..Default::default()
+            });
+
+            let output = fetch_range(context, network_client, (1..=2).into())
+                .await
+                .unwrap();
+
+            assert_eq!(output.commits.len(), 2);
+            assert_eq!(output.committed_subdags[0].transactions.len(), 2);
+        }
+
+        /// An entry of a later commit arriving while an earlier commit still
+        /// waits for entries is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_entries_out_of_commit_order() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            response_transactions.reverse();
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::TransactionsOutOfCommitOrder { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
         /// A response whose transaction payload covers only some of the
@@ -1360,12 +1583,11 @@ mod tests {
         #[tokio::test]
         async fn fills_empty_payload_omitted_by_peer() {
             let context = fast_sync_context();
-            let (commits, vote_headers, mut response_transactions) =
-                two_commit_response_with_payloads(
-                    &context,
-                    [vec![], vec![Transaction::new(vec![2u8; 16])]],
-                );
-            response_transactions.remove(0);
+            let (commits, vote_headers, mut response_transactions) = commit_response(
+                &context,
+                vec![vec![vec![Transaction::new(vec![1u8; 16])]], vec![vec![]]],
+            );
+            response_transactions.remove(1);
 
             let network_client = Arc::new(FakeNetworkClient {
                 commits_and_transactions: Some((commits, vote_headers, response_transactions)),
@@ -1384,9 +1606,9 @@ mod tests {
 
             assert_eq!(output.commits.len(), 2);
             assert_eq!(output.committed_subdags.len(), 2);
-            assert_eq!(output.committed_subdags[0].transactions.len(), 1);
-            assert!(!output.committed_subdags[0].transactions[0].has_transactions());
-            assert!(output.committed_subdags[1].transactions[0].has_transactions());
+            assert!(output.committed_subdags[0].transactions[0].has_transactions());
+            assert_eq!(output.committed_subdags[1].transactions.len(), 1);
+            assert!(!output.committed_subdags[1].transactions[0].has_transactions());
         }
 
         /// Runs `fetch_once` against a preset response served by authority 1
@@ -1594,9 +1816,9 @@ mod tests {
         }
     }
 
-    /// Covers the commit-vote ordering in the shared `fetch_loop`, driven
-    /// through the fast syncer because that is the flavour `FakeNetworkClient`
-    /// serves.
+    /// Covers the commit-vote ordering in the shared `fetch_loop` and in the
+    /// reinitialization header fetch. `fetch_loop` is driven through the fast
+    /// syncer because that is the flavour `FakeNetworkClient` serves.
     mod peer_selection_by_commit_votes {
         use std::{sync::Arc, time::Duration};
 
@@ -1604,10 +1826,11 @@ mod tests {
 
         use super::fetch_once::make_inner;
         use crate::{
-            block_header::{TestBlockHeader, VerifiedBlockHeader},
-            commit::{CommitDigest, CommitRef},
+            block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader, VerifiedBlockHeader},
+            commit::{CommitDigest, CommitRef, TrustedCommit},
             commit_syncer::{fast::FastCommitSyncer, fetch_loop, tests::FakeNetworkClient},
             context::Context,
+            dag_state::DataSource,
         };
 
         /// Drives one pass of `fetch_loop` over a committee where no peer can
@@ -1671,6 +1894,123 @@ mod tests {
                     AuthorityIndex::new_for_test(1),
                     AuthorityIndex::new_for_test(2),
                     AuthorityIndex::new_for_test(3),
+                ]
+            );
+        }
+
+        /// The reinitialization header fetch asks a peer that voted for the
+        /// last commit first, even when the responsiveness ranking prefers the
+        /// peers without a vote.
+        #[tokio::test(start_paused = true)]
+        async fn reinitialization_asks_voters_first() {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.enable_peer_responsiveness_ranking = true;
+            let context = Arc::new(context);
+            for peer in [1, 2] {
+                context.peer_responsiveness.record_success(
+                    DataSource::FastCommitSyncer,
+                    AuthorityIndex::new_for_test(peer),
+                    Duration::from_millis(1),
+                );
+            }
+            // An empty answer never matches the requested header, so every
+            // peer is asked in turn.
+            let network_client = Arc::new(FakeNetworkClient {
+                block_headers: Some(vec![]),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+            let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+            {
+                let mut dag_state = inner.dag_state.write();
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    1,
+                    CommitDigest::MIN,
+                    0,
+                    leader,
+                    vec![leader],
+                    vec![],
+                ));
+                dag_state.flush();
+            }
+            inner
+                .commit_vote_monitor
+                .observe_block(&VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(3, 3)
+                        .set_commit_votes(vec![CommitRef::new(1, CommitDigest::MIN)])
+                        .build(),
+                ));
+
+            let result = FastCommitSyncer::fetch_headers_for_reinitialization(inner).await;
+
+            assert!(result.is_err());
+            let asked = network_client.requested_header_peers.lock().clone();
+            assert_eq!(asked.len(), 3);
+            assert_eq!(asked[0], AuthorityIndex::new_for_test(3));
+        }
+
+        /// A voter that fails one chunk of the reinitialization header fetch
+        /// goes back to its committee-order place for the remaining chunks.
+        #[tokio::test(start_paused = true)]
+        async fn reinitialization_drops_preference_for_a_failed_voter() {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.max_headers_per_commit_sync_fetch = 1;
+            let context = Arc::new(context);
+            let headers: Vec<_> = (0..2)
+                .map(|author| {
+                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, author).build())
+                })
+                .collect();
+            let block_refs: Vec<_> = headers.iter().map(|header| header.reference()).collect();
+            let voter = AuthorityIndex::new_for_test(3);
+            let network_client = Arc::new(FakeNetworkClient {
+                stored_block_headers: headers
+                    .iter()
+                    .map(|header| (header.reference(), header.serialized().clone()))
+                    .collect(),
+                unreachable_header_peers: vec![voter],
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+            {
+                let mut dag_state = inner.dag_state.write();
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    1,
+                    CommitDigest::MIN,
+                    0,
+                    block_refs[0],
+                    block_refs.clone(),
+                    vec![],
+                ));
+                dag_state.flush();
+            }
+            inner
+                .commit_vote_monitor
+                .observe_block(&VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(3, 3)
+                        .set_commit_votes(vec![CommitRef::new(1, CommitDigest::MIN)])
+                        .build(),
+                ));
+
+            let fetched = FastCommitSyncer::fetch_headers_for_reinitialization(inner)
+                .await
+                .unwrap();
+
+            assert_eq!(fetched.len(), 2);
+            assert_eq!(
+                *network_client.requested_header_peers.lock(),
+                vec![
+                    voter,
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(1),
                 ]
             );
         }
@@ -2056,6 +2396,7 @@ mod tests {
                 AuthorityIndex::new_for_test(1),
                 vec![serialized(tx_a), serialized(tx_b)],
                 &mut committed,
+                &mut BTreeSet::new(),
             )
             .unwrap();
 
@@ -2072,6 +2413,7 @@ mod tests {
                 AuthorityIndex::new_for_test(1),
                 vec![Bytes::from_static(b"garbage"), serialized(tx_a)],
                 &mut committed,
+                &mut BTreeSet::new(),
             );
 
             assert!(matches!(
@@ -2086,8 +2428,12 @@ mod tests {
             let peer = AuthorityIndex::new_for_test(1);
             let mut committed: BTreeSet<TransactionRef> = [tx_a].into_iter().collect();
 
-            let result =
-                process_serialized_transactions(peer, vec![serialized(tx_b)], &mut committed);
+            let result = process_serialized_transactions(
+                peer,
+                vec![serialized(tx_b)],
+                &mut committed,
+                &mut BTreeSet::new(),
+            );
 
             assert!(matches!(
                 result,
@@ -2095,6 +2441,33 @@ mod tests {
                     peer: error_peer,
                     received,
                 }) if error_peer == peer && received == tx_b
+            ));
+        }
+
+        /// Every entry of the first commit must come before any other entry;
+        /// the other commits' entries may come in any order.
+        #[tokio::test]
+        async fn errors_on_another_commit_entry_before_the_first_commit_is_complete() {
+            let (tx_a, tx_b, tx_c, tx_d) = (plain_ref(1), plain_ref(2), plain_ref(3), plain_ref(4));
+            let peer = AuthorityIndex::new_for_test(1);
+            let process = |entries: Vec<TransactionRef>| {
+                let mut committed: BTreeSet<TransactionRef> =
+                    [tx_a, tx_b, tx_c, tx_d].into_iter().collect();
+                process_serialized_transactions(
+                    peer,
+                    entries.into_iter().map(serialized).collect(),
+                    &mut committed,
+                    &mut [tx_a, tx_b].into_iter().collect(),
+                )
+            };
+
+            assert!(process(vec![tx_b, tx_a, tx_d, tx_c]).is_ok());
+            assert!(matches!(
+                process(vec![tx_a, tx_c, tx_b]),
+                Err(ConsensusError::TransactionsOutOfCommitOrder {
+                    peer: error_peer,
+                    received,
+                }) if error_peer == peer && received == tx_c
             ));
         }
     }
@@ -2179,14 +2552,11 @@ mod tests {
     /// Test flow to ensure B requests commits A has in voting storage:
     /// - Phase 1: All run → commits 1-N1 (all validators have these)
     /// - Phase 2: Stop B first (B stops at N1)
-    /// - Phase 3: A + the other 5 validators continue → commits N1-N2 (B
-    ///   doesn't have these)
+    /// - Phase 3: A + the other 5 validators continue → commits N1-N2 (B doesn't have these)
     /// - Phase 4: Stop A (A stops at N2)
-    /// - Phase 5: The remaining 5 validators continue → commits N2-N3 (neither
-    ///   A nor B have these)
+    /// - Phase 5: The remaining 5 validators continue → commits N2-N3 (neither A nor B have these)
     /// - Phase 6: Restart A, fast syncs N2-N3 → stores voting headers
-    /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting
-    ///   storage
+    /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting storage
     #[tokio::test(flavor = "current_thread")]
     async fn test_fast_sync_voting_blocks_served_to_peer() {
         telemetry_subscribers::init_for_testing();
@@ -2200,10 +2570,14 @@ mod tests {
         // Fast-sync fetch batch size; also the stride at which a fast-syncing
         // validator stores voting block headers.
         const FAST_COMMIT_SYNC_BATCH_SIZE: u32 = 20;
-        // Gap a restarted validator must close, in commits. Set comfortably above
-        // COMMIT_GAP_THRESHOLD so fast sync (not regular sync) is selected even with
-        // some slack between the consumer high-water mark and the quorum index.
-        const TARGET_GAP: u32 = COMMIT_GAP_THRESHOLD * 2;
+        // Commits A misses while stopped. Above COMMIT_GAP_THRESHOLD so A fast
+        // syncs on restart, and large enough that A, fetching one batch at a
+        // time, is still fast syncing when B restarts and asks it for commits.
+        const COMMITS_MISSED_BY_A: u32 = 400;
+        // Commits B misses while stopped. Comfortably above COMMIT_GAP_THRESHOLD
+        // so B fast syncs on restart even with some slack between the consumer
+        // high-water mark and the quorum index.
+        const COMMITS_MISSED_BY_B: u32 = 60;
         // Safety bound on how long a work phase waits to reach its target commit
         // count; generous so a slow host still completes rather than hangs.
         let work_phase_timeout = Duration::from_secs(60);
@@ -2212,10 +2586,11 @@ mod tests {
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_gc_depth_for_testing(5);
         // Shrink the leader-schedule rotation window — which also bounds the
-        // fast-sync reinitialization fetch window — well below TARGET_GAP. With the
-        // default window a recovering node refetches the whole synced gap into its
-        // regular block storage, so the fallback always answers and the voting-block
-        // store this test exercises is never actually consulted.
+        // fast-sync reinitialization fetch window — well below
+        // COMMITS_MISSED_BY_A. With the default window a recovering node
+        // refetches the whole synced gap into its regular block storage, so the
+        // fallback always answers and the voting-block store this test
+        // exercises is never actually consulted.
         protocol_config.set_commits_per_schedule_for_testing(10);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
@@ -2269,14 +2644,15 @@ mod tests {
             consumer_monitors.push(monitor);
         }
 
-        // Phase 1: Let all authorities run and build a shared committed prefix.
+        // Phase 1: Let all authorities run and build a shared committed prefix
+        // of 60 commits.
         let mut committed_index = [0u32; NUM_AUTHORITIES];
         run_until_commit_index(
             &mut output_receivers,
             &mut committed_index,
             &consumer_monitors,
             &[],
-            TARGET_GAP,
+            60,
             work_phase_timeout,
         )
         .await;
@@ -2293,7 +2669,7 @@ mod tests {
             &mut committed_index,
             &consumer_monitors,
             &[validator_b_index],
-            last_processed_b + TARGET_GAP,
+            last_processed_b + COMMITS_MISSED_BY_B,
             work_phase_timeout,
         )
         .await;
@@ -2311,7 +2687,7 @@ mod tests {
             &mut committed_index,
             &consumer_monitors,
             &[validator_a_index, validator_b_index],
-            last_processed_a + TARGET_GAP,
+            last_processed_a + COMMITS_MISSED_BY_A,
             work_phase_timeout,
         )
         .await;
@@ -2320,7 +2696,8 @@ mod tests {
         let parameters = Parameters {
             db_path: temp_dirs[validator_a_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
-            commit_sync_parallel_fetches: 2,
+            // One batch at a time, so A is still fast syncing when B asks it.
+            commit_sync_parallel_fetches: 1,
             commit_sync_batch_size: 10,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
@@ -2348,11 +2725,10 @@ mod tests {
 
         // Wait until A has fast-synced two batches past its restart point:
         // enough for its voting storage to cover B's first overlapping fetch
-        // bound, yet reachable before A can stall on stopped B (batch fetching
-        // stops only within one batch of a head at least three batches ahead).
-        // Unlike a margin below the moving head, a fixed target cannot be
-        // outrun under load, and stopping short of convergence keeps A
-        // un-reinitialized, which serving from voting storage requires.
+        // bound. Unlike a margin below the moving head, a fixed target cannot
+        // be outrun under load, and with most of COMMITS_MISSED_BY_A still to
+        // close A is not yet reinitialized when B asks it for commits, which
+        // serving from voting storage requires.
         let a_target = last_processed_a + 2 * FAST_COMMIT_SYNC_BATCH_SIZE;
         let start_time = Instant::now();
         let mut a_fast_synced = false;
@@ -2407,9 +2783,7 @@ mod tests {
 
         authorities.insert(validator_b_index, authority);
 
-        // Wait for both restarted validators to catch up: A finishes its
-        // interrupted fast sync once B is reachable again. With all
-        // validators running, neither can stall on an unreachable peer.
+        // Wait for both restarted validators to catch up.
         let start_time = Instant::now();
         let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(90) {
@@ -2530,15 +2904,13 @@ mod tests {
     ///
     /// Test flow:
     /// - Phase 1: All validators run together, creating initial commits
-    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 +
-    ///   stop txn synchronizer + stop shard reconstructor
-    /// - Phase 3: Wait for commits with missing txs (creates pending subdags)
-    ///   and verify gap
+    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 + stop txn synchronizer +
+    ///   stop shard reconstructor
+    /// - Phase 3: Wait for commits with missing txs (creates pending subdags) and verify gap
     /// - Phase 4: Stop test validator
     /// - Phase 5: Other validators continue (creates fast sync gap > threshold)
-    /// - Phase 6: Restart test validator with full connectivity, but keep txn
-    ///   synchronizer + shard reconstructor stopped to prevent pending subdags
-    ///   from being solidified
+    /// - Phase 6: Restart test validator with full connectivity, but keep txn synchronizer + shard
+    ///   reconstructor stopped to prevent pending subdags from being solidified
     /// - Phase 7: Verify fast sync was used and validator caught up
     #[tokio::test(flavor = "current_thread")]
     #[serial_test::serial]

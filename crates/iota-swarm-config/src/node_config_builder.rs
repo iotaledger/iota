@@ -35,7 +35,7 @@ use iota_types::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
     },
     supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
 };
 
 use crate::{
@@ -56,7 +56,6 @@ pub struct ValidatorConfigBuilder {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
-    firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     discovery_config: Option<DiscoveryConfig>,
@@ -118,11 +117,6 @@ impl ValidatorConfigBuilder {
 
     pub fn with_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.policy_config = config;
-        self
-    }
-
-    pub fn with_firewall_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.firewall_config = config;
         self
     }
 
@@ -253,7 +247,6 @@ impl ValidatorConfigBuilder {
             run_with_range: None,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
-            firewall_config: self.firewall_config,
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
@@ -305,7 +298,6 @@ pub struct FullnodeConfigBuilder {
     network_key_pair: Option<KeyPairWithPath>,
     run_with_range: Option<RunWithRange>,
     policy_config: Option<PolicyConfig>,
-    fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
@@ -313,11 +305,18 @@ pub struct FullnodeConfigBuilder {
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
+    state_snapshot_write_config: Option<StateSnapshotConfig>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Publishes formal state snapshots to the store the config names.
+    pub fn with_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.state_snapshot_write_config = Some(config);
+        self
     }
 
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
@@ -422,11 +421,6 @@ impl FullnodeConfigBuilder {
 
     pub fn with_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.policy_config = config;
-        self
-    }
-
-    pub fn with_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.fw_config = config;
         self
     }
 
@@ -648,7 +642,7 @@ impl FullnodeConfigBuilder {
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
-            state_snapshot_write_config: StateSnapshotConfig::default(),
+            state_snapshot_write_config: self.state_snapshot_write_config.unwrap_or_default(),
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
@@ -656,7 +650,6 @@ impl FullnodeConfigBuilder {
             run_with_range: self.run_with_range,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
-            firewall_config: self.fw_config,
             execution_cache_config: ExecutionCacheConfig::default(),
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
             ),

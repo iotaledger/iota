@@ -28,14 +28,14 @@ pub use crate::{
     database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
         BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
-        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
-        read_size_from_env,
+        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options,
+        disable_fallocate, list_tables, read_size_from_env,
     },
 };
 use crate::{
     database::{Database, Storage},
     metrics::DBMetrics,
-    rocks::errors::typed_store_err_from_rocks_err,
+    rocks::{errors::typed_store_err_from_rocks_err, options::base_db_options},
 };
 
 // TODO: remove this after Rust rocksdb has the TOTAL_BLOB_FILES_SIZE property
@@ -89,7 +89,7 @@ pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
     // scheduled against the simulated clock and then run against the real one,
     // aborting periodic-task registration. Only the open needs the guard — the
     // get/put below spawn no threads. See `open_cf_opts`. No-op outside msim.
-    let db = nondeterministic!(rocksdb::DB::open_default(path)).map_err(|e| e.to_string())?;
+    let db = nondeterministic!(open_status_db(path)).map_err(|e| e.to_string())?;
 
     db.get(DB_CORRUPTED_KEY)
         .map_err(|e| format!("Failed to open database: {e}"))
@@ -109,7 +109,13 @@ pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
 
 pub fn unmark_db_corruption(path: &Path) -> Result<(), Error> {
     // See `check_and_mark_db_corruption` for why the open runs off the test thread.
-    nondeterministic!(rocksdb::DB::open_default(path))?.put(DB_CORRUPTED_KEY, [0])
+    nondeterministic!(open_status_db(path))?.put(DB_CORRUPTED_KEY, [0])
+}
+
+fn open_status_db(path: &Path) -> Result<rocksdb::DB, Error> {
+    let mut options = base_db_options();
+    options.create_if_missing(true);
+    rocksdb::DB::open(&options, path)
 }
 
 /// Opens a database with options, and a number of column families with

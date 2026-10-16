@@ -177,7 +177,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.34.0-alpha"
+version = "1.35.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -327,14 +327,9 @@ prost-build = "0.14"
 prost-types = "0.14"
 quote = "1.0.23"
 rand = "0.10.2"
-# `rand` 0.8 is kept next to the workspace `rand` above for two reasons:
-# - fastcrypto's `AllowedRng` is implemented only for 0.8's `StdRng` and
-#   `ThreadRng`, so any RNG handed to fastcrypto must come from this version.
-# - Seeded draws whose results every validator must reproduce stay on it:
-#   the Starfish leader schedule (`starfish/core/src/leader_schedule.rs`)
-#   and the submission order in `iota-types/src/committee.rs`. Newer `rand`
-#   versions return different values for the same seed, so old and new
-#   binaries would disagree; changing them needs a protocol feature flag.
+# `rand` 0.8 is kept next to the workspace `rand` above because fastcrypto's
+# `AllowedRng` is implemented only for 0.8's `StdRng` and `ThreadRng`, so any
+# RNG handed to fastcrypto must come from this version.
 rand08 = { package = "rand", version = "0.8.5" }
 rcgen = "0.13"
 regex = "1.7.1"
@@ -342,7 +337,7 @@ reqwest = { version = "0.13", default-features = false, features = ["http2", "js
 roaring = "0.11.2"
 rs_merkle = "1.5.0"
 rstest = "0.16.0"
-rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
+rustls = { version = "0.23.46", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
@@ -413,9 +408,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "7e285dcd5ca89f97439b122f36c199dbf613e09f" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "0632bb2e9b6e76c1f0fc2eb97e129579ab3b0d2e" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "7e285dcd5ca89f97439b122f36c199dbf613e09f" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "0632bb2e9b6e76c1f0fc2eb97e129579ab3b0d2e" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -456,11 +451,11 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e285dcd5ca89f97439b122f36c199dbf613e09f", default-features = false }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e285dcd5ca89f97439b122f36c199dbf613e09f", default-features = false, features = ["tls-ring"] }
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e285dcd5ca89f97439b122f36c199dbf613e09f", default-features = false }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e285dcd5ca89f97439b122f36c199dbf613e09f", default-features = false }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7e285dcd5ca89f97439b122f36c199dbf613e09f", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0632bb2e9b6e76c1f0fc2eb97e129579ab3b0d2e", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0632bb2e9b6e76c1f0fc2eb97e129579ab3b0d2e", default-features = false, features = ["tls-ring"] }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0632bb2e9b6e76c1f0fc2eb97e129579ab3b0d2e", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0632bb2e9b6e76c1f0fc2eb97e129579ab3b0d2e", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0632bb2e9b6e76c1f0fc2eb97e129579ab3b0d2e", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

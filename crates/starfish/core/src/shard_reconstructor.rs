@@ -1187,9 +1187,8 @@ mod tests {
 
     ///  Prepare a batch of messages simulating the case:
     /// - FullTransaction for round `i` from authority `j`
-    /// - The j-th shard of every authority's transaction data from round `i-1`
-    ///   This simulates the typical case where authority is streaming its block
-    ///   bundles
+    /// - The j-th shard of every authority's transaction data from round `i-1` This simulates the
+    ///   typical case where authority is streaming its block bundles
     fn prepare_bundle_messages(
         authority_j: u8,
         header_cur: VerifiedBlockHeader,

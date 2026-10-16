@@ -5,15 +5,17 @@ use iota_sdk_move_types::iota_framework::{
     account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TypeTag,
+    Address, Identifier, MoveAuthenticator, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     dynamic_field,
-    error::{IotaError, UserInputError, UserInputResult},
+    error::{ExecutionError, IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,
+    transaction::CheckedInputObjects,
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
@@ -125,6 +127,22 @@ impl From<AuthenticatorFunctionRefForExecution> for AuthenticatorFunctionRefForS
             authenticator_function_ref: value.authenticator_function_ref,
         }
     }
+}
+
+/// A `MoveAuthenticator` with the inputs and account resolution it executes
+/// with. `FunctionRef` is `Option`al while resolution may still have failed.
+pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefForExecution> {
+    pub authenticator: MoveAuthenticator,
+    pub function_ref: FunctionRef,
+    pub input_objects: CheckedInputObjects,
+}
+
+/// The Move authenticators a transaction executes with: either every
+/// authenticator's function ref resolved, or resolution failed before
+/// execution and the failure is reported in the authentication's place.
+pub enum MoveAuthenticatorsForExecution {
+    Resolved(Vec<MoveAuthenticatorForExecution>),
+    ResolutionFailed(ExecutionError),
 }
 
 /// Derive the id of the dynamic field on the account object that holds its

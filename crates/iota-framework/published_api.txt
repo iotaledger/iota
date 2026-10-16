@@ -1114,6 +1114,12 @@ vdf_verify
 vdf_verify_internal
 	fun
 	0x2::vdf
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
+get_attr
+	public(package) fun
+	0x2::protocol_config
 TxContext
 	public struct
 	0x2::tx_context
@@ -2497,12 +2503,6 @@ validate_public_key
 to_iota_address_impl
 	fun
 	0x2::public_key
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
-get_attr
-	public(package) fun
-	0x2::protocol_config
 PublicKeyAttached
 	public struct
 	0x2::builtin_authenticator_functions

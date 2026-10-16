@@ -9,6 +9,7 @@ pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
+use metrics::{HandshakeResult, TrackedIo};
 use tokio::task::JoinSet;
 use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
@@ -26,6 +27,7 @@ mod connection_info;
 mod fuse;
 mod io;
 mod listener;
+pub mod metrics;
 
 pub use config::{Config, PeerConnectionEvent};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
@@ -100,7 +102,7 @@ impl Builder {
         service: S,
     ) -> Result<ServerHandle<L::Addr>, BoxError>
     where
-        L: Listener,
+        L: Listener<Addr = std::net::SocketAddr>,
         S: Service<
                 Request<BoxBody>,
                 Response = Response<ResponseBody>,
@@ -125,6 +127,10 @@ impl Builder {
             Arc::new(tls)
         });
 
+        if let (Some(metrics), Some(_)) = (&self.config.metrics, &tls_config) {
+            metrics.enable_tls();
+        }
+
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
         let peer_connection_counts =
             PeerConnectionCounts::new(self.config.on_peer_connection_event.clone());
@@ -132,7 +138,7 @@ impl Builder {
             config: self.config,
             tls_config,
             listener,
-            local_addr: local_addr.clone(),
+            local_addr,
             service: ServiceBuilder::new()
                 .layer(tower::util::BoxCloneService::layer())
                 .map_response(|response: Response<ResponseBody>| response.map(body::boxed))
@@ -222,7 +228,7 @@ impl<A> Clone for ServerHandle<A> {
     }
 }
 
-type ConnectingOutput<Io, Addr> = Result<(ServerIo<Io>, Addr), crate::BoxError>;
+type ConnectingOutput<Io, Addr> = Result<(ServerIo<TrackedIo<Io>>, Addr), crate::BoxError>;
 
 struct Server<L: Listener> {
     config: Config,
@@ -243,7 +249,7 @@ struct Server<L: Listener> {
 
 impl<L> Server<L>
 where
-    L: Listener,
+    L: Listener<Addr = std::net::SocketAddr>,
 {
     async fn serve(mut self) -> Result<(), BoxError> {
         loop {
@@ -300,26 +306,38 @@ where
     }
 
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
+        let io = TrackedIo::new(io, self.config.metrics.as_ref(), remote_addr);
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
             let handshake_timeout = self.config.handshake_timeout;
+            let handshake_guard = io.connection().and_then(|c| c.record_handshake_start());
             self.pending_connections.spawn(async move {
-                tokio::select! {
-                    result = handshake(io, remote_addr, tls_acceptor) => result,
+                let result = tokio::select! {
+                    result = handshake(io, remote_addr, tls_acceptor) => Some(result),
                     // Dropping the handshake closes the connection, releasing its file descriptor.
-                    _ = sleep_or_pending(handshake_timeout) => Err(std::io::Error::new(
+                    _ = sleep_or_pending(handshake_timeout) => None,
+                };
+                if let Some(guard) = handshake_guard {
+                    guard.record_result(match &result {
+                        Some(Ok(_)) => HandshakeResult::Completed,
+                        Some(Err(_)) => HandshakeResult::Failed,
+                        None => HandshakeResult::TimedOut,
+                    });
+                }
+                result.unwrap_or_else(|| {
+                    Err(std::io::Error::new(
                         std::io::ErrorKind::TimedOut,
                         "TLS handshake timed out",
                     )
-                    .into()),
-                }
+                    .into())
+                })
             });
         } else {
             self.handle_connection(ServerIo::new_io(io), remote_addr);
         }
     }
 
-    fn handle_connection(&mut self, io: ServerIo<L::Io>, remote_addr: L::Addr) {
+    fn handle_connection(&mut self, io: ServerIo<TrackedIo<L::Io>>, remote_addr: L::Addr) {
         let mut peer_connection_guard = None;
         if let (Some(max), Some(peer)) =
             (self.config.max_connections_per_peer, peer_public_key(&io))
@@ -340,8 +358,8 @@ where
         );
         let connection_id = connection_info.id();
         let connect_info = connection_info::ConnectInfo {
-            local_addr: self.local_addr.clone(),
-            remote_addr: connection_info.remote_address().clone(),
+            local_addr: self.local_addr,
+            remote_addr: *connection_info.remote_address(),
         };
         let peer_certificates = connection_info.peer_certificates().cloned();
         let hyper_io = hyper_util::rt::TokioIo::new(io);
@@ -413,7 +431,7 @@ where
 
 /// Runs the TLS handshake to completion.
 async fn handshake<Io, Addr>(
-    io: Io,
+    io: TrackedIo<Io>,
     remote_addr: Addr,
     tls_acceptor: TlsAcceptor,
 ) -> ConnectingOutput<Io, Addr>

@@ -355,7 +355,6 @@ impl<'a> TestAuthorityBuilder<'a> {
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
         let policy_config = config.policy_config.clone();
-        let firewall_config = config.firewall_config.clone();
 
         let state = AuthorityState::new(
             name,
@@ -375,7 +374,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             chain_identifier,
             None,
             policy_config,
-            firewall_config,
+            None,
         )
         .await;
 

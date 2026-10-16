@@ -19,7 +19,7 @@ use fastcrypto::{
 use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_common::{debug_fatal, fatal};
-use iota_macros::fail_point_if;
+use iota_macros::{fail_point, fail_point_if};
 use iota_network::randomness;
 use iota_sdk_types::RandomnessRound;
 use iota_types::{
@@ -137,25 +137,21 @@ impl VersionedUsedProcessedMessages {
 //
 // DKG protocol:
 // 1. This validator sends out a `Message` to all other validators.
-// 2. Once sufficient valid `Message`s are received from other validators via
-//    consensus and processed, this validator sends out a `Confirmation` to all
-//    other validators.
-// 3. Once sufficient `Confirmation`s are received from other validators via
-//    consensus and processed, they are combined to form a public VSS key and
-//    local private key shares.
+// 2. Once sufficient valid `Message`s are received from other validators via consensus and
+//    processed, this validator sends out a `Confirmation` to all other validators.
+// 3. Once sufficient `Confirmation`s are received from other validators via consensus and
+//    processed, they are combined to form a public VSS key and local private key shares.
 // 4. Randomness generation begins.
 //
 // Randomness generation:
-// 1. For each new round, AuthorityPerEpochStore eventually calls
-//    `generate_randomness`.
-// 2. This kicks off a process in RandomnessEventLoop to send partial signatures
-//    for the new round to all other validators.
-// 3. Once enough partial signatures for the round are collected, a
-//    RandomnessStateUpdate transaction is generated and injected into the
-//    TransactionManager.
-// 4. Once the RandomnessStateUpdate transaction is seen in a certified
-//    checkpoint, `notify_randomness_in_checkpoint` is called to complete the
-//    round and stop sending partial signatures for it.
+// 1. For each new round, AuthorityPerEpochStore eventually calls `generate_randomness`.
+// 2. This kicks off a process in RandomnessEventLoop to send partial signatures for the new round
+//    to all other validators.
+// 3. Once enough partial signatures for the round are collected, a RandomnessStateUpdate
+//    transaction is generated and injected into the TransactionManager.
+// 4. Once the RandomnessStateUpdate transaction is seen in a certified checkpoint,
+//    `notify_randomness_in_checkpoint` is called to complete the round and stop sending partial
+//    signatures for it.
 pub struct RandomnessManager {
     epoch_store: Weak<AuthorityPerEpochStore>,
     epoch: EpochId,
@@ -171,6 +167,7 @@ pub struct RandomnessManager {
     used_messages: OnceCell<VersionedUsedProcessedMessages>,
     confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_output: OnceCell<Option<dkg_v1::Output<PkG, EncG>>>,
+    dkg_timeout_reported: bool,
 
     // State for randomness generation.
     next_randomness_round: RandomnessRound,
@@ -290,6 +287,10 @@ impl RandomnessManager {
         epoch_store.metrics.epoch_random_beacon_dkg_failed.set(0);
         epoch_store
             .metrics
+            .epoch_random_beacon_dkg_completed_after_timeout
+            .set(0);
+        epoch_store
+            .metrics
             .epoch_random_beacon_dkg_num_shares
             .set(0);
 
@@ -311,6 +312,7 @@ impl RandomnessManager {
             used_messages: OnceCell::new(),
             confirmations: BTreeMap::new(),
             dkg_output: OnceCell::new(),
+            dkg_timeout_reported: false,
             next_randomness_round: RandomnessRound::new(0),
             highest_completed_round: Arc::new(Mutex::new(highest_completed_round)),
         };
@@ -351,8 +353,9 @@ impl RandomnessManager {
                 );
             }
             Some(None) => {
-                // Terminal-failure verdict was persisted to `dkg_output_v2`. Restore
-                // it so DKG isn't re-run and randomness stays disabled for the epoch.
+                // Terminal-failure verdict was persisted to `dkg_output_v2`. This is
+                // only written when late DKG completion is disabled. Restore it so DKG
+                // isn't re-run and randomness stays disabled for the epoch.
                 error!(
                     "random beacon: loaded failed DKG for epoch {}. Randomness disabled for this epoch. All randomness-using transactions will fail.",
                     committee.epoch()
@@ -564,8 +567,10 @@ impl RandomnessManager {
                     let num_shares = output.shares.as_ref().map_or(0, |shares| shares.len());
                     let epoch_elapsed = epoch_store.epoch_open_time.elapsed().as_millis();
                     let elapsed = self.dkg_start_time.get().map(|t| t.elapsed().as_millis());
+                    let completed_after_timeout =
+                        Self::is_past_dkg_timeout_round(round, epoch_store.protocol_config());
                     info!(
-                        "random beacon: DKG complete in {epoch_elapsed}ms since epoch start, {elapsed:?}ms since DKG start, with {num_shares} shares for this node"
+                        "random beacon: DKG complete in {epoch_elapsed}ms since epoch start, {elapsed:?}ms since DKG start, with {num_shares} shares for this node, completed_after_timeout={completed_after_timeout}"
                     );
                     epoch_store
                         .metrics
@@ -576,6 +581,13 @@ impl RandomnessManager {
                         .epoch_random_beacon_dkg_epoch_start_completion_time_ms
                         .set(epoch_elapsed as i64);
                     epoch_store.metrics.epoch_random_beacon_dkg_failed.set(0);
+                    epoch_store
+                        .metrics
+                        .epoch_random_beacon_dkg_completed_after_timeout
+                        .set(i64::from(completed_after_timeout));
+                    if completed_after_timeout {
+                        fail_point!("rb-dkg-completed-after-timeout");
+                    }
                     if let Some(elapsed) = elapsed {
                         epoch_store
                             .metrics
@@ -620,11 +632,11 @@ impl RandomnessManager {
         }
 
         // If we ran out of time, mark DKG as failed.
-        if !self.dkg_output.initialized()
-            && round
-                > epoch_store
-                    .protocol_config()
-                    .random_beacon_dkg_timeout_round() as u64
+        if !epoch_store
+            .protocol_config()
+            .allow_dkg_completion_after_timeout()
+            && !self.dkg_output.initialized()
+            && Self::is_past_dkg_timeout_round(round, epoch_store.protocol_config())
         {
             error!(
                 "random beacon: DKG timed out. Randomness disabled for this epoch. All randomness-using transactions will fail."
@@ -784,9 +796,50 @@ impl RandomnessManager {
     pub fn dkg_status(&self) -> DkgStatus {
         match self.dkg_output.get() {
             Some(Some(_)) => DkgStatus::Successful,
-            Some(None) => DkgStatus::Failed,
+            Some(None) => DkgStatus::TimedOut,
             None => DkgStatus::Pending,
         }
+    }
+
+    /// Returns true if `round` is past the DKG timeout round. This comparison
+    /// is consensus-critical: all validators must agree on the exact commit
+    /// round at which DKG times out.
+    fn is_past_dkg_timeout_round(
+        round: CommitRound,
+        protocol_config: &iota_protocol_config::ProtocolConfig,
+    ) -> bool {
+        round > protocol_config.random_beacon_dkg_timeout_round() as u64
+    }
+
+    /// Returns the DKG status as observed at the given consensus commit round.
+    /// When `allow_dkg_completion_after_timeout` is enabled, an incomplete DKG
+    /// reports `TimedOut` for commits past the timeout round while the protocol
+    /// keeps running, so a later commit may observe `Successful`.
+    ///
+    /// Returns `IotaError::EpochEnded` if the epoch store is already gone.
+    pub fn dkg_status_for_commit_round(&mut self, round: CommitRound) -> IotaResult<DkgStatus> {
+        let status = self.dkg_status();
+        if status != DkgStatus::Pending {
+            return Ok(status);
+        }
+
+        let epoch_store = self.epoch_store()?;
+        if !epoch_store
+            .protocol_config()
+            .allow_dkg_completion_after_timeout()
+            || !Self::is_past_dkg_timeout_round(round, epoch_store.protocol_config())
+        {
+            return Ok(status);
+        }
+
+        if !self.dkg_timeout_reported {
+            error!(
+                "random beacon: DKG timed out; randomness-using transactions will be canceled unless/until DKG completes"
+            );
+            epoch_store.metrics.epoch_random_beacon_dkg_failed.set(1);
+            self.dkg_timeout_reported = true;
+        }
+        Ok(DkgStatus::TimedOut)
     }
 
     /// Generates a new RandomnessReporter for reporting observed rounds to this
@@ -878,7 +931,9 @@ impl RandomnessReporter {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DkgStatus {
     Pending,
-    Failed,
+    /// DKG did not complete by the timeout round. If `allow_dkg_completion_after_timeout`
+    /// is enabled, DKG may still complete later and reach `Successful`.
+    TimedOut,
     Successful,
 }
 
@@ -1079,6 +1134,7 @@ mod tests {
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         protocol_config.set_random_beacon_dkg_version_for_testing(version);
+        protocol_config.set_allow_dkg_completion_after_timeout_for_testing(false);
 
         for validator in network_config.validator_configs.iter() {
             // Send consensus messages to channel.
@@ -1143,6 +1199,16 @@ mod tests {
                 _ => panic!("wrong type of message sent"),
             }
         }
+
+        // With late completion disabled, `dkg_status_for_commit_round` passes
+        // through the raw status; timeout failure is only marked by `advance_dkg`.
+        assert_eq!(
+            DkgStatus::Pending,
+            randomness_managers[0]
+                .dkg_status_for_commit_round(u64::MAX)
+                .unwrap()
+        );
+
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new(0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
@@ -1168,7 +1234,7 @@ mod tests {
 
         // Verify DKG failed.
         for randomness_manager in &randomness_managers {
-            assert_eq!(DkgStatus::Failed, randomness_manager.dkg_status());
+            assert_eq!(DkgStatus::TimedOut, randomness_manager.dkg_status());
         }
 
         // Simulate a restart: rebuild each manager from its persisted epoch store
@@ -1187,14 +1253,16 @@ mod tests {
                 tx_consensus.clone(),
             )
             .await;
-            assert_eq!(DkgStatus::Failed, recovered.dkg_status());
+            assert_eq!(DkgStatus::TimedOut, recovered.dkg_status());
         }
     }
 
     /// Rebuilds a `RandomnessManager` from an existing (already-persisted)
     /// epoch store, simulating a validator restart. Only on-disk DKG state
     /// is carried over: the in-memory state machine starts fresh and must
-    /// be restored from the persisted tables by `try_new`.
+    /// be restored from the persisted tables by `try_new`. Like node startup,
+    /// it then re-sends the consensus transactions still pending in the epoch
+    /// store through `ConsensusAdapter::submit_recovered`.
     async fn recover_randomness_manager(
         epoch_store: &Arc<AuthorityPerEpochStore>,
         authority_key_pair: &AuthorityKeyPair,
@@ -1224,21 +1292,25 @@ mod tests {
             ConsensusAdapterMetrics::new_test(),
             50,
         ));
-        RandomnessManager::try_new(
+        let randomness_manager = RandomnessManager::try_new(
             Arc::downgrade(epoch_store),
-            Box::new(consensus_adapter),
+            Box::new(consensus_adapter.clone()),
             iota_network::randomness::Handle::new_stub(),
             authority_key_pair,
         )
         .await
-        .unwrap()
+        .unwrap();
+        consensus_adapter.submit_recovered(epoch_store);
+        randomness_manager
     }
 
     /// Distributes DKG messages (but no confirmations) so DKG is still pending,
     /// then reconstructs every `RandomnessManager` from the same epoch stores
     /// and asserts the in-progress state (processed and used messages) is
     /// restored and DKG is still reported as pending. This exercises the
-    /// no-output (`None`) load branch in `try_new`.
+    /// no-output (`None`) load branch in `try_new`. The messages are applied
+    /// past the timeout round. The restart sends each validator's confirmation
+    /// again, and the restarted managers then complete DKG from them.
     #[tokio::test]
     async fn test_dkg_recovers_processed_messages_after_restart() {
         telemetry_subscribers::init_for_testing();
@@ -1303,6 +1375,10 @@ mod tests {
             randomness_managers.push(randomness_manager);
         }
 
+        let timeout = epoch_stores[0]
+            .protocol_config()
+            .random_beacon_dkg_timeout_round() as u64;
+
         // Generate and distribute Messages.
         let mut dkg_messages = Vec::new();
         for randomness_manager in randomness_managers.iter_mut() {
@@ -1333,8 +1409,10 @@ mod tests {
                     .add_message(&epoch_stores[j].name, dkg_message)
                     .unwrap();
             }
+            // Past the timeout round, DKG keeps running when late completion is
+            // allowed.
             randomness_managers[i]
-                .advance_dkg(&mut output, 0)
+                .advance_dkg(&mut output, timeout + 1)
                 .await
                 .unwrap();
             let mut batch = epoch_stores[i].db_batch_for_test();
@@ -1352,14 +1430,18 @@ mod tests {
             );
             assert!(randomness_manager.used_messages.initialized());
         }
+        let dkg_confirmations =
+            collect_dkg_confirmations(&mut rx_consensus, network_config.validator_configs.len())
+                .await;
 
         // Simulate a restart: rebuild each manager and verify the in-progress DKG
         // state is restored and still pending.
+        let mut recovered_managers = Vec::new();
         for (epoch_store, validator) in epoch_stores
             .iter()
             .zip(network_config.validator_configs.iter())
         {
-            let recovered = recover_randomness_manager(
+            let mut recovered = recover_randomness_manager(
                 epoch_store,
                 validator.authority_key_pair(),
                 tx_consensus.clone(),
@@ -1371,7 +1453,79 @@ mod tests {
                 recovered.processed_messages.len()
             );
             assert!(recovered.used_messages.initialized());
+            assert_eq!(
+                DkgStatus::Pending,
+                recovered.dkg_status_for_commit_round(timeout).unwrap()
+            );
+            assert_eq!(
+                DkgStatus::TimedOut,
+                recovered.dkg_status_for_commit_round(timeout + 1).unwrap()
+            );
+            recovered_managers.push(recovered);
         }
+
+        // The confirmations were never processed by consensus, so they are still
+        // pending in each epoch store and are sent again on restart.
+        let mut resent_confirmations = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            collect_dkg_confirmations(&mut rx_consensus, network_config.validator_configs.len()),
+        )
+        .await
+        .expect("restart should send the pending DKG confirmations again");
+        let mut sent_confirmations = dkg_confirmations.clone();
+        resent_confirmations.sort_by_key(|conf| conf.sender());
+        sent_confirmations.sort_by_key(|conf| conf.sender());
+        assert_eq!(sent_confirmations, resent_confirmations);
+
+        // DKG completes after its timeout once the confirmations are sequenced.
+        for i in 0..recovered_managers.len() {
+            let mut output = ConsensusCommitOutput::new(0);
+            output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+                index: ExecutionIndices {
+                    last_committed_round: 1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+            for (j, dkg_confirmation) in dkg_confirmations.iter().cloned().enumerate() {
+                recovered_managers[i]
+                    .add_confirmation(&mut output, &epoch_stores[j].name, dkg_confirmation)
+                    .unwrap();
+            }
+            recovered_managers[i]
+                .advance_dkg(&mut output, timeout + 2)
+                .await
+                .unwrap();
+            let mut batch = epoch_stores[i].db_batch_for_test();
+            output.write_to_batch(&epoch_stores[i], &mut batch).unwrap();
+            batch.write().unwrap();
+        }
+        for recovered in &recovered_managers {
+            assert_eq!(DkgStatus::Successful, recovered.dkg_status());
+        }
+    }
+
+    /// Receives one DKG confirmation from each of `num_validators` validators,
+    /// skipping any DKG messages sent in between.
+    async fn collect_dkg_confirmations(
+        rx_consensus: &mut mpsc::Receiver<Vec<ConsensusTransaction>>,
+        num_validators: usize,
+    ) -> Vec<VersionedDkgConfirmation> {
+        let mut dkg_confirmations = Vec::new();
+        while dkg_confirmations.len() < num_validators {
+            let mut transactions = rx_consensus.recv().await.unwrap();
+            assert!(transactions.len() == 1);
+            match transactions.remove(0).kind {
+                ConsensusTransactionKind::RandomnessDkgConfirmation(_, bytes) => {
+                    let msg: VersionedDkgConfirmation = bcs::from_bytes(&bytes)
+                        .expect("DKG confirmation deserialization should not fail");
+                    dkg_confirmations.push(msg);
+                }
+                ConsensusTransactionKind::RandomnessDkgMessage(..) => {}
+                _ => panic!("wrong type of message sent"),
+            }
+        }
+        dkg_confirmations
     }
 
     #[tokio::test]

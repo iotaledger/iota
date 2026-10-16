@@ -88,7 +88,6 @@ pub mod signature_verification;
 pub mod stardust;
 pub mod storage;
 pub mod supported_protocol_versions;
-pub mod system_admin_cap;
 pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;
@@ -159,10 +158,8 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 
 /// Parses `s` as an address. Valid formats for addresses are:
 ///
-/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x"
-///   prefix.
-/// - One of a number of pre-defined named addresses: std, iota, iota_system,
-///   stardust.
+/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x" prefix.
+/// - One of a number of pre-defined named addresses: std, iota, iota_system, stardust.
 ///
 /// Parsing succeeds if and only if `s` matches one of these formats exactly,
 /// with no remaining suffix. This function is intended for use within the

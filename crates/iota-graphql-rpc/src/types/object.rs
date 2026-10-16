@@ -122,8 +122,7 @@ pub(crate) struct ObjectRef {
 ///
 /// - Type matches the `type` filter,
 /// - AND, whose owner matches the `owner` filter,
-/// - AND, whose ID is in `objectIds` OR whose ID and version is in
-///   `objectKeys`.
+/// - AND, whose ID is in `objectIds` OR whose ID and version is in `objectKeys`.
 #[derive(InputObject, Default, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ObjectFilter {
     /// Filter objects by their type's `package`, `package::module`, or their
@@ -464,10 +463,10 @@ impl Object {
 
     /// The current status of the object as read from the off-chain store. The
     /// possible states are:
-    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
-    ///   contents of a genesis or system package upgrade transaction.
-    /// - INDEXED: The object is retrieved from the off-chain index and
-    ///   represents the most recent or historical state of the object.
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the contents of a genesis
+    ///   or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and represents the most recent
+    ///   or historical state of the object.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(self).status().await
     }
@@ -1055,8 +1054,7 @@ impl TryFrom<StoredHistoryObject> for ActiveObject {
     ///
     /// Fails in the following cases:
     ///
-    /// - The row is not active (a wrapped or deleted tombstone, or an
-    ///   unrecognized status).
+    /// - The row is not active (a wrapped or deleted tombstone, or an unrecognized status).
     /// - The row has no serialized object, or it fails to deserialize.
     fn try_from(stored: StoredHistoryObject) -> Result<Self, Self::Error> {
         if !matches!(

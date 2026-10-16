@@ -172,16 +172,21 @@ pub struct Parameters {
     /// solidified every commit in the range. Peers without an observed vote
     /// are ordered behind; each fetch round tries a bounded number of peers,
     /// so on a committee larger than that bound they can stay outside the
-    /// round until their votes are observed. Enabled by default; disabling it
-    /// restores a plain uniform order.
+    /// round until their votes are observed. The header fetch that
+    /// reinitializes the node at the end of fast sync likewise asks peers that
+    /// have voted for the last commit first. Enabled by default; disabling it
+    /// leaves peers in the order `enable_peer_responsiveness_ranking` gives
+    /// them.
     #[serde(default = "Parameters::default_enable_commit_sync_peer_selection_by_commit_votes")]
     pub enable_commit_sync_peer_selection_by_commit_votes: bool,
 
     /// Enable adaptive acknowledgment filtering for StarfishSpeed.
-    /// Local heuristic that drops acks for authorities persistently blamed
-    /// by recent strong-vote masks. Effective only when the protocol-level
-    /// `consensus_starfish_speed` flag is also on. Enabled by default;
-    /// operators can disable it locally without a protocol change.
+    /// Local heuristic that leaves out of leader blocks the acknowledgments
+    /// that the voters are not expected to hold at the next round, judged
+    /// from how soon they acknowledged recent blocks. Voters count by how
+    /// often this node's blocks reference them. Deferred acknowledgments go
+    /// into later blocks. Effective only when the
+    /// protocol-level `consensus_starfish_speed` flag is also on.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
@@ -232,7 +237,8 @@ pub struct Parameters {
     /// A fetch covering more commits than this is answered with the commits
     /// whose payloads fit, and the requester asks for the rest in its next
     /// fetch. When the range's first commit exceeds this on its own it is
-    /// still served whole, one such response at a time.
+    /// still served whole. A requester stops reading a response once it passes
+    /// this and its first commit is complete.
     #[serde(default = "Parameters::default_max_fast_commit_sync_transaction_bytes")]
     pub max_fast_commit_sync_transaction_bytes: usize,
 }
@@ -789,9 +795,11 @@ pub struct AdmissionParameters {
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
 
-    /// Max concurrent commit fetches across all peers. A fast commit-sync
-    /// response is held in memory until it has been sent, so this caps what
-    /// serving them can cost the node at once.
+    /// Max concurrent commit fetches across all peers, beyond which a peer is
+    /// still granted its first. A fast commit-sync response holds its commits
+    /// and certifier headers until it has been sent, and reads its transactions
+    /// from the store while it is being sent, so this caps what serving them
+    /// can cost the node at once, short of one response per peer.
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]

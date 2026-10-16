@@ -6,6 +6,9 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
+use iota_sdk_move_types::iota_system::iota_system_state_inner::{
+    SystemEpochInfoEventV1, SystemEpochInfoEventV2,
+};
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
     EndOfEpochData, MovePackage, ObjectDigest, ObjectId, Owner, SenderSignedTransaction, StructTag,
@@ -14,7 +17,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::AggregateAuthoritySignature,
     dynamic_field::DynamicFieldType,
-    event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
+    event::SystemEpochInfoEvent,
     iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
@@ -965,7 +968,7 @@ pub(crate) mod grpc_conversion {
             .into_iter()
             .map(|command_output| -> IndexerResult<_> {
                 Ok((
-                    IotaArgument::from(command_output.argument()?),
+                    IotaArgument::try_from(command_output.argument()?)?,
                     command_output.output_bcs()?.to_vec(),
                     command_output.type_tag()?.into(),
                 ))

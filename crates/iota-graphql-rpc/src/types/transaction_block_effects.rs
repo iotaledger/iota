@@ -153,7 +153,9 @@ impl TransactionBlockEffects {
             self.native().status().clone(),
             resolver,
         )
-        .await;
+        .await
+        .map_err(|e| Error::Internal(e.to_string()))
+        .extend()?;
         match status {
             IotaExecutionStatus::Success => Ok(None),
             IotaExecutionStatus::Failure { error } => Ok(Some(error)),

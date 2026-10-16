@@ -6,7 +6,12 @@ use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_move_types::iota_framework::{vec_map::VecMap, vec_set::VecSet};
+use iota_sdk_move_types::{
+    iota_framework::{
+        bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+    },
+    iota_system::iota_system_state_inner::SystemParametersV1,
+};
 use iota_sdk_types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -23,7 +28,7 @@ use crate::iota_system_state::epoch_start_iota_system_state::{
 };
 use crate::{
     balance::Balance,
-    collection_types::{Bag, Table, TableVec},
+    collection_types::{Table, TableVec},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
         AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
@@ -33,7 +38,6 @@ use crate::{
     gas_coin::IotaTreasuryCap,
     id::ID,
     storage::ObjectStore,
-    system_admin_cap::IotaSystemAdminCap,
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;
@@ -43,39 +47,6 @@ const E_METADATA_INVALID_PROTOCOL_PUBKEY: u64 = 3;
 const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
-
-/// Rust version of the Move iota::iota_system::SystemParametersV1 type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SystemParametersV1 {
-    /// The duration of an epoch, in milliseconds.
-    pub epoch_duration_ms: u64,
-
-    /// Minimum number of active validators at any moment.
-    pub min_validator_count: u64,
-
-    /// Maximum number of active validators at any moment.
-    /// We do not allow the number of validators in any epoch to go above this.
-    pub max_validator_count: u64,
-
-    /// Lower-bound on the amount of stake required to become a validator.
-    pub min_validator_joining_stake: u64,
-
-    /// Validators with stake amount below `validator_low_stake_threshold` are
-    /// considered to have low stake and will be escorted out of the
-    /// validator set after being below this threshold for more than
-    /// `validator_low_stake_grace_period` number of epochs.
-    pub validator_low_stake_threshold: u64,
-
-    /// Validators with stake below `validator_very_low_stake_threshold` will be
-    /// removed immediately at epoch change, no grace period.
-    pub validator_very_low_stake_threshold: u64,
-
-    /// A validator can have stake below `validator_low_stake_threshold`
-    /// for this many epochs before being kicked out.
-    pub validator_low_stake_grace_period: u64,
-
-    pub extra_fields: Bag,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorMetadataV1 {
@@ -718,12 +689,4 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             validator_low_stake_grace_period,
         })
     }
-}
-
-/// Rust version of the Move
-/// iota_system::validator_cap::UnverifiedValidatorOperationCap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectId,
-    pub authorizer_validator_address: Address,
 }

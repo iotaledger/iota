@@ -187,22 +187,20 @@ mod test {
     /// correctness by:
     /// 1. Starting all authorities
     /// 2. Sequentially stopping and restarting authorities:
-    ///    - CleanAll: restarts <1/3 of authorities, keeping a supermajority
-    ///      alive as sync source. Verifies network progress during stop.
+    ///    - CleanAll: restarts <1/3 of authorities, keeping a supermajority alive as sync source.
+    ///      Verifies network progress during stop.
     ///    - Non-clean modes: restarts all authorities (DB state is preserved)
     /// 3. Verifying that restarted authorities catch up via fast sync
     /// 4. Verifying commit digest consistency across all authorities
-    /// 5. Verifying that all sequenced transactions are committed by all
-    ///    authorities
-    /// 6. Verifying that most submitted transactions are eventually sequenced
-    ///    (some may be lost during restarts when in RAM)
+    /// 5. Verifying that all sequenced transactions are committed by all authorities
+    /// 6. Verifying that most submitted transactions are eventually sequenced (some may be lost
+    ///    during restarts when in RAM)
     ///
     /// Parameters:
     /// - `mode`: Restart mode controlling DB and state persistence
     ///   - `CleanAll`: Fresh empty DB (simulates node replacement)
     ///   - `PersistAll`: Keep DB and state (crash recovery)
-    ///   - `ResetLastProcessed`: Keep DB but reset tracking (tests two-phase
-    ///     recovery)
+    ///   - `ResetLastProcessed`: Keep DB but reset tracking (tests two-phase recovery)
     /// - `long_run`: If true, use longer pre-stop and catch-up times
     /// - `long_restart`: If true, use longer stopped duration
     async fn run_sequential_restarts_test(

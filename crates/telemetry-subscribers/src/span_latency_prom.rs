@@ -9,12 +9,12 @@
 //!
 //! There is also the tracing-timing crate, from which this differs
 //! significantly:
-//! - tracing-timing records latencies between events (logs).  We just want to
-//!   record the latencies of spans.
-//! - tracing-timing does not output to Prometheus, and extracting data from its
-//!   histograms takes extra CPU
-//! - tracing-timing records latencies using HDRHistogram, which is great, but
-//!   uses extra memory when one is already using Prometheus
+//! - tracing-timing records latencies between events (logs).  We just want to record the latencies
+//!   of spans.
+//! - tracing-timing does not output to Prometheus, and extracting data from its histograms takes
+//!   extra CPU
+//! - tracing-timing records latencies using HDRHistogram, which is great, but uses extra memory
+//!   when one is already using Prometheus
 //!
 //! Thus this is a much smaller and more focused module.
 //!

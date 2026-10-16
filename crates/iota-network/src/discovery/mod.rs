@@ -337,8 +337,8 @@ impl DiscoveryEventLoop {
 
     /// Handles a [`PeerEvent`].
     ///
-    /// * NewPeer: Adds the peer to the connected peers list and queries the
-    ///   peer for their known peers.
+    /// * NewPeer: Adds the peer to the connected peers list and queries the peer for their known
+    ///   peers.
     /// * LostPeer: Removes the peer from the connected peers list.
     /// * Closed: Panics if the channel is closed.
     fn handle_peer_event(&mut self, peer_event: Result<PeerEvent, RecvError>) {
@@ -383,10 +383,9 @@ impl DiscoveryEventLoop {
     /// 2. Queries a subset of connected peers for their known peers.
     /// 3. Culls old known peers older than a day.
     /// 4. Cleans out the pending_dials, dial_seed_peers_task if it's done.
-    /// 5. Selects a subset of known peers to dial if we're not connected to
-    ///    enough peers.
-    /// 6. If we have no neighbors and we aren't presently trying to connect to
-    ///    anyone we need to try the seed peers.
+    /// 5. Selects a subset of known peers to dial if we're not connected to enough peers.
+    /// 6. If we have no neighbors and we aren't presently trying to connect to anyone we need to
+    ///    try the seed peers.
     fn handle_tick(&mut self, _now: std::time::Instant, now_unix: u64) {
         self.update_our_info_timestamp(now_unix);
 

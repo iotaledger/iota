@@ -167,7 +167,8 @@ impl SerializeAs<EndOfEpochData> for EndOfEpochDataSchema {
     where
         S: serde::Serializer,
     {
-        let iota_data = EndOfEpochDataSchema::from(source.clone());
+        let iota_data =
+            EndOfEpochDataSchema::try_from(source.clone()).map_err(serde::ser::Error::custom)?;
         iota_data.serialize(serializer)
     }
 }
@@ -205,23 +206,28 @@ impl From<EndOfEpochDataSchema> for EndOfEpochData {
     }
 }
 
-impl From<EndOfEpochData> for EndOfEpochDataSchema {
-    fn from(data: EndOfEpochData) -> Self {
+impl TryFrom<EndOfEpochData> for EndOfEpochDataSchema {
+    type Error = anyhow::Error;
+
+    fn try_from(data: EndOfEpochData) -> Result<Self, Self::Error> {
         let EndOfEpochData {
             next_epoch_committee,
             next_epoch_protocol_version,
             epoch_commitments,
             epoch_supply_change,
         } = data;
-        EndOfEpochDataSchema {
+        Ok(EndOfEpochDataSchema {
             next_epoch_committee: next_epoch_committee
                 .into_iter()
                 .map(|member| (member.public_key.into(), member.stake))
                 .collect(),
             next_epoch_protocol_version: ProtocolVersion::new(next_epoch_protocol_version),
-            epoch_commitments: epoch_commitments.into_iter().map(Into::into).collect(),
+            epoch_commitments: epoch_commitments
+                .into_iter()
+                .map(CheckpointCommitmentSchema::try_from)
+                .collect::<Result<_, _>>()?,
             epoch_supply_change,
-        }
+        })
     }
 }
 
@@ -241,7 +247,8 @@ impl SerializeAs<CheckpointCommitment> for CheckpointCommitmentSchema {
     where
         S: serde::Serializer,
     {
-        let iota_commitment = CheckpointCommitmentSchema::from(source.clone());
+        let iota_commitment = CheckpointCommitmentSchema::try_from(source.clone())
+            .map_err(serde::ser::Error::custom)?;
         iota_commitment.serialize(serializer)
     }
 }
@@ -268,16 +275,18 @@ impl From<CheckpointCommitmentSchema> for CheckpointCommitment {
     }
 }
 
-impl From<CheckpointCommitment> for CheckpointCommitmentSchema {
-    fn from(commitment: CheckpointCommitment) -> Self {
-        match commitment {
+impl TryFrom<CheckpointCommitment> for CheckpointCommitmentSchema {
+    type Error = anyhow::Error;
+
+    fn try_from(commitment: CheckpointCommitment) -> Result<Self, Self::Error> {
+        Ok(match commitment {
             CheckpointCommitment::EcmhLiveObjectSet { digest } => {
                 CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest {
                     digest,
                 })
             }
-            _ => unimplemented!("a new CheckpointCommitment variant was added and must be handled"),
-        }
+            _ => anyhow::bail!("unknown CheckpointCommitment variant"),
+        })
     }
 }
 

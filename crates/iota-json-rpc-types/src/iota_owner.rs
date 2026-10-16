@@ -48,7 +48,9 @@ impl SerializeAs<Owner> for OwnerSchema {
     where
         S: serde::Serializer,
     {
-        OwnerSchema::from(*source).serialize(serializer)
+        OwnerSchema::try_from(*source)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
     }
 }
 
@@ -83,17 +85,19 @@ impl std::fmt::Display for OwnerSchema {
     }
 }
 
-impl From<Owner> for OwnerSchema {
-    fn from(value: Owner) -> Self {
-        match value {
+impl TryFrom<Owner> for OwnerSchema {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Owner) -> Result<Self, Self::Error> {
+        Ok(match value {
             Owner::Address(address) => OwnerSchema::AddressOwner(address),
             Owner::Object(object_id) => OwnerSchema::ObjectOwner(*object_id.as_address()),
             Owner::Shared(initial_shared_version) => OwnerSchema::Shared {
                 initial_shared_version: initial_shared_version.into(),
             },
             Owner::Immutable => OwnerSchema::Immutable,
-            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
-        }
+            _ => anyhow::bail!("unknown Owner variant"),
+        })
     }
 }
 

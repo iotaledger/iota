@@ -2,13 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-
 use rand::distr::Distribution;
 use serde::{Deserialize, Serialize, de::Deserializer};
 use serde_with::serde_as;
-
-const TRAFFIC_SINK_TIMEOUT_SEC: u64 = 300;
 
 /// The source that should be used to identify the client's
 /// IP address. To be used to configure cases where a node has
@@ -45,15 +41,13 @@ const TRAFFIC_SINK_TIMEOUT_SEC: u64 = 300;
 /// operators to discover the number of hops that should be configured. To use:
 ///
 /// 1. Set `x-forwarded-for: 0` for the `client-id-source` in the config.
-/// 2. Run the node and query any endpoint (AuthorityServer for validator, or
-///    json rpc for rpc node) from a known IP address.
-/// 3. Search for lines containing `x-forwarded-for` in the logs. The log lines
-///    should contain the contents of the `x-forwarded-for` header, if present,
-///    or a corresponding error if not.
-/// 4. The value for number of hops is derived from any such log line that
-///    contains your known IP address, and is defined as 1 + the number of IP
-///    addresses in the `x-forwarded-for` that occur **after** the known client
-///    IP address. Example:
+/// 2. Run the node and query any endpoint (AuthorityServer for validator, or json rpc for rpc node)
+///    from a known IP address.
+/// 3. Search for lines containing `x-forwarded-for` in the logs. The log lines should contain the
+///    contents of the `x-forwarded-for` header, if present, or a corresponding error if not.
+/// 4. The value for number of hops is derived from any such log line that contains your known IP
+///    address, and is defined as 1 + the number of IP addresses in the `x-forwarded-for` that occur
+///    **after** the known client IP address. Example:
 ///
 /// ```ignore
 ///     [<known client IP>] <--- number of hops is 1
@@ -128,32 +122,6 @@ impl PartialEq for Weight {
     fn eq(&self, other: &Self) -> bool {
         self.value() == other.value()
     }
-}
-
-#[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct RemoteFirewallConfig {
-    pub remote_fw_url: String,
-    pub destination_port: u16,
-    #[serde(default)]
-    pub delegate_spam_blocking: bool,
-    #[serde(default)]
-    pub delegate_error_blocking: bool,
-    #[serde(default = "default_drain_path")]
-    pub drain_path: PathBuf,
-    /// Time in secs, after which no registered ingress traffic
-    /// will trigger dead mans switch to drain any firewalls
-    #[serde(default = "default_drain_timeout")]
-    pub drain_timeout_secs: u64,
-}
-
-fn default_drain_path() -> PathBuf {
-    PathBuf::from("/tmp/drain")
-}
-
-fn default_drain_timeout() -> u64 {
-    TRAFFIC_SINK_TIMEOUT_SEC
 }
 
 #[serde_as]

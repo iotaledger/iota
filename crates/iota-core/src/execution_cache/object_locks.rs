@@ -70,13 +70,12 @@ impl ObjectLocks {
         // not have in the cache. We may want to explore strategies for proving there
         // cannot be a lock in the db that we do not know about. Two possibilities are:
         //
-        // 1. Read all locks into memory at startup (and keep them there). The lifetime
-        //    of locks is relatively short in the common case, so this might be
-        //    feasible.
-        // 2. Find some strategy to distinguish between the cases where we are
-        //    re-executing old transactions after restarting vs executing transactions
-        //    that we have never seen before. The output objects of novel transactions
-        //    cannot previously have been locked on this validator.
+        // 1. Read all locks into memory at startup (and keep them there). The lifetime of locks is
+        //    relatively short in the common case, so this might be feasible.
+        // 2. Find some strategy to distinguish between the cases where we are re-executing old
+        //    transactions after restarting vs executing transactions that we have never seen
+        //    before. The output objects of novel transactions cannot previously have been locked on
+        //    this validator.
         //
         // Solving this is not terribly important as it is not in the execution path,
         // and hence only improves the latency of transaction signing, not

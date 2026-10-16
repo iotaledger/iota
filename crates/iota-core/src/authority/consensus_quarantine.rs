@@ -82,7 +82,8 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
     // DKG state, the inner Option value persisted to `dkg_output_v2`:
     // - `Some(Some(out))` -- DKG success
-    // - `Some(None)` -- terminal DKG failure
+    // - `Some(None)` -- terminal DKG failure, only set when `allow_dkg_completion_after_timeout`
+    //   is off
     // - `None` -- DKG pending (default value)
     dkg_output: Option<Option<dkg_v1::Output<PkG, EncG>>>,
 
@@ -684,8 +685,8 @@ impl ConsensusOutputQuarantine {
     ) -> IotaResult {
         // The commit algorithm is simple:
         // 1. First commit all checkpoint builder state which is below the watermark.
-        // 2. Determine the consensus commit height that corresponds to the highest
-        //    committed checkpoint.
+        // 2. Determine the consensus commit height that corresponds to the highest committed
+        //    checkpoint.
         // 3. Commit all consensus output at that height or below.
 
         let tables = epoch_store.tables()?;
