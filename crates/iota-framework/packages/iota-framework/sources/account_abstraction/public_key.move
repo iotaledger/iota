@@ -38,7 +38,7 @@ const EPublicKeyBytesEmpty: vector<u8> = b"Public key bytes are empty.";
 #[error(code = 1)]
 const EUnknownPublicKeyScheme: vector<u8> = b"Unknown public key scheme.";
 #[error(code = 2)]
-const EInvalidPublicKeyBytes: vector<u8> = b"Public key bytes are not a valid point on the curve.";
+const EInvalidPublicKeyBytes: vector<u8> = b"Public key bytes are not a valid key for the scheme.";
 
 // === Structs ===
 

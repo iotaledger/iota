@@ -19,7 +19,8 @@ pub const PUBLIC_KEY_STRUCT_NAME: Identifier = Identifier::from_static("PublicKe
 /// [`Self::new`] applies the same validation as the Move `public_key::create`
 /// function: a supported scheme, non-empty bytes, and a valid curve point for
 /// the declared scheme — or, for `MultiSig`, a canonically encoded committee
-/// whose structure and member keys are themselves valid.
+/// that passes `MultisigCommittee::validate()`. MultiSig member keys are not
+/// checked against their curves.
 ///
 /// Deserialization performs none of that, so a `MovePublicKey` read from chain
 /// may hold bytes that do not represent a valid key. Code consuming a
