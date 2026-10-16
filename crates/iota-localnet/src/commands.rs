@@ -744,6 +744,19 @@ async fn start(
         return write_node_configs(&swarm, &directory);
     }
 
+    // A service reads from the fullnode's gRPC API, which an override can turn
+    // off.
+    let fullnode_grpc_address = fullnode_grpc_address(&swarm);
+    ensure!(
+        faucet_address.is_none() || fullnode_grpc_address.is_some(),
+        "Cannot start the faucet while the fullnode's gRPC API is off."
+    );
+    #[cfg(feature = "indexer")]
+    ensure!(
+        indexer_address.is_none() || fullnode_grpc_address.is_some(),
+        "Cannot start the indexer while the fullnode's gRPC API is off."
+    );
+
     let mut addresses = addresses_bound_at_launch(&swarm);
     if let Some(faucet_address) = faucet_address {
         addresses.push(BoundAddress::service(
@@ -803,14 +816,11 @@ async fn start(
 
     // Reported off the built config rather than off `--with-grpc`, since an
     // override can turn the API on too.
-    let fullnode_grpc_url = local_fullnode_grpc_url(&swarm);
-    if swarm
-        .fullnodes()
-        .next()
-        .is_some_and(|node| node.config().enable_grpc_api)
-    {
-        info!("gRPC URL: {fullnode_grpc_url}");
+    if let Some(address) = fullnode_grpc_address {
+        info!("gRPC URL: {}", local_url(address));
     }
+    // Empty only when no service below reads it, as checked before launch.
+    let fullnode_grpc_url = fullnode_grpc_address.map(local_url).unwrap_or_default();
 
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
@@ -1398,19 +1408,13 @@ fn with_fullnode_grpc_api(swarm_builder: SwarmBuilder) -> SwarmBuilder {
         .with_fullnode_grpc_api_config(GrpcApiConfig::default())
 }
 
-/// The URL at which a service on this host reaches the fullnode's gRPC API.
-fn local_fullnode_grpc_url(swarm: &Swarm) -> String {
-    let address = swarm
-        .fullnodes()
-        .next()
-        .and_then(|node| {
-            node.config()
-                .grpc_api_config
-                .as_ref()
-                .map(|grpc| grpc.address)
-        })
-        .unwrap_or_else(|| GrpcApiConfig::default().address);
-    local_url(address)
+/// The address the fullnode's gRPC API listens at, or `None` if the network
+/// has no fullnode or the API is off.
+fn fullnode_grpc_address(swarm: &Swarm) -> Option<SocketAddr> {
+    let node = swarm.fullnodes().next()?;
+    let config = node.config();
+    let grpc_api_config = config.grpc_api_config.as_ref()?;
+    config.enable_grpc_api.then_some(grpc_api_config.address)
 }
 
 /// The URL at which a client on this host reaches a server that listens at
@@ -1637,6 +1641,30 @@ mod tests {
                 "{input}"
             );
         }
+    }
+
+    /// Only a network whose fullnode serves the gRPC API gives an address for
+    /// it.
+    #[test]
+    fn a_fullnode_grpc_address_exists_only_while_the_api_is_on() {
+        let address = |builder: SwarmBuilder, overrides: &[&str]| {
+            let swarm = builder
+                .with_node_config_overrides(overrides.iter().map(|o| o.parse().unwrap()).collect())
+                .try_build()
+                .unwrap();
+            fullnode_grpc_address(&swarm)
+        };
+        let with_fullnode = || with_fullnode_grpc_api(Swarm::builder()).with_fullnode_count(1);
+
+        assert_eq!(
+            address(with_fullnode(), &[]),
+            Some("0.0.0.0:50051".parse().unwrap())
+        );
+        assert_eq!(
+            address(with_fullnode(), &["fullnode:enable-grpc-api=false"]),
+            None
+        );
+        assert_eq!(address(with_fullnode_grpc_api(Swarm::builder()), &[]), None);
     }
 
     /// A service on this host connects over loopback to a server that
