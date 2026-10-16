@@ -24,7 +24,7 @@ use self::{
     db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
     index_search::{SearchRange, search_index},
 };
-use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
+use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints};
 pub mod db_dump;
 mod index_search;
 
@@ -44,9 +44,9 @@ pub enum DbToolCommand {
     PrintCheckpointContent(PrintCheckpointContentOptions),
     RewindCheckpointExecution(RewindCheckpointExecutionOptions),
     Compact,
-    PruneObjects,
     PruneCheckpoints,
     SetCheckpointWatermark(SetCheckpointWatermarkOptions),
+    MarkObjectBacklogSwept,
 }
 
 #[derive(Parser)]
@@ -192,7 +192,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             rewind_checkpoint_execution(&db_path, d.epoch, d.checkpoint_sequence_number)
         }
         DbToolCommand::Compact => compact(db_path),
-        DbToolCommand::PruneObjects => prune_objects(db_path).await,
+        DbToolCommand::MarkObjectBacklogSwept => mark_object_backlog_swept(&db_path),
         DbToolCommand::PruneCheckpoints => prune_checkpoints(db_path).await,
         DbToolCommand::IndexSearchKeyRange(rg) => {
             let res = search_index(
@@ -396,6 +396,35 @@ pub fn print_all_entries(
     for (k, v) in dump_table(store, epoch, path, table_name, page_size, page_number)? {
         println!("{k:>100?}: {v:?}");
     }
+    Ok(())
+}
+
+/// Records the one-time sweep of the object versions superseded before the
+/// bucketed build as done, without running it.
+///
+/// The escape hatch for a node the sweep cannot get past — a row it cannot
+/// decode fails the walk, and the walk runs before anything else at startup,
+/// so the node never comes up and never records progress. Marking it done
+/// leaves those versions in the live `objects` table, where no retention
+/// reclaims them: the node runs, and the rows stay until someone rebuilds it
+/// from a snapshot.
+///
+/// Run with (for example):
+/// cargo run --package iota-tool -- db-tool --db-path
+/// /opt/iota/db/authorities_db/live mark-object-backlog-swept
+pub fn mark_object_backlog_swept(path: &Path) -> anyhow::Result<()> {
+    let store = path.join("store");
+    // Opening creates the database, so a mistyped path would otherwise leave
+    // an empty one behind and report success.
+    if !store.join("perpetual").exists() {
+        bail!("no perpetual store under {}", store.display());
+    }
+    let perpetual = AuthorityPerpetualTables::open(&store, None);
+    perpetual.mark_object_backlog_swept()?;
+    println!(
+        "recorded the object backlog sweep as done; the versions it had not reached stay in the \
+         live objects table"
+    );
     Ok(())
 }
 
