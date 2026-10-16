@@ -10,14 +10,17 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use iota_common::random_util::randomize_cache_capacity_in_tests;
+use iota_common::{debug_fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_macros::{fail_point, fail_point_if};
-use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
+use iota_metrics::{
+    monitored_mpsc, monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task,
+};
 use iota_sdk_types::{
     CanceledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
 };
 use iota_types::{
     base_types::AuthorityName,
+    error::IotaResult,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
@@ -25,7 +28,7 @@ use iota_types::{
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use starfish_config::Committee as ConsensusCommittee;
-use tokio::task::JoinSet;
+use tokio::task::{JoinHandle, JoinSet};
 use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
@@ -34,6 +37,7 @@ use crate::{
         authority_per_epoch_store::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
             ExecutionIndicesWithStats,
+            handler_object_state::{AssignedCommit, CommitIndex, handler_rows_for_commit},
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
         shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
@@ -134,6 +138,10 @@ pub struct ConsensusHandler<C> {
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
+    /// Marks commits fully executed for the P-COOL deterministic-validation
+    /// bookkeeping; `None` unless the feature is enabled. Held only so the
+    /// task is aborted with the handler.
+    _execution_watcher: Option<ExecutionWatcher>,
 
     backpressure_subscriber: BackpressureSubscriber,
 }
@@ -162,6 +170,11 @@ impl<C> ConsensusHandler<C> {
         }
         let transaction_scheduler =
             AsyncTransactionScheduler::start(execution_scheduler, epoch_store.clone());
+        let execution_watcher = epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+            .then(|| ExecutionWatcher::start(epoch_store.clone()))
+            .flatten();
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -180,6 +193,7 @@ impl<C> ConsensusHandler<C> {
                 NonZeroUsize::new(randomize_cache_capacity_in_tests(PROCESSED_CACHE_CAP)).unwrap(),
             ),
             transaction_scheduler,
+            _execution_watcher: execution_watcher,
             backpressure_subscriber,
         }
     }
@@ -521,6 +535,69 @@ impl AsyncTransactionScheduler {
                 .collect();
             execution_scheduler.enqueue(txns, &epoch_store);
         }
+    }
+}
+
+/// Name under which the watcher's effects waits appear in the notify-read
+/// long-wait log.
+const EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME: &str =
+    "ExecutionWatcher::notify_read_executed_effects";
+
+/// Marks each consensus commit fully executed for the P-COOL
+/// deterministic-validation bookkeeping once all of its roots have effects.
+///
+/// Receives commits from the epoch store in processing order and completes
+/// them in that order, so a completed commit implies every earlier commit is
+/// complete. Lives for one epoch: the wait ends when the epoch is terminated,
+/// and the task is aborted when the handler drops.
+pub(crate) struct ExecutionWatcher {
+    handle: JoinHandle<()>,
+}
+
+impl ExecutionWatcher {
+    /// Starts the watcher for `epoch_store`'s epoch. Returns `None` if a
+    /// watcher already took the epoch store's assigned-commit receiver.
+    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Option<Self> {
+        let receiver = epoch_store.take_assigned_commits_receiver()?;
+        let handle = spawn_monitored_task!(async move {
+            match epoch_store
+                .within_alive_epoch(Self::run(receiver, &epoch_store))
+                .await
+            {
+                Ok(Ok(())) => debug!("ExecutionWatcher finished: assigned-commit channel closed"),
+                Ok(Err(e)) => debug_fatal!("ExecutionWatcher stopping on error: {e}"),
+                Err(_) => debug!(
+                    epoch = epoch_store.epoch(),
+                    "ExecutionWatcher stopping: epoch ended"
+                ),
+            }
+        });
+        Some(Self { handle })
+    }
+
+    async fn run(
+        mut receiver: UnboundedReceiver<AssignedCommit>,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaResult {
+        while let Some(AssignedCommit { index, roots }) = receiver.recv().await {
+            let digests = epoch_store.notify_read_tx_key_to_digest(&roots).await?;
+            let effects = epoch_store
+                .effects_store()
+                .try_notify_read_executed_effects(EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME, &digests)
+                .await?;
+            let upserts = handler_rows_for_commit(&effects, index);
+            // A no-op once the commit's output has flushed: the flush derives
+            // the durable rows from the same effects and completes the commit
+            // itself.
+            epoch_store.record_commit_fully_executed(index, &upserts)?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for ExecutionWatcher {
+    fn drop(&mut self) {
+        self.handle.abort();
     }
 }
 
@@ -876,6 +953,7 @@ impl SequencedConsensusTransaction {
 
 /// Represents the information from the current consensus commit.
 pub struct ConsensusCommitInfo {
+    pub index: CommitIndex,
     pub round: u64,
     pub timestamp: u64,
     pub consensus_commit_digest: ConsensusCommitDigest,
@@ -886,6 +964,7 @@ pub struct ConsensusCommitInfo {
 impl ConsensusCommitInfo {
     fn new(consensus_output: &impl ConsensusOutputAPI) -> Self {
         Self {
+            index: consensus_output.commit_sub_dag_index(),
             round: consensus_output.leader_round(),
             timestamp: consensus_output.commit_timestamp_ms(),
             consensus_commit_digest: consensus_output.consensus_digest(),
@@ -895,11 +974,13 @@ impl ConsensusCommitInfo {
     }
 
     pub fn new_for_test(
+        commit_index: CommitIndex,
         commit_round: u64,
         commit_timestamp: u64,
         skip_consensus_commit_prologue_in_test: bool,
     ) -> Self {
         Self {
+            index: commit_index,
             round: commit_round,
             timestamp: commit_timestamp,
             consensus_commit_digest: ConsensusCommitDigest::default(),
