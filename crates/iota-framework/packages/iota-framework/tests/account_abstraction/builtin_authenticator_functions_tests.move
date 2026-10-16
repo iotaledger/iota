@@ -183,12 +183,13 @@ fun rotate_without_attach_aborts() {
 // === Public key proofs ===
 
 #[test]
-fun proofs_name_the_current_key_through_attach_rotate_and_detach() {
+fun account_proofs_move_the_counter_on_through_attach_rotate_and_detach() {
     account_test_mut!(|account| {
         builtin_authenticator_functions::attach_public_key(
             account.id_mut(),
             new_account_proof(ed25519_public_key()),
         );
+        assert_eq(public_key_proof::next_account_nonce(account.id()), 0);
 
         let proof = account_proof(account.id(), secp256k1_public_key());
         builtin_authenticator_functions::rotate_public_key(account.id_mut(), proof);
@@ -196,8 +197,10 @@ fun proofs_name_the_current_key_through_attach_rotate_and_detach() {
             builtin_authenticator_functions::borrow_public_key(account.id()),
             &secp256k1_public_key(),
         );
+        assert_eq(public_key_proof::next_account_nonce(account.id()), 1);
 
         builtin_authenticator_functions::detach_public_key(account.id_mut());
+        assert_eq(public_key_proof::next_account_nonce(account.id()), 1);
 
         let proof = account_proof(account.id(), ed25519_public_key());
         builtin_authenticator_functions::attach_public_key(account.id_mut(), proof);
@@ -205,6 +208,7 @@ fun proofs_name_the_current_key_through_attach_rotate_and_detach() {
             builtin_authenticator_functions::borrow_public_key(account.id()),
             &ed25519_public_key(),
         );
+        assert_eq(public_key_proof::next_account_nonce(account.id()), 2);
     });
 }
 
@@ -215,23 +219,21 @@ fun attach_with_a_proof_for_another_account_aborts() {
         let proof = public_key_proof::verified_for_account_for_testing(
             ed25519_public_key(),
             @0xA,
-            option::none(),
+            0,
         );
         builtin_authenticator_functions::attach_public_key(account.id_mut(), proof);
     });
 }
 
 #[test]
-#[expected_failure(
-    abort_code = iota::builtin_authenticator_functions::EProofForAnotherCurrentPublicKey,
-)]
+#[expected_failure(abort_code = iota::account_nonce::EUnexpectedNonce)]
 fun rotate_with_a_used_proof_aborts() {
     account_test_mut!(|account| {
         builtin_authenticator_functions::attach_public_key(
             account.id_mut(),
             new_account_proof(ed25519_public_key()),
         );
-        // Both name the address of the Ed25519 key, which the first rotation replaces.
+        // Both name nonce 0, which the first rotation takes.
         let first = account_proof(account.id(), secp256k1_public_key());
         let replay = account_proof(account.id(), secp256k1_public_key());
         builtin_authenticator_functions::rotate_public_key(account.id_mut(), first);
@@ -240,10 +242,7 @@ fun rotate_with_a_used_proof_aborts() {
 }
 
 #[test]
-#[expected_failure(
-    abort_code = iota::builtin_authenticator_functions::EProofForAnotherCurrentPublicKey,
-)]
-fun detach_stops_proofs_that_name_the_detached_key() {
+fun a_pending_proof_attaches_after_detach() {
     account_test_mut!(|account| {
         builtin_authenticator_functions::attach_public_key(
             account.id_mut(),
@@ -252,11 +251,16 @@ fun detach_stops_proofs_that_name_the_detached_key() {
         let proof = account_proof(account.id(), secp256k1_public_key());
         builtin_authenticator_functions::detach_public_key(account.id_mut());
         builtin_authenticator_functions::attach_public_key(account.id_mut(), proof);
+        assert_ref_eq(
+            builtin_authenticator_functions::borrow_public_key(account.id()),
+            &secp256k1_public_key(),
+        );
     });
 }
 
 #[test]
-fun a_proof_works_again_once_the_account_has_the_named_key_back() {
+#[expected_failure(abort_code = iota::account_nonce::EUnexpectedNonce)]
+fun a_used_proof_stays_used_when_the_key_comes_back() {
     account_test_mut!(|account| {
         builtin_authenticator_functions::attach_public_key(
             account.id_mut(),
@@ -268,11 +272,8 @@ fun a_proof_works_again_once_the_account_has_the_named_key_back() {
 
         let back = account_proof(account.id(), ed25519_public_key());
         builtin_authenticator_functions::rotate_public_key(account.id_mut(), back);
+        // The Ed25519 key is attached again, but `replay` names nonce 0, and the counter is at 2.
         builtin_authenticator_functions::rotate_public_key(account.id_mut(), replay);
-        assert_ref_eq(
-            builtin_authenticator_functions::borrow_public_key(account.id()),
-            &secp256k1_public_key(),
-        );
     });
 }
 
@@ -950,18 +951,12 @@ fun new_account_proof(public_key: PublicKey): VerifiedPublicKey {
     public_key_proof::verified_for_new_account_for_testing(public_key)
 }
 
-/// A proof for the account with `account_id` that names the address of its current key, without
-/// a signature.
+/// A proof for the account with `account_id` that names the next value of its counter, without a
+/// signature.
 fun account_proof(account_id: &UID, public_key: PublicKey): VerifiedPublicKey {
-    let current_key_address = if (builtin_authenticator_functions::has_public_key(account_id)) {
-        let current_public_key = builtin_authenticator_functions::borrow_public_key(account_id);
-        option::some(current_public_key.to_iota_address())
-    } else {
-        option::none()
-    };
     public_key_proof::verified_for_account_for_testing(
         public_key,
         account_id.to_address(),
-        current_key_address,
+        public_key_proof::next_account_nonce(account_id),
     )
 }
