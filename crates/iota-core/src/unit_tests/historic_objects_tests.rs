@@ -632,6 +632,49 @@ async fn test_a_tombstone_below_the_relocated_version_is_not_the_answer() {
     }
 }
 
+/// Once the backlog is swept, a bounded read that finds a live version that is
+/// not a tombstone answers with it and leaves the buckets alone; before, and
+/// for anything else, it walks them.
+#[tokio::test]
+async fn test_a_live_version_skips_the_walk_once_the_backlog_is_swept() {
+    let (perpetual, historic, store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    // Version 7 relocated, version 8 live.
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.objects,
+            [(ObjectKey(id, 7.into()), object_at(id, 7))],
+        )
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [(
+                ObjectKey(id, 8.into()),
+                get_store_object(object_at(id, 8), None),
+            )],
+        )
+        .unwrap();
+    batch.write().unwrap();
+
+    let read = |bound: u64| {
+        let before = historic.bucket_walks();
+        let version = store
+            .find_object_lt_or_eq_version_with_historic_fallback(id, bound.into())
+            .unwrap()
+            .map(|object| object.version());
+        (version, historic.bucket_walks() - before)
+    };
+
+    assert_eq!(read(8), (Some(Version::from(8)), 1));
+    historic.mark_backlog_swept();
+    assert_eq!(read(8), (Some(Version::from(8)), 0));
+    assert_eq!(read(7), (Some(Version::from(7)), 1));
+}
+
 /// The version-bounded bucket walk skips a bucket marked expiring, like an
 /// exact-key read does.
 #[tokio::test]
