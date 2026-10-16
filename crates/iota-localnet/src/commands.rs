@@ -799,24 +799,17 @@ async fn start(
 
     // Reported off the built config rather than off `--with-grpc`, since an
     // override can turn the API on too.
-    if let Some(grpc_url) = swarm.fullnodes().next().and_then(|node| {
-        let config = node.config();
-        config.enable_grpc_api.then(|| {
-            config
-                .grpc_api_config
-                .as_ref()
-                .map(|grpc| grpc.address)
-                .unwrap_or_else(|| GrpcApiConfig::default().address)
-        })
-    }) {
-        info!("gRPC URL: http://{grpc_url}");
+    let fullnode_grpc_url = local_fullnode_grpc_url(&swarm);
+    if swarm
+        .fullnodes()
+        .next()
+        .is_some_and(|node| node.config().enable_grpc_api)
+    {
+        info!("gRPC URL: {fullnode_grpc_url}");
     }
 
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
-
-    #[cfg(feature = "indexer")]
-    let fullnode_grpc_url = local_fullnode_grpc_url(&swarm);
 
     #[cfg(feature = "indexer")]
     if let Some(indexer_address) = indexer_address {
@@ -877,7 +870,7 @@ async fn start(
         };
         start_graphql_server_with_fn_rpc(
             graphql_connection_config,
-            Some(fullnode_grpc_url),
+            Some(fullnode_grpc_url.clone()),
             None, // it will be initialized by default
             None, // resolves to default service config
         )
@@ -899,8 +892,6 @@ async fn start(
             // Rejected where the address is parsed, before genesis.
             _ => bail!("faucet configuration requires an IPv4 address"),
         };
-
-        let fullnode_grpc_url = local_fullnode_grpc_url(&swarm);
 
         let config = FaucetConfig {
             host_ip,
