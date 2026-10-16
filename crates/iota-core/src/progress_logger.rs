@@ -7,27 +7,20 @@ use std::time::{Duration, Instant};
 
 use tracing::info;
 
-/// How long a progress line waits for the next one. Shared by every pass that
-/// reports, so that they are all as current as each other.
+/// How often a pass writes a progress line.
 pub(crate) const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_secs(1);
 
-/// An upper bound on a reported estimate, so that a stalled pass cannot turn
-/// into a `Duration` this crate has to reason about. Roughly 136 years.
+/// Cap on a reported time left, so a stalled pass cannot overflow `Duration`.
 const LONGEST_REPORTED_WAIT: f64 = u32::MAX as f64;
 
-/// Writes one line a second while a pass over a table runs, naming how far it
-/// has got, what the last second covered, and how long the rest looks like
-/// taking.
+/// Writes a progress line every [`PROGRESS_REPORT_INTERVAL`] while a pass walks
+/// a table: rows done, rate, and estimated time left.
 ///
 /// `total` is meant to be [`typed_store::rocks::DBMap::estimated_len`], so the
-/// percentage and the time left are approximate: that count comes from SST
-/// metadata and still includes keys that were overwritten or deleted but not
-/// yet compacted away. A pass can therefore finish before reaching 100%, which
-/// is not a fault.
+/// percentage and time left are approximate, and a pass can finish before
+/// reaching 100%.
 ///
-/// One of these covers one step. A pass made of several steps builds a new one
-/// per step, so that each step's percentage measures the table it is walking
-/// rather than the whole pass.
+/// Covers one step; a pass made of several steps builds one per step.
 pub(crate) struct ProgressLogger {
     /// Names the pass, e.g. `"ledger backlog migration"`.
     pass: &'static str,
@@ -35,15 +28,10 @@ pub(crate) struct ProgressLogger {
     step: &'static str,
     total: u64,
     done: u64,
-    /// What `done` stood at when the last line was written, so a line can name
-    /// what its second covered and not only the running total.
-    done_at_last_line: u64,
     started: Instant,
     last_line: Instant,
-    /// Whether the opening line has been written. Held off until the step is
-    /// known to have work: these passes stay in the startup path long after
-    /// every database has been through them, and one that finds an empty
-    /// table should say nothing at all.
+    /// Whether the opening line has been written. Held off until the step finds
+    /// work, so a pass over an empty table logs nothing.
     announced: bool,
 }
 
@@ -55,15 +43,13 @@ impl ProgressLogger {
             step,
             total,
             done: 0,
-            done_at_last_line: 0,
             started: now,
             last_line: now,
             announced: false,
         }
     }
 
-    /// The step this is reporting, so a caller walking several of them can
-    /// tell when to start the next one.
+    /// The step this logger reports on.
     pub(crate) fn step(&self) -> &'static str {
         self.step
     }
@@ -120,19 +106,16 @@ impl ProgressLogger {
                 self.pass, self.step, fraction, self.done, self.total, elapsed,
             )
         );
-        self.done_at_last_line = self.done;
         self.last_line = Instant::now();
     }
 }
 
-/// One progress line, shared by every pass that reports so they all read the
-/// same: `"<pass>: ~2.9% done, 26.3M/80.3M objects scanned (4.4M objects/s),
-/// ETA ~3m 23s"`.
+/// Formats one progress line, e.g. `"<pass>: ~2.9% done, 26.3M/~80.3M objects
+/// scanned (4.4M objects/s), ETA ~3m 23s"`.
 ///
-/// `fraction_done` is passed in rather than derived from `done / total`,
-/// because a pass that can measure its position more accurately than its
-/// row count — a scan over the object id space, say — should report that
-/// measure. `total` is only ever an estimate, so it is printed with a `~`.
+/// `fraction_done` is taken separately from `done / total` so a pass can report
+/// a more accurate measure of its position, such as its place in the object id
+/// space.
 pub(crate) fn progress_line(
     pass: &str,
     unit: &str,
@@ -142,13 +125,9 @@ pub(crate) fn progress_line(
     elapsed: Duration,
 ) -> String {
     let rate = format_count(progress_rate(done, elapsed) as u64);
-    // A pass reports a percentage only against a total it can still believe.
-    // These totals come from RocksDB's key estimate, which subtracts
-    // tombstones from the SST metadata and so under-reports a heavily pruned
-    // table by any margin at all — one testnet table estimated 193.2k rows
-    // and delivered over 100M. Once the scan has passed the estimate, the
-    // estimate says nothing about what is left, and a percentage computed
-    // from it would sit at 100% for the rest of the run.
+    // `total` comes from RocksDB's key estimate, which can under-report a
+    // heavily pruned table by any margin. Once the scan has passed it, it
+    // says nothing about what is left.
     if total <= done {
         return format!(
             "{pass}: {} {unit} scanned ({rate} {unit}/s), total unknown",
@@ -209,8 +188,7 @@ pub(crate) fn format_count(count: u64) -> String {
 mod tests {
     use super::*;
 
-    /// Every pass reports in one shape, so an operator reading a node's
-    /// startup does not have to learn three.
+    /// Pins the format of a progress line, which every pass shares.
     #[test]
     fn a_progress_line_reads_the_same_for_every_pass() {
         assert_eq!(
@@ -227,8 +205,8 @@ mod tests {
         );
     }
 
-    /// A pass whose total the store could not estimate reports what it has
-    /// done, and does not dress `0` up as a finished pass.
+    /// A total of `0` (no estimate) is reported as unknown, with no percentage
+    /// or ETA.
     #[test]
     fn an_unknown_total_is_not_reported_as_complete() {
         let line = progress_line(
@@ -247,8 +225,7 @@ mod tests {
         assert!(!line.contains('%'), "{line}");
         assert!(!line.contains("ETA"), "{line}");
 
-        // A tombstone-heavy table estimated 193.2k rows and delivered over
-        // 100M of them, so an estimate the scan has overtaken is dropped too.
+        // So is an estimate the scan has overtaken.
         let line = progress_line(
             "ledger backlog migration",
             "effects",

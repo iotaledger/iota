@@ -370,8 +370,6 @@ async fn the_sweep_resumes_from_its_watermark() {
     seed(&interrupted);
     let sweep = sweeper(&interrupted, 1);
     assert_eq!(sweep.sweep_slice(SWEEP_EPOCH).unwrap(), (1, true));
-    // One row decided, the first version of the first object id, which the
-    // second version supersedes.
     assert_eq!(
         progress(&interrupted),
         Some(ObjectBacklogSweepProgress::SweptThrough(ObjectKey(
