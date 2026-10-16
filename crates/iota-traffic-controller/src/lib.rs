@@ -549,7 +549,6 @@ mod tests {
                     proxy_blocklist_ttl_sec: None,
                 })
                 .expect("the request changes only the dry-run flag");
-            controller.tally(breach(PolicyKind::Spam));
         });
         let [line] = log.block_lines().try_into().unwrap();
         assert!(
