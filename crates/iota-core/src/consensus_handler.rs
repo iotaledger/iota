@@ -173,8 +173,7 @@ impl<C> ConsensusHandler<C> {
         let execution_watcher = epoch_store
             .protocol_config()
             .pcool_deterministic_validation()
-            .then(|| ExecutionWatcher::start(epoch_store.clone()))
-            .flatten();
+            .then(|| ExecutionWatcher::start(epoch_store.clone()));
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -555,10 +554,19 @@ pub(crate) struct ExecutionWatcher {
 }
 
 impl ExecutionWatcher {
-    /// Starts the watcher for `epoch_store`'s epoch. Returns `None` if a
-    /// watcher already took the epoch store's assigned-commit receiver.
-    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Option<Self> {
-        let receiver = epoch_store.take_assigned_commits_receiver()?;
+    /// Starts the watcher for `epoch_store`'s epoch.
+    ///
+    /// # Panics
+    ///
+    /// If a watcher already took the epoch store's assigned-commit receiver.
+    /// Without a watcher the highest fully executed commit never advances and
+    /// post-consensus validation waits on it forever, so a second start is a
+    /// bug that must not run on.
+    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Self {
+        let receiver = epoch_store.take_assigned_commits_receiver().expect(
+            "the epoch store's assigned-commit receiver is taken once, by its epoch's \
+             consensus handler",
+        );
         let handle = spawn_monitored_task!(async move {
             match epoch_store
                 .within_alive_epoch(Self::run(receiver, &epoch_store))
@@ -572,7 +580,7 @@ impl ExecutionWatcher {
                 ),
             }
         });
-        Some(Self { handle })
+        Self { handle }
     }
 
     async fn run(

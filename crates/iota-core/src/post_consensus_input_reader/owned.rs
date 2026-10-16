@@ -38,7 +38,8 @@ pub trait OwnedState {}
 pub struct OwnedReader<S: OwnedState> {
     /// The `(id, version, digest)` the transaction names.
     input: ObjectReference,
-    /// `C - K`. A row produced above it answers missing.
+    /// The commit being validated minus the protocol config's horizon
+    /// distance. A row produced above it answers missing.
     horizon: CommitIndex,
     state: S,
 }
@@ -87,8 +88,8 @@ pub struct Start;
 impl OwnedState for Start {}
 
 impl OwnedReader<Start> {
-    /// Begins the read of `input` at horizon `C - K`. The only constructor of
-    /// a reader in any state.
+    /// Begins the read of `input` at `horizon`. The only constructor of a
+    /// reader in any state.
     pub fn start(input: ObjectReference, horizon: CommitIndex) -> OwnedReader<Start> {
         OwnedReader {
             input,
@@ -118,10 +119,10 @@ impl OwnedState for RecordRead {}
 /// else a record decides as in rule 2.
 #[must_use]
 pub enum TablesLookup {
-    /// A `Live` row at or below `C - K` with the named digest, or no row and
-    /// a record with `base_version == Some(V)`. Next: the bytes.
+    /// A `Live` row at or below the horizon with the named digest, or no row
+    /// and a record with `base_version == Some(V)`. Next: the bytes.
     NeedBytes(OwnedReader<NeedBytes>),
-    /// A row above `C - K`, never skipped. Or no row and a record whose
+    /// A row above the horizon, never skipped. Or no row and a record whose
     /// `base_version` is `None` or below `V`.
     Missing(MissingReason),
     /// A tombstone row or a `Live` row with another digest. Or no row and a

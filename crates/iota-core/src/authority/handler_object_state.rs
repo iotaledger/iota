@@ -64,7 +64,7 @@
 //! lose its tail independently of the other.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -121,8 +121,9 @@ pub enum HandlerProcessedObjectKind {
 pub struct HandlerProcessedObject {
     pub digest: ObjectDigest,
     pub kind: HandlerProcessedObjectKind,
-    /// Index of the commit whose execution produced this row; reads at commit
-    /// C treat rows above the horizon (C − K) as missing
+    /// Index of the commit whose execution produced this row; reads at a
+    /// commit treat rows above its horizon (the commit minus the protocol
+    /// config's horizon distance) as missing.
     pub produced_at: CommitIndex,
     /// The initial shared version on a shared object's creation row and on
     /// its `Deleted` row. `None` on every other row. The shared-input checks
@@ -573,18 +574,21 @@ impl HandlerObjectState {
     /// scheduled for execution, and hands the commit to the execution
     /// watcher. Called exactly once per commit: the watcher marks the commit
     /// fully executed after awaiting the roots it was handed, so a second
-    /// call for the same index would let it drop entries it never awaited.
+    /// call for the same index would let it drop entries it never awaited. A
+    /// second call is therefore reported and leaves the first assignment in
+    /// place.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
+        match self.keys_by_commit.lock().entry(index) {
+            Entry::Occupied(_) => {
+                debug_fatal!("commit index {index} assigned twice");
+                return;
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(roots.clone());
+            }
+        }
         for key in &roots {
             self.commit_index_by_key.insert(*key, index);
-        }
-        if self
-            .keys_by_commit
-            .lock()
-            .insert(index, roots.clone())
-            .is_some()
-        {
-            debug_fatal!("commit index {index} assigned twice");
         }
         // A closed receiver means the watcher has exited with the epoch;
         // nothing is left to complete.
@@ -1648,10 +1652,10 @@ mod tests {
         assert!(keys.iter().all(|key| key.0 != shared_id));
     }
 
-    #[test]
-    fn commit_index_map_assign_and_drop() {
+    /// A state with empty overlays, built without the epoch tables.
+    fn empty_state() -> HandlerObjectState {
         let (assigned_commits, assigned_commits_receiver) = unbounded_channel("test");
-        let state = HandlerObjectState {
+        HandlerObjectState {
             commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
             row_keys_by_completed_commit: Mutex::new(BTreeMap::new()),
@@ -1665,7 +1669,12 @@ mod tests {
             live_sync_ahead_records_count: AtomicU64::new(0),
             handler_processed_cache: new_handler_processed_cache(100),
             metrics: EpochMetrics::new(&Registry::new()),
-        };
+        }
+    }
+
+    #[test]
+    fn commit_index_map_assign_and_drop() {
+        let state = empty_state();
         let key_a = TransactionKey::Digest(TransactionDigest::random());
         let key_b = TransactionKey::Digest(TransactionDigest::random());
         let key_c = TransactionKey::RandomnessRound(0, RandomnessRound::new(1));
@@ -1680,5 +1689,34 @@ mod tests {
         state.drop_commit_assignments(4);
         assert_eq!(state.commit_index_of(&key_b), None);
         assert_eq!(state.commit_index_of(&key_c), None);
+    }
+
+    /// A second assignment of the same commit keeps the first root list and
+    /// sends the watcher nothing more. In test builds `debug_fatal!` panics,
+    /// so the second call runs under `catch_unwind`.
+    #[test]
+    fn commit_assigned_twice_keeps_the_first_assignment() {
+        let state = empty_state();
+        let mut receiver = state
+            .take_assigned_commits_receiver()
+            .expect("a new state holds the watcher's receiver");
+        let first = TransactionKey::Digest(TransactionDigest::random());
+        let second = TransactionKey::Digest(TransactionDigest::random());
+
+        state.assign_commit_to_transactions(3, vec![first]);
+        let second_call = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            state.assign_commit_to_transactions(3, vec![second]);
+        }));
+        assert!(second_call.is_err(), "the second assignment is reported");
+
+        assert_eq!(state.commit_index_of(&first), Some(3));
+        assert_eq!(state.commit_index_of(&second), None);
+        state.drop_commit_assignments(3);
+        assert_eq!(state.commit_index_of(&first), None);
+        let assigned = receiver
+            .try_recv()
+            .expect("the first assignment reaches the watcher");
+        assert_eq!((assigned.index, assigned.roots), (3, vec![first]));
+        assert!(receiver.try_recv().is_err());
     }
 }

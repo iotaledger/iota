@@ -39,7 +39,8 @@ pub trait PackageState {}
 /// allows next, and every transition consumes the reader.
 pub struct PackageReader<S: PackageState> {
     id: ObjectId,
-    /// `C - K`. A row produced above it answers missing.
+    /// The commit being validated minus the protocol config's horizon
+    /// distance. A row produced above it answers missing.
     horizon: CommitIndex,
     state: S,
 }
@@ -72,8 +73,8 @@ pub enum PackageLookup {
 }
 
 impl PackageReader<Start> {
-    /// Begins the read of package `id` at horizon `C - K`. The only
-    /// constructor of a reader in any state.
+    /// Begins the read of package `id` at `horizon`. The only constructor of
+    /// a reader in any state.
     pub fn start(id: ObjectId, horizon: CommitIndex) -> PackageReader<Start> {
         PackageReader {
             id,
@@ -139,9 +140,10 @@ impl PackageState for PackageRecordRead {}
 /// as the fallback.
 #[must_use]
 pub enum PackageRowLookup {
-    /// Published at or below `C - K`, or before this epoch.
+    /// Published at or below the horizon, or before this epoch.
     Visible(PackageObject),
-    /// Published above `C - K`, or by execution the handler has not reached.
+    /// Published above the horizon, or by execution the handler has not
+    /// reached.
     Missing(MissingReason),
 }
 

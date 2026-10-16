@@ -30,8 +30,7 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 /// guard must be held for the whole test.
 fn enable_deterministic_validation_for_testing() -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     })
 }

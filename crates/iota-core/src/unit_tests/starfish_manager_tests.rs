@@ -71,13 +71,7 @@ async fn test_starfish_manager() {
     let secret = Arc::pin(config.authority_key_pair().copy());
     let genesis = config.genesis().unwrap();
 
-    let state = TestAuthorityBuilder::new()
-        .with_genesis_and_keypair(genesis, &secret)
-        .build()
-        .await;
-
     let metrics = Arc::new(ConsensusManagerMetrics::new(&Registry::new()));
-    let epoch_store = state.epoch_store_for_testing();
     let client = Arc::new(LazyStarfishClient::default());
 
     let manager = StarfishManager::new(
@@ -93,6 +87,13 @@ async fn test_starfish_manager() {
     assert_eq!(boot_counter, 0);
 
     for i in 1..=3 {
+        // A restart runs on a fresh epoch store, as on a node: the consensus
+        // handler takes the store's assigned-commit receiver once.
+        let state = TestAuthorityBuilder::new()
+            .with_genesis_and_keypair(genesis, &secret)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
         let consensus_handler_initializer = ConsensusHandlerInitializer::new_for_testing(
             state.clone(),
             checkpoint_service_for_testing(state.clone()),
