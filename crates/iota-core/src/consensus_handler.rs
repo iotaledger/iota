@@ -23,7 +23,10 @@ use iota_types::{
     error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
+    move_authenticator::MoveAuthenticatorExt,
+    transaction::{
+        SenderSignedTransactionAPI, TransactionAPI, TransactionKindExt, VerifiedTransaction,
+    },
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -842,6 +845,18 @@ impl Drop for StarfishConsensusHandler {
     }
 }
 
+/// Whether the transaction or one of its Move authenticators names a shared
+/// object, the same answer as `contains_shared_object`. It does not merge the
+/// declarations, since `classify` runs on committed transactions before
+/// `validity_check` has rejected those whose declarations disagree.
+fn names_shared_object(transaction: &SenderSignedTransaction) -> bool {
+    transaction.transaction().kind().contains_shared_object()
+        || transaction
+            .move_authenticators()
+            .iter()
+            .any(|authenticator| !authenticator.shared_objects().is_empty())
+}
+
 pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
     match &transaction.kind {
         ConsensusTransactionKind::CertifiedTransaction(certificate) => {
@@ -852,7 +867,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             }
         }
         ConsensusTransactionKind::UserTransactionV1(transaction) => {
-            if transaction.contains_shared_object() {
+            if names_shared_object(transaction.data()) {
                 "shared_user_transaction"
             } else {
                 "owned_user_transaction"
