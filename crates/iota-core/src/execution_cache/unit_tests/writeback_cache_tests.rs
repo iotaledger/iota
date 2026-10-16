@@ -1685,15 +1685,9 @@ async fn concurrent_latest_object_cache_collision_test() {
     assert!(cache.object_by_id_cache.get(&object2_id).is_none());
 }
 
-/// Pruning the ledger bucket of an expired epoch takes a transaction's
-/// execution record and its effects out of the store while its effects digest
-/// can still be positively cached. Reading the effects must then report them
-/// absent.
-///
-/// It must not record that absence under the transaction digest, whose cache
-/// entry still holds the effects digest: `MonotonicCache::insert` reports
-/// overwriting a `Some` entry with `None` as an invariant violation, which
-/// panics under test and is counted in production.
+/// Effects dropped from the store with an expired ledger bucket read as
+/// absent even while their effects digest is still cached, without caching
+/// that absence over the cached effects digest.
 #[tokio::test]
 async fn test_read_effects_dropped_from_store_with_digest_still_cached() {
     telemetry_subscribers::init_for_testing();
@@ -1713,8 +1707,8 @@ async fn test_read_effects_dropped_from_store_with_digest_still_cached() {
         bucket.executed_effects.remove(&digest).unwrap();
         bucket.effects.remove(&effects_digest).unwrap();
 
-        // Put back the state this exercises, whatever this iteration evicted:
-        // the execution record positively cached, its effects not.
+        // Cache the effects digest but not the effects, whatever this
+        // iteration evicted.
         s.cache
             .cached
             .executed_effects_digests
