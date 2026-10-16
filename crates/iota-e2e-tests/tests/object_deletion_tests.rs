@@ -21,15 +21,13 @@ mod sim_only_tests {
     use tokio::time::timeout;
 
     // Tests that relocation moves superseded object versions into the historic
-    // bucket, and that expiring that bucket removes the lineages' tombstones
-    // from the live table. Specifically, we first wrap a child object into a
-    // root object (tests wrap tombstone), then unwrap and delete the child
-    // object (tests unwrap and delete), and last delete the root object (tests
-    // object deletion).
+    // bucket, and that expiring that bucket removes the tombstones from the
+    // live table. We first wrap a child object into a root object (tests wrap
+    // tombstone), then unwrap and delete the child object (tests unwrap and
+    // delete), and last delete the root object (tests object deletion).
     //
-    // Pruning is disabled on this node's own schedule so it cannot race the
-    // relocation checks below; expiry is instead driven once, explicitly, at
-    // the end.
+    // Pruning is disabled so it cannot race the relocation checks; expiry is
+    // driven explicitly at the end.
     #[sim_test]
     async fn object_pruning_test() {
         let test_cluster = TestClusterBuilder::new()
@@ -78,10 +76,9 @@ mod sim_only_tests {
         let unwrap_delete_effects =
             unwrap_and_delete_child(&test_cluster, package_id, object_id).await;
         let unwrap_delete_txn_digest = *unwrap_delete_effects.transaction_digest();
-        // Unwrapping takes only the root as an explicit input; the wrapped child
-        // never appears in this transaction's `modified_at_versions`, so relocation
-        // has nothing to move for it here. Its wrap tombstone stays live until the
-        // bucket that recorded it expires at the end of this test.
+        // The wrapped child is not in this transaction's `modified_at_versions`,
+        // so relocation has nothing to move for it; its wrap tombstone stays live
+        // until its bucket expires.
         let object_pre_unwrap_version = superseded_version(&unwrap_delete_effects, object_id);
 
         let delete_root_effects = delete_object(&test_cluster, package_id, object_id).await;
@@ -90,8 +87,6 @@ mod sim_only_tests {
 
         fullnode
             .with_async(|node| async {
-                // Wait for both transactions' checkpoints to execute and relocate the
-                // versions they superseded.
                 timeout(
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &unwrap_delete_txn_digest),
@@ -112,18 +107,15 @@ mod sim_only_tests {
             })
             .await;
 
-        // Both lineages' tombstone heads are recorded in the bucket of the epoch
-        // that wrote them, so that epoch has to end before its bucket can fall
-        // out of the retention.
+        // The tombstones are recorded in the current epoch's bucket, which can
+        // only expire once the epoch has ended.
         test_cluster.force_new_epoch().await;
 
         fullnode
             .with_async(|node| async {
                 let state = node.state();
 
-                // Expiring the earlier epoch's bucket deletes the tombstone heads
-                // it recorded from the live table, so both lineages leave the
-                // objects table entirely.
+                // Expiring that bucket deletes its tombstones from the live table.
                 state
                     .database_for_testing()
                     .expire_historic_objects_and_compact_for_testing();
@@ -144,13 +136,9 @@ mod sim_only_tests {
     }
 
     // `iota_tryGetObjectBeforeVersion` bounded below an object's live version
-    // has to answer from the historic bucket: relocation took the earlier
-    // version out of the live table when the mutation's checkpoint executed,
-    // and the caches are dropped before the read so it cannot come from memory
-    // either.
+    // answers from the historic bucket.
     //
-    // Pruning is disabled so that no bucket expiry can run between the
-    // relocation checked below and the read that follows it.
+    // Pruning is disabled so that no bucket expiry runs before the read.
     #[sim_test]
     async fn try_get_object_before_version_reads_a_relocated_version() {
         let test_cluster = TestClusterBuilder::new()
@@ -192,15 +180,10 @@ mod sim_only_tests {
         assert_eq!(object_data.version, created_version);
     }
 
-    // Withdrawing a stake deletes the `StakedIota`, so `iotax_getStakesByIds`
-    // has to read the version underneath the tombstone to report the stake at
-    // all: it reaches the withdrawal's tombstone head in the live table and
-    // then the version below it, which relocation moved into the historic
-    // bucket when the withdrawal's checkpoint executed. The caches are dropped
-    // before the read so that it cannot come from memory instead.
+    // `iotax_getStakesByIds` still reports a withdrawn stake, reading the
+    // deleted `StakedIota`'s last version from the historic bucket.
     //
-    // Pruning is disabled so that no bucket expiry can run between the
-    // relocation checked below and the read that follows it.
+    // Pruning is disabled so that no bucket expiry runs before the read.
     #[sim_test]
     async fn a_withdrawn_stake_still_reports_its_status() {
         let test_cluster = TestClusterBuilder::new()
@@ -243,8 +226,7 @@ mod sim_only_tests {
         assert!(matches!(stakes[0].status, StakeStatus::Unstaked));
     }
 
-    /// The version of `id` that `effects`' transaction superseded — its
-    /// pre-image is what relocation must have moved into the historic bucket.
+    /// The version of `id` that `effects`' transaction superseded.
     fn superseded_version(effects: &TransactionEffects, id: ObjectId) -> Version {
         effects
             .modified_at_versions()
@@ -258,18 +240,14 @@ mod sim_only_tests {
             })
     }
 
-    /// Drops the execution cache's copies of committed data.
-    ///
-    /// The cache keeps the most recent versions of an object and answers a
-    /// bounded read from them, which would leave the read under test never
-    /// reaching the store the relocated version now lives in.
+    /// Drops the execution cache's copies of committed data, which would
+    /// otherwise answer a bounded read without reaching the historic bucket.
     fn clear_caches_so_the_read_reaches_storage(state: &Arc<AuthorityState>) {
         state.clear_execution_caches_for_testing();
     }
 
-    /// Asserts that `version` of `id` has left the live `objects` table and
-    /// arrived in the historic bucket — the two halves relocation must keep
-    /// true together, since a version is always readable from one of the two.
+    /// Asserts that `version` of `id` has moved from the live `objects` table
+    /// to the historic bucket.
     fn assert_relocated(state: &Arc<AuthorityState>, id: ObjectId, version: Version) {
         assert!(
             !state
