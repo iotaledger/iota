@@ -3657,24 +3657,15 @@ mod tests {
         assert_eq!(c2sc.sequence_number, 1);
     }
 
-    /// The committee has one validator. Its checkpoint builder stores the
-    /// contents of each checkpoint before the aggregator can see the
-    /// checkpoint. The test checks that, when the aggregator certifies
-    /// checkpoint N, the contents of checkpoint N and of the checkpoints before
-    /// it that are not synced yet are in the checkpoint store. This order also
-    /// guards the contents of checkpoint N itself: state sync marks a checkpoint
-    /// from consensus synced and checks its contents only in a debug build.
-    /// The validator signs each checkpoint when the builder writes it, so the
-    /// aggregator can certify a checkpoint when it sees it. One pending
-    /// checkpoint has more transactions than a checkpoint can hold, so the
-    /// builder writes two checkpoints together.
+    /// When the aggregator certifies checkpoint N, the contents of checkpoint N
+    /// and of the checkpoints before it that are not synced yet are in the
+    /// checkpoint store. State sync marks a checkpoint from consensus synced
+    /// and checks its contents only in a debug build, so a validator relies on
+    /// this order.
     ///
-    /// Limit: the test sees an error in the order only if the builder lets
-    /// other tasks run after the aggregator can see a checkpoint and before
-    /// the builder writes its contents. In the test, the only such point is in
-    /// `SendCheckpointSignatureToAggregator`. Without it, the test does not
-    /// check the order. The test does not see a change in the order of the
-    /// steps that the builder does without letting other tasks run.
+    /// The test sees a wrong order only where the builder lets other tasks run
+    /// before it stores the contents. It does not see a change in the order of
+    /// the steps that run without such a point.
     #[tokio::test]
     async fn checkpoint_certified_only_after_contents_of_all_checkpoints_up_to_it_stored() {
         telemetry_subscribers::init_for_testing();
@@ -3701,6 +3692,8 @@ mod tests {
             epoch_store.clone(),
             Arc::new(effects),
             Arc::downgrade(&global_state_hasher),
+            // The committee has one validator, so its signature alone
+            // certifies a checkpoint.
             Box::new(SendCheckpointSignatureToAggregator {
                 state: state.clone(),
             }),
@@ -3726,7 +3719,8 @@ mod tests {
                 )
                 .unwrap();
         }
-        // The pending checkpoint at height 1 becomes two checkpoints.
+        // The pending checkpoint at height 1 has more transactions than a
+        // checkpoint can hold, so the builder writes two checkpoints together.
         let checkpoint_count = 4;
         for seq in 0..checkpoint_count {
             let (certified_seq, without_contents) =
@@ -3980,6 +3974,8 @@ mod tests {
                 signature_index,
                 &CheckpointSignatureMessage { summary },
             )?;
+            // Without this point, the aggregator cannot run before the builder
+            // stores the contents, and the test does not check the order.
             tokio::task::yield_now().await;
             Ok(())
         }

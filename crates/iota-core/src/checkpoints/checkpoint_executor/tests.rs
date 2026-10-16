@@ -31,6 +31,7 @@ use crate::{
         FullCheckpointContentsCacheMetrics, test_checkpoint_with_contents,
     },
     global_state_hasher::GlobalStateHasher,
+    test_utils::{wait_for, wait_until},
 };
 
 /// The fallback (per-item) load path runs when contents were not synced via
@@ -688,36 +689,24 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
     );
 }
 
-/// The longest time a test waits for the checkpoint executor when it does not
-/// check how long the executor takes.
-const EXECUTOR_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
-
 async fn wait_for_executed_checkpoint(
     checkpoint_store: &CheckpointStore,
     seq: CheckpointSequenceNumber,
-    wait_timeout: Duration,
 ) {
-    timeout(
-        wait_timeout,
+    wait_for(
+        &format!("checkpoint {seq} to be executed"),
         checkpoint_store.notify_read_executed_checkpoint(seq),
     )
-    .await
-    .unwrap_or_else(|_| panic!("checkpoint {seq} was not executed within {wait_timeout:?}"));
+    .await;
 }
 
-/// Checkpoint 1 is verified, but its contents are not stored yet. Any node is
-/// in this state while state sync downloads the contents. Then a write tries
-/// to mark checkpoint 2 synced. Only a validator makes such a write, for a
-/// checkpoint from consensus, and on a validator the contents of checkpoint 1
-/// are stored by then. The checkpoint executor loads the contents of each
-/// checkpoint that the checkpoint store gives it, and it panics if they are
-/// not in the store. The test checks that the executor does not get
-/// checkpoint 1 while its contents are not in the store, also after the
-/// warning timeout of the executor, when the executor reads the synced
-/// watermark again. When the contents of checkpoint 1 are stored and
-/// checkpoints 1 and 2 are marked synced, the executor executes both. The test
-/// guards the checkpoint store and the executor together, from the side that
-/// reads the synced watermark.
+/// Checkpoint 1 is verified without contents, as on any node while state sync
+/// downloads them, and a write tries to mark checkpoint 2 synced. The test
+/// checks that the checkpoint executor does not get checkpoint 1, also not
+/// after its warning timeout, when it reads the synced watermark again. The
+/// executor panics if it gets a checkpoint whose contents are not stored. The
+/// test guards the checkpoint store and the executor together, from the side
+/// that reads the synced watermark.
 #[tokio::test(start_paused = true)]
 async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stored() {
     telemetry_subscribers::init_for_testing();
@@ -748,7 +737,7 @@ async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stor
     );
 
     let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
-    wait_for_executed_checkpoint(&checkpoint_store, 0, EXECUTOR_WAIT_TIMEOUT).await;
+    wait_for_executed_checkpoint(&checkpoint_store, 0).await;
 
     // The test checks what the executor gets, not what the write returns.
     let _ = checkpoint_store
@@ -779,7 +768,7 @@ async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stor
             .update_highest_synced_checkpoint(checkpoint)
             .unwrap();
     }
-    wait_for_executed_checkpoint(&checkpoint_store, 2, EXECUTOR_WAIT_TIMEOUT).await;
+    wait_for_executed_checkpoint(&checkpoint_store, 2).await;
     executor_handle.abort();
 }
 
@@ -800,17 +789,14 @@ async fn executor_executes_synced_checkpoint_before_warning_timeout() {
         .unwrap();
 
     let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
-    wait_for_executed_checkpoint(&checkpoint_store, 0, EXECUTOR_WAIT_TIMEOUT).await;
+    wait_for_executed_checkpoint(&checkpoint_store, 0).await;
     // A waiter that registers after the write returns at once, with or without
     // a wake-up. On the single-threaded test runtime, a registered waiter has
     // also read the watermark.
-    timeout(EXECUTOR_WAIT_TIMEOUT, async {
-        while checkpoint_store.num_synced_checkpoint_waiters_for_testing() == 0 {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+    wait_until("the executor to wait for checkpoint 1", || {
+        checkpoint_store.num_synced_checkpoint_waiters_for_testing() > 0
     })
-    .await
-    .expect("the executor should wait for checkpoint 1");
+    .await;
 
     checkpoint_store
         .update_highest_synced_checkpoint(&checkpoints[1])
@@ -818,6 +804,11 @@ async fn executor_executes_synced_checkpoint_before_warning_timeout() {
     // Shorter than the warning timeout of the executor (5 s by default, set by
     // `NEW_CHECKPOINT_WARNING_TIMEOUT_MS`).
     let before_warning_timeout = Duration::from_secs(1);
-    wait_for_executed_checkpoint(&checkpoint_store, 1, before_warning_timeout).await;
+    timeout(
+        before_warning_timeout,
+        checkpoint_store.notify_read_executed_checkpoint(1),
+    )
+    .await
+    .expect("the write did not wake the executor before its warning timeout");
     executor_handle.abort();
 }

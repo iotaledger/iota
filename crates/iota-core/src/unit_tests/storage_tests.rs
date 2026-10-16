@@ -12,26 +12,15 @@ use iota_types::{
     storage::WriteStore,
 };
 use prometheus_filtered::Registry;
-use tokio::{sync::broadcast::error::TryRecvError, task::JoinHandle, time::timeout};
+use tokio::{sync::broadcast::error::TryRecvError, task::JoinHandle};
 
 use crate::{
-    authority::test_authority_builder::TestAuthorityBuilder, checkpoints::CheckpointStore,
-    execution_cache::build_execution_cache_from_env, storage::RocksDbStore,
+    authority::test_authority_builder::TestAuthorityBuilder,
+    checkpoints::CheckpointStore,
+    execution_cache::build_execution_cache_from_env,
+    storage::RocksDbStore,
+    test_utils::{wait_for, wait_until},
 };
-
-/// The longest time a test waits for state sync or for a waiter. The waiters
-/// in these tests have no fallback, so a lost wake-up never resolves.
-const WAIT_TIMEOUT: Duration = Duration::from_secs(30);
-
-async fn wait_until(what: &str, condition: impl Fn() -> bool) {
-    timeout(WAIT_TIMEOUT, async {
-        while !condition() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("timed out waiting for {what}"));
-}
 
 /// A `RocksDbStore` on a new checkpoint store, with checkpoint 0 synced, and
 /// the random checkpoints after it with their contents, which are not stored.
@@ -195,9 +184,8 @@ impl Node {
             "{failure}; the highest synced checkpoint is {:?}",
             self.stores.highest_synced(),
         );
-        let released = timeout(WAIT_TIMEOUT, &mut self.waiter)
+        let released = wait_for("the released waiter to return", &mut self.waiter)
             .await
-            .expect("a released waiter returns")
             .unwrap();
         assert_eq!(released.sequence_number(), 1);
     }
@@ -242,12 +230,12 @@ async fn checkpoint_from_consensus_marked_synced_only_after_previous_checkpoint_
 
     node.download_checkpoint_1_contents();
     for seq in [1, 2] {
-        let checkpoint = timeout(WAIT_TIMEOUT, synced_checkpoints.recv())
-            .await
-            .unwrap_or_else(|_| {
-                panic!("timed out waiting for state sync to send synced checkpoint {seq}")
-            })
-            .unwrap();
+        let checkpoint = wait_for(
+            &format!("state sync to send synced checkpoint {seq}"),
+            synced_checkpoints.recv(),
+        )
+        .await
+        .unwrap();
         assert_eq!(
             checkpoint.sequence_number(),
             seq,
@@ -338,9 +326,8 @@ async fn run_of_checkpoints_marked_synced_only_after_checkpoint_before_run_synce
         "the run did not release the waiter of each checkpoint in it"
     );
     for (seq, waiter) in (1..=3).zip(waiters) {
-        let released = timeout(WAIT_TIMEOUT, waiter)
+        let released = wait_for("the released waiter to return", waiter)
             .await
-            .expect("a released waiter returns")
             .unwrap();
         assert_eq!(released.sequence_number(), seq);
     }
@@ -360,9 +347,8 @@ async fn run_of_checkpoints_marked_synced_only_after_checkpoint_before_run_synce
         0,
         "the run did not release the waiter for checkpoint 4"
     );
-    let released = timeout(WAIT_TIMEOUT, waiter)
+    let released = wait_for("the released waiter to return", waiter)
         .await
-        .expect("a released waiter returns")
         .unwrap();
     assert_eq!(released.sequence_number(), 4);
 }
