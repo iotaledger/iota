@@ -2937,6 +2937,9 @@ impl AuthorityState {
             traffic_controller,
             epoch_end_db_snapshots,
         });
+        // An expiry cut short by a crash may not have recorded what it
+        // dropped.
+        Self::record_pruned_checkpoints(&state.historic_ledger, &state.checkpoint_store);
 
         // Start a task to execute ready transactions.
         let authority_state = Arc::downgrade(&state);
@@ -3308,22 +3311,13 @@ impl AuthorityState {
                 if let Err(err) = historic_ledger.prune(new_epoch, epochs_to_retain) {
                     error!("Failed to expire historic ledger buckets: {err:?}");
                 }
-                match checkpoint_store
+                if let Err(err) = checkpoint_store
                     .historic_checkpoints
                     .prune(new_epoch, epochs_to_retain)
                 {
-                    // Checkpoints below the oldest retained bucket can no
-                    // longer be served to state-sync peers or RPC clients.
-                    Ok(Some(earliest_retained_epoch)) => {
-                        if let Err(err) = checkpoint_store
-                            .advance_highest_pruned_checkpoint(earliest_retained_epoch)
-                        {
-                            error!("Failed to record the pruned checkpoint range: {err:?}");
-                        }
-                    }
-                    Ok(None) => {}
-                    Err(err) => error!("Failed to expire historic checkpoint buckets: {err:?}"),
+                    error!("Failed to expire historic checkpoint buckets: {err:?}");
                 }
+                Self::record_pruned_checkpoints(&historic_ledger, &checkpoint_store);
             }
             if let Some(indexes) = rpc_indexes_store {
                 match indexes.prune(new_epoch) {
@@ -3340,6 +3334,25 @@ impl AuthorityState {
             error!("The historic bucket expiry task failed: {err:?}");
         }
         Ok(())
+    }
+
+    /// Moves `HighestPruned` up to the last checkpoint below the epochs both
+    /// the ledger and the checkpoint history still retain: a checkpoint whose
+    /// contents or transactions are gone can no longer be served to state-sync
+    /// peers or RPC clients. Either expiry can fail or be cut short without the
+    /// other, so this takes whichever floor is higher.
+    fn record_pruned_checkpoints(
+        historic_ledger: &HistoricLedger,
+        checkpoint_store: &CheckpointStore,
+    ) {
+        let floor = historic_ledger.earliest_retained_epoch().max(
+            checkpoint_store
+                .historic_checkpoints
+                .earliest_retained_epoch(),
+        );
+        if let Err(err) = checkpoint_store.advance_highest_pruned_checkpoint(floor) {
+            error!("Failed to record the pruned checkpoint range: {err:?}");
+        }
     }
 
     /// The oldest epoch whose historic-object bucket a [`Self::retain_objects`]
