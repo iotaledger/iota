@@ -8,7 +8,10 @@ use typed_store_error::TypedStoreError;
 
 use crate::{
     be_fix_int_ser,
-    rocks::errors::{typed_store_err_from_bcs_err, typed_store_err_from_rocks_err},
+    rocks::{
+        TaggedDBMap,
+        errors::{typed_store_err_from_bcs_err, typed_store_err_from_rocks_err},
+    },
 };
 
 /// Rows of one table, held in memory until [`Self::write_file`] writes them,
@@ -39,6 +42,10 @@ impl<K: Serialize, V: Serialize> SstFileBuffer<K, V> {
     }
 
     pub fn insert(&mut self, key: &K, value: &V) -> Result<(), TypedStoreError> {
+        self.push(key, value)
+    }
+
+    fn push<S: Serialize + ?Sized>(&mut self, key: &S, value: &V) -> Result<(), TypedStoreError> {
         let start = self.bytes.len();
         self.bytes.extend_from_slice(&be_fix_int_ser(key));
         let value_start = self.bytes.len();
@@ -93,6 +100,19 @@ impl<K: Serialize, V: Serialize> SstFileBuffer<K, V> {
         self.bytes.clear();
         self.rows.clear();
         Ok(())
+    }
+}
+
+impl<K: Serialize, V: Serialize> SstFileBuffer<(u8, K), V> {
+    /// Adds a row of `map`, keyed as `map` keys its rows, for a file ingested
+    /// into `map`'s column family.
+    pub fn insert_tagged(
+        &mut self,
+        map: &TaggedDBMap<K, V>,
+        key: &K,
+        value: &V,
+    ) -> Result<(), TypedStoreError> {
+        self.push(&(map.tag(), key), value)
     }
 }
 
