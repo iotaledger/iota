@@ -1,0 +1,205 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! The reader context and the driver. Holds the horizon and the store
+//! handles, walks each input machine from its first lookup to a verdict, and
+//! loads a transaction's inputs at a commit for the post-consensus validation
+//! entry point.
+
+use std::sync::Arc;
+
+use iota_sdk_types::{ObjectId, ObjectReference, Version};
+use iota_types::{
+    error::{IotaError, IotaResult},
+    storage::{BackingPackageStore, PackageObject},
+};
+
+use super::{
+    KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
+    owned::{NeedBytes, OwnedReader, TablesLookup, TablesRecheck},
+    package::{PackageLookup, PackageReader, PackageRowLookup},
+    shared::{
+        CreatedObjectLookup, DeletionInfoLookup, DeletionRowLookup, ObjectAbsent,
+        PreSyncObjectLookup, SharedReader, SharedTablesLookup, SharedTablesRecheck,
+    },
+};
+use crate::{
+    authority::authority_per_epoch_store::{
+        AuthorityPerEpochStore, handler_object_state::CommitIndex,
+    },
+    execution_cache::ObjectCacheRead,
+};
+
+/// Distance between the commit being validated and the highest commit whose
+/// rows a verdict may trust. A future protocol parameter.
+pub const K: CommitIndex = 2;
+
+/// Reads inputs as of one consensus commit. Built once per commit and passed
+/// to every transition that touches a store.
+pub struct CommitIndexedReader {
+    pub(super) cache: Arc<dyn ObjectCacheRead>,
+    pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
+    /// `C - K`.
+    horizon: CommitIndex,
+}
+
+impl CommitIndexedReader {
+    pub fn new(
+        cache: Arc<dyn ObjectCacheRead>,
+        epoch_store: Arc<AuthorityPerEpochStore>,
+        commit_index: CommitIndex,
+    ) -> Self {
+        Self {
+            cache,
+            epoch_store,
+            horizon: commit_index.saturating_sub(K),
+        }
+    }
+
+    /// Rules 1 to 3 for one owned input. Storage errors propagate. They are
+    /// never a verdict.
+    pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
+        // Rules 1 and 2: the sync-ahead record, held, then the row at the
+        // named version, deciding.
+        let no_tables_entry = match OwnedReader::start(input, self.horizon)
+            .read_sync_ahead_record(self)?
+            .read_handler_row(self)?
+        {
+            TablesLookup::NeedBytes(need_bytes) => {
+                return Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?));
+            }
+            TablesLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
+            TablesLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
+            TablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
+        };
+
+        // Rule 3: ask the store, hold the answer, read both tables again in
+        // the same order.
+        let store_answered = no_tables_entry.read_store(self)?;
+        let record_reread = store_answered.reread_sync_ahead_record(self)?;
+        match record_reread.reread_handler_row(self)? {
+            TablesRecheck::NeedBytes(need_bytes) => {
+                Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?))
+            }
+            TablesRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
+            TablesRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
+        }
+    }
+
+    /// Existence and creation metadata for one shared input declared at
+    /// `initial_shared_version`. No content read. Storage errors propagate.
+    pub fn read_shared(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<SharedVerdict> {
+        // The sync-ahead record, held, then the creation row at the declared
+        // initial version, deciding. A row at or below the horizon proved the
+        // flag, so only the object's presence is left. A record with a base
+        // and no row leaves the owner to the object.
+        let no_tables_entry = match SharedReader::start(id, initial_shared_version, self.horizon)
+            .read_sync_ahead_record(self)?
+            .read_creation_row(self)?
+        {
+            SharedTablesLookup::Created(created) => {
+                return match created.read_object(self)? {
+                    CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                    CreatedObjectLookup::Absent(object_absent) => {
+                        self.check_deletion(object_absent)
+                    }
+                };
+            }
+            SharedTablesLookup::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
+            SharedTablesLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
+            SharedTablesLookup::PreSyncExisted(pre_sync_existed) => {
+                return match pre_sync_existed.read_object(self)? {
+                    PreSyncObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                    PreSyncObjectLookup::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
+                    PreSyncObjectLookup::Absent(object_absent) => {
+                        self.check_deletion(object_absent)
+                    }
+                };
+            }
+            SharedTablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
+        };
+
+        // Store: hold the latest object, read both tables again in the same
+        // order.
+        let object_answered = no_tables_entry.read_object(self)?;
+        let record_reread = object_answered.reread_sync_ahead_record(self)?;
+        match record_reread.reread_creation_row(self)? {
+            SharedTablesRecheck::Created(created) => match created.read_object(self)? {
+                CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                CreatedObjectLookup::Absent(object_absent) => self.check_deletion(object_absent),
+            },
+            SharedTablesRecheck::Exists(object) => Ok(SharedVerdict::Exists(object)),
+            SharedTablesRecheck::Missing(reason) => Ok(SharedVerdict::Missing(reason)),
+            SharedTablesRecheck::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
+            SharedTablesRecheck::Absent(object_absent) => self.check_deletion(object_absent),
+        }
+    }
+
+    /// Deletion: this epoch's marker, then the row at the deleted version.
+    /// Reached from a created object that is gone, in either pass, from a
+    /// record whose object sync deleted, and from a store answer no table
+    /// claimed.
+    fn check_deletion(
+        &self,
+        object_absent: SharedReader<ObjectAbsent>,
+    ) -> IotaResult<SharedVerdict> {
+        let deletion_info_found = match object_absent.read_deletion_info(self)? {
+            DeletionInfoLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
+            DeletionInfoLookup::Found(deletion_info_found) => deletion_info_found,
+        };
+        Ok(match deletion_info_found.read_deletion_row(self)? {
+            DeletionRowLookup::Deleted(version, digest) => SharedVerdict::Deleted(version, digest),
+            DeletionRowLookup::Drop(reason) => SharedVerdict::Drop(reason),
+        })
+    }
+
+    /// Visibility of one package input. The store is read first, because a
+    /// package input names no version, then the record, then the row. The
+    /// package module doc explains the order. Storage errors propagate.
+    pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
+        let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
+            PackageLookup::Loaded(loaded) => loaded,
+            PackageLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
+        };
+        let record_read = loaded.read_sync_ahead_record(self)?;
+        Ok(match record_read.read_row(self)? {
+            PackageRowLookup::Visible(package) => PackageVerdict::Visible(package),
+            PackageRowLookup::Missing(reason) => PackageVerdict::Missing(reason),
+        })
+    }
+
+    /// The bytes at exactly `(id, V)`, from the store or from the shelter row
+    /// once the pruner removed the version. Reachable only with the machine's
+    /// keep token. Bytes in neither place break the design's invariant, so
+    /// that is a storage error and halts commit processing, never a verdict.
+    fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<KeptObject> {
+        let key = need_bytes.into_key();
+        if let Some(object) = self.cache.try_get_object_by_key(&key.0, key.1)? {
+            return Ok(KeptObject(object));
+        }
+        self.epoch_store
+            .sheltered_object(&key)?
+            .map(KeptObject)
+            .ok_or_else(|| {
+                IotaError::Storage(format!(
+                    "kept input {key:?} has bytes in neither the object store nor the shelter"
+                ))
+            })
+    }
+}
+
+/// The deny check's package view as of the commit. A package the reader
+/// answers missing reads as absent, which the deny check reports as not
+/// found. The missing reason is set aside on this path.
+impl BackingPackageStore for CommitIndexedReader {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        Ok(match self.read_package(*package_id)? {
+            PackageVerdict::Visible(package) => Some(package),
+            PackageVerdict::Missing(_) => None,
+        })
+    }
+}
