@@ -4097,7 +4097,7 @@ async fn test_builtin_multisig_authenticator() -> Result<(), anyhow::Error> {
 
     let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
     let auth_sig = UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
             vec![],
             object_arg,
@@ -4222,7 +4222,7 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
 
     let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
     let auth_sig = UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
             vec![],
             object_arg,
@@ -4447,7 +4447,7 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
 
     let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
     let auth_sig = UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
             vec![],
             object_arg,
@@ -4610,7 +4610,7 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
 
     let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
     let auth_sig = UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
             vec![],
             object_arg,
@@ -5933,7 +5933,7 @@ fn builtin_sig_for_keypair(
     let wire_bytes = UserSignature::Simple(sig).to_bytes();
     let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
     Ok(UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
             vec![],
             object_arg,
@@ -6002,7 +6002,7 @@ fn builtin_authenticated_tx(
     type_args: Vec<TypeTag>,
 ) -> TransactionEnvelope {
     let authenticator = UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             call_args,
             type_args,
             SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false),

@@ -83,15 +83,9 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     }
 }
 
-/// A struct used to hold authenticator information required by the signing
-/// validation path.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct AuthenticatorFunctionRefForSigning {
-    pub authenticator_function_ref: AuthenticatorFunctionRef,
-}
-
-/// A struct used to hold authenticator information required by the execution
-/// validation path.
+/// A struct used to hold AuthenticatorFunctionRef and
+/// DynamicallyLoadedObjectMetadata together, in order to pass this information
+/// to the execution side.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefForExecution {
     pub authenticator_function_ref: AuthenticatorFunctionRef,
@@ -117,14 +111,6 @@ impl AuthenticatorFunctionRefForExecution {
                 storage_rebate,
                 previous_transaction,
             },
-        }
-    }
-}
-
-impl From<AuthenticatorFunctionRefForExecution> for AuthenticatorFunctionRefForSigning {
-    fn from(value: AuthenticatorFunctionRefForExecution) -> Self {
-        AuthenticatorFunctionRefForSigning {
-            authenticator_function_ref: value.authenticator_function_ref,
         }
     }
 }

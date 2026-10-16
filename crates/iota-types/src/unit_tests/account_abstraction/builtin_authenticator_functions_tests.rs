@@ -12,7 +12,8 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference,
-    SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature, Version,
+    SharedObjectReference, SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature,
+    Version,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
         PasskeyAuthenticator,
@@ -316,10 +317,10 @@ fn seeded_rng() -> StdRng {
 }
 
 fn make_authenticator(call_args: Vec<CallArg>, type_args: Vec<TypeTag>) -> MoveAuthenticator {
-    MoveAuthenticatorV1::new_with_immutable_account_object(
+    MoveAuthenticatorV1::new(
         call_args,
         type_args,
-        ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
+        SharedObjectReference::new(ObjectId::ZERO, Version::default(), false),
     )
     .into()
 }
