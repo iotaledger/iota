@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use iota_json_rpc_types::IotaObjectDataFilter;
 use iota_sdk_types::{
@@ -1137,6 +1137,7 @@ async fn test_balance_cache_repopulation_cannot_race_a_commit() {
         assert_eq!(staged_seq, 1);
         let cache_updates = index_store.balance_cache_updates(update.coin_changes);
         update.batch.write().unwrap();
+        index_store.record_balance_commit(&cache_updates);
 
         let reader = std::thread::spawn({
             let index_store = index_store.clone();
@@ -1163,81 +1164,47 @@ async fn test_balance_cache_repopulation_cannot_race_a_commit() {
     assert_eq!(cached.num_coins, 2);
 }
 
+/// A balance read that a commit of the owner's balances overtakes answers,
+/// but leaves the caches alone: the next read gets the committed balance. The
+/// read scans without the owner's lock, which the commit holds.
 #[tokio::test]
-async fn test_a_balance_miss_takes_the_value_cached_while_it_waited() {
+async fn test_a_balance_read_across_a_commit_is_not_cached() {
     let index_store = std::sync::Arc::new(open_index_store(
         iota_common::tempdir().path().to_path_buf(),
     ));
     let address = Address::random();
-    let cached = super::TotalBalance {
-        balance: 42,
-        num_coins: 7,
+    let gas = || TypeTag::from(StructTag::new_gas());
+    insert_gas_coin(&index_store, address, 100);
+
+    let (reader, all_reader) = {
+        // Held by the "commit" below, as the checkpoint executor's commit
+        // holds it across its write.
+        let _lock = index_store.caches.locks.acquire_lock(address);
+        let reader = std::thread::spawn({
+            let index_store = index_store.clone();
+            move || index_store.get_balance(address, gas()).unwrap()
+        });
+        let all_reader = std::thread::spawn({
+            let index_store = index_store.clone();
+            move || index_store.get_all_balance(address).unwrap()
+        });
+        // Only makes it likely that the readers scan before the commit: a slow
+        // reader scans after it and caches the committed balance.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        insert_gas_coin(&index_store, address, 50);
+        index_store.caches.record_commit(std::iter::once(address));
+        (reader, all_reader)
     };
+    assert!([100, 150].contains(&reader.join().unwrap().balance));
+    assert!([100, 150].contains(&all_reader.join().unwrap()[&gas()].balance));
 
-    let lock = index_store.caches.locks.acquire_lock(address);
-    let reader = std::thread::spawn({
-        let index_store = index_store.clone();
-        move || {
-            index_store
-                .get_balance(address, TypeTag::from(StructTag::new_gas()))
-                .unwrap()
-        }
-    });
-    // Only makes the race likely: a slow reader passes without exercising it.
-    std::thread::sleep(std::time::Duration::from_millis(50));
-
-    index_store
-        .caches
-        .per_coin_type_balance
-        .get_with((address, TypeTag::from(StructTag::new_gas())), || {
-            Ok(cached)
-        })
-        .unwrap();
-    drop(lock);
-
-    assert_eq!(reader.join().unwrap(), cached);
     assert_eq!(
-        index_store.jsonrpc_metrics.balance_lookup_from_db.get(),
-        0,
-        "the waiting reader must not repeat the coin scan"
+        index_store.get_balance(address, gas()).unwrap().balance,
+        150
     );
-}
-
-/// As above, for the all-balances cache.
-#[tokio::test]
-async fn test_an_all_balance_miss_takes_the_value_cached_while_it_waited() {
-    let index_store = std::sync::Arc::new(open_index_store(
-        iota_common::tempdir().path().to_path_buf(),
-    ));
-    let address = Address::random();
-    let cached = std::sync::Arc::new(HashMap::from([(
-        TypeTag::from(StructTag::new_gas()),
-        super::TotalBalance {
-            balance: 42,
-            num_coins: 7,
-        },
-    )]));
-
-    let lock = index_store.caches.locks.acquire_lock(address);
-    let reader = std::thread::spawn({
-        let index_store = index_store.clone();
-        move || index_store.get_all_balance(address).unwrap()
-    });
-    // See above: the sleep only makes the race likely.
-    std::thread::sleep(std::time::Duration::from_millis(50));
-
-    index_store
-        .caches
-        .all_balances
-        .get_with(address, || Ok(cached.clone()))
-        .unwrap();
-    drop(lock);
-
-    assert_eq!(reader.join().unwrap(), cached);
     assert_eq!(
-        index_store.jsonrpc_metrics.all_balance_lookup_from_db.get(),
-        0,
-        "the waiting reader must not repeat the coin scan"
+        index_store.get_all_balance(address).unwrap()[&gas()].balance,
+        150
     );
 }
 

@@ -11,9 +11,16 @@
 
 use std::{
     cmp::{max, min},
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{
+        HashMap, HashSet,
+        hash_map::{Entry, RandomState},
+    },
+    hash::BuildHasher,
     ops::{Bound, RangeBounds},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use either::Either;
@@ -147,7 +154,18 @@ pub(super) struct BalanceCaches {
     pub(super) per_coin_type_balance: ShardedLruCache<(Address, TypeTag), IotaResult<TotalBalance>>,
     pub(super) all_balances: ShardedLruCache<Address, IotaResult<Arc<AllBalance>>>,
     pub(super) locks: MutexTable<Address>,
+    /// Counts the commits that changed an owner's balances, per group of
+    /// owners. A reader caches what it read from the database only if no
+    /// commit changed the count while it read, so it reads without holding
+    /// the owner's lock, which the checkpoint executor's commit takes.
+    commits: Box<[AtomicU64]>,
+    /// Picks an owner's group; seeded per process, so that a client cannot
+    /// choose addresses that share another owner's group.
+    commits_hasher: RandomState,
 }
+
+/// How many groups of owners [`BalanceCaches::commits`] counts commits for.
+const BALANCE_COMMIT_GROUPS: usize = 4096;
 
 impl BalanceCaches {
     pub(super) fn new() -> Self {
@@ -155,6 +173,28 @@ impl BalanceCaches {
             per_coin_type_balance: ShardedLruCache::new(1_000_000, 1000),
             all_balances: ShardedLruCache::new(1_000_000, 1000),
             locks: MutexTable::new(128),
+            commits: (0..BALANCE_COMMIT_GROUPS)
+                .map(|_| AtomicU64::new(0))
+                .collect(),
+            commits_hasher: RandomState::new(),
+        }
+    }
+
+    fn commits_of(&self, owner: Address) -> &AtomicU64 {
+        let group = self.commits_hasher.hash_one(owner) as usize % BALANCE_COMMIT_GROUPS;
+        &self.commits[group]
+    }
+
+    /// The count of commits that changed `owner`'s balances so far.
+    fn commit_count(&self, owner: Address) -> u64 {
+        self.commits_of(owner).load(Ordering::Acquire)
+    }
+
+    /// Records a commit that changed `owners`' balances. Called after the
+    /// commit's write, while it holds the owners' locks.
+    pub(super) fn record_commit(&self, owners: impl Iterator<Item = Address>) {
+        for owner in owners {
+            self.commits_of(owner).fetch_add(1, Ordering::Release);
         }
     }
 }
@@ -940,28 +980,23 @@ impl RpcIndexesStore {
         {
             return balance;
         }
-        // The committer holds the owner's lock across its batch write and
-        // cache merge; a value read between the two would get the
-        // checkpoint's delta applied twice.
-        let _lock = self.caches.locks.acquire_lock(owner);
-        // A reader ahead of this one may have filled the entry while it
-        // waited.
-        if let Some(balance) = self
-            .caches
-            .per_coin_type_balance
-            .get(&(owner, coin_type.clone()))
-        {
-            return balance;
-        }
         // cache miss, lookup in all balance cache
         if let Some(Ok(all_balance)) = self.caches.all_balances.get(&owner) {
             if let Some(balance) = all_balance.get(&coin_type) {
                 return Ok(*balance);
             }
         }
-        // Read before inserting, so the cache shard's write lock is not held
-        // across the scan.
+        let commits = self.caches.commit_count(owner);
         let balance = self.get_balance_from_db(owner, &coin_type);
+        // The committer holds the owner's lock across its batch write and
+        // cache merge, and counts the commit after the write; a value read
+        // across a commit would get its delta applied twice, so it is
+        // answered but not cached.
+        let _lock = self.caches.locks.acquire_lock(owner);
+        if self.caches.commit_count(owner) != commits {
+            return balance;
+        }
+        // A reader ahead of this one may have filled the entry meanwhile.
         self.caches
             .per_coin_type_balance
             .get_with((owner, coin_type), move || balance)
@@ -983,12 +1018,13 @@ impl RpcIndexesStore {
         if let Some(all_balance) = self.caches.all_balances.get(&owner) {
             return all_balance;
         }
-        // Locked and read the same way as in `get_balance`.
+        // Read and cached the same way as in `get_balance`.
+        let commits = self.caches.commit_count(owner);
+        let all_balance = self.get_all_balances_from_db(owner);
         let _lock = self.caches.locks.acquire_lock(owner);
-        if let Some(all_balance) = self.caches.all_balances.get(&owner) {
+        if self.caches.commit_count(owner) != commits {
             return all_balance;
         }
-        let all_balance = self.get_all_balances_from_db(owner);
         self.caches
             .all_balances
             .get_with(owner, move || all_balance)
@@ -1098,6 +1134,14 @@ impl RpcIndexesStore {
             per_coin_type_balance_changes,
             all_balance_changes,
         }
+    }
+
+    /// Records the commit of `updates` for readers that read the database
+    /// without the owners' locks; see [`BalanceCaches::commits`]. Call it
+    /// after the commit's write, with `updates` still holding the locks.
+    pub(super) fn record_balance_commit(&self, updates: &IndexStoreCacheUpdates) {
+        self.caches
+            .record_commit(updates.all_balance_changes.iter().map(|(owner, _)| *owner));
     }
 
     /// Drops the affected entries, so the next read repopulates them from the
