@@ -30,8 +30,8 @@ mod checked {
         account_abstraction::{
             authenticator_function::{
                 AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-                AuthenticatorFunctionRefForSigning, AuthenticatorFunctionRefV1,
-                MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
+                AuthenticatorFunctionRefV1, MoveAuthenticatorForExecution,
+                MoveAuthenticatorsForExecution,
             },
             builtin_authenticator_functions,
         },
@@ -520,7 +520,7 @@ mod checked {
         // Authentication
         authenticators: Vec<(
             MoveAuthenticator,
-            AuthenticatorFunctionRefForSigning,
+            AuthenticatorFunctionRef,
             CheckedInputObjects,
         )>,
         aggregated_authenticator_input_objects: CheckedInputObjects,
@@ -568,15 +568,7 @@ mod checked {
 
         // Run each authenticator in sequence; return on first failure.
         let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(
-                authenticator,
-                authenticator_function_ref_for_signing,
-                authenticator_input_objects,
-            )| {
-                let AuthenticatorFunctionRefForSigning {
-                    authenticator_function_ref,
-                } = authenticator_function_ref_for_signing;
-
+            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                         authenticate_transaction_inner(
