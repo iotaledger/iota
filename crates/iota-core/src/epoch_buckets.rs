@@ -41,18 +41,20 @@ pub(crate) fn history_cf_options(
     db_options: &DBOptions,
     block_cache_size_mb: usize,
 ) -> rocksdb::Options {
-    db_options
-        .clone()
-        .optimize_for_write_throughput_no_deletion()
+    bucket_cf_options(db_options)
         .set_block_options(block_cache_size_mb, 16 << 10)
         .options
 }
 
 /// Options every bucket column family is opened with.
 pub(crate) fn bucket_cf_options(db_options: &DBOptions) -> DBOptions {
-    db_options
+    let mut options = db_options
         .clone()
-        .optimize_for_write_throughput_no_deletion()
+        .optimize_for_write_throughput_no_deletion();
+    // A flushed memtable would otherwise stay in memory until the next write
+    // to its column family, which a bucket of a past epoch never gets.
+    options.options.set_max_write_buffer_size_to_maintain(0);
+    options
 }
 
 /// The `(name, options)` pairs a store's open path must list for its buckets
@@ -418,8 +420,34 @@ mod tests {
 
     use super::{
         Arc, BTreeMap, Database, EpochBuckets, EpochId, TypedStoreError, bucket_cf_epoch,
-        bucket_cf_name, rocksdb,
+        bucket_cf_name, bucket_cf_options, rocksdb,
     };
+
+    /// A bucket keeps no memtable in memory once it is flushed: a node holds
+    /// many buckets that are no longer written, and each would otherwise keep
+    /// its last memtable.
+    #[test]
+    fn a_bucket_keeps_no_flushed_memtable() {
+        let dir = iota_common::tempdir();
+        let mut db_options = rocksdb::Options::default();
+        db_options.create_if_missing(true);
+        db_options.create_missing_column_families(true);
+        let db = rocksdb::DB::open_cf_with_opts(
+            &db_options,
+            dir.path(),
+            [("bucket", bucket_cf_options(&default_db_options()).options)],
+        )
+        .unwrap();
+        let cf = db.cf_handle("bucket").unwrap();
+        db.put_cf(&cf, [1u8; 8], [2u8; 64]).unwrap();
+        db.flush_cf(&cf).unwrap();
+
+        assert_eq!(
+            db.property_int_value_cf(&cf, "rocksdb.num-immutable-mem-table-flushed")
+                .unwrap(),
+            Some(0)
+        );
+    }
 
     /// The name mapping must round-trip and reject other stores' prefixes:
     /// a shared database relies on it to tell bucket column families apart.
