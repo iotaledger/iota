@@ -9570,6 +9570,48 @@ async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
     );
 }
 
+/// `HighestPruned` follows the ledger history when it has dropped more epochs
+/// than the checkpoint history, since a checkpoint without its transactions
+/// cannot be served either.
+#[tokio::test]
+async fn the_pruned_watermark_follows_the_higher_of_the_ledger_and_checkpoint_floors() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    for epoch in 0..=3 {
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(epoch, epoch, &full_contents);
+        checkpoint_store
+            .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+            .unwrap();
+        checkpoint_store
+            .insert_certified_checkpoint(&checkpoint)
+            .unwrap();
+        checkpoint_store
+            .insert_epoch_last_checkpoint(epoch, &checkpoint)
+            .unwrap();
+        authority.get_historic_ledger().ensure(epoch).unwrap();
+    }
+
+    // The ledger history already dropped everything below epoch 4, as an
+    // expiry whose checkpoint half failed leaves it.
+    authority.get_historic_ledger().prune(4, 0).unwrap();
+    authority.advance_historic_buckets(4).await.unwrap();
+
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(3),
+    );
+}
+
 /// A restart does not write the genesis checkpoint again when only the flat
 /// table holds it, which would drag the synced watermark back to zero.
 #[tokio::test]

@@ -195,6 +195,12 @@ impl HistoricLedger {
         self.buckets.earliest_epoch()
     }
 
+    /// The earliest epoch [`Self::prune`] retains; the transactions of every
+    /// epoch below it are gone.
+    pub fn earliest_retained_epoch(&self) -> EpochId {
+        self.buckets.earliest_retained()
+    }
+
     /// The bucket holding `epoch`'s transaction history, created if absent.
     pub fn ensure(&self, epoch: EpochId) -> IotaResult<Arc<HistoricLedgerBucket>> {
         self.buckets
