@@ -8033,17 +8033,20 @@ fn account_authenticator(account_id: ObjectId) -> MoveAuthenticatorV1 {
 }
 
 /// An account that pays its own gas but did not authorize the transaction is
-/// not charged, and its gas coin keeps its version. The lock the transaction
-/// took on the coin holds until the horizon reaches the commit of the failure.
-/// From then on, the account's next transaction naming the coin is kept.
+/// not charged, and its gas coin moves to its next version. Once the horizon
+/// reaches the commit of the failure, the account's next transaction, naming
+/// the coin at its new version, is kept, while one naming the version the
+/// failure consumed is still dropped on the failed transaction's lock.
 #[tokio::test]
-async fn gas_coin_of_an_unauthorized_transaction_is_released_once_the_horizon_reaches_its_commit() {
+async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
     let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
     let failed_at = 5;
     let gas_ref = s.latest_ref(&gas_id);
     let unauthorized =
         s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);
     let unauthorized_digest = *unauthorized.digest();
+    let stale = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 2);
+    let stale_digest = *stale.digest();
 
     // Post-consensus validation keeps the transaction and locks the coin, and
     // the handler stores that lock.
@@ -8073,55 +8076,43 @@ async fn gas_coin_of_an_unauthorized_transaction_is_released_once_the_horizon_re
         "nobody may be charged"
     );
     assert_eq!(
-        s.latest_ref(&gas_id),
-        gas_ref,
-        "the gas coin must keep its version"
+        s.latest_ref(&gas_id).version,
+        effects.lamport_version(),
+        "the gas coin must move to its next version"
     );
 
-    let contender = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 2);
-    let contender_digest = *contender.digest();
-    let at_horizon = failed_at + s.horizon_distance();
-
-    let mut transactions = vec![make_user_tx_v1_verified(contender.clone())];
-    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+    let next = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 3);
+    let next_digest = *next.digest();
+    let mut transactions = vec![
+        make_user_tx_v1_verified(stale),
+        make_user_tx_v1_verified(next),
+    ];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
-        at_horizon - 1,
+        failed_at + s.horizon_distance(),
         true,
         &mut transactions,
     )
     .await
     .unwrap();
-    assert!(transactions.is_empty());
     assert!(
         matches!(
             dropped.as_slice(),
             [(digest, IotaError::ObjectLockConflict { obj_ref, pending_transaction }, _)]
-                if *digest == contender_digest
+                if *digest == stale_digest
                     && *obj_ref == gas_ref
                     && *pending_transaction == unauthorized_digest
         ),
         "{dropped:?}"
     );
-
-    let mut transactions = vec![make_user_tx_v1_verified(contender)];
-    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
-        &s.authority,
-        &s.epoch_store,
-        at_horizon,
-        true,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
-    assert!(dropped.is_empty(), "{dropped:?}");
     assert_eq!(transactions.len(), 1);
-    assert_eq!(locks.get(&gas_ref), Some(&contender_digest));
+    assert_eq!(locks.get(&s.latest_ref(&gas_id)), Some(&next_digest));
 }
 
 /// Keeps `tx` at `commit`, stores the lock it takes on the gas coin `gas_id`
 /// as the handler does, and executes it as a root of that commit. It fails
-/// without a charge and leaves the coin live at its version.
+/// without a charge and leaves the coin live at its next version.
 async fn keep_and_fail(
     s: &BookkeepingSetup,
     commit: CommitIndex,
@@ -8137,67 +8128,35 @@ async fn keep_and_fail(
         .assign_commit_to_transactions(commit, vec![TransactionKey::Digest(digest)]);
     let effects = s.execute_with_assigned_shared_versions_unchecked(tx);
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
-    assert_eq!(s.latest_ref(&gas_id), gas_ref);
+    let next_gas_ref = s.latest_ref(&gas_id);
+    assert_eq!(next_gas_ref.version, effects.lamport_version());
     s.authority
         .get_object_cache_reader()
-        .try_check_owned_objects_are_live(&[gas_ref])
+        .try_check_owned_objects_are_live(&[next_gas_ref])
         .expect("the gas coin must stay usable");
 }
 
-/// A reference released by one failed transaction can be locked by a second
-/// one that fails too. The second lock holds until the horizon reaches the
-/// second failure, then it is released in turn. Each failure leaves the gas
-/// coin live at its version.
+/// Each failure of a transaction the account did not authorize moves its gas
+/// coin to its next version, so the account's next transaction naming the coin
+/// is kept once the horizon reaches the commit of the failure.
 #[tokio::test]
-async fn reference_released_twice_by_consecutive_failures() {
+async fn consecutive_failures_each_move_the_gas_coin_on() {
     let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
-    let gas_ref = s.latest_ref(&gas_id);
-    let distance = s.horizon_distance();
-
-    let first_failure = 5;
-    let first = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);
-    keep_and_fail(&s, first_failure, first, gas_id).await;
-
-    let second_failure = first_failure + distance;
-    let second = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 2);
-    let second_digest = *second.digest();
-    keep_and_fail(&s, second_failure, second, gas_id).await;
-
-    let before_release = s
-        .validate_at(
-            second_failure + distance - 1,
-            &[s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 3)],
-        )
-        .await;
-    assert!(
-        matches!(
-            before_release.dropped.as_slice(),
-            [(_, IotaError::ObjectLockConflict { obj_ref, pending_transaction })]
-                if *obj_ref == gas_ref && *pending_transaction == second_digest
-        ),
-        "{:?}",
-        before_release.dropped
-    );
-
-    let third = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 4);
-    let at_release = s
-        .validate_at(second_failure + distance, std::slice::from_ref(&third))
-        .await;
-    assert_eq!(
-        at_release.kept,
-        vec![*third.digest()],
-        "{:?}",
-        at_release.dropped
-    );
+    let mut commit = 5;
+    for value in 1..=3 {
+        let tx = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, value);
+        keep_and_fail(&s, commit, tx, gas_id).await;
+        commit += s.horizon_distance();
+    }
 }
 
 /// A validator that executed an unauthorized transaction replays its commit,
 /// as after a restart. The replay retains the executed transaction and locks
-/// the gas coin its failure left unconsumed, like the validators that kept the
-/// transaction without having executed it, so a contender naming the coin in
-/// the same commit stays dropped.
+/// the gas coin it names, like the validators that kept the transaction without
+/// having executed it, so a contender naming the coin in the same commit stays
+/// dropped.
 #[tokio::test]
-async fn already_executed_transaction_locks_the_gas_coin_its_failure_left_unconsumed() {
+async fn already_executed_transaction_locks_the_gas_coin_it_names() {
     let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
     let gas_ref = s.latest_ref(&gas_id);
     let unauthorized =

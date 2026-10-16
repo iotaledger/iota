@@ -196,20 +196,6 @@ impl<'backing> TemporaryStore<'backing> {
         }
     }
 
-    /// Leaves every owned input other than `gas_coins` unchanged: none is
-    /// rewritten, so each keeps its version and stays out of the effects. Only
-    /// mutable shared inputs and `gas_coins` are left for
-    /// [`Self::ensure_active_inputs_mutated`] and gas charging to rewrite.
-    pub(crate) fn leave_owned_inputs_unchanged(&mut self, gas_coins: &[ObjectReference]) {
-        debug_assert!(
-            self.execution_results.modified_objects.is_empty(),
-            "owned inputs can only be left unchanged before anything is written"
-        );
-        self.mutable_input_refs.retain(|id, (_, owner)| {
-            owner.is_shared() || gas_coins.iter().any(|coin| coin.object_id == *id)
-        });
-    }
-
     fn get_object_changes(&self) -> BTreeMap<ObjectId, ChangedObject> {
         let results = &self.execution_results;
         let all_ids = results
