@@ -2639,6 +2639,24 @@ impl BookkeepingSetup {
         )
     }
 
+    /// Executes `tx` with the shared object versions the handler assigned it
+    /// in `assigned_versions`, without asserting execution success.
+    fn execute_with_handler_versions(
+        &self,
+        tx: VerifiedTransaction,
+        assigned_versions: AssignedTxAndVersions,
+    ) -> TransactionEffects {
+        let executable = self.executable(tx);
+        let versions = assigned_versions
+            .into_map()
+            .remove(&executable.key())
+            .expect("the handler must have assigned the transaction's shared versions");
+        self.execute_executable(
+            &executable,
+            ExecutionEnv::new().with_assigned_versions(versions),
+        )
+    }
+
     /// A verified sponsored `object_basics::create` call: the sender is the
     /// account `authenticator` names, with the authenticator in place of its
     /// signature, and `sponsor` pays the gas from `gas_id`. The call takes no
@@ -6971,6 +6989,361 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
             .post_consensus_decision(3, *deferred.digest())
             .unwrap(),
         None
+    );
+}
+
+/// A transaction kept at commit 1 and deferred by congestion control is kept
+/// at commit 2 although a deny rule activated in between denies its sender:
+/// it is not validated again and keeps the locks it took at commit 1. The
+/// replay of both commits after a restart repeats these decisions, and once
+/// the transaction executes, its sender can spend the new versions of its
+/// inputs.
+#[tokio::test]
+async fn deferred_transaction_is_kept_without_being_validated_again() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        config
+    });
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
+    let mut s = setup_bookkeeping_with_config_guard(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        Some(guard),
+    )
+    .await;
+    // Transfers to the sender itself, so it still owns both inputs of the
+    // deferred transaction after the transaction executes.
+    let transactions = vec![
+        s.build_transfer(&ids[0], &ids[1], sender, &key, sender),
+        s.build_transfer(&ids[2], &ids[3], sender, &key, sender),
+    ];
+    let first = s.process_at(1, &transactions).await;
+    assert_eq!(first.len(), 1);
+    let (kept, deferred, object_id, gas_id) = if first[0].digest() == transactions[0].digest() {
+        (
+            transactions[0].clone(),
+            transactions[1].clone(),
+            ids[2],
+            ids[3],
+        )
+    } else {
+        (
+            transactions[1].clone(),
+            transactions[0].clone(),
+            ids[0],
+            ids[1],
+        )
+    };
+    let deferred_inputs = [s.latest_ref(&object_id), s.latest_ref(&gas_id)];
+    assert_eq!(
+        s.epoch_store.get_all_deferred_transactions_for_test().len(),
+        1
+    );
+    let deny_sender = iota_sdk_types::DenyRuleSet {
+        denied_addresses: [sender].into(),
+        ..Default::default()
+    };
+
+    for restarted in [false, true] {
+        if restarted {
+            s.restart_epoch_store().await;
+            let replay_first = s.process_at(1, &transactions).await;
+            assert_eq!(replay_first.len(), 1);
+            assert_eq!(replay_first[0].digest(), kept.digest());
+        }
+        activate_deny_rules(&s.epoch_store, deny_sender.clone(), 1);
+        let second = s.process_at(2, &[]).await;
+        assert_eq!(second.len(), 1, "restarted: {restarted}");
+        assert_eq!(second[0].digest(), deferred.digest());
+        assert_eq!(
+            s.epoch_store
+                .post_consensus_decision(2, *deferred.digest())
+                .unwrap(),
+            Some(SavedPostConsensusDecision::kept())
+        );
+        for input in &deferred_inputs {
+            assert_eq!(
+                s.epoch_store.get_quarantined_owned_object_lock(input),
+                Some(*deferred.digest()),
+                "the lock taken at commit 1 must stay with the deferred transaction"
+            );
+        }
+    }
+
+    activate_deny_rules(&s.epoch_store, Default::default(), 2);
+    let kept_effects = s.execute(kept);
+    let deferred_effects = s.execute(deferred);
+    s.complete_commit(1, &[&kept_effects]);
+    s.complete_commit(2, &[&deferred_effects]);
+    let next = s.build_transfer(&object_id, &gas_id, sender, &key, Address::random());
+    // Commit 4 is the first whose horizon covers the outputs of commit 2.
+    let scheduled = s.process_at(4, std::slice::from_ref(&next)).await;
+    assert_eq!(scheduled.len(), 1);
+    assert_eq!(scheduled[0].digest(), next.digest());
+}
+
+/// A transaction on the shared object `S` is kept at commit 3 and deferred by
+/// congestion control, since a deletion of `S` in the same commit takes the
+/// only slot on `S`. It is kept at commit 5, whose horizon covers the
+/// deletion at commit 3: it is not validated again and keeps the locks it
+/// took at commit 3. The replay of both commits after a restart repeats these
+/// decisions. Execution fails the transaction because `S` is deleted and
+/// charges its gas, and its sender can then spend the new versions of its
+/// owned inputs.
+#[tokio::test]
+async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        config
+    });
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let deletion_gas = ObjectId::random();
+    let gas = ObjectId::random();
+    let mut s = setup_bookkeeping_with_config_guard(
+        [deletion_gas, gas]
+            .into_iter()
+            .map(|id| Object::with_id_owner_for_testing(id, sender))
+            .collect(),
+        Some(guard),
+    )
+    .await;
+
+    let setup_effects = s.execute_as_handler_known(
+        vec![
+            s.build_move_call(
+                "object_basics",
+                "share",
+                vec![],
+                &deletion_gas,
+                sender,
+                &key,
+            ),
+            s.build_move_call(
+                "object_basics",
+                "create",
+                create_object_args(sender),
+                &gas,
+                sender,
+                &key,
+            ),
+        ],
+        1,
+    );
+    s.complete_commit(1, &setup_effects.iter().collect::<Vec<_>>());
+    s.epoch_store
+        .persist_checkpoint_bookkeeping(&setup_effects)
+        .unwrap();
+    let shared_id = *setup_effects[0].created()[0].reference().object_id();
+    let object_id = *setup_effects[1].created()[0].reference().object_id();
+
+    // The higher gas price orders the deletion first in commit 3.
+    let deletion = {
+        let gas_price = 2 * s.rgp;
+        let tx = Transaction::new_move_call(
+            sender,
+            s.package_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("delete"),
+            vec![],
+            s.latest_ref(&deletion_gas),
+            vec![s.shared_arg(&shared_id)],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * gas_price,
+            gas_price,
+        )
+        .unwrap();
+        s.epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, &key))
+            .unwrap()
+    };
+    let deferred = s.build_move_call(
+        "object_basics",
+        "update",
+        vec![
+            s.shared_arg(&shared_id),
+            CallArg::ImmutableOrOwned(s.latest_ref(&object_id)),
+        ],
+        &gas,
+        sender,
+        &key,
+    );
+    let deferred_inputs = [s.latest_ref(&object_id), s.latest_ref(&gas)];
+    let candidates = [deletion.clone(), deferred.clone()];
+
+    let assert_kept_with_its_locks = |s: &BookkeepingSetup, index: CommitIndex, restarted: bool| {
+        assert_eq!(
+            s.epoch_store
+                .post_consensus_decision(index, *deferred.digest())
+                .unwrap(),
+            Some(SavedPostConsensusDecision::kept()),
+            "commit {index}, restarted: {restarted}"
+        );
+        for input in &deferred_inputs {
+            assert_eq!(
+                s.epoch_store.get_quarantined_owned_object_lock(input),
+                Some(*deferred.digest()),
+                "commit {index}, restarted: {restarted}"
+            );
+        }
+    };
+    let mut deletion_effects = None;
+    let mut reload_versions = None;
+    for restarted in [false, true] {
+        if restarted {
+            s.restart_epoch_store().await;
+            s.complete_empty_commit(1);
+        }
+        let (first, versions) = s.process_at_with_versions(3, &candidates).await;
+        assert_eq!(
+            first.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+            vec![*deletion.digest()],
+            "restarted: {restarted}"
+        );
+        assert_eq!(
+            s.epoch_store.get_all_deferred_transactions_for_test().len(),
+            1
+        );
+        assert_kept_with_its_locks(&s, 3, restarted);
+
+        let deletion_effects = deletion_effects.get_or_insert_with(|| {
+            let effects = s.execute_with_handler_versions(deletion.clone(), versions);
+            assert!(effects.status().is_success(), "{:?}", effects.status());
+            s.epoch_store
+                .persist_checkpoint_bookkeeping([&effects])
+                .unwrap();
+            effects
+        });
+        s.complete_commit(3, &[deletion_effects]);
+
+        // Commit 5 is the first whose horizon covers the deletion at commit 3.
+        let (second, versions) = s.process_at_with_versions(5, &[]).await;
+        assert_eq!(
+            second.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+            vec![*deferred.digest()],
+            "restarted: {restarted}"
+        );
+        assert_kept_with_its_locks(&s, 5, restarted);
+        reload_versions = Some(versions);
+    }
+
+    let gas_before = s.latest_ref(&gas);
+    let deferred_effects = s.execute_with_handler_versions(deferred, reload_versions.unwrap());
+    assert_eq!(
+        deferred_effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::InputObjectDeleted,
+            command: None,
+        }
+    );
+    assert_ne!(
+        deferred_effects.gas_cost_summary(),
+        &GasCostSummary::default()
+    );
+    assert!(s.latest_ref(&gas).version > gas_before.version);
+    s.complete_commit(5, &[&deferred_effects]);
+
+    let next = s.build_transfer(&object_id, &gas, sender, &key, Address::random());
+    // Commit 7 is the first whose horizon covers the outputs of commit 5.
+    let scheduled = s.process_at(7, std::slice::from_ref(&next)).await;
+    assert_eq!(
+        scheduled.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![*next.digest()]
+    );
+}
+
+/// With deterministic validation, a transaction among the previously deferred
+/// ones is kept without checks and takes no locks, while the same transaction
+/// sequenced anew is validated and dropped.
+#[tokio::test]
+async fn previously_deferred_transaction_is_kept_without_checks() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let digest = *tx.digest();
+    activate_deny_rules(
+        &s.epoch_store,
+        iota_sdk_types::DenyRuleSet {
+            denied_addresses: [sender].into(),
+            ..Default::default()
+        },
+        1,
+    );
+    let previously_deferred = std::collections::HashMap::from([(
+        digest,
+        (
+            crate::authority::transaction_deferral::DeferralKey::new_for_consensus_round(2, 1),
+            None,
+        ),
+    )]);
+
+    let mut transactions = vec![make_user_tx_v1_verified(tx.clone())];
+    let (dropped, locks, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        2,
+        true,
+        &previously_deferred,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(dropped.is_empty());
+    assert_eq!(transactions.len(), 1);
+    assert!(locks.is_empty());
+    assert_eq!(all_digests, vec![digest]);
+    assert_eq!(
+        s.epoch_store.post_consensus_decision(2, digest).unwrap(),
+        Some(SavedPostConsensusDecision::kept())
+    );
+
+    let mut transactions = vec![make_user_tx_v1_verified(tx)];
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        3,
+        true,
+        &Default::default(),
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(transactions.is_empty());
+    assert_eq!(dropped.len(), 1);
+    assert!(
+        matches!(
+            &dropped[0].1,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "{:?}",
+        dropped[0].1
     );
 }
 
