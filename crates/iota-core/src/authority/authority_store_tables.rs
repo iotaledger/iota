@@ -216,6 +216,13 @@ pub struct AuthorityPerpetualTables {
     /// TODO: remove this table once every database has swept the pre-bucket
     /// backlog, <https://github.com/iotaledger/iota/issues/12712>
     pub(crate) object_backlog_sweep_checkpoint: DBMap<(), CheckpointSequenceNumber>,
+
+    /// The epoch whose bucket the one-time sweep moved the superseded
+    /// versions into, written when the sweep finishes. Absent where no sweep
+    /// ran, such as on a database created from genesis or a formal snapshot.
+    /// TODO: remove this table once every database has swept the pre-bucket
+    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    pub(crate) object_backlog_sweep_epoch: DBMap<(), EpochId>,
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -253,6 +260,9 @@ impl AuthorityPerpetualTables {
             tables.objects.clone(),
         )?;
         historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
+        if let Some(epoch) = tables.object_backlog_sweep_epoch.get(&())? {
+            historic_objects.record_backlog_sweep_epoch(epoch);
+        }
         if matches!(
             tables.object_backlog_sweep_progress.get(&())?,
             Some(ObjectBacklogSweepProgress::Done)
@@ -566,6 +576,20 @@ impl AuthorityPerpetualTables {
     pub fn mark_object_backlog_swept(&self) -> IotaResult {
         self.object_backlog_sweep_progress
             .insert(&(), &ObjectBacklogSweepProgress::Done)?;
+        Ok(())
+    }
+
+    /// Marks the one-time object-backlog sweep as done after it moved the
+    /// superseded versions into `epoch`'s bucket, so that a later node start
+    /// skips it.
+    pub fn mark_object_backlog_swept_into(&self, epoch: EpochId) -> IotaResult {
+        let mut batch = self.object_backlog_sweep_progress.batch();
+        batch.insert_batch(&self.object_backlog_sweep_epoch, [((), epoch)])?;
+        batch.insert_batch(
+            &self.object_backlog_sweep_progress,
+            [((), ObjectBacklogSweepProgress::Done)],
+        )?;
+        batch.write()?;
         Ok(())
     }
 
