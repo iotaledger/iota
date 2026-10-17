@@ -238,6 +238,42 @@ fn seed_checkpoint(
     effects
 }
 
+/// Writes the execution record of a transaction of `epoch` that superseded
+/// `mutated` but that no checkpoint names, as a node that executed it ahead of
+/// its checkpoint leaves it, in the flat perpetual tables.
+fn seed_unfinalized_transaction(
+    store: &AuthorityStore,
+    epoch: EpochId,
+    mutated: &[(ObjectId, u64)],
+) {
+    let (sender, keypair): (Address, AccountPrivateKey) =
+        deterministic_random_account_private_key();
+    let transaction = VerifiedTransaction::new_unchecked(
+        TestTransactionBuilder::new(sender, random_object_ref(), 100)
+            .transfer(random_object_ref(), sender)
+            .build_and_sign(&keypair),
+    );
+    let effects = TestEffectsBuilder::new(transaction.inner())
+        .with_epoch(epoch)
+        .with_mutated_objects(
+            mutated
+                .iter()
+                .map(|(id, version)| (*id, (*version).into(), Owner::Address(sender))),
+        )
+        .build();
+    let effects_digest = effects.digest();
+    store
+        .perpetual_tables
+        .effects
+        .insert(&effects_digest, &effects)
+        .unwrap();
+    store
+        .perpetual_tables
+        .executed_effects
+        .insert(transaction.digest(), &effects_digest)
+        .unwrap();
+}
+
 /// Runs the ledger migration and then the sweep, in the order a node start
 /// runs them.
 async fn migrate_and_sweep(store: &Arc<AuthorityStore>, checkpoint_store: Arc<CheckpointStore>) {
@@ -488,6 +524,49 @@ async fn the_bounded_walk_relocates_what_the_checkpoints_above_the_watermark_sup
             ObjectKey(deleted_id(), 2.into()),
         ],
         "the rows at or below the watermark are left where the pruner left them"
+    );
+    assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
+}
+
+/// A version superseded by a transaction the node executed ahead of its
+/// checkpoint is relocated too, although no checkpoint names it. Left in the
+/// live table, it would answer a bounded read in place of the newer relocated
+/// version.
+#[tokio::test]
+async fn the_bounded_walk_relocates_what_unfinalized_transactions_superseded() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    store
+        .perpetual_tables
+        .objects
+        .multi_insert([
+            value(live_id(), 1),
+            value(live_id(), 2),
+            value(deleted_id(), 1),
+            value(deleted_id(), 2),
+        ])
+        .unwrap();
+    seed_pruner_watermark(&store, 7);
+    seed_checkpoint(&store, &checkpoint_store, 8, &[(live_id(), 1)], &[]);
+    seed_unfinalized_transaction(&store, SWEEP_EPOCH, &[(deleted_id(), 1)]);
+
+    migrate_and_sweep(&store, checkpoint_store).await;
+
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![
+            ObjectKey(live_id(), 1.into()),
+            ObjectKey(deleted_id(), 1.into()),
+        ],
+    );
+    assert_eq!(
+        live_keys(&store),
+        vec![
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 2.into()),
+        ],
     );
     assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
 }
