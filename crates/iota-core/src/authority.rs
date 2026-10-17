@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, Weak, atomic::Ordering},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     vec,
 };
 
@@ -304,9 +304,12 @@ pub struct AuthorityMetrics {
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
 
-    /// Oldest epoch whose RPC index history the node still holds, published
-    /// each time the epoch boundary expires the buckets below it.
-    pub(crate) earliest_retained_indexes_epoch: IntGauge,
+    /// Per store, the oldest epoch whose history the node still holds,
+    /// published each time an expiry runs with retention on. Not advancing
+    /// across epochs means expiry is stuck.
+    pub(crate) historic_bucket_earliest_retained_epoch: IntGaugeVec,
+    /// Per store, how long its last expiry took.
+    pub(crate) historic_bucket_expiry_duration_ms: IntGaugeVec,
 
     pub(crate) authority_overload_status: IntGauge,
     /// Percentage of transactions shed due to consensus queue length.
@@ -604,9 +607,18 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            earliest_retained_indexes_epoch: register_int_gauge_with_registry!(
-                "earliest_retained_indexes_epoch",
-                "Earliest epoch whose JSON-RPC index history is retained",
+            historic_bucket_earliest_retained_epoch: register_int_gauge_vec_with_registry!(
+                "historic_bucket_earliest_retained_epoch",
+                "Earliest epoch whose history a store retains",
+                &["store"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            historic_bucket_expiry_duration_ms: register_int_gauge_vec_with_registry!(
+                "historic_bucket_expiry_duration_ms",
+                "How long a store's last expiry of historic buckets took, in milliseconds",
+                &["store"],
                 registry;
                 MetricLevel::Warn,
             )
@@ -3398,31 +3410,53 @@ impl AuthorityState {
             // The index first, so it never names a transaction the ledger has
             // dropped, and the checkpoints before the ledger, so a checkpoint
             // is never served without its transactions.
-            if let Some(indexes) = rpc_indexes_store {
-                match indexes.prune(current_epoch) {
+            let expire = |store: &str, prune: &dyn Fn() -> Result<Option<EpochId>, String>| {
+                let started = Instant::now();
+                let pruned = prune();
+                metrics
+                    .historic_bucket_expiry_duration_ms
+                    .with_label_values(&[store])
+                    .set(started.elapsed().as_millis() as i64);
+                match pruned {
                     Ok(Some(earliest_retained_epoch)) => metrics
-                        .earliest_retained_indexes_epoch
+                        .historic_bucket_earliest_retained_epoch
+                        .with_label_values(&[store])
                         .set(earliest_retained_epoch as i64),
                     Ok(None) => {}
-                    Err(err) => error!("Failed to expire the RPC index history: {err:?}"),
+                    Err(err) => error!(store, "Failed to expire historic buckets: {err}"),
                 }
+            };
+            if let Some(indexes) = &rpc_indexes_store {
+                expire("indexes", &|| {
+                    indexes.prune(current_epoch).map_err(|e| format!("{e:?}"))
+                });
             }
             if let Some(epochs_to_retain) = checkpoints_to_retain {
-                if let Err(err) = checkpoint_store
-                    .historic_checkpoints
-                    .prune(current_epoch, epochs_to_retain)
-                {
-                    error!("Failed to expire historic checkpoint buckets: {err:?}");
-                }
-                if let Err(err) = historic_ledger.prune(current_epoch, epochs_to_retain) {
-                    error!("Failed to expire historic ledger buckets: {err:?}");
-                }
-                Self::record_pruned_checkpoints(&historic_ledger, &checkpoint_store);
+                // Before each drop, so that no reader is told a checkpoint is
+                // available after its contents or transactions are gone.
+                let record =
+                    || Self::record_pruned_checkpoints(&historic_ledger, &checkpoint_store);
+                expire("checkpoints", &|| {
+                    checkpoint_store
+                        .historic_checkpoints
+                        .prune(current_epoch, epochs_to_retain, &record)
+                        .map_err(|e| format!("{e:?}"))
+                });
+                expire("ledger", &|| {
+                    historic_ledger
+                        .prune(current_epoch, epochs_to_retain, &record)
+                        .map_err(|e| format!("{e:?}"))
+                });
+                // Also when nothing was dropped, after a floor moved without a
+                // drop, as after a crash between the two.
+                record();
             }
             if let Some(epochs_to_retain) = objects_to_retain {
-                if let Err(err) = historic_objects.prune(current_epoch, epochs_to_retain) {
-                    error!("Failed to expire historic object buckets: {err:?}");
-                }
+                expire("objects", &|| {
+                    historic_objects
+                        .prune(current_epoch, epochs_to_retain)
+                        .map_err(|e| format!("{e:?}"))
+                });
             }
         })
         .await;
