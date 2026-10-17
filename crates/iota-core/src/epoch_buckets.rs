@@ -83,14 +83,18 @@ impl BucketPaths {
     }
 
     /// [`Self::cf_options`] for a bucket already on disk. Creates the
-    /// bucket's directory if it is missing, as the open would fail without it.
+    /// bucket's directory if it is missing, as the open would fail without it,
+    /// but only under a root that exists: a mistyped root is left for the open
+    /// to refuse rather than created empty.
     pub(crate) fn existing_cf_options(
         &self,
         options: &rocksdb::Options,
         epoch: EpochId,
     ) -> rocksdb::Options {
-        if let Err(e) = self.create_dir(epoch) {
-            warn!("{e}");
+        if self.root.exists() {
+            if let Err(e) = self.create_dir(epoch) {
+                warn!("{e}");
+            }
         }
         self.cf_options(options, epoch)
     }
@@ -203,6 +207,19 @@ pub(crate) fn bucket_cf_options(db_options: &DBOptions) -> DBOptions {
     options
         .options
         .set_level_zero_file_num_compaction_trigger(BUCKET_COMPACTION_TRIGGER);
+    // The total-size stop style: with the similar-size one the base options
+    // pick, flushes of slightly different sizes never merge on size, so
+    // past the trigger every flush rewrites the newest, ever growing run.
+    let mut universal = rocksdb::UniversalCompactOptions::default();
+    universal.set_max_size_amplification_percent(10000);
+    universal.set_stop_style(rocksdb::UniversalCompactionStopStyle::Total);
+    options.options.set_universal_compaction_options(&universal);
+    // RocksDB otherwise rewrites every universal-compaction column family in
+    // full every 30 days, a closed bucket included, without regard to free
+    // disk space; closed buckets are compacted once by
+    // `EpochBuckets::compact_closed`, which checks it.
+    options.options.set_periodic_compaction_seconds(0);
+    options.options.set_ttl(0);
     options
 }
 
@@ -659,6 +676,66 @@ mod tests {
                 .unwrap(),
             Some(0)
         );
+    }
+
+    /// A bucket is never rewritten on a timer, and universal compaction merges
+    /// its runs by total size: RocksDB's OPTIONS file, which records what it
+    /// runs with after its own adjustments, says so.
+    #[test]
+    fn a_bucket_has_no_periodic_compaction_and_merges_by_total_size() {
+        let dir = iota_common::tempdir();
+        let mut db_options = rocksdb::Options::default();
+        db_options.create_if_missing(true);
+        db_options.create_missing_column_families(true);
+        let db = rocksdb::DB::open_cf_with_opts(
+            &db_options,
+            dir.path(),
+            [("bucket", bucket_cf_options(&default_db_options()).options)],
+        )
+        .unwrap();
+        drop(db);
+
+        let options_file = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("OPTIONS-")
+            })
+            .max()
+            .unwrap();
+        let options = fs::read_to_string(options_file).unwrap();
+        let bucket = options
+            .split("[CFOptions \"bucket\"]")
+            .nth(1)
+            .unwrap()
+            .split("[TableOptions")
+            .next()
+            .unwrap();
+        for expected in [
+            "periodic_compaction_seconds=0",
+            "ttl=0",
+            "compaction_options_universal={",
+            "stop_style=kCompactionStopStyleTotalSize",
+        ] {
+            assert!(bucket.contains(expected), "missing {expected} in {bucket}");
+        }
+    }
+
+    /// The options of a bucket under a root that does not exist, as a tool
+    /// given a mistyped path computes them, create no directory.
+    #[test]
+    fn options_under_a_missing_root_create_no_directory() {
+        let dir = iota_common::tempdir();
+        let paths = BucketPaths::new(&dir.path().join("mistyped"), "test");
+        paths.existing_cf_options(&rocksdb::Options::default(), 3);
+        assert!(!dir.path().join("mistyped").exists());
+
+        let paths = BucketPaths::new(dir.path(), "test");
+        paths.existing_cf_options(&rocksdb::Options::default(), 3);
+        assert!(paths.bucket_dir(3).exists());
     }
 
     /// The name mapping must round-trip and reject other stores' prefixes:
