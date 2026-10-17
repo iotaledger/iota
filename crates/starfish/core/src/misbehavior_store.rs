@@ -396,7 +396,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TooManyCommitVoteHeaders { .. }
         | ConsensusError::SerializedBlockHeaderTooLarge { .. }
         | ConsensusError::StreamedBlockRoundNotIncreasing { .. }
-        | ConsensusError::CommitDataAfterTransactions { .. } => FaultType::Unprovable,
+        | ConsensusError::CommitDataAfterTransactions { .. }
+        | ConsensusError::TooManyCommitSyncEntries { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had

@@ -54,7 +54,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchCommits")
                 .input_type("crate::network::tonic_network::FetchCommitsRequest")
                 .output_type("crate::network::tonic_network::FetchCommitsResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .build(),
         )
         .method(
@@ -63,7 +63,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchCommitsAndTransactions")
                 .input_type("crate::network::tonic_network::FetchCommitsAndTransactionsRequest")
                 .output_type("crate::network::tonic_network::FetchCommitsAndTransactionsResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .server_streaming()
                 .build(),
         )
@@ -73,7 +73,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchLatestBlockHeaders")
                 .input_type("crate::network::tonic_network::FetchLatestBlockHeadersRequest")
                 .output_type("crate::network::tonic_network::FetchLatestBlockHeadersResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .server_streaming()
                 .build(),
         )
