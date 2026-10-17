@@ -9661,7 +9661,7 @@ async fn the_pruned_watermark_follows_the_higher_of_the_ledger_and_checkpoint_fl
 
     // The ledger history already dropped everything below epoch 4, as an
     // expiry whose checkpoint half failed leaves it.
-    authority.get_historic_ledger().prune(4, 0).unwrap();
+    authority.get_historic_ledger().prune(4, 0, &|| {}).unwrap();
     authority.advance_historic_buckets(4).await.unwrap();
 
     assert_eq!(

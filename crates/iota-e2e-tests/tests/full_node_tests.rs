@@ -1338,6 +1338,15 @@ async fn test_access_old_object_pruned() {
             .unwrap()
             .with_async(|node| async {
                 let state = node.state();
+                // The bucket expires in the background after the epoch change.
+                let key = ObjectKey(gas_object.object_id, gas_object.version);
+                timeout(Duration::from_secs(60), async {
+                    while state.get_historic_objects().get(&key).unwrap().is_some() {
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                })
+                .await
+                .expect("the bucket of the old version should expire");
                 // Make sure the old version of the object is already pruned.
                 assert!(
                     state
