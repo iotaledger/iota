@@ -676,6 +676,11 @@ impl RpcIndexesStore {
                         ))
                     })?;
                 }
+                // The history lives outside the database directory, so the
+                // wipe leaves it. No bucket of it is left to read it, and the
+                // rebuild would otherwise hold its disk until it finished.
+                BucketPaths::new(&historic_root, HISTORY_BUCKET_DIR)
+                    .remove_dirs_without_bucket(|_| false);
 
                 IndexStoreTables::open_for_bulk_ingestion(path.clone())
             };

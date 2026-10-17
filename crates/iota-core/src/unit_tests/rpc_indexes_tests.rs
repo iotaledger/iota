@@ -504,6 +504,40 @@ async fn test_the_history_lives_under_the_root_the_store_is_opened_with() {
     assert!(!index_dir.join("historic").exists());
 }
 
+/// A rebuild deletes the history the wiped store kept outside its own
+/// directory as soon as it wipes the store, not once it is done, so a rebuild
+/// cut short leaves no stale history behind either.
+#[tokio::test]
+async fn test_a_rebuild_deletes_the_wiped_history_before_it_runs() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let historic_dir = dir.path().join("historic");
+    let stale = historic_dir
+        .join("epoch_1")
+        .join(super::schema::HISTORY_BUCKET_DIR);
+    std::fs::create_dir_all(&stale).unwrap();
+    std::fs::write(stale.join("000007.sst"), b"history of the wiped store").unwrap();
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    mark_checkpoint_executed(&checkpoint_store, 5);
+    let authority_store = open_authority_store(&dir.path().join("store"));
+
+    let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let opened = RpcIndexesStore::new(
+        index_dir,
+        Some(&historic_dir),
+        &Registry::default(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        Some(128),
+        None,
+        &authority_store,
+        &checkpoint_store,
+        cancelled,
+    )
+    .await;
+    assert!(opened.is_err(), "the rebuild must have been cut short");
+    assert!(!stale.exists());
+}
+
 #[tokio::test]
 async fn test_a_cancelled_rebuild_fails_the_open() {
     let dir = iota_common::tempdir();

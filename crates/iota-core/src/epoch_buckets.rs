@@ -129,7 +129,7 @@ impl BucketPaths {
     /// bucket, with whatever untracked files are left in it.
     ///
     /// Only for a database opened read-write, before it creates a bucket.
-    fn remove_dirs_without_bucket(&self, has_bucket: impl Fn(EpochId) -> bool) {
+    pub(crate) fn remove_dirs_without_bucket(&self, has_bucket: impl Fn(EpochId) -> bool) {
         let dirs = match self.epoch_dirs() {
             Ok(dirs) => dirs,
             Err(e) => {
