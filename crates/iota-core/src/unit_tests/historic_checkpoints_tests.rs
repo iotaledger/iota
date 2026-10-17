@@ -227,3 +227,36 @@ async fn a_read_of_a_dropped_bucket_finds_nothing() {
             .is_none()
     );
 }
+
+/// Every bucket holds the contents all empty checkpoints name from its
+/// creation on, so an empty checkpoint of a later epoch keeps its contents
+/// once the bucket of the epoch that stored them first expires.
+#[tokio::test]
+async fn empty_checkpoints_keep_their_contents_when_an_older_bucket_expires() {
+    use crate::checkpoints::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
+
+    let store = CheckpointStore::new_for_tests();
+    for epoch in [CHECKPOINT_EPOCH, CHECKPOINT_EPOCH + 1] {
+        let bucket = store.historic_checkpoints.ensure(epoch).unwrap();
+        assert_eq!(
+            bucket
+                .checkpoint_content
+                .get(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                .unwrap(),
+            Some(empty_checkpoint_contents()),
+            "a new bucket of epoch {epoch} must hold the empty contents"
+        );
+    }
+
+    store
+        .historic_checkpoints
+        .prune(CHECKPOINT_EPOCH + 1, 0)
+        .unwrap();
+
+    assert_eq!(
+        store
+            .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+            .unwrap(),
+        Some(empty_checkpoint_contents())
+    );
+}

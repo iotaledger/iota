@@ -141,6 +141,13 @@ pub(crate) fn bucket_cf_epoch(cf_prefix: &str, cf_name: &str) -> Option<EpochId>
 /// the bucket's column-family name.
 pub(crate) trait BucketReopen: Sized {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError>;
+
+    /// Writes what a bucket of this store must hold from the moment it
+    /// exists, on a bucket [`EpochBuckets::ensure`] has just created. Must be
+    /// safe to run again on the same bucket. Writes nothing by default.
+    fn initialize(&self) -> Result<(), TypedStoreError> {
+        Ok(())
+    }
 }
 
 /// The per-epoch buckets of one store, each viewed as a `B`.
@@ -328,6 +335,7 @@ impl<B: BucketReopen> EpochBuckets<B> {
             self.db.create_cf(&cf_name, &self.cf_options)?;
         }
         let bucket = Arc::new(B::reopen(&self.db, &cf_name)?);
+        bucket.initialize()?;
         buckets.insert(epoch, bucket.clone());
         self.publish_earliest_epoch(&buckets);
         Ok(Some(bucket))
