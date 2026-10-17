@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+use iota_sdk_move_types::iota_framework::{object::ID, vec_map::VecMap};
 use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     display::{DisplayObject, DisplayVersionUpdatedEvent},
-    id::ID,
     object::Object,
 };
 

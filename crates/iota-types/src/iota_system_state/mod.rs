@@ -8,7 +8,8 @@ use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_move_types::{
-    iota_framework::dynamic_field::Field, iota_system::validator_wrapper::Validator,
+    iota_framework::{dynamic_field::Field, object::UID},
+    iota_system::validator_wrapper::Validator,
 };
 use iota_sdk_types::{Identifier, MoveStruct, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -25,7 +26,6 @@ use crate::{
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
-    id::UID,
     object::{MoveStructExt, Object},
     storage::ObjectStore,
 };
@@ -234,7 +234,9 @@ impl IotaSystemState {
     /// state to exercise BCS round-trip paths.
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
         use iota_sdk_move_types::{
-            iota_framework::{bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap},
+            iota_framework::{
+                bag::Bag, object::UID, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap,
+            },
             iota_system::iota_system_state_inner::SystemParametersV1,
         };
         use iota_sdk_types::ObjectId;
@@ -244,7 +246,6 @@ impl IotaSystemState {
             coin::TreasuryCap,
             collection_types::{Table, TableVec},
             gas_coin::IotaTreasuryCap,
-            id::UID,
             iota_system_state::iota_system_state_inner_v1::{
                 IotaSystemStateV1, StorageFundV1, ValidatorSetV1,
             },

@@ -11,6 +11,7 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{
     Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
     Version,
@@ -18,7 +19,7 @@ use iota_sdk_types::{
 use iota_types::{
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
-    id::UID,
+    id::IDExt,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{MoveStructExt, Object},

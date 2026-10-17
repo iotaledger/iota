@@ -25,6 +25,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{
     Address, CheckpointDigest, GasCostSummary, Identifier, MoveStruct, ObjectDigest, ObjectId,
     ObjectReference, Owner, StructTag, Transaction, TransactionDigest, TransactionEventsDigest,
@@ -38,7 +39,7 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     event::EventID,
     gas_coin::GasCoin,
-    id::UID,
+    id::IDExt,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::MoveStructExt,
     parse_iota_struct_tag,
@@ -1199,7 +1200,7 @@ impl RpcExampleProvider {
         };
 
         let struct_tag = parse_iota_struct_tag("0x9::test::TestField").unwrap();
-        let contents = UID::new(parent_object_id).to_bcs_bytes();
+        let contents = bcs::to_bytes(&UID::new(parent_object_id)).unwrap();
         let resp = IotaObjectResponse::new_with_data(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(

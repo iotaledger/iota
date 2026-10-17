@@ -10,9 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_sdk_move_types::iota_framework::dynamic_field::Field;
+use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::UID};
 use iota_sdk_types::{Address, StructTag};
-use iota_types::id::UID;
 use serde::{Deserialize, Serialize};
 
 use super::{

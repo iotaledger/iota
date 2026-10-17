@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::object::{ID, UID};
 use move_core_types::{
     account_address::AccountAddress, annotated_value as A, annotated_visitor as AV,
     language_storage::TypeTag, u256::U256,
@@ -11,7 +12,7 @@ use prost_types::{Struct, Value, value::Kind};
 use crate::{
     balance::Balance,
     base_types::{RESOLVED_STD_OPTION, move_ascii_str_layout, move_utf8_str_layout, url_layout},
-    id::{ID, UID},
+    id::IDExt,
     object::option_visitor as OV,
 };
 
