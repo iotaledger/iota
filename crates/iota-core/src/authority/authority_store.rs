@@ -461,19 +461,15 @@ impl AuthorityStore {
         &self,
         event_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        event_digests
-            .iter()
-            .map(|digest| self.get_events(digest))
-            .collect()
+        self.historic_ledger.multi_get_events(event_digests)
     }
 
     pub fn multi_get_effects<'a>(
         &self,
         effects_digests: impl Iterator<Item = &'a TransactionEffectsDigest>,
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        effects_digests
-            .map(|digest| self.get_effects(digest))
-            .collect()
+        let effects_digests: Vec<_> = effects_digests.copied().collect();
+        self.historic_ledger.multi_get_effects(&effects_digests)
     }
 
     pub fn get_executed_effects(
@@ -490,10 +486,8 @@ impl AuthorityStore {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        digests
-            .iter()
-            .map(|digest| self.historic_ledger.get_executed_effects_digest(digest))
-            .collect()
+        self.historic_ledger
+            .multi_get_executed_effects_digests(digests)
     }
 
     /// Given a list of transaction digests, returns a list of the corresponding
@@ -503,10 +497,7 @@ impl AuthorityStore {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        digests
-            .iter()
-            .map(|digest| self.get_executed_effects(digest))
-            .collect()
+        self.historic_ledger.multi_get_executed_effects(digests)
     }
 
     pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
@@ -1478,10 +1469,12 @@ impl AuthorityStore {
         &self,
         tx_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<VerifiedTransaction>>> {
-        tx_digests
-            .iter()
-            .map(|digest| self.get_transaction_block(digest))
-            .collect()
+        Ok(self
+            .historic_ledger
+            .multi_get_transactions(tx_digests)?
+            .into_iter()
+            .map(|transaction| transaction.map(Into::into))
+            .collect())
     }
 
     pub fn get_transaction_block(
