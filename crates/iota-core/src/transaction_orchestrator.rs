@@ -312,8 +312,8 @@ where
         );
 
         // Responses built from the local store read the object versions the
-        // transaction superseded, which the objects pruner deletes once the
-        // checkpoint after the transaction's is executed.
+        // transaction superseded, which the expiry of historic object buckets
+        // drops once their epoch falls out of the object retention.
         let _object_retention = (include_input_objects || include_output_objects)
             .then(|| self.validator_state.retain_objects());
 
