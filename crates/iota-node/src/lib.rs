@@ -690,7 +690,7 @@ impl IotaNode {
                 .num_epochs_to_retain_for_indexes();
             if epochs_to_retain.is_none() {
                 warn!(
-                    "index pruning is off: the history index backing queries like iotax_queryTransactionBlocks(), event queries and dynamic-field lookups adds a column family per epoch and grows without bound. Set num-epochs-to-retain-for-checkpoints, which num-epochs-to-retain-for-indexes follows, or num-epochs-to-retain-for-indexes itself"
+                    "index pruning is off: the history index backing iotax_queryTransactionBlocks(), iotax_queryEvents() and their gRPC counterparts adds a column family per epoch and grows without bound. Set num-epochs-to-retain-for-checkpoints, which num-epochs-to-retain-for-indexes follows, or num-epochs-to-retain-for-indexes itself"
                 );
             }
             Some(
