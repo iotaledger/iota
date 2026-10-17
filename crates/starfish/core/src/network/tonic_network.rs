@@ -3484,7 +3484,6 @@ mod tests {
         let service = Arc::new(Mutex::new(TestService::new()));
         let (_server, client, server_index) = serve(service.clone()).await;
         let ceiling = FetchCommitsResponse::MAX_ENTRIES;
-        // Commits the server sends as empty entries.
         let empty_commits = |count| {
             vec![TrustedCommit::new_trusted(Commit::V1(CommitV1::default()), Bytes::new()); count]
         };
