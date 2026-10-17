@@ -58,6 +58,8 @@ typed-store.workspace = true
 [dev-dependencies]
 # external dependencies
 anyhow.workspace = true
+http-body-util.workspace = true
+hyper-util.workspace = true
 once_cell.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
