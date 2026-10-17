@@ -93,9 +93,16 @@ pub(crate) fn store_checkpoint_locally(
             error: "failed to serialize full checkpoint content".to_string(),
         }) // Map the first error
         .and_then(|blob| {
-            std::fs::write(path.join(file_name), blob.to_bytes()).map_err(|_| {
-                IotaError::FileIO("failed to save full checkpoint content locally".to_string())
-            })
+            // Write to a temporary file and rename it, so that readers of the
+            // directory never see a partly written checkpoint file. Readers parse
+            // the name before the last `.` as the sequence number, so the
+            // temporary name must not parse as one.
+            let tmp_path = path.join(format!("{file_name}.tmp"));
+            std::fs::write(&tmp_path, blob.to_bytes())
+                .and_then(|()| std::fs::rename(&tmp_path, path.join(&file_name)))
+                .map_err(|_| {
+                    IotaError::FileIO("failed to save full checkpoint content locally".to_string())
+                })
         })?;
 
     Ok(())

@@ -138,6 +138,31 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     );
 }
 
+/// The local checkpoint file must appear under its final name only, with no
+/// temporary file left in the directory that readers watch.
+#[test]
+fn test_store_checkpoint_locally_leaves_only_the_final_file() {
+    let dir = iota_common::tempdir();
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let checkpoint = test_checkpoint_with_contents(7, &full_contents);
+    let checkpoint_data = CheckpointData {
+        checkpoint_summary: checkpoint.into(),
+        checkpoint_contents: full_contents.checkpoint_contents(),
+        transactions: vec![],
+    };
+
+    store_checkpoint_locally(dir.path(), &checkpoint_data).unwrap();
+
+    let files: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(files, ["7.chk"]);
+    let bytes = std::fs::read(dir.path().join("7.chk")).unwrap();
+    let stored: CheckpointData = iota_storage::blob::Blob::from_bytes(&bytes).unwrap();
+    assert_eq!(stored.checkpoint_summary.sequence_number, 7);
+}
+
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash.
 #[tokio::test]
