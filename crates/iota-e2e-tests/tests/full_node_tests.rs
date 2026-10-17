@@ -38,7 +38,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, QuorumDriverResponse,
     },
-    storage::ObjectStore,
+    storage::{ObjectKey, ObjectStore},
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         TransactionAPI,
@@ -1338,15 +1338,20 @@ async fn test_access_old_object_pruned() {
             .unwrap()
             .with_async(|node| async {
                 let state = node.state();
-                state
-                    .database_for_testing()
-                    .prune_objects_and_compact_for_testing(state.get_checkpoint_store())
-                    .await;
                 // Make sure the old version of the object is already pruned.
                 assert!(
                     state
                         .database_for_testing()
                         .get_object_by_key(&gas_object.object_id, gas_object.version)
+                        .is_none()
+                );
+                // The epoch boundary crossed above expired the bucket, since
+                // validators retain no historic epochs by default.
+                assert!(
+                    state
+                        .get_historic_objects()
+                        .get(&ObjectKey(gas_object.object_id, gas_object.version))
+                        .unwrap()
                         .is_none()
                 );
                 let epoch_store = state.epoch_store_for_testing();
