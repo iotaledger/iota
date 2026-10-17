@@ -52,6 +52,8 @@ pub(crate) struct TestService {
     pub(crate) handle_fetch_transactions: Vec<(AuthorityIndex, Vec<TransactionRef>)>,
     /// Served as the entries of every transaction fetch.
     pub(crate) fetch_transactions_response: Vec<Bytes>,
+    /// Served as the headers of every latest header fetch.
+    pub(crate) fetch_latest_block_headers_response: Vec<Bytes>,
 }
 
 impl TestService {
@@ -84,6 +86,7 @@ impl TestService {
             fetch_block_headers_response: Vec::new(),
             handle_fetch_transactions: Vec::new(),
             fetch_transactions_response: Vec::new(),
+            fetch_latest_block_headers_response: Vec::new(),
         }
     }
 
@@ -182,7 +185,7 @@ impl NetworkService for Mutex<TestService> {
         _peer: AuthorityIndex,
         _authorities: Vec<AuthorityIndex>,
     ) -> ConsensusResult<Vec<Bytes>> {
-        unimplemented!("Unimplemented")
+        Ok(self.lock().fetch_latest_block_headers_response.clone())
     }
 
     async fn handle_fetch_transactions(
