@@ -457,6 +457,95 @@ impl Database {
         Ok(())
     }
 
+    /// How many sorted runs a point lookup in the column family `cf_name` may
+    /// probe: one per level-0 file and one per other level holding files. `0`
+    /// for a column family that does not exist and on the in-memory backend.
+    pub fn sorted_runs(&self, cf_name: &str) -> Result<u64, TypedStoreError> {
+        Ok(self
+            .files_per_level(cf_name)?
+            .iter()
+            .enumerate()
+            .map(|(level, &files)| {
+                if level == 0 {
+                    files
+                } else {
+                    u64::from(files > 0)
+                }
+            })
+            .sum())
+    }
+
+    /// How many SST files the column family `cf_name` has. `0` for a column
+    /// family that does not exist and on the in-memory backend.
+    pub fn sst_file_count(&self, cf_name: &str) -> Result<u64, TypedStoreError> {
+        Ok(self.files_per_level(cf_name)?.iter().sum())
+    }
+
+    /// The number of SST files on each level of the column family `cf_name`.
+    fn files_per_level(&self, cf_name: &str) -> Result<Vec<u64>, TypedStoreError> {
+        let Storage::Rocks(rocks) = &self.storage else {
+            return Ok(Vec::new());
+        };
+        let Some(handle) = rocks.underlying.cf_handle(cf_name) else {
+            return Ok(Vec::new());
+        };
+        let mut levels = Vec::new();
+        // The property is absent for the levels past the column family's
+        // last one.
+        for level in 0.. {
+            let Some(files) = rocks
+                .underlying
+                .property_value_cf(&handle, &format!("rocksdb.num-files-at-level{level}"))
+                .map_err(typed_store_err_from_rocks_err)?
+            else {
+                break;
+            };
+            levels.push(files.trim().parse().map_err(|e| {
+                TypedStoreError::RocksDB(format!(
+                    "the file count of level {level} of {cf_name} is not a number: {e}"
+                ))
+            })?);
+        }
+        Ok(levels)
+    }
+
+    /// The size of the SST files of the column family `cf_name`, which a
+    /// compaction of all of them needs again in free disk space while it runs.
+    /// `0` for a column family that does not exist and on the in-memory
+    /// backend.
+    pub fn sst_files_size(&self, cf_name: &str) -> Result<u64, TypedStoreError> {
+        let Storage::Rocks(rocks) = &self.storage else {
+            return Ok(0);
+        };
+        let Some(handle) = rocks.underlying.cf_handle(cf_name) else {
+            return Ok(0);
+        };
+        Ok(rocks
+            .underlying
+            .property_int_value_cf(&handle, rocksdb::properties::TOTAL_SST_FILES_SIZE)
+            .map_err(typed_store_err_from_rocks_err)?
+            .unwrap_or(0))
+    }
+
+    /// Compacts the whole column family `cf_name` into a single sorted run,
+    /// flushing its memtable first. Blocks until done. Other column families
+    /// keep compacting meanwhile. Does nothing on the in-memory backend.
+    pub fn compact_cf(&self, cf_name: &str) -> Result<(), TypedStoreError> {
+        if let Storage::Rocks(rocks) = &self.storage {
+            let handle = rocks_cf(rocks, cf_name)?;
+            let mut options = rocksdb::CompactOptions::default();
+            options.set_exclusive_manual_compaction(false);
+            options.set_bottommost_level_compaction(rocksdb::BottommostLevelCompaction::Force);
+            nondeterministic!(rocks.underlying.compact_range_cf_opt(
+                &handle,
+                None::<&[u8]>,
+                None::<&[u8]>,
+                &options
+            ));
+        }
+        Ok(())
+    }
+
     /// A point-in-time snapshot of this database. See [`DbSnapshot`] for what
     /// holding one costs.
     ///

@@ -616,7 +616,7 @@ impl GrpcStateReader for GrpcReadStore {
         self.rocks
             .checkpoint_store
             .lowest_checkpoint_with_retained_objects(
-                self.state.get_historic_objects().earliest_bucket_epoch(),
+                self.state.get_historic_objects().earliest_readable_epoch(),
                 self.state.get_historic_objects().objects_pruned_through,
                 self.state.get_historic_objects().backlog_sweep_epoch(),
             )

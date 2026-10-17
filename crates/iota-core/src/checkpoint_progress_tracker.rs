@@ -262,7 +262,7 @@ impl CheckpointProgressTracker {
                     .unwrap_or(0);
                 let objects_retained_from = checkpoint_store
                     .lowest_checkpoint_with_retained_objects(
-                        historic_objects.earliest_bucket_epoch(),
+                        historic_objects.earliest_readable_epoch(),
                         historic_objects.objects_pruned_through,
                         historic_objects.backlog_sweep_epoch(),
                     )

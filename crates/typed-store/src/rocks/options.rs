@@ -362,12 +362,8 @@ impl DBOptions {
             .set_level_zero_stop_writes_trigger((max_level_zero_file_num * 16).try_into().unwrap());
 
         // Increase sst file size to 128MiB.
-        self.options.set_target_file_size_base(
-            read_size_from_env(ENV_VAR_TARGET_FILE_SIZE_BASE_MB)
-                .unwrap_or(DEFAULT_TARGET_FILE_SIZE_BASE_MB) as u64
-                * 1024
-                * 1024,
-        );
+        self.options
+            .set_target_file_size_base(target_file_size_base());
 
         // Increase level 1 target size to 256MiB * 6 ~ 1.5GiB.
         self.options
@@ -416,12 +412,8 @@ impl DBOptions {
             .set_level_zero_stop_writes_trigger((max_level_zero_file_num * 16).try_into().unwrap());
 
         // Increase sst file size to 128MiB.
-        self.options.set_target_file_size_base(
-            read_size_from_env(ENV_VAR_TARGET_FILE_SIZE_BASE_MB)
-                .unwrap_or(DEFAULT_TARGET_FILE_SIZE_BASE_MB) as u64
-                * 1024
-                * 1024,
-        );
+        self.options
+            .set_target_file_size_base(target_file_size_base());
 
         // This should be a no-op for universal compaction but increasing it to be safe.
         self.options
@@ -549,6 +541,17 @@ pub fn list_tables(path: std::path::PathBuf) -> eyre::Result<Vec<String>> {
                 })
                 .collect()
         })
+}
+
+/// The size, in bytes, at which compactions under
+/// [`DBOptions::optimize_for_write_throughput`] and
+/// [`DBOptions::optimize_for_write_throughput_no_deletion`] cut their output
+/// files.
+pub fn target_file_size_base() -> u64 {
+    read_size_from_env(ENV_VAR_TARGET_FILE_SIZE_BASE_MB).unwrap_or(DEFAULT_TARGET_FILE_SIZE_BASE_MB)
+        as u64
+        * 1024
+        * 1024
 }
 
 pub fn read_size_from_env(var_name: &str) -> Option<usize> {

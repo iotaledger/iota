@@ -31,7 +31,7 @@ pub use crate::{
         options::{
             BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
             bulk_ingestion_options, default_db_options, disable_fallocate, list_tables,
-            read_size_from_env, synced_write_options,
+            read_size_from_env, synced_write_options, target_file_size_base,
         },
         sst_file::SstFileBuffer,
     },
@@ -86,6 +86,18 @@ pub(crate) fn rocks_cf<'a>(
         .underlying
         .cf_handle(cf_name)
         .ok_or_else(|| TypedStoreError::UnregisteredColumn(cf_name.to_string()))
+}
+
+/// The free space of the disk holding `path`, `None` if no mounted disk holds
+/// it.
+pub fn available_disk_space(path: &Path) -> Option<u64> {
+    let path = path.canonicalize().ok()?;
+    sysinfo::Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .filter(|disk| path.starts_with(disk.mount_point()))
+        .max_by_key(|disk| disk.mount_point().as_os_str().len())
+        .map(|disk| disk.available_space())
 }
 
 // Check if the database is corrupted, and if so, panic.
