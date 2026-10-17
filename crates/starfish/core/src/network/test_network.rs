@@ -54,6 +54,8 @@ pub(crate) struct TestService {
     pub(crate) fetch_transactions_response: Vec<Bytes>,
     /// Served as the headers of every latest header fetch.
     pub(crate) fetch_latest_block_headers_response: Vec<Bytes>,
+    /// Served as the commits of every regular commit-sync fetch.
+    pub(crate) fetch_commits_response: Vec<TrustedCommit>,
 }
 
 impl TestService {
@@ -87,6 +89,7 @@ impl TestService {
             handle_fetch_transactions: Vec::new(),
             fetch_transactions_response: Vec::new(),
             fetch_latest_block_headers_response: Vec::new(),
+            fetch_commits_response: Vec::new(),
         }
     }
 
@@ -160,8 +163,9 @@ impl NetworkService for Mutex<TestService> {
         commit_range: CommitRange,
         _commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
-        self.lock().handle_fetch_commits.push((peer, commit_range));
-        Ok((vec![], vec![]))
+        let mut service = self.lock();
+        service.handle_fetch_commits.push((peer, commit_range));
+        Ok((service.fetch_commits_response.clone(), vec![]))
     }
 
     async fn handle_fetch_commits_and_transactions(

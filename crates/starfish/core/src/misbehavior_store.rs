@@ -405,7 +405,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
         | ConsensusError::NotEnoughCommitVotes { .. }
-        | ConsensusError::FetchedTransactionsMismatch { .. } => FaultType::Unprovable,
+        | ConsensusError::FetchedTransactionsMismatch { .. }
+        | ConsensusError::TooManyCommitSyncEntries { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had

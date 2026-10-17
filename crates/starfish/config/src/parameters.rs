@@ -29,6 +29,13 @@ pub const HEADERS_PER_FETCH_CEILING: usize = 1024;
 /// Enforced while decoding each message, before its entries are materialised.
 pub const TRANSACTIONS_PER_FETCH_CEILING: usize = 1024;
 
+/// Ceiling on the commits a commit-sync fetch may request, for regular and
+/// fast commit sync alike. A client requests at most its own
+/// `commit_sync_batch_size` or `fast_commit_sync_batch_size` commits, both
+/// validated against this at startup. Enforced while decoding each response
+/// message, before its entries are materialised.
+pub const COMMITS_PER_FETCH_CEILING: usize = 1024;
+
 /// Operational configurations of a consensus authority.
 ///
 /// All fields should tolerate inconsistencies among authorities, without
@@ -438,6 +445,20 @@ impl Parameters {
             if value > TRANSACTIONS_PER_FETCH_CEILING {
                 return Err(format!(
                     "{name} must not exceed {TRANSACTIONS_PER_FETCH_CEILING}"
+                ));
+            }
+        }
+        let commit_fetch_fields = [
+            ("commit_sync_batch_size", self.commit_sync_batch_size),
+            (
+                "fast_commit_sync_batch_size",
+                self.fast_commit_sync_batch_size,
+            ),
+        ];
+        for (name, value) in commit_fetch_fields {
+            if value as usize > COMMITS_PER_FETCH_CEILING {
+                return Err(format!(
+                    "{name} must not exceed {COMMITS_PER_FETCH_CEILING}"
                 ));
             }
         }
