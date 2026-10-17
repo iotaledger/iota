@@ -9901,3 +9901,49 @@ async fn a_failed_expiry_does_not_fail_reconfiguration() {
     // The expiry did run and fail.
     assert!(oldest.expiring.get(&()).unwrap().is_some());
 }
+
+/// The background compaction compacts a closed epoch's checkpoint bucket that
+/// holds several sorted runs, and does nothing once the work is stopped.
+#[tokio::test]
+async fn closed_bucket_compaction_compacts_until_stopped() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new().build().await;
+    let checkpoint_store = authority.checkpoint_store.clone();
+    let flat = &checkpoint_store.tables.checkpoint_by_digest;
+    for sequence in [3, 4] {
+        let contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(1, sequence, &contents);
+        checkpoint_store
+            .insert_checkpoint_contents(&checkpoint, contents.checkpoint_contents())
+            .unwrap();
+        flat.flush_all().unwrap();
+    }
+    let cf_name = crate::epoch_buckets::bucket_cf_name("hist_ckpt_e", 1);
+    assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 2);
+
+    let (_sender, mut epochs) = tokio::sync::watch::channel(2);
+    epochs.borrow_and_update();
+    let compact = |stopped: bool| {
+        AuthorityState::compact_closed_buckets(
+            2,
+            authority.historic_objects.clone(),
+            authority.historic_ledger.clone(),
+            checkpoint_store.clone(),
+            authority.rpc_indexes_store.clone(),
+            epochs.clone(),
+            Arc::new(std::sync::atomic::AtomicBool::new(stopped)),
+        )
+    };
+
+    compact(true).await;
+    assert_eq!(
+        flat.db.sorted_runs(&cf_name).unwrap(),
+        2,
+        "stopped work compacts nothing"
+    );
+    compact(false).await;
+    assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 1);
+}

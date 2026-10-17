@@ -881,3 +881,46 @@ async fn test_a_read_of_a_dropped_bucket_finds_nothing() {
     assert_eq!(historic.get(&key).unwrap(), None);
     assert_eq!(historic.find_lt_or_eq_version(key.0, key.1).unwrap(), None);
 }
+
+/// A stopped store cuts an expiry short after a batch of tombstones: the
+/// bucket stays, marked expiring, for the next open to finish.
+#[tokio::test]
+async fn test_a_stopped_expiry_keeps_the_bucket_for_the_next_open() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic, _historic_ledger, _epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let bucket = historic.ensure(1).unwrap();
+    let tombstones: Vec<ObjectKey> = (0..=TOMBSTONE_DELETE_BATCH_SIZE)
+        .map(|_| ObjectKey(ObjectId::random(), 3.into()))
+        .collect();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            tombstones
+                .iter()
+                .map(|key| (*key, StoreObjectWrapper::from(StoreObject::Deleted))),
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    historic.stop();
+    assert!(historic.prune(2, 0).is_err());
+    assert_eq!(historic.earliest_bucket_epoch(), Some(1));
+    assert_eq!(
+        historic.earliest_readable_epoch(),
+        Some(2),
+        "the expiring bucket is no longer advertised"
+    );
+    let left = tombstones
+        .iter()
+        .filter(|key| perpetual.objects.get(key).unwrap().is_some())
+        .count();
+    assert_eq!(left, 1, "one batch was deleted before the stop");
+}
