@@ -15,20 +15,38 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::entry::Entry};
 use iota_common::fatal;
 use iota_metrics::spawn_monitored_task;
 use iota_types::traffic_control::PolicyConfig;
 use prometheus_filtered::IntGauge;
 use tokio::time::{Interval, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
+use tracing::{debug, warn};
 
-use crate::{metrics::TrafficControllerMetrics, parse_ip, policies::PolicyResponse};
+use crate::{
+    block_log::{BlockReason, log_block},
+    metrics::TrafficControllerMetrics,
+    parse_ip,
+    policies::PolicyResponse,
+};
 
 const CLEAR_BLOCKLIST_INTERVAL: Duration = Duration::from_secs(3);
 
-type Blocklist = Arc<DashMap<IpAddr, SystemTime>>;
+/// The longest blocklist TTL accepted, 30 days. It also keeps a block's
+/// expiration within what `SystemTime` can hold.
+pub(crate) const MAX_BLOCKLIST_TTL_SEC: u64 = 30 * 24 * 60 * 60;
+
+/// A client the node refuses until `expiration`.
+struct Block {
+    expiration: SystemTime,
+    reason: BlockReason,
+    /// Whether the block log line was written for this block. Dry run blocks
+    /// without logging, so that it logs nothing for clients it still serves.
+    logged: bool,
+}
+
+type Blocklist = Arc<DashMap<IpAddr, Block>>;
 
 #[derive(Clone)]
 struct Blocklists {
@@ -96,7 +114,8 @@ impl Drop for ClientAccessManager {
 impl ClientAccessManager {
     /// Takes the allowlist, the blocklist TTLs and the dry-run flag from
     /// `policy_config`. Without an allowlist, spawns the task that drops
-    /// expired blocks, so it must then be called from within a tokio runtime.
+    /// expired blocks, so it must then be called from within a tokio runtime,
+    /// and panics if a blocklist TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`].
     pub fn new(policy_config: &PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         metrics
@@ -108,6 +127,17 @@ impl ClientAccessManager {
         let access = match &policy_config.allow_list {
             Some(allow_list) => Access::Allowlist(parse_allowlist(allow_list)),
             None => {
+                validate_blocklist_ttls(
+                    Some(policy_config.connection_blocklist_ttl_sec),
+                    Some(policy_config.proxy_blocklist_ttl_sec),
+                )
+                .unwrap_or_else(|err| fatal!("Invalid traffic control config: {err}"));
+                if policy_config.connection_blocklist_ttl_sec == 0 {
+                    warn!(
+                        "The connection blocklist TTL is 0, thus the node refuses no client \
+                         that breaches a policy"
+                    );
+                }
                 let blocklists = Blocklists {
                     clients: Arc::new(DashMap::new()),
                     proxied_clients: Arc::new(DashMap::new()),
@@ -168,37 +198,47 @@ impl ClientAccessManager {
     }
 
     /// Refuses each client that a policy reports as breaching it.
-    pub(crate) fn block(&self, response: PolicyResponse) {
+    pub(crate) fn block(&self, response: PolicyResponse, reason: BlockReason) {
         if let Some(client) = response.block_client {
-            self.block_client(client);
+            self.block_client(client, reason);
         }
         if let Some(client) = response.block_proxied_client {
-            self.block_proxied_client(client);
+            self.block_proxied_client(client, reason);
         }
     }
 
-    /// Refuses `client` for the connection blocklist TTL. No-op in allowlist
-    /// mode.
-    pub fn block_client(&self, client: IpAddr) {
+    /// Refuses `client` for the connection blocklist TTL, and logs the block
+    /// line when this starts a block outside dry run. No-op in allowlist mode
+    /// and while the TTL is zero.
+    pub fn block_client(&self, client: IpAddr, reason: BlockReason) {
         if let Access::Blocklist { blocklists, .. } = &self.access {
-            insert_block(
+            let ttl_secs = self.blocklist_ttls.connection_blocklist_ttl_sec();
+            if insert_block(
                 &blocklists.clients,
                 &self.metrics.connection_ip_blocklist_len,
                 client,
-                self.blocklist_ttls.connection_blocklist_ttl_sec(),
-            );
+                ttl_secs,
+                reason,
+                || !self.dry_run(),
+            ) {
+                log_block(client, reason, ttl_secs);
+            }
         }
     }
 
     /// Refuses `client`, which reached this node through a fullnode, for the
-    /// proxy blocklist TTL. No-op in allowlist mode.
-    pub fn block_proxied_client(&self, client: IpAddr) {
+    /// proxy blocklist TTL. No-op in allowlist mode and while the TTL is zero.
+    /// Not logged: the client
+    /// never connects to this node, so a host firewall cannot act on it.
+    pub fn block_proxied_client(&self, client: IpAddr, reason: BlockReason) {
         if let Access::Blocklist { blocklists, .. } = &self.access {
             insert_block(
                 &blocklists.proxied_clients,
                 &self.metrics.proxy_ip_blocklist_len,
                 client,
                 self.blocklist_ttls.proxy_blocklist_ttl_sec(),
+                reason,
+                || false,
             );
         }
     }
@@ -225,7 +265,12 @@ impl ClientAccessManager {
     ) {
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
-            self.dry_run.store(dry_run, Ordering::Relaxed);
+            let was_dry_run = self.dry_run.swap(dry_run, Ordering::Relaxed);
+            if let (true, false, Access::Blocklist { blocklists, .. }) =
+                (was_dry_run, dry_run, &self.access)
+            {
+                log_unlogged_blocks(&blocklists.clients);
+            }
         }
         let ttls = [
             (
@@ -248,6 +293,25 @@ impl ClientAccessManager {
     }
 }
 
+/// Rejects a blocklist TTL above [`MAX_BLOCKLIST_TTL_SEC`].
+pub(crate) fn validate_blocklist_ttls(
+    connection_blocklist_ttl_sec: Option<u64>,
+    proxy_blocklist_ttl_sec: Option<u64>,
+) -> Result<(), String> {
+    for (ttl_sec, name) in [
+        (connection_blocklist_ttl_sec, "connection"),
+        (proxy_blocklist_ttl_sec, "proxy"),
+    ] {
+        if let Some(ttl_sec) = ttl_sec.filter(|ttl_sec| *ttl_sec > MAX_BLOCKLIST_TTL_SEC) {
+            return Err(format!(
+                "The {name} blocklist TTL {ttl_sec} exceeds the maximum of \
+                 {MAX_BLOCKLIST_TTL_SEC} seconds"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Returns the allowlist sorted, so that `check` can binary-search it.
 fn parse_allowlist(allow_list: &[String]) -> Vec<IpAddr> {
     let mut allowlist: Vec<IpAddr> = allow_list
@@ -265,19 +329,78 @@ fn blocked(client: &Option<IpAddr>, blocklist: &Blocklist) -> bool {
     client.is_some_and(|client| {
         blocklist
             .get(&client)
-            .is_some_and(|expiration| SystemTime::now() < *expiration)
+            .is_some_and(|block| SystemTime::now() < block.expiration)
     })
 }
 
 /// Blocks a client for `ttl_secs`, counting it only when it was not already
-/// blocked so that the gauge matches the blocklist length.
-fn insert_block(blocklist: &Blocklist, len_gauge: &IntGauge, client: IpAddr, ttl_secs: u64) {
-    if blocklist
-        .insert(client, SystemTime::now() + Duration::from_secs(ttl_secs))
-        .is_none()
-    {
-        debug!("Adding client {client:?} to blocklist");
-        len_gauge.inc();
+/// blocked so that the gauge matches the blocklist length. A TTL of zero
+/// blocks nothing. Returns whether to log the block: when `log` returns true,
+/// once per block rather than once per breach, and again once the block has
+/// expired.
+fn insert_block(
+    blocklist: &Blocklist,
+    len_gauge: &IntGauge,
+    client: IpAddr,
+    ttl_secs: u64,
+    reason: BlockReason,
+    log: impl FnOnce() -> bool,
+) -> bool {
+    if ttl_secs == 0 {
+        return false;
+    }
+    let now = SystemTime::now();
+    let expiration = now + Duration::from_secs(ttl_secs);
+    let entry = blocklist.entry(client);
+    // Asked under the entry lock, which `log_unlogged_blocks` also takes, so
+    // that a block applied while dry run is turned off is logged either here
+    // or there.
+    let log = log();
+    match entry {
+        Entry::Vacant(entry) => {
+            debug!("Adding client {client:?} to blocklist");
+            len_gauge.inc();
+            entry.insert(Block {
+                expiration,
+                reason,
+                logged: log,
+            });
+            log
+        }
+        Entry::Occupied(mut entry) => {
+            let block = entry.get_mut();
+            let already_logged = block.logged && now < block.expiration;
+            *block = Block {
+                expiration,
+                reason,
+                logged: already_logged || log,
+            };
+            log && !already_logged
+        }
+    }
+}
+
+/// Logs the blocks that dry run kept from being logged, now that the node
+/// refuses those clients.
+fn log_unlogged_blocks(blocklist: &Blocklist) {
+    let now = SystemTime::now();
+    // Logged once the shard locks are released, so that requests checked
+    // meanwhile do not wait on the log.
+    let mut unlogged = Vec::new();
+    for mut entry in blocklist.iter_mut() {
+        let client = *entry.key();
+        let block = entry.value_mut();
+        let Ok(remaining) = block.expiration.duration_since(now) else {
+            continue;
+        };
+        if block.logged {
+            continue;
+        }
+        block.logged = true;
+        unlogged.push((client, block.reason, remaining.as_secs_f64().ceil() as u64));
+    }
+    for (client, reason, ttl_secs) in unlogged {
+        log_block(client, reason, ttl_secs);
     }
 }
 
@@ -301,10 +424,10 @@ async fn run_clear_blocklists_loop(
     interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
     while tick(&mut interval, &shutdown).await {
         let now = SystemTime::now();
-        blocklists.clients.retain(|_, expiration| now < *expiration);
+        blocklists.clients.retain(|_, block| now < block.expiration);
         blocklists
             .proxied_clients
-            .retain(|_, expiration| now < *expiration);
+            .retain(|_, block| now < block.expiration);
         metrics
             .connection_ip_blocklist_len
             .set(blocklists.clients.len() as i64);
@@ -321,6 +444,19 @@ mod tests {
     use super::*;
 
     const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+
+    impl ClientAccessManager {
+        /// Moves the expiration of every direct client's block into the past,
+        /// as if its TTL had passed.
+        pub(crate) fn expire_client_blocks(&self) {
+            if let Access::Blocklist { blocklists, .. } = &self.access {
+                let past = SystemTime::now() - Duration::from_secs(1);
+                for mut block in blocklists.clients.iter_mut() {
+                    block.expiration = past;
+                }
+            }
+        }
+    }
 
     fn manager(policy_config: PolicyConfig) -> ClientAccessManager {
         ClientAccessManager::new(
@@ -343,25 +479,62 @@ mod tests {
         let manager = manager(blocklist_mode(false, 120));
         assert!(manager.check(&Some(CLIENT), &None));
 
-        manager.block_client(CLIENT);
+        manager.block_client(CLIENT, BlockReason::Spam);
         assert!(!manager.check(&Some(CLIENT), &None));
 
-        manager.block_proxied_client(CLIENT);
+        manager.block_proxied_client(CLIENT, BlockReason::Spam);
         assert!(!manager.check(&None, &Some(CLIENT)));
     }
 
     #[tokio::test]
     async fn a_block_ends_with_its_ttl() {
-        // A TTL of zero expires the block at once.
-        let manager = manager(blocklist_mode(false, 0));
-        manager.block_client(CLIENT);
+        let manager = manager(blocklist_mode(false, 120));
+        manager.block_client(CLIENT, BlockReason::Spam);
+        manager.expire_client_blocks();
         assert!(manager.check(&Some(CLIENT), &None));
+    }
+
+    #[tokio::test]
+    async fn a_zero_ttl_blocks_nothing() {
+        let manager = manager(blocklist_mode(false, 0));
+        manager.block_client(CLIENT, BlockReason::Spam);
+        manager.block_proxied_client(CLIENT, BlockReason::Spam);
+        assert!(manager.check(&Some(CLIENT), &Some(CLIENT)));
+        assert_eq!(manager.metrics.connection_ip_blocklist_len.get(), 0);
+        assert_eq!(manager.metrics.proxy_ip_blocklist_len.get(), 0);
+    }
+
+    #[tokio::test]
+    async fn the_maximum_ttl_blocks() {
+        let manager = manager(blocklist_mode(false, MAX_BLOCKLIST_TTL_SEC));
+        manager.block_client(CLIENT, BlockReason::Spam);
+        manager.block_proxied_client(CLIENT, BlockReason::Spam);
+        assert!(!manager.check(&Some(CLIENT), &None));
+        assert!(!manager.check(&None, &Some(CLIENT)));
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "The connection blocklist TTL 2592001 exceeds the maximum")]
+    async fn a_connection_blocklist_ttl_above_the_maximum_is_rejected() {
+        manager(PolicyConfig {
+            connection_blocklist_ttl_sec: MAX_BLOCKLIST_TTL_SEC + 1,
+            ..blocklist_mode(false, 120)
+        });
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "The proxy blocklist TTL 2592001 exceeds the maximum")]
+    async fn a_proxy_blocklist_ttl_above_the_maximum_is_rejected() {
+        manager(PolicyConfig {
+            proxy_blocklist_ttl_sec: MAX_BLOCKLIST_TTL_SEC + 1,
+            ..blocklist_mode(false, 120)
+        });
     }
 
     #[tokio::test]
     async fn dry_run_serves_a_blocked_client_and_counts_it() {
         let manager = manager(blocklist_mode(true, 120));
-        manager.block_client(CLIENT);
+        manager.block_client(CLIENT, BlockReason::Spam);
         assert!(manager.check(&Some(CLIENT), &None));
         assert_eq!(manager.metrics.num_dry_run_blocked_requests.get(), 1);
 
@@ -376,7 +549,7 @@ mod tests {
             dry_run: false,
             ..Default::default()
         });
-        manager.block_client(CLIENT);
+        manager.block_client(CLIENT, BlockReason::Spam);
         assert!(manager.check(&Some(CLIENT), &None));
     }
 }

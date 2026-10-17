@@ -8372,9 +8372,11 @@ dependencies = [
  "parking_lot 0.12.3",
  "prometheus-filtered",
  "rand 0.10.3",
+ "serde_json",
  "tokio",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
