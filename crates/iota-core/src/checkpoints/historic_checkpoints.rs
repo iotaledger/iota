@@ -11,10 +11,11 @@ use iota_types::{committee::EpochId, messages_checkpoint::TrustedCheckpoint};
 use typed_store::{
     DbIterator, TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables},
+    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables, synced_write_options},
     traits::Map,
 };
 
+use super::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
 use crate::epoch_buckets::{
     BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
     extra_column_family_options,
@@ -61,6 +62,29 @@ impl BucketReopen for HistoricCheckpointsBucket {
                 true,
             )?,
         })
+    }
+
+    /// Writes the contents every empty checkpoint names, if missing. State
+    /// sync stores a checkpoint's contents only when no bucket holds them yet,
+    /// so without its own copy a bucket's empty checkpoints would lose their
+    /// contents once the bucket holding the shared copy expired.
+    fn initialize(&self) -> Result<(), TypedStoreError> {
+        if self
+            .checkpoint_content
+            .contains_key(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)?
+        {
+            return Ok(());
+        }
+        // Synced, like the creation of the bucket it belongs with.
+        let mut batch = self.checkpoint_content.batch();
+        batch.insert_batch_tagged(
+            &self.checkpoint_content,
+            [(
+                *EMPTY_CHECKPOINT_CONTENTS_DIGEST,
+                empty_checkpoint_contents(),
+            )],
+        )?;
+        batch.write_opt(&synced_write_options())
     }
 }
 
@@ -110,10 +134,10 @@ impl HistoricCheckpoints {
         let mut buckets = BTreeMap::new();
         for cf_name in &existing_cfs {
             if let Some(epoch) = bucket_cf_epoch(HISTORIC_CHECKPOINTS_CF_PREFIX, cf_name) {
-                buckets.insert(
-                    epoch,
-                    Arc::new(HistoricCheckpointsBucket::reopen(&db, cf_name)?),
-                );
+                let bucket = HistoricCheckpointsBucket::reopen(&db, cf_name)?;
+                // A crash right after creating the bucket left it without.
+                bucket.initialize()?;
+                buckets.insert(epoch, Arc::new(bucket));
             }
         }
 
