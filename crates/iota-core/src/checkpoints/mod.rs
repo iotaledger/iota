@@ -1105,12 +1105,21 @@ impl CheckpointStore {
     /// is unknown, returns one past the highest executed checkpoint. Never
     /// below one past `objects_pruned_through`, the checkpoint through which
     /// the objects pruner of earlier releases deleted superseded versions.
+    ///
+    /// While the oldest bucket is that of `backlog_sweep_epoch`, the epoch
+    /// whose bucket the one-time sweep moved the versions superseded before
+    /// the upgrade into, it holds every version since `objects_pruned_through`,
+    /// or all of them where that pruner never ran.
     pub fn lowest_checkpoint_with_retained_objects(
         &self,
         earliest_bucket_epoch: Option<EpochId>,
         objects_pruned_through: Option<CheckpointSequenceNumber>,
+        backlog_sweep_epoch: Option<EpochId>,
     ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
         let lowest = match earliest_bucket_epoch {
+            Some(epoch) if Some(epoch) == backlog_sweep_epoch => {
+                Some(objects_pruned_through.map_or(0, |pruned| pruned + 1))
+            }
             Some(0) => Some(0),
             Some(epoch) => self
                 .get_epoch_last_checkpoint_seq_number(epoch - 1)?
@@ -3292,12 +3301,38 @@ mod tests {
 
         let lowest = |pruned_through| {
             store
-                .lowest_checkpoint_with_retained_objects(Some(1), pruned_through)
+                .lowest_checkpoint_with_retained_objects(Some(1), pruned_through, None)
                 .unwrap()
         };
         assert_eq!(lowest(None), 10);
         assert_eq!(lowest(Some(3)), 10);
         assert_eq!(lowest(Some(14)), 15);
+    }
+
+    /// While the oldest bucket is the one the backlog sweep filled, objects
+    /// are available from where the objects pruner of earlier releases
+    /// stopped, or from the start where it never ran, not just from that
+    /// bucket's epoch.
+    #[tokio::test]
+    async fn the_swept_bucket_holds_objects_back_to_the_old_pruner() {
+        let store = CheckpointStore::new_for_tests();
+        store
+            .insert_epoch_last_checkpoint(0, &crate::test_utils::executed_checkpoint(0, 9))
+            .unwrap();
+
+        let lowest = |pruned_through, backlog_sweep_epoch| {
+            store
+                .lowest_checkpoint_with_retained_objects(
+                    Some(1),
+                    pruned_through,
+                    backlog_sweep_epoch,
+                )
+                .unwrap()
+        };
+        assert_eq!(lowest(None, Some(1)), 0);
+        assert_eq!(lowest(Some(3), Some(1)), 4);
+        // Once that bucket has expired, the oldest one's epoch decides again.
+        assert_eq!(lowest(Some(3), Some(0)), 10);
     }
 
     #[tokio::test]

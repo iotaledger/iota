@@ -438,6 +438,32 @@ async fn a_finished_sweep_leaves_later_starts_nothing_to_do() {
     );
 }
 
+/// A finished sweep records the epoch whose bucket it moved the backlog into,
+/// and a reopen reads it back.
+#[tokio::test]
+async fn a_finished_sweep_records_the_epoch_it_swept_into() {
+    let dir = iota_common::tempdir();
+    {
+        let store = open_store(&dir);
+        assert_eq!(store.get_historic_objects().backlog_sweep_epoch(), None);
+        seed(&store);
+        sweep_all(&store, 5_000);
+        assert_eq!(
+            store.get_historic_objects().backlog_sweep_epoch(),
+            Some(SWEEP_EPOCH)
+        );
+        let weak_db = Arc::downgrade(&store.perpetual_tables.objects.db);
+        drop(store);
+        assert!(wait_for_database_close(weak_db).await);
+    }
+
+    let store = open_store(&dir);
+    assert_eq!(
+        store.get_historic_objects().backlog_sweep_epoch(),
+        Some(SWEEP_EPOCH)
+    );
+}
+
 /// With an objects pruner watermark, the walk relocates exactly the versions
 /// the checkpoints above it superseded, and leaves the rows below it alone.
 #[tokio::test]

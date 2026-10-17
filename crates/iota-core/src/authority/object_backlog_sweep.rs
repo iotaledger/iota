@@ -234,7 +234,7 @@ impl ObjectBacklogSweep {
         let Some(highest) = synced.max(executed) else {
             // Nothing has been executed or synced, so nothing can have been
             // superseded.
-            return self.mark_done();
+            return self.mark_done(epoch);
         };
         let resumed = self
             .perpetual_tables
@@ -251,7 +251,7 @@ impl ObjectBacklogSweep {
             let ended_at = self.sweep_checkpoint_slice(checkpoint_store, epoch, next, last)?;
             next = ended_at.saturating_add(1);
         }
-        self.mark_done()
+        self.mark_done(epoch)
     }
 
     /// Relocates the versions superseded by the checkpoints in `first..=last`,
@@ -332,8 +332,10 @@ impl ObjectBacklogSweep {
         Ok(ended_at)
     }
 
-    fn mark_done(&self) -> IotaResult<()> {
-        self.perpetual_tables.mark_object_backlog_swept()?;
+    fn mark_done(&self, epoch: EpochId) -> IotaResult<()> {
+        self.perpetual_tables
+            .mark_object_backlog_swept_into(epoch)?;
+        self.historic_objects.record_backlog_sweep_epoch(epoch);
         self.historic_objects.mark_backlog_swept();
         Ok(())
     }

@@ -12,7 +12,7 @@ use std::{
     fmt::Debug,
     path::Path,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -158,6 +158,8 @@ pub struct HistoricObjects {
     /// Set once the one-time backlog sweep is done; see
     /// [`Self::backlog_swept`].
     backlog_swept: AtomicBool,
+    /// See [`Self::backlog_sweep_epoch`].
+    backlog_sweep_epoch: OnceLock<EpochId>,
 
     /// Counts the bucket walks of [`Self::find_lt_or_eq_version`].
     #[cfg(test)]
@@ -303,6 +305,7 @@ impl HistoricObjects {
             objects,
             objects_pruned_through: None,
             backlog_swept: AtomicBool::new(false),
+            backlog_sweep_epoch: OnceLock::new(),
             #[cfg(test)]
             bucket_walks: std::sync::atomic::AtomicU64::new(0),
         })
@@ -321,6 +324,20 @@ impl HistoricObjects {
     /// this only once that is persisted; see [`Self::backlog_swept`].
     pub(crate) fn mark_backlog_swept(&self) {
         self.backlog_swept.store(true, Ordering::Release);
+    }
+
+    /// The epoch whose bucket the one-time backlog sweep moved the versions
+    /// superseded before the upgrade into, `None` if no sweep ran. Besides
+    /// that epoch's own versions, the bucket holds every version superseded
+    /// since [`Self::objects_pruned_through`].
+    pub(crate) fn backlog_sweep_epoch(&self) -> Option<EpochId> {
+        self.backlog_sweep_epoch.get().copied()
+    }
+
+    /// Records the epoch the sweep moved the backlog into; see
+    /// [`Self::backlog_sweep_epoch`]. Call this only once that is persisted.
+    pub(crate) fn record_backlog_sweep_epoch(&self, epoch: EpochId) {
+        let _ = self.backlog_sweep_epoch.set(epoch);
     }
 
     /// How many bucket walks [`Self::find_lt_or_eq_version`] has done.
