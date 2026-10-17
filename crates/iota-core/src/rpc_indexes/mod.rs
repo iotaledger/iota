@@ -213,6 +213,24 @@ pub(crate) fn highest_checkpoint_with_committed_outputs(
     }
 }
 
+/// Whether an open failed for a reason outside the database itself: another
+/// process holds it, or the host refuses its files or the space to write.
+/// Wiping the database fixes none of these.
+fn is_host_error(error: &IotaError) -> bool {
+    const HOST_ERRORS: [&str; 6] = [
+        "While lock file",
+        "lock hold by current process",
+        "Too many open files",
+        "Permission denied",
+        "No space left on device",
+        "Read-only file system",
+    ];
+    let message = error.to_string();
+    HOST_ERRORS
+        .iter()
+        .any(|host_error| message.contains(host_error))
+}
+
 impl IndexStoreTables {
     /// Opens the tables with tuned bulk-ingestion options (WAL disabled,
     /// unordered writes) for a full rebuild. Writes must be flushed before
@@ -547,6 +565,13 @@ impl RpcIndexesStore {
                 warn!("unable to open the RPC index database, retrying once: {first}");
                 match Self::open_index_db(&path) {
                     Ok(opened) => Some(opened),
+                    Err(e) if is_host_error(&e) => {
+                        return Err(StorageError::custom(format!(
+                            "unable to open the RPC index database at {}: {e}; a rebuild \
+                             would not help, so the database is kept",
+                            path.display()
+                        )));
+                    }
                     Err(e) => {
                         warn!("unable to open the RPC index database, wiping and rebuilding: {e}");
                         None

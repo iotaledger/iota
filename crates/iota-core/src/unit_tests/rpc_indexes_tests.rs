@@ -2849,6 +2849,30 @@ async fn test_a_failed_floor_read_fails_the_open() {
     );
 }
 
+/// An open that fails because this process already holds the database counts
+/// as a host error, which keeps the database; one that fails on a damaged
+/// database does not, so it is rebuilt.
+#[tokio::test]
+async fn test_only_a_damaged_database_is_wiped_after_a_failed_open() {
+    let tmp_dir = iota_common::tempdir();
+    let index_dir = tmp_dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let held = RpcIndexesStore::open_index_db(&index_dir).unwrap();
+
+    let locked = RpcIndexesStore::open_index_db(&index_dir)
+        .err()
+        .expect("a second open of a held database must fail");
+    assert!(super::is_host_error(&locked), "{locked}");
+    drop(held);
+
+    let damaged_dir = tmp_dir.path().join("damaged");
+    std::fs::create_dir_all(&damaged_dir).unwrap();
+    std::fs::write(damaged_dir.join("CURRENT"), b"MANIFEST-999999\n").unwrap();
+    let damaged = RpcIndexesStore::open_index_db(&damaged_dir)
+        .err()
+        .expect("a database without its manifest must not open");
+    assert!(!super::is_host_error(&damaged), "{damaged}");
+}
+
 /// Queries running concurrently with repeated pruning never panic.
 #[tokio::test]
 async fn test_concurrent_prune_and_queries_never_panic() {
