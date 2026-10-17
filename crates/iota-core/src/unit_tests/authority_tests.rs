@@ -9475,7 +9475,7 @@ async fn a_failed_expiry_does_not_fail_reconfiguration() {
     }
 
     let store = authority.database_for_testing();
-    HistoricObjects::corrupt_tombstone_heads_for_testing(&store.perpetual_tables.objects.db, 0)
+    HistoricObjects::corrupt_recorded_tombstones_for_testing(&store.perpetual_tables.objects.db, 0)
         .unwrap();
 
     authority

@@ -492,7 +492,7 @@ async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
     seed_pruner_watermark(&store, 3);
     let effects = seed_checkpoint(&store, &checkpoint_store, 4, &[], &[(deleted_id(), 2)]);
     // The tombstone's version is the lamport version the effects decide.
-    let heads: Vec<ObjectKey> = effects
+    let tombstones: Vec<ObjectKey> = effects
         .all_tombstones()
         .into_iter()
         .map(|(id, version)| ObjectKey(id, version))
@@ -501,7 +501,7 @@ async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
         .perpetual_tables
         .objects
         .multi_insert(
-            heads
+            tombstones
                 .iter()
                 .map(|key| (*key, StoreObjectWrapper::from(StoreObject::Deleted))),
         )
@@ -511,8 +511,8 @@ async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
         .await
         .unwrap();
 
-    assert_eq!(recorded_tombstones(&store, SWEEP_EPOCH), heads);
-    for key in &heads {
+    assert_eq!(recorded_tombstones(&store, SWEEP_EPOCH), tombstones);
+    for key in &tombstones {
         assert!(
             live_keys(&store).contains(key),
             "the head stays in the live table until its bucket expires"

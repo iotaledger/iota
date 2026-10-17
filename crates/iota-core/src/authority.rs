@@ -3322,7 +3322,7 @@ impl AuthorityState {
             };
         }
 
-        // `prune` deletes the expiring epochs' tombstone heads and drops their
+        // `prune` deletes the expiring epochs' tombstones and drops their
         // column families, blocking for as long as that takes; it must not run
         // on an async worker.
         let historic_objects = self.historic_objects.clone();

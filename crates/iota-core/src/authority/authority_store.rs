@@ -1676,8 +1676,8 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Expires every historic bucket but the newest, deleting the tombstone
-    /// heads those epochs recorded, and compacts the live `objects` table.
+    /// Expires every historic bucket but the newest, deleting the tombstones
+    /// those epochs recorded, and compacts the live `objects` table.
     /// This is what a node reaches on its own once its object retention has
     /// caught up; a test that wants the versions of a given epoch gone has to
     /// have started a later epoch first.
