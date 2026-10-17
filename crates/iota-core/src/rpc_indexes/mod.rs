@@ -911,10 +911,6 @@ impl RpcIndexesStore {
 
     /// Opens `epoch`'s history bucket, creating its column family if needed,
     /// which blocks.
-    ///
-    /// At a reconfiguration, call this for the epoch being entered before
-    /// [`Self::prune`], which counts the retention back from the newest
-    /// bucket and would otherwise keep one epoch too many.
     pub(crate) fn ensure_history_bucket_exists(&self, epoch: EpochId) -> IotaResult<()> {
         self.ensure_history_bucket(epoch).map(|_| ())
     }
