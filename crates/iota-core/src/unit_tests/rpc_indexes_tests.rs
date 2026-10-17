@@ -335,10 +335,8 @@ async fn test_pruned_epochs_are_not_recreated() {
     assert!(index_store.ensure_history_bucket(1).is_ok());
 }
 
-/// Raising `num_epochs_to_retain_for_indexes` across a restart must not
-/// move the earliest retained epoch back down: the buckets below it are
-/// already gone, so recreating them would contradict the errors queries
-/// were given.
+/// Raising `num_epochs_to_retain_for_indexes` across a restart does not
+/// move the earliest retained epoch back down.
 #[tokio::test]
 async fn test_the_earliest_retained_epoch_never_moves_backwards() {
     let tmp_dir = iota_common::tempdir();
@@ -1289,8 +1287,7 @@ async fn test_a_balance_miss_takes_the_value_cached_while_it_waited() {
                 .unwrap()
         }
     });
-    // Give the reader time to reach the owner's lock. A slow one passes
-    // without exercising the race.
+    // Only makes the race likely: a slow reader passes without exercising it.
     std::thread::sleep(std::time::Duration::from_millis(50));
 
     index_store
