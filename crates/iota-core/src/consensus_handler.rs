@@ -2159,6 +2159,184 @@ mod tests {
         );
     }
 
+    /// A handler with deterministic validation on, over an authority of a
+    /// four-member committee whose genesis gives `sender` the `objects`.
+    async fn deterministic_validation_handler(
+        objects: Vec<Object>,
+    ) -> (
+        Arc<AuthorityState>,
+        Arc<AuthorityPerEpochStore>,
+        ConsensusHandler<CheckpointServiceNoop>,
+    ) {
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .committee_size(NonZeroUsize::new(4).unwrap())
+            .with_objects(objects)
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch = state.epoch_store_for_testing().clone();
+        let handler = ConsensusHandler::new(
+            epoch.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch.epoch_start_state()),
+            state.metrics.clone(),
+            BackpressureManager::new_for_tests().subscribe(),
+        );
+        (state, epoch, handler)
+    }
+
+    /// A key-signed transfer of `object` by `sender`, paid with `gas`, valid
+    /// in `epoch`'s epoch only.
+    fn transfer_in_current_epoch(
+        state: &AuthorityState,
+        epoch: &AuthorityPerEpochStore,
+        sender: Address,
+        key: &AccountPrivateKey,
+        object: ObjectId,
+        gas: ObjectId,
+    ) -> iota_types::transaction::TransactionEnvelope {
+        let rgp = epoch.reference_gas_price();
+        let mut data = Transaction::new_transfer(
+            Address::random(),
+            state.get_object(&object).unwrap().object_ref(),
+            sender,
+            state.get_object(&gas).unwrap().object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        *data.expiration_mut_for_testing() =
+            iota_sdk_types::TransactionExpiration::Epoch(epoch.epoch());
+        to_sender_signed_transaction(data, key)
+    }
+
+    fn user_transaction_key(digest: TransactionDigest) -> SequencedConsensusTransactionKey {
+        SequencedConsensusTransactionKey::External(ConsensusTransactionKey::UserTransaction(digest))
+    }
+
+    /// A new user transaction from an authority that has sent EndOfPublish
+    /// is never executed. It must not lock its owned inputs at the commit,
+    /// which nothing would release before the epoch ends, and it must not
+    /// hide another authority's copy of the same transaction in the commit.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn user_transactions_from_an_author_that_sent_end_of_publish_take_no_locks() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<_> = (0..5)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
+        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let author = *epoch.committee().authority_by_index(1).unwrap();
+        let transfer =
+            |object, gas| transfer_in_current_epoch(&state, &epoch, sender, &key, object, gas);
+        let made_up = transfer(ids[0], ids[1]);
+        let copied = transfer(ids[2], ids[3]);
+        let later = transfer(ids[0], ids[4]);
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                1,
+                100,
+                vec![(1, ConsensusTransaction::new_end_of_publish(author))],
+            ))
+            .await;
+        assert!(epoch.has_sent_end_of_publish(&author).unwrap());
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                2,
+                200,
+                vec![
+                    (
+                        1,
+                        ConsensusTransaction::new_user_transaction(made_up.clone()),
+                    ),
+                    (
+                        1,
+                        ConsensusTransaction::new_user_transaction(copied.clone()),
+                    ),
+                    (
+                        0,
+                        ConsensusTransaction::new_user_transaction(copied.clone()),
+                    ),
+                ],
+            ))
+            .await;
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                3,
+                300,
+                vec![(0, ConsensusTransaction::new_user_transaction(later.clone()))],
+            ))
+            .await;
+
+        assert_eq!(
+            epoch.post_consensus_verdict(3, *later.digest()).unwrap(),
+            Some(PostConsensusVerdict::Kept),
+            "a later transaction on the same object must not conflict"
+        );
+        assert!(
+            epoch
+                .is_consensus_message_processed(&user_transaction_key(*copied.digest()))
+                .unwrap(),
+            "the other authority's copy must be scheduled"
+        );
+        assert_eq!(
+            epoch.post_consensus_verdict(2, *made_up.digest()).unwrap(),
+            None,
+            "the made-up transaction must not reach validation"
+        );
+    }
+
+    /// Once the epoch stops accepting consensus transactions, a new user
+    /// transaction is never executed, so it must not reach validation and
+    /// lock its owned inputs against a deferred transaction.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn user_transactions_after_end_of_publish_quorum_take_no_locks() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<_> = (0..2)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
+        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let transaction = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
+        // The state an EndOfPublish quorum leaves while deferred transactions
+        // keep the epoch from rejecting all transactions.
+        epoch
+            .get_reconfig_state_write_lock_guard()
+            .close_all_certs();
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                1,
+                100,
+                vec![(
+                    0,
+                    ConsensusTransaction::new_user_transaction(transaction.clone()),
+                )],
+            ))
+            .await;
+
+        assert_eq!(
+            epoch
+                .post_consensus_verdict(1, *transaction.digest())
+                .unwrap(),
+            None
+        );
+    }
+
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_user_transaction_v1() {
         // GIVEN

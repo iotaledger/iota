@@ -4323,13 +4323,34 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                kind: ConsensusTransactionKind::UserTransactionV1(user_transaction),
                 ..
             }) => {
                 if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
-                        transaction.digest()
+                        user_transaction.digest()
+                    );
+                    return None;
+                }
+                // Once the epoch no longer accepts consensus transactions, such
+                // a transaction is ignored when scheduled, so it never
+                // executes. Under deterministic validation it is skipped here
+                // instead: kept at validation, it would hold its owned-object
+                // locks until the epoch ends, and it would hide a later copy of
+                // the same transaction in this commit. A transaction from an
+                // author that sent EndOfPublish was already dropped above. A
+                // deferred transaction is reloaded without passing through
+                // here, so it stays eligible.
+                if self.protocol_config().pcool_deterministic_validation()
+                    && !self
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring UserTransactionV1 {:?}: the epoch no longer accepts consensus \
+                         transactions",
+                        user_transaction.digest()
                     );
                     return None;
                 }
