@@ -461,6 +461,9 @@ pub(crate) enum ConsensusError {
         peer: AuthorityIndex,
         received: TransactionRef,
     },
+
+    #[error("Peer {peer} sent a commit-sync response message with more than {limit} entries")]
+    TooManyCommitSyncEntries { peer: AuthorityIndex, limit: usize },
 }
 
 impl ConsensusError {

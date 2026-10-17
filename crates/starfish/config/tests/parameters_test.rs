@@ -207,3 +207,29 @@ fn validate_rejects_transaction_fetch_caps_above_the_response_ceiling() {
     .validate()
     .unwrap();
 }
+
+#[test]
+fn validate_rejects_commit_batch_sizes_above_the_response_ceiling() {
+    let ceiling = starfish_config::COMMITS_PER_FETCH_CEILING as u32;
+    let parameters = starfish_config::Parameters {
+        commit_sync_batch_size: ceiling + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("commit_sync_batch_size"));
+
+    let parameters = starfish_config::Parameters {
+        fast_commit_sync_batch_size: ceiling + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("fast_commit_sync_batch_size"));
+
+    starfish_config::Parameters {
+        commit_sync_batch_size: ceiling,
+        fast_commit_sync_batch_size: ceiling,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}
