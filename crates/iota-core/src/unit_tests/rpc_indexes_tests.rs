@@ -238,13 +238,15 @@ async fn test_rebuild_is_not_adopted_before_the_flush() {
     let authority_store = open_authority_store(&dir.path().join("store"));
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
 
-    let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(dir.path().join("indexes"));
+    let index_dir = dir.path().join("indexes");
+    let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+    let sst_files = super::SstFiles::with_buffer_limit(&index_dir, 1024).unwrap();
     tables
         .init(
             &authority_store,
             &checkpoint_store,
             &groups,
-            1024,
+            sst_files,
             &Default::default(),
         )
         .unwrap();
@@ -2364,6 +2366,154 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
             "the package version must be indexed"
         );
     }
+}
+
+/// The partitions of a restore keep filling the same buffers instead of each
+/// writing files of its own, and a partition that fails part-way hands the
+/// buffers back with the rows the earlier partitions put in them.
+#[tokio::test]
+async fn test_restore_partitions_share_their_buffers() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let sst_dir = index_dir.join(super::live_scan::BULK_INGESTION_SST_DIR);
+    let restorer = RpcIndexesRestorer::open(
+        index_dir.clone(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+    )
+    .unwrap();
+
+    let objects: Vec<_> = (0..50u8)
+        .map(|index| {
+            Object::new_gas_with_balance_and_owner_for_testing(
+                100,
+                iota_types::base_types::dbg_addr(index % 5),
+            )
+        })
+        .collect();
+    for object in &objects {
+        let mut partition = restorer.partition_indexer();
+        partition.index_object(object).unwrap();
+        partition.finish().unwrap();
+    }
+    assert_eq!(
+        std::fs::read_dir(&sst_dir).unwrap().count(),
+        0,
+        "partitions must not write a file each while the buffers have room"
+    );
+    {
+        let mut failed = restorer.partition_indexer();
+        failed
+            .index_object(&Object::new_gas_with_balance_and_owner_for_testing(
+                100,
+                iota_types::base_types::dbg_addr(9),
+            ))
+            .unwrap();
+    }
+
+    restorer.finalize(5).await.unwrap();
+    assert!(
+        !sst_dir.exists(),
+        "the restore must remove its SST file directory once ingested"
+    );
+    let restored = open_index_store(index_dir);
+    for object in &objects {
+        let Owner::Address(owner) = object.owner else {
+            unreachable!("gas objects are address-owned");
+        };
+        let (key, info) = OwnerIndexKey::for_object(owner, object).unwrap();
+        assert_eq!(
+            restored.tables.owner.get(&key).unwrap(),
+            Some(info),
+            "a row indexed before the failed partition must survive it"
+        );
+    }
+}
+
+/// A rebuild whose partitions write their rows out after every object, into
+/// many SST files that overlap in key range, builds the same tables as one
+/// writing a single file per table and partition, and leaves no files behind.
+#[tokio::test]
+async fn test_rebuild_from_many_small_sst_files() {
+    let dir = iota_common::tempdir();
+    let mut objects = Vec::new();
+    for index in 0..50u8 {
+        let owner = iota_types::base_types::dbg_addr(index % 5);
+        objects.push(Object::new_gas_with_balance_and_owner_for_testing(
+            100 + u64::from(index),
+            owner,
+        ));
+        objects.push(dynamic_field_object(ObjectId::random(), ObjectId::random()));
+    }
+    objects.push(package_object_for_testing());
+
+    let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+    authority_state.insert_genesis_objects(&objects);
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+    let authority_store = authority_state.database_for_testing();
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+
+    let mut built = Vec::new();
+    for (name, buffer_limit) in [("one_file", usize::MAX), ("small_files", 1)] {
+        let index_dir = dir.path().join(name);
+        let sst_dir = index_dir.join(super::live_scan::BULK_INGESTION_SST_DIR);
+        let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+        let sst_files = super::SstFiles::with_buffer_limit(&index_dir, buffer_limit).unwrap();
+        tables
+            .init(
+                &authority_store,
+                checkpoint_store,
+                &groups,
+                sst_files,
+                &Default::default(),
+            )
+            .unwrap();
+        assert!(
+            !sst_dir.exists(),
+            "the rebuild must remove its SST file directory once ingested"
+        );
+        built.push((
+            tables
+                .owner
+                .safe_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+            tables
+                .dynamic_field
+                .safe_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+            tables
+                .package_version
+                .safe_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+        ));
+    }
+
+    let (owner, dynamic_field, package_version) = &built[0];
+    assert!(owner.len() >= 50, "every gas object must be owner-indexed");
+    assert!(
+        dynamic_field.len() >= 50,
+        "every dynamic field must be indexed"
+    );
+    assert!(
+        !package_version.is_empty(),
+        "the package version must be indexed"
+    );
+    assert!(
+        built[0] == built[1],
+        "many small SST files must build the same tables as one file per partition"
+    );
 }
 
 /// A store maintaining only one group indexes only that group's tables,
