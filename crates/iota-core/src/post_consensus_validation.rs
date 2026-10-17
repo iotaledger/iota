@@ -537,16 +537,18 @@ pub async fn validate_and_resolve_conflicts(
         let mut input_verdict: Option<(InputObjectKind, bool)> = None;
         let mut denied_for_every_copy = false;
         let checked = match &reader {
-            // Inputs read as of the commit. A dropped or a missing input is
-            // reported with the error admission gives a missing input, so
-            // clients see a known error, and the reason goes to the log. A
-            // missing input drops the transaction from this commit only: the
-            // decision is saved as `Missing`, which does not stop a
-            // resubmission from being kept at a later commit. The Move
+            // Inputs read as of the commit. A missing input is reported with
+            // the error admission gives a missing input, which the transaction
+            // and quorum drivers retry: it drops the transaction from this
+            // commit only, the decision is saved as `Missing`, and a
+            // resubmission can be kept at a later commit. A dropped input is
+            // final for the digest, so it has its own error, which the drivers
+            // do not retry (a drop that may come from the copy's signatures is
+            // not sent to the waiters). The reason goes to the log. The Move
             // authenticator runs at execution instead. Here only whether each
-            // account is one is checked, and its authenticator function field is
-            // read for the deny check of its package, both as of the horizon. The
-            // coin deny list is read as of the horizon too.
+            // account is one is checked, and its authenticator function field
+            // is read for the deny check of its package, both as of the
+            // horizon. The coin deny list is read as of the horizon too.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,
@@ -576,7 +578,7 @@ pub async fn validate_and_resolve_conflicts(
                                 "input dropped by the commit-indexed reader"
                             );
                             input_verdict = Some((kind, false));
-                            Err(kind.object_not_found_error().into())
+                            Err(kind.not_available_at_commit_error().into())
                         }
                         ValidationAtCommit::Missing(kind, reason) => {
                             verdicts

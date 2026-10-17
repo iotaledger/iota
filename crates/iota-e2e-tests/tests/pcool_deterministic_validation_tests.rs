@@ -1785,3 +1785,56 @@ async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizo
         "the failed transaction must leave the received coin with the parent"
     );
 }
+
+/// A transaction that names a shared object deleted at or below the horizon
+/// of its commit is dropped there, and every validator records the drop as
+/// its final status. Submitted through the fullnode, it fails at once with
+/// the error for an input not available at the commit, instead of being
+/// retried until the fullnode's wait for finality times out.
+#[sim_test]
+async fn test_drop_at_the_commit_fails_fast_through_the_fullnode() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(600_000).await;
+    let wallet = &test_cluster.wallet;
+    let package_id = publish_basics_package(wallet).await.object_id;
+    let (sender, gas) = wallet.get_one_gas_object().await.unwrap().unwrap();
+    let gas_price = test_cluster.get_reference_gas_price().await;
+    let counter = create_counter(&test_cluster, sender, gas, gas_price, package_id)
+        .await
+        .expect("the counter is created");
+
+    let gas = wallet.get_object_ref(gas.object_id).await.unwrap();
+    let delete = TestTransactionBuilder::new(sender, gas, gas_price)
+        .call_counter_delete(package_id, counter.object_id, counter.version)
+        .build();
+    test_cluster.sign_and_execute_transaction(&delete).await;
+    // Lets enough commits pass for the deletion's commit to be at or below
+    // the horizon of the commit that sequences the increment.
+    sleep(Duration::from_secs(5)).await;
+
+    let gas = wallet.get_object_ref(gas.object_id).await.unwrap();
+    let increment = wallet.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas, gas_price)
+            .call_counter_increment(package_id, counter.object_id, counter.version)
+            .build(),
+    );
+    let started = Instant::now();
+    let error = timeout(
+        Duration::from_secs(20),
+        wallet.execute_transaction_may_fail(increment),
+    )
+    .await
+    .expect("the fullnode must answer before its wait for finality times out")
+    .expect_err("an increment of a deleted counter must not execute");
+    let message = format!("{error:#}");
+    assert!(
+        message.contains("can't be used: at the consensus commit"),
+        "unexpected error: {message}"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "the drop took {:?} to reach the client",
+        started.elapsed()
+    );
+}

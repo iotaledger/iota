@@ -2784,6 +2784,20 @@ impl InputObjectKind {
         }
     }
 
+    /// The error for an input that a validator drops at the consensus commit
+    /// for good: every validator drops it there, and it cannot become
+    /// available later.
+    pub fn not_available_at_commit_error(&self) -> UserInputError {
+        let (object_id, version) = match *self {
+            Self::MovePackage(package_id) => (package_id, None),
+            Self::ImmOrOwnedMoveObject(object_ref) => {
+                (object_ref.object_id, Some(object_ref.version))
+            }
+            Self::SharedMoveObject { id, .. } => (id, None),
+        };
+        UserInputError::InputObjectNotAvailableAtCommit { object_id, version }
+    }
+
     pub fn is_shared_object(&self) -> bool {
         matches!(self, Self::SharedMoveObject { .. })
     }
