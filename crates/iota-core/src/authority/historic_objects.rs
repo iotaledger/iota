@@ -48,13 +48,13 @@ const HISTORIC_OBJECTS_CF_PREFIX: &str = "hist_obj_e";
 /// instead, so an older bucket's rows can never be read as the wrong type.
 const DB_PREFIX_HISTORIC_OBJECTS: u8 = 0;
 
-/// Tag of the tombstone-head table inside a bucket's column family.
+/// Tag of the tombstones table inside a bucket's column family.
 const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
 
 /// Tag of the expiring marker inside a bucket's column family.
 const DB_PREFIX_HISTORIC_EXPIRING: u8 = 2;
 
-/// Tombstone heads deleted from the live `objects` table per write batch when
+/// Tombstones deleted from the live `objects` table per write batch when
 /// a bucket expires.
 const TOMBSTONE_DELETE_BATCH_SIZE: usize = 10_000;
 
@@ -125,7 +125,7 @@ impl HistoricObjectsBucket {
     }
 
     /// Whether this bucket has been marked expiring, in which case its rows
-    /// must no longer be served: the tombstone heads it recorded may already
+    /// must no longer be served: the tombstones it recorded may already
     /// be deleted from the live `objects` table, and a version served from
     /// under a deleted tombstone resurrects a deleted object.
     fn is_expiring(&self) -> bool {
@@ -136,7 +136,7 @@ impl HistoricObjectsBucket {
     ///
     /// Synced, because a column-family drop is durable at once while a
     /// default write may be lost, which after a crash would make a bucket
-    /// whose tombstone heads are gone readable again.
+    /// whose tombstones are gone readable again.
     fn mark_expiring(&self) -> Result<(), TypedStoreError> {
         let mut batch = self.expiring.batch();
         batch.insert_batch_tagged(&self.expiring, [((), ())])?;
@@ -254,11 +254,11 @@ impl HistoricObjects {
 
         // A prune persists the floor before it marks anything, so a bucket
         // below the floor is an unfinished expiry even without its marker.
-        // `EpochBuckets::open` would just drop it, leaving its tombstone heads
+        // `EpochBuckets::open` would just drop it, leaving its tombstones
         // in the live `objects` table for good.
         //
         // Oldest first: a bounded read that stops at one of this bucket's
-        // deleted heads falls through to the older buckets, so those must be
+        // deleted tombstones falls through to the older buckets, so those must be
         // gone first.
         let interrupted: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = buckets
             .iter()
@@ -421,7 +421,7 @@ impl HistoricObjects {
     }
 
     /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
-    /// below it, drops older ones, and deletes the tombstone heads each
+    /// below it, drops older ones, and deletes the tombstones each
     /// dropped epoch recorded. Returns the earliest epoch still retained,
     /// `None` when there is no bucket at all.
     ///
@@ -437,11 +437,11 @@ impl HistoricObjects {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// Marks `bucket` expiring, then deletes the tombstone heads it recorded
-    /// from the live `objects` table.
+    /// Marks `bucket` expiring, then deletes the tombstones it recorded from
+    /// the live `objects` table.
     ///
     /// Safe to run again on the same bucket: the marker is rewritten as it
-    /// was and a head already deleted is deleted again.
+    /// was and a tombstone already deleted is deleted again.
     fn expire_bucket(
         objects: &DBMap<ObjectKey, StoreObjectWrapper>,
         epoch: EpochId,
@@ -450,56 +450,74 @@ impl HistoricObjects {
         bucket.mark_expiring()?;
 
         // Synced: a column-family drop is durable at once, so a lost deletion
-        // would leave tombstone heads with nothing left to delete them.
-        let delete = |heads: Vec<ObjectKey>| -> Result<(), TypedStoreError> {
+        // would leave tombstones with nothing left to delete them.
+        let delete = |tombstones: Vec<ObjectKey>| -> Result<(), TypedStoreError> {
             let mut batch = objects.batch();
-            batch.delete_batch(objects, heads)?;
+            batch.delete_batch(objects, tombstones)?;
             batch.write_opt(&synced_write_options())
         };
 
-        // A version left beneath a head in the live table would become the
-        // newest again once the head is deleted, bringing the object back.
-        // That only happens where the backlog sweep did not relocate it, so
-        // such a head is kept. Tombstones beneath it don't count: an object
-        // wrapped and deleted in one epoch leaves two heads in this bucket.
-        let buried_alive = |head: &ObjectKey| -> Result<bool, TypedStoreError> {
-            for row in objects.safe_range_iter_reversed(ObjectKey::min_for_id(&head.0)..*head) {
-                let (_, below) = row?;
-                if matches!(below.migrate().into_inner(), StoreObject::Value(_)) {
-                    return Ok(true);
+        // A version left below a tombstone in the live table would become the
+        // newest again once the tombstone is deleted, bringing the object
+        // back. That only happens where the backlog sweep did not relocate it,
+        // so such a tombstone is kept. Tombstones below it don't count: an
+        // object wrapped and deleted in one epoch leaves two in this bucket.
+        //
+        // The bucket lists its tombstones by object, so each object's live
+        // rows are scanned once, for its lowest live version: an object
+        // wrapped and unwrapped many times in the epoch has as many tombstones
+        // in the live table, and scanning below each of them would be
+        // quadratic in their number.
+        let lowest_live_version =
+            |object_id: &ObjectId| -> Result<Option<Version>, TypedStoreError> {
+                for row in objects.safe_range_iter(
+                    ObjectKey::min_for_id(object_id)..=ObjectKey::max_for_id(object_id),
+                ) {
+                    let (key, row) = row?;
+                    if matches!(row.migrate().into_inner(), StoreObject::Value(_)) {
+                        return Ok(Some(key.1));
+                    }
                 }
-            }
-            Ok(false)
-        };
+                Ok(None)
+            };
 
         let mut deleted = 0;
         let mut kept = 0;
-        let mut heads = Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE);
+        let mut batch = Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE);
+        let mut lowest_live: Option<(ObjectId, Option<Version>)> = None;
         for row in bucket.tombstones.safe_iter() {
             let (key, ()) = row?;
-            if buried_alive(&key)? {
+            let lowest = match lowest_live {
+                Some((object_id, lowest)) if object_id == key.0 => lowest,
+                _ => {
+                    let lowest = lowest_live_version(&key.0)?;
+                    lowest_live = Some((key.0, lowest));
+                    lowest
+                }
+            };
+            if lowest.is_some_and(|lowest| lowest < key.1) {
                 kept += 1;
                 continue;
             }
-            heads.push(key);
-            if heads.len() == TOMBSTONE_DELETE_BATCH_SIZE {
-                deleted += heads.len();
+            batch.push(key);
+            if batch.len() == TOMBSTONE_DELETE_BATCH_SIZE {
+                deleted += batch.len();
                 delete(std::mem::replace(
-                    &mut heads,
+                    &mut batch,
                     Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE),
                 ))?;
             }
         }
-        deleted += heads.len();
-        delete(heads)?;
+        deleted += batch.len();
+        delete(batch)?;
 
         if kept > 0 {
             error!(
                 epoch,
                 kept,
-                "kept tombstone heads that still have a live version beneath them: those \
+                "kept tombstones that still have a live version below them: those \
                  objects were superseded before this build and the backlog sweep did not \
-                 relocate them. They stay deleted, which is why the heads stay too"
+                 relocate them. They stay deleted, which is why the tombstones stay too"
             );
         }
         info!(
@@ -511,10 +529,10 @@ impl HistoricObjects {
         Ok(())
     }
 
-    /// Writes a row of the wrong type into `epoch`'s tombstone-head table, so
+    /// Writes a row of the wrong type into `epoch`'s tombstones table, so
     /// that expiring that bucket fails.
     #[cfg(test)]
-    pub(super) fn corrupt_tombstone_heads_for_testing(
+    pub(super) fn corrupt_recorded_tombstones_for_testing(
         db: &Arc<Database>,
         epoch: EpochId,
     ) -> Result<(), TypedStoreError> {
@@ -534,7 +552,7 @@ impl HistoricObjects {
     /// families, `None` otherwise. For the `iota-tool` table dump, which
     /// cannot reach these through `AuthorityPerpetualTables`.
     ///
-    /// Tombstone-head and expiring-marker rows are prefixed by table name.
+    /// Tombstone and expiring-marker rows are prefixed by table name.
     /// `db` may be a read-only or secondary handle.
     pub fn dump_column_family(
         db: &Arc<Database>,
