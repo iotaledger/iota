@@ -9,7 +9,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{Arc, atomic::Ordering},
+    sync::{Arc, Weak, atomic::Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
     vec,
 };
@@ -130,7 +130,7 @@ use prometheus_filtered::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tap::TapFallible;
 use tokio::{
-    sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
+    sync::{Notify, RwLock, mpsc, mpsc::unbounded_channel, oneshot, watch},
     task::JoinHandle,
 };
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -384,6 +384,10 @@ pub struct AuthorityMetrics {
     // Similar reason for using a Mutex here as to `txn_ready_rate_tracker`.
     pub execution_rate_tracker: Arc<Mutex<RateTracker>>,
 }
+
+/// How long the historic bucket expiry waits, once a retention guard that kept
+/// a bucket is dropped, before it tries again.
+const HELD_BACK_EXPIRY_INTERVAL: Duration = Duration::from_secs(1);
 
 // Override default Prom buckets for positive numbers in 0-10M range
 const POSITIVE_INT_BUCKETS: &[f64] = &[
@@ -1021,6 +1025,10 @@ pub struct AuthorityState {
     /// The checkpoints execution responses still read superseded object
     /// versions from; bucket expiry keeps their epochs.
     object_retention: ObjectRetention,
+
+    /// Announces each epoch entered to the task that expires the historic
+    /// buckets.
+    historic_bucket_expiry: watch::Sender<EpochId>,
 
     pub config: NodeConfig,
 
@@ -2933,6 +2941,7 @@ impl AuthorityState {
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
+        let (historic_bucket_expiry, expiry_epochs) = watch::channel(epoch);
         let rgp = epoch_store.reference_gas_price();
         let traffic_controller_metrics =
             Arc::new(TrafficControllerMetrics::new(prometheus_registry));
@@ -2967,10 +2976,18 @@ impl AuthorityState {
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
             epoch_end_db_snapshots,
+            historic_bucket_expiry,
         });
         // An expiry cut short by a crash may not have recorded what it
         // dropped.
         Self::record_pruned_checkpoints(&state.historic_ledger, &state.checkpoint_store);
+
+        let expiry = Self::expire_historic_buckets_in_background(
+            Arc::downgrade(&state),
+            expiry_epochs,
+            state.object_retention.released(),
+        );
+        spawn_monitored_task!(expiry);
 
         // Start a task to execute ready transactions.
         let authority_state = Arc::downgrade(&state);
@@ -3268,7 +3285,7 @@ impl AuthorityState {
             .await;
 
         let new_epoch = new_committee.epoch;
-        self.advance_historic_buckets(new_epoch).await?;
+        self.open_historic_buckets(new_epoch)?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,
@@ -3294,6 +3311,9 @@ impl AuthorityState {
         {
             error!("Failed to expire the epoch marker buckets: {err:?}");
         }
+        // The other histories expire in the background, so that execution
+        // resumes without waiting for their deletions.
+        self.historic_bucket_expiry.send_replace(new_epoch);
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match
@@ -3301,18 +3321,12 @@ impl AuthorityState {
     }
 
     /// Opens `new_epoch`'s bucket in each per-epoch history, while execution
-    /// is stopped, and expires the buckets that fell outside their configured
-    /// retention, the RPC index history included.
-    /// A historic-object bucket from the epoch of a checkpoint a
-    /// [`Self::retain_objects`] guard still holds on is kept, and expires at a
-    /// later epoch boundary.
+    /// is stopped.
     ///
     /// # Errors
     ///
-    /// Fails only if a history cannot create its bucket for `new_epoch`.
-    /// Expiry errors are logged, since failing the reconfiguration would fail
-    /// it again on every retry; an unfinished expiry is retried later.
-    async fn advance_historic_buckets(&self, new_epoch: EpochId) -> IotaResult<()> {
+    /// Fails if a history cannot create its bucket for `new_epoch`.
+    fn open_historic_buckets(&self, new_epoch: EpochId) -> IotaResult<()> {
         self.historic_objects.ensure(new_epoch)?;
         self.historic_ledger.ensure(new_epoch)?;
         self.checkpoint_store
@@ -3324,17 +3338,42 @@ impl AuthorityState {
                 error!("Failed to open the RPC index history bucket of {new_epoch}: {err:?}");
             }
         }
+        Ok(())
+    }
 
-        // Both count the epochs kept below the one being entered, as `prune`
-        // does. `None` turns retention off.
+    /// Opens `new_epoch`'s buckets and expires the ones outside their
+    /// retention, as an epoch change and the expiry task that follows it do.
+    #[cfg(test)]
+    async fn advance_historic_buckets(&self, new_epoch: EpochId) -> IotaResult<()> {
+        self.open_historic_buckets(new_epoch)?;
+        self.expire_historic_buckets(new_epoch).await;
+        Ok(())
+    }
+
+    /// Expires the buckets of every per-epoch history, the RPC index history
+    /// included, that fell outside their configured retention as counted from
+    /// `current_epoch`. A historic-object bucket from the epoch of a
+    /// checkpoint a [`Self::retain_objects`] guard still holds on is kept.
+    /// Returns whether such a guard kept a bucket that would otherwise have
+    /// expired.
+    ///
+    /// Errors are logged: an unfinished expiry is retried by the next one, or
+    /// at the next open.
+    async fn expire_historic_buckets(&self, current_epoch: EpochId) -> bool {
+        // Both count the epochs kept below the current one, as `prune` does.
+        // `None` turns retention off.
         let pruning_config = &self.config.authority_store_pruning_config;
-        let objects_to_retain = pruning_config.num_epochs_to_retain().map(|epochs| {
+        let configured_objects_to_retain = pruning_config.num_epochs_to_retain();
+        let objects_to_retain = configured_objects_to_retain.map(|epochs| {
             self.oldest_epoch_retained_for_object_reads()
-                .map_or(epochs, |epoch| epochs.max(new_epoch.saturating_sub(epoch)))
+                .map_or(epochs, |epoch| {
+                    epochs.max(current_epoch.saturating_sub(epoch))
+                })
         });
+        let held_back = objects_to_retain != configured_objects_to_retain;
         let checkpoints_to_retain = pruning_config.num_epochs_to_retain_for_checkpoints();
 
-        // Expiry blocks for as long as the deletes and drops take.
+        // Blocks for as long as the deletes and drops take.
         let historic_objects = self.historic_objects.clone();
         let historic_ledger = self.historic_ledger.clone();
         let checkpoint_store = self.checkpoint_store.clone();
@@ -3342,24 +3381,24 @@ impl AuthorityState {
         let metrics = self.metrics.clone();
         let expired = tokio::task::spawn_blocking(move || {
             if let Some(epochs_to_retain) = objects_to_retain {
-                if let Err(err) = historic_objects.prune(new_epoch, epochs_to_retain) {
+                if let Err(err) = historic_objects.prune(current_epoch, epochs_to_retain) {
                     error!("Failed to expire historic object buckets: {err:?}");
                 }
             }
             if let Some(epochs_to_retain) = checkpoints_to_retain {
-                if let Err(err) = historic_ledger.prune(new_epoch, epochs_to_retain) {
+                if let Err(err) = historic_ledger.prune(current_epoch, epochs_to_retain) {
                     error!("Failed to expire historic ledger buckets: {err:?}");
                 }
                 if let Err(err) = checkpoint_store
                     .historic_checkpoints
-                    .prune(new_epoch, epochs_to_retain)
+                    .prune(current_epoch, epochs_to_retain)
                 {
                     error!("Failed to expire historic checkpoint buckets: {err:?}");
                 }
                 Self::record_pruned_checkpoints(&historic_ledger, &checkpoint_store);
             }
             if let Some(indexes) = rpc_indexes_store {
-                match indexes.prune(new_epoch) {
+                match indexes.prune(current_epoch) {
                     Ok(Some(earliest_retained_epoch)) => metrics
                         .earliest_retained_indexes_epoch
                         .set(earliest_retained_epoch as i64),
@@ -3372,7 +3411,37 @@ impl AuthorityState {
         if let Err(err) = expired {
             error!("The historic bucket expiry task failed: {err:?}");
         }
-        Ok(())
+        held_back
+    }
+
+    /// Expires the historic buckets for each epoch `epochs` announces,
+    /// starting with the one it holds, and again once a retention guard is
+    /// dropped after one kept a bucket. Returns once `state` is dropped.
+    async fn expire_historic_buckets_in_background(
+        state: Weak<AuthorityState>,
+        mut epochs: watch::Receiver<EpochId>,
+        released: Arc<Notify>,
+    ) {
+        loop {
+            let epoch = *epochs.borrow_and_update();
+            let Some(this) = state.upgrade() else {
+                return;
+            };
+            let held_back = this.expire_historic_buckets(epoch).await;
+            drop(this);
+            tokio::select! {
+                changed = epochs.changed() => {
+                    if changed.is_err() {
+                        return;
+                    }
+                }
+                () = released.notified(), if held_back => {
+                    // Guards come and go with requests, so one expiry per
+                    // interval rather than one per dropped guard.
+                    tokio::time::sleep(HELD_BACK_EXPIRY_INTERVAL).await;
+                }
+            }
+        }
     }
 
     /// Moves `HighestPruned` up to the last checkpoint below the epochs both

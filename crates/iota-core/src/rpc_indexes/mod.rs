@@ -1015,8 +1015,8 @@ impl RpcIndexesStore {
     /// kept, since [`Self::index_checkpoint`] reads its digests.
     ///
     /// A query racing a drop answers without the dropped epoch's rows.
-    /// Queries block for the duration of the drops, so callers on an async
-    /// runtime must use `spawn_blocking`.
+    /// Blocks for as long as the drops take, so callers on an async runtime
+    /// must use `spawn_blocking`.
     pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<EpochId>> {
         let Some(epochs_to_retain) = self.epochs_to_retain else {
             return Ok(None);
