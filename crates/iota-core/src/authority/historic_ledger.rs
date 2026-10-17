@@ -17,6 +17,7 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     transaction::TrustedTransaction,
 };
+use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
     DbIterator, TypedStoreError,
     database::Database,
@@ -53,6 +54,13 @@ const DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT: u8 = 4;
 /// how a bucket's column family is told from every other one in this
 /// database.
 const EARLIEST_RETAINED_CF: &str = "hist_ledger_retention";
+
+/// A value read from a bucket, with that bucket; `None` where no bucket held
+/// it.
+type FoundIn<V> = Option<(Arc<HistoricLedgerBucket>, V)>;
+
+/// The keys to read from one bucket, each with its position in the batch.
+type KeysOfBucket<K> = (Arc<HistoricLedgerBucket>, Vec<(usize, K)>);
 
 /// One epoch's transaction history. All rows of a transaction are in the same
 /// bucket.
@@ -255,6 +263,146 @@ impl HistoricLedger {
                 Ok(())
             })
             .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// For each of `keys`, the newest bucket holding it in the table `table`
+    /// picks, with the value it holds there; `None` where no bucket does.
+    ///
+    /// One batched read per bucket, newest first, for the keys no newer
+    /// bucket held, so a batch costs a read per bucket rather than one per
+    /// key and bucket. A bucket dropped meanwhile holds nothing.
+    fn multi_find<K, V>(
+        &self,
+        keys: &[K],
+        table: impl Fn(&HistoricLedgerBucket) -> &TaggedDBMap<K, V>,
+    ) -> IotaResult<Vec<FoundIn<V>>>
+    where
+        K: Serialize + DeserializeOwned,
+        V: Serialize + DeserializeOwned,
+    {
+        #[cfg(test)]
+        self.count_walk();
+        let mut found: Vec<FoundIn<V>> = keys.iter().map(|_| None).collect();
+        let mut pending: Vec<usize> = (0..keys.len()).collect();
+        for bucket in self.buckets.iter(true) {
+            if pending.is_empty() {
+                break;
+            }
+            let values = absent_if_dropped(
+                table(&bucket).multi_get(pending.iter().map(|&index| &keys[index])),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+            // Empty for a dropped bucket, which leaves every key pending.
+            if values.is_empty() {
+                continue;
+            }
+            let mut still_pending = Vec::new();
+            for (index, value) in pending.into_iter().zip(values) {
+                match value {
+                    Some(value) => found[index] = Some((bucket.clone(), value)),
+                    None => still_pending.push(index),
+                }
+            }
+            pending = still_pending;
+        }
+        Ok(found)
+    }
+
+    /// For each `(bucket, key)` of `lookups`, the value `bucket` holds under
+    /// `key` in the table `table` picks; `None` for a `None` lookup. One
+    /// batched read per distinct bucket.
+    fn multi_get_in_buckets<K, V>(
+        lookups: Vec<FoundIn<K>>,
+        table: impl Fn(&HistoricLedgerBucket) -> &TaggedDBMap<K, V>,
+    ) -> IotaResult<Vec<Option<V>>>
+    where
+        K: Serialize + DeserializeOwned,
+        V: Serialize + DeserializeOwned,
+    {
+        let mut values: Vec<Option<V>> = lookups.iter().map(|_| None).collect();
+        let mut by_bucket: Vec<KeysOfBucket<K>> = Vec::new();
+        for (index, lookup) in lookups.into_iter().enumerate() {
+            let Some((bucket, key)) = lookup else {
+                continue;
+            };
+            match by_bucket
+                .iter_mut()
+                .find(|(other, _)| Arc::ptr_eq(other, &bucket))
+            {
+                Some((_, keys)) => keys.push((index, key)),
+                None => by_bucket.push((bucket, vec![(index, key)])),
+            }
+        }
+        for (bucket, keys) in by_bucket {
+            let found =
+                absent_if_dropped(table(&bucket).multi_get(keys.iter().map(|(_, key)| key)))
+                    .map_err(|e| IotaError::Storage(e.to_string()))?;
+            for ((index, _), value) in keys.into_iter().zip(found) {
+                values[index] = value;
+            }
+        }
+        Ok(values)
+    }
+
+    /// [`Self::get_executed_effects_digest`] for each of `digests`.
+    pub fn multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        Ok(self
+            .multi_find(digests, |bucket| &bucket.executed_effects)?
+            .into_iter()
+            .map(|found| found.map(|(_, effects_digest)| effects_digest))
+            .collect())
+    }
+
+    /// [`Self::get_executed_effects`] for each of `digests`, read from the
+    /// bucket holding each one's execution record.
+    pub fn multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        let records = self.multi_find(digests, |bucket| &bucket.executed_effects)?;
+        Self::multi_get_in_buckets(records, |bucket| &bucket.effects)
+    }
+
+    /// [`Self::get_events`] for each of `digests`, read from the bucket holding
+    /// each one's execution record.
+    pub fn multi_get_events(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        let records = self.multi_find(digests, |bucket| &bucket.executed_effects)?;
+        let lookups = records
+            .into_iter()
+            .zip(digests)
+            .map(|(record, digest)| record.map(|(bucket, _)| (bucket, *digest)))
+            .collect();
+        Self::multi_get_in_buckets(lookups, |bucket| &bucket.events)
+    }
+
+    /// [`Self::get_transaction`] for each of `digests`.
+    pub fn multi_get_transactions(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TrustedTransaction>>> {
+        Ok(self
+            .multi_find(digests, |bucket| &bucket.transactions)?
+            .into_iter()
+            .map(|found| found.map(|(_, transaction)| transaction))
+            .collect())
+    }
+
+    /// [`Self::get_effects`] for each of `digests`.
+    pub fn multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        Ok(self
+            .multi_find(digests, |bucket| &bucket.effects)?
+            .into_iter()
+            .map(|found| found.map(|(_, effects)| effects))
+            .collect())
     }
 
     /// The bucket holding the execution record of `digest`, with its epoch;
