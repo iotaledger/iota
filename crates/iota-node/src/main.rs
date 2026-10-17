@@ -2,12 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
-use iota_core::runtime::IotaRuntimes;
+use iota_core::{index_rebuild_cancellation::is_cancelled, runtime::IotaRuntimes};
 use iota_metrics::hardware_metrics::register_hardware_metrics;
 use iota_multiaddr::Multiaddr;
 use iota_node::{IotaNode, ServerVersion};
@@ -26,6 +33,10 @@ static GLOBAL: CounterAlloc<std::alloc::System> = CounterAlloc::new(std::alloc::
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
+
+/// How long the graceful shutdown after a termination signal may take before
+/// the runtimes are stopped anyway.
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Parser)]
 #[command(
@@ -108,7 +119,7 @@ fn main() {
 
     // Initialize logging
     let prometheus_registry = registry_service.default_registry();
-    let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
+    let (telemetry_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)
         .with_disable_span_latency(true)
@@ -151,26 +162,56 @@ fn main() {
     // work if it deadlocks.
     let node_once_cell = Arc::new(AsyncOnceCell::<Arc<IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
+    let node_once_cell_shutdown = node_once_cell.clone();
 
     // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
+
+    // The RPC index rebuild runs before the node exists, so no other shutdown
+    // path reaches it.
+    let index_rebuild_cancelled = Arc::new(AtomicBool::new(false));
+
+    // A failed startup reports its exit code here rather than exiting, so
+    // main's teardown still flushes the logs.
+    let startup_failure = Arc::new(AsyncOnceCell::<i32>::new());
+    let startup_failure_clone = startup_failure.clone();
 
     // Client-facing servers run on a dedicated runtime so that external request
     // load never shares worker threads with the node core on `iota_node`.
     let serving_rt_handle = runtimes.serving.handle().clone();
 
+    let index_rebuild_cancelled_clone = index_rebuild_cancelled.clone();
     runtimes.iota_node.spawn(async move {
         let server_version = ServerVersion::new(env!("CARGO_BIN_NAME"), VERSION);
-        match IotaNode::start_async(config, registry_service, server_version, serving_rt_handle)
-            .await
+        match IotaNode::start_async(
+            config,
+            registry_service,
+            server_version,
+            serving_rt_handle,
+            index_rebuild_cancelled_clone,
+        )
+        .await
         {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),
 
             Err(e) => {
-                error!("Failed to start node: {e:?}");
-                std::process::exit(1);
+                // A rebuild abandoned at shutdown is a clean stop, so an
+                // on-failure supervisor must not restart into a fresh one.
+                let exit_code = if is_cancelled(e.as_ref()) {
+                    info!("Node startup cancelled by shutdown: {e}");
+                    0
+                } else {
+                    error!("Failed to start node: {e:?}");
+                    1
+                };
+                startup_failure_clone
+                    .set(exit_code)
+                    .expect("a startup failure is reported once");
+                // Returning drops the shutdown sender, which releases main
+                // from waiting for a termination signal.
+                return;
             }
         }
 
@@ -203,8 +244,39 @@ fn main() {
         .unwrap()
         .block_on(wait_termination(runtime_shutdown_rx));
 
+    index_rebuild_cancelled.store(true, Ordering::Relaxed);
+
+    // Stop the node's background work before its runtimes go away. A failed
+    // or cancelled startup never sets the node, so the waits are bounded.
+    let exit_code = runtimes.iota_node.block_on(async {
+        tokio::select! {
+            // A reported startup failure decides the exit code even if the
+            // wait for the node times out in the same poll.
+            biased;
+            exit_code = startup_failure.get() => exit_code,
+            node = tokio::time::timeout(SHUTDOWN_TIMEOUT, node_once_cell_shutdown.get()) => {
+                match node {
+                    Ok(node) => {
+                        if tokio::time::timeout(SHUTDOWN_TIMEOUT, node.shutdown())
+                            .await
+                            .is_err()
+                        {
+                            error!("node shutdown timed out, stopping anyway");
+                        }
+                    }
+                    Err(_) => info!("shutting down before the node finished starting"),
+                }
+                0
+            }
+        }
+    });
+
     // Drop and wait all runtimes on main thread
     drop(runtimes);
+
+    // Dropping the guard flushes the buffered log lines.
+    drop(telemetry_guard);
+    std::process::exit(exit_code);
 }
 
 #[cfg(not(unix))]
