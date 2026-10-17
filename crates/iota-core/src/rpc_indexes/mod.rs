@@ -1082,6 +1082,21 @@ impl RpcIndexesStore {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> IotaResult<usize> {
+        self.history
+            .compact_closed(current_epoch, stop)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
     /// Builds and stages the index update of one executed checkpoint. Nothing
     /// is written until [`Self::commit_update_for_checkpoint`] is called.
     /// Checkpoints up to the index watermark the store was opened at, and
@@ -1297,6 +1312,15 @@ impl RpcIndexesStore {
             store.metrics.history_backfill_running.set(0);
         });
         *self.history_backfill_task.lock() = Some(task);
+    }
+
+    /// Whether the background history backfill is still writing history
+    /// buckets, closed epochs' included.
+    pub fn is_history_backfill_running(&self) -> bool {
+        self.history_backfill_task
+            .lock()
+            .as_ref()
+            .is_some_and(|task| !task.is_finished())
     }
 
     /// Flushes every column family's memtable to disk — for tests.

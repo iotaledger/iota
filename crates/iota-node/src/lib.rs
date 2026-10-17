@@ -672,7 +672,14 @@ impl IotaNode {
         object_backlog_sweep::sweep(store.clone(), epoch_store.epoch())
             .await
             .map_err(|e| {
-                anyhow!("failed to sweep the object versions superseded before this build: {e}")
+                anyhow!(
+                    "failed to sweep the object versions superseded before this build: {e}. If it \
+                     fails on a row it cannot read every time, `iota-tool db-tool --db-path {} \
+                     mark-object-backlog-swept`, with the node stopped, lets it start without \
+                     the sweep; the versions it had not reached then stay in the live object \
+                     table",
+                    config.db_path().display()
+                )
             })?;
 
         info!("creating state sync store");
@@ -2297,6 +2304,10 @@ impl IotaNode {
     /// Stops consensus, the JSON-RPC index backfill and the gRPC server.
     /// Does nothing the second time it is called.
     pub async fn shutdown(&self) {
+        // First, so that a running expiry or compaction, which the runtime's
+        // shutdown waits for, ends soon.
+        self.state.stop_historic_bucket_work();
+
         if let Some(validator_components) = &*self.validator_components.lock().await {
             validator_components.consensus_manager.shutdown().await;
         }

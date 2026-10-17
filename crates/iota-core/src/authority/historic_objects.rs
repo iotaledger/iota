@@ -170,6 +170,8 @@ pub struct HistoricObjects {
     backlog_swept: AtomicBool,
     /// See [`Self::backlog_sweep_epoch`].
     backlog_sweep_epoch: OnceLock<EpochId>,
+    /// Set by [`Self::stop`].
+    stopping: AtomicBool,
 
     /// Counts the bucket walks of [`Self::find_lt_or_eq_version`].
     #[cfg(test)]
@@ -246,7 +248,7 @@ impl HistoricObjects {
             .collect();
         for (epoch, bucket) in interrupted {
             let cf_name = bucket_cf_name(HISTORIC_OBJECTS_CF_PREFIX, epoch);
-            if let Err(e) = Self::expire_bucket(&objects, epoch, &bucket) {
+            if let Err(e) = Self::expire_bucket(&objects, epoch, &bucket, &AtomicBool::new(false)) {
                 // Named so that an operator whose node will not start can
                 // reach the column family with external tooling.
                 error!(
@@ -283,6 +285,7 @@ impl HistoricObjects {
             objects_pruned_through: None,
             backlog_swept: AtomicBool::new(false),
             backlog_sweep_epoch: OnceLock::new(),
+            stopping: AtomicBool::new(false),
             #[cfg(test)]
             bucket_walks: std::sync::atomic::AtomicU64::new(0),
         })
@@ -301,6 +304,13 @@ impl HistoricObjects {
     /// this only once that is persisted; see [`Self::backlog_swept`].
     pub(crate) fn mark_backlog_swept(&self) {
         self.backlog_swept.store(true, Ordering::Release);
+    }
+
+    /// Stops an expiry in progress at its next batch of tombstones, for a
+    /// shutdown. The bucket stays marked expiring, and the next open finishes
+    /// the expiry; every later expiry of this store stops the same way.
+    pub fn stop(&self) {
+        self.stopping.store(true, Ordering::Release);
     }
 
     /// The epoch whose bucket the one-time backlog sweep moved the versions
@@ -328,6 +338,15 @@ impl HistoricObjects {
     /// from a formal snapshot starts with no bucket, whatever the retention.
     pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
         self.buckets.earliest_epoch()
+    }
+
+    /// [`Self::earliest_bucket_epoch`], but never below the retention floor:
+    /// an expiry moves the floor before it marks the expiring bucket and reads
+    /// stop serving it, so this follows what reads can still answer, while
+    /// the bucket itself stays until its tombstones are deleted.
+    pub fn earliest_readable_epoch(&self) -> Option<EpochId> {
+        self.earliest_bucket_epoch()
+            .map(|epoch| epoch.max(self.buckets.earliest_retained()))
     }
 
     /// The newest epoch this store holds a bucket for, `None` when it holds
@@ -436,10 +455,25 @@ impl HistoricObjects {
     ) -> IotaResult<Option<EpochId>> {
         self.buckets
             .prune(current_epoch, epochs_to_retain, |epoch, bucket| {
-                Self::expire_bucket(&self.objects, epoch, bucket).map_err(|e| {
+                Self::expire_bucket(&self.objects, epoch, bucket, &self.stopping).map_err(|e| {
                     TypedStoreError::RocksDB(format!("expiring the bucket of epoch {epoch}: {e}"))
                 })
             })
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> IotaResult<usize> {
+        self.buckets
+            .compact_closed(current_epoch, stop)
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
@@ -452,6 +486,7 @@ impl HistoricObjects {
         objects: &DBMap<ObjectKey, StoreObjectWrapper>,
         epoch: EpochId,
         bucket: &Arc<HistoricObjectsBucket>,
+        stopping: &AtomicBool,
     ) -> Result<(), TypedStoreError> {
         bucket.mark_expiring()?;
 
@@ -512,6 +547,13 @@ impl HistoricObjects {
                     &mut batch,
                     Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE),
                 ))?;
+                // The bucket stays marked expiring, so the next open
+                // finishes the expiry from here.
+                if stopping.load(Ordering::Acquire) {
+                    return Err(TypedStoreError::RocksDB(format!(
+                        "the expiry of epoch {epoch}'s bucket was stopped by a shutdown"
+                    )));
+                }
             }
         }
         deleted += batch.len();

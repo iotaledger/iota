@@ -217,6 +217,19 @@ impl HistoricCheckpoints {
         })
     }
 
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> Result<usize, TypedStoreError> {
+        self.buckets.compact_closed(current_epoch, stop)
+    }
+
     /// The contents stored under `digest`, newest bucket first, `None` if no
     /// bucket holds them (or their bucket has since been dropped).
     pub fn find_contents(

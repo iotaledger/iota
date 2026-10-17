@@ -265,6 +265,21 @@ impl HistoricLedger {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> IotaResult<usize> {
+        self.buckets
+            .compact_closed(current_epoch, stop)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
     /// For each of `keys`, the newest bucket holding it in the table `table`
     /// picks, with the value it holds there; `None` where no bucket does.
     ///

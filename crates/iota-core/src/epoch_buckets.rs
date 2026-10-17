@@ -26,7 +26,10 @@ use tracing::{info, warn};
 use typed_store::{
     TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, list_tables, synced_write_options},
+    rocks::{
+        DBMap, DBOptions, available_disk_space, list_tables, synced_write_options,
+        target_file_size_base,
+    },
     rocksdb::{self, DBPath},
     traits::Map,
 };
@@ -196,6 +199,16 @@ pub(crate) fn history_cf_options(
 /// epoch's bucket, which takes all of the epoch's writes; closed buckets are
 /// compacted into one run by [`EpochBuckets::compact_closed`].
 const BUCKET_COMPACTION_TRIGGER: i32 = 8;
+
+/// The file size below which [`EpochBuckets::compact_closed`] counts a closed
+/// bucket's files as too many, even in a single sorted run: SST ingestion,
+/// as in the one-time ledger migration, can leave a bucket with thousands of
+/// small files, each costing a table reader and MANIFEST entry. Half the
+/// compaction's output file size if that is smaller, so a compacted bucket
+/// never counts.
+fn compacted_file_size() -> u64 {
+    (32 << 20).min(target_file_size_base() / 2).max(1)
+}
 
 /// Options every bucket column family is opened with.
 pub(crate) fn bucket_cf_options(db_options: &DBOptions) -> DBOptions {
@@ -660,6 +673,82 @@ impl<B: BucketReopen> EpochBuckets<B> {
         Ok(Some(earliest_retained))
     }
 
+    /// Compacts each bucket below `current_epoch` into a single sorted run,
+    /// oldest first, so a lookup probes it once; also a bucket in one sorted
+    /// run of far more files than its size needs. Such a bucket is no longer
+    /// written, so this compacts it once; the ones already compacted are
+    /// skipped. A bucket is also skipped while its disk has less free space
+    /// than the bucket's files take, which the compaction needs again until
+    /// it finishes. Returns how many buckets it compacted.
+    ///
+    /// `stop` is asked before each bucket; once it answers `true`, the rest
+    /// are left for a later call. A bucket's compaction cannot be cut short.
+    ///
+    /// Blocks for as long as the compactions take, so callers on an async
+    /// runtime must use `spawn_blocking`. Queries and writes go on meanwhile.
+    pub(crate) fn compact_closed(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> Result<usize, TypedStoreError> {
+        let mut compacted = 0;
+        let closed: Vec<EpochId> = self
+            .buckets
+            .read()
+            .range(..current_epoch)
+            .map(|(&epoch, _)| epoch)
+            .collect();
+        for epoch in closed {
+            if stop() {
+                break;
+            }
+            let cf_name = bucket_cf_name(self.cf_prefix, epoch);
+            let size = self.db.sst_files_size(&cf_name)?;
+            if self.db.sorted_runs(&cf_name)? <= 1
+                && self.db.sst_file_count(&cf_name)? <= size / compacted_file_size() + 8
+            {
+                continue;
+            }
+            let dir = match &self.paths {
+                Some(paths) => paths.bucket_dir(epoch),
+                None => self.db.path_for_pruning().to_path_buf(),
+            };
+            if let Some(free) = available_disk_space(&dir) {
+                if free < size + size / 10 {
+                    warn!(
+                        store = self.name,
+                        epoch,
+                        size,
+                        free,
+                        "not compacting the bucket of a closed epoch: too little free disk space"
+                    );
+                    continue;
+                }
+            }
+            let started = Instant::now();
+            // A bucket dropped meanwhile needs no compaction.
+            absent_if_dropped(self.db.compact_cf(&cf_name))?;
+            // RocksDB reports no error from a manual compaction; one that
+            // failed leaves the runs as they were.
+            let runs = self.db.sorted_runs(&cf_name)?;
+            if runs > 1 {
+                warn!(
+                    store = self.name,
+                    epoch, runs, "the compaction of a closed bucket left more than one sorted run"
+                );
+                continue;
+            }
+            info!(
+                store = self.name,
+                epoch,
+                elapsed_ms = started.elapsed().as_millis(),
+                "compacted the bucket of a closed epoch"
+            );
+            compacted += 1;
+        }
+        Ok(compacted)
+    }
+
     /// The earliest epoch to retain when `current_epoch` is kept together
     /// with the `epochs_to_retain` epochs below it, never below `persisted`.
     /// `None` when there is no bucket at all. `u64::MAX` retains everything.
@@ -955,6 +1044,78 @@ mod tests {
             false,
         )
         .unwrap()
+    }
+
+    /// A closed bucket in a single sorted run of many small files, as SST
+    /// ingestion leaves one, is compacted too, and only once.
+    #[tokio::test]
+    async fn a_closed_bucket_of_many_small_files_is_compacted() {
+        let (buckets, dir) = test_buckets(&[1, 2]);
+        let table = bucket_table(&buckets.db, 1);
+        let paths: Vec<PathBuf> = (0..20u64)
+            .map(|file| {
+                let mut buffer = typed_store::rocks::SstFileBuffer::<u64, u64>::new();
+                buffer.insert(&file, &file).unwrap();
+                let path = dir.path().join(format!("ingest-{file}.sst"));
+                buffer.write_file(&path, buckets.cf_options()).unwrap();
+                path
+            })
+            .collect();
+        table.ingest_sst_files(&paths).unwrap();
+        let cf_name = bucket_cf_name(TEST_CF_PREFIX, 1);
+        assert_eq!(buckets.db.sorted_runs(&cf_name).unwrap(), 1);
+        assert_eq!(buckets.db.sst_file_count(&cf_name).unwrap(), 20);
+
+        assert_eq!(buckets.compact_closed(2, &|| false).unwrap(), 1);
+        assert!(buckets.db.sst_file_count(&cf_name).unwrap() <= 8);
+        assert_eq!(table.get(&19).unwrap(), Some(19));
+        assert_eq!(buckets.compact_closed(2, &|| false).unwrap(), 0);
+    }
+
+    /// Closed buckets are compacted into one sorted run, once; the current
+    /// epoch's bucket and a closed one already in a single run are left alone.
+    #[tokio::test]
+    async fn closed_buckets_are_compacted_once() {
+        let (buckets, _dir) = test_buckets(&[1, 2, 3]);
+        let flushes = [(1, 2), (2, 1), (3, 2)];
+        for (epoch, files) in flushes {
+            let table = bucket_table(&buckets.db, epoch);
+            for key in 0..files {
+                table.insert(&key, &key).unwrap();
+                table.flush().unwrap();
+            }
+        }
+        let runs = |epoch| {
+            buckets
+                .db
+                .sorted_runs(&bucket_cf_name(TEST_CF_PREFIX, epoch))
+                .unwrap()
+        };
+        assert_eq!([runs(1), runs(2), runs(3)], [2, 1, 2]);
+
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 1);
+        assert_eq!([runs(1), runs(2), runs(3)], [1, 1, 2]);
+        assert_eq!(bucket_table(&buckets.db, 1).get(&1).unwrap(), Some(1));
+
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 0);
+    }
+
+    /// A compaction told to stop leaves the remaining buckets for a later
+    /// call.
+    #[tokio::test]
+    async fn a_stopped_compaction_leaves_the_remaining_buckets() {
+        let (buckets, _dir) = test_buckets(&[1, 2, 3]);
+        for epoch in [1, 2] {
+            let table = bucket_table(&buckets.db, epoch);
+            for key in 0..2 {
+                table.insert(&key, &key).unwrap();
+                table.flush().unwrap();
+            }
+        }
+        let asked = std::sync::atomic::AtomicUsize::new(0);
+        let stop_after_one = || asked.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 1;
+        assert_eq!(buckets.compact_closed(3, &stop_after_one).unwrap(), 1);
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 1);
     }
 
     /// A bucket writes its files into its epoch's directory rather than the
