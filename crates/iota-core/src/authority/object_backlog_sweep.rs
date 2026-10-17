@@ -34,8 +34,8 @@
 //! direction.
 //!
 //! The walk runs at node startup, before any service that could expire a
-//! historic bucket has started. A bucket's tombstone heads may only be
-//! deleted once every version beneath them is out of reach; the heads this
+//! historic bucket has started. A bucket's tombstones may only be
+//! deleted once every version beneath them is out of reach; the tombstones this
 //! walk records land in the same bucket as the versions it relocates, so the
 //! two expire together, but a version superseded before this build sits in
 //! the live table until the walk reaches it, and finishing the walk first is

@@ -979,9 +979,9 @@ async fn test_read_a_moved_version_from_its_epochs_bucket_only() {
 }
 
 /// Committing a transaction that deletes or wraps an object records a
-/// tombstone head for each in the bucket of the committing epoch.
+/// tombstone for each in the bucket of the committing epoch.
 #[tokio::test]
-async fn test_commit_writes_tombstone_heads() {
+async fn test_commit_records_tombstones() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         let deleted = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -999,11 +999,11 @@ async fn test_commit_writes_tombstone_heads() {
         let bucket = s.store.get_historic_objects().ensure(1).unwrap();
         assert!(
             bucket.tombstones.get(&deleted_key).unwrap().is_some(),
-            "a deleted object's tombstone head must be recorded in the committing epoch's bucket"
+            "a deleted object's tombstone must be recorded in the committing epoch's bucket"
         );
         assert!(
             bucket.tombstones.get(&wrapped_key).unwrap().is_some(),
-            "a wrapped object's tombstone head must be recorded in the committing epoch's bucket"
+            "a wrapped object's tombstone must be recorded in the committing epoch's bucket"
         );
     })
     .await;
