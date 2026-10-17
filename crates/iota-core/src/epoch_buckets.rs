@@ -83,14 +83,18 @@ impl BucketPaths {
     }
 
     /// [`Self::cf_options`] for a bucket already on disk. Creates the
-    /// bucket's directory if it is missing, as the open would fail without it.
+    /// bucket's directory if it is missing, as the open would fail without it,
+    /// but only under a root that exists: a mistyped root is left for the open
+    /// to refuse rather than created empty.
     pub(crate) fn existing_cf_options(
         &self,
         options: &rocksdb::Options,
         epoch: EpochId,
     ) -> rocksdb::Options {
-        if let Err(e) = self.create_dir(epoch) {
-            warn!("{e}");
+        if self.root.exists() {
+            if let Err(e) = self.create_dir(epoch) {
+                warn!("{e}");
+            }
         }
         self.cf_options(options, epoch)
     }
@@ -642,6 +646,20 @@ mod tests {
                 .unwrap(),
             Some(0)
         );
+    }
+
+    /// The options of a bucket under a root that does not exist, as a tool
+    /// given a mistyped path computes them, create no directory.
+    #[test]
+    fn options_under_a_missing_root_create_no_directory() {
+        let dir = iota_common::tempdir();
+        let paths = BucketPaths::new(&dir.path().join("mistyped"), "test");
+        paths.existing_cf_options(&rocksdb::Options::default(), 3);
+        assert!(!dir.path().join("mistyped").exists());
+
+        let paths = BucketPaths::new(dir.path(), "test");
+        paths.existing_cf_options(&rocksdb::Options::default(), 3);
+        assert!(paths.bucket_dir(3).exists());
     }
 
     /// The name mapping must round-trip and reject other stores' prefixes:
