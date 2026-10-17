@@ -1,0 +1,863 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+#[test_only]
+module iota::builtin_authenticator_functions_tests;
+
+use iota::authenticator_function;
+use iota::builtin_authenticator_functions;
+use iota::public_key;
+use iota::signature_scheme;
+use iota::test_scenario;
+use iota::test_utils::{assert_eq, assert_ref_eq};
+use std::ascii;
+
+// === Signed transaction fixtures ===
+
+// A BCS-encoded `Transaction` and, for each built-in scheme, a public key and a signature of
+// that transaction in `UserSignature` wire format. Generated with `iota-sdk-crypto`.
+const TX_DATA_BYTES: vector<u8> =
+    x"0000010020000000000000000000000000000000000000000000000000000000000000000001010100010000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e803000000000000102700000000000000";
+// A different BCS-encoded `Transaction`; it differs from `TX_DATA_BYTES` only in its gas budget.
+const OTHER_TX_DATA_BYTES: vector<u8> =
+    x"0000010020000000000000000000000000000000000000000000000000000000000000000001010100010000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e803000000000000112700000000000000";
+const ED25519_PUBLIC_KEY: vector<u8> =
+    x"8c553335eee80b9bfa0c544a45fe63474a09dff9c4b0b33db2b662f934ea46c4";
+const ED25519_SIGNATURE: vector<u8> =
+    x"00649c1b109c25b515d1417fd8b47bb4aa7c34f7b4dbe38227bee2943e52d93d2306901d88d17544a4362e9c6279974e3e93a89d20b4bf1fcedb9d24bf2bc8d60a8c553335eee80b9bfa0c544a45fe63474a09dff9c4b0b33db2b662f934ea46c4";
+const SECP256K1_PUBLIC_KEY: vector<u8> =
+    x"0286bcc70599ebc420b3b8977ecc60e594bb56749beaa562d7f80a9bdfffcaaa1d";
+const SECP256K1_SIGNATURE: vector<u8> =
+    x"01bc454c2a0b358d02c7f6e8b8f4a66f09a525d252328437f0ef90e633d5d093ab5f75184f9dcff47c5fe2eaed5780f47238d7916584c1f96ad058077cde1a5b1c0286bcc70599ebc420b3b8977ecc60e594bb56749beaa562d7f80a9bdfffcaaa1d";
+const SECP256R1_PUBLIC_KEY: vector<u8> =
+    x"02cd32c13b418c9ffa3e5e2f7565e1c24a9681fd222a4317d36f1dcc9c0a2a9c24";
+const SECP256R1_SIGNATURE: vector<u8> =
+    x"025cffe6642d21d90e7e9913f3cedd7ffb3c835d158af4ffa22c8a5dd28f068a692a2c41001878d61ab93e05368f8231edc00b1a92a4eee28346ee10a8f4ca3d3702cd32c13b418c9ffa3e5e2f7565e1c24a9681fd222a4317d36f1dcc9c0a2a9c24";
+const MULTISIG_PUBLIC_KEY: vector<u8> =
+    x"02001b823a9a4b87863aa419fc6922e28944c29a1677852490ced5625dd9b319f280010102f769f618d113c8e5798a81d1f67f381ed46b34cc151ee873078cb82517368b91010100";
+const MULTISIG_SIGNATURE: vector<u8> =
+    x"0301008299a1183eddec121c12ad648bc9a1dedaebb49226195acbc1603d9785cfef17ef67c35559ccf5a935bc370c0643e76a810d10adbb45d9ac6d99deed7d45e00c010002001b823a9a4b87863aa419fc6922e28944c29a1677852490ced5625dd9b319f280010102f769f618d113c8e5798a81d1f67f381ed46b34cc151ee873078cb82517368b91010100";
+const PASSKEY_PUBLIC_KEY: vector<u8> =
+    x"02eaecc5054b198215cc1c02f5e8694cdaf53bedc6cdee122a3189f76cb70568d2";
+const PASSKEY_SIGNATURE: vector<u8> =
+    x"0601ab81017b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a2276676c3464306d4c6f34446939357539457144444c656d44495754784367484f4a67493266496f374f6359222c226f726967696e223a2268747470733a2f2f696f74612e6f7267222c2263726f73734f726967696e223a66616c73657d6202c12da0eb39aea4172afea070b0f5adb96453b58a0715e690f275512f9be00fd82499664ebb4dbc9ab900de59b3d4ccb52efb4c821a6673a2050ab630990fa88002eaecc5054b198215cc1c02f5e8694cdaf53bedc6cdee122a3189f76cb70568d2";
+
+const DIGEST: vector<u8> = x"0000000000000000000000000000000000000000000000000000000000000000";
+
+// Used as a stand-in account type throughout the tests.
+public struct TestAccount has key {
+    id: UID,
+}
+
+fun id(self: &TestAccount): &UID { &self.id }
+
+fun id_mut(self: &mut TestAccount): &mut UID { &mut self.id }
+
+// === Authenticator function ref construction ===
+
+#[test]
+fun builtin_auth_function_ref_has_correct_fields() {
+    let ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<TestAccount>();
+
+    assert_eq(ref.package(), object::id_from_address(@0x2));
+    assert_ref_eq(ref.module_name(), &ascii::string(b"builtin_authenticator_functions"));
+    assert_ref_eq(ref.function_name(), &ascii::string(b"builtin_authenticator_v1"));
+}
+
+#[test]
+fun is_builtin_authenticator_accepts_the_builtin_ref() {
+    let ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<TestAccount>();
+
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&ref), true);
+}
+
+#[test]
+fun is_builtin_authenticator_rejects_other_refs() {
+    let other_package = authenticator_function::create_auth_function_ref_v1_for_testing<
+        TestAccount,
+    >(
+        @0xABC,
+        ascii::string(b"builtin_authenticator_functions"),
+        ascii::string(b"builtin_authenticator_v1"),
+    );
+    let other_function = authenticator_function::create_auth_function_ref_v1_for_testing<
+        TestAccount,
+    >(
+        @0x2,
+        ascii::string(b"builtin_authenticator_functions"),
+        ascii::string(b"other_function"),
+    );
+
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_package), false);
+    assert_eq(builtin_authenticator_functions::is_builtin_authenticator(&other_function), false);
+}
+
+// === attach_public_key / has_public_key / borrow_public_key / detach_public_key ===
+
+#[test]
+fun attach_borrow_detach_lifecycle() {
+    account_test_mut!(|account| {
+        let public_key = ed25519_public_key();
+        assert_eq(builtin_authenticator_functions::has_public_key(account.id()), false);
+
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), public_key);
+
+        assert_eq(builtin_authenticator_functions::has_public_key(account.id()), true);
+        assert_ref_eq(
+            builtin_authenticator_functions::borrow_public_key(account.id()),
+            &public_key,
+        );
+
+        let returned = builtin_authenticator_functions::detach_public_key(account.id_mut());
+
+        assert_eq(returned, public_key);
+        assert_eq(builtin_authenticator_functions::has_public_key(account.id()), false);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyAlreadyAttached)]
+fun attach_twice_aborts() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+fun borrow_without_attach_aborts() {
+    account_test!(|account| {
+        builtin_authenticator_functions::borrow_public_key(account.id());
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+fun detach_without_attach_aborts() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::detach_public_key(account.id_mut());
+    });
+}
+
+// === rotate_public_key ===
+
+#[test]
+fun rotate_returns_old_key_and_stores_new() {
+    account_test_mut!(|account| {
+        let old_public_key = ed25519_public_key();
+        let new_public_key = secp256k1_public_key();
+
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), old_public_key);
+        let returned = builtin_authenticator_functions::rotate_public_key(
+            account.id_mut(),
+            new_public_key,
+        );
+
+        assert_eq(returned, old_public_key);
+        assert_ref_eq(
+            builtin_authenticator_functions::borrow_public_key(account.id()),
+            &new_public_key,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+fun rotate_without_attach_aborts() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::rotate_public_key(account.id_mut(), ed25519_public_key());
+    });
+}
+
+// === ensure_builtin_auth_and_public_key_together ===
+
+#[test]
+fun ensure_together_accepts_the_builtin_ref_with_a_public_key() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &builtin_authenticator(),
+        );
+    });
+}
+
+#[test]
+fun ensure_together_accepts_a_custom_ref_without_a_public_key() {
+    account_test!(|account| {
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &custom_authenticator(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EBuiltinAuthWithoutPublicKey)]
+fun ensure_together_aborts_for_the_builtin_ref_without_a_public_key() {
+    account_test!(|account| {
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &builtin_authenticator(),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = builtin_authenticator_functions::EPublicKeyWithoutBuiltinAuth)]
+fun ensure_together_aborts_for_a_custom_ref_with_a_public_key() {
+    account_test_mut!(|account| {
+        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+
+        builtin_authenticator_functions::ensure_builtin_auth_and_public_key_together(
+            account.id(),
+            &custom_authenticator(),
+        );
+    });
+}
+
+// === Built-in authenticators ===
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+fun builtin_authenticator_aborts_without_public_key() {
+    account_test!(|account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+fun builtin_authenticator_follows_public_key_rotation_to_another_scheme() {
+    rotation_test!(|account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256K1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_rotated_out_public_key() {
+    rotation_test!(|account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+// --- Ed25519 public key ---
+
+#[test]
+fun builtin_authenticator_accepts_valid_signature_ed25519() {
+    authenticator_test!(signature_scheme::ed25519(), ED25519_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_tampered_signature_ed25519() {
+    authenticator_test!(signature_scheme::ed25519(), ED25519_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            tampered(ED25519_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_malformed_signature_ed25519() {
+    authenticator_test!(signature_scheme::ed25519(), ED25519_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            malformed(ED25519_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_by_another_key_ed25519() {
+    authenticator_test!(
+        signature_scheme::ed25519(),
+        *ed25519_public_key().raw_bytes(),
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_scheme_ed25519() {
+    authenticator_test!(signature_scheme::ed25519(), ED25519_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256K1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_invalid_transaction_bytes_ed25519() {
+    authenticator_test!(signature_scheme::ed25519(), ED25519_PUBLIC_KEY, x"00", |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_transaction_ed25519() {
+    authenticator_test!(
+        signature_scheme::ed25519(),
+        ED25519_PUBLIC_KEY,
+        OTHER_TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+// --- Secp256k1 public key ---
+
+#[test]
+fun builtin_authenticator_accepts_valid_signature_secp256k1() {
+    authenticator_test!(
+        signature_scheme::secp256k1(),
+        SECP256K1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256K1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_tampered_signature_secp256k1() {
+    authenticator_test!(
+        signature_scheme::secp256k1(),
+        SECP256K1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            tampered(SECP256K1_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_malformed_signature_secp256k1() {
+    authenticator_test!(
+        signature_scheme::secp256k1(),
+        SECP256K1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            malformed(SECP256K1_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_by_another_key_secp256k1() {
+    authenticator_test!(
+        signature_scheme::secp256k1(),
+        *secp256k1_public_key().raw_bytes(),
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256K1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_scheme_secp256k1() {
+    authenticator_test!(
+        signature_scheme::secp256k1(),
+        SECP256K1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_invalid_transaction_bytes_secp256k1() {
+    authenticator_test!(signature_scheme::secp256k1(), SECP256K1_PUBLIC_KEY, x"00", |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256K1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_transaction_secp256k1() {
+    authenticator_test!(
+        signature_scheme::secp256k1(),
+        SECP256K1_PUBLIC_KEY,
+        OTHER_TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256K1_SIGNATURE,
+        );
+    });
+}
+
+// --- Secp256r1 public key ---
+
+#[test]
+fun builtin_authenticator_accepts_valid_signature_secp256r1() {
+    authenticator_test!(
+        signature_scheme::secp256r1(),
+        SECP256R1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256R1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_tampered_signature_secp256r1() {
+    authenticator_test!(
+        signature_scheme::secp256r1(),
+        SECP256R1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            tampered(SECP256R1_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_malformed_signature_secp256r1() {
+    authenticator_test!(
+        signature_scheme::secp256r1(),
+        SECP256R1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            malformed(SECP256R1_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_by_another_key_secp256r1() {
+    authenticator_test!(
+        signature_scheme::secp256r1(),
+        PASSKEY_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256R1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_scheme_secp256r1() {
+    authenticator_test!(
+        signature_scheme::secp256r1(),
+        SECP256R1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_invalid_transaction_bytes_secp256r1() {
+    authenticator_test!(signature_scheme::secp256r1(), SECP256R1_PUBLIC_KEY, x"00", |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256R1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_transaction_secp256r1() {
+    authenticator_test!(
+        signature_scheme::secp256r1(),
+        SECP256R1_PUBLIC_KEY,
+        OTHER_TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256R1_SIGNATURE,
+        );
+    });
+}
+
+// --- MultiSig public key ---
+
+#[test]
+fun builtin_authenticator_accepts_valid_signature_multisig() {
+    authenticator_test!(
+        signature_scheme::multisig(),
+        MULTISIG_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            MULTISIG_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_tampered_signature_multisig() {
+    authenticator_test!(
+        signature_scheme::multisig(),
+        MULTISIG_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            tampered(MULTISIG_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_malformed_signature_multisig() {
+    authenticator_test!(
+        signature_scheme::multisig(),
+        MULTISIG_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            malformed(MULTISIG_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_by_another_key_multisig() {
+    authenticator_test!(
+        signature_scheme::multisig(),
+        other_multisig_public_key(),
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            MULTISIG_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_scheme_multisig() {
+    authenticator_test!(
+        signature_scheme::multisig(),
+        MULTISIG_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            ED25519_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_invalid_transaction_bytes_multisig() {
+    authenticator_test!(signature_scheme::multisig(), MULTISIG_PUBLIC_KEY, x"00", |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            MULTISIG_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_transaction_multisig() {
+    authenticator_test!(
+        signature_scheme::multisig(),
+        MULTISIG_PUBLIC_KEY,
+        OTHER_TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            MULTISIG_SIGNATURE,
+        );
+    });
+}
+
+// --- Passkey public key ---
+
+#[test]
+fun builtin_authenticator_accepts_valid_signature_passkey() {
+    authenticator_test!(signature_scheme::passkey(), PASSKEY_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            PASSKEY_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_tampered_signature_passkey() {
+    authenticator_test!(signature_scheme::passkey(), PASSKEY_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            tampered(PASSKEY_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_malformed_signature_passkey() {
+    authenticator_test!(signature_scheme::passkey(), PASSKEY_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            malformed(PASSKEY_SIGNATURE),
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_by_another_key_passkey() {
+    authenticator_test!(
+        signature_scheme::passkey(),
+        SECP256R1_PUBLIC_KEY,
+        TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            PASSKEY_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_scheme_passkey() {
+    authenticator_test!(signature_scheme::passkey(), PASSKEY_PUBLIC_KEY, TX_DATA_BYTES, |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            SECP256R1_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_invalid_transaction_bytes_passkey() {
+    authenticator_test!(signature_scheme::passkey(), PASSKEY_PUBLIC_KEY, x"00", |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            PASSKEY_SIGNATURE,
+        );
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EInvalidSignature)]
+fun builtin_authenticator_rejects_signature_of_another_transaction_passkey() {
+    authenticator_test!(
+        signature_scheme::passkey(),
+        PASSKEY_PUBLIC_KEY,
+        OTHER_TX_DATA_BYTES,
+        |account| {
+        builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+            account,
+            PASSKEY_SIGNATURE,
+        );
+    });
+}
+
+// === Helpers ===
+
+fun ed25519_public_key(): public_key::PublicKey {
+    // 32 zero bytes — raw ed25519 key material
+    public_key::create(
+        signature_scheme::ed25519(),
+        x"0000000000000000000000000000000000000000000000000000000000000000",
+    )
+}
+
+fun secp256k1_public_key(): public_key::PublicKey {
+    public_key::create(
+        signature_scheme::secp256k1(),
+        x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c",
+    )
+}
+
+fun builtin_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<TestAccount> {
+    builtin_authenticator_functions::builtin_authenticator_function_ref_v1()
+}
+
+fun custom_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<TestAccount> {
+    authenticator_function::create_auth_function_ref_v1_for_testing(
+        @0xABC,
+        ascii::string(b"custom_authenticator"),
+        ascii::string(b"authenticate"),
+    )
+}
+
+macro fun account_test($f: |&TestAccount|) {
+    let mut scenario = test_scenario::begin(@0x0);
+    let account = TestAccount { id: object::new(scenario.ctx()) };
+
+    $f(&account);
+
+    iota::test_utils::destroy(account);
+    scenario.end();
+}
+
+macro fun account_test_mut($f: |&mut TestAccount|) {
+    let mut scenario = test_scenario::begin(@0x0);
+    let mut account = TestAccount { id: object::new(scenario.ctx()) };
+
+    $f(&mut account);
+
+    iota::test_utils::destroy(account);
+    scenario.end();
+}
+
+/// Runs `$f` on an account with the `$scheme` public key `$raw_public_key` attached, while
+/// `$tx_data_bytes` is the transaction being authenticated.
+macro fun authenticator_test(
+    $scheme: signature_scheme::SignatureScheme,
+    $raw_public_key: vector<u8>,
+    $tx_data_bytes: vector<u8>,
+    $f: |&TestAccount|,
+) {
+    let mut scenario = test_scenario::begin(@0x0);
+    let mut account = TestAccount { id: object::new(scenario.ctx()) };
+    builtin_authenticator_functions::attach_public_key(
+        account.id_mut(),
+        public_key::create($scheme, $raw_public_key),
+    );
+    set_tx_data_bytes($tx_data_bytes);
+
+    $f(&account);
+
+    iota::test_utils::destroy(account);
+    scenario.end();
+}
+
+fun set_tx_data_bytes(tx_data_bytes: vector<u8>) {
+    auth_context::new_for_testing(
+        DIGEST,
+        vector[],
+        vector[],
+        tx_data_bytes,
+        DIGEST,
+        option::none(),
+        option::none(),
+        option::none(),
+    );
+}
+
+/// Returns `signature` with its middle byte flipped.
+fun tampered(mut signature: vector<u8>): vector<u8> {
+    let middle = signature.length() / 2;
+    *&mut signature[middle] = signature[middle] ^ 0xff;
+    signature
+}
+
+/// Returns the `MULTISIG_PUBLIC_KEY` committee with its threshold raised from 1 to 2, which
+/// derives a different address.
+fun other_multisig_public_key(): vector<u8> {
+    let mut committee = MULTISIG_PUBLIC_KEY;
+    // The BCS-encoded threshold is the trailing little-endian `u16`.
+    let threshold_index = committee.length() - 2;
+    *&mut committee[threshold_index] = 2;
+    committee
+}
+
+/// Returns a signature with the flag of `signature` and an unparsable payload.
+fun malformed(signature: vector<u8>): vector<u8> {
+    vector[signature[0], 0xab]
+}
+
+/// Runs `$f` on an account that authenticated with `ED25519_PUBLIC_KEY` and then rotated its
+/// public key to `SECP256K1_PUBLIC_KEY`, while `TX_DATA_BYTES` is the transaction being
+/// authenticated.
+macro fun rotation_test($f: |&TestAccount|) {
+    let mut scenario = test_scenario::begin(@0x0);
+    let mut account = TestAccount { id: object::new(scenario.ctx()) };
+    builtin_authenticator_functions::attach_public_key(
+        account.id_mut(),
+        public_key::create(signature_scheme::ed25519(), ED25519_PUBLIC_KEY),
+    );
+    set_tx_data_bytes(TX_DATA_BYTES);
+    builtin_authenticator_functions::builtin_authenticator_v1_for_testing(
+        &account,
+        ED25519_SIGNATURE,
+    );
+
+    builtin_authenticator_functions::rotate_public_key(
+        account.id_mut(),
+        public_key::create(signature_scheme::secp256k1(), SECP256K1_PUBLIC_KEY),
+    );
+    $f(&account);
+
+    iota::test_utils::destroy(account);
+    scenario.end();
+}

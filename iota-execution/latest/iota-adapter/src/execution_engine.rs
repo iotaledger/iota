@@ -17,19 +17,23 @@ mod checked {
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
-        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction,
-        Identifier, MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        AccountClaimKind, Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+        ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
+        ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
         SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
         TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        account_abstraction::authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1, MoveAuthenticatorForExecution,
-            MoveAuthenticatorsForExecution,
+        account_abstraction::{
+            authenticator_function::{
+                AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+                AuthenticatorFunctionRefForSigning, AuthenticatorFunctionRefV1,
+                MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
+            },
+            builtin_authenticator_functions,
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
@@ -516,7 +520,7 @@ mod checked {
         // Authentication
         authenticators: Vec<(
             MoveAuthenticator,
-            AuthenticatorFunctionRef,
+            AuthenticatorFunctionRefForSigning,
             CheckedInputObjects,
         )>,
         aggregated_authenticator_input_objects: CheckedInputObjects,
@@ -564,7 +568,15 @@ mod checked {
 
         // Run each authenticator in sequence; return on first failure.
         let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+            |(
+                authenticator,
+                authenticator_function_ref_for_signing,
+                authenticator_input_objects,
+            )| {
+                let AuthenticatorFunctionRefForSigning {
+                    authenticator_function_ref,
+                } = authenticator_function_ref_for_signing;
+
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                         authenticate_transaction_inner(
@@ -590,15 +602,13 @@ mod checked {
         report_authentication_error(authentication_execution_result, protocol_config)
     }
 
-    // This function implements the authentication execution. It checks that the
-    // authentication method used by the authenticator is valid. It prepares a
-    /// `MoveAuthenticator` PTB with a single move call for execution, then
-    /// executes it through an inner execution method. The
-    /// `MoveAuthenticator` provides the inputs to use for the
-    /// authentication function found in `AuthenticatorFunctionRef`,
-    /// that is retrieved from an account.
-    /// If the execution fails, it returns an execution error; otherwise it
-    /// returns an empty value.
+    /// Executes a single authenticator against the transaction.
+    ///
+    /// A built-in authenticator is executed as a system call to its private
+    /// Move function; a custom one as a Move call to its `#[authenticator]`
+    /// function.
+    ///
+    /// Returns an error on the first failure; an empty value on success.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction_inner(
         temporary_store: &mut TemporaryStore<'_>,
@@ -671,20 +681,39 @@ mod checked {
         temporary_store.store_auth_context(auth_ctx);
 
         // Execute the authentication.
-        let authentication_execution_result = execute_authenticator_move_call(
-            temporary_store,
-            authenticator,
-            authenticator_function_ref,
-            gas_charger,
-            tx_ctx,
-            move_vm,
-            protocol_config,
-            metrics,
-            false,
-            contains_deleted_input,
-            cancelled_objects,
-            trace_builder_opt,
-        );
+        let authentication_execution_result =
+            if builtin_authenticator_functions::is_builtin_authenticator_function_ref(
+                &authenticator_function_ref,
+            ) {
+                execute_builtin_authenticator_call(
+                    temporary_store,
+                    authenticator,
+                    authenticator_function_ref,
+                    gas_charger,
+                    tx_ctx,
+                    move_vm,
+                    protocol_config,
+                    metrics,
+                    contains_deleted_input,
+                    cancelled_objects,
+                    trace_builder_opt,
+                )
+            } else {
+                execute_authenticator_move_call(
+                    temporary_store,
+                    authenticator,
+                    authenticator_function_ref,
+                    gas_charger,
+                    tx_ctx,
+                    move_vm,
+                    protocol_config,
+                    metrics,
+                    false,
+                    contains_deleted_input,
+                    cancelled_objects,
+                    trace_builder_opt,
+                )
+            };
 
         // Check the authentication result.
         let authentication_execution_status = if let Err(error) = &authentication_execution_result {
@@ -702,6 +731,61 @@ mod checked {
         );
 
         authentication_execution_result
+    }
+
+    /// Executes a built-in authenticator as a system call to its private
+    /// Move function in `builtin_authenticator_functions`.
+    ///
+    /// Like [`execute_authenticator_move_call`], it charges gas only for the
+    /// Move function execution and returns only the execution results.
+    #[instrument(name = "auth_builtin_execute", level = "debug", skip_all)]
+    fn execute_builtin_authenticator_call(
+        temporary_store: &mut TemporaryStore<'_>,
+        authenticator: MoveAuthenticator,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
+        gas_charger: &mut GasCharger,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
+    {
+        // It must NOT charge gas for reading the Move authenticator input objects from
+        // the storage. It will be done later during the transaction execution.
+        // Then execute the authentication.
+        run_inputs_checks(
+            protocol_config,
+            false,
+            contains_deleted_input,
+            cancelled_objects,
+        )
+        .and_then(|()| {
+            let builtin_authenticator_call = setup_builtin_authenticator_call(
+                temporary_store,
+                authenticator,
+                authenticator_function_ref,
+            )?;
+            // The built-in authenticator function is private, so it is called
+            // in the `PrivateCall` mode.
+            programmable_transactions::execution::execute::<execution_mode::PrivateCall>(
+                protocol_config,
+                metrics,
+                move_vm,
+                temporary_store,
+                tx_ctx,
+                gas_charger,
+                builtin_authenticator_call,
+                trace_builder_opt,
+            )
+            .map_err(|(e, _)| e)
+            .and_then(|(ok_result, _timings)| {
+                temporary_store.check_move_authenticator_results_consistency()?;
+                Ok(ok_result)
+            })
+        })
     }
 
     /// Executes an authentication move call by processing the specified
@@ -1452,6 +1536,20 @@ mod checked {
                 .map_err(|e| (e, vec![]))?;
                 Ok((Mode::empty_results(), vec![]))
             }
+            TransactionKind::ClaimAccount(claim_tx) => {
+                setup_claim_account(
+                    &claim_tx,
+                    temporary_store,
+                    tx_ctx,
+                    move_vm,
+                    gas_charger,
+                    protocol_config,
+                    metrics,
+                    trace_builder_opt,
+                )
+                .map_err(|e| (e, vec![]))?;
+                Ok((Mode::empty_results(), vec![]))
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -2019,6 +2117,78 @@ mod checked {
         Ok(())
     }
 
+    /// Executes a [`ClaimAccountTransaction`] by calling the framework's
+    /// private `claim_account_v1` function.
+    ///
+    /// This runs in [`execution_mode::PrivateCall`] because that function is
+    /// private on purpose: a claimed account object has an id equal to a
+    /// signature-derivable address, and the `ClaimAccount` transaction kind
+    /// must stay the only way such an object can be created.
+    #[allow(clippy::too_many_arguments)]
+    fn setup_claim_account(
+        claim_tx: &ClaimAccountTransaction,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let AccountClaimKind::SmartAccount(claim) = &claim_tx.kind else {
+            unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+        };
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            // `TransactionKind::validity_check` already checked that the claimed
+            // public key is valid, which `public_key::create` checks again.
+            let (Ok(scheme), Ok(raw_bytes)) = (
+                builder.pure(claim.public_key_scheme),
+                builder.pure(&claim.public_key_raw_bytes),
+            ) else {
+                invariant_violation!(
+                    "Unable to serialize the claimed public key's scheme flag and raw bytes as \
+                     pure inputs of the `ClaimAccount` call"
+                )
+            };
+            let scheme = builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("signature_scheme"),
+                Identifier::from_static("from_flag"),
+                vec![],
+                vec![scheme],
+            );
+            let public_key = builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("public_key"),
+                Identifier::from_static("create"),
+                vec![],
+                vec![scheme, raw_bytes],
+            );
+            builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("smart_account_builtin_auth"),
+                Identifier::from_static("claim_account_v1"),
+                vec![],
+                vec![public_key],
+            );
+            builder.finish()
+        };
+        programmable_transactions::execution::execute::<execution_mode::PrivateCall>(
+            protocol_config,
+            metrics,
+            move_vm,
+            temporary_store,
+            tx_ctx,
+            gas_charger,
+            pt,
+            trace_builder_opt,
+        )
+        .map_err(|(e, _)| e)?;
+        Ok(())
+    }
+
     /// The function constructs a transaction that invokes
     /// the `randomness_state_update` function from the IOTA framework,
     /// passing the randomness state object, the `randomness_round`,
@@ -2186,6 +2356,56 @@ mod checked {
         assert_invariant!(
             res.is_ok(),
             "Unable to generate an account authenticator call transaction!"
+        );
+
+        Ok(builder.finish())
+    }
+
+    /// Construct a PTB with a single call to the built-in authenticator
+    /// function found in `AuthenticatorFunctionRef`, instantiated with the
+    /// type of `MoveAuthenticator::object_to_authenticate` followed by
+    /// `MoveAuthenticator::type_args`. As in `setup_authenticator_move_call`,
+    /// `MoveAuthenticator::object_to_authenticate` is the first argument,
+    /// followed by all arguments in `MoveAuthenticator::call_args`.
+    fn setup_builtin_authenticator_call(
+        temporary_store: &TemporaryStore<'_>,
+        authenticator: MoveAuthenticator,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        let account_type = authenticator
+            .object_to_authenticate_components()
+            .ok()
+            .and_then(|(account_id, _, _)| temporary_store.read_object(&account_id))
+            .and_then(|account| account.struct_tag());
+        let Some(account_type) = account_type else {
+            invariant_violation!(
+                "the account object to authenticate should be a loaded Move object"
+            )
+        };
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        let mut type_args = vec![TypeTag::Struct(Box::new(account_type))];
+        type_args.extend(authenticator.type_args().to_owned());
+
+        let mut args = vec![authenticator.object_to_authenticate().to_owned()];
+        args.extend(authenticator.call_args().to_owned());
+
+        let res = builder.move_call(
+            authenticator_function_ref.package,
+            Identifier::new(authenticator_function_ref.module).expect(
+                "`AuthenticatorFunctionRefV1::module` is expected to be a valid `Identifier`",
+            ),
+            Identifier::new(authenticator_function_ref.function).expect(
+                "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
+            ),
+            type_args,
+            args,
+        );
+
+        assert_invariant!(
+            res.is_ok(),
+            "Unable to generate a built-in authenticator call transaction!"
         );
 
         Ok(builder.finish())

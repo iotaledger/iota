@@ -2168,18 +2168,24 @@ fn load_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
-        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+    let authenticator_function_ref_field_id =
+        derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
+            .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_obj = get_object(&field_id).ok_or_else(|| ReplayEngineError::GeneralError {
-        err: format!(
-            "Authenticator function ref dynamic field {field_id} not found in storage \
+    let authenticator_function_ref_field_obj = get_object(&authenticator_function_ref_field_id).ok_or_else(|| {
+        ReplayEngineError::GeneralError {
+            err: format!(
+                "Authenticator function ref dynamic field {authenticator_function_ref_field_id} not found in storage \
              for account object {account_object_id} at version {account_object_version}"
-        ),
+            ),
+        }
     })?;
 
-    authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
-        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
+    authenticator_function_ref_v1_from_dynamic_field_object(
+        account_object_id,
+        &authenticator_function_ref_field_obj,
+    )
+    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
 }
 
 // <---------------------  Implement necessary traits for LocalExec to work with

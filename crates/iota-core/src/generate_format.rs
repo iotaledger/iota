@@ -11,7 +11,7 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Address, Argument, ChangeEpoch, CheckpointCommitment, CheckpointContents,
+    AccountClaimKind, Address, Argument, ChangeEpoch, CheckpointCommitment, CheckpointContents,
     CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, Command, CommandArgumentError,
     ConsensusCommitDigest, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, Event, ExecutionError, ExecutionStatus, GenesisObject,
@@ -537,6 +537,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_type::<EndOfEpochTransactionKind>(&samples)
         .unwrap();
+    tracer.trace_type::<AccountClaimKind>(&samples).unwrap();
 
     tracer.trace_type::<IdOperation>(&samples).unwrap();
     tracer.trace_type::<ObjectIn>(&samples).unwrap();

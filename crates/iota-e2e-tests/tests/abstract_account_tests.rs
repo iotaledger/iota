@@ -25,15 +25,27 @@ use iota_json_rpc_types::{DryRunTransactionBlockResponse, IotaTransactionBlockEf
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
+use iota_sdk_crypto::{
+    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
-    ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
-    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind,
-    crypto::{Intent, SimpleSignature},
+    ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SenderSignedTransaction,
+    SharedObjectReference, SignatureScheme, Transaction, TransactionEffects, TypeTag,
+    UserSignature, WriteKind,
+    crypto::{
+        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        PasskeyAuthenticator, SimpleSignature,
+    },
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
+    account_abstraction::builtin_authenticator_functions::{
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    },
     base_types::AuthorityName,
     crypto::PublicKey,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -48,7 +60,23 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
+use p256::pkcs8::DecodePublicKey;
+use passkey_authenticator::{Authenticator as PasskeyClient, UserCheck, UserValidationMethod};
+use passkey_client::Client as WebAuthnClient;
+use passkey_types::{
+    Bytes, Passkey,
+    ctap2::{Aaguid, Ctap2Error},
+    rand::random_vec,
+    webauthn::{
+        AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
+        PublicKeyCredentialCreationOptions, PublicKeyCredentialParameters,
+        PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
+        PublicKeyCredentialUserEntity, UserVerificationRequirement,
+    },
+};
+use rand::{SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
+use url::Url;
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
@@ -68,6 +96,11 @@ const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST: &str =
     "authenticate_ed25519_via_signing_digest";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
+
+// Built-in authenticator module / function names (used by the new
+// builtin_keyed_aa Move module).
+const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
+const AA_BUILTIN_CREATE_FN: &str = "create";
 
 // ------------------------------
 // --- Abstract Account tests ---
@@ -2191,6 +2224,963 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
 }
 
 // ---------------------------------------------------
+// --- Built-in authenticator tests ------------------
+// ---------------------------------------------------
+
+/// Test that the built-in Ed25519 authenticator lets the account's owner key
+/// authorize a transaction. The wallet's existing Ed25519 keypair is reused.
+#[sim_test]
+async fn test_builtin_ed25519_authenticator() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let owner = test_env.owner.unwrap();
+    let kp = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)?
+        .as_keypair()?
+        .clone();
+    let pk = kp.public_key();
+
+    test_env
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+    test_env.execute_and_check_tx_correctness(aa_tx).await
+}
+
+/// Test that the built-in Secp256k1 authenticator lets a fresh Secp256k1
+/// keypair authorize a transaction.
+#[sim_test]
+async fn test_builtin_secp256k1_authenticator() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
+        [1u8; 32],
+    )));
+    let pk = kp.public_key();
+
+    test_env
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+    test_env.execute_and_check_tx_correctness(aa_tx).await
+}
+
+/// Test that the built-in Secp256r1 authenticator lets a fresh Secp256r1
+/// keypair authorize a transaction.
+#[sim_test]
+async fn test_builtin_secp256r1_authenticator() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let kp = SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed(
+        [2u8; 32],
+    )));
+    let pk = kp.public_key();
+
+    test_env
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+    test_env.execute_and_check_tx_correctness(aa_tx).await
+}
+
+/// Test that the built-in MultiSig authenticator accepts a multisig that meets
+/// the threshold (2-of-2 Ed25519 keys).
+#[sim_test]
+async fn test_builtin_multisig_authenticator() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    // Build a 2-of-2 multisig key.
+    let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([3u8; 32]));
+    let kp2 = Ed25519PrivateKey::random_with(StdRng::from_seed([4u8; 32]));
+    let multisig_pk = MultisigCommittee::new(
+        vec![
+            MultisigMember::new(kp1.public_key(), 1),
+            MultisigMember::new(kp2.public_key(), 1),
+        ],
+        2,
+    )?;
+
+    test_env
+        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sign with both keys and combine into a MultiSig.
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let msg = intent_msg.signing_digest();
+    let sig1: SimpleSignature = kp1.sign(&msg);
+    let sig2: SimpleSignature = kp2.sign(&msg);
+    let multisig = MultisigAggregatedSignature::new(vec![sig1.into(), sig2.into()], multisig_pk)?;
+    let wire_bytes = UserSignature::Multisig(multisig).to_bytes();
+
+    let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
+    let auth_sig = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
+            vec![],
+            object_arg,
+        )
+        .into(),
+    );
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![auth_sig]));
+    test_env.execute_and_check_tx_correctness(aa_tx).await
+}
+
+/// Test that the built-in Passkey authenticator accepts a WebAuthn credential
+/// signature over the transaction intent message.
+#[sim_test]
+async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    // Set up a mock WebAuthn authenticator and register a passkey credential.
+    let store: Option<Passkey> = None;
+    let my_authenticator = PasskeyClient::new(Aaguid::new_empty(), store, AlwaysApprove);
+    let mut my_client = WebAuthnClient::new(my_authenticator);
+    let origin = Url::parse("https://www.iota.org").unwrap();
+
+    let creation_opts = CredentialCreationOptions {
+        public_key: PublicKeyCredentialCreationOptions {
+            rp: PublicKeyCredentialRpEntity {
+                id: None,
+                name: origin.domain().unwrap().into(),
+            },
+            user: PublicKeyCredentialUserEntity {
+                id: random_vec(32).into(),
+                display_name: "Test".into(),
+                name: "test@iota.org".into(),
+            },
+            challenge: random_vec(32).into(),
+            pub_key_cred_params: vec![PublicKeyCredentialParameters {
+                ty: PublicKeyCredentialType::PublicKey,
+                alg: coset::iana::Algorithm::ES256,
+            }],
+            timeout: None,
+            exclude_credentials: None,
+            authenticator_selection: None,
+            hints: None,
+            attestation: AttestationConveyancePreference::None,
+            attestation_formats: None,
+            extensions: None,
+        },
+    };
+    let credential = my_client
+        .register(&origin, creation_opts, None)
+        .await
+        .expect("passkey registration failed");
+
+    // Derive the compressed Secp256r1 public key from the DER-encoded WebAuthn key.
+    let verifying_key = p256::ecdsa::VerifyingKey::from_public_key_der(
+        credential.response.public_key.unwrap().as_slice(),
+    )?;
+    let ep = verifying_key.to_encoded_point(false);
+    let prefix = if ep.y().unwrap()[31] % 2 == 0 {
+        0x02
+    } else {
+        0x03
+    };
+    let mut pk_bytes = vec![prefix];
+    pk_bytes.extend_from_slice(ep.x().unwrap());
+
+    test_env
+        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes.clone())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // The passkey challenge is the blake2b hash of bcs(IntentMessage(tx_data)).
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let passkey_challenge: Bytes = intent_msg.signing_digest().to_vec().into();
+
+    let auth_request = CredentialRequestOptions {
+        public_key: PublicKeyCredentialRequestOptions {
+            challenge: passkey_challenge,
+            timeout: None,
+            rp_id: Some(origin.domain().unwrap().into()),
+            allow_credentials: None,
+            user_verification: UserVerificationRequirement::default(),
+            attestation: Default::default(),
+            attestation_formats: None,
+            extensions: None,
+            hints: None,
+        },
+    };
+    let auth_cred = my_client
+        .authenticate(&origin, auth_request, None)
+        .await
+        .expect("passkey authentication failed");
+
+    // Build the Secp256r1 signature in wire format (flag || sig || pk).
+    let sig_der = auth_cred.response.signature.as_slice();
+    let sig = p256::ecdsa::Signature::from_der(sig_der)?;
+    let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
+    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.to_u8()];
+    user_sig_bytes.extend_from_slice(&sig_bytes);
+    user_sig_bytes.extend_from_slice(&pk_bytes);
+
+    let passkey_auth = PasskeyAuthenticator::new(
+        auth_cred.response.authenticator_data.as_slice().to_vec(),
+        String::from_utf8_lossy(auth_cred.response.client_data_json.as_slice()).into(),
+        SimpleSignature::from_bytes(&user_sig_bytes)?,
+    )?;
+    let wire_bytes = UserSignature::PasskeyAuthenticator(passkey_auth).to_bytes();
+
+    let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
+    let auth_sig = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
+            vec![],
+            object_arg,
+        )
+        .into(),
+    );
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![auth_sig]));
+    test_env.execute_and_check_tx_correctness(aa_tx).await
+}
+
+// ---------------------------------------------------
+// --- Built-in authenticator failure tests ----------
+// ---------------------------------------------------
+
+/// Test that the built-in Ed25519 authenticator rejects a transaction signed
+/// by a key that does not match the account's registered public key.
+#[sim_test]
+async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    // Register the account with kp1.
+    let kp1 = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [10u8; 32],
+    )));
+    test_env
+        .setup_builtin_account(
+            kp1.public_key().scheme(),
+            kp1.public_key().as_ref().to_vec(),
+        )
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sign with kp2 (a different, unrelated Ed25519 key).
+    let kp2 = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
+        [11u8; 32],
+    )));
+    let sig = builtin_sig_for_keypair(&kp2, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure for wrong Ed25519 key, got: {err:?}");
+    };
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    );
+    Ok(())
+}
+
+/// Test that the built-in Secp256k1 authenticator rejects a transaction signed
+/// by a key that does not match the account's registered public key.
+#[sim_test]
+async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    // Register the account with kp1.
+    let kp1 = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
+        [20u8; 32],
+    )));
+    test_env
+        .setup_builtin_account(
+            kp1.public_key().scheme(),
+            kp1.public_key().as_ref().to_vec(),
+        )
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sign with kp2 (a different, unrelated Secp256k1 key).
+    let kp2 = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
+        [21u8; 32],
+    )));
+    let sig = builtin_sig_for_keypair(&kp2, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256k1 key, got: {err:?}");
+    };
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    );
+    Ok(())
+}
+
+/// Test that the built-in Secp256r1 authenticator rejects a transaction signed
+/// by a key that does not match the account's registered public key.
+#[sim_test]
+async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    // Register the account with kp1.
+    let kp1 = SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed(
+        [30u8; 32],
+    )));
+    test_env
+        .setup_builtin_account(
+            kp1.public_key().scheme(),
+            kp1.public_key().as_ref().to_vec(),
+        )
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sign with kp2 (a different, unrelated Secp256r1 key).
+    let kp2 = SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed(
+        [31u8; 32],
+    )));
+    let sig = builtin_sig_for_keypair(&kp2, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256r1 key, got: {err:?}");
+    };
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    );
+    Ok(())
+}
+
+/// Test that the built-in MultiSig authenticator rejects a transaction when the
+/// combined signature weight does not meet the required threshold (1 of 2 sigs
+/// provided for a 2-of-2 scheme).
+#[sim_test]
+async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    // Build a 2-of-2 multisig key.
+    let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([40u8; 32]));
+    let kp2 = Ed25519PrivateKey::random_with(StdRng::from_seed([41u8; 32]));
+    let multisig_pk = MultisigCommittee::new(
+        vec![
+            MultisigMember::new(kp1.public_key(), 1),
+            MultisigMember::new(kp2.public_key(), 1),
+        ],
+        2,
+    )?;
+
+    test_env
+        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Only provide kp1's signature — weight 1 is below the required threshold of 2.
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let msg = intent_msg.signing_digest();
+    let sig1: SimpleSignature = kp1.sign(&msg);
+    let multisig = MultisigAggregatedSignature::new(vec![sig1.into()], multisig_pk)?;
+    let wire_bytes = UserSignature::Multisig(multisig).to_bytes();
+
+    let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
+    let auth_sig = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
+            vec![],
+            object_arg,
+        )
+        .into(),
+    );
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![auth_sig]));
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure for insufficient MultiSig weight, got: \
+             {err:?}"
+        );
+    };
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    );
+    Ok(())
+}
+
+/// Test that the built-in Passkey authenticator rejects a transaction signed by
+/// a WebAuthn credential whose public key does not match the one registered in
+/// the account.
+#[sim_test]
+async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let origin = Url::parse("https://www.iota.org").unwrap();
+
+    let make_credential_creation_opts = || CredentialCreationOptions {
+        public_key: PublicKeyCredentialCreationOptions {
+            rp: PublicKeyCredentialRpEntity {
+                id: None,
+                name: origin.domain().unwrap().into(),
+            },
+            user: PublicKeyCredentialUserEntity {
+                id: random_vec(32).into(),
+                display_name: "Test".into(),
+                name: "test@iota.org".into(),
+            },
+            challenge: random_vec(32).into(),
+            pub_key_cred_params: vec![PublicKeyCredentialParameters {
+                ty: PublicKeyCredentialType::PublicKey,
+                alg: coset::iana::Algorithm::ES256,
+            }],
+            timeout: None,
+            exclude_credentials: None,
+            authenticator_selection: None,
+            hints: None,
+            attestation: AttestationConveyancePreference::None,
+            attestation_formats: None,
+            extensions: None,
+        },
+    };
+
+    // Register credential A — this key will be stored in the account.
+    let store_a: Option<Passkey> = None;
+    let authenticator_a = PasskeyClient::new(Aaguid::new_empty(), store_a, AlwaysApprove);
+    let mut client_a = WebAuthnClient::new(authenticator_a);
+    let credential_a = client_a
+        .register(&origin, make_credential_creation_opts(), None)
+        .await
+        .expect("passkey A registration failed");
+
+    let verifying_key_a = p256::ecdsa::VerifyingKey::from_public_key_der(
+        credential_a.response.public_key.unwrap().as_slice(),
+    )?;
+    let ep_a = verifying_key_a.to_encoded_point(false);
+    let prefix_a = if ep_a.y().unwrap()[31] % 2 == 0 {
+        0x02
+    } else {
+        0x03
+    };
+    let mut pk_bytes_a = vec![prefix_a];
+    pk_bytes_a.extend_from_slice(ep_a.x().unwrap());
+
+    test_env
+        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes_a)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Register credential B (a completely different passkey).
+    let store_b: Option<Passkey> = None;
+    let authenticator_b = PasskeyClient::new(Aaguid::new_empty(), store_b, AlwaysApprove);
+    let mut client_b = WebAuthnClient::new(authenticator_b);
+    let credential_b = client_b
+        .register(&origin, make_credential_creation_opts(), None)
+        .await
+        .expect("passkey B registration failed");
+
+    // Authenticate with credential B using the correct transaction challenge.
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let passkey_challenge: Bytes = intent_msg.signing_digest().to_vec().into();
+
+    let auth_request = CredentialRequestOptions {
+        public_key: PublicKeyCredentialRequestOptions {
+            challenge: passkey_challenge,
+            timeout: None,
+            rp_id: Some(origin.domain().unwrap().into()),
+            allow_credentials: None,
+            user_verification: UserVerificationRequirement::default(),
+            attestation: Default::default(),
+            attestation_formats: None,
+            extensions: None,
+            hints: None,
+        },
+    };
+    let auth_cred_b = client_b
+        .authenticate(&origin, auth_request, None)
+        .await
+        .expect("passkey B authentication failed");
+
+    // Derive credential B's compressed Secp256r1 public key.
+    let verifying_key_b = p256::ecdsa::VerifyingKey::from_public_key_der(
+        credential_b.response.public_key.unwrap().as_slice(),
+    )?;
+    let ep_b = verifying_key_b.to_encoded_point(false);
+    let prefix_b = if ep_b.y().unwrap()[31] % 2 == 0 {
+        0x02
+    } else {
+        0x03
+    };
+    let mut pk_bytes_b = vec![prefix_b];
+    pk_bytes_b.extend_from_slice(ep_b.x().unwrap());
+
+    // Build the Secp256r1 signature in wire format using credential B's key.
+    let sig_der = auth_cred_b.response.signature.as_slice();
+    let sig = p256::ecdsa::Signature::from_der(sig_der)?;
+    let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
+    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.to_u8()];
+    user_sig_bytes.extend_from_slice(&sig_bytes);
+    user_sig_bytes.extend_from_slice(&pk_bytes_b);
+
+    let passkey_auth = PasskeyAuthenticator::new(
+        auth_cred_b.response.authenticator_data.as_slice().to_vec(),
+        String::from_utf8_lossy(auth_cred_b.response.client_data_json.as_slice()).into(),
+        SimpleSignature::from_bytes(&user_sig_bytes)?,
+    )?;
+    let wire_bytes = UserSignature::PasskeyAuthenticator(passkey_auth).to_bytes();
+
+    let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
+    let auth_sig = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
+            vec![],
+            object_arg,
+        )
+        .into(),
+    );
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![auth_sig]));
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure for wrong Passkey credential, got: {err:?}"
+        );
+    };
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    );
+    Ok(())
+}
+
+/// Test that the built-in authenticator rejects a transaction signed with a
+/// Secp256k1 key for an account whose attached public key is Ed25519: the
+/// submitted signature's scheme does not match the attached key's scheme.
+#[sim_test]
+async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Result<(), anyhow::Error>
+{
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let owner = test_env.owner.unwrap();
+    let ed25519_kp = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)?
+        .as_keypair()?
+        .clone();
+    let pk = ed25519_kp.public_key();
+
+    test_env
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sign with a Secp256k1 key — wrong scheme for the attached Ed25519 key.
+    let secp256k1_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
+        [50u8; 32],
+    )));
+    let sig = builtin_sig_for_keypair(&secp256k1_kp, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure for Secp256k1 sig on Ed25519 account, \
+             got: {err:?}"
+        );
+    };
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
+        INVALID_SIGNATURE_ERROR_CODE,
+    );
+    Ok(())
+}
+
+/// Test that supplying a built-in-format signature to an account backed by a
+/// custom Ed25519 authenticator is rejected.
+///
+/// The custom `authenticate_ed25519` expects its `signature` arg to be a
+/// hex-encoded 64-byte value (it calls `iota::hex::decode` on it).
+/// `builtin_sig_for_keypair` instead produces flag-prefixed wire bytes
+/// (`0x00 | 64_sig_bytes | 32_pk_bytes`) which are not valid hex, so the
+/// Move authenticator aborts.
+#[sim_test]
+async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Use the owner keypair (the one registered in the account) but wrap it in
+    // the builtin wire format — incompatible with the custom authenticator.
+    let owner = test_env.owner.unwrap();
+    let kp = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)?
+        .as_keypair()?
+        .clone();
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
+    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure when a builtin-format signature is used \
+             with a custom authenticator, got: {err:?}"
+        );
+    };
+    // The custom authenticator calls `iota::hex::decode` on the raw wire bytes.
+    // The wire format is 97 bytes (odd), so `hex::decode` aborts immediately with
+    // `EInvalidHexLength` (code 0) before any signature verification is attempted.
+    assert_move_authentication_abort(error, "hex", "decode", 0);
+    Ok(())
+}
+
+/// Test that the built-in authenticator rejects a `MoveAuthenticator` that
+/// carries a type argument, even with a valid signature: the built-in function
+/// takes the account type as its only type argument.
+#[sim_test]
+async fn test_builtin_authenticator_rejects_type_argument() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let (test_env, kp, tx_data, aa_ref) = setup_builtin_ed25519_tx([70u8; 32]).await?;
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let signature = builtin_signature_arg(&kp, &tx_data)?;
+
+    let err = test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature.clone()], vec![TypeTag::U8]),
+        )
+        .await
+        .unwrap_err();
+    assert_move_authentication_failure(&err, "NUMBER_OF_TYPE_ARGUMENTS_MISMATCH");
+
+    // The same authenticator without the type argument is accepted.
+    test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Test that the built-in authenticator rejects malformed signature arguments:
+/// none, one too many, bytes that are not a BCS `vector<u8>`, and an object in
+/// place of the signature bytes.
+#[sim_test]
+async fn test_builtin_authenticator_rejects_malformed_signature_argument()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let (test_env, kp, tx_data, aa_ref) = setup_builtin_ed25519_tx([71u8; 32]).await?;
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let signature = builtin_signature_arg(&kp, &tx_data)?;
+
+    for (call_args, expected) in [
+        (vec![], "Arity mismatch"),
+        (vec![signature.clone(), signature.clone()], "Arity mismatch"),
+        (
+            vec![CallArg::Pure(vec![])],
+            "Invalid command argument at 1. The argument cannot be deserialized",
+        ),
+        (
+            vec![CallArg::CLOCK_IMMUTABLE],
+            "Invalid command argument at 1",
+        ),
+    ] {
+        let err = test_env
+            .handle_tx_in_process(
+                &validator,
+                builtin_authenticated_tx(&tx_data, aa_ref, call_args, vec![]),
+            )
+            .await
+            .unwrap_err();
+        assert_move_authentication_failure(&err, expected);
+    }
+
+    // The same transaction with a well-formed signature argument is accepted.
+    test_env
+        .handle_tx_in_process(
+            &validator,
+            builtin_authenticated_tx(&tx_data, aa_ref, vec![signature], vec![]),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Test that a built-in account cannot be created when
+/// `enable_builtin_move_authenticators` is disabled in the protocol config.
+/// Ed25519 is used as a representative scheme.
+///
+/// `builtin_authenticator_function_ref_v1` calls
+/// `check_builtin_authenticators_enabled()` and aborts with
+/// `EBuiltinAuthenticatorsNotEnabled` (code 0) before an
+/// `AuthenticatorFunctionRefV1` is ever produced, so the account creation
+/// transaction itself fails — it never reaches the authentication step.
+#[sim_test]
+async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_builtin_move_authenticators_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let owner = test_env.owner.unwrap();
+    let kp = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)?
+        .as_keypair()?
+        .clone();
+    let pk = kp.public_key();
+
+    // With the feature disabled, `builtin_authenticator_function_ref_v1` aborts
+    // with EBuiltinAuthenticatorsNotEnabled (code 0) inside account creation.
+    let transaction = test_env
+        .craft_create_builtin_account(pk.scheme(), pk.as_ref())
+        .await?;
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(transaction)
+        .await?;
+
+    let status = effects.into_status();
+    assert!(
+        status.is_failure(),
+        "Expected account creation to fail when built-in authenticators are disabled, \
+         got: {status:?}"
+    );
+    assert!(
+        matches!(
+            status.unwrap_err().0,
+            ExecutionError::MoveAbort{location: MoveLocation { module, .. }, code: abort_code}
+            if module.as_str() == BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
+                && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
+        ),
+        "Expected MoveAbort in builtin_authenticator_functions with code 0 \
+         (EBuiltinAuthenticatorsNotEnabled)"
+    );
+
+    Ok(())
+}
+
+// ---------------------------------------------------
 // --- Test Environment for Abstract Account tests ---
 // ---------------------------------------------------
 
@@ -3051,6 +4041,92 @@ impl TestEnvironment {
             .await
     }
 
+    // -----------------------------------------------
+    // --- Built-in authenticator helpers ------------
+    // -----------------------------------------------
+
+    /// Publishes the AA package (assumed already done via
+    /// `init_abstract_account_state`), then creates an `AbstractAccount`
+    /// shared object backed by a built-in authenticator.
+    ///
+    /// `scheme` and `raw_bytes` are passed directly to Move's
+    /// `public_key::create`.
+    async fn setup_builtin_account(
+        &mut self,
+        scheme: SignatureScheme,
+        raw_bytes: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let transaction = self
+            .craft_create_builtin_account(scheme, &raw_bytes)
+            .await?;
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(transaction)
+            .await?;
+        self.aa_ref = Some(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ));
+        Ok(())
+    }
+
+    /// Craft a signed transaction that calls
+    /// `builtin_keyed_aa::create` with the given public key.
+    async fn craft_create_builtin_account(
+        &self,
+        scheme: SignatureScheme,
+        raw_bytes: &[u8],
+    ) -> anyhow::Result<TransactionEnvelope> {
+        let Some(aa_package_id) = self.aa_package_id else {
+            anyhow::bail!("AA package id not set — call init_abstract_account_state first");
+        };
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            // Pure args can only carry primitives / vector<u8>.  Construct the Move
+            // PublicKey by calling signature_scheme::<scheme>() and public_key::create()
+            // in the PTB, then forward the result to the account create function.
+            let scheme_fn = match scheme {
+                SignatureScheme::Ed25519 => "ed25519",
+                SignatureScheme::Secp256k1 => "secp256k1",
+                SignatureScheme::Secp256r1 => "secp256r1",
+                SignatureScheme::Multisig => "multisig",
+                SignatureScheme::PasskeyAuthenticator => "passkey",
+                _ => anyhow::bail!("Unsupported scheme for built-in account: {scheme:?}"),
+            };
+            let scheme_arg = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::new("signature_scheme")?,
+                Identifier::new(scheme_fn)?,
+                vec![],
+                vec![],
+            );
+            let raw_arg = builder.pure(raw_bytes.to_vec())?;
+            let public_key = builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::new("public_key")?,
+                Identifier::new("create")?,
+                vec![],
+                vec![scheme_arg, raw_arg],
+            );
+            builder.programmable_move_call(
+                aa_package_id,
+                Identifier::new(AA_BUILTIN_MODULE_NAME)?,
+                Identifier::new(AA_BUILTIN_CREATE_FN)?,
+                vec![],
+                vec![public_key],
+            );
+            builder.finish()
+        };
+
+        let tx_data = self
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(pt)
+            .build();
+        Ok(self.test_cluster.wallet.sign_transaction(&tx_data))
+    }
+
     async fn handle_tx(
         &self,
         tx: TransactionEnvelope,
@@ -3070,6 +4146,33 @@ impl TestEnvironment {
 // ---------------------------------------------------
 // --- Utilities -------------------------------------
 // ---------------------------------------------------
+
+/// Asserts that `error` is a `MoveAuthentication` failure wrapping an abort
+/// with `error_code` raised in `module::function`. For an abort raised with a
+/// `#[error]` constant, `error_code` is the code encoded in the abort code.
+fn assert_move_authentication_abort(error: &str, module: &str, function: &str, error_code: u64) {
+    assert!(
+        error.starts_with("MoveAuthentication: Move authentication failed: Move Runtime Abort."),
+        "Expected a MoveAuthentication error wrapping a Move abort, got: {error}"
+    );
+    assert!(
+        error.contains(&format!("::{module}::{function} ")),
+        "Expected an abort in `{module}::{function}`, got: {error}"
+    );
+    let abort_code = error
+        .split("Abort Code: ")
+        .nth(1)
+        .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|code| code.parse::<u64>().ok())
+        .unwrap_or_else(|| panic!("Expected an abort code in error, got: {error}"));
+    let actual_error_code = ErrorBitset::from_u64(abort_code)
+        .and_then(|bitset| bitset.error_code())
+        .map_or(abort_code, u64::from);
+    assert_eq!(
+        actual_error_code, error_code,
+        "Unexpected abort code in error: {error}"
+    );
+}
 
 fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
@@ -3099,4 +4202,136 @@ fn abstract_account_from_all_changed_objects(
             .then_some(changed.reference())
         })
         .expect("Expected a shared or immutable object in the transaction response")
+}
+
+// ---------------------------------------------------
+// --- Built-in authenticator utilities --------------
+// ---------------------------------------------------
+
+/// Sign `tx_data` with the intent message using `kp` and wrap the resulting
+/// `UserSignature` wire bytes in a `MoveAuthenticator` that authenticates
+/// against `aa_ref`.
+fn builtin_sig_for_keypair(
+    kp: &SimpleKeypair,
+    tx_data: &Transaction,
+    aa_ref: ObjectReference,
+) -> anyhow::Result<UserSignature> {
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let sig: SimpleSignature = kp.sign(&intent_msg.signing_digest());
+    let wire_bytes = UserSignature::Simple(sig).to_bytes();
+    let object_arg = SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false);
+    Ok(UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
+            vec![],
+            object_arg,
+        )
+        .into(),
+    ))
+}
+
+/// Asserts that `err` is a `MoveAuthentication` failure whose message contains
+/// `expected`.
+fn assert_move_authentication_failure(err: &IotaError, expected: &str) {
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
+    };
+    assert!(
+        error.starts_with("MoveAuthentication: Move authentication failed: ")
+            && error.contains(expected),
+        "Expected a MoveAuthentication error containing `{expected}`, got: {error}"
+    );
+}
+
+/// Creates a built-in Ed25519 account for a key drawn from `seed` and a funded
+/// transaction sent by it.
+async fn setup_builtin_ed25519_tx(
+    seed: [u8; 32],
+) -> anyhow::Result<(TestEnvironment, SimpleKeypair, Transaction, ObjectReference)> {
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(seed)));
+    test_env
+        .setup_builtin_account(kp.public_key().scheme(), kp.public_key().as_ref().to_vec())
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    Ok((test_env, kp, tx_data, aa_ref))
+}
+
+/// Returns the signature call argument of a built-in authenticator: the
+/// BCS-encoded `UserSignature` wire bytes of `kp`'s signature of `tx_data`.
+fn builtin_signature_arg(kp: &SimpleKeypair, tx_data: &Transaction) -> anyhow::Result<CallArg> {
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+    let sig: SimpleSignature = kp.sign(&intent_msg.signing_digest());
+    Ok(CallArg::Pure(bcs::to_bytes(
+        &UserSignature::Simple(sig).to_bytes(),
+    )?))
+}
+
+/// Returns `tx_data` authenticated by a `MoveAuthenticator` for the shared
+/// account `aa_ref` with the given call and type arguments.
+fn builtin_authenticated_tx(
+    tx_data: &Transaction,
+    aa_ref: ObjectReference,
+    call_args: Vec<CallArg>,
+    type_args: Vec<TypeTag>,
+) -> TransactionEnvelope {
+    let authenticator = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            call_args,
+            type_args,
+            SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false),
+        )
+        .into(),
+    );
+    TransactionEnvelope::new(SenderSignedTransaction::new(
+        tx_data.clone(),
+        vec![authenticator],
+    ))
+}
+
+// ---------------------------------------------------
+// --- Passkey test helper ---------------------------
+// ---------------------------------------------------
+
+/// Minimal `UserValidationMethod` that always approves — used by the mock
+/// WebAuthn client in `test_builtin_passkey_authenticator`.
+struct AlwaysApprove;
+
+#[async_trait::async_trait]
+impl UserValidationMethod for AlwaysApprove {
+    type PasskeyItem = Passkey;
+
+    async fn check_user<'a>(
+        &self,
+        _credential: Option<&'a Self::PasskeyItem>,
+        _presence: bool,
+        _verification: bool,
+    ) -> Result<UserCheck, Ctap2Error> {
+        Ok(UserCheck {
+            presence: true,
+            verification: true,
+        })
+    }
+
+    fn is_verification_enabled(&self) -> Option<bool> {
+        Some(true)
+    }
+
+    fn is_presence_enabled(&self) -> bool {
+        true
+    }
 }
