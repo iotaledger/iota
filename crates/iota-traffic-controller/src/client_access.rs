@@ -24,7 +24,7 @@ use tokio::time::{Interval, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
-use crate::{metrics::TrafficControllerMetrics, parse_ip};
+use crate::{metrics::TrafficControllerMetrics, parse_ip, policies::PolicyResponse};
 
 const CLEAR_BLOCKLIST_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -164,6 +164,16 @@ impl ClientAccessManager {
                 self.metrics.requests_blocked_at_protocol.inc();
                 false
             }
+        }
+    }
+
+    /// Refuses each client that a policy reports as breaching it.
+    pub(crate) fn block(&self, response: PolicyResponse) {
+        if let Some(client) = response.block_client {
+            self.block_client(client);
+        }
+        if let Some(client) = response.block_proxied_client {
+            self.block_proxied_client(client);
         }
     }
 
