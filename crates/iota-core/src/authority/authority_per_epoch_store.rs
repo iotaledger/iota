@@ -4844,6 +4844,11 @@ impl AuthorityPerEpochStore {
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
             soft_lock_release_tx_digests.extend(soft_lock_digests);
+            let kept: Vec<_> = sequenced_transactions
+                .iter()
+                .filter_map(|tx| tx.0.transaction.user_transaction_digest())
+                .collect();
+            self.dropped_tx_status_cache.remove_kept(&kept);
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {

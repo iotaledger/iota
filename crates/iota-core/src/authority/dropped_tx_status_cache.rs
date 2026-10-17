@@ -41,8 +41,9 @@ impl Inner {
         if self.entries.contains_key(&digest) {
             return;
         }
-        // Evict oldest entries to make room.
-        while self.entries.len() >= MAX_DROPPED_ENTRIES {
+        // Evict oldest entries to make room. A digest removed when kept stays
+        // in the order, so the order, not the entries, is what is bounded.
+        while self.insertion_order.len() >= MAX_DROPPED_ENTRIES {
             if let Some(oldest) = self.insertion_order.pop_front() {
                 self.entries.remove(&oldest);
             }
@@ -82,6 +83,17 @@ impl DroppedTxStatusCache {
     pub(crate) fn notify_without_recording(&self, dropped: &[(TransactionDigest, IotaError)]) {
         for (digest, error) in dropped {
             self.notify_read.notify(digest, error);
+        }
+    }
+
+    /// Forget the recorded drops of transactions kept at a commit. The digest
+    /// does not cover the signatures, so a drop recorded earlier may be that
+    /// of another copy, or of an earlier submission, of a transaction that is
+    /// now kept: its status is then the outcome of its execution.
+    pub(crate) fn remove_kept(&self, kept: &[TransactionDigest]) {
+        let mut inner = self.inner.write();
+        for digest in kept {
+            inner.entries.remove(digest);
         }
     }
 
@@ -149,6 +161,27 @@ mod tests {
             .expect("task should not panic");
 
         assert_eq!(result.to_string(), expected_error.to_string());
+    }
+
+    /// A drop recorded before the same digest is kept is no longer answered
+    /// once it is kept.
+    #[tokio::test]
+    async fn test_keep_removes_an_earlier_drop() {
+        let cache = DroppedTxStatusCache::new();
+        let digest = TransactionDigest::random();
+        cache.insert_and_notify(&[(digest, IotaError::TransactionExpired)]);
+
+        cache.remove_kept(&[digest]);
+
+        assert!(
+            timeout(
+                Duration::from_millis(100),
+                cache.notify_read_dropped(digest)
+            )
+            .await
+            .is_err(),
+            "a request after the keep must wait for the kept transaction's outcome"
+        );
     }
 
     /// When the cache is at capacity, the oldest entries are evicted to make
