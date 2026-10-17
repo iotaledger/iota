@@ -2141,6 +2141,55 @@ async fn sst_files_ingest_into_the_table() {
     );
 }
 
+/// Rows of tagged tables sharing a column family, written to one SST file
+/// per table and ingested together, read back through each table alone.
+#[tokio::test]
+async fn tagged_sst_files_ingest_into_their_tables() {
+    let tmp_dir = iota_common::tempdir();
+    let files_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let numbers: TaggedDBMap<u32, String> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false).unwrap();
+    let words: TaggedDBMap<String, u64> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false).unwrap();
+    let options = rocksdb::Options::default();
+
+    let mut number_rows = SstFileBuffer::new();
+    for key in [3, 1, 2] {
+        number_rows
+            .insert_tagged(&numbers, &key, &format!("number {key}"))
+            .unwrap();
+    }
+    let mut word_rows = SstFileBuffer::new();
+    word_rows
+        .insert_tagged(&words, &"two".to_string(), &2)
+        .unwrap();
+    word_rows
+        .insert_tagged(&words, &"one".to_string(), &1)
+        .unwrap();
+    let paths = [
+        files_dir.path().join("numbers.sst"),
+        files_dir.path().join("words.sst"),
+    ];
+    number_rows.write_file(&paths[0], &options).unwrap();
+    word_rows.write_file(&paths[1], &options).unwrap();
+
+    numbers.ingest_sst_files(&paths).unwrap();
+
+    assert_eq!(
+        numbers.safe_iter().map(Result::unwrap).collect::<Vec<_>>(),
+        vec![
+            (1, "number 1".to_string()),
+            (2, "number 2".to_string()),
+            (3, "number 3".to_string()),
+        ]
+    );
+    assert_eq!(
+        words.safe_iter().map(Result::unwrap).collect::<Vec<_>>(),
+        vec![("one".to_string(), 1), ("two".to_string(), 2)]
+    );
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(
