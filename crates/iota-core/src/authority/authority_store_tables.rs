@@ -14,7 +14,7 @@ use typed_store::{
     metrics::SamplingInterval,
     rocks::{
         DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
-        read_size_from_env,
+        read_size_from_env, synced_write_options,
     },
     traits::Map,
 };
@@ -55,7 +55,11 @@ fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreE
         &ReadWriteOptions::default(),
         false,
     )?;
-    bound.insert(&(), &watermark)?;
+    // Synced: the column family it is copied from is dropped next, and a drop
+    // is durable at once, so a lost copy would lose the watermark for good.
+    let mut batch = bound.batch();
+    batch.insert_batch(&bound, [((), watermark)])?;
+    batch.write_opt(&synced_write_options())?;
     info!(
         watermark,
         "carried the objects pruner's watermark over for the one-time sweep"
