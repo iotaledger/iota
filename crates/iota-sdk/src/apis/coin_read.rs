@@ -7,7 +7,9 @@ use std::{future, sync::Arc};
 use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
-use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
+use iota_json_rpc_types::{
+    Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, OwnedObjectCursor,
+};
 use iota_sdk_types::{Address, ObjectId};
 use iota_types::balance::Supply;
 
@@ -57,7 +59,7 @@ impl CoinReadApi {
         &self,
         owner: Address,
         coin_type: impl Into<Option<String>>,
-        cursor: impl Into<Option<ObjectId>>,
+        cursor: impl Into<Option<OwnedObjectCursor>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
@@ -92,7 +94,7 @@ impl CoinReadApi {
     pub async fn get_all_coins(
         &self,
         owner: Address,
-        cursor: impl Into<Option<ObjectId>>,
+        cursor: impl Into<Option<OwnedObjectCursor>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
