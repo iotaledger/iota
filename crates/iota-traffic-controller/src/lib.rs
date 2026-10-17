@@ -173,7 +173,7 @@ impl TrafficController {
         if tally.spam_weight.is_sampled() && self.policy_config.spam_sample_rate.is_sampled() {
             let response = policies.spam.charge(&tally);
             self.metrics.tally_handled.inc();
-            self.block(response);
+            self.client_access.block(response);
         }
         if let Some((error_weight, error_type)) = &tally.error_info {
             if error_weight.is_sampled() {
@@ -183,17 +183,8 @@ impl TrafficController {
                     .inc();
                 let response = policies.error.charge(&tally);
                 self.metrics.error_tally_handled.inc();
-                self.block(response);
+                self.client_access.block(response);
             }
-        }
-    }
-
-    fn block(&self, response: policies::PolicyResponse) {
-        if let Some(client) = response.block_client {
-            self.client_access.block_client(client);
-        }
-        if let Some(client) = response.block_proxied_client {
-            self.client_access.block_proxied_client(client);
         }
     }
 
