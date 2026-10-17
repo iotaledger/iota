@@ -1,0 +1,25 @@
+## Read the Block Log Line
+
+Each time the node starts to refuse a client, it logs one line at level `INFO` under the target `iota_node::client_blocked`:
+
+```text
+client_blocked client=203.0.113.7 reason=spam ttl_secs=60
+client_blocked client=2001:db8:1:2::/64 reason=error ttl_secs=60
+```
+
+| Field      | Meaning                                                                                                                                                                                                                                             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client`   | The IPv4 address, or the IPv6 network of `ipv6-prefix-len` bits, that the node blocked. An IPv6 client is shown as a single address only with `ipv6-prefix-len: 128`. An IPv4 client that reached a dual-stack socket is shown by its IPv4 address. |
+| `reason`   | The policy whose limit the client exceeded: `spam` for `spam-policy-type`, `error` for `error-policy-type`.                                                                                                                                         |
+| `ttl_secs` | How long the node refuses the client, in seconds.                                                                                                                                                                                                   |
+
+The node logs the line:
+
+- once per block, not for every request it refuses while the block lasts, and again when the client breaches a limit after the block has expired;
+- not in dry run, because in dry run the node still serves the client. When the admin interface turns dry run off, the node logs the blocks that now take effect, with the time they have left;
+- not while `connection-blocklist-ttl-sec` is 0, which turns blocking off;
+- not for a client behind a full node (`proxy-blocklist-ttl-sec`), which never connects to this node itself.
+
+In the plain-text log the line follows the timestamp, the level and the target. In the JSON log (`RUST_LOG_JSON`) it is the `fields.message` of an event whose `target` is `iota_node::client_blocked`. The line carries no span, so it reads the same whichever request caused the block.
+
+The format of this line is stable, so that the fail2ban filter below keeps working. Release notes announce any change to it.
