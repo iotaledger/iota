@@ -558,4 +558,213 @@ mod simtests {
             .unwrap();
         assert_eq!(result, vec![Some(ev)]);
     }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn checkpoint_summary_for_another_sequence_number_is_a_miss() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let mut checkpoints = MockTxStore::new();
+        let (_, _) = checkpoints.add_random_checkpoint();
+        let (summary, _) = checkpoints.add_random_checkpoint();
+        let seq = summary.data().sequence_number;
+        let other_seq = seq + 1;
+
+        let path = |seq| {
+            let (item_type, key) = Key::CheckpointSummary(seq).to_path_elements();
+            format!("{item_type}/{key}")
+        };
+        let data = Arc::new(Mutex::new(HashMap::from([
+            (path(seq), bcs::to_bytes(&summary).unwrap()),
+            (path(other_seq), bcs::to_bytes(&summary).unwrap()),
+        ])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let (summaries, _, _) = store
+            .multi_get_checkpoints(&[seq, other_seq], &[], &[])
+            .await
+            .unwrap();
+        let digests = summaries
+            .iter()
+            .map(|summary| summary.as_ref().map(|summary| *summary.digest()))
+            .collect::<Vec<_>>();
+        assert_eq!(digests, vec![Some(*summary.digest()), None]);
+
+        // Once the server holds the right summary, the rejected entry is read again.
+        let (next, _) = checkpoints.add_random_checkpoint();
+        assert_eq!(next.data().sequence_number, other_seq);
+        data.lock()
+            .unwrap()
+            .insert(path(other_seq), bcs::to_bytes(&next).unwrap());
+        let (summaries, _, _) = store
+            .multi_get_checkpoints(&[other_seq], &[], &[])
+            .await
+            .unwrap();
+        let digests = summaries
+            .iter()
+            .map(|summary| summary.as_ref().map(|summary| *summary.digest()))
+            .collect::<Vec<_>>();
+        assert_eq!(digests, vec![Some(*next.digest())]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn checkpoint_summary_for_another_digest_is_read_again_once_fixed() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let mut checkpoints = MockTxStore::new();
+        let (other, _) = checkpoints.add_random_checkpoint();
+        let (summary, _) = checkpoints.add_random_checkpoint();
+        let (item_type, key) = Key::CheckpointSummaryByDigest(*summary.digest()).to_path_elements();
+        let path = format!("{item_type}/{key}");
+
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            path.clone(),
+            bcs::to_bytes(&other).unwrap(),
+        )])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let read = || async {
+            let (_, _, summaries) = store
+                .multi_get_checkpoints(&[], &[], &[*summary.digest()])
+                .await
+                .unwrap();
+            summaries
+                .iter()
+                .map(|summary| summary.as_ref().map(|summary| *summary.digest()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(read().await, vec![None]);
+
+        data.lock()
+            .unwrap()
+            .insert(path, bcs::to_bytes(&summary).unwrap());
+        assert_eq!(read().await, vec![Some(*summary.digest())]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn checkpoint_contents_that_fail_to_decode_are_read_again_once_fixed() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let mut checkpoints = MockTxStore::new();
+        let (summary, contents) = checkpoints.add_random_checkpoint();
+        let seq = summary.data().sequence_number;
+        let (item_type, key) = Key::CheckpointContents(seq).to_path_elements();
+        let path = format!("{item_type}/{key}");
+
+        let data = Arc::new(Mutex::new(HashMap::from([(path.clone(), vec![0xff])])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let read = || async {
+            let (_, contents, _) = store.multi_get_checkpoints(&[], &[seq], &[]).await.unwrap();
+            contents
+        };
+        assert_eq!(read().await, vec![None]);
+
+        data.lock()
+            .unwrap()
+            .insert(path, bcs::to_bytes(&contents).unwrap());
+        assert_eq!(read().await, vec![Some(contents)]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn evicted_object_is_fetched_again() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let id = ObjectId::random();
+        let owner = Address::random();
+        let cached = Object::with_id_owner_gas_for_testing(id, owner, 1);
+        let updated = Object::with_id_owner_gas_for_testing(id, owner, 2);
+        let key = ObjectKey::from(cached.as_inner().object_ref());
+        let (item_type, encoded_key) = Key::ObjectKey(key).to_path_elements();
+        let path = format!("{item_type}/{encoded_key}");
+
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            path.clone(),
+            bcs::to_bytes(&cached).unwrap(),
+        )])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new_kv(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let fetch = || async { store.multi_get_objects(&[key]).await.unwrap() };
+        assert_eq!(fetch().await, vec![Some(cached.clone())]);
+
+        data.lock()
+            .unwrap()
+            .insert(path, bcs::to_bytes(&updated).unwrap());
+        assert_eq!(fetch().await, vec![Some(cached)]);
+
+        store.evict_objects(&[key]).await;
+        assert_eq!(fetch().await, vec![Some(updated)]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn evicted_events_are_fetched_again() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let digest = TransactionDigest::random();
+        let cached = random_events();
+        let updated = random_events();
+        let (item_type, encoded_key) = Key::EventsByTransactionDigest(digest).to_path_elements();
+        let path = format!("{item_type}/{encoded_key}");
+
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            path.clone(),
+            bcs::to_bytes(&cached).unwrap(),
+        )])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new_kv(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let fetch = || async {
+            store
+                .multi_get_events_by_tx_digests(&[digest])
+                .await
+                .unwrap()
+        };
+        assert_eq!(fetch().await, vec![Some(cached.clone())]);
+
+        data.lock()
+            .unwrap()
+            .insert(path, bcs::to_bytes(&updated).unwrap());
+        assert_eq!(fetch().await, vec![Some(cached)]);
+
+        store.evict_events_by_tx_digests(&[digest]).await;
+        assert_eq!(fetch().await, vec![Some(updated)]);
+    }
 }
