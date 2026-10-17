@@ -82,6 +82,8 @@ use crate::{
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
+const ENV_VAR_OWNER_BLOCK_CACHE_SIZE_MB: &str = "OWNER_INDEX_BLOCK_CACHE_MB";
+const DEFAULT_OWNER_BLOCK_CACHE_SIZE_MB: usize = 2 * 1024;
 
 /// The index database directories of earlier releases, superseded by
 /// [`schema::RPC_INDEXES_DIR`].
@@ -856,6 +858,15 @@ impl RpcIndexesStore {
                 .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
         );
 
+        // Every owned-object and balance query scans the `owner` table.
+        let owner_options = db_options
+            .clone()
+            .optimize_for_read(
+                read_size_from_env(ENV_VAR_OWNER_BLOCK_CACHE_SIZE_MB)
+                    .unwrap_or(DEFAULT_OWNER_BLOCK_CACHE_SIZE_MB),
+            )
+            .options;
+
         let static_tables = IndexStoreTables::describe_tables();
         // A listing failure must not pass for "no history", which would hide
         // the buckets until the next reopen. `CURRENT` marks a database.
@@ -867,7 +878,12 @@ impl RpcIndexesStore {
         let mut epochs = BTreeSet::new();
         let mut opt_cfs: Vec<(String, rocksdb::Options)> = Vec::new();
         for name in static_tables.keys() {
-            opt_cfs.push((name.clone(), db_options.options.clone()));
+            let options = if name == "owner" {
+                owner_options.clone()
+            } else {
+                db_options.options.clone()
+            };
+            opt_cfs.push((name.clone(), options));
         }
         // Column families of another schema version are opened with default
         // options by `open_cf_opts`; the version mismatch then wipes them.
