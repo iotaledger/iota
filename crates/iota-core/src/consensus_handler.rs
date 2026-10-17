@@ -2070,6 +2070,116 @@ mod tests {
         );
     }
 
+    /// The digest does not cover the signatures, so a faulty validator can
+    /// put in its block a copy of an honest transaction whose Move
+    /// authenticator fails validation at the commit. When the copy is dropped
+    /// before the honest transaction is kept, a status request for the digest
+    /// after the keep waits for the kept transaction's outcome instead of
+    /// getting the copy's drop.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn drop_of_a_failing_copy_does_not_answer_for_the_kept_transaction() {
+        use iota_sdk_types::{
+            MoveAuthenticator, MoveAuthenticatorV1, SharedObjectReference, TransactionExpiration,
+            UserSignature, Version,
+        };
+        use iota_types::transaction::{CallArg, TransactionEnvelope};
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .with_objects(vec![object.clone(), gas.clone()])
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch = state.epoch_store_for_testing().clone();
+        let rgp = epoch.reference_gas_price();
+        let object = state.get_object(&object.id()).unwrap();
+        let gas = state.get_object(&gas.id()).unwrap();
+        let mut data = Transaction::new_transfer(
+            Address::random(),
+            object.object_ref(),
+            sender,
+            gas.object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch.epoch());
+        let honest = to_sender_signed_transaction(data.clone(), &key);
+        // Declaring a mutable shared input fails the authenticator's validity
+        // check.
+        let failing_copy = TransactionEnvelope::new(SenderSignedTransaction::new(
+            data,
+            vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+                MoveAuthenticatorV1::new(
+                    vec![CallArg::Shared(SharedObjectReference::new(
+                        ObjectId::random(),
+                        Version::from(1),
+                        true,
+                    ))],
+                    vec![],
+                    SharedObjectReference::new(sender.into(), Version::from(1), false),
+                ),
+            ))],
+        ));
+        let digest = *honest.digest();
+        assert_eq!(*failing_copy.digest(), digest);
+
+        let mut handler = ConsensusHandler::new(
+            epoch.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch.epoch_start_state()),
+            state.metrics.clone(),
+            BackpressureManager::new_for_tests().subscribe(),
+        );
+        for (index, transaction) in (1..).zip([failing_copy, honest]) {
+            handler
+                .handle_consensus_output_for_test(commit_with_transactions(
+                    index,
+                    index * 100,
+                    vec![(0, ConsensusTransaction::new_user_transaction(transaction))],
+                ))
+                .await;
+        }
+
+        assert!(
+            matches!(
+                epoch
+                    .post_consensus_decision(1, digest)
+                    .unwrap()
+                    .map(|saved| saved.decision),
+                Some(PostConsensusDecision::Dropped)
+            ),
+            "the failing copy must be dropped"
+        );
+        assert_eq!(
+            epoch
+                .post_consensus_decision(2, digest)
+                .unwrap()
+                .map(|saved| saved.decision),
+            Some(PostConsensusDecision::Kept)
+        );
+        assert!(
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                epoch.notify_read_dropped_digests(digest)
+            )
+            .await
+            .is_err(),
+            "a status request must wait for the kept transaction's outcome"
+        );
+    }
+
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_user_transaction_v1() {
         // GIVEN
