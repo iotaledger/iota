@@ -16,6 +16,7 @@
 
 use std::{ops::Bound, sync::Arc};
 
+use iota_sdk_types::{TransactionDigest, TransactionEffects, TransactionEffectsDigest};
 use iota_types::{
     committee::EpochId,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -26,7 +27,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
-use typed_store::traits::Map;
+use typed_store::{rocks::DBBatch, traits::Map};
 
 use crate::{
     authority::{
@@ -237,7 +238,102 @@ impl ObjectBacklogSweep {
             next = ended_at.saturating_add(1);
         }
         progress.finish();
+        self.sweep_unfinalized_transactions(epoch)?;
         self.mark_done(epoch)
+    }
+
+    /// Relocates the versions superseded by the transactions of `epoch` that
+    /// this node executed but no checkpoint has finalized yet, and records
+    /// their tombstones. A node can execute a transaction ahead of its
+    /// checkpoint, and no checkpoint walked above names it. Only `epoch` can
+    /// hold such a transaction: an epoch change reverts the ones its
+    /// checkpoints left out.
+    ///
+    /// Has no progress row of its own: an interrupted run walks the epoch
+    /// again, and a version already relocated is skipped.
+    fn sweep_unfinalized_transactions(&self, epoch: EpochId) -> IotaResult<()> {
+        let ledger = self.historic_ledger.ensure(epoch)?;
+        let mut records = ledger.executed_effects.safe_iter();
+        loop {
+            let chunk: Vec<(TransactionDigest, TransactionEffectsDigest)> = records
+                .by_ref()
+                .take(self.keys_per_slice)
+                .collect::<Result<_, _>>()?;
+            if chunk.is_empty() {
+                return Ok(());
+            }
+            let finalized = ledger
+                .tx_to_checkpoint
+                .multi_get(chunk.iter().map(|(digest, _)| digest))?;
+            let mut superseded = Vec::new();
+            let mut tombstones = Vec::new();
+            for ((_, effects_digest), checkpoint) in chunk.iter().zip(finalized) {
+                if checkpoint.is_some() {
+                    continue;
+                }
+                if let Some(effects) = ledger.effects.get(effects_digest)? {
+                    self.collect_superseded(&effects, &mut superseded, &mut tombstones)?;
+                }
+            }
+            if superseded.is_empty() && tombstones.is_empty() {
+                continue;
+            }
+            let relocated = superseded.len();
+            let tombstone_count = tombstones.len();
+            let mut batch = self.perpetual_tables.objects.batch();
+            self.relocate(&mut batch, epoch, superseded, &tombstones)?;
+            batch.write()?;
+            debug!(
+                relocated,
+                tombstones = tombstone_count,
+                "swept the superseded versions of transactions no checkpoint has finalized"
+            );
+        }
+    }
+
+    /// Adds the versions `effects` superseded that the live table still holds
+    /// to `superseded`, and the tombstones it wrote to `tombstones`.
+    fn collect_superseded(
+        &self,
+        effects: &TransactionEffects,
+        superseded: &mut Vec<(ObjectKey, Object)>,
+        tombstones: &mut Vec<ObjectKey>,
+    ) -> IotaResult<()> {
+        let objects = &self.perpetual_tables.objects;
+        for modified in effects.modified_at_versions() {
+            let key = ObjectKey(*modified.object_id(), modified.version());
+            let Some(row) = objects.get(&key)? else {
+                continue;
+            };
+            if let StoreObject::Value(value) = row.migrate().into_inner() {
+                superseded.push((key, try_construct_object(&key, *value)?));
+            }
+        }
+        for (object_id, version) in effects.all_tombstones() {
+            tombstones.push(ObjectKey(object_id, version));
+        }
+        Ok(())
+    }
+
+    /// Adds to `batch` the move of `superseded` from the live table into
+    /// `epoch`'s bucket, and the record of `tombstones` there.
+    fn relocate(
+        &self,
+        batch: &mut DBBatch,
+        epoch: EpochId,
+        superseded: Vec<(ObjectKey, Object)>,
+        tombstones: &[ObjectKey],
+    ) -> IotaResult<()> {
+        if superseded.is_empty() && tombstones.is_empty() {
+            return Ok(());
+        }
+        let objects = &self.perpetual_tables.objects;
+        let bucket = self.historic_objects.ensure(epoch)?;
+        let keys: Vec<ObjectKey> = superseded.iter().map(|(key, _)| *key).collect();
+        batch.insert_batch_tagged(&bucket.objects, superseded)?;
+        batch.delete_batch(objects, keys)?;
+        batch.insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
+        Ok(())
     }
 
     /// Relocates the versions superseded by the checkpoints in `first..=last`,
@@ -280,31 +376,13 @@ impl ObjectBacklogSweep {
                 else {
                     continue;
                 };
-                for modified in effects.modified_at_versions() {
-                    let key = ObjectKey(*modified.object_id(), modified.version());
-                    let Some(row) = objects.get(&key)? else {
-                        continue;
-                    };
-                    if let StoreObject::Value(value) = row.migrate().into_inner() {
-                        superseded.push((key, try_construct_object(&key, *value)?));
-                    }
-                }
-                for (object_id, version) in effects.all_tombstones() {
-                    tombstones.push(ObjectKey(object_id, version));
-                }
+                self.collect_superseded(&effects, &mut superseded, &mut tombstones)?;
             }
         }
 
         let relocated = superseded.len();
         let mut batch = objects.batch();
-        if !superseded.is_empty() || !tombstones.is_empty() {
-            let bucket = self.historic_objects.ensure(epoch)?;
-            let keys: Vec<ObjectKey> = superseded.iter().map(|(key, _)| *key).collect();
-            batch.insert_batch_tagged(&bucket.objects, superseded)?;
-            batch.delete_batch(objects, keys)?;
-            batch
-                .insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
-        }
+        self.relocate(&mut batch, epoch, superseded, &tombstones)?;
         batch.insert_batch(
             &self.perpetual_tables.object_backlog_sweep_checkpoint,
             [((), ended_at)],
