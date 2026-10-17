@@ -2907,6 +2907,16 @@ impl<'a> Validator<'a> {
                 ));
             }
             if read.class != expected[index] {
+                if !self.deletion_every_validator_has_seen(commit, input, read.class) {
+                    return self.fail(format!(
+                        "drop-versus-missing mismatch at {commit} for {}: {input:?} read as {:?} \
+                         ({}), oracle {:?}",
+                        describe_candidate(candidate),
+                        read.class,
+                        read.reason,
+                        expected[index]
+                    ));
+                }
                 self.drop_or_missing_differences.push(format!(
                     "commit {commit} {input:?}: reader {:?} ({}), oracle {:?}",
                     read.class, read.reason, expected[index]
@@ -2955,6 +2965,7 @@ impl<'a> Validator<'a> {
     /// row of the id above the version drops.
     fn load_bytes(
         &self,
+        ctx: &CommitIndexedReader,
         need_bytes: owned::OwnedReader<owned::NeedBytes>,
     ) -> Outcome<OwnedVerdict> {
         let reference = need_bytes.into_reference();
@@ -2964,6 +2975,21 @@ impl<'a> Validator<'a> {
                 return Ok(OwnedVerdict::Drop(DropReason(
                     DropKind::StoreDigestMismatch,
                 )));
+            }
+            if let Owner::Shared(initial) = object.owner {
+                let creation_row = self.storage(
+                    self.epoch_store
+                        .handler_processed_object(&ObjectKey(reference.object_id, initial)),
+                )?;
+                return Ok(
+                    match owned::classify_shared_named_as_owned(
+                        creation_row.as_ref(),
+                        ctx.horizon(),
+                    ) {
+                        owned::SharedNamedAsOwned::Missing(reason) => OwnedVerdict::Missing(reason),
+                        owned::SharedNamedAsOwned::Drop(reason) => OwnedVerdict::Drop(reason),
+                    },
+                );
             }
             return Ok(OwnedVerdict::Keep(KeptObject(object)));
         }
@@ -3025,21 +3051,44 @@ impl<'a> Validator<'a> {
             TablesRecheck::LiveAtVersion(live_at_version) => {
                 return self.owned_rows_above(ctx, live_at_version, reference, writers);
             }
-            TablesRecheck::Superseded(superseded) => {
-                let lookup = self.storage(superseded.read_rows_above(ctx))?;
+            TablesRecheck::NotAtVersion(not_at_version) => {
+                let lookup = self.storage(not_at_version.read_other_rows(ctx))?;
                 if let Err(Crashed) = self.inject(&[ReaderPoint::LastTableRead], writers)? {
                     return Ok(Err(Crashed));
                 }
-                match lookup {
-                    owned::RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes)?,
-                    owned::RowsAboveLookup::Drop(reason) => OwnedVerdict::Drop(reason),
-                }
+                self.decide_rows_above(ctx, lookup)?
             }
-            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(need_bytes)?,
+            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(ctx, need_bytes)?,
             TablesRecheck::Missing(reason) => OwnedVerdict::Missing(reason),
             TablesRecheck::Drop(reason) => OwnedVerdict::Drop(reason),
         };
         Ok(Ok(self.owned_read(verdict, reference)?))
+    }
+
+    /// The one known difference from the oracle between a drop and a
+    /// missing input: an owned version above a deletion at or below the
+    /// horizon, or before the epoch, drops, where the oracle answers missing.
+    /// Every validator has seen that deletion, so the drop is the same on all
+    /// of them. Any other difference depends on what this validator executed
+    /// above the horizon.
+    fn deletion_every_validator_has_seen(
+        &self,
+        commit: CommitIndex,
+        input: &Input,
+        class: InputClass,
+    ) -> bool {
+        let (Input::Owned(reference) | Input::Receiving(reference)) = input else {
+            return false;
+        };
+        class == InputClass::Stale
+            && matches!(
+                self.history
+                    .oracle
+                    .horizon_state(commit)
+                    .slots
+                    .get(&reference.object_id),
+                Some(Slot::Deleted(version)) if *version < reference.version
+            )
     }
 
     /// The rows above a kept owned version, then its bytes.
@@ -3054,11 +3103,20 @@ impl<'a> Validator<'a> {
         if let Err(Crashed) = self.inject(&[ReaderPoint::LastTableRead], writers)? {
             return Ok(Err(Crashed));
         }
-        let verdict = match lookup {
-            owned::RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes)?,
-            owned::RowsAboveLookup::Drop(reason) => OwnedVerdict::Drop(reason),
-        };
+        let verdict = self.decide_rows_above(ctx, lookup)?;
         Ok(Ok(self.owned_read(verdict, reference)?))
+    }
+
+    fn decide_rows_above(
+        &self,
+        ctx: &CommitIndexedReader,
+        lookup: owned::RowsAboveLookup,
+    ) -> Outcome<OwnedVerdict> {
+        Ok(match lookup {
+            owned::RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(ctx, need_bytes)?,
+            owned::RowsAboveLookup::Missing(reason) => OwnedVerdict::Missing(reason),
+            owned::RowsAboveLookup::Drop(reason) => OwnedVerdict::Drop(reason),
+        })
     }
 
     /// Reduces an owned verdict to its class, checking on keep that the
@@ -3129,7 +3187,13 @@ impl<'a> Validator<'a> {
                 return Ok(Ok(shared_read(SharedVerdict::Missing(reason))));
             }
             SharedTablesLookup::Drop(reason) => {
-                return Ok(Ok(shared_read(SharedVerdict::Drop(reason))));
+                return Ok(Ok(shared_read(self.check_shared_drop(
+                    ctx,
+                    horizon,
+                    id,
+                    initial,
+                    SharedVerdict::Drop(reason),
+                )?)));
             }
             SharedTablesLookup::NoEntry(no_entry) => {
                 let object_answered = self.storage(no_entry.read_object(ctx))?;
@@ -3152,7 +3216,13 @@ impl<'a> Validator<'a> {
                         return Ok(Ok(shared_read(SharedVerdict::Missing(reason))));
                     }
                     SharedTablesRecheck::Drop(reason) => {
-                        return Ok(Ok(shared_read(SharedVerdict::Drop(reason))));
+                        return Ok(Ok(shared_read(self.check_shared_drop(
+                            ctx,
+                            horizon,
+                            id,
+                            initial,
+                            SharedVerdict::Drop(reason),
+                        )?)));
                     }
                     SharedTablesRecheck::Absent(absent) => absent,
                 }
@@ -3162,7 +3232,32 @@ impl<'a> Validator<'a> {
             Ok(verdict) => verdict,
             Err(Crashed) => return Ok(Err(Crashed)),
         };
-        Ok(Ok(shared_read(verdict)))
+        Ok(Ok(shared_read(
+            self.check_shared_drop(ctx, horizon, id, initial, verdict)?,
+        )))
+    }
+
+    /// The drop check of `CommitIndexedReader::read_shared`.
+    fn check_shared_drop(
+        &self,
+        ctx: &CommitIndexedReader,
+        horizon: CommitIndex,
+        id: ObjectId,
+        initial: Version,
+        verdict: SharedVerdict,
+    ) -> Outcome<SharedVerdict> {
+        let SharedVerdict::Drop(reason) = verdict else {
+            return Ok(verdict);
+        };
+        Ok(
+            match self.storage(
+                shared::SharedReader::start_drop_check(id, initial, horizon, reason)
+                    .read_lowest_row(ctx),
+            )? {
+                shared::DropCheck::Drop(reason) => SharedVerdict::Drop(reason),
+                shared::DropCheck::Missing(reason) => SharedVerdict::Missing(reason),
+            },
+        )
     }
 
     /// The deletion read of a shared object that is gone: its highest

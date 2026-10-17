@@ -45,8 +45,8 @@
 //! # Why the store answer for an id with no row is the epoch-start state
 //!
 //! When the row they look for does not exist, the owned and shared readers
-//! ask the store. That answer is the same on every validator, for three
-//! reasons.
+//! ask the store. For an id with no row at all, that answer is the same on
+//! every validator, for three reasons.
 //!
 //! 1. Every write this epoch leaves its row before its object, so the store is never ahead of the
 //!    rows for an id.
@@ -56,6 +56,18 @@
 //!    mutations write no rows, so the store can hold a later version of it, with the same owner.
 //! 3. The pruner removes only older versions that a newer one replaced. The latest version of a
 //!    live object and the tombstone of a deleted one stay.
+//!
+//! An id can have rows at other versions than the one a reader looks for.
+//! Rows at or below the horizon are on every validator, but a row above the
+//! horizon is only on the validators that executed its commit, and their
+//! store already shows that write. So a reader decides from such a store
+//! answer only after reading the other rows of the id, and answers as a
+//! validator that has not executed any commit above the horizon would: the
+//! owned reader from the lowest row of the id above the named version, the
+//! shared reader by checking a drop against the lowest row of the id. The
+//! owned and shared modules explain the rules. Mutations of a shared object
+//! write no rows, so a shared object named as owned is decided from its
+//! creation row, not from its version.
 //!
 //! After the store answer, the row is read once more. This covers a write
 //! that lands between the first row read and the store read. Such a write
@@ -233,6 +245,9 @@ pub enum DropKind {
     /// No row at `(id, V)`, and the store's object at `V` has another digest:
     /// as the latest reference, or as the object loaded for a kept input.
     StoreDigestMismatch,
+    /// Named as owned, but the id is a shared object created at or below the
+    /// horizon or before the epoch.
+    SharedObjectNamedAsOwned,
     /// Named as shared, but the row or the store object is not shared at the
     /// declared initial version.
     SharedNotCreatedShared,
@@ -252,6 +267,12 @@ pub enum MissingKind {
     StoreBelowVersion,
     /// No row at `(id, V)`, and the store has nothing for `id`.
     StoreNotFound,
+    /// No row at `(id, V)`, and the store's latest entry for `id` is a
+    /// tombstone left by wrapping.
+    StoreWrapped,
+    /// No row at `(id, V)`, and a row of `id` above the horizon shows that at
+    /// the horizon `id` was live at a version below `V`, or not live.
+    VersionNotLiveAtHorizon,
     /// The shared object's creation row was produced above the horizon.
     SharedCreationAboveHorizon,
     /// No creation row, the store has no live object and no handler row
