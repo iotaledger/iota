@@ -327,6 +327,17 @@ impl NetworkClient for TonicClient {
                     break;
                 }
                 Err(e) => {
+                    // The decoder refuses a message at the first header past its
+                    // ceiling, so the message carried at least one more.
+                    if e.message() == TOO_MANY_ENTRIES_IN_RESPONSE {
+                        return Err(ConsensusError::TooManyFetchedHeadersReturned {
+                            peer,
+                            requested: max_headers,
+                            received: headers
+                                .len()
+                                .saturating_add(FetchLatestBlockHeadersResponse::MAX_ENTRIES + 1),
+                        });
+                    }
                     if headers.is_empty() {
                         if e.code() == tonic::Code::DeadlineExceeded {
                             return Err(ConsensusError::NetworkRequestTimeout(format!(
@@ -1889,10 +1900,25 @@ pub(crate) struct FetchLatestBlockHeadersRequest {
     authorities: Vec<u32>,
 }
 
+impl EntryLimit for FetchLatestBlockHeadersRequest {
+    // No limit: a message of numbers decodes into a few times its size, not
+    // the 16 times a `bytes` entry can.
+    const MAX_ENTRIES: usize = usize::MAX;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
+}
+
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchLatestBlockHeadersResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]
     vec_serialized_block_header: Vec<Bytes>,
+}
+
+impl EntryLimit for FetchLatestBlockHeadersResponse {
+    // One header per requested authority, and a server refuses a request
+    // naming more authorities than its committee, which `AuthorityIndex` (a
+    // u8) caps at 256.
+    const MAX_ENTRIES: usize = 256;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
 }
 
 #[derive(Clone, prost::Message)]
@@ -3329,6 +3355,61 @@ mod tests {
             .await;
         assert!(matches!(refused, Err(ConsensusError::NetworkRequest(_))));
         assert_eq!(service.lock().handle_fetch_transactions.len(), 1);
+    }
+
+    /// Sent through the tonic server and client, a latest header response at
+    /// the ceiling arrives whole, and one past it is refused while it is
+    /// decoded and charged to the peer.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_latest_header_response_past_the_ceiling_is_refused_while_decoding() {
+        use std::time::Duration;
+
+        use super::{
+            EntryLimit, FetchLatestBlockHeadersRequest, FetchLatestBlockHeadersResponse,
+            TOO_MANY_ENTRIES_IN_RESPONSE,
+        };
+        use crate::network::NetworkClient as _;
+
+        let service = Arc::new(Mutex::new(TestService::new()));
+        let (_server, client, server_index) = serve(service.clone()).await;
+        let ceiling = FetchLatestBlockHeadersResponse::MAX_ENTRIES;
+        // The client accepts one header per requested authority.
+        let fetch = || {
+            client.fetch_latest_block_headers(
+                server_index,
+                vec![server_index; ceiling],
+                Duration::from_secs(5),
+            )
+        };
+
+        // Empty headers, which the server sends as a single message.
+        service.lock().fetch_latest_block_headers_response = vec![Bytes::new(); ceiling];
+        let headers = fetch().await.expect("a response at the ceiling is kept");
+        assert_eq!(headers.len(), ceiling);
+
+        service.lock().fetch_latest_block_headers_response = vec![Bytes::new(); ceiling + 1];
+        let mut stub = client
+            .get_client(server_index, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let mut stream = stub
+            .fetch_latest_block_headers(FetchLatestBlockHeadersRequest {
+                authorities: vec![0],
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let status = stream.message().await.unwrap_err();
+        assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_RESPONSE);
+        assert!(matches!(
+            fetch().await,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested,
+                received,
+                ..
+            }) if requested == ceiling && received == ceiling + 1
+        ));
     }
 
     /// Starts a server at index 0 on `service`, and returns it with a client

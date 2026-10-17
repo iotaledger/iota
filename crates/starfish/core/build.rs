@@ -73,7 +73,7 @@ fn build_tonic_services(out_dir: &Path) {
                 .route_name("FetchLatestBlockHeaders")
                 .input_type("crate::network::tonic_network::FetchLatestBlockHeadersRequest")
                 .output_type("crate::network::tonic_network::FetchLatestBlockHeadersResponse")
-                .codec_path(codec_path)
+                .codec_path(bounded_codec_path)
                 .server_streaming()
                 .build(),
         )
