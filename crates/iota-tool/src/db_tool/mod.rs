@@ -399,12 +399,14 @@ pub fn print_all_entries(
     Ok(())
 }
 
-/// Records the one-time object backlog sweep as done without running it, for
-/// a node that cannot start because the sweep fails on a row it cannot decode.
+/// Records the one-time object backlog sweep as skipped without running it,
+/// for a node that cannot start because the sweep fails on a row it cannot
+/// decode.
 ///
 /// The versions the sweep had not reached stay in the live `objects` table,
 /// where no retention reclaims them, until the node is rebuilt from a
-/// snapshot.
+/// snapshot. Bounded object reads on the node keep checking every retained
+/// bucket for good.
 ///
 /// Run with (for example):
 /// cargo run --package iota-tool -- db-tool --db-path
@@ -419,8 +421,8 @@ pub fn mark_object_backlog_swept(path: &Path) -> anyhow::Result<()> {
     let perpetual = AuthorityPerpetualTables::open(&store, None);
     perpetual.mark_object_backlog_sweep_skipped()?;
     println!(
-        "recorded the object backlog sweep as done; the versions it had not reached stay in the \
-         live objects table"
+        "recorded the object backlog sweep as skipped; the versions it had not reached stay in \
+         the live objects table, and bounded object reads keep checking every retained bucket"
     );
     Ok(())
 }
