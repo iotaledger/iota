@@ -3762,3 +3762,61 @@ async fn test_a_query_of_a_dropped_bucket_skips_its_rows() {
         1
     );
 }
+
+/// Counts the objects read through it.
+struct CountingObjectStore<'a> {
+    inner: &'a BTreeMap<ObjectId, Object>,
+    reads: std::cell::Cell<usize>,
+}
+
+impl iota_types::storage::ObjectStore for CountingObjectStore<'_> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.reads.set(self.reads.get() + 1);
+        self.inner.try_get_object(object_id)
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.reads.set(self.reads.get() + 1);
+        self.inner.try_get_object_by_key(object_id, version)
+    }
+}
+
+/// A filter the owner index cannot narrow its scan by is still decided on the
+/// index rows, so only the objects it keeps are read.
+#[tokio::test]
+async fn test_a_filter_on_owned_objects_reads_only_the_objects_it_keeps() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+    let wanted = *object_store.keys().next().unwrap();
+    let store = CountingObjectStore {
+        inner: &object_store,
+        reads: Default::default(),
+    };
+
+    let page = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            Some(IotaObjectDataFilter::ObjectId(wanted)),
+            &store,
+        )
+        .unwrap();
+
+    assert_eq!(
+        page.iter()
+            .map(|(info, _)| info.object_id)
+            .collect::<Vec<_>>(),
+        vec![wanted]
+    );
+    assert_eq!(store.reads.get(), 1, "only the kept object may be read");
+}
