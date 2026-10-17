@@ -22,7 +22,8 @@ use prometheus_filtered::Registry;
 use typed_store::{database::wait_for_database_close, traits::Map};
 
 use super::{
-    CheckpointBacklogMigrationProgress, LedgerBacklogMigration, LedgerBacklogMigrationProgress,
+    CheckpointBacklogMigrationProgress, KEY_RANGES, LedgerBacklogMigration,
+    LedgerBacklogMigrationProgress, LedgerRanges, RangeProgress,
 };
 use crate::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
@@ -253,6 +254,27 @@ fn migration(
         LedgerBacklogMigration::new(store, checkpoint_store, RUNNING_EPOCH, epochs_to_retain);
     migration.keys_per_slice = keys_per_slice;
     migration
+}
+
+/// Writes the first slice of the key range holding the lowest seeded
+/// transaction digest, as a run stopped after that write leaves it, and
+/// returns that range.
+fn move_first_transactions_slice(migration: &LedgerBacklogMigration, seeded: &Seeded) -> usize {
+    let lowest = seeded
+        .transactions
+        .iter()
+        .map(|transaction| transaction.digest)
+        .min()
+        .expect("the seed holds transactions");
+    let range = usize::from(lowest.bytes()[0]) * KEY_RANGES / 256;
+    let slice = migration.transactions_slice(range, None).unwrap();
+    let mut ranges = LedgerRanges {
+        transactions: vec![RangeProgress::At(None); KEY_RANGES],
+        effects: vec![RangeProgress::At(None); KEY_RANGES],
+    };
+    ranges.transactions[range] = slice.next;
+    migration.write_ledger_slice(slice.batch, &ranges).unwrap();
+    range
 }
 
 fn ledger_progress(store: &AuthorityStore) -> Option<LedgerBacklogMigrationProgress> {
@@ -629,18 +651,33 @@ async fn the_migration_resumes_from_its_watermark() {
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
     let seeded = seed(&store, &checkpoint_store);
 
-    // One slice of one row stops the run inside the first table, leaving four
-    // of the five seeded bodies.
+    // One slice of one row stops the run inside the first table. The flat
+    // table keeps every row until all passes are done.
     let interrupted = migration(&store, checkpoint_store.clone(), None, 1);
-    interrupted.move_transactions(None).unwrap();
-    let watermark = match ledger_progress(&store) {
-        Some(LedgerBacklogMigrationProgress::Transactions(Some(digest))) => digest,
-        other => panic!("the interrupted run must have recorded a watermark, got {other:?}"),
-    };
+    let range = move_first_transactions_slice(&interrupted, &seeded);
+    let watermark = seeded
+        .transactions
+        .iter()
+        .map(|transaction| transaction.digest)
+        .min()
+        .unwrap();
+    match ledger_progress(&store) {
+        Some(LedgerBacklogMigrationProgress::Draining { transactions, .. }) => {
+            assert!(
+                transactions
+                    .iter()
+                    .enumerate()
+                    .all(|(other, progress)| (other == range)
+                        != (*progress == RangeProgress::At(None))),
+                "only the interrupted range may have moved, got {transactions:?}"
+            );
+        }
+        other => panic!("the interrupted run must have recorded its progress, got {other:?}"),
+    }
     assert_eq!(
         store.perpetual_tables.transactions.safe_iter().count(),
-        4,
-        "one row moved and four left, or the slice size is not being honoured"
+        5,
+        "the flat table must keep its rows until every pass is done"
     );
     // Which row the slice took depends on digest order, so the seed says
     // whether it should have been bucketed or deleted.
@@ -661,14 +698,21 @@ async fn the_migration_resumes_from_its_watermark() {
         "the row the watermark names must be in a bucket when an execution \
          record places it, and gone when none does"
     );
-    assert!(
-        store
-            .perpetual_tables
-            .transactions
-            .get(&watermark)
-            .unwrap()
-            .is_none(),
-        "the row the watermark names must have left the flat table either way"
+    let bucketed_rows = seeded
+        .transactions
+        .iter()
+        .filter(|transaction| {
+            store
+                .get_historic_ledger()
+                .get_transaction(&transaction.digest)
+                .unwrap()
+                .is_some()
+        })
+        .count();
+    assert_eq!(
+        bucketed_rows,
+        usize::from(attributable),
+        "one slice of one row moves at most that row, or the slice size is not being honoured"
     );
 
     // Release every handle on both databases before reopening the same paths,
@@ -689,9 +733,10 @@ async fn the_migration_resumes_from_its_watermark() {
     assert_migrated(&resumed_store, &resumed_checkpoints, &seeded, 0);
 }
 
-/// Once both stores' flat tables are drained, a later start does nothing.
+/// Once both stores' flat tables are drained, a later start moves nothing
+/// more into the buckets; it only clears what a flat table still holds.
 #[tokio::test]
-async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
+async fn a_finished_migration_moves_nothing_on_later_starts() {
     let store_dir = iota_common::tempdir();
     let checkpoint_dir = iota_common::tempdir();
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
@@ -720,14 +765,16 @@ async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
             .transactions
             .get(stray.digest())
             .unwrap()
-            .is_some()
+            .is_none(),
+        "a later start must clear the flat table"
     );
     assert!(
         store
             .get_historic_ledger()
             .get_transaction(stray.digest())
             .unwrap()
-            .is_none()
+            .is_none(),
+        "a later start must not move anything into a bucket"
     );
 }
 
@@ -943,7 +990,7 @@ async fn a_resumed_run_keeps_the_floor_the_migration_started_with() {
         1,
     );
     interrupted.pin_floor().unwrap();
-    interrupted.move_transactions(None).unwrap();
+    move_first_transactions_slice(&interrupted, &seeded);
 
     migration(&store, checkpoint_store.clone(), None, 5_000)
         .run()
@@ -1000,4 +1047,31 @@ async fn an_unexecuted_randomness_update_is_kept() {
             .is_some(),
         "the update must be filed under the epoch it names"
     );
+}
+
+/// A transaction's other rows are filed even when the flat table holds no
+/// body for it, since the four tables keyed by transaction digest are walked
+/// together rather than from the bodies alone.
+#[tokio::test]
+async fn rows_without_a_body_are_still_filed() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let without_body = seed_transaction(&store, WATERMARK_EPOCH, 20, EpochSource::Effects);
+    store
+        .perpetual_tables
+        .transactions
+        .remove(&without_body.digest)
+        .unwrap();
+
+    migration(&store, checkpoint_store, None, 5_000)
+        .run()
+        .unwrap();
+
+    let bucket = store.get_historic_ledger().ensure(WATERMARK_EPOCH).unwrap();
+    assert_eq!(
+        bucket.executed_effects.get(&without_body.digest).unwrap(),
+        without_body.effects_digest
+    );
+    assert!(bucket.events.get(&without_body.digest).unwrap().is_some());
 }
