@@ -1382,12 +1382,35 @@ impl IotaObjectDataFilter {
     }
 
     pub fn matches(&self, object: &ObjectInfo) -> bool {
+        self.matches_fields(
+            &object.object_id,
+            object.version,
+            &object.object_type,
+            &object.owner,
+        )
+    }
+
+    /// [`Self::matches`] on the only fields of an object a filter looks at,
+    /// for a caller that knows them without the object.
+    pub fn matches_fields(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        object_type: &ObjectType,
+        owner: &Owner,
+    ) -> bool {
         match self {
-            IotaObjectDataFilter::MatchAll(filters) => !filters.iter().any(|f| !f.matches(object)),
-            IotaObjectDataFilter::MatchAny(filters) => filters.iter().any(|f| f.matches(object)),
-            IotaObjectDataFilter::MatchNone(filters) => !filters.iter().any(|f| f.matches(object)),
+            IotaObjectDataFilter::MatchAll(filters) => !filters
+                .iter()
+                .any(|f| !f.matches_fields(object_id, version, object_type, owner)),
+            IotaObjectDataFilter::MatchAny(filters) => filters
+                .iter()
+                .any(|f| f.matches_fields(object_id, version, object_type, owner)),
+            IotaObjectDataFilter::MatchNone(filters) => !filters
+                .iter()
+                .any(|f| f.matches_fields(object_id, version, object_type, owner)),
             IotaObjectDataFilter::StructType(s) => {
-                let obj_tag: StructTag = match &object.object_type {
+                let obj_tag: StructTag = match object_type {
                     ObjectType::Package => return false,
                     ObjectType::Struct(s) => s.clone().into(),
                 };
@@ -1402,21 +1425,21 @@ impl IotaObjectDataFilter {
                 }
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
-                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
+                matches!(object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
                         && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
-                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
+                matches!(object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
-                matches!(object.owner, Owner::Address(addr) if &addr == a)
+                matches!(owner, Owner::Address(addr) if addr == a)
             }
             IotaObjectDataFilter::ObjectOwner(o) => {
-                matches!(object.owner, Owner::Object(addr) if &addr == o)
+                matches!(owner, Owner::Object(addr) if addr == o)
             }
-            IotaObjectDataFilter::ObjectId(id) => &object.object_id == id,
-            IotaObjectDataFilter::ObjectIds(ids) => ids.contains(&object.object_id),
-            IotaObjectDataFilter::Version(v) => object.version == *v,
+            IotaObjectDataFilter::ObjectId(id) => object_id == id,
+            IotaObjectDataFilter::ObjectIds(ids) => ids.contains(object_id),
+            IotaObjectDataFilter::Version(v) => version == *v,
         }
     }
 }

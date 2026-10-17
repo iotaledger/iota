@@ -185,6 +185,11 @@ pub struct RpcIndexesStore {
     /// The index watermark when the store was opened. Checkpoints up to it
     /// are in the store already, and executing them again stages nothing.
     indexed_at_open: Option<CheckpointSequenceNumber>,
+    /// The coin rows of the staged updates not yet written, with the
+    /// checkpoint that staged each. A coin type's metadata objects can be
+    /// created in different checkpoints, so a checkpoint's row is merged onto
+    /// a row staged before it, which the coin table does not show yet.
+    staged_coin_rows: Mutex<HashMap<CoinIndexKey, (CheckpointSequenceNumber, CoinIndexInfo)>>,
 }
 
 /// The highest checkpoint whose outputs are in the live object set:
@@ -456,8 +461,9 @@ impl IndexStoreTables {
     }
 
     /// Appends the live-state changes of a checkpoint's `transactions` for
-    /// `groups` to `batch`, and collects the JSON-RPC balance cache updates in
-    /// `coin_changes`.
+    /// `groups` to `batch`, collects the JSON-RPC balance cache updates in
+    /// `coin_changes`, and the coin metadata objects they create in
+    /// `coin_rows`, which the caller writes.
     ///
     /// The rows a change replaces are derived from the object's previous
     /// version, since an owner key carries the object's type and, for a coin,
@@ -468,10 +474,10 @@ impl IndexStoreTables {
         groups: &BTreeSet<IndexGroup>,
         batch: &mut DBBatch,
         coin_changes: &mut CoinBalanceChanges,
+        coin_rows: &mut HashMap<CoinIndexKey, CoinIndexInfo>,
     ) -> IotaResult {
         let index_jsonrpc = groups.contains(&IndexGroup::JsonRpc);
         let index_grpc = groups.contains(&IndexGroup::Grpc);
-        let mut coin_metadata: HashMap<CoinIndexKey, CoinIndexInfo> = HashMap::new();
         let mut package_versions: Vec<(PackageVersionKey, PackageVersionInfo)> = Vec::new();
 
         for tx in transactions {
@@ -554,23 +560,23 @@ impl IndexStoreTables {
                 }
             }
 
-            if index_grpc {
-                // These rows hold only object ids and package versions, which
-                // are fixed when the object is created.
-                for object in tx.created_objects() {
-                    if let Some((key, info)) = try_create_coin_index_info(object) {
-                        merge_coin_into(&mut coin_metadata, key, info);
-                    }
-                    if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
-                        merge_coin_into(
-                            &mut coin_metadata,
-                            key,
-                            CoinIndexInfo {
-                                regulated_coin_metadata_object_id: Some(object_id),
-                                ..Default::default()
-                            },
-                        );
-                    }
+            // These rows hold only object ids and package versions, which are
+            // fixed when the object is created.
+            for object in tx.created_objects() {
+                if let Some((key, info)) = try_create_coin_index_info(object) {
+                    merge_coin_into(coin_rows, key, info);
+                }
+                if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
+                    merge_coin_into(
+                        coin_rows,
+                        key,
+                        CoinIndexInfo {
+                            regulated_coin_metadata_object_id: Some(object_id),
+                            ..Default::default()
+                        },
+                    );
+                }
+                if index_grpc {
                     if let Some((key, info)) = try_create_package_version_info(object) {
                         package_versions.push((key, info));
                     }
@@ -579,15 +585,6 @@ impl IndexStoreTables {
         }
 
         batch.insert_batch(&self.package_version, package_versions)?;
-        // A coin type's metadata objects are separate, so each row is merged
-        // onto the committed one. No earlier checkpoint can have a row of the
-        // same coin type staged: those objects are created in one transaction.
-        for (key, info) in coin_metadata {
-            let mut entry = self.coin.get(&key)?.unwrap_or_default();
-            entry.merge(info);
-            batch.insert_batch(&self.coin, [(key, entry)])?;
-        }
-
         Ok(())
     }
 }
@@ -920,6 +917,7 @@ impl RpcIndexesStore {
             cancelled,
             epochs_to_retain,
             indexed_at_open,
+            staged_coin_rows: Mutex::new(HashMap::new()),
         })
     }
 
@@ -1165,8 +1163,15 @@ impl RpcIndexesStore {
         let indexed: Vec<&CheckpointTransaction> = transactions.iter().map(|(_, tx)| *tx).collect();
 
         let mut coin_changes = CoinBalanceChanges::default();
-        self.tables
-            .index_objects(&indexed, &self.groups, &mut batch, &mut coin_changes)?;
+        let mut coin_rows = HashMap::new();
+        self.tables.index_objects(
+            &indexed,
+            &self.groups,
+            &mut batch,
+            &mut coin_changes,
+            &mut coin_rows,
+        )?;
+        self.stage_coin_rows(checkpoint_seq, coin_rows, &mut batch)?;
         batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
 
         self.stage_update(
@@ -1176,6 +1181,30 @@ impl RpcIndexesStore {
                 coin_changes,
             },
         );
+        Ok(())
+    }
+
+    /// Appends `coin_rows` to `batch`, each merged onto the row of the same
+    /// coin type staged last, or else onto the committed one.
+    fn stage_coin_rows(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+        coin_rows: HashMap<CoinIndexKey, CoinIndexInfo>,
+        batch: &mut DBBatch,
+    ) -> IotaResult {
+        if coin_rows.is_empty() {
+            return Ok(());
+        }
+        let mut staged = self.staged_coin_rows.lock();
+        for (key, info) in coin_rows {
+            let mut row = match staged.get(&key) {
+                Some((_, row)) => row.clone(),
+                None => self.tables.coin.get(&key)?.unwrap_or_default(),
+            };
+            row.merge(info);
+            batch.insert_batch(&self.tables.coin, [(key.clone(), row.clone())])?;
+            staged.insert(key, (checkpoint_seq, row));
+        }
         Ok(())
     }
 
@@ -1237,6 +1266,11 @@ impl RpcIndexesStore {
         // Also after a failed write, which may have been applied in part.
         self.record_balance_commit(&cache_updates);
         written?;
+        // Only once written, so a checkpoint staged meanwhile finds these
+        // rows in either place.
+        self.staged_coin_rows
+            .lock()
+            .retain(|_, (staged_seq, _)| *staged_seq > checkpoint_seq);
 
         if !invalidate_caches {
             // Merging before the write would apply the delta twice if the

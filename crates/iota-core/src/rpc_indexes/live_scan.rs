@@ -282,20 +282,20 @@ impl<'a> RpcIndexesPartitionIndexer<'a> {
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
 
+        if let Some((key, info)) = try_create_coin_index_info(object) {
+            merge_coin_into(&mut self.coin_metadata.lock(), key, info);
+        }
+        if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
+            merge_coin_into(
+                &mut self.coin_metadata.lock(),
+                key,
+                CoinIndexInfo {
+                    regulated_coin_metadata_object_id: Some(object_id),
+                    ..Default::default()
+                },
+            );
+        }
         if self.groups.contains(&IndexGroup::Grpc) {
-            if let Some((key, info)) = try_create_coin_index_info(object) {
-                merge_coin_into(&mut self.coin_metadata.lock(), key, info);
-            }
-            if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
-                merge_coin_into(
-                    &mut self.coin_metadata.lock(),
-                    key,
-                    CoinIndexInfo {
-                        regulated_coin_metadata_object_id: Some(object_id),
-                        ..Default::default()
-                    },
-                );
-            }
             if let Some((key, info)) = try_create_package_version_info(object) {
                 self.buffers.package_version.insert(&key, &info)?;
             }
