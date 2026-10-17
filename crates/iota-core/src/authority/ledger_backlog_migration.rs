@@ -651,14 +651,16 @@ impl LedgerBacklogMigration {
         } = progress;
         logger.into_inner().finish();
 
-        // Every range finished, as an error would have returned above.
+        // Every range finished, as an error would have returned above. Not an
+        // error: every row is in its bucket by now, and the ingestion moved
+        // the files, so at most an empty directory is left.
         if let Some(files) = sst_files {
-            std::fs::remove_dir_all(&files.dir).map_err(|e| {
-                IotaError::Storage(format!(
+            if let Err(e) = std::fs::remove_dir_all(&files.dir) {
+                warn!(
                     "unable to remove the SST file directory {:?}: {e}",
                     files.dir
-                ))
-            })?;
+                );
+            }
         }
         if ledger.is_some() {
             self.perpetual_tables
@@ -694,8 +696,12 @@ impl LedgerBacklogMigration {
                 "unable to prepare the SST file directory {dir:?}: {e}"
             ))
         };
+        // A leftover is never ingested, and a file written again under the
+        // same name replaces it, so one that cannot be removed only costs disk.
         if dir.exists() {
-            std::fs::remove_dir_all(&dir).map_err(io_error)?;
+            if let Err(e) = std::fs::remove_dir_all(&dir) {
+                warn!("unable to remove the leftover SST file directory {dir:?}: {e}");
+            }
         }
         std::fs::create_dir_all(&dir).map_err(io_error)?;
         Ok(LedgerSstFiles {
