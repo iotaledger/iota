@@ -540,9 +540,9 @@ impl CoinReadInternal for CoinReadInternalImpl {
         self.metrics
             .get_coins_result_size_total
             .inc_by(data.len() as u64);
-        // Only with a next page, as `getOwnedObjects` does: clients released
-        // before the cursor became a position read it as an object id, and
-        // then still read every response that has a single page.
+        // Only with a next page, as `getOwnedObjects` does, so that a client
+        // that reads the cursor as an object id can still parse a response
+        // that has a single page.
         let next_cursor = has_next_page
             .then(|| data.last().map(|(_, cursor)| *cursor))
             .flatten();
