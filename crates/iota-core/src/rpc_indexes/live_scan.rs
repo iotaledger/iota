@@ -28,6 +28,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use serde::Serialize;
+use tracing::warn;
 use typed_store::{
     TypedStoreError,
     database::wait_for_database_close,
@@ -205,12 +206,15 @@ impl SstFiles {
         tables
             .package_version
             .ingest_sst_files(&self.package_version.into_inner())?;
-        std::fs::remove_dir_all(&self.dir).map_err(|e| {
-            StorageError::custom(format!(
+        // Not an error: the index is complete by now, and the ingestion moved
+        // the files into the database, so at most an empty directory is left.
+        if let Err(e) = std::fs::remove_dir_all(&self.dir) {
+            warn!(
                 "unable to remove the SST file directory {:?}: {e}",
                 self.dir
-            ))
-        })
+            );
+        }
+        Ok(())
     }
 }
 
