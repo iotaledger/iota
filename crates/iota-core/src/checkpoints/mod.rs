@@ -71,7 +71,7 @@ use tokio::{
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
-    rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
+    rocks::{DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options},
 };
 
 pub use crate::checkpoints::{
@@ -99,6 +99,7 @@ use crate::{
     },
     consensus_handler::SequencedConsensusTransactionKey,
     consensus_manager::ReplayWaiter,
+    epoch_buckets::historic_root,
     execution_cache::TransactionCacheRead,
     global_state_hasher::GlobalStateHasher,
     stake_aggregator::{InsertResult, MultiStakeAggregator},
@@ -256,42 +257,63 @@ pub struct CheckpointStoreTables {
 }
 
 impl CheckpointStoreTables {
-    /// The checkpoint store's tables together with the historic checkpoint
-    /// buckets. The buckets are column families of this same database, so
-    /// they are opened from its handle, with options cloned from the ones its
-    /// own tables use.
+    /// Opens the checkpoint store's tables together with the historic
+    /// checkpoint buckets, which are column families of the same database.
+    /// `historic_db_path` is as for
+    /// [`CheckpointStore::new_with_historic_db_path`].
     fn open_with_historic_checkpoints(
         path: &Path,
+        historic_db_path: Option<&Path>,
         metric_name: &'static str,
     ) -> (Self, HistoricCheckpoints) {
         let db_options = default_db_options();
-        // The historic checkpoint buckets are column families of this
-        // database, so they are listed here together with the declared
-        // tables; one left out would be reopened with default options and a
-        // block cache of its own.
-        let table_options = DBMapTableConfigMap::new(
-            HistoricCheckpoints::extra_column_family_options(path, &db_options)
-                .into_iter()
-                .collect(),
-        );
+        let historic_root = historic_root(path, historic_db_path);
+        let table_options = Self::table_options(path, &db_options, &historic_root);
         let tables = Self::open_tables_read_write(
             path.to_path_buf(),
             MetricConf::new(metric_name),
             None,
             Some(table_options),
         );
-        let historic_checkpoints =
-            HistoricCheckpoints::open(tables.certified_checkpoints.db.clone(), &db_options)
-                .expect("cannot open the historic checkpoint buckets");
+        let historic_checkpoints = HistoricCheckpoints::open(
+            tables.certified_checkpoints.db.clone(),
+            &db_options,
+            &historic_root,
+        )
+        .expect("cannot open the historic checkpoint buckets");
         (tables, historic_checkpoints)
     }
 
-    pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
-        Self::get_read_only_handle(
+    /// The options of the historic checkpoint buckets of the database at
+    /// `path`. Every open of the database must pass these, or a bucket is
+    /// reopened with default options and without the directory its files
+    /// are in.
+    fn table_options(
+        path: &Path,
+        db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> DBMapTableConfigMap {
+        DBMapTableConfigMap::new(
+            HistoricCheckpoints::extra_column_family_options(path, db_options, historic_root)
+                .into_iter()
+                .collect(),
+        )
+    }
+
+    pub fn open_readonly(
+        path: &Path,
+        historic_db_path: Option<&Path>,
+    ) -> CheckpointStoreTablesReadOnly {
+        Self::get_read_only_handle_with_table_options(
             path.to_path_buf(),
             None,
             None,
             MetricConf::new("checkpoint_readonly"),
+            Self::table_options(
+                path,
+                &default_db_options(),
+                &historic_root(path, historic_db_path),
+            ),
         )
     }
 }
@@ -307,16 +329,34 @@ pub struct CheckpointStore {
 }
 
 impl CheckpointStore {
+    /// A checkpoint store at `path` that keeps its per-epoch history in
+    /// [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in its own
+    /// directory. A node opens its store with
+    /// [`Self::new_with_historic_db_path`] instead.
     pub fn new(path: &Path) -> Arc<Self> {
-        Self::new_with_contents_cache(path, FullCheckpointContentsCache::default())
+        Self::new_with_contents_cache(path, None, FullCheckpointContentsCache::default())
+    }
+
+    /// A checkpoint store at `path` that keeps its per-epoch history under
+    /// `historic_db_path`. Every open of a database must pass the same path.
+    pub fn new_with_historic_db_path(path: &Path, historic_db_path: &Path) -> Arc<Self> {
+        Self::new_with_contents_cache(
+            path,
+            Some(historic_db_path),
+            FullCheckpointContentsCache::default(),
+        )
     }
 
     pub fn new_with_contents_cache(
         path: &Path,
+        historic_db_path: Option<&Path>,
         contents_cache: FullCheckpointContentsCache,
     ) -> Arc<Self> {
-        let (tables, historic_checkpoints) =
-            CheckpointStoreTables::open_with_historic_checkpoints(path, "checkpoint");
+        let (tables, historic_checkpoints) = CheckpointStoreTables::open_with_historic_checkpoints(
+            path,
+            historic_db_path,
+            "checkpoint",
+        );
         Arc::new(Self {
             tables,
             historic_checkpoints,
@@ -331,8 +371,11 @@ impl CheckpointStore {
         CheckpointStore::new(storage_dir.as_path())
     }
 
-    pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
-        CheckpointStoreTables::open_readonly(path)
+    pub fn open_readonly(
+        path: &Path,
+        historic_db_path: Option<&Path>,
+    ) -> CheckpointStoreTablesReadOnly {
+        CheckpointStoreTables::open_readonly(path, historic_db_path)
     }
 
     /// Marks the one-time migration of the flat checkpoint tables into the

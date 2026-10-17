@@ -26,7 +26,7 @@ use typed_store::{
     traits::Map,
 };
 
-use crate::get_db_entries;
+use crate::{db_tool::historic_db_path_of_store, get_db_entries};
 
 #[derive(Clone, Debug)]
 pub enum SearchRange<T: Serialize + Clone + Debug> {
@@ -58,8 +58,10 @@ pub fn search_index(
     println!("Opening db at {db_path:?} ...");
     match table_name.as_str() {
         "owner" => {
-            let db_read_only_handle =
-                IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
+            let db_read_only_handle = IndexStoreTables::open_readonly(
+                &db_path,
+                Some(&historic_db_path_of_store(&db_path)),
+            )?;
             get_db_entries!(
                 db_read_only_handle.owner,
                 from_addr_owner_key,
@@ -68,8 +70,10 @@ pub fn search_index(
             )
         }
         "dynamic_field" => {
-            let db_read_only_handle =
-                IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
+            let db_read_only_handle = IndexStoreTables::open_readonly(
+                &db_path,
+                Some(&historic_db_path_of_store(&db_path)),
+            )?;
             get_db_entries!(
                 db_read_only_handle.dynamic_field,
                 from_parent_field_key,
@@ -482,6 +486,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = RpcIndexesStore::new_without_init(
             dir.path().to_path_buf(),
+            None,
             BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         );
         let checkpoint = TestCheckpointDataBuilder::new(0)

@@ -62,6 +62,7 @@ use iota_core::{
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
         reconfiguration::ReconfigurationInitiator,
     },
+    epoch_buckets::HISTORIC_DB_DIR,
     epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, EpochEndDbSnapshotRequest},
     execution_cache::build_execution_cache,
     execution_scheduler::ExecutionSchedulerAPI,
@@ -478,9 +479,14 @@ impl IotaNode {
             None,
         ));
 
+        let historic_db_path = config.db_path().join(HISTORIC_DB_DIR);
+
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
+            enable_write_stall,
+            historic_db_path: Some(historic_db_path.clone()),
+        };
         let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
             AuthorityPerpetualTables::open_with_historic_objects(
                 &config.db_path().join("store"),
@@ -494,6 +500,7 @@ impl IotaNode {
             .expect("Database read should not fail at init.");
         let checkpoint_store = CheckpointStore::new_with_contents_cache(
             &config.db_path().join("checkpoints"),
+            Some(&historic_db_path),
             FullCheckpointContentsCache::new(
                 config
                     .full_checkpoint_contents_cache_size_mb
@@ -695,6 +702,7 @@ impl IotaNode {
             Some(
                 RpcIndexesStore::new(
                     config.db_path().join(RPC_INDEXES_DIR),
+                    Some(&historic_db_path),
                     &prometheus_registry,
                     index_groups,
                     epoch_store
