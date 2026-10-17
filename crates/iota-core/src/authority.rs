@@ -3395,23 +3395,9 @@ impl AuthorityState {
         let rpc_indexes_store = self.rpc_indexes_store.clone();
         let metrics = self.metrics.clone();
         let expired = tokio::task::spawn_blocking(move || {
-            if let Some(epochs_to_retain) = objects_to_retain {
-                if let Err(err) = historic_objects.prune(current_epoch, epochs_to_retain) {
-                    error!("Failed to expire historic object buckets: {err:?}");
-                }
-            }
-            if let Some(epochs_to_retain) = checkpoints_to_retain {
-                if let Err(err) = historic_ledger.prune(current_epoch, epochs_to_retain) {
-                    error!("Failed to expire historic ledger buckets: {err:?}");
-                }
-                if let Err(err) = checkpoint_store
-                    .historic_checkpoints
-                    .prune(current_epoch, epochs_to_retain)
-                {
-                    error!("Failed to expire historic checkpoint buckets: {err:?}");
-                }
-                Self::record_pruned_checkpoints(&historic_ledger, &checkpoint_store);
-            }
+            // The index first, so it never names a transaction the ledger has
+            // dropped, and the checkpoints before the ledger, so a checkpoint
+            // is never served without its transactions.
             if let Some(indexes) = rpc_indexes_store {
                 match indexes.prune(current_epoch) {
                     Ok(Some(earliest_retained_epoch)) => metrics
@@ -3419,6 +3405,23 @@ impl AuthorityState {
                         .set(earliest_retained_epoch as i64),
                     Ok(None) => {}
                     Err(err) => error!("Failed to expire the RPC index history: {err:?}"),
+                }
+            }
+            if let Some(epochs_to_retain) = checkpoints_to_retain {
+                if let Err(err) = checkpoint_store
+                    .historic_checkpoints
+                    .prune(current_epoch, epochs_to_retain)
+                {
+                    error!("Failed to expire historic checkpoint buckets: {err:?}");
+                }
+                if let Err(err) = historic_ledger.prune(current_epoch, epochs_to_retain) {
+                    error!("Failed to expire historic ledger buckets: {err:?}");
+                }
+                Self::record_pruned_checkpoints(&historic_ledger, &checkpoint_store);
+            }
+            if let Some(epochs_to_retain) = objects_to_retain {
+                if let Err(err) = historic_objects.prune(current_epoch, epochs_to_retain) {
+                    error!("Failed to expire historic object buckets: {err:?}");
                 }
             }
         })
