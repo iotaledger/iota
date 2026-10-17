@@ -20,6 +20,7 @@ use iota_common::fatal;
 use iota_metrics::spawn_monitored_task;
 use iota_types::traffic_control::PolicyConfig;
 use prometheus_filtered::IntGauge;
+use tokio::time::{Interval, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
@@ -272,9 +273,9 @@ fn insert_block(blocklist: &Blocklist, len_gauge: &IntGauge, client: IpAddr, ttl
 
 /// Waits for the next tick of a background loop, returning false once the
 /// manager holding the loop's state has been dropped.
-async fn tick(interval: Duration, shutdown: &CancellationToken) -> bool {
+async fn tick(interval: &mut Interval, shutdown: &CancellationToken) -> bool {
     tokio::select! {
-        _ = tokio::time::sleep(interval) => true,
+        _ = interval.tick() => true,
         _ = shutdown.cancelled() => false,
     }
 }
@@ -285,7 +286,10 @@ async fn run_clear_blocklists_loop(
     metrics: Arc<TrafficControllerMetrics>,
     shutdown: CancellationToken,
 ) {
-    while tick(CLEAR_BLOCKLIST_INTERVAL, &shutdown).await {
+    let mut interval = tokio::time::interval(CLEAR_BLOCKLIST_INTERVAL);
+    // A slow pass delays the next one rather than causing a burst of passes.
+    interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    while tick(&mut interval, &shutdown).await {
         let now = SystemTime::now();
         blocklists.clients.retain(|_, expiration| now < *expiration);
         blocklists
