@@ -8,7 +8,7 @@
 use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, Version};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, authenticator_function_ref_v1_from_dynamic_field_object,
@@ -28,13 +28,13 @@ use super::{
     MissingReason, OwnedVerdict, PackageVerdict, SharedVerdict,
     dynamic_field::{DynamicFieldReader, HighestRowLookup, RowLookup},
     owned::{
-        LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
-        TablesRecheck,
+        LiveAtVersion, NeedBytes, NotAtVersion, OwnedReader, RowsAboveLookup, SharedNamedAsOwned,
+        TablesLookup, TablesRecheck, classify_shared_named_as_owned,
     },
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, DeletionRowLookup, ObjectAbsent, SharedReader, SharedTablesLookup,
-        SharedTablesRecheck, TypeObjectLookup,
+        CreatedObjectLookup, DeletionRowLookup, DropCheck, ObjectAbsent, SharedReader,
+        SharedTablesLookup, SharedTablesRecheck, TypeObjectLookup,
     },
 };
 use crate::{
@@ -98,7 +98,7 @@ impl CommitIndexedReader {
         match no_tables_entry.read_store(self)?.reread_handler_row(self)? {
             TablesRecheck::LiveAtVersion(live_at_version) => self.read_rows_above(live_at_version),
             TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
-            TablesRecheck::Superseded(superseded) => self.read_superseded(superseded),
+            TablesRecheck::NotAtVersion(not_at_version) => self.read_other_rows(not_at_version),
             TablesRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
             TablesRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
@@ -110,29 +110,57 @@ impl CommitIndexedReader {
         &self,
         live_at_version: OwnedReader<LiveAtVersion>,
     ) -> IotaResult<OwnedVerdict> {
-        match live_at_version.read_rows_above(self)? {
-            RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
-            RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
-        }
+        self.decide_rows_above(live_at_version.read_rows_above(self)?)
     }
 
-    /// Decides a version the store has replaced: it drops unless this epoch's
-    /// consumption of exactly that version is above the horizon, where a
-    /// validator that has not executed it still keeps it.
-    fn read_superseded(
+    /// With no row at the named version and another store answer, the other
+    /// rows of `id` decide, so that a validator ahead of the horizon answers
+    /// as one that is not.
+    fn read_other_rows(
         &self,
-        superseded: OwnedReader<SupersededInStore>,
+        not_at_version: OwnedReader<NotAtVersion>,
     ) -> IotaResult<OwnedVerdict> {
-        match superseded.read_rows_above(self)? {
+        self.decide_rows_above(not_at_version.read_other_rows(self)?)
+    }
+
+    fn decide_rows_above(&self, lookup: RowsAboveLookup) -> IotaResult<OwnedVerdict> {
+        match lookup {
             RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            RowsAboveLookup::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
             RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
     }
 
     /// Reads one shared input declared at `initial_shared_version`: whether
     /// the object exists and is shared at that version. Its contents are not
-    /// read. A storage error is returned as `Err`, never as a result.
+    /// read. A drop is checked against the lowest row of `id`, so that a
+    /// validator that executed the creation of `id` above the horizon answers
+    /// as one that did not. A storage error is returned as `Err`, never as a
+    /// result.
     pub fn read_shared(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<SharedVerdict> {
+        match self.read_shared_rows_and_store(id, initial_shared_version)? {
+            SharedVerdict::Drop(reason) => Ok(
+                match SharedReader::start_drop_check(
+                    id,
+                    initial_shared_version,
+                    self.horizon,
+                    reason,
+                )
+                .read_lowest_row(self)?
+                {
+                    DropCheck::Drop(reason) => SharedVerdict::Drop(reason),
+                    DropCheck::Missing(reason) => SharedVerdict::Missing(reason),
+                },
+            ),
+            verdict => Ok(verdict),
+        }
+    }
+
+    fn read_shared_rows_and_store(
         &self,
         id: ObjectId,
         initial_shared_version: Version,
@@ -206,10 +234,11 @@ impl CommitIndexedReader {
     /// Loads the object of a kept input at exactly `(id, V)`. Takes the
     /// `NeedBytes` step, which only a keep result creates. An object with
     /// another digest drops the input: a keep through a row that replaced `V`
-    /// has not compared the named digest yet. Without the object, a row of
-    /// `id` above `V` drops the input. With neither, a kept version is missing
-    /// from the store, which is a storage error that stops commit processing,
-    /// and never a result.
+    /// has not compared the named digest yet. A shared object named as owned
+    /// is decided from its creation row, see the owned module doc. Without
+    /// the object, a row of `id` above `V` drops the input. With neither, a
+    /// kept version is missing from the store, which is a storage error that
+    /// stops commit processing, and never a result.
     fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<OwnedVerdict> {
         let input = need_bytes.into_reference();
         let key = ObjectKey(input.object_id, input.version);
@@ -218,6 +247,17 @@ impl CommitIndexedReader {
                 return Ok(OwnedVerdict::Drop(DropReason(
                     DropKind::StoreDigestMismatch,
                 )));
+            }
+            if let Owner::Shared(initial) = object.owner {
+                let creation_row = self
+                    .epoch_store
+                    .handler_processed_object(&ObjectKey(input.object_id, initial))?;
+                return Ok(
+                    match classify_shared_named_as_owned(creation_row.as_ref(), self.horizon) {
+                        SharedNamedAsOwned::Missing(reason) => OwnedVerdict::Missing(reason),
+                        SharedNamedAsOwned::Drop(reason) => OwnedVerdict::Drop(reason),
+                    },
+                );
             }
             return Ok(OwnedVerdict::Keep(KeptObject(object)));
         }
