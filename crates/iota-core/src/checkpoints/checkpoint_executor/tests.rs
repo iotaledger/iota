@@ -27,8 +27,8 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::{
-        CheckpointStore, FullCheckpointContentsCache, FullCheckpointContentsCacheMetrics,
-        test_checkpoint_with_contents,
+        CheckpointStore, EMPTY_CHECKPOINT_CONTENTS_DIGEST, FullCheckpointContentsCache,
+        FullCheckpointContentsCacheMetrics, test_checkpoint_with_contents,
     },
     global_state_hasher::GlobalStateHasher,
 };
@@ -686,4 +686,135 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
             .update_highest_synced_checkpoint(&checkpoints[2])
             .unwrap()
     );
+}
+
+/// Checkpoint 1 is verified without contents, as on any node while state sync
+/// downloads them, and a write tries to mark checkpoint 2 synced. The test
+/// checks that the checkpoint executor does not get checkpoint 1, also not
+/// after its warning timeout, when it reads the synced watermark again. The
+/// executor panics if it gets a checkpoint whose contents are not stored. The
+/// test guards the checkpoint store and the executor together, from the side
+/// that reads the synced watermark.
+#[tokio::test(start_paused = true)]
+async fn checkpoint_store_gives_executor_checkpoint_only_after_its_contents_stored() {
+    telemetry_subscribers::init_for_testing();
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (checkpoints, contents, _, _) = committee.make_empty_checkpoints(3, None);
+    sync_checkpoint(&checkpoint_store, &checkpoints[0], &contents[0]);
+    for checkpoint in &checkpoints[1..] {
+        checkpoint_store
+            .insert_verified_checkpoint(checkpoint)
+            .unwrap();
+    }
+    // Checkpoints 1 and 2 are empty, and all empty checkpoints share one
+    // contents row, which the checkpoint store writes when it opens. Without
+    // this row, checkpoints 1 and 2 have no contents, and the executor can
+    // still execute them after the test stores the row again.
+    checkpoint_store
+        .tables
+        .checkpoint_content
+        .remove(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+        .unwrap();
+    assert!(
+        checkpoint_store
+            .get_checkpoint_contents(&checkpoints[1].contents_digest)
+            .unwrap()
+            .is_none()
+    );
+
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+    timeout(
+        Duration::from_secs(30),
+        checkpoint_store.notify_read_executed_checkpoint(0),
+    )
+    .await
+    .expect("checkpoint 0 was not executed");
+
+    // The test checks what the executor gets, not what the write returns.
+    let _ = checkpoint_store
+        .update_highest_synced_checkpoint(&checkpoints[2])
+        .unwrap();
+    // Longer than the warning timeout of the executor (5 s by default, set by
+    // `NEW_CHECKPOINT_WARNING_TIMEOUT_MS`), after which the executor reads the
+    // synced watermark again. The clock of the test starts paused, so this
+    // wait takes no real time.
+    let past_warning_timeout = Duration::from_secs(6);
+    tokio::time::sleep(past_warning_timeout).await;
+    assert!(
+        !executor_handle.is_finished(),
+        "the executor stopped: it got checkpoint 1, whose contents are not in the store"
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        Some(0)
+    );
+
+    checkpoint_store
+        .insert_checkpoint_contents(contents[1].clone().into_checkpoint_contents())
+        .unwrap();
+    for checkpoint in &checkpoints[1..] {
+        checkpoint_store
+            .update_highest_synced_checkpoint(checkpoint)
+            .unwrap();
+    }
+    timeout(
+        Duration::from_secs(30),
+        checkpoint_store.notify_read_executed_checkpoint(2),
+    )
+    .await
+    .expect("checkpoints 1 and 2 were not executed");
+    executor_handle.abort();
+}
+
+/// The checkpoint executor waits for checkpoint 1, and a write marks
+/// checkpoint 1 synced. The test checks that the write wakes the executor: the
+/// executor executes checkpoint 1 before its warning timeout, after which it
+/// reads the synced watermark again without a wake-up.
+#[tokio::test(start_paused = true)]
+async fn executor_executes_synced_checkpoint_before_warning_timeout() {
+    telemetry_subscribers::init_for_testing();
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (checkpoints, contents, _, _) = committee.make_empty_checkpoints(2, None);
+    sync_checkpoint(&checkpoint_store, &checkpoints[0], &contents[0]);
+    checkpoint_store
+        .insert_verified_checkpoint(&checkpoints[1])
+        .unwrap();
+
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+    timeout(
+        Duration::from_secs(30),
+        checkpoint_store.notify_read_executed_checkpoint(0),
+    )
+    .await
+    .expect("checkpoint 0 was not executed");
+    // A waiter that registers after the write returns at once, with or without
+    // a wake-up. On the single-threaded test runtime, a registered waiter has
+    // also read the watermark.
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store.num_synced_checkpoint_waiters_for_testing() == 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the executor did not wait for checkpoint 1");
+
+    checkpoint_store
+        .update_highest_synced_checkpoint(&checkpoints[1])
+        .unwrap();
+    // Shorter than the warning timeout of the executor (5 s by default, set by
+    // `NEW_CHECKPOINT_WARNING_TIMEOUT_MS`).
+    let before_warning_timeout = Duration::from_secs(1);
+    timeout(
+        before_warning_timeout,
+        checkpoint_store.notify_read_executed_checkpoint(1),
+    )
+    .await
+    .expect("the write did not wake the executor before its warning timeout");
+    executor_handle.abort();
 }

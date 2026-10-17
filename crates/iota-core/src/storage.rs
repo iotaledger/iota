@@ -648,3 +648,7 @@ impl GrpcStateReader for GrpcReadStore {
             .map_err(StorageError::custom)
     }
 }
+
+#[cfg(test)]
+#[path = "unit_tests/storage_tests.rs"]
+mod storage_tests;

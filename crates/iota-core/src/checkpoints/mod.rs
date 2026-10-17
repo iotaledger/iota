@@ -805,6 +805,12 @@ impl CheckpointStore {
         .await
     }
 
+    /// The number of waiters for a synced checkpoint.
+    #[cfg(test)]
+    pub(crate) fn num_synced_checkpoint_waiters_for_testing(&self) -> usize {
+        self.synced_checkpoint_notify_read.num_pending()
+    }
+
     pub async fn notify_read_executed_checkpoint(
         &self,
         seq: CheckpointSequenceNumber,
@@ -3418,32 +3424,14 @@ mod tests {
         // digest, and the assertions below rely on that order. Transactions
         // 15..20 carry a large payload to exercise size-based checkpoint
         // splitting.
-        let make_tx = |seed: u8, payload_size: usize| {
-            let mut id = [0u8; 32];
-            id[0] = seed;
-            VerifiedTransaction::new_genesis_transaction(
-                vec![GenesisObject::new(
-                    ObjectData::Package(MovePackage::new(
-                        ObjectId::new(id),
-                        Version::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
-                        // no modules so empty type_origin_table as no types are defined in
-                        // this package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )),
-                    Owner::Immutable,
-                )],
-                vec![],
-            )
-        };
-
-        let mut small: Vec<_> = (0..15).map(|seed| make_tx(seed, 1)).collect();
+        let mut small: Vec<_> = (0..15)
+            .map(|seed| make_genesis_transaction(seed, 1))
+            .collect();
         small.sort_by_key(|tx| *tx.digest());
 
-        let mut large: Vec<_> = (0..5).map(|seed| make_tx(100 + seed, 40000)).collect();
+        let mut large: Vec<_> = (0..5)
+            .map(|seed| make_genesis_transaction(100 + seed, 40000))
+            .collect();
         large.sort_by_key(|tx| *tx.digest());
 
         let txns: Vec<_> = small.into_iter().chain(large).collect();
@@ -3669,6 +3657,85 @@ mod tests {
         assert_eq!(c2sc.sequence_number, 1);
     }
 
+    /// When the aggregator certifies checkpoint N, the contents of checkpoint N
+    /// and of the checkpoints before it that are not synced yet are in the
+    /// checkpoint store. State sync marks a checkpoint from consensus synced
+    /// and checks its contents only in a debug build, so a validator relies on
+    /// this order.
+    ///
+    /// The test sees a wrong order only where the builder lets other tasks run
+    /// before it stores the contents. It does not see a change in the order of
+    /// the steps that run without such a point.
+    #[tokio::test]
+    async fn checkpoint_certified_only_after_contents_of_all_checkpoints_up_to_it_stored() {
+        telemetry_subscribers::init_for_testing();
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_min_checkpoint_interval_ms_for_testing(100);
+        protocol_config.disable_checkpoint_rate_window_size_for_testing();
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+        let (digests, effects) = store_executed_genesis_transactions(&state, 1..=6);
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let epoch_store = state.epoch_store_for_testing();
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let (sender, mut certified) = mpsc::channel(10);
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            Arc::new(effects),
+            Arc::downgrade(&global_state_hasher),
+            // The committee has one validator, so its signature alone
+            // certifies a checkpoint.
+            Box::new(SendCheckpointSignatureToAggregator {
+                state: state.clone(),
+            }),
+            Box::new(FindCheckpointsWithoutContents {
+                checkpoint_store: checkpoint_store.clone(),
+                sender,
+            }),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let _tasks = checkpoint_service.spawn(None).await;
+
+        for (height, roots, timestamp_ms) in [
+            (0, vec![digests[0]], 0),
+            (1, digests[1..5].to_vec(), 1000),
+            (2, vec![digests[5]], 2000),
+        ] {
+            checkpoint_service
+                .write_and_notify_checkpoint_for_testing(
+                    &epoch_store,
+                    p(height, roots, timestamp_ms),
+                )
+                .unwrap();
+        }
+        // The pending checkpoint at height 1 has more transactions than a
+        // checkpoint can hold, so the builder writes two checkpoints together.
+        let checkpoint_count = 4;
+        for seq in 0..checkpoint_count {
+            let (certified_seq, without_contents) =
+                timeout(Duration::from_secs(30), certified.recv())
+                    .await
+                    .expect("timed out waiting for a certified checkpoint")
+                    .unwrap();
+            assert_eq!(certified_seq, seq);
+            assert!(
+                without_contents.is_empty(),
+                "checkpoint {seq} was certified before the contents of checkpoints {without_contents:?} were stored"
+            );
+        }
+    }
+
     #[sim_test]
     pub async fn checkpoint_builder_windowed_interval_test() {
         telemetry_subscribers::init_for_testing();
@@ -3690,62 +3757,13 @@ mod tests {
         // Distinct real transactions: only build timing is under test, but the
         // builder pairs each stored transaction with its effects by digest, so
         // effects must reference the digests of actually stored transactions.
-        let make_tx = |seed: u8| {
-            let mut id = [0u8; 32];
-            id[0] = seed;
-            VerifiedTransaction::new_genesis_transaction(
-                vec![GenesisObject::new(
-                    ObjectData::Package(MovePackage::new(
-                        ObjectId::new(id),
-                        Version::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
-                        // no modules so empty type_origin_table as no types are defined in
-                        // this package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )),
-                    Owner::Immutable,
-                )],
-                vec![],
-            )
-        };
-        let txns: Vec<_> = (1..=8).map(make_tx).collect();
-        let digests: Vec<TransactionDigest> = txns.iter().map(|tx| *tx.digest()).collect();
+        let (digests, effects) = store_executed_genesis_transactions(&state, 1..=8);
         // Digest for test index `i` (1-based).
         let d = |i: u8| digests[(i - 1) as usize];
 
-        for tx in &txns {
-            state
-                .database_for_testing()
-                .perpetual_tables
-                .transactions
-                .insert(tx.digest(), tx.serializable_ref())
-                .unwrap();
-        }
-
-        let mut store = HashMap::<TransactionDigest, TransactionEffects>::new();
-        for i in 1..=8 {
-            commit_cert_for_test(
-                &mut store,
-                state.clone(),
-                d(i),
-                vec![],
-                GasCostSummary::new(11, 11, 12, 11, 1),
-            );
-        }
-        let all_digests: Vec<_> = store.keys().copied().collect();
-        for digest in all_digests {
-            let signature = iota_types::crypto::zero_ed25519_signature().into();
-            state
-                .epoch_store_for_testing()
-                .test_insert_user_signature(digest, vec![signature]);
-        }
-
         let (output, mut result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
         let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
-        let store = Arc::new(store);
+        let store = Arc::new(effects);
 
         let tmp_dir = iota_common::tempdir();
         let checkpoint_store = CheckpointStore::new(tmp_dir.path());
@@ -3923,6 +3941,145 @@ mod tests {
             self.try_send(summary.clone()).unwrap();
             Ok(())
         }
+    }
+
+    /// Signs each checkpoint that the builder writes with the key of the
+    /// validator, puts the signature where the aggregator reads it, and then
+    /// lets other tasks run. On a node, consensus gives the signatures to the
+    /// aggregator, and the aggregator runs on other threads at the same time
+    /// as the builder.
+    struct SendCheckpointSignatureToAggregator {
+        state: Arc<AuthorityState>,
+    }
+
+    #[async_trait::async_trait]
+    impl CheckpointOutput for SendCheckpointSignatureToAggregator {
+        async fn checkpoint_created(
+            &self,
+            summary: &CheckpointSummary,
+            _contents: &CheckpointContents,
+            epoch_store: &Arc<AuthorityPerEpochStore>,
+            _checkpoint_store: &Arc<CheckpointStore>,
+        ) -> IotaResult {
+            let summary = SignedCheckpointSummary::new(
+                summary.epoch,
+                summary.clone(),
+                self.state.secret.deref(),
+                self.state.name,
+            );
+            // Each checkpoint gets one signature.
+            let signature_index = 0;
+            epoch_store.insert_checkpoint_signature(
+                summary.sequence_number,
+                signature_index,
+                &CheckpointSignatureMessage { summary },
+            )?;
+            // Without this point, the aggregator cannot run before the builder
+            // stores the contents, and the test does not check the order.
+            tokio::task::yield_now().await;
+            Ok(())
+        }
+    }
+
+    /// For each certified checkpoint, sends the checkpoints that are not
+    /// synced, up to the certified checkpoint, whose contents are not in the
+    /// checkpoint store.
+    struct FindCheckpointsWithoutContents {
+        checkpoint_store: Arc<CheckpointStore>,
+        sender: mpsc::Sender<(CheckpointSequenceNumber, Vec<CheckpointSequenceNumber>)>,
+    }
+
+    #[async_trait::async_trait]
+    impl CertifiedCheckpointOutput for FindCheckpointsWithoutContents {
+        async fn certified_checkpoint_created(
+            &self,
+            summary: &CertifiedCheckpointSummary,
+        ) -> IotaResult {
+            let first_not_synced = self
+                .checkpoint_store
+                .get_highest_synced_checkpoint_seq_number()?
+                .map_or(0, |seq| seq + 1);
+            let mut without_contents = Vec::new();
+            for seq in first_not_synced..=summary.sequence_number {
+                let checkpoint = self
+                    .checkpoint_store
+                    .get_checkpoint_by_sequence_number(seq)?
+                    .expect("the aggregator certifies checkpoints in order");
+                if self
+                    .checkpoint_store
+                    .get_checkpoint_contents(&checkpoint.contents_digest)?
+                    .is_none()
+                {
+                    without_contents.push(seq);
+                }
+            }
+            self.sender
+                .try_send((summary.sequence_number, without_contents))
+                .unwrap();
+            Ok(())
+        }
+    }
+
+    /// Makes a genesis transaction that publishes one package with a module
+    /// of `payload_size` bytes. `seed` makes its digest unique.
+    fn make_genesis_transaction(seed: u8, payload_size: usize) -> VerifiedTransaction {
+        let mut id = [0u8; 32];
+        id[0] = seed;
+        VerifiedTransaction::new_genesis_transaction(
+            vec![GenesisObject::new(
+                ObjectData::Package(MovePackage::new(
+                    ObjectId::new(id),
+                    Version::default(),
+                    BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
+                    // no modules so empty type_origin_table as no types are defined in
+                    // this package
+                    Vec::new(),
+                    // no modules so empty linkage_table as no dependencies of this package
+                    // exist
+                    BTreeMap::new(),
+                )),
+                Owner::Immutable,
+            )],
+            vec![],
+        )
+    }
+
+    /// Makes a genesis transaction for each seed and stores it with a user
+    /// signature, and marks it executed in the epoch. Returns the digests in
+    /// the order of the seeds, and the effects that the checkpoint builder
+    /// reads.
+    fn store_executed_genesis_transactions(
+        state: &Arc<AuthorityState>,
+        seeds: impl IntoIterator<Item = u8>,
+    ) -> (
+        Vec<TransactionDigest>,
+        HashMap<TransactionDigest, TransactionEffects>,
+    ) {
+        let mut digests = Vec::new();
+        let mut effects = HashMap::new();
+        for seed in seeds {
+            let transaction = make_genesis_transaction(seed, 1);
+            let digest = *transaction.digest();
+            state
+                .database_for_testing()
+                .perpetual_tables
+                .transactions
+                .insert(&digest, transaction.serializable_ref())
+                .unwrap();
+            commit_cert_for_test(
+                &mut effects,
+                state.clone(),
+                digest,
+                vec![],
+                GasCostSummary::new(11, 11, 12, 11, 1),
+            );
+            state.epoch_store_for_testing().test_insert_user_signature(
+                digest,
+                vec![iota_types::crypto::zero_ed25519_signature().into()],
+            );
+            digests.push(digest);
+        }
+        (digests, effects)
     }
 
     fn p(i: u64, roots: Vec<TransactionDigest>, timestamp_ms: u64) -> PendingCheckpoint {
