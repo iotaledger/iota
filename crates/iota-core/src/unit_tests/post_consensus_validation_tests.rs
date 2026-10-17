@@ -6535,7 +6535,8 @@ async fn validation_at_commit_drops_a_forbidden_shared_authenticator_input() {
 /// With the flag on, the validation loop reads inputs as of the commit. One
 /// transaction keeps and locks its gas coin, one drops on a wrong shared
 /// declaration, one is missing on a gas coin produced above the horizon. The
-/// dropped ones carry the not-found error of their deciding input.
+/// drop carries the error for an input not available at the commit, which is
+/// final, and the missing one the not-found error, which is retried.
 #[tokio::test]
 async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -6640,7 +6641,7 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         matches!(
             &dropped[0].1,
             IotaError::UserInput {
-                error: UserInputError::ObjectNotFound { object_id, version: None }
+                error: UserInputError::InputObjectNotAvailableAtCommit { object_id, version: None }
             } if object_id == shared_id
         ),
         "{:?}",
@@ -9803,7 +9804,10 @@ async fn version_consumed_last_epoch_drops_on_every_node(#[values(true, false)] 
         matches!(
             &result.dropped[0].1,
             IotaError::UserInput {
-                error: UserInputError::ObjectNotFound { object_id, version: Some(version) }
+                error: UserInputError::InputObjectNotAvailableAtCommit {
+                    object_id,
+                    version: Some(version),
+                }
             } if *object_id == object && *version == consumed.version
         ),
         "{:?}",
