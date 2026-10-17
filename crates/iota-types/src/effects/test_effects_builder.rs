@@ -11,6 +11,7 @@ use iota_sdk_types::{
 };
 
 use crate::{
+    committee::EpochId,
     effects::TransactionEffectsExt,
     execution::SharedInput,
     message_envelope::Message,
@@ -19,6 +20,8 @@ use crate::{
 
 pub struct TestEffectsBuilder {
     transaction: SenderSignedTransaction,
+    /// The epoch the effects record as the one that executed the transaction.
+    epoch: EpochId,
     /// Override the execution status if provided.
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
@@ -41,6 +44,7 @@ impl TestEffectsBuilder {
     pub fn new(transaction: &SenderSignedTransaction) -> Self {
         Self {
             transaction: transaction.clone(),
+            epoch: 0,
             status: None,
             shared_input_versions: BTreeMap::new(),
             events_digest: None,
@@ -51,6 +55,12 @@ impl TestEffectsBuilder {
             unwrapped_objects: vec![],
             frozen_objects: BTreeSet::new(),
         }
+    }
+
+    /// Records `epoch` as the epoch that executed the transaction.
+    pub fn with_epoch(mut self, epoch: EpochId) -> Self {
+        self.epoch = epoch;
+        self
     }
 
     pub fn with_status(mut self, status: ExecutionStatus) -> Self {
@@ -126,7 +136,7 @@ impl TestEffectsBuilder {
                 SharedInput::Existing(ObjectReference::new(*id, *version, ObjectDigest::MIN))
             })
             .collect();
-        let epoch = 0;
+        let epoch = self.epoch;
         let sender = self.transaction.transaction().sender();
         // TODO: Include receiving objects in the object changes as well.
         let changed_objects = self

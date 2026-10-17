@@ -865,6 +865,44 @@ impl WritebackCache {
         &self.store
     }
 
+    /// The effects digest recorded for `digest` by the in-memory layers alone.
+    /// [`CacheResult::Miss`] means the store has to be asked for it.
+    fn executed_effects_digest_from_memory(
+        &self,
+        digest: &TransactionDigest,
+    ) -> CacheResult<Option<TransactionEffectsDigest>> {
+        self.metrics
+            .record_cache_request("executed_effects_digests", "uncommitted");
+        if let Some(digest) = self.dirty.executed_effects_digests.get(digest) {
+            self.metrics
+                .record_cache_hit("executed_effects_digests", "uncommitted");
+            return CacheResult::Hit(Some(*digest));
+        }
+        self.metrics
+            .record_cache_miss("executed_effects_digests", "uncommitted");
+
+        self.metrics
+            .record_cache_request("executed_effects_digests", "committed");
+        match self
+            .cached
+            .executed_effects_digests
+            .get(digest)
+            .map(|l| *l.lock())
+        {
+            Some(PointCacheItem::Some(digest)) => {
+                self.metrics
+                    .record_cache_hit("executed_effects_digests", "committed");
+                CacheResult::Hit(Some(digest))
+            }
+            Some(PointCacheItem::None) => CacheResult::NegativeHit,
+            None => {
+                self.metrics
+                    .record_cache_miss("executed_effects_digests", "committed");
+                CacheResult::Miss
+            }
+        }
+    }
+
     #[instrument(level = "debug", skip_all)]
     fn write_transaction_outputs(
         &self,
@@ -1974,38 +2012,7 @@ impl TransactionCacheRead for WritebackCache {
             .collect();
         try_do_fallback_lookup(
             &digests_and_tickets,
-            |(digest, _)| {
-                self.metrics
-                    .record_cache_request("executed_effects_digests", "uncommitted");
-                if let Some(digest) = self.dirty.executed_effects_digests.get(digest) {
-                    self.metrics
-                        .record_cache_hit("executed_effects_digests", "uncommitted");
-                    return Ok(CacheResult::Hit(Some(*digest)));
-                }
-                self.metrics
-                    .record_cache_miss("executed_effects_digests", "uncommitted");
-
-                self.metrics
-                    .record_cache_request("executed_effects_digests", "committed");
-                match self
-                    .cached
-                    .executed_effects_digests
-                    .get(digest)
-                    .map(|l| *l.lock())
-                {
-                    Some(PointCacheItem::Some(digest)) => {
-                        self.metrics
-                            .record_cache_hit("executed_effects_digests", "committed");
-                        Ok(CacheResult::Hit(Some(digest)))
-                    }
-                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
-                    None => {
-                        self.metrics
-                            .record_cache_miss("executed_effects_digests", "committed");
-                        Ok(CacheResult::Miss)
-                    }
-                }
-            },
+            |(digest, _)| Ok(self.executed_effects_digest_from_memory(digest)),
             |remaining| {
                 let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
                 let results = self
@@ -2084,6 +2091,106 @@ impl TransactionCacheRead for WritebackCache {
                 Ok(results)
             },
         )
+    }
+
+    /// Overrides the default so that a transaction whose effects digest is not
+    /// in memory is resolved by the store in one walk over the ledger buckets
+    /// instead of two.
+    ///
+    /// A transaction whose effects digest is in memory still goes through
+    /// [`Self::try_multi_get_effects`]: caching its absent effects under the
+    /// transaction digest would overwrite a `Some` entry with `None`, which
+    /// [`crate::execution_cache::cache_types::MonotonicCache::insert`] reports
+    /// as an invariant violation.
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        let mut results = vec![None; digests.len()];
+        let mut known_digest = Vec::with_capacity(digests.len());
+        let mut unknown_digest = Vec::with_capacity(digests.len());
+
+        for (index, digest) in digests.iter().enumerate() {
+            let ticket = self
+                .cached
+                .executed_effects_digests
+                .get_ticket_for_read(digest);
+            match self.executed_effects_digest_from_memory(digest) {
+                CacheResult::Hit(Some(effects_digest)) => {
+                    known_digest.push((index, effects_digest))
+                }
+                CacheResult::Hit(None) | CacheResult::NegativeHit => (),
+                CacheResult::Miss => unknown_digest.push((index, *digest, ticket)),
+            }
+        }
+
+        if !known_digest.is_empty() {
+            let effects_digests: Vec<_> = known_digest.iter().map(|(_, d)| *d).collect();
+            let effects = self.try_multi_get_effects(&effects_digests)?;
+            for ((index, _), effects) in known_digest.into_iter().zip(effects) {
+                results[index] = effects;
+            }
+        }
+
+        if !unknown_digest.is_empty() {
+            let tx_digests: Vec<_> = unknown_digest.iter().map(|(_, d, _)| *d).collect();
+            let effects = self
+                .record_db_multi_get("executed_effects", tx_digests.len())
+                .multi_get_executed_effects(&tx_digests)?;
+            for ((index, digest, ticket), effects) in unknown_digest.into_iter().zip(effects) {
+                if effects.is_none() {
+                    self.cached
+                        .executed_effects_digests
+                        .insert(&digest, None, ticket)
+                        .ok();
+                }
+                results[index] = effects;
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Overrides the default for the same reason as
+    /// [`Self::try_multi_get_executed_effects`]: effects already in the store
+    /// are read in one walk, and only unexecuted transactions are waited for.
+    ///
+    /// Reading before registering loses no wakeup, because the wait registers
+    /// its waiters before reading again.
+    fn try_notify_read_executed_effects<'a>(
+        &'a self,
+        task_name: &'static str,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
+        async move {
+            let mut results = self.try_multi_get_executed_effects(digests)?;
+            let pending: Vec<(usize, TransactionDigest)> = results
+                .iter()
+                .zip(digests)
+                .enumerate()
+                .filter(|(_, (effects, _))| effects.is_none())
+                .map(|(index, (_, digest))| (index, *digest))
+                .collect();
+
+            if !pending.is_empty() {
+                let pending_digests: Vec<_> = pending.iter().map(|(_, digest)| *digest).collect();
+                let effects_digests = self
+                    .try_notify_read_executed_effects_digests(task_name, &pending_digests)
+                    .await?;
+                let effects = self.try_multi_get_effects(&effects_digests)?;
+                for ((index, digest), effects) in pending.into_iter().zip(effects) {
+                    results[index] =
+                        Some(effects.ok_or(IotaError::TransactionEffectsNotFound { digest })?);
+                }
+            }
+
+            Ok(results
+                .into_iter()
+                .map(|effects| effects.expect("every digest is resolved or waited for"))
+                .collect())
+        }
+        .boxed()
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -2295,6 +2402,16 @@ impl ObjectStore for WritebackCache {
         version: iota_types::base_types::VersionNumber,
     ) -> StorageResult<Option<Object>> {
         ObjectCacheRead::try_get_object_by_key(self, object_id, version)
+            .map_err(StorageError::custom)
+    }
+
+    /// Forwarded so that cache misses are read from the database in one batch,
+    /// not one key at a time as the trait's default does.
+    fn try_multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> StorageResult<Vec<Option<Object>>> {
+        ObjectCacheRead::try_multi_get_objects_by_key(self, object_keys)
             .map_err(StorageError::custom)
     }
 }
