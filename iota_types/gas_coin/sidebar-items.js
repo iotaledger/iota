@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["NANOS_PER_IOTA","SIMULATION_GAS_COIN_VALUE","STARDUST_TOTAL_SUPPLY_IOTA","STARDUST_TOTAL_SUPPLY_NANOS"],"fn":["mock_simulation_gas_coin"],"struct":["GAS","GasCoin","IotaTreasuryCap"]};

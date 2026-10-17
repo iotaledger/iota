@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_MAX_MESSAGE_SIZE_BYTES","MAX_MESSAGE_SIZE_BYTES","MIN_MESSAGE_SIZE_BYTES"],"fn":["validate_max_message_size"]};

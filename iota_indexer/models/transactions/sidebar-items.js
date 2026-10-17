@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CHECKPOINT_TX_OPTIMISTIC_SEQ"],"fn":["stored_events_to_events","tx_events_to_iota_tx_events"],"struct":["OptimisticTransaction","StoredTransaction","StoredTransactionCheckpoint","StoredTransactionSuccessCommandCount","StoredTransactionTimestamp","TxGlobalOrder","TxSeq"],"type":["StoredTransactionEvents"]};
