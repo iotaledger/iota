@@ -2944,7 +2944,7 @@ impl AuthorityState {
                 num_epochs_to_retain,
                 "this validator retains superseded object versions it does not serve, which \
                  grows its database; lowering the retention later expires every epoch they \
-                 span in one epoch boundary. Set 0 to retain none beyond the current epoch."
+                 span at once, at the next start. Set 0 to retain none beyond the current epoch."
             );
         }
         if let Some(delay_days) = config
