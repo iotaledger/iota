@@ -640,6 +640,144 @@ async fn test_valid_abstract_account_tx_executes_under_deterministic_validation(
         .await
 }
 
+/// Deterministic validation reaches a network through a protocol upgrade at
+/// an epoch boundary. The cluster starts with the P-COOL flow on and
+/// deterministic validation off, upgrades to a version where it is on, and
+/// one validator restarts in the first epoch with it on. Transfers from a
+/// Move account and from a key account succeed before the upgrade, after it,
+/// after the restart and in the next epoch; a validator whose checkpoints
+/// differed from the certified ones would stop the test.
+///
+/// Simulator only: the protocol config override that turns the flag on is
+/// thread-local, and only the simulator runs every node on the test's thread.
+#[cfg(msim)]
+#[sim_test]
+async fn test_deterministic_validation_turned_on_at_a_protocol_upgrade() -> Result<(), anyhow::Error>
+{
+    use std::time::Duration;
+
+    use iota_protocol_config::ProtocolVersion;
+    use iota_types::{
+        iota_system_state::IotaSystemStateTrait,
+        supported_protocol_versions::SupportedProtocolVersions,
+    };
+
+    const FINISH: u64 = ProtocolVersion::MAX.as_u64();
+    const START: u64 = FINISH - 1;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        if version.as_u64() >= FINISH {
+            config.enable_pcool_deterministic_validation_for_testing();
+        }
+        config
+    });
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_num_validators(4)
+            .with_protocol_version(START.into())
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                START, FINISH,
+            ))
+            .with_epoch_duration_ms(60_000)
+            .build()
+            .await,
+    );
+    let deterministic_validation_on_every_validator = |test_env: &TestEnvironment| {
+        test_env
+            .test_cluster
+            .all_validator_handles()
+            .iter()
+            .map(|handle| {
+                handle.with(|node| {
+                    node.state()
+                        .epoch_store_for_testing()
+                        .protocol_config()
+                        .pcool_deterministic_validation()
+                })
+            })
+            .all(|on| on)
+    };
+
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    assert!(
+        !deterministic_validation_on_every_validator(&test_env),
+        "the upgrade must come after the first transfers"
+    );
+    transfer_from_move_account_and_key_account(&test_env).await?;
+
+    let flip_epoch = test_env
+        .test_cluster
+        .wait_for_protocol_version_with_timeout(FINISH.into(), Duration::from_secs(120))
+        .await
+        .epoch();
+    test_env
+        .test_cluster
+        .wait_for_epoch_all_nodes(flip_epoch)
+        .await;
+    assert!(deterministic_validation_on_every_validator(&test_env));
+    transfer_from_move_account_and_key_account(&test_env).await?;
+
+    let restarted = test_env.test_cluster.get_validator_pubkeys()[1];
+    test_env.test_cluster.stop_node(&restarted);
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    test_env.test_cluster.start_node(&restarted).await;
+    transfer_from_move_account_and_key_account(&test_env).await?;
+
+    test_env
+        .test_cluster
+        .wait_for_epoch(Some(flip_epoch + 1))
+        .await;
+    test_env
+        .test_cluster
+        .wait_for_epoch_all_nodes(flip_epoch + 1)
+        .await;
+    assert!(deterministic_validation_on_every_validator(&test_env));
+    transfer_from_move_account_and_key_account(&test_env).await
+}
+
+/// Executes a transfer of a fresh coin from the environment's Move account,
+/// then a transfer from a key account. Panics unless both succeed.
+#[cfg(msim)]
+async fn transfer_from_move_account_and_key_account(
+    test_env: &TestEnvironment,
+) -> Result<(), anyhow::Error> {
+    let Some(aa_ref) = test_env.aa_ref else {
+        anyhow::bail!("Abstract account not created yet");
+    };
+    let aa_sender: Address = aa_ref.object_id.into();
+    let test_cluster = &test_env.test_cluster;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let coin = test_cluster
+        .fund_address_and_return_gas(rgp, Some(1_000_000), aa_sender)
+        .await;
+    let pt = test_env.craft_object_transfer(coin, Address::random())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
+
+    let tx = test_cluster
+        .test_transaction_builder_with_sender(test_cluster.get_address_0())
+        .await
+        .transfer_iota(Some(1_000_000), test_cluster.get_address_1())
+        .build();
+    test_cluster.sign_and_execute_transaction(&tx).await;
+    Ok(())
+}
+
 /// Under P-COOL with deterministic validation, a transaction whose
 /// authenticator fails at execution produces failure effects on every
 /// validator. Such a transaction reaches consensus through an honest validator
