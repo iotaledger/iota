@@ -6,23 +6,27 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
 use iota_sdk_types::Owner;
-use iota_types::base_types::ObjectInfo;
 use tracing::info;
 use typed_store::traits::Map;
 
 use crate::{
     global_state_hasher::GlobalStateHashStore,
-    rpc_indexes::{CoinInfo, IndexStore},
+    rpc_indexes::{
+        RpcIndexesStore,
+        schema::{OwnerIndexInfo, OwnerIndexKey},
+    },
 };
 
 /// This is a very expensive function that verifies some of the secondary
 /// indexes. This is done by iterating through the live object set and
 /// recalculating these secondary indexes.
-pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>) -> Result<()> {
+pub fn verify_indexes(
+    store: &dyn GlobalStateHashStore,
+    indexes: Arc<RpcIndexesStore>,
+) -> Result<()> {
     info!("Begin running index verification checks");
 
     let mut owner_index = BTreeMap::new();
-    let mut coin_index = BTreeMap::new();
 
     tracing::info!("Reading live objects set");
     for live_object in store.iter_live_object_set() {
@@ -32,27 +36,17 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
             continue;
         };
 
-        // Owner Index Calculation
-        let owner_index_key = (owner, object.id());
-        let object_info = ObjectInfo::new(&object.object_ref(), object);
-
-        owner_index.insert(owner_index_key, object_info);
-
-        // Coin Index Calculation
-        if let Some(type_tag) = object.opt_coin_type() {
-            let info =
-                CoinInfo::from_object(object).expect("already checked that this is a coin type");
-            let key = (owner, type_tag.to_string(), object.id());
-
-            coin_index.insert(key, info);
+        // A coin's balance is part of its owner-index key, so the owner index
+        // is the only live-state table the coin reads are served from.
+        if let Some((key, info)) = OwnerIndexKey::for_object(owner, object) {
+            owner_index.insert(key, info);
         }
     }
 
     tracing::info!("Live objects set is prepared, about to verify indexes");
 
-    // Verify Owner Index
-    for item in indexes.tables().owner_index().safe_iter() {
-        let (key, info) = item?;
+    for item in indexes.tables().owner.safe_iter() {
+        let (key, info): (OwnerIndexKey, OwnerIndexInfo) = item?;
         let calculated_info = owner_index.remove(&key).ok_or_else(|| {
             anyhow!(
                 "owner_index: found extra, unexpected entry {:?}",
@@ -71,28 +65,6 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
         bail!("owner_index: is missing entries: {owner_index:?}");
     }
     tracing::info!("Owner index is good");
-
-    // Verify Coin Index
-    for item in indexes.tables().coin_index().safe_iter() {
-        let (key, info) = item?;
-        let calculated_info = coin_index.remove(&key).ok_or_else(|| {
-            anyhow!(
-                "coin_index: found extra, unexpected entry {:?}",
-                (&key, &info)
-            )
-        })?;
-
-        if calculated_info != info {
-            bail!(
-                "coin_index: entry {key:?} is different: expected {calculated_info:?} found {info:?}"
-            );
-        }
-    }
-    tracing::info!("Coin index is good");
-
-    if !coin_index.is_empty() {
-        bail!("coin_index: is missing entries: {coin_index:?}");
-    }
 
     info!("Finished running index verification checks");
 
