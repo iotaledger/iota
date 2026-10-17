@@ -465,7 +465,7 @@ pub(super) struct HistoryBucket {
     /// Written whatever the enabled groups are, because checkpoint ingest
     /// reads it to tell a replayed checkpoint from a new one. The confirming
     /// checkpoint is kept with the ledger, in
-    /// `AuthorityPerpetualTables::executed_transactions_to_checkpoint`.
+    /// `HistoricLedgerBucket::tx_to_checkpoint`.
     pub(super) txs_seq: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
 
     /// Index from iota address to transactions initiated by that address.
