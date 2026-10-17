@@ -107,7 +107,8 @@ use crate::{
 pub type CheckpointHeight = u64;
 
 /// Digest of checkpoint contents with no transactions. The empty checkpoints
-/// of one epoch share one `checkpoint_content` row in that epoch's bucket.
+/// of one epoch share one `checkpoint_content` row in that epoch's bucket,
+/// which every bucket holds from its creation on.
 pub(crate) static EMPTY_CHECKPOINT_CONTENTS_DIGEST: Lazy<CheckpointContentsDigest> =
     Lazy::new(|| empty_checkpoint_contents().digest());
 
