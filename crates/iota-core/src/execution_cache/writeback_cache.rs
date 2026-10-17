@@ -865,6 +865,47 @@ impl WritebackCache {
         &self.store
     }
 
+    /// The effects digest of each of `digests` from the in-memory layers,
+    /// asking `read_db` for the ones they do not have.
+    fn executed_effects_digests_with_fallback(
+        &self,
+        digests: &[TransactionDigest],
+        read_db: impl Fn(
+            &AuthorityStore,
+            &[TransactionDigest],
+        ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>,
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        let digests_and_tickets: Vec<_> = digests
+            .iter()
+            .map(|d| {
+                (
+                    *d,
+                    self.cached.executed_effects_digests.get_ticket_for_read(d),
+                )
+            })
+            .collect();
+        try_do_fallback_lookup(
+            &digests_and_tickets,
+            |(digest, _)| Ok(self.executed_effects_digest_from_memory(digest)),
+            |remaining| {
+                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
+                let results = read_db(
+                    self.record_db_multi_get("executed_effects_digests", remaining.len()),
+                    &remaining_digests,
+                )?;
+                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
+                    if result.is_none() {
+                        self.cached
+                            .executed_effects_digests
+                            .insert(digest, None, *ticket)
+                            .ok();
+                    }
+                }
+                Ok(results)
+            },
+        )
+    }
+
     /// The effects digest recorded for `digest` by the in-memory layers alone.
     /// [`CacheResult::Miss`] means the store has to be asked for it.
     fn executed_effects_digest_from_memory(
@@ -2006,34 +2047,20 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        let digests_and_tickets: Vec<_> = digests
-            .iter()
-            .map(|d| {
-                (
-                    *d,
-                    self.cached.executed_effects_digests.get_ticket_for_read(d),
-                )
-            })
-            .collect();
-        try_do_fallback_lookup(
-            &digests_and_tickets,
-            |(digest, _)| Ok(self.executed_effects_digest_from_memory(digest)),
-            |remaining| {
-                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
-                let results = self
-                    .record_db_multi_get("executed_effects_digests", remaining.len())
-                    .multi_get_executed_effects_digests(&remaining_digests)?;
-                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
-                        self.cached
-                            .executed_effects_digests
-                            .insert(digest, None, *ticket)
-                            .ok();
-                    }
-                }
-                Ok(results)
-            },
-        )
+        self.executed_effects_digests_with_fallback(digests, |store, digests| {
+            store.multi_get_executed_effects_digests(digests)
+        })
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.executed_effects_digests_with_fallback(digests, |store, digests| {
+            store.multi_get_executed_effects_digests_in_epoch(epoch, digests)
+        })
     }
 
     #[instrument(level = "trace", skip_all)]

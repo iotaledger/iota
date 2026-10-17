@@ -490,6 +490,18 @@ impl AuthorityStore {
             .multi_get_executed_effects_digests(digests)
     }
 
+    /// [`Self::multi_get_executed_effects_digests`] for transactions that can
+    /// only have been executed in `epoch`: it reads that epoch's records
+    /// alone, and reports one executed in another epoch as not executed.
+    pub fn multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.historic_ledger
+            .multi_get_executed_effects_digests_in_epoch(epoch, digests)
+    }
+
     /// Given a list of transaction digests, returns a list of the corresponding
     /// effects only if they have been executed. For transactions that have
     /// not been executed, None is returned.

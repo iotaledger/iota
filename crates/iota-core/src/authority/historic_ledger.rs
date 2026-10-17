@@ -371,6 +371,26 @@ impl HistoricLedger {
             .collect())
     }
 
+    /// [`Self::multi_get_executed_effects_digests`] read from `epoch`'s bucket
+    /// alone, in one batched read. A transaction executed in another epoch is
+    /// reported as not executed.
+    pub fn multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        let Some(bucket) = self.buckets.get(epoch) else {
+            return Ok(vec![None; digests.len()]);
+        };
+        let found = absent_if_dropped(bucket.executed_effects.multi_get(digests))
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+        // Empty for a dropped bucket.
+        if found.is_empty() {
+            return Ok(vec![None; digests.len()]);
+        }
+        Ok(found)
+    }
+
     /// [`Self::get_executed_effects`] for each of `digests`, read from the
     /// bucket holding each one's execution record.
     pub fn multi_get_executed_effects(
