@@ -15621,6 +15621,7 @@ dependencies = [
  "prometheus-filtered",
  "rocksdb",
  "rstest",
+ "rustix 1.0.8",
  "serde",
  "sysinfo 0.39.5",
  "tap",

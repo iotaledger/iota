@@ -88,9 +88,21 @@ pub(crate) fn rocks_cf<'a>(
         .ok_or_else(|| TypedStoreError::UnregisteredColumn(cf_name.to_string()))
 }
 
-/// The free space of the disk holding `path`, `None` if no mounted disk holds
-/// it.
+/// The free space of the file system holding `path`, measured at the nearest
+/// directory of it that exists, so that a directory still to be created
+/// reports the space it will get. `None` if it cannot be determined.
 pub fn available_disk_space(path: &Path) -> Option<u64> {
+    available_space_of(path.ancestors().find(|ancestor| ancestor.exists())?)
+}
+
+#[cfg(unix)]
+fn available_space_of(path: &Path) -> Option<u64> {
+    let stats = rustix::fs::statvfs(path).ok()?;
+    Some(stats.f_bavail.saturating_mul(stats.f_frsize))
+}
+
+#[cfg(not(unix))]
+fn available_space_of(path: &Path) -> Option<u64> {
     let path = path.canonicalize().ok()?;
     sysinfo::Disks::new_with_refreshed_list()
         .list()

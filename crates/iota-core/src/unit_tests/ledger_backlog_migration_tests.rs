@@ -1074,6 +1074,31 @@ async fn a_raised_retention_restarts_the_drains_before_expired_rows_are_deleted(
     );
 }
 
+/// A run under a shorter retention takes its own floor when an earlier run
+/// recorded one but moved nothing, as when the disk space check refused it.
+#[tokio::test]
+async fn a_lowered_retention_applies_before_the_drains_have_begun() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .pin_floor()
+        .unwrap();
+
+    migration(
+        &store,
+        checkpoint_store.clone(),
+        Some(NARROWEST_RETENTION),
+        5_000,
+    )
+    .run()
+    .unwrap();
+
+    assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
+}
+
 /// Once the step that deletes the rows of expired epochs has begun, a run
 /// resumed under a longer retention keeps the floor of the run that started
 /// the migration: the epoch that run had begun deleting goes entirely, and is
@@ -1177,6 +1202,35 @@ async fn rows_without_a_body_are_still_filed() {
         without_body.effects_digest
     );
     assert!(bucket.events.get(&without_body.digest).unwrap().is_some());
+}
+
+/// The copy is estimated as the retained share of the epochs the flat tables
+/// hold, plus a tenth.
+#[test]
+fn the_copy_estimate_is_the_retained_share_of_the_held_epochs() {
+    use super::estimated_copy_bytes;
+
+    // Epochs 0..=99 held, 10 kept.
+    assert_eq!(estimated_copy_bytes(1_000, 99, 90, 0), 110);
+    // Everything kept, whether by retention or because little is held.
+    assert_eq!(estimated_copy_bytes(1_000, 99, 0, 0), 1_100);
+    assert_eq!(estimated_copy_bytes(1_000, 99, 50, 80), 1_100);
+    assert_eq!(estimated_copy_bytes(0, 99, 90, 0), 0);
+}
+
+/// The disk space check measures the file system the history directory will
+/// be created on, before that directory exists, and refuses with the amounts.
+#[test]
+fn the_disk_space_check_measures_before_the_history_directory_exists() {
+    let dir = iota_common::tempdir();
+    let historic = dir.path().join("live").join("historic");
+    assert!(!historic.exists());
+
+    let err = super::ensure_free_space(&historic, u64::MAX)
+        .expect_err("no file system has that much free space");
+    assert!(err.to_string().contains("free disk space"), "{err}");
+
+    super::ensure_free_space(&historic, 1 << 20).expect("one MiB is free");
 }
 
 /// Writes a sequence-keyed summary for checkpoint `sequence` of `epoch` that
