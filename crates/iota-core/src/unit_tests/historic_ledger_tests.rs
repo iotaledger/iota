@@ -410,9 +410,12 @@ async fn batched_reads_answer_like_single_reads_and_walk_once() {
         let events = historic.multi_get_events(&digests).unwrap();
         let transactions = historic.multi_get_transactions(&digests).unwrap();
         let by_effects_digest = historic.multi_get_effects(&effects_digests).unwrap();
+        let checkpoints = historic
+            .multi_get_transaction_checkpoints(&digests)
+            .unwrap();
         assert_eq!(
             historic.bucket_walks() - before,
-            5,
+            6,
             "{label}: each batched read must walk the buckets once"
         );
 
@@ -456,6 +459,14 @@ async fn batched_reads_answer_like_single_reads_and_walk_once() {
                 .collect::<Vec<_>>(),
             "{label}: effects by digest"
         );
+        assert_eq!(
+            checkpoints,
+            digests
+                .iter()
+                .map(|digest| historic.get_transaction_checkpoint(digest).unwrap())
+                .collect::<Vec<_>>(),
+            "{label}: checkpoints"
+        );
         records
     };
 
@@ -479,8 +490,8 @@ async fn batched_reads_answer_like_single_reads_and_walk_once() {
 }
 
 /// Writes a transaction executed in `epoch` into that epoch's ledger bucket,
-/// with its effects, execution record and events, and returns its digest and
-/// effects digest.
+/// with its effects, execution record, events and a checkpoint, and returns
+/// its digest and effects digest.
 fn write_executed_transaction(
     historic: &super::HistoricLedger,
     epoch: u64,
@@ -520,6 +531,9 @@ fn write_executed_transaction(
         .unwrap();
     batch
         .insert_batch_tagged(&bucket.events, [(digest, TransactionEvents::default())])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.tx_to_checkpoint, [(digest, epoch * 100)])
         .unwrap();
     batch.write().unwrap();
     (digest, effects_digest)

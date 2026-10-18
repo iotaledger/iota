@@ -1725,9 +1725,9 @@ impl RpcIndexesStore {
         let mut batch = self.tables.watermark.batch();
 
         if self.serves(IndexGroup::JsonRpc) {
-            for (sequence, (transaction, effects, events)) in (first_sequence_number..)
-                .zip(load_checkpoint_transactions(authority_store, &contents)?)
-            {
+            for (sequence, (transaction, effects, events)) in (first_sequence_number..).zip(
+                load_checkpoint_transactions(authority_store, summary.epoch, &contents)?,
+            ) {
                 let data = transaction_index_data(&transaction, &effects, events.as_ref())
                     .map_err(|e| StorageError::custom(e.to_string()))?;
                 bucket
@@ -1755,10 +1755,11 @@ impl RpcIndexesStore {
     }
 }
 
-/// The transactions of a checkpoint, with their effects and events, in
-/// checkpoint order.
+/// The transactions of a checkpoint of `epoch`, with their effects and
+/// events, in checkpoint order.
 fn load_checkpoint_transactions(
     authority_store: &AuthorityStore,
+    epoch: EpochId,
     contents: &CheckpointContents,
 ) -> Result<
     Vec<(
@@ -1768,33 +1769,60 @@ fn load_checkpoint_transactions(
     )>,
     StorageError,
 > {
+    // A checkpoint's transactions, effects and events are stored under its
+    // epoch, so they are read from there in one batch each; what those miss
+    // is read one by one through every epoch.
+    let storage = |e: IotaError| StorageError::custom(e.to_string());
+    let tx_digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
+    let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
+    let transactions = authority_store
+        .multi_get_transaction_blocks_in_epoch(epoch, &tx_digests)
+        .map_err(storage)?;
+    let all_effects = authority_store
+        .multi_get_effects_in_epoch(epoch, &fx_digests)
+        .map_err(storage)?;
+    let all_events = authority_store
+        .multi_get_events_in_epoch(epoch, &tx_digests)
+        .map_err(storage)?;
     contents
         .iter()
-        .map(|digests| {
-            let transaction = authority_store
-                .get_transaction_block(&digests.transaction)
-                .map_err(|e| StorageError::custom(e.to_string()))?
-                .ok_or_else(|| {
-                    StorageError::missing(format!("missing transaction {}", digests.transaction))
-                })?
-                .into_inner();
-            let effects = authority_store
-                .get_effects(&digests.effects)
-                .map_err(|e| StorageError::custom(e.to_string()))?
-                .ok_or_else(|| {
-                    StorageError::missing(format!("missing effects {}", digests.effects))
-                })?;
-            let events = if effects.events_digest().is_some() {
-                Some(
+        .zip(transactions)
+        .zip(all_effects)
+        .zip(all_events)
+        .map(|(((digests, transaction), effects), events)| {
+            let transaction = match transaction {
+                Some(transaction) => transaction,
+                None => authority_store
+                    .get_transaction_block(&digests.transaction)
+                    .map_err(storage)?
+                    .ok_or_else(|| {
+                        StorageError::missing(format!(
+                            "missing transaction {}",
+                            digests.transaction
+                        ))
+                    })?,
+            }
+            .into_inner();
+            let effects = match effects {
+                Some(effects) => effects,
+                None => authority_store
+                    .get_effects(&digests.effects)
+                    .map_err(storage)?
+                    .ok_or_else(|| {
+                        StorageError::missing(format!("missing effects {}", digests.effects))
+                    })?,
+            };
+            let events = match (effects.events_digest(), events) {
+                (None, _) => None,
+                (Some(_), Some(events)) => Some(events),
+                (Some(_), None) => Some(
                     authority_store
                         .get_events(&digests.transaction)
-                        .map_err(|e| StorageError::custom(e.to_string()))?
+                        .map_err(storage)?
                         .ok_or_else(|| {
                             StorageError::missing(format!("missing events {}", digests.transaction))
                         })?,
-                )
-            } else {
-                None
+                ),
             };
             Ok((transaction, effects, events))
         })
@@ -1818,7 +1846,7 @@ fn load_executed_checkpoint(
         })?;
     let historic_objects = authority_store.get_historic_objects();
     let storage = |e: IotaError| StorageError::custom(e.to_string());
-    let transactions = load_checkpoint_transactions(authority_store, &contents)?
+    let transactions = load_checkpoint_transactions(authority_store, summary.epoch, &contents)?
         .into_iter()
         .map(|(transaction, effects, events)| {
             Ok(CheckpointTransaction {
