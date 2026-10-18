@@ -996,7 +996,7 @@ impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
             .try_multi_get_objects_by_key(object_keys)?;
         self.0
             .historic_objects
-            .fill_missing(object_keys, &mut objects)
+            .fill_missing(object_keys, &mut objects, None)
             .map_err(iota_types::storage::error::Error::custom)?;
         Ok(objects)
     }
@@ -6501,7 +6501,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .get_object_cache_reader()
             .multi_get_objects_by_key(object_keys);
         self.historic_objects
-            .fill_missing(object_keys, &mut objects)?;
+            .fill_missing(object_keys, &mut objects, None)?;
         Ok(objects)
     }
 
