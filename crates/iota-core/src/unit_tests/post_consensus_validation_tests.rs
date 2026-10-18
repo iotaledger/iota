@@ -4718,6 +4718,7 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
         ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![gas_ref]),
         ValidationAtCommit::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
         ValidationAtCommit::Missing(kind, reason) => panic!("missing {kind:?}: {reason:?}"),
+        ValidationAtCommit::AuthenticatorPackageDenied(error) => panic!("denied: {error:?}"),
     }
 
     // Drop: a wrong declared initial version, named by the shared input.
@@ -5913,15 +5914,24 @@ fn deny_package(package: ObjectId) -> DenyRuleSet {
 #[track_caller]
 fn assert_authenticator_package_denied(result: IotaResult<ValidationAtCommit>, package: ObjectId) {
     match result {
-        Err(IotaError::UserInput {
+        Ok(ValidationAtCommit::AuthenticatorPackageDenied(IotaError::UserInput {
             error: UserInputError::TransactionDenied { error },
-        }) => assert_eq!(
+        })) => assert_eq!(
             error,
             format!(
                 "Access to package {package} from a Move authenticator is temporarily disabled"
             )
         ),
         other => panic!("expected a denial of package {package}, got {other:?}"),
+    }
+}
+
+/// The error of a denial of an authenticator package at the commit.
+#[track_caller]
+fn authenticator_package_denial(result: &IotaResult<ValidationAtCommit>) -> IotaError {
+    match result {
+        Ok(ValidationAtCommit::AuthenticatorPackageDenied(error)) => error.clone(),
+        other => panic!("expected a denial of an authenticator package, got {other:?}"),
     }
 }
 
@@ -6004,8 +6014,11 @@ async fn validation_at_commit_checks_the_authenticator_package_against_the_deny_
             .map(|_| ())
             .unwrap_err();
         assert_eq!(
-            s.validate_at_commit_under(12, &tx, &deny_package(denied))
-                .unwrap_err(),
+            authenticator_package_denial(&s.validate_at_commit_under(
+                12,
+                &tx,
+                &deny_package(denied)
+            )),
             at_admission,
             "admission and the commit must deny with the same error"
         );
@@ -6113,8 +6126,8 @@ async fn authenticator_function_rotated_above_the_horizon_gets_one_verdict_on_ev
     let on_rotated = rotated.validate_at_commit_under(12, &tx, &deny_package(denied));
     let on_not_rotated = not_rotated.validate_at_commit_under(12, &tx, &deny_package(denied));
     assert_eq!(
-        on_rotated.as_ref().map(|_| ()).unwrap_err(),
-        on_not_rotated.as_ref().map(|_| ()).unwrap_err(),
+        authenticator_package_denial(&on_rotated),
+        authenticator_package_denial(&on_not_rotated),
         "a validator that executed the rotation and one that did not must reach the same verdict"
     );
     assert_authenticator_package_denied(on_rotated, denied);
@@ -6292,8 +6305,8 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
         .map(|_| ())
         .unwrap_err();
     assert_eq!(
-        at_commit.as_ref().map(|_| ()).unwrap_err(),
-        &at_admission,
+        authenticator_package_denial(&at_commit),
+        at_admission,
         "admission and the commit must deny with the same error"
     );
     assert_authenticator_package_denied(at_commit, denied);

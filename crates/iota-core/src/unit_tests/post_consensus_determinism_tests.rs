@@ -1831,9 +1831,9 @@ fn real_class(verdict: &PostConsensusVerdict) -> VerdictClass {
         PostConsensusVerdict::Dropped(IotaError::ObjectLockConflict { .. }) => {
             VerdictClass::LockConflict
         }
-        PostConsensusVerdict::Dropped(_) | PostConsensusVerdict::Missing(_) => {
-            VerdictClass::InvisibleInput
-        }
+        PostConsensusVerdict::Dropped(_)
+        | PostConsensusVerdict::Missing(_)
+        | PostConsensusVerdict::DroppedCopy(_) => VerdictClass::InvisibleInput,
     }
 }
 

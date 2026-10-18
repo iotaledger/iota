@@ -120,6 +120,7 @@
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
+    error::IotaError,
     object::Object,
     storage::PackageObject,
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
@@ -324,7 +325,8 @@ pub enum ValidationInputsAtCommit {
 
 /// The result of validating one transaction at a commit. A check after
 /// loading that rejects the transaction returns the same `Err` as at
-/// admission, not a result.
+/// admission, not a result, except the denial of an authenticator package,
+/// which the caller needs to tell apart from the other errors.
 #[must_use]
 #[derive(Debug)]
 pub enum ValidationAtCommit {
@@ -332,4 +334,9 @@ pub enum ValidationAtCommit {
     Keep(Vec<ObjectReference>),
     Drop(InputObjectKind, DropReason),
     Missing(InputObjectKind, MissingReason),
+    /// The deny rules deny the package holding an account's authenticate
+    /// function, named by the account's authenticator function field as of
+    /// the horizon. The accounts are the transaction's signers, so every copy
+    /// of the transaction is denied alike.
+    AuthenticatorPackageDenied(IotaError),
 }

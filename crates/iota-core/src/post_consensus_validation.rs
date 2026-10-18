@@ -99,6 +99,11 @@ pub enum PostConsensusVerdict {
     /// commit's horizon yet. The digest can be kept when sequenced again, so
     /// the drop is not its final status.
     Missing(IotaError),
+    /// The copy of the transaction validated last was dropped with this
+    /// error for a reason that may come from its own signatures, which other
+    /// copies of the digest do not share. Another copy can be kept when
+    /// sequenced, so the drop is not the final status of the digest.
+    DroppedCopy(IotaError),
 }
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
@@ -320,7 +325,9 @@ pub async fn validate_and_resolve_conflicts(
         // A saved drop is replayed as is: the inputs it was decided on may
         // have changed since.
         if let Some(
-            verdict @ (PostConsensusVerdict::Dropped(_) | PostConsensusVerdict::Missing(_)),
+            verdict @ (PostConsensusVerdict::Dropped(_)
+            | PostConsensusVerdict::Missing(_)
+            | PostConsensusVerdict::DroppedCopy(_)),
         ) = saved
         {
             decisions.decide(digest, verdict);
@@ -424,7 +431,7 @@ pub async fn validate_and_resolve_conflicts(
                 "UserTransactionV1 failed validity_check post-consensus, dropping"
             );
             let from_signatures = from_signatures(FailedCheck::Validity(&e));
-            decisions.drop_copy(digest, PostConsensusVerdict::Dropped(e), from_signatures);
+            decisions.drop_copy(digest, e, false, from_signatures);
             keep[i] = false;
             continue;
         }
@@ -439,11 +446,7 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "Failed to extract owned input objects post-consensus, dropping"
                 );
-                decisions.drop_copy(
-                    digest,
-                    PostConsensusVerdict::Dropped(e),
-                    from_signatures(FailedCheck::OwnedInputs),
-                );
+                decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::OwnedInputs));
                 keep[i] = false;
                 continue;
             }
@@ -507,7 +510,8 @@ pub async fn validate_and_resolve_conflicts(
         if let Some((obj_ref, e)) = conflict {
             decisions.drop_copy(
                 digest,
-                PostConsensusVerdict::Dropped(e),
+                e,
+                false,
                 from_signatures(FailedCheck::LockConflict(&obj_ref)),
             );
             keep[i] = false;
@@ -531,6 +535,7 @@ pub async fn validate_and_resolve_conflicts(
         // The input the reader dropped or did not see, and whether it did
         // not see it.
         let mut input_verdict: Option<(InputObjectKind, bool)> = None;
+        let mut denied_for_every_copy = false;
         let checked = match &reader {
             // Inputs read as of the commit. A dropped or a missing input is
             // reported with the error admission gives a missing input, so
@@ -587,6 +592,10 @@ pub async fn validate_and_resolve_conflicts(
                             input_verdict = Some((kind, true));
                             Err(kind.object_not_found_error().into())
                         }
+                        ValidationAtCommit::AuthenticatorPackageDenied(error) => {
+                            denied_for_every_copy = true;
+                            Err(error)
+                        }
                     }
                 }),
             None => {
@@ -616,16 +625,13 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                let (verdict, check) = match &input_verdict {
-                    Some((kind, true)) => {
-                        (PostConsensusVerdict::Missing(e), FailedCheck::Input(kind))
-                    }
-                    Some((kind, false)) => {
-                        (PostConsensusVerdict::Dropped(e), FailedCheck::Input(kind))
-                    }
-                    None => (PostConsensusVerdict::Dropped(e), FailedCheck::Other),
+                let (missing, check) = match &input_verdict {
+                    Some((kind, missing)) => (*missing, FailedCheck::Input(kind)),
+                    None if denied_for_every_copy => (false, FailedCheck::Data),
+                    None => (false, FailedCheck::Other),
                 };
-                decisions.drop_copy(digest, verdict, from_signatures(check));
+                let from_signatures = from_signatures(check);
+                decisions.drop_copy(digest, e, missing, from_signatures);
                 keep[i] = false;
                 continue;
             }
@@ -658,9 +664,11 @@ pub async fn validate_and_resolve_conflicts(
     let dropped: Vec<(TransactionDigest, IotaError)> = all_user_tx_digests
         .iter()
         .filter_map(|digest| match decisions.verdicts.get(digest) {
-            Some(PostConsensusVerdict::Dropped(error) | PostConsensusVerdict::Missing(error)) => {
-                Some((*digest, error.clone()))
-            }
+            Some(
+                PostConsensusVerdict::Dropped(error)
+                | PostConsensusVerdict::Missing(error)
+                | PostConsensusVerdict::DroppedCopy(error),
+            ) => Some((*digest, error.clone())),
             _ => None,
         })
         .collect();
@@ -746,18 +754,28 @@ impl CommitDecisions {
         self.decided.insert(digest);
     }
 
-    /// Records the drop of one copy of `digest`. A drop that may come from
-    /// the copy's own signatures leaves the digest open for a later copy.
+    /// Records the drop of one copy of `digest` with `error`. `missing` is
+    /// whether an input was not visible at the horizon. A drop that may come
+    /// from the copy's own signatures leaves the digest open for a later copy;
+    /// it is saved as [`PostConsensusVerdict::DroppedCopy`] unless an input
+    /// was not visible, which is not final either.
     fn drop_copy(
         &mut self,
         digest: TransactionDigest,
-        verdict: PostConsensusVerdict,
+        error: IotaError,
+        missing: bool,
         from_signatures: bool,
     ) {
-        if from_signatures {
-            self.verdicts.insert(digest, verdict);
+        if from_signatures && missing {
+            self.verdicts
+                .insert(digest, PostConsensusVerdict::Missing(error));
+        } else if from_signatures {
+            self.verdicts
+                .insert(digest, PostConsensusVerdict::DroppedCopy(error));
+        } else if missing {
+            self.decide(digest, PostConsensusVerdict::Missing(error));
         } else {
-            self.decide(digest, verdict);
+            self.decide(digest, PostConsensusVerdict::Dropped(error));
         }
     }
 }
@@ -773,6 +791,8 @@ enum FailedCheck<'a> {
     LockConflict(&'a ObjectReference),
     /// The commit-indexed reader dropped this input or did not see it.
     Input(&'a InputObjectKind),
+    /// A check whose outcome is the same for every copy.
+    Data,
     /// Any other check of the inputs, deny rules and gas.
     Other,
 }
@@ -788,9 +808,10 @@ enum FailedCheck<'a> {
 /// copy with a Move authenticator, a drop counts as the data's only when the
 /// data alone explains it: the data fails its own validity check or has
 /// expired, its inputs cannot be listed, or the conflicting lock or the
-/// dropped or unseen input is one the data names. Any other drop of such a
-/// copy, including the checks of the inputs, deny rules and gas, may come
-/// from the authenticator.
+/// dropped or unseen input is one the data names, or the package holding a
+/// signer account's authenticate function is denied. Any other drop of such
+/// a copy, including the other checks of the inputs, deny rules and gas, may
+/// come from the authenticator.
 fn drop_may_come_from_signatures(
     transaction: &SenderSignedTransaction,
     check: FailedCheck<'_>,
@@ -822,6 +843,7 @@ fn drop_may_come_from_signatures(
                         if data.receiving_objects().contains(obj_ref)
                 )
         }
+        FailedCheck::Data => false,
         FailedCheck::Other => true,
     }
 }

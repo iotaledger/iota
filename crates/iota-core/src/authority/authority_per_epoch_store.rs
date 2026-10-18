@@ -4878,18 +4878,22 @@ impl AuthorityPerEpochStore {
             if !dropped.is_empty() {
                 // A drop for an input not visible at the horizon yet is not
                 // final for the digest, so it is not recorded as its status.
+                // A drop that may come from the signatures of the copy
+                // validated is not even reported to the current waiters:
+                // another copy can be kept, so they wait for its outcome, or
+                // until their own timeout or the end of the epoch.
                 let mut final_drops = Vec::new();
                 let mut not_final = Vec::new();
                 for drop in &dropped {
-                    let missing = deterministic_validation
-                        && matches!(
-                            self.post_consensus_verdict(consensus_commit_info.index, drop.0)?,
-                            Some(PostConsensusVerdict::Missing(_))
-                        );
-                    if missing {
-                        not_final.push(drop.clone());
+                    let verdict = if deterministic_validation {
+                        self.post_consensus_verdict(consensus_commit_info.index, drop.0)?
                     } else {
-                        final_drops.push(drop.clone());
+                        None
+                    };
+                    match verdict {
+                        Some(PostConsensusVerdict::DroppedCopy(_)) => {}
+                        Some(PostConsensusVerdict::Missing(_)) => not_final.push(drop.clone()),
+                        _ => final_drops.push(drop.clone()),
                     }
                 }
                 self.dropped_tx_status_cache.insert_and_notify(&final_drops);

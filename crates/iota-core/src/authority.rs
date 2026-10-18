@@ -1291,9 +1291,11 @@ impl AuthorityState {
     /// each account must have had its authenticator function field at the
     /// horizon, or the transaction is reported missing. The package that
     /// field names is checked against the deny rules, read as of the same
-    /// horizon. So an account whose function is changed to a denied package
-    /// above the horizon is not caught here, and a package the reader does not
-    /// see is left to execution.
+    /// horizon, and a denial is returned as
+    /// [`ValidationAtCommit::AuthenticatorPackageDenied`], since it holds for
+    /// every copy of the transaction. So an account whose function is changed
+    /// to a denied package above the horizon is not caught here, and a package
+    /// the reader does not see is left to execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1402,11 +1404,16 @@ impl AuthorityState {
                     );
                 }
             }
-            iota_transaction_checks::deny::check_authenticator_packages(
+            if let Err(error) = iota_transaction_checks::deny::check_authenticator_packages(
                 deny_config,
                 &function_refs,
                 reader,
-            )?;
+            ) {
+                if error.is_storage_or_epoch_error() {
+                    return Err(error);
+                }
+                return Ok(ValidationAtCommit::AuthenticatorPackageDenied(error));
+            }
         }
 
         // The sender against the coin types of its inputs, as at admission,
