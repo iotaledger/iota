@@ -337,6 +337,7 @@ reqwest = { version = "0.13", default-features = false, features = ["http2", "js
 roaring = "0.11.2"
 rs_merkle = "1.5.0"
 rstest = "0.16.0"
+rustix = { version = "1", features = ["fs"] }
 rustls = { version = "0.23.46", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
