@@ -186,9 +186,8 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     debug!(
                         "Missing committed transactions after creating new block: {missing_committed_txns:?}"
                     );
-                    if let Err(err) = transactions_synchronizer
-                        .fetch_transactions(missing_committed_txns)
-                        .await
+                    if let Err(err) =
+                        transactions_synchronizer.fetch_transactions(missing_committed_txns)
                     {
                         warn!(
                             "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
