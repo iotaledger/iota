@@ -26,7 +26,7 @@ use iota_types::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionEnvelope,
         TransactionKey, VerifiedTransaction,
     },
-    utils::to_sender_signed_transaction,
+    utils::{make_move_authenticator_sig, to_sender_signed_transaction},
 };
 
 use crate::{
@@ -230,6 +230,94 @@ async fn test_gas_version_below_canceled_range_dropped_at_load_when_flag_disable
             IotaError::UserInput {
                 error: UserInputError::ObjectNotFound { .. }
             }
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+/// Runs post-consensus validation on a transfer whose Move authenticator names
+/// `account` as a shared object, checks that it is dropped, and returns the
+/// error it was dropped with.
+///
+/// The drop keeps the transaction from execution, where the check of the
+/// authenticator inputs would reject the account with `NotSharedObject`: an
+/// error that halts the validator, not failure effects.
+async fn drop_error_for_account_named_as_shared(account: Object) -> IotaError {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let sender: Address = account.id().into();
+    let gas_id = ObjectId::random();
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&[account, Object::with_id_owner_for_testing(gas_id, sender)])
+        .build()
+        .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let tx = TestTransactionBuilder::new(sender, gas_ref, rgp)
+        .transfer_iota(None, Address::random())
+        .build();
+    let (authenticator, _) = make_move_authenticator_sig(sender);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![authenticator]);
+    let digest = *tx.digest();
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (mut dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(transactions.is_empty(), "The transaction should be dropped");
+    assert!(locks.is_empty(), "A dropped transaction acquires no locks");
+    assert_eq!(dropped.len(), 1);
+    let (dropped_digest, error) = dropped.pop().unwrap();
+    assert_eq!(dropped_digest, digest);
+
+    error
+}
+
+/// An immutable account named as shared is dropped with an error that names
+/// the account.
+#[tokio::test]
+async fn test_immutable_account_named_as_shared_dropped() {
+    let account = Object::immutable_for_testing();
+    let account_id = account.id();
+
+    let error = drop_error_for_account_named_as_shared(account).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+            } if object_id == account_id
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+/// An address-owned account named as shared is dropped with an error that
+/// names the account.
+#[tokio::test]
+async fn test_owned_account_named_as_shared_dropped() {
+    let account = Object::with_owner_for_testing(Address::random());
+    let account_id = account.id();
+
+    let error = drop_error_for_account_named_as_shared(account).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::AccountObjectNotSupported { object_id }
+            } if object_id == account_id
         ),
         "unexpected error: {error:?}"
     );
