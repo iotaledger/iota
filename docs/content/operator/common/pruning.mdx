@@ -3,7 +3,7 @@ Sustainable disk usage requires IOTA full nodes to prune the information about h
 
 All three kinds of pruning below run in the background right after each epoch boundary and once when the node starts, where an expired epoch's data is dropped as a whole set of RocksDB column families; the node keeps executing transactions meanwhile. A lowered retention therefore takes effect at the next start. Most of the disk space comes back with those files. What is left is a small amount of row-by-row deletion in the live object table, which RocksDB reclaims through background compaction, so the last part of the effect on disk usage is not immediate — see `periodic-compaction-threshold-days` below.
 
-Once no read holds back the expiry of historic objects, the same background task also compacts the data of each epoch that has ended, once, so a lookup in it reads a single sorted run of SST files instead of many level-0 files. On the first start after the upgrade this compacts every epoch the node holds, which takes disk I/O for a while on a node with a long history.
+Once the node has caught up with the network and no read holds back the expiry of historic objects, the same background task also compacts the data of each epoch that has ended, once, so a lookup in it reads a single sorted run of SST files instead of many level-0 files. An epoch is skipped while its disk has less free space than its data takes. On the first start after the upgrade, once the node has caught up, this compacts every epoch the node holds, which takes disk I/O for a while on a node with a long history.
 
 :::tip
 
