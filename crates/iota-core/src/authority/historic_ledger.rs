@@ -239,6 +239,11 @@ impl HistoricLedger {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
+    /// The directory the buckets keep their files under.
+    pub(crate) fn files_dir(&self) -> std::path::PathBuf {
+        self.buckets.files_dir()
+    }
+
     /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
     /// below it, drops older ones, and returns the earliest epoch retained.
     ///

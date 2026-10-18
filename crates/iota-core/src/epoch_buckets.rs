@@ -496,6 +496,15 @@ impl<B: BucketReopen> EpochBuckets<B> {
         self.earliest_retained_epoch.load(Ordering::Relaxed)
     }
 
+    /// The directory this store's buckets keep their files under: the bucket
+    /// root, or the database directory for a store without one.
+    pub(crate) fn files_dir(&self) -> PathBuf {
+        match &self.paths {
+            Some(paths) => paths.root.clone(),
+            None => self.db.path_for_pruning().to_path_buf(),
+        }
+    }
+
     /// The options a bucket's column family is created with, which SST files
     /// ingested into it must be written with.
     pub(crate) fn cf_options(&self) -> &rocksdb::Options {
@@ -713,8 +722,8 @@ impl<B: BucketReopen> EpochBuckets<B> {
                 Some(paths) => paths.bucket_dir(epoch),
                 None => self.db.path_for_pruning().to_path_buf(),
             };
-            if let Some(free) = available_disk_space(&dir) {
-                if free < size + size / 10 {
+            match available_disk_space(&dir) {
+                Some(free) if free < size + size / 10 => {
                     warn!(
                         store = self.name,
                         epoch,
@@ -724,6 +733,14 @@ impl<B: BucketReopen> EpochBuckets<B> {
                     );
                     continue;
                 }
+                Some(_) => {}
+                None => warn!(
+                    store = self.name,
+                    epoch,
+                    dir = %dir.display(),
+                    "unable to determine the free disk space; compacting the bucket of a closed \
+                     epoch without the check"
+                ),
             }
             let started = Instant::now();
             // A bucket dropped meanwhile needs no compaction.

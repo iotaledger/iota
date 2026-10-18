@@ -14,7 +14,7 @@
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     ops::Bound,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -37,7 +37,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info, warn};
 use typed_store::{
     DbIterator,
-    rocks::{DBBatch, DBMap, SstFileBuffer, bulk_ingestion_options},
+    rocks::{DBBatch, DBMap, SstFileBuffer, available_disk_space, bulk_ingestion_options},
     traits::Map,
 };
 
@@ -321,6 +321,63 @@ struct SliceBatch<K> {
     next: RangeProgress<K>,
 }
 
+/// Refuses with the amount when the file system `dir` is on, or will be
+/// created on, has less than `needed` bytes free; starts without the check,
+/// with a warning, when the free space cannot be determined.
+pub(crate) fn ensure_free_space(dir: &Path, needed: u64) -> IotaResult<()> {
+    let Some(free) = available_disk_space(dir) else {
+        warn!(
+            needed = %disk_size(needed),
+            dir = %dir.display(),
+            "unable to determine the free disk space for the ledger migration; starting it \
+             without the check"
+        );
+        return Ok(());
+    };
+    if free < needed {
+        return Err(IotaError::Storage(format!(
+            "the ledger migration needs about {} of free disk space under {} to copy the \
+             retained transaction and checkpoint history into the per-epoch buckets, but \
+             only {} are free. Free up space, or lower \
+             num-epochs-to-retain-for-checkpoints, and start the node again",
+            disk_size(needed),
+            dir.display(),
+            disk_size(free)
+        )));
+    }
+    info!(
+        needed = %disk_size(needed),
+        free = %disk_size(free),
+        "the ledger migration has the disk space it needs"
+    );
+    Ok(())
+}
+
+/// `bytes` for a message: GiB, rounded up, from 1 GiB on, MiB below.
+fn disk_size(bytes: u64) -> String {
+    if bytes >= 1 << 30 {
+        format!("{} GiB", bytes.div_ceil(1 << 30))
+    } else {
+        format!("{} MiB", bytes.div_ceil(1 << 20))
+    }
+}
+
+/// The bytes the migration copies into the buckets, from `flat_bytes` in the
+/// flat tables holding the epochs from `oldest_held_epoch` to `epoch`: their
+/// share from `floor` on, assuming epochs of similar size, plus a tenth for
+/// the buckets' own overhead.
+fn estimated_copy_bytes(
+    flat_bytes: u64,
+    epoch: EpochId,
+    floor: EpochId,
+    oldest_held_epoch: EpochId,
+) -> u64 {
+    let held = epoch.saturating_sub(oldest_held_epoch) + 1;
+    let kept = epoch.saturating_sub(floor.max(oldest_held_epoch)) + 1;
+    let copied = (flat_bytes as u128 * kept.min(held) as u128 / held as u128) as u64;
+    copied + copied / 10
+}
+
 /// The keys of key range `range` above `from`; range `i` holds the keys whose
 /// first byte is in its share of `0..=255`.
 fn key_range<K>(
@@ -422,6 +479,9 @@ impl LedgerBacklogMigration {
         // of execution.
         if self.migration_pending()? {
             self.pin_floor()?;
+            if !self.started()? {
+                self.check_disk_space()?;
+            }
             self.rewind_synced_watermark()?;
         }
         let mut counts = self.drain_in_parallel()?;
@@ -896,18 +956,23 @@ impl LedgerBacklogMigration {
     /// Settles this run's floor against the one the drains have run with so
     /// far, recording it when this run starts the migration.
     ///
-    /// A raised retention, a lower floor, restarts the drains while no row of
-    /// an expired epoch has been deleted yet: they skipped the rows below the
-    /// old floor, which are all still in the flat tables. Once the step that
-    /// deletes such rows has begun, the recorded floor is kept, as a resumed
-    /// run would otherwise keep epochs an earlier run had begun deleting and
-    /// report them as held. A lowered retention keeps the recorded floor too:
-    /// what the drains moved stays, for the next expiry to drop.
+    /// Until the drains have written progress, the configured floor replaces
+    /// the recorded one, whichever way the retention changed: nothing has
+    /// moved yet, as when the disk space check refused the earlier run.
+    /// After that, a raised retention, a lower floor, restarts the drains
+    /// while no row of an expired epoch has been deleted yet: they skipped the
+    /// rows below the old floor, which are all still in the flat tables. Once
+    /// the step that deletes such rows has begun, the recorded floor is kept,
+    /// as a resumed run would otherwise keep epochs an earlier run had begun
+    /// deleting and report them as held. A lowered retention keeps the
+    /// recorded floor too: what the drains moved stays, for the next expiry
+    /// to drop.
     fn pin_floor(&mut self) -> IotaResult<()> {
         let pinned = &self.perpetual_tables.ledger_backlog_migration_floor;
         let configured = self.floor;
         match pinned.get(&())? {
             None => pinned.insert(&(), &configured)?,
+            Some(_) if !self.started()? => pinned.insert(&(), &configured)?,
             Some(recorded) if configured < recorded && !self.deleting_expired_rows()? => {
                 warn!(
                     recorded,
@@ -943,6 +1008,77 @@ impl LedgerBacklogMigration {
             self.floor
         );
         Ok(())
+    }
+
+    /// Whether an earlier run has written any progress.
+    fn started(&self) -> IotaResult<bool> {
+        Ok(self
+            .perpetual_tables
+            .ledger_backlog_migration_progress
+            .get(&())?
+            .is_some()
+            || self
+                .checkpoint_store
+                .tables
+                .checkpoint_backlog_migration_progress
+                .get(&())?
+                .is_some())
+    }
+
+    /// Refuses to start a migration the disk holding the buckets has too
+    /// little free space for: the drains copy the retained rows into the
+    /// buckets, and the flat tables are freed only once they are done, so a
+    /// migration that runs out of space part way can never finish.
+    fn check_disk_space(&self) -> IotaResult<()> {
+        let perpetual = &self.perpetual_tables;
+        let checkpoints = &self.checkpoint_store.tables;
+        let sizes = [
+            perpetual
+                .transactions
+                .db
+                .sst_files_size(perpetual.transactions.cf_name())?,
+            perpetual
+                .effects
+                .db
+                .sst_files_size(perpetual.effects.cf_name())?,
+            perpetual
+                .events_2
+                .db
+                .sst_files_size(perpetual.events_2.cf_name())?,
+            perpetual
+                .executed_effects
+                .db
+                .sst_files_size(perpetual.executed_effects.cf_name())?,
+            perpetual
+                .executed_transactions_to_checkpoint
+                .db
+                .sst_files_size(perpetual.executed_transactions_to_checkpoint.cf_name())?,
+            checkpoints
+                .checkpoint_content
+                .db
+                .sst_files_size(checkpoints.checkpoint_content.cf_name())?,
+            checkpoints
+                .checkpoint_by_digest
+                .db
+                .sst_files_size(checkpoints.checkpoint_by_digest.cf_name())?,
+        ];
+        let oldest_held_epoch = match self
+            .checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+        {
+            Some(pruned) => self
+                .checkpoint_store
+                .get_checkpoint_by_sequence_number(pruned + 1)?
+                .map_or(self.epoch, |checkpoint| checkpoint.epoch()),
+            None => 0,
+        };
+        let needed = estimated_copy_bytes(
+            sizes.iter().sum(),
+            self.epoch,
+            self.floor,
+            oldest_held_epoch,
+        );
+        ensure_free_space(&self.historic_ledger.files_dir(), needed)
     }
 
     /// Whether the step that deletes the rows of expired epochs has begun.
