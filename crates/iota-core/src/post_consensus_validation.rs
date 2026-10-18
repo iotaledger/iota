@@ -18,7 +18,9 @@
 //! # Per-transaction order within the loop
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
-//! 2. Dedup by `ConsensusTransactionKey` — silent drop.
+//! 2. Dedup by `ConsensusTransactionKey` — silent drop. With deterministic validation, a later copy
+//!    of a user transaction with other signatures is validated when every earlier copy was dropped
+//!    for a reason that may come from its own signatures (see `drop_may_come_from_signatures`).
 //! 3. With deterministic validation, a commit replayed after a restart repeats the decisions saved
 //!    on its first run: a saved drop is dropped again without checks, and a saved keep that has
 //!    executed is retained as below. Otherwise, an already-executed transaction is **retained** as
@@ -54,13 +56,16 @@ use std::{
 
 use iota_common::fatal;
 use iota_macros::fail_point;
-use iota_sdk_types::{ObjectReference, TransactionDigest};
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{ObjectReference, SenderSignedTransaction, TransactionDigest, UserSignature};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
-    transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
+    transaction::{
+        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
+    },
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
@@ -112,6 +117,11 @@ pub enum PostConsensusVerdict {
 /// - With deterministic validation, a transaction in `previously_deferred` is kept without checks
 ///   and takes no new locks: the locks it took at the commit that kept it stay in place.
 ///
+/// With deterministic validation, copies of one digest with other signatures can come from
+/// different authors in one commit. The first copy is validated; a later one only while every
+/// earlier copy was dropped for a reason that may come from its own signatures. The digest's
+/// decision is that of the last copy validated, and only a kept copy stays in `transactions`.
+///
 /// With deterministic validation, the decision for every candidate is saved before returning,
 /// including keeps that the caller then defers. When the commit is replayed after a restart, a
 /// saved drop is repeated without checks, and a saved keep is validated again unless it has
@@ -140,7 +150,7 @@ pub enum PostConsensusVerdict {
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the consensus quarantine
 ///   so subsequent commits can see them.
 /// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup (both kept and
-///   dropped). Used by the caller to release pre-consensus soft locks.
+///   dropped), once each. Used by the caller to release pre-consensus soft locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -153,8 +163,15 @@ pub async fn validate_and_resolve_conflicts(
     HashMap<ObjectReference, LockDetails>,
     Vec<TransactionDigest>,
 )> {
-    let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
+    // Keys of the transactions other than user transactions seen so far.
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
+    // The signatures of each copy of a digest validated at this commit, in
+    // consensus order.
+    let mut validated_copies: HashMap<TransactionDigest, Vec<&[UserSignature]>> = HashMap::new();
+    let mut decisions = CommitDecisions::default();
+    // Every validated copy's digest, in consensus order: a digest appears once
+    // per copy validated.
+    let mut candidates = Vec::with_capacity(transactions.len());
     // Locks acquired within this commit. Populated for every transaction that
     // passes all checks; used by subsequent transactions' conflict checks.
     let mut current_commit_locks: HashMap<ObjectReference, LockDetails> = HashMap::new();
@@ -225,9 +242,14 @@ pub async fn validate_and_resolve_conflicts(
     } else {
         false
     };
+    // How many copies of each digest the first run validated. The decision
+    // of the last one is the digest's; the ones before it were dropped for
+    // their own signatures.
+    let mut saved_copies: HashMap<TransactionDigest, usize> = HashMap::new();
+    for digest in saved_candidates.iter().flatten() {
+        *saved_copies.entry(*digest).or_default() += 1;
+    }
     let mut saved_verdicts = HashMap::new();
-    // The dropped transactions whose drop is `PostConsensusVerdict::Missing`.
-    let mut not_visible_yet = HashSet::new();
 
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
@@ -240,34 +262,56 @@ pub async fn validate_and_resolve_conflicts(
     });
 
     for (i, tx) in transactions.iter().enumerate() {
-        // Check #0: Dedup by ConsensusTransactionKey.
-        // The same UserTransactionV1 may appear in DAG blocks from multiple
-        // validators within the same consensus commit. Only the first occurrence
-        // is kept. Silent drop — not added to `dropped`.
-        if !seen_keys.insert(tx.0.key()) {
-            keep[i] = false;
-            continue;
-        }
-
-        // Only validate UserTransactionV1; pass everything else through unchanged.
+        // Only validate UserTransactionV1; pass everything else through
+        // unchanged, once per key.
         let Some(transaction) = (match &tx.0.transaction {
             SequencedConsensusTransactionKind::External(ext) => ext.kind.as_user_transaction(),
             SequencedConsensusTransactionKind::System(_) => None,
         }) else {
+            if !seen_keys.insert(tx.0.key()) {
+                keep[i] = false;
+            }
             continue;
         };
 
         let digest = *transaction.digest();
-        all_user_tx_digests.push(digest);
+        let signatures = transaction.data().signatures();
+
+        // Check #0: Dedup by digest.
+        // The same UserTransactionV1 may appear in DAG blocks from multiple
+        // validators within the same consensus commit. Silent drop — not added
+        // to `dropped`. With deterministic validation, a copy with other
+        // signatures is validated while no earlier copy has decided the
+        // digest. A copy with the same signatures as one already validated
+        // would get the same decision.
+        let copies = validated_copies.entry(digest).or_default();
+        if copies.is_empty() {
+            all_user_tx_digests.push(digest);
+        } else if !deterministic_validation
+            || decisions.is_decided(&digest)
+            || copies.contains(&signatures)
+        {
+            keep[i] = false;
+            continue;
+        }
+        copies.push(signatures);
+        let copy_number = copies.len();
+        candidates.push(digest);
 
         let saved = match &saved_candidates {
-            Some(_) => match epoch_store.post_consensus_verdict(commit_index, digest)? {
-                Some(verdict) => Some(verdict),
-                None => fatal!(
-                    "commit {commit_index} has a saved candidate list but no saved \
-                     validation decision for {digest:?}"
-                ),
-            },
+            Some(_) => {
+                if copy_number < saved_copies.get(&digest).copied().unwrap_or_default() {
+                    keep[i] = false;
+                    continue;
+                }
+                match epoch_store.post_consensus_verdict(commit_index, digest)? {
+                    Some(verdict) => Some(verdict),
+                    None => fatal!(
+                        "commit {commit_index} has a saved candidate list but no saved \
+                         validation decision for {digest:?}"
+                    ),
+                }
+            }
             None => None,
         };
         if let Some(verdict) = &saved {
@@ -275,13 +319,11 @@ pub async fn validate_and_resolve_conflicts(
         }
         // A saved drop is replayed as is: the inputs it was decided on may
         // have changed since.
-        if let Some(PostConsensusVerdict::Dropped(error) | PostConsensusVerdict::Missing(error)) =
-            &saved
+        if let Some(
+            verdict @ (PostConsensusVerdict::Dropped(_) | PostConsensusVerdict::Missing(_)),
+        ) = saved
         {
-            if matches!(saved, Some(PostConsensusVerdict::Missing(_))) {
-                not_visible_yet.insert(digest);
-            }
-            dropped.push((digest, error.clone()));
+            decisions.decide(digest, verdict);
             keep[i] = false;
             continue;
         }
@@ -293,6 +335,7 @@ pub async fn validate_and_resolve_conflicts(
                 ?digest,
                 "Repeating the saved keep up to the synced checkpoint switch"
             );
+            decisions.decide(digest, PostConsensusVerdict::Kept);
             continue;
         }
         // Validating it again could drop it, and the locks it took at the
@@ -303,8 +346,20 @@ pub async fn validate_and_resolve_conflicts(
                 ?digest,
                 "Keeping a transaction deferred at an earlier commit without validating it again"
             );
+            decisions.decide(digest, PostConsensusVerdict::Kept);
             continue;
         }
+        // Whether a drop of this copy may come from its own signatures, so a
+        // later copy of the digest is validated. Only with deterministic
+        // validation, which is what lets later copies reach this loop.
+        let from_signatures = |check: FailedCheck<'_>| {
+            deterministic_validation
+                && drop_may_come_from_signatures(
+                    transaction.data(),
+                    check,
+                    epoch_store.protocol_config(),
+                )
+        };
 
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
@@ -356,6 +411,7 @@ pub async fn validate_and_resolve_conflicts(
                 "Transaction already executed; retained as checkpoint root, skipping re-validation"
             );
             // keep[i] stays true so the transaction remains in the sequence.
+            decisions.decide(digest, PostConsensusVerdict::Kept);
             continue;
         }
 
@@ -367,7 +423,8 @@ pub async fn validate_and_resolve_conflicts(
                 error = ?e,
                 "UserTransactionV1 failed validity_check post-consensus, dropping"
             );
-            dropped.push((digest, e));
+            let from_signatures = from_signatures(FailedCheck::Validity(&e));
+            decisions.drop_copy(digest, PostConsensusVerdict::Dropped(e), from_signatures);
             keep[i] = false;
             continue;
         }
@@ -382,7 +439,11 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "Failed to extract owned input objects post-consensus, dropping"
                 );
-                dropped.push((digest, e));
+                decisions.drop_copy(
+                    digest,
+                    PostConsensusVerdict::Dropped(e),
+                    from_signatures(FailedCheck::OwnedInputs),
+                );
                 keep[i] = false;
                 continue;
             }
@@ -406,7 +467,7 @@ pub async fn validate_and_resolve_conflicts(
         // Tier 1: Local HashMap (current commit).
         // Tier 2: Consensus quarantine (previous uncommitted commits).
         // Tier 3: Persistent DB (committed data).
-        let mut conflict: Option<IotaError> = None;
+        let mut conflict: Option<(ObjectReference, IotaError)> = None;
         for obj_ref in &owned_inputs {
             if let Some(locked_by) =
                 find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
@@ -420,8 +481,9 @@ pub async fn validate_and_resolve_conflicts(
                 // this guard for the already-executed branch in Check #1.
                 //
                 // Note that same-commit duplicates cannot slip through here since
-                // Check #0 already dedups by digest, so a same-digest lock here
-                // is always this transaction's own prior-round lock.
+                // Check #0 lets a later copy through only while no copy of the
+                // digest is kept, so a same-digest lock here is always this
+                // transaction's own prior-round lock.
                 if locked_by == digest {
                     continue;
                 }
@@ -432,15 +494,22 @@ pub async fn validate_and_resolve_conflicts(
                     ?locked_by,
                     "Transaction conflicts with existing owned-object lock, dropping"
                 );
-                conflict = Some(IotaError::ObjectLockConflict {
-                    obj_ref: *obj_ref,
-                    pending_transaction: locked_by,
-                });
+                conflict = Some((
+                    *obj_ref,
+                    IotaError::ObjectLockConflict {
+                        obj_ref: *obj_ref,
+                        pending_transaction: locked_by,
+                    },
+                ));
                 break;
             }
         }
-        if let Some(e) = conflict {
-            dropped.push((digest, e));
+        if let Some((obj_ref, e)) = conflict {
+            decisions.drop_copy(
+                digest,
+                PostConsensusVerdict::Dropped(e),
+                from_signatures(FailedCheck::LockConflict(&obj_ref)),
+            );
             keep[i] = false;
             continue;
         }
@@ -459,7 +528,9 @@ pub async fn validate_and_resolve_conflicts(
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
-        let mut input_not_visible = false;
+        // The input the reader dropped or did not see, and whether it did
+        // not see it.
+        let mut input_verdict: Option<(InputObjectKind, bool)> = None;
         let checked = match &reader {
             // Inputs read as of the commit. A dropped or a missing input is
             // reported with the error admission gives a missing input, so
@@ -499,6 +570,7 @@ pub async fn validate_and_resolve_conflicts(
                                 ?reason,
                                 "input dropped by the commit-indexed reader"
                             );
+                            input_verdict = Some((kind, false));
                             Err(kind.object_not_found_error().into())
                         }
                         ValidationAtCommit::Missing(kind, reason) => {
@@ -512,7 +584,7 @@ pub async fn validate_and_resolve_conflicts(
                                 ?reason,
                                 "input not visible at this commit"
                             );
-                            input_not_visible = true;
+                            input_verdict = Some((kind, true));
                             Err(kind.object_not_found_error().into())
                         }
                     }
@@ -544,10 +616,16 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                if input_not_visible {
-                    not_visible_yet.insert(digest);
-                }
-                dropped.push((digest, e));
+                let (verdict, check) = match &input_verdict {
+                    Some((kind, true)) => {
+                        (PostConsensusVerdict::Missing(e), FailedCheck::Input(kind))
+                    }
+                    Some((kind, false)) => {
+                        (PostConsensusVerdict::Dropped(e), FailedCheck::Input(kind))
+                    }
+                    None => (PostConsensusVerdict::Dropped(e), FailedCheck::Other),
+                };
+                decisions.drop_copy(digest, verdict, from_signatures(check));
                 keep[i] = false;
                 continue;
             }
@@ -574,34 +652,32 @@ pub async fn validate_and_resolve_conflicts(
             owned_inputs = ?locked_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
+        decisions.decide(digest, PostConsensusVerdict::Kept);
     }
 
+    let dropped: Vec<(TransactionDigest, IotaError)> = all_user_tx_digests
+        .iter()
+        .filter_map(|digest| match decisions.verdicts.get(digest) {
+            Some(PostConsensusVerdict::Dropped(error) | PostConsensusVerdict::Missing(error)) => {
+                Some((*digest, error.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+
     if deterministic_validation {
-        let errors: HashMap<_, _> = dropped.iter().cloned().collect();
-        let verdicts: Vec<_> = all_user_tx_digests
-            .iter()
-            .map(|digest| {
-                let verdict = match errors.get(digest) {
-                    Some(error) if not_visible_yet.contains(digest) => {
-                        PostConsensusVerdict::Missing(error.clone())
-                    }
-                    Some(error) => PostConsensusVerdict::Dropped(error.clone()),
-                    None => PostConsensusVerdict::Kept,
-                };
-                (*digest, verdict)
-            })
-            .collect();
         match &saved_candidates {
-            Some(candidates) => {
-                if *candidates != all_user_tx_digests {
+            Some(saved_candidates) => {
+                if *saved_candidates != candidates {
                     fatal!(
                         "validation candidates of commit {commit_index} differ from the saved \
-                         ones: saved {candidates:?}, now {all_user_tx_digests:?}"
+                         ones: saved {saved_candidates:?}, now {candidates:?}"
                     );
                 }
-                for (digest, verdict) in &verdicts {
+                for digest in &all_user_tx_digests {
+                    let verdict = decisions.verdicts.get(digest);
                     let saved = saved_verdicts.get(digest);
-                    if saved != Some(verdict) {
+                    if saved != verdict {
                         fatal!(
                             "validation decision for {digest:?} at commit {commit_index} \
                              differs from the saved one: saved {saved:?}, now {verdict:?}"
@@ -610,6 +686,18 @@ pub async fn validate_and_resolve_conflicts(
                 }
             }
             None => {
+                // Every copy's entry carries the digest's decision.
+                let verdicts: Vec<_> = candidates
+                    .iter()
+                    .map(|digest| {
+                        let verdict = decisions
+                            .verdicts
+                            .get(digest)
+                            .cloned()
+                            .expect("every validated copy decides its digest");
+                        (*digest, verdict)
+                    })
+                    .collect();
                 epoch_store.persist_post_consensus_verdicts(commit_index, &verdicts)?;
                 if !verdicts.is_empty() {
                     fail_point!("crash-after-post-consensus-verdicts");
@@ -636,6 +724,106 @@ pub async fn validate_and_resolve_conflicts(
     transactions.retain(|_| iter.next().unwrap_or(true));
 
     Ok((dropped, current_commit_locks, all_user_tx_digests))
+}
+
+/// The decision so far for each user transaction digest of a commit.
+#[derive(Default)]
+struct CommitDecisions {
+    /// The decision of the last copy of each digest validated.
+    verdicts: HashMap<TransactionDigest, PostConsensusVerdict>,
+    /// The digests no later copy can change the decision of: a copy was
+    /// kept, or dropped for a reason every copy shares.
+    decided: HashSet<TransactionDigest>,
+}
+
+impl CommitDecisions {
+    fn is_decided(&self, digest: &TransactionDigest) -> bool {
+        self.decided.contains(digest)
+    }
+
+    fn decide(&mut self, digest: TransactionDigest, verdict: PostConsensusVerdict) {
+        self.verdicts.insert(digest, verdict);
+        self.decided.insert(digest);
+    }
+
+    /// Records the drop of one copy of `digest`. A drop that may come from
+    /// the copy's own signatures leaves the digest open for a later copy.
+    fn drop_copy(
+        &mut self,
+        digest: TransactionDigest,
+        verdict: PostConsensusVerdict,
+        from_signatures: bool,
+    ) {
+        if from_signatures {
+            self.verdicts.insert(digest, verdict);
+        } else {
+            self.decide(digest, verdict);
+        }
+    }
+}
+
+/// The check a copy of a transaction failed, for
+/// [`drop_may_come_from_signatures`].
+enum FailedCheck<'a> {
+    /// `validity_check`, with its error.
+    Validity(&'a IotaError),
+    /// Listing the owned inputs.
+    OwnedInputs,
+    /// Another transaction holds a lock on this input.
+    LockConflict(&'a ObjectReference),
+    /// The commit-indexed reader dropped this input or did not see it.
+    Input(&'a InputObjectKind),
+    /// Any other check of the inputs, deny rules and gas.
+    Other,
+}
+
+/// Whether a drop of this copy of a transaction may come from its signatures
+/// rather than from the transaction data, which every copy of the digest
+/// shares.
+///
+/// Block verification checks every signature against the data, except a Move
+/// authenticator, which it checks only for the address it claims. So a copy
+/// without one fails like every other copy, while a faulty validator can put
+/// in its block a copy with a made-up authenticator that fails here. For a
+/// copy with a Move authenticator, a drop counts as the data's only when the
+/// data alone explains it: the data fails its own validity check or has
+/// expired, its inputs cannot be listed, or the conflicting lock or the
+/// dropped or unseen input is one the data names. Any other drop of such a
+/// copy, including the checks of the inputs, deny rules and gas, may come
+/// from the authenticator.
+fn drop_may_come_from_signatures(
+    transaction: &SenderSignedTransaction,
+    check: FailedCheck<'_>,
+    config: &ProtocolConfig,
+) -> bool {
+    if transaction.move_authenticators().is_empty() {
+        return false;
+    }
+    let data = transaction.transaction();
+    let data_names = |kind: &InputObjectKind| {
+        data.input_objects()
+            .is_ok_and(|inputs| inputs.contains(kind))
+    };
+    match check {
+        FailedCheck::Validity(error) => {
+            !matches!(error, IotaError::TransactionExpired)
+                && !data.is_system_tx()
+                && data.validity_check(config).is_ok()
+        }
+        FailedCheck::OwnedInputs => data.input_objects().is_ok(),
+        FailedCheck::LockConflict(obj_ref) => {
+            !data_names(&InputObjectKind::ImmOrOwnedMoveObject(*obj_ref))
+        }
+        FailedCheck::Input(kind) => {
+            !data_names(kind)
+                && !matches!(
+                    kind,
+                    InputObjectKind::ImmOrOwnedMoveObject(obj_ref)
+                        if data.receiving_objects().contains(obj_ref)
+                )
+        }
+        FailedCheck::Other => true,
+    }
 }
 
 /// Narrows the byte-derived owned inputs of an already-executed transaction to

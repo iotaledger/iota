@@ -146,6 +146,10 @@ pub struct ConsensusHandler<C> {
     metrics: Arc<AuthorityMetrics>,
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
+    /// The `pcool_deterministic_validation` flag, fixed for the epoch. With it
+    /// on, the per-commit duplicate check keeps one copy of a user
+    /// transaction per author.
+    deterministic_validation: bool,
     transaction_scheduler: AsyncTransactionScheduler,
     /// Marks commits fully executed for the P-COOL deterministic-validation
     /// bookkeeping; `None` unless this node keeps the bookkeeping. Held only
@@ -183,6 +187,10 @@ impl<C> ConsensusHandler<C> {
             .pcool_bookkeeping_enabled()
             .then(|| ExecutionWatcher::start(epoch_store.clone()));
 
+        let deterministic_validation = epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation();
+
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
         publish_scoring_gauges(&epoch_store, &committee, &metrics);
@@ -199,6 +207,7 @@ impl<C> ConsensusHandler<C> {
             processed_cache: LruCache::new(
                 NonZeroUsize::new(randomize_cache_capacity_in_tests(PROCESSED_CACHE_CAP)).unwrap(),
             ),
+            deterministic_validation,
             transaction_scheduler,
             _execution_watcher: execution_watcher,
             backpressure_subscriber,
@@ -497,13 +506,21 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     transaction,
                 };
 
+                // The digest does not cover the signatures, so with deterministic
+                // validation one author's copy of a user transaction must not hide
+                // another author's copy: validation tries a later copy when an
+                // earlier one fails on its own signatures. One copy per author
+                // bounds that work.
+                let copy_author = (self.deterministic_validation
+                    && sequenced_transaction.is_user_transaction())
+                .then_some(cert_origin);
                 // With the flag on, the set holds only keys of messages that passed verification
                 // earlier in this commit and the cache only keys recorded as processed. A hit in
                 // either means this message would be skipped after verification too, whatever its
                 // payload.
                 if dedup_only_recorded_messages {
                     let claimed_key = sequenced_transaction.transaction.key();
-                    if processed_set.contains(&claimed_key)
+                    if processed_set.contains(&(claimed_key.clone(), copy_author))
                         || self.processed_cache.contains(&claimed_key)
                     {
                         self.metrics.skipped_consensus_txns_cache_hit.inc();
@@ -523,11 +540,11 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
                 let key = verified_transaction.0.key();
                 if dedup_only_recorded_messages {
-                    processed_set.insert(key);
+                    processed_set.insert((key, copy_author));
                 } else {
                     // TODO(#13170): remove with the flag. Caches a key before the epoch store
                     // decides whether to record it.
-                    let in_set = !processed_set.insert(key.clone());
+                    let in_set = !processed_set.insert((key.clone(), copy_author));
                     let in_cache = self.processed_cache.put(key, ()).is_some();
                     if in_set || in_cache {
                         self.metrics.skipped_consensus_txns_cache_hit.inc();
@@ -2063,11 +2080,7 @@ mod tests {
     /// getting the copy's drop.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn drop_of_a_failing_copy_does_not_answer_for_the_kept_transaction() {
-        use iota_sdk_types::{
-            MoveAuthenticator, MoveAuthenticatorV1, SharedObjectReference, TransactionExpiration,
-            UserSignature, Version,
-        };
-        use iota_types::transaction::{CallArg, TransactionEnvelope};
+        use iota_sdk_types::TransactionExpiration;
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
@@ -2097,22 +2110,7 @@ mod tests {
         );
         *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch.epoch());
         let honest = to_sender_signed_transaction(data.clone(), &key);
-        // Declaring a mutable shared input fails the authenticator's validity
-        // check.
-        let failing_copy = TransactionEnvelope::new(SenderSignedTransaction::new(
-            data,
-            vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
-                MoveAuthenticatorV1::new(
-                    vec![CallArg::Shared(SharedObjectReference::new(
-                        ObjectId::random(),
-                        Version::from(1),
-                        true,
-                    ))],
-                    vec![],
-                    SharedObjectReference::new(sender.into(), Version::from(1), false),
-                ),
-            ))],
-        ));
+        let failing_copy = copy_with_failing_authenticator(data);
         let digest = *honest.digest();
         assert_eq!(*failing_copy.digest(), digest);
 
@@ -2157,6 +2155,80 @@ mod tests {
             .is_err(),
             "a status request must wait for the kept transaction's outcome"
         );
+    }
+
+    /// Two copies of an honest transaction in one commit, a faulty one first
+    /// in consensus order: the faulty validator's copy has a Move
+    /// authenticator that fails validation at the commit. The honest copy
+    /// from another author must still be validated and kept at that commit.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn failing_copy_first_in_a_commit_does_not_hide_the_honest_copy() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<_> = (0..2)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
+        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
+        let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
+        let digest = *honest.digest();
+        assert_eq!(*failing_copy.digest(), digest);
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                1,
+                100,
+                vec![
+                    (1, ConsensusTransaction::new_user_transaction(failing_copy)),
+                    (0, ConsensusTransaction::new_user_transaction(honest)),
+                ],
+            ))
+            .await;
+
+        assert_eq!(
+            epoch.post_consensus_verdict(1, digest).unwrap(),
+            Some(PostConsensusVerdict::Kept),
+            "the honest copy must be kept at the commit"
+        );
+        assert!(
+            epoch
+                .is_consensus_message_processed(&user_transaction_key(digest))
+                .unwrap(),
+            "the honest copy must be scheduled"
+        );
+    }
+
+    /// `data` with a Move authenticator for its sender in place of its
+    /// signature. Block verification checks such an authenticator only for
+    /// its address, and declaring a mutable shared input fails its validity
+    /// check at the commit.
+    fn copy_with_failing_authenticator(
+        data: Transaction,
+    ) -> iota_types::transaction::TransactionEnvelope {
+        use iota_sdk_types::{
+            MoveAuthenticator, MoveAuthenticatorV1, SharedObjectReference, UserSignature, Version,
+        };
+        use iota_types::transaction::{CallArg, TransactionEnvelope};
+
+        let sender = data.sender();
+        TransactionEnvelope::new(SenderSignedTransaction::new(
+            data,
+            vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+                MoveAuthenticatorV1::new(
+                    vec![CallArg::Shared(SharedObjectReference::new(
+                        ObjectId::random(),
+                        Version::from(1),
+                        true,
+                    ))],
+                    vec![],
+                    SharedObjectReference::new(sender.into(), Version::from(1), false),
+                ),
+            ))],
+        ))
     }
 
     /// A handler with deterministic validation on, over an authority of a

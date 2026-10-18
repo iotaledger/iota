@@ -917,7 +917,8 @@ pub struct AuthorityEpochTables {
         DBMap<(CommitIndex, TransactionDigest), PostConsensusVerdict>,
     /// The candidates of a consensus commit in consensus order, written in
     /// the same batch as their rows in `post_consensus_verdicts`, so its
-    /// presence means every candidate of the commit has a decision.
+    /// presence means every candidate of the commit has a decision. A digest
+    /// appears once per copy of the transaction validated at the commit.
     pub(crate) post_consensus_verdict_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
 
     /// The last commit the consensus handler processed before this node
@@ -2046,7 +2047,9 @@ impl AuthorityPerEpochStore {
     }
 
     /// Saves the decisions of every candidate of commit `index`, in consensus
-    /// order, together with the commit's candidate list, in one batch.
+    /// order, together with the commit's candidate list, in one batch. A
+    /// digest with several copies validated appears once per copy, each entry
+    /// with the digest's decision.
     pub(crate) fn persist_post_consensus_verdicts(
         &self,
         index: CommitIndex,

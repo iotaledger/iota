@@ -6645,6 +6645,129 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
     );
 }
 
+/// Copies of one transaction in a commit, the first with a Move
+/// authenticator that fails validation, then the honest copy twice: the
+/// honest copy is validated after the failing one and kept, and its repeat is
+/// not validated. A replay of the commit keeps the same copy. A commit whose
+/// decisions were saved when only the first copy was validated replays the
+/// saved drop.
+#[tokio::test]
+async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
+    use typed_store::Map;
+
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let honest = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let digest = *honest.digest();
+    // Declaring a mutable shared input fails the authenticator's validity
+    // check.
+    let failing = VerifiedTransaction::new_unchecked(TransactionEnvelope::new(
+        iota_sdk_types::SenderSignedTransaction::new(
+            honest.data().transaction().clone(),
+            vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+                MoveAuthenticatorV1::new(
+                    vec![CallArg::Shared(SharedObjectReference::new(
+                        ObjectId::random(),
+                        Version::from(1),
+                        true,
+                    ))],
+                    vec![],
+                    SharedObjectReference::new(sender.into(), Version::from(1), false),
+                ),
+            ))],
+        ),
+    ));
+    assert_eq!(*failing.digest(), digest);
+    let copies = || {
+        vec![
+            make_user_tx_v1_verified(failing.clone()),
+            make_user_tx_v1_verified(honest.clone()),
+            make_user_tx_v1_verified(honest.clone()),
+        ]
+    };
+    let retained_signatures = |transactions: &[VerifiedSequencedConsensusTransaction]| {
+        transactions
+            .iter()
+            .map(|tx| match &tx.0.transaction {
+                crate::consensus_handler::SequencedConsensusTransactionKind::External(ext) => ext
+                    .kind
+                    .as_user_transaction()
+                    .unwrap()
+                    .data()
+                    .signatures()
+                    .to_vec(),
+                crate::consensus_handler::SequencedConsensusTransactionKind::System(_) => {
+                    unreachable!("only user transactions are validated here")
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+
+    // The first run, then a replay from the saved decisions.
+    for _ in 0..2 {
+        let mut transactions = copies();
+        let (dropped, _, digests) = post_consensus_validation::validate_and_resolve_conflicts(
+            &s.authority,
+            &s.epoch_store,
+            1,
+            true,
+            &Default::default(),
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+        assert!(dropped.is_empty(), "{dropped:?}");
+        assert_eq!(digests, vec![digest]);
+        assert_eq!(
+            retained_signatures(&transactions),
+            vec![honest.data().signatures().to_vec()]
+        );
+        assert_eq!(
+            s.epoch_store.post_consensus_verdict(1, digest).unwrap(),
+            Some(PostConsensusVerdict::Kept)
+        );
+        assert_eq!(
+            s.epoch_store
+                .tables()
+                .unwrap()
+                .post_consensus_verdict_candidates
+                .get(&1)
+                .unwrap(),
+            Some(vec![digest, digest])
+        );
+    }
+
+    let error: IotaError = UserInputError::Unsupported("saved drop".to_string()).into();
+    s.epoch_store
+        .persist_post_consensus_verdicts(
+            2,
+            &[(digest, PostConsensusVerdict::Dropped(error.clone()))],
+        )
+        .unwrap();
+    let mut transactions = copies();
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        2,
+        true,
+        &Default::default(),
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert_eq!(dropped, vec![(digest, error)]);
+    assert!(transactions.is_empty());
+}
+
 /// The decisions of a commit and its candidate list read back as written,
 /// before and after a restart.
 #[tokio::test]
