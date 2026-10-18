@@ -2156,7 +2156,7 @@ mod tests {
                     .post_consensus_decision(1, digest)
                     .unwrap()
                     .map(|saved| saved.decision),
-                Some(PostConsensusDecision::Dropped)
+                Some(PostConsensusDecision::DroppedCopy)
             ),
             "the failing copy must be dropped"
         );
@@ -2223,6 +2223,65 @@ mod tests {
                 .is_consensus_message_processed(&user_transaction_key(digest))
                 .unwrap(),
             "the honest copy must be scheduled"
+        );
+    }
+
+    /// A submitter already waiting for the status of an honest transaction
+    /// when a faulty validator's copy of it is dropped on its authenticator
+    /// is not told about the drop: the honest copy can still be kept, so the
+    /// submitter keeps waiting for its outcome.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn waiting_submitter_is_not_told_about_the_drop_of_a_failing_copy() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<_> = (0..2)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
+        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
+        let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
+        let digest = *honest.digest();
+
+        // Polled once so it is registered before the commit is processed.
+        let waiting_submitter = epoch.notify_read_dropped_digests(digest);
+        pin_mut!(waiting_submitter);
+        assert!(futures::poll!(&mut waiting_submitter).is_pending());
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                1,
+                100,
+                vec![(1, ConsensusTransaction::new_user_transaction(failing_copy))],
+            ))
+            .await;
+
+        assert!(matches!(
+            epoch.post_consensus_decision(1, digest).unwrap(),
+            Some(PostConsensusDecision::DroppedCopy(_))
+        ));
+        assert!(
+            tokio::time::timeout(Duration::from_secs(5), &mut waiting_submitter)
+                .await
+                .is_err(),
+            "the submitter must not get the failing copy's drop"
+        );
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                2,
+                200,
+                vec![(0, ConsensusTransaction::new_user_transaction(honest))],
+            ))
+            .await;
+        assert_eq!(
+            epoch
+                .post_consensus_decision(2, digest)
+                .unwrap()
+                .map(|saved| saved.decision),
+            Some(PostConsensusDecision::Kept)
         );
     }
 
@@ -2579,8 +2638,13 @@ mod tests {
     /// the transaction's shared objects with another initial shared version.
     /// The handler reads the transaction's shared inputs before validating it,
     /// and must still process the commit, with post-consensus validation
-    /// dropping the transaction. Callers set the protocol config.
-    async fn assert_user_transaction_with_inconsistent_shared_input_is_dropped() {
+    /// dropping the transaction. Callers set the protocol config; with
+    /// `deterministic_validation`, the drop may come from the authenticator,
+    /// which another copy of the transaction need not share, so it is saved
+    /// as such and not recorded as the digest's status.
+    async fn assert_user_transaction_with_inconsistent_shared_input_is_dropped(
+        deterministic_validation: bool,
+    ) {
         // GIVEN
         let (state, mut consensus_handler, _) = handler_with_impersonated_authority().await;
         let epoch_store = state.epoch_store_for_testing().clone();
@@ -2606,20 +2670,28 @@ mod tests {
             .await;
 
         // THEN post-consensus validation drops the transaction
+        let expected = IotaError::UserInput {
+            error: UserInputError::InconsistentInput {
+                object_id: shared.object_id,
+            },
+        };
+        if deterministic_validation {
+            assert_eq!(
+                epoch_store
+                    .post_consensus_decision(1, digest)
+                    .unwrap()
+                    .map(|saved| (saved.decision, saved.error())),
+                Some((PostConsensusDecision::DroppedCopy, expected))
+            );
+            return;
+        }
         let error = tokio::time::timeout(
             Duration::from_secs(60),
             epoch_store.notify_read_dropped_digests(digest),
         )
         .await
         .expect("the transaction must be dropped by post-consensus validation");
-        assert_eq!(
-            error,
-            IotaError::UserInput {
-                error: UserInputError::InconsistentInput {
-                    object_id: shared.object_id,
-                },
-            }
-        );
+        assert_eq!(error, expected);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2628,7 +2700,7 @@ mod tests {
             config.set_enable_pcool_flow_for_testing(true);
             config
         });
-        assert_user_transaction_with_inconsistent_shared_input_is_dropped().await;
+        assert_user_transaction_with_inconsistent_shared_input_is_dropped(false).await;
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2637,7 +2709,7 @@ mod tests {
             config.enable_pcool_deterministic_validation_for_testing();
             config
         });
-        assert_user_transaction_with_inconsistent_shared_input_is_dropped().await;
+        assert_user_transaction_with_inconsistent_shared_input_is_dropped(true).await;
     }
 
     /// Builds a commit in which every entry is a separate block authored by the

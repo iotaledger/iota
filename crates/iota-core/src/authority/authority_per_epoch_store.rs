@@ -4883,10 +4883,15 @@ impl AuthorityPerEpochStore {
                     .inc_by(dropped.len() as u64);
                 // A drop for an input not visible at the horizon yet is not
                 // final for the digest, so it is not recorded as its status.
+                // A drop that may come from the signatures of the copy
+                // validated is not even reported to the current waiters:
+                // another copy can be kept, so they wait for its outcome, or
+                // until their own timeout or the end of the epoch.
                 let mut final_drops = Vec::new();
                 let mut not_final = Vec::new();
                 for (digest, error, decision) in dropped {
                     match decision {
+                        PostConsensusDecision::DroppedCopy => {}
                         PostConsensusDecision::DroppedInputNotVisibleYet => {
                             not_final.push((digest, error))
                         }

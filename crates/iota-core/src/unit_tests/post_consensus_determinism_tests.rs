@@ -1833,9 +1833,9 @@ fn real_class(verdict: &SavedPostConsensusDecision) -> VerdictClass {
         {
             VerdictClass::LockConflict
         }
-        PostConsensusDecision::Dropped | PostConsensusDecision::DroppedInputNotVisibleYet => {
-            VerdictClass::InvisibleInput
-        }
+        PostConsensusDecision::Dropped
+        | PostConsensusDecision::DroppedInputNotVisibleYet
+        | PostConsensusDecision::DroppedCopy => VerdictClass::InvisibleInput,
     }
 }
 
