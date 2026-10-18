@@ -566,6 +566,44 @@ impl HistoricLedger {
             .map(|sequence| (epoch, sequence)))
     }
 
+    /// [`Self::get_transaction_checkpoint`] for each of `digests`, in one
+    /// batched read per bucket, newest first, for the digests no newer bucket
+    /// held. A checkpoint is recorded in the bucket of the epoch that executed
+    /// the transaction, which is also the checkpoint's epoch.
+    pub fn multi_get_transaction_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+        #[cfg(test)]
+        self.count_walk();
+        let mut found = vec![None; digests.len()];
+        let mut pending: Vec<usize> = (0..digests.len()).collect();
+        for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
+            if pending.is_empty() {
+                break;
+            }
+            let values = absent_if_dropped(
+                bucket
+                    .tx_to_checkpoint
+                    .multi_get(pending.iter().map(|&index| &digests[index])),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+            // Empty for a dropped bucket, which leaves every digest pending.
+            if values.is_empty() {
+                continue;
+            }
+            let mut still_pending = Vec::with_capacity(pending.len());
+            for (index, sequence) in pending.into_iter().zip(values) {
+                match sequence {
+                    Some(sequence) => found[index] = Some((epoch, sequence)),
+                    None => still_pending.push(index),
+                }
+            }
+            pending = still_pending;
+        }
+        Ok(found)
+    }
+
     /// The transaction stored under `digest`, `None` if no bucket holds it.
     /// Also finds a transaction stored before it was executed.
     pub fn get_transaction(

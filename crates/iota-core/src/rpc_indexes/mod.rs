@@ -1545,37 +1545,63 @@ impl RpcIndexesStore {
         let mut batch = self.tables.watermark.batch();
 
         if self.serves(IndexGroup::JsonRpc) {
-            for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
-                let transaction = authority_store
-                    .get_transaction_block(&digests.transaction)
-                    .map_err(|e| StorageError::custom(e.to_string()))?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!(
-                            "missing transaction {}",
-                            digests.transaction
-                        ))
-                    })?
-                    .into_inner();
-                let effects = authority_store
-                    .get_effects(&digests.effects)
-                    .map_err(|e| StorageError::custom(e.to_string()))?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!("missing effects {}", digests.effects))
-                    })?;
-                let events = if effects.events_digest().is_some() {
-                    Some(
+            // A checkpoint's transactions, effects and events are stored under
+            // its epoch, so they are read from there in one batch each; what
+            // those miss is read one by one through every epoch.
+            let storage = |e: IotaError| StorageError::custom(e.to_string());
+            let tx_digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
+            let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
+            let transactions = authority_store
+                .multi_get_transaction_blocks_in_epoch(summary.epoch, &tx_digests)
+                .map_err(storage)?;
+            let all_effects = authority_store
+                .multi_get_effects_in_epoch(summary.epoch, &fx_digests)
+                .map_err(storage)?;
+            let all_events = authority_store
+                .multi_get_events_in_epoch(summary.epoch, &tx_digests)
+                .map_err(storage)?;
+            for ((((sequence, digests), transaction), effects), events) in (first_sequence_number..)
+                .zip(contents.iter())
+                .zip(transactions)
+                .zip(all_effects)
+                .zip(all_events)
+            {
+                let transaction = match transaction {
+                    Some(transaction) => transaction,
+                    None => authority_store
+                        .get_transaction_block(&digests.transaction)
+                        .map_err(storage)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!(
+                                "missing transaction {}",
+                                digests.transaction
+                            ))
+                        })?,
+                }
+                .into_inner();
+                let effects = match effects {
+                    Some(effects) => effects,
+                    None => authority_store
+                        .get_effects(&digests.effects)
+                        .map_err(storage)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!("missing effects {}", digests.effects))
+                        })?,
+                };
+                let events = match (effects.events_digest(), events) {
+                    (None, _) => None,
+                    (Some(_), Some(events)) => Some(events),
+                    (Some(_), None) => Some(
                         authority_store
                             .get_events(&digests.transaction)
-                            .map_err(|e| StorageError::custom(e.to_string()))?
+                            .map_err(storage)?
                             .ok_or_else(|| {
                                 StorageError::missing(format!(
                                     "missing events {}",
                                     digests.transaction
                                 ))
                             })?,
-                    )
-                } else {
-                    None
+                    ),
                 };
 
                 let data = transaction_index_data(&transaction, &effects, events.as_ref())

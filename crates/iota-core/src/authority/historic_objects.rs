@@ -382,15 +382,57 @@ impl HistoricObjects {
     /// Only for reads that serve a response: consensus and execution read
     /// current versions, which never leave the live table, so a miss there is a
     /// bug and must stay one.
+    ///
+    /// Reads each bucket once for all the keys still missing, starting with
+    /// `likely_epoch`'s, then newest first. Pass the epoch that superseded
+    /// the versions where it is known, such as a transaction's own epoch for
+    /// its inputs.
     pub fn fill_missing(
         &self,
         keys: &[ObjectKey],
         objects: &mut [Option<Object>],
+        likely_epoch: Option<EpochId>,
     ) -> IotaResult<()> {
-        for (object, key) in objects.iter_mut().zip(keys) {
-            if object.is_none() {
-                *object = self.get(key)?;
+        let mut pending: Vec<usize> = (0..keys.len())
+            .filter(|&index| objects[index].is_none())
+            .collect();
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let mut buckets: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = self
+            .buckets
+            .iter_with_epoch(true)
+            .into_iter()
+            .filter(|(_, bucket)| !bucket.is_expiring())
+            .collect();
+        if let Some(position) =
+            likely_epoch.and_then(|likely| buckets.iter().position(|(epoch, _)| *epoch == likely))
+        {
+            let likely = buckets.remove(position);
+            buckets.insert(0, likely);
+        }
+        for (_, bucket) in buckets {
+            if pending.is_empty() {
+                break;
             }
+            let found = absent_if_dropped(
+                bucket
+                    .objects
+                    .multi_get(pending.iter().map(|&index| &keys[index])),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+            // Empty for a dropped bucket, which leaves every key pending.
+            if found.is_empty() {
+                continue;
+            }
+            let mut still_pending = Vec::with_capacity(pending.len());
+            for (index, object) in pending.into_iter().zip(found) {
+                match object {
+                    Some(object) => objects[index] = Some(object),
+                    None => still_pending.push(index),
+                }
+            }
+            pending = still_pending;
         }
         Ok(())
     }
@@ -664,11 +706,13 @@ pub fn get_transaction_input_objects(
         .into_iter()
         .map(|modified| ObjectKey(*modified.object_id(), modified.version()))
         .collect::<Vec<_>>();
+    // The transaction superseded its inputs, in the epoch it executed in.
     multi_get_objects_with_historic_fallback(
         object_store,
         historic_objects,
         &keys,
         effects.transaction_digest(),
+        Some(effects.epoch()),
     )
 }
 
@@ -689,19 +733,22 @@ pub fn get_transaction_output_objects(
         historic_objects,
         &keys,
         effects.transaction_digest(),
+        None,
     )
 }
 
 /// The objects at exactly `keys`, erroring on any the live table and the
-/// buckets both lack.
+/// buckets both lack. `likely_epoch` is as for
+/// [`HistoricObjects::fill_missing`].
 fn multi_get_objects_with_historic_fallback(
     object_store: &dyn ObjectStore,
     historic_objects: &HistoricObjects,
     keys: &[ObjectKey],
     transaction_digest: &TransactionDigest,
+    likely_epoch: Option<EpochId>,
 ) -> IotaResult<Vec<Object>> {
     let mut objects = object_store.multi_get_objects_by_key(keys);
-    historic_objects.fill_missing(keys, &mut objects)?;
+    historic_objects.fill_missing(keys, &mut objects, likely_epoch)?;
     objects
         .into_iter()
         .zip(keys)
