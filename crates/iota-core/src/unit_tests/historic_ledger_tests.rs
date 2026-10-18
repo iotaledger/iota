@@ -474,9 +474,9 @@ fn write_executed_transaction(
     (digest, effects_digest)
 }
 
-/// A read of one epoch's execution records finds the transactions executed
-/// in that epoch, reports the others as not executed, and walks no other
-/// bucket.
+/// A read of one epoch's execution records, transactions, effects or events
+/// finds what that epoch stored, reports the rest as absent, and walks no
+/// other bucket.
 #[tokio::test]
 async fn an_epochs_read_finds_only_that_epochs_execution_records() {
     let dir = iota_common::tempdir();
@@ -499,6 +499,30 @@ async fn an_epochs_read_finds_only_that_epochs_execution_records() {
             .unwrap(),
         vec![None, None, None],
         "an epoch without a bucket has executed nothing"
+    );
+    fn found<T>(values: Vec<Option<T>>) -> Vec<bool> {
+        values.iter().map(Option::is_some).collect()
+    }
+    assert_eq!(
+        found(
+            historic
+                .multi_get_transactions_in_epoch(2, &digests)
+                .unwrap()
+        ),
+        vec![false, true, false]
+    );
+    assert_eq!(
+        historic
+            .multi_get_effects_in_epoch(2, &[in_two_effects])
+            .unwrap()
+            .into_iter()
+            .map(|effects| effects.map(|effects| effects.digest()))
+            .collect::<Vec<_>>(),
+        vec![Some(in_two_effects)]
+    );
+    assert_eq!(
+        found(historic.multi_get_events_in_epoch(2, &digests).unwrap()),
+        vec![false, true, false]
     );
     assert_eq!(historic.bucket_walks(), before);
 }

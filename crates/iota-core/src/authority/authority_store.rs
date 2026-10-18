@@ -472,6 +472,17 @@ impl AuthorityStore {
         self.historic_ledger.multi_get_effects(&effects_digests)
     }
 
+    /// [`Self::multi_get_effects`] read from `epoch`'s records alone; effects
+    /// stored under another epoch are reported as absent.
+    pub fn multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        effects_digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.historic_ledger
+            .multi_get_effects_in_epoch(epoch, effects_digests)
+    }
+
     pub fn get_executed_effects(
         &self,
         tx_digest: &TransactionDigest,
@@ -1484,6 +1495,21 @@ impl AuthorityStore {
         Ok(self
             .historic_ledger
             .multi_get_transactions(tx_digests)?
+            .into_iter()
+            .map(|transaction| transaction.map(Into::into))
+            .collect())
+    }
+
+    /// [`Self::multi_get_transaction_blocks`] read from `epoch`'s records
+    /// alone; transactions stored under another epoch are reported as absent.
+    pub fn multi_get_transaction_blocks_in_epoch(
+        &self,
+        epoch: EpochId,
+        tx_digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<VerifiedTransaction>>> {
+        Ok(self
+            .historic_ledger
+            .multi_get_transactions_in_epoch(epoch, tx_digests)?
             .into_iter()
             .map(|transaction| transaction.map(Into::into))
             .collect())

@@ -379,14 +379,62 @@ impl HistoricLedger {
         epoch: EpochId,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.executed_effects)
+    }
+
+    /// [`Self::multi_get_transactions`] read from `epoch`'s bucket alone, in
+    /// one batched read. A transaction stored under another epoch is reported
+    /// as absent.
+    pub fn multi_get_transactions_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TrustedTransaction>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.transactions)
+    }
+
+    /// [`Self::multi_get_effects`] read from `epoch`'s bucket alone, in one
+    /// batched read. Effects stored under another epoch are reported as
+    /// absent.
+    pub fn multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.effects)
+    }
+
+    /// [`Self::multi_get_events`] read from `epoch`'s bucket alone, in one
+    /// batched read. Events stored under another epoch are reported as
+    /// absent.
+    pub fn multi_get_events_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.events)
+    }
+
+    /// The values `keys` hold in `epoch`'s bucket, in the table `table`
+    /// picks; all `None` when there is no such bucket or it was dropped.
+    fn multi_get_in_epoch<K, V>(
+        &self,
+        epoch: EpochId,
+        keys: &[K],
+        table: impl Fn(&HistoricLedgerBucket) -> &TaggedDBMap<K, V>,
+    ) -> IotaResult<Vec<Option<V>>>
+    where
+        K: Serialize + DeserializeOwned,
+        V: Serialize + DeserializeOwned,
+    {
         let Some(bucket) = self.buckets.get(epoch) else {
-            return Ok(vec![None; digests.len()]);
+            return Ok(keys.iter().map(|_| None).collect());
         };
-        let found = absent_if_dropped(bucket.executed_effects.multi_get(digests))
+        let found = absent_if_dropped(table(&bucket).multi_get(keys))
             .map_err(|e| IotaError::Storage(e.to_string()))?;
         // Empty for a dropped bucket.
         if found.is_empty() {
-            return Ok(vec![None; digests.len()]);
+            return Ok(keys.iter().map(|_| None).collect());
         }
         Ok(found)
     }

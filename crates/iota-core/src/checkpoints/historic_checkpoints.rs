@@ -236,9 +236,21 @@ impl HistoricCheckpoints {
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>, TypedStoreError> {
-        for bucket in self.buckets.iter(true) {
+        Ok(self
+            .find_contents_with_epoch(digest)?
+            .map(|(_, contents)| contents))
+    }
+
+    /// [`Self::find_contents`], with the epoch of the bucket holding them,
+    /// which is the epoch of the checkpoint they belong to. Every bucket
+    /// holds the empty contents; for them, the newest bucket's epoch.
+    pub fn find_contents_with_epoch(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Result<Option<(EpochId, CheckpointContents)>, TypedStoreError> {
+        for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
             if let Some(contents) = absent_if_dropped(bucket.checkpoint_content.get(digest))? {
-                return Ok(Some(contents));
+                return Ok(Some((epoch, contents)));
             }
         }
         Ok(None)

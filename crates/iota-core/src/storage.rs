@@ -192,41 +192,61 @@ impl ReadStore for RocksDbStore {
             return Ok(Some(contents.as_ref().clone()));
         }
 
-        // Otherwise gather it from the individual components.
-        self.checkpoint_store
-            .get_checkpoint_contents(digest)
+        // Otherwise gather it from the individual components: in two batched
+        // reads of the checkpoint's epoch, where a checkpoint's transactions
+        // and effects are stored, and one by one through every epoch for what
+        // those miss, such as a transaction still only in memory.
+        let Some((epoch, contents)) = self
+            .checkpoint_store
+            .get_checkpoint_contents_with_epoch(digest)
             .map_err(iota_types::storage::error::Error::custom)?
-            .map(|contents| {
-                let mut transactions = Vec::with_capacity(contents.len());
-                for tx in contents.iter() {
-                    if let (Some(t), Some(e)) = (
-                        self.try_get_transaction(&tx.transaction)?,
-                        self.cache_traits
-                            .transaction_cache_reader
-                            .try_get_effects(&tx.effects)
-                            .map_err(iota_types::storage::error::Error::custom)?,
-                    ) {
-                        transactions.push(iota_types::base_types::ExecutionData::new(
-                            (*t).clone().into_inner(),
-                            e,
-                        ))
-                    } else {
-                        return Result::<
-                            Option<FullCheckpointContents>,
-                            iota_types::storage::error::Error,
-                        >::Ok(None);
-                    }
-                }
-                FullCheckpointContents::from_contents_and_execution_data(
-                    contents,
-                    transactions.into_iter(),
-                )
-                .map(Some)
-                .map_err(iota_types::storage::error::Error::custom)
-            })
-            .transpose()
-            .map(|contents| contents.flatten())
-            .map_err(iota_types::storage::error::Error::custom)
+        else {
+            return Ok(None);
+        };
+        let reader = &self.cache_traits.transaction_cache_reader;
+        let tx_digests: Vec<_> = contents.iter().map(|tx| tx.transaction).collect();
+        let fx_digests: Vec<_> = contents.iter().map(|tx| tx.effects).collect();
+        let transactions = reader
+            .try_multi_get_transaction_blocks_in_epoch(epoch, &tx_digests)
+            .map_err(iota_types::storage::error::Error::custom)?;
+        let effects = reader
+            .try_multi_get_effects_in_epoch(epoch, &fx_digests)
+            .map_err(iota_types::storage::error::Error::custom)?;
+        let mut execution_data = Vec::with_capacity(contents.len());
+        for (((tx_digest, fx_digest), transaction), effects) in tx_digests
+            .iter()
+            .zip(&fx_digests)
+            .zip(transactions)
+            .zip(effects)
+        {
+            let transaction = match transaction {
+                Some(transaction) => transaction,
+                None => match self.try_get_transaction(tx_digest)? {
+                    Some(transaction) => transaction,
+                    None => return Ok(None),
+                },
+            };
+            let effects = match effects {
+                Some(effects) => effects,
+                None => match reader
+                    .try_get_effects(fx_digest)
+                    .map_err(iota_types::storage::error::Error::custom)?
+                {
+                    Some(effects) => effects,
+                    None => return Ok(None),
+                },
+            };
+            execution_data.push(iota_types::base_types::ExecutionData::new(
+                (*transaction).clone().into_inner(),
+                effects,
+            ));
+        }
+        FullCheckpointContents::from_contents_and_execution_data(
+            contents,
+            execution_data.into_iter(),
+        )
+        .map(Some)
+        .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn try_get_committee(
