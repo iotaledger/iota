@@ -77,6 +77,8 @@ impl<S> Builder<S> {
     /// `max_checkpoints_ahead_of_execution` until the summary that ends the
     /// epoch being executed is stored, and starts content sync for the
     /// checkpoint right above the synced one when its contents are stored.
+    /// Its value when state sync starts also decides whether the checkpoints
+    /// stored above the verified watermark are verified then.
     /// The node sets it for each epoch in which it waits for its own
     /// checkpoints and so needs that summary to finish an epoch its consensus
     /// can no longer build.

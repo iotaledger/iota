@@ -511,6 +511,9 @@ where
         info!("State-Synchronizer started");
 
         self.config.pinned_checkpoints.sort();
+        if self.sync_summaries_to_epoch_end.load(Ordering::Relaxed) {
+            self.verify_stored_checkpoints_above_watermark();
+        }
 
         let mut interval = tokio::time::interval(self.config.interval_period());
         let mut peer_events = {
@@ -712,31 +715,7 @@ where
                 .collect::<Vec<_>>();
         }
 
-        // If this is the last checkpoint of an epoch, we need to make sure
-        // new committee is in store before we verify newer checkpoints in next epoch.
-        // This could happen before this validator's reconfiguration finishes, because
-        // state sync does not reconfig.
-        // TODO: make CheckpointAggregator use WriteStore so we don't need to do this
-        // committee insertion in two places (only in `insert_checkpoint`).
-        if let Some(EndOfEpochData {
-            next_epoch_committee,
-            ..
-        }) = checkpoint.end_of_epoch_data.as_ref()
-        {
-            let _span = tracing::trace_span!(
-                "store_next_committee",
-                sequence_number = checkpoint.sequence_number(),
-            )
-            .entered();
-
-            let committee = Committee::from_committee_members(
-                checkpoint.epoch().checked_add(1).unwrap(),
-                next_epoch_committee,
-            );
-            self.store
-                .try_insert_committee(committee)
-                .expect("store operation should not fail");
-        }
+        self.insert_next_epoch_committee(&checkpoint);
 
         {
             let _span = tracing::trace_span!(
@@ -782,6 +761,80 @@ where
 
         // Notify connected peers of the new checkpoint
         self.spawn_notify_peers_of_checkpoint(checkpoint);
+    }
+
+    /// If `checkpoint` is the last checkpoint of an epoch, stores the next
+    /// epoch's committee, which verifying that epoch's checkpoints needs. This
+    /// can happen before this validator's reconfiguration finishes, because
+    /// state sync does not reconfigure.
+    // TODO: make CheckpointAggregator use WriteStore so we don't need to do this
+    // committee insertion in two places (only in `insert_checkpoint`).
+    fn insert_next_epoch_committee(&self, checkpoint: &VerifiedCheckpoint) {
+        let Some(EndOfEpochData {
+            next_epoch_committee,
+            ..
+        }) = checkpoint.end_of_epoch_data.as_ref()
+        else {
+            return;
+        };
+        let _span = tracing::trace_span!(
+            "store_next_committee",
+            sequence_number = checkpoint.sequence_number(),
+        )
+        .entered();
+
+        let committee = Committee::from_committee_members(
+            checkpoint.epoch().checked_add(1).unwrap(),
+            next_epoch_committee,
+        );
+        self.store
+            .try_insert_committee(committee)
+            .expect("store operation should not fail");
+    }
+
+    /// Moves the verified watermark over the checkpoints stored right above
+    /// it, which have all been verified: the checkpoint aggregator stores a
+    /// checkpoint it certified, and summary sync one it verified, before the
+    /// watermark moves.
+    ///
+    /// A node that stopped in between keeps such a checkpoint above the
+    /// watermark. After a restart the aggregator certifies only the
+    /// checkpoints after the highest one stored, so it does not send that
+    /// checkpoint again, and when it is the last checkpoint of an epoch no
+    /// later checkpoint moves the watermark past it.
+    fn verify_stored_checkpoints_above_watermark(&self) {
+        let mut highest_verified = self
+            .store
+            .try_get_highest_verified_checkpoint()
+            .expect("store operation should not fail");
+        let previously_verified = highest_verified.sequence_number();
+        while let Some(checkpoint) = self.store.get_checkpoint_by_sequence_number(
+            highest_verified
+                .sequence_number()
+                .checked_add(1)
+                .expect("the verified checkpoint is below the highest sequence number"),
+        ) {
+            if checkpoint.previous_digest != Some(*highest_verified.digest()) {
+                panic!(
+                    "Stored checkpoint {} has mismatched previous_digest, expected: {:?}, actual: {:?}",
+                    checkpoint.sequence_number(),
+                    Some(*highest_verified.digest()),
+                    checkpoint.previous_digest
+                );
+            }
+            self.insert_next_epoch_committee(&checkpoint);
+            self.store
+                .try_update_highest_verified_checkpoint(&checkpoint)
+                .expect("store operation should not fail");
+            highest_verified = checkpoint;
+        }
+        if highest_verified.sequence_number() > previously_verified {
+            info!(
+                "Verified the stored checkpoints {}..={} above the verified watermark",
+                previously_verified + 1,
+                highest_verified.sequence_number(),
+            );
+        }
     }
 
     fn handle_peer_event(
