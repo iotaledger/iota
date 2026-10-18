@@ -1252,6 +1252,73 @@ async fn test_crash_of_every_validator_while_executing_the_last_checkpoint_of_an
     clear_fail_point("highest-executed-checkpoint");
 }
 
+/// Every validator crashes after its checkpoint aggregator stored the
+/// certified last checkpoint of an epoch and before it handed it to state
+/// sync, so no node verifies that checkpoint. After the restart the
+/// aggregator does not send it again and no checkpoint of the epoch comes
+/// after it, so state sync must verify it from the store and mark it synced.
+/// Every validator must reach the next epoch.
+///
+/// The fullnode is stopped from the start, because it would download the
+/// last checkpoint from a validator and serve it.
+#[sim_test]
+async fn test_crash_of_every_validator_between_certifying_and_verifying_the_last_checkpoint_of_an_epoch()
+ {
+    const RESTART_AFTER: Duration = Duration::from_secs(10);
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(20_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+    for fullnode in test_cluster.swarm.fullnodes() {
+        fullnode.stop();
+    }
+    let epoch = progress(&test_cluster, &names[0]).unwrap().epoch;
+
+    let validators: Vec<_> = names
+        .iter()
+        .map(|name| sim_node_id(&test_cluster, name))
+        .collect();
+    let killed: Arc<Mutex<Vec<iota_simulator::task::NodeId>>> = Default::default();
+    {
+        let killed = killed.clone();
+        register_fail_point(
+            "certified-end-of-epoch-checkpoint-before-state-sync",
+            move || {
+                let sim_id = iota_simulator::current_simnode_id();
+                if !validators.contains(&sim_id) {
+                    return;
+                }
+                {
+                    let mut killed = killed.lock().unwrap();
+                    if killed.contains(&sim_id) {
+                        return;
+                    }
+                    killed.push(sim_id);
+                }
+                iota_simulator::task::kill_current_node(Some(RESTART_AFTER));
+            },
+        );
+    }
+
+    timeout(Duration::from_secs(120), async {
+        while killed.lock().unwrap().len() < names.len() {
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "every validator must be killed after certifying the last checkpoint of epoch \
+             {epoch}, killed: {:?}",
+            killed.lock().unwrap()
+        )
+    });
+
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, epoch + 1, Duration::from_secs(120))
+        .await;
+    clear_fail_point("certified-end-of-epoch-checkpoint-before-state-sync");
+}
+
 /// Runs double-spend traffic while one validator is killed `kills` times at
 /// `fail_point`, at the first hit after a pause, and restarts on its own each
 /// time. The cluster must then reach the same checkpoints on every validator

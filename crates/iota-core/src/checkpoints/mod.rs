@@ -2690,6 +2690,9 @@ impl CheckpointAggregator {
                     );
 
                     self.store.insert_certified_checkpoint(&summary)?;
+                    if summary.next_epoch_committee().is_some() {
+                        fail_point!("certified-end-of-epoch-checkpoint-before-state-sync");
+                    }
                     self.metrics
                         .last_certified_checkpoint
                         .set(current.summary.sequence_number as i64);
