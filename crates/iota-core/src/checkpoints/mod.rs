@@ -27,6 +27,7 @@ use iota_common::{
     random::get_rng,
     sync::notify_read::{CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME, NotifyRead},
 };
+use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
@@ -2686,6 +2687,9 @@ impl CheckpointAggregator {
                     );
 
                     self.store.insert_certified_checkpoint(&summary)?;
+                    if summary.next_epoch_committee().is_some() {
+                        fail_point!("certified-end-of-epoch-checkpoint-before-state-sync");
+                    }
                     self.metrics
                         .last_certified_checkpoint
                         .set(current.summary.sequence_number as i64);
