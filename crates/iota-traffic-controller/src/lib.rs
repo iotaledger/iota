@@ -6,7 +6,7 @@
 //! policies inline, so a breaching client is blocked before
 //! [`TrafficController::tally`] returns.
 
-pub mod client_access;
+mod client_access;
 pub mod metrics;
 pub mod policies;
 pub mod sim;
@@ -64,7 +64,8 @@ impl Debug for TrafficController {
 
 impl TrafficController {
     /// Must be called from within a tokio runtime unless `policy_config` has
-    /// an allowlist; see [`ClientAccessManager::new`].
+    /// an allowlist, since blocklist mode spawns the task that drops expired
+    /// blocks.
     pub fn init(policy_config: PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         let client_access = Arc::new(ClientAccessManager::new(&policy_config, metrics.clone()));
         let policies = policy_config.allow_list.is_none().then(|| {
@@ -188,7 +189,9 @@ impl TrafficController {
         }
     }
 
-    /// Whether to serve a request; see [`ClientAccessManager::check`].
+    /// Whether to serve a request from `client`, with dry run considered. A
+    /// request whose client IP the node could not resolve is refused in
+    /// allowlist mode, and served in blocklist mode.
     pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
         self.client_access.check(client, proxied_client)
     }
