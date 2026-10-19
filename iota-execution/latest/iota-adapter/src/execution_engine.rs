@@ -287,7 +287,10 @@ mod checked {
     /// It creates a temporary store, gas charger, and transaction context for
     /// the authentication execution and then reuses these for the normal
     /// transaction execution.
-    /// Running the Move authentication can have two outcomes:
+    /// When consensus cancelled the transaction and
+    /// `check_cancellation_before_move_authentication` is enabled, no
+    /// authenticator runs and the effects carry the cancellation. Otherwise,
+    /// running the Move authentication can have two outcomes:
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
     ///     produces transaction effects with the appropriate error status.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
@@ -389,10 +392,11 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // A cancelled transaction fails with its cancellation before any
-        // authenticator is resolved or run. The cancellation is reported as is,
-        // not as an authentication failure, and only once: the transaction
-        // execution gets no cancelled objects to check.
+        // A cancelled transaction fails with its cancellation: its
+        // authenticators are not run, and a failure to resolve them is not
+        // reported. The cancellation is reported as is, not as an
+        // authentication failure, and only once: the transaction execution
+        // gets no cancelled objects to check.
         let cancellation_check = if protocol_config.check_cancellation_before_move_authentication()
         {
             run_inputs_checks(protocol_config, false, false, cancelled_objects.take())
