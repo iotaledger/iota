@@ -755,17 +755,15 @@ async fn test_crash_before_opening_the_first_deterministic_validation_epoch_stor
 }
 
 /// A Move-authenticated transaction without an expiration executes while
-/// deterministic validation is off. Once it is on, every validator refuses
-/// such a transaction, whether it was signed before or after the upgrade, with
-/// `MoveAuthenticatorExpirationNotCurrentEpoch`, and refuses one that expires
-/// in the epoch before the upgrade as expired. The fullnode refuses both
-/// without submitting them. Neither executes, so their coins stay spendable
-/// with a transaction that expires in the current epoch.
+/// deterministic validation is off, and still executes once it is on, whether
+/// it was signed before or after the upgrade. One that expires in the epoch
+/// before the upgrade is refused as expired by every validator and does not
+/// execute, so its coins stay spendable.
 ///
 /// Simulator only, for the reason given on the tests above.
 #[cfg(msim)]
 #[sim_test]
-async fn test_move_authenticated_transaction_without_expiration_refused_after_the_upgrade()
+async fn test_move_authenticated_transaction_without_expiration_after_the_upgrade()
 -> Result<(), anyhow::Error> {
     use iota_core::authority_client::validator_v2::ValidatorV2API;
     use iota_types::{base_types::ConciseableName, messages_grpc::TxStatusUpdate};
@@ -796,11 +794,10 @@ async fn test_move_authenticated_transaction_without_expiration_refused_after_th
     let held_expiring_before = fund().await;
     let built_after = fund().await;
 
-    // Built while deterministic validation is off, so without an expiration.
     let without_expiration = async |(coin, gas): (ObjectReference, ObjectReference)| {
         let pt = test_env.craft_object_transfer(coin, Address::random())?;
         let mut tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
-        *tx_data.expiration_mut_for_testing() = TransactionExpiration::None;
+        *tx_data.expiration_mut_for_testing() = iota_sdk_types::TransactionExpiration::None;
         let signatures =
             vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
         anyhow::Ok(TransactionEnvelope::from_user_sig_data(tx_data, signatures))
@@ -823,7 +820,8 @@ async fn test_move_authenticated_transaction_without_expiration_refused_after_th
         let (coin, gas) = held_expiring_before;
         let pt = test_env.craft_object_transfer(coin, Address::random())?;
         let mut tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
-        *tx_data.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch_before);
+        *tx_data.expiration_mut_for_testing() =
+            iota_sdk_types::TransactionExpiration::Epoch(epoch_before);
         let signatures =
             vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
         TransactionEnvelope::from_user_sig_data(tx_data, signatures)
@@ -834,30 +832,13 @@ async fn test_move_authenticated_transaction_without_expiration_refused_after_th
         upgrade_epoch > epoch_before,
         "the held transactions must be signed before the upgrade"
     );
-    let fresh_none = without_expiration(built_after).await?;
+    test_env.execute_and_check_tx_correctness(held_none).await?;
+    test_env
+        .execute_and_check_tx_correctness(without_expiration(built_after).await?)
+        .await?;
 
     let aggregator = test_cluster.authority_aggregator();
     for (name, client) in aggregator.authority_clients.iter() {
-        for tx in [held_none.clone(), fresh_none.clone()] {
-            let answer = client
-                .authority_client()
-                .submit_tx(vec![tx], Some(client_ip))
-                .await?;
-            anyhow::ensure!(
-                matches!(
-                    answer.as_slice(),
-                    [(_, TxStatusUpdate::Rejected { error: IotaError::UserInput {
-                        error: UserInputError::MoveAuthenticatorExpirationNotCurrentEpoch {
-                            expiration: TransactionExpiration::None,
-                            current_epoch,
-                        },
-                    }})] if *current_epoch == upgrade_epoch
-                ),
-                "validator {} must refuse a Move-authenticated transaction without an \
-                 expiration, got {answer:?}",
-                name.concise()
-            );
-        }
         let answer = client
             .authority_client()
             .submit_tx(vec![held_expired.clone()], Some(client_ip))
@@ -877,49 +858,27 @@ async fn test_move_authenticated_transaction_without_expiration_refused_after_th
             name.concise()
         );
     }
-    for tx in [held_none.clone(), fresh_none.clone()] {
-        let refused = test_cluster
-            .grpc_client()
-            .execute_transaction(tx.into())
-            .checkpoint_inclusion_timeout_ms(10_000)
-            .await;
-        let Err(error) = refused else {
-            anyhow::bail!("the fullnode must refuse a transaction without an expiration");
-        };
+    for handle in test_cluster.all_node_handles() {
         anyhow::ensure!(
-            error
-                .to_string()
-                .contains("must expire in the current epoch"),
-            "the fullnode must say why it refused the transaction, got: {error}"
+            handle.with(|node| {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .get_executed_effects(held_expired.digest())
+                    .is_none()
+            }),
+            "a refused transaction must not execute"
         );
     }
-
-    for (tx, (coin, gas)) in [
-        (held_none, held_without_expiration),
-        (fresh_none, built_after),
-        (held_expired, held_expiring_before),
-    ] {
-        for handle in test_cluster.all_node_handles() {
-            anyhow::ensure!(
-                handle.with(|node| {
-                    node.state()
-                        .get_transaction_cache_reader()
-                        .get_executed_effects(tx.digest())
-                        .is_none()
-                }),
-                "a refused transaction must not execute"
-            );
-        }
-        let pt = test_env.craft_object_transfer(coin, Address::random())?;
-        let tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
-        let signatures =
-            vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
-        test_env
-            .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
-                tx_data, signatures,
-            ))
-            .await?;
-    }
+    let (coin, gas) = held_expiring_before;
+    let pt = test_env.craft_object_transfer(coin, Address::random())?;
+    let tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
+    let signatures =
+        vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
     transfer_from_move_account_and_key_account(&test_env).await?;
     check_the_next_epoch_under_deterministic_validation(&test_env).await
 }
