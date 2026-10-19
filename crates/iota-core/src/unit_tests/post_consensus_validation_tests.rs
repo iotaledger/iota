@@ -8454,8 +8454,8 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
 /// the child above that version decides: at or below the horizon the version
 /// drops, whether or not this validator still holds its bytes, and the
 /// loader drops a transaction naming it. Above the horizon it is kept, as on
-/// a validator that has not executed the receive, and once its bytes are
-/// pruned here the receive's row drops it.
+/// a validator that has not executed the receive. The pruning limit keeps its
+/// bytes; pruned by hand past that limit, the load fails with a storage error.
 #[tokio::test]
 async fn owned_received_version_drops_from_the_receive_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -8518,10 +8518,10 @@ async fn owned_received_version_drops_from_the_receive_row() {
     )
     .await;
     assert_owned_drops(s.read_owned(9, child_ref), DropKind::HandlerRowSuperseded);
-    assert_owned_drops(
-        s.read_owned(8, child_ref),
-        DropKind::HandlerRowAbovePrunedVersion,
-    );
+    assert!(matches!(
+        s.reader_at(8).read_owned(child_ref),
+        Err(IotaError::Storage(_))
+    ));
 }
 
 /// A dynamic-field child is consumed through its parent without a lock. The
@@ -10626,83 +10626,6 @@ fn consume_a_dynamic_field_child_without_a_lock(
     )
 }
 
-/// A dynamic-field child is consumed through its parent at commit 6 without a
-/// lock, and commit 7 (horizon 5) holds a transaction naming the consumed
-/// version as an owned input. One validator has pruned the version after
-/// executing commit 6, the other has not. Both must reach the same verdict:
-/// the validator that still holds the bytes drops the transaction, since a
-/// child cannot be an owned input.
-#[tokio::test]
-async fn pruned_dynamic_field_child_gets_the_verdict_of_a_validator_that_kept_it() {
-    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
-    let gas_id = ObjectId::random();
-    let consumer_gas = ObjectId::random();
-    let genesis = vec![
-        Object::with_id_owner_for_testing(gas_id, sender),
-        Object::with_id_owner_for_testing(consumer_gas, sender),
-    ];
-    let pruning = setup_bookkeeping(genesis.clone(), true).await;
-    // Shares the override `pruning` holds.
-    let keeping = setup_bookkeeping_with_config_guard(genesis, None).await;
-
-    let (field_ref, committed, remove_effects) =
-        consume_a_dynamic_field_child_without_a_lock(&pruning, &gas_id, sender, &sender_key);
-    assert_eq!(
-        consume_a_dynamic_field_child_without_a_lock(&keeping, &gas_id, sender, &sender_key).0,
-        field_ref
-    );
-    pruning
-        .prune_versions_consumed_by(&committed, &remove_effects)
-        .await;
-    assert!(
-        keeping
-            .store_object(&field_ref.object_id, field_ref.version)
-            .is_some()
-    );
-
-    let consumer = pruning
-        .epoch_store
-        .verify_transaction(make_transfer_object_transaction(
-            field_ref,
-            pruning.latest_ref(&consumer_gas),
-            sender,
-            &sender_key,
-            Address::random(),
-            pruning.rgp,
-        ))
-        .unwrap();
-    let validate = |s: &BookkeepingSetup| {
-        let authority = s.authority.clone();
-        let epoch_store = s.epoch_store.clone();
-        let consumer = consumer.clone();
-        async move {
-            let mut transactions = vec![make_user_tx_v1_verified(consumer)];
-            // Only the decision must agree across validators; the error a
-            // drop carries is local.
-            post_consensus_validation::validate_and_resolve_conflicts(
-                &authority,
-                &epoch_store,
-                7,
-                true,
-                &Default::default(),
-                &mut transactions,
-            )
-            .await
-            .map(|(dropped, locks, _)| {
-                let kept: Vec<_> = transactions
-                    .iter()
-                    .map(|tx| tx.0.transaction.user_transaction_digest().unwrap())
-                    .collect();
-                let dropped: Vec<_> = dropped.into_iter().map(|(digest, _, _)| digest).collect();
-                (kept, dropped, locks)
-            })
-        }
-    };
-    let on_keeping = validate(&keeping).await.unwrap();
-    assert_eq!(on_keeping.1.len(), 1, "{on_keeping:?}");
-    assert_eq!(validate(&pruning).await, Ok(on_keeping));
-}
-
 /// The execution watcher fails while completing commit 1, and validation of
 /// commit 3 waits for its horizon, commit 1. Once the watcher stops, the wait
 /// before validation must not depend on checkpoint certification by peers.
@@ -11184,14 +11107,13 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
     );
 }
 
-/// On a validator that pruned a dynamic-field child consumed without a lock
-/// (the state of
-/// [`pruned_dynamic_field_child_gets_the_verdict_of_a_validator_that_kept_it`]),
-/// commit 7 holds a transfer of the child paid with a gas coin named at a
-/// wrong digest. Every read of the transaction's inputs at commit 7 must end
-/// the same way: each validator reads them once, and a storage error saves no
-/// decision, so the commit is validated afresh after the restart that follows
-/// the handler's panic.
+/// On a validator that lost the bytes of a dynamic-field child consumed
+/// without a lock, pruned by hand past the pruning limit, commit 7 holds a
+/// transfer of the child paid with a gas coin named at a wrong digest. Every
+/// read of the transaction's inputs at commit 7 must end the same way: each
+/// validator reads them once, and a storage error saves no decision, so the
+/// commit is validated afresh after the restart that follows the handler's
+/// panic.
 #[tokio::test]
 async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_alike() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -11240,14 +11162,11 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
     assert_eq!(outcomes.len(), 1, "reads ended differently: {outcomes:?}");
 }
 
-/// Commits the outputs of `executed` and executes them as one certified
-/// checkpoint, followed by an empty one, then runs the object pruner over the
-/// executed checkpoints as the node does with aggressive pruning, within the
-/// epoch store's object pruning limit.
-async fn execute_checkpoint_and_prune(
-    s: &BookkeepingSetup,
-    executed: Vec<(VerifiedTransaction, TransactionEffects)>,
-) {
+/// Commits the outputs of the transactions `executed` names, oldest first,
+/// and executes them as one certified checkpoint, followed by an empty one,
+/// then runs the object pruner over the executed checkpoints as the node does
+/// with aggressive pruning, within the epoch store's object pruning limit.
+async fn execute_checkpoint_and_prune(s: &BookkeepingSetup, executed: &[TransactionDigest]) {
     use iota_types::{
         base_types::ExecutionData,
         messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
@@ -11258,19 +11177,29 @@ async fn execute_checkpoint_and_prune(
     };
 
     let epoch = s.epoch_store.epoch();
-    let digests: Vec<_> = executed.iter().map(|(tx, _)| *tx.digest()).collect();
-    let cache_commit = s.authority.get_cache_commit();
-    let batch = cache_commit.build_db_batch(epoch, 1, &digests);
-    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+    let cache = s.authority.get_transaction_cache_reader();
+    let executed_data: Vec<_> = executed
+        .iter()
+        .map(|digest| {
+            let tx = cache
+                .get_transaction_block(digest)
+                .expect("the executed transaction is stored");
+            let effects = cache
+                .get_executed_effects(digest)
+                .expect("the executed transaction has effects");
+            ((*tx).clone(), effects)
+        })
+        .collect();
+    s.commit_outputs(executed);
 
-    let consumed: Vec<ObjectId> = executed
+    let consumed: Vec<ObjectId> = executed_data
         .iter()
         .flat_map(|(_, effects)| effects.modified_at_versions())
         .map(|modified| *modified.object_id())
         .collect();
     let contents = VerifiedCheckpointContents::new_unchecked(
         FullCheckpointContents::new_with_causally_ordered_transactions(
-            executed
+            executed_data
                 .into_iter()
                 .map(|(tx, effects)| ExecutionData::new(tx.into_inner(), effects)),
         ),
@@ -11340,24 +11269,93 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
     .await;
 
     let produce = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
-    let produce_effects = s
-        .execute_as_handler_known(vec![produce.clone()], 3)
-        .remove(0);
+    let produce_digest = *produce.digest();
+    s.execute_as_handler_known(vec![produce], 3);
     let named = s.latest_ref(&obj_id);
     let consume = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
-    let consume_effects = s
-        .execute_as_handler_known(vec![consume.clone()], 5)
-        .remove(0);
+    let consume_digest = *consume.digest();
+    s.execute_as_handler_known(vec![consume], 5);
     // Commit 6 reads at horizon 4: the row of commit 3 keeps the version, the
     // consumer's row at commit 5 is above the horizon.
     assert_keeps(s.read_owned(6, named), named);
 
-    execute_checkpoint_and_prune(
-        &s,
-        vec![(produce, produce_effects), (consume, consume_effects)],
-    )
-    .await;
+    execute_checkpoint_and_prune(&s, &[produce_digest, consume_digest]).await;
     assert_keeps(s.read_owned(6, named), named);
+}
+
+/// A dynamic-field child is consumed through its parent at commit 6 without a
+/// lock, and commit 7 (horizon 5) holds a transaction naming the consumed
+/// version as an owned input. On one validator the pruner runs over the
+/// executed checkpoint of those commits, the other has not run it. The
+/// child's bytes stay, and both reach the same verdict: they drop the
+/// transaction, since a child cannot be an owned input.
+#[tokio::test]
+async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let consumer_gas = ObjectId::random();
+    let genesis = vec![
+        Object::with_id_owner_for_testing(gas_id, sender),
+        Object::with_id_owner_for_testing(consumer_gas, sender),
+    ];
+    let pruning = setup_bookkeeping(genesis.clone(), true).await;
+    // Shares the override `pruning` holds.
+    let keeping = setup_bookkeeping_with_config_guard(genesis, None).await;
+
+    let (field_ref, committed, _) =
+        consume_a_dynamic_field_child_without_a_lock(&pruning, &gas_id, sender, &sender_key);
+    assert_eq!(
+        consume_a_dynamic_field_child_without_a_lock(&keeping, &gas_id, sender, &sender_key).0,
+        field_ref
+    );
+    execute_checkpoint_and_prune(&pruning, &committed).await;
+    assert!(
+        pruning
+            .store_object(&field_ref.object_id, field_ref.version)
+            .is_some()
+    );
+
+    let consumer = pruning
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            field_ref,
+            pruning.latest_ref(&consumer_gas),
+            sender,
+            &sender_key,
+            Address::random(),
+            pruning.rgp,
+        ))
+        .unwrap();
+    let validate = |s: &BookkeepingSetup| {
+        let authority = s.authority.clone();
+        let epoch_store = s.epoch_store.clone();
+        let consumer = consumer.clone();
+        async move {
+            let mut transactions = vec![make_user_tx_v1_verified(consumer)];
+            // Only the decision must agree across validators; the error a
+            // drop carries is local.
+            post_consensus_validation::validate_and_resolve_conflicts(
+                &authority,
+                &epoch_store,
+                7,
+                true,
+                &Default::default(),
+                &mut transactions,
+            )
+            .await
+            .map(|(dropped, locks, _)| {
+                let kept: Vec<_> = transactions
+                    .iter()
+                    .map(|tx| tx.0.transaction.user_transaction_digest().unwrap())
+                    .collect();
+                let dropped: Vec<_> = dropped.into_iter().map(|(digest, _, _)| digest).collect();
+                (kept, dropped, locks)
+            })
+        }
+    };
+    let on_keeping = validate(&keeping).await.unwrap();
+    assert_eq!(on_keeping.1.len(), 1, "{on_keeping:?}");
+    assert_eq!(validate(&pruning).await, Ok(on_keeping));
 }
 
 /// The object pruning limit follows the flushed commits: a commit's

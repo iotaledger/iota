@@ -39,10 +39,7 @@
 //! replaced is `V`, `V` is kept; if it is above `V`, `V` was replaced before
 //! the epoch and drops; if it is below `V` or there is none, `V` was not
 //! produced yet or `id` was not live, so `V` is missing. The keep then needs
-//! `V`'s object, which this validator's pruner can remove once the consuming
-//! checkpoint is executed. Loading it then fails and the input drops here,
-//! while a validator that still holds it keeps the input, unless pruning
-//! waits for the consuming commit to be flushed.
+//! `V`'s object, which stays in the store, as the parent module doc explains.
 //!
 //! With no row above `V`, the store answer decides, read so that it does not
 //! depend on writes above the horizon. A tombstone of a deletion whose row is

@@ -237,10 +237,10 @@ impl CommitIndexedReader {
     /// `NeedBytes` step, which only a keep result creates. An object with
     /// another digest drops the input: a keep through a row that replaced `V`
     /// has not compared the named digest yet. A shared object named as owned
-    /// is decided from its creation row, see the owned module doc. Without
-    /// the object, a row of `id` above `V` drops the input. With neither, a
-    /// kept version is missing from the store, which is a storage error that
-    /// stops commit processing, and never a result.
+    /// is decided from its creation row, see the owned module doc. The pruning
+    /// limit keeps the object of every version a validation can still keep,
+    /// so a missing object is a storage error, which stops commit processing,
+    /// and never a result.
     fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<OwnedVerdict> {
         let input = need_bytes.into_reference();
         let key = ObjectKey(input.object_id, input.version);
@@ -263,25 +263,8 @@ impl CommitIndexedReader {
             }
             return Ok(OwnedVerdict::Keep(KeptObject(object)));
         }
-        // Only a version consumed without a lock, by a commit above the
-        // horizon, is pruned while a validation can still keep it: a
-        // dynamic-field child or a received object. A validator that
-        // still holds the bytes rejects either in the input checks, as a
-        // child is never an owned input and a received object is owned by
-        // the address of the object it was sent to. That holds unless the
-        // sender is that address, as an account object's is. The consumer's
-        // row is in place before the pruner can remove the version.
-        if self
-            .epoch_store
-            .lowest_handler_processed_row_above(&key.0, key.1)?
-            .is_some()
-        {
-            return Ok(OwnedVerdict::Drop(DropReason(
-                DropKind::HandlerRowAbovePrunedVersion,
-            )));
-        }
         Err(IotaError::Storage(format!(
-            "kept input {key:?} has no bytes in the object store and no handler row above it"
+            "kept input {key:?} has no bytes in the object store"
         )))
     }
 
