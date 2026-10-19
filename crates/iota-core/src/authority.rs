@@ -4293,8 +4293,8 @@ impl AuthorityState {
     /// returned guard is dropped. Take it before submitting a transaction whose
     /// input or output objects are read from the store once it is
     /// checkpointed.
-    pub fn retain_objects(&self) -> IotaResult<ObjectRetentionGuard> {
-        Ok(self.pruner.retain_objects(&self.checkpoint_store)?)
+    pub fn retain_objects(&self) -> ObjectRetentionGuard {
+        self.pruner.retain_objects()
     }
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
