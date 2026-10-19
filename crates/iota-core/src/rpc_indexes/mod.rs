@@ -106,6 +106,34 @@ pub fn remove_legacy_index_dirs(db_path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// The disk space [`remove_legacy_index_dirs`] frees in `db_path` on the file
+/// system `counted_for` is on. Space freed elsewhere does not count, nor does
+/// space on a file system that cannot be told apart.
+pub fn legacy_index_dirs_size(db_path: &Path, counted_for: &Path) -> u64 {
+    fn size(path: &Path) -> u64 {
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return 0;
+        };
+        if !metadata.is_dir() {
+            return metadata.len();
+        }
+        std::fs::read_dir(path).map_or(0, |entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| size(&entry.path()))
+                .sum()
+        })
+    }
+    LEGACY_INDEX_DIRS
+        .iter()
+        .map(|dir| db_path.join(dir))
+        .filter(|dir| {
+            dir.exists() && typed_store::rocks::on_same_file_system(dir, counted_for) == Some(true)
+        })
+        .map(|dir| size(&dir))
+        .sum()
+}
+
 /// A staged index update for one checkpoint, waiting for its in-order commit.
 struct PendingCheckpointUpdate {
     batch: DBBatch,

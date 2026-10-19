@@ -758,7 +758,7 @@ impl AuthorityPerpetualTables {
     // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
     pub fn mark_ledger_backlog_migrated(&self) -> IotaResult {
         self.ledger_backlog_migration_progress
-            .insert(&(), &LedgerBacklogMigrationProgress::Done)?;
+            .insert(&(), &LedgerBacklogMigrationProgress::Cleared)?;
         Ok(())
     }
 
