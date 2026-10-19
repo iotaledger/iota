@@ -37,9 +37,10 @@ use crate::{
 /// delay
 pub(crate) const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
 /// Round gap within which a peer that reported an author's headers useful
-/// still receives that author's leader blocks our blocks vote for. Ordinary
-/// reports expire after `MAX_ROUND_GAP_FOR_USEFUL_PARTS`, before the author
-/// leads again, and a peer that is late on the leader block loses the round.
+/// still receives that author's headers with a block of ours that votes for
+/// the author's leader block. Ordinary reports expire after
+/// `MAX_ROUND_GAP_FOR_USEFUL_PARTS`, before the author leads again, and a peer
+/// that is late on the leader block loses the round.
 pub(crate) const MAX_ROUND_GAP_FOR_LEADER_HEADERS: Round = 500;
 /// Capacity of the cordial knowledge channel. For normal operation with
 /// 100 authorities, this allows buffering up to 5 seconds of headers at 20
@@ -1336,21 +1337,23 @@ impl ConnectionKnowledge {
             .map(|(authority_index, _opt_round)| authority_index)
             .collect();
 
-        // One slot of the cap is kept for the leader header our block votes
-        // for, as the receiver drops the headers beyond its cap. It goes last
-        // to keep the headers in increasing round order.
-        let leader_ref = self.take_voted_leader_header(&block);
-        let max_take = self
-            .context
-            .parameters
-            .max_headers_per_bundle
-            .saturating_sub(usize::from(leader_ref.is_some()));
-        let mut useful_headers_block_refs_to_peer = self.take_useful_header_block_refs_round(
+        // The headers of the author of the leader our block votes for go
+        // first, as the receiver drops the headers beyond its cap: the leader
+        // block is the one whose late delivery costs the peer the round, and
+        // its own ancestors go with it.
+        let max_take = self.context.parameters.max_headers_per_bundle;
+        let mut useful_headers_block_refs_to_peer = match self.voted_leader_author(&block) {
+            Some(leader) => {
+                self.take_useful_header_block_refs_round(block_round, &[leader.value()], max_take)
+            }
+            None => Vec::new(),
+        };
+        let ordinary_headers_block_refs_to_peer = self.take_useful_header_block_refs_round(
             block_round,
             &useful_headers_authors_to_peer,
-            max_take,
+            max_take - useful_headers_block_refs_to_peer.len(),
         );
-        useful_headers_block_refs_to_peer.extend(leader_ref);
+        useful_headers_block_refs_to_peer.extend(ordinary_headers_block_refs_to_peer);
 
         let useful_headers_to_peer: Vec<VerifiedBlockHeader> = {
             let dag_state_read = self.dag_state.read();
@@ -1430,22 +1433,14 @@ impl ConnectionKnowledge {
         }
     }
 
-    /// The leader block that `block` votes for, for a peer that reported the
-    /// leader's headers useful within `MAX_ROUND_GAP_FOR_LEADER_HEADERS`
-    /// rounds. Taken out of the ordinary headers, so that older ones cannot
-    /// crowd it out of the bundle cap.
-    fn take_voted_leader_header(&mut self, block: &VerifiedBlock) -> Option<BlockRef> {
+    /// The author of the leader block that `block` votes for, for a peer that
+    /// reported that author's headers useful within
+    /// `MAX_ROUND_GAP_FOR_LEADER_HEADERS` rounds.
+    fn voted_leader_author(&self, block: &VerifiedBlock) -> Option<AuthorityIndex> {
         let leader = block.strong_vote_leader()?;
         let reported_round = self.last_useful_headers_to_peer_round[leader.value()]?;
-        if reported_round.saturating_add(MAX_ROUND_GAP_FOR_LEADER_HEADERS) < block.round() {
-            return None;
-        }
-        let leader_ref = *block
-            .ancestors()
-            .iter()
-            .find(|ancestor| ancestor.author == leader && ancestor.round + 1 == block.round())?;
-        self.handle_remove_header(leader_ref);
-        Some(leader_ref)
+        (reported_round.saturating_add(MAX_ROUND_GAP_FOR_LEADER_HEADERS) >= block.round())
+            .then_some(leader)
     }
 
     /// Handles adding a new header to the set of potentially unknown headers.
@@ -2865,21 +2860,25 @@ mod tests {
         assert!(headers_sent(MAX_ROUND_GAP_FOR_LEADER_HEADERS + 5, true).is_empty());
     }
 
-    /// When older ordinary headers alone fill the bundle cap, the voted leader
-    /// header still fits within it, after them to keep the round order, and
-    /// the ordinary header it displaces goes out with the next bundle. This
-    /// holds whether the peer reported the leader's headers useful only past
-    /// the ordinary window or within it, where the leader header is one of the
-    /// ordinary headers.
+    /// The headers of the author of the leader our block votes for come first,
+    /// oldest to newest, and the ordinary headers fill the rest of the bundle
+    /// cap in round order; the ordinary header that no longer fits goes out
+    /// with the next bundle. This holds whether the peer reported the leader's
+    /// headers useful only past the ordinary window or within it.
     #[tokio::test]
-    async fn test_voted_leader_header_fits_within_saturated_bundle_cap() {
+    async fn test_voted_leader_headers_come_first_within_bundle_cap() {
         telemetry_subscribers::init_for_testing();
         let [our_index, leader_index, ordinary_a, ordinary_b] =
             [0, 2, 3, 4].map(AuthorityIndex::new_for_test);
         let leader_round = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 5;
+        let header = |round: Round, author: AuthorityIndex| {
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author.value() as u8).build(),
+            )
+        };
         for leader_reported_round in [1, leader_round] {
             let (mut context, _) = Context::new_for_test(5);
-            context.parameters.max_headers_per_bundle = 2;
+            context.parameters.max_headers_per_bundle = 3;
             let context = Arc::new(context);
             let dag_state = Arc::new(RwLock::new(DagState::new(
                 context.clone(),
@@ -2897,18 +2896,25 @@ mod tests {
                 useful_shards_to_peer: BTreeMap::new(),
             });
 
-            let leader = VerifiedBlockHeader::new_for_test(
-                TestBlockHeader::new(leader_round, leader_index.value() as u8).build(),
+            // The peer also lacks an older header of the leader's author, and
+            // the ordinary headers are older than the leader block.
+            let older_leader_header = header(leader_round - 2, leader_index);
+            let ancestors = [
+                header(leader_round, leader_index),
+                header(leader_round - 1, ordinary_a),
+                header(leader_round - 1, ordinary_b),
+            ];
+            dag_state.write().accept_block_headers(
+                ancestors
+                    .iter()
+                    .chain([&older_leader_header])
+                    .cloned()
+                    .collect(),
+                DataSource::Test,
             );
-            let ordinary = [ordinary_a, ordinary_b].map(|index| {
-                VerifiedBlockHeader::new_for_test(
-                    TestBlockHeader::new(leader_round - 1, index.value() as u8).build(),
-                )
+            connection_knowledge.process_one_message(ConnectionKnowledgeMessage::NewHeader {
+                block_ref: older_leader_header.reference(),
             });
-            let ancestors = [leader, ordinary[0].clone(), ordinary[1].clone()];
-            dag_state
-                .write()
-                .accept_block_headers(ancestors.to_vec(), DataSource::Test);
             let mut headers_sent = |own_block: VerifiedBlock| {
                 connection_knowledge
                     .create_bundle(own_block)
@@ -2930,7 +2936,11 @@ mod tests {
             );
             assert_eq!(
                 headers_sent(voting_block),
-                vec![(leader_round - 1, ordinary_a), (leader_round, leader_index)]
+                vec![
+                    (leader_round - 2, leader_index),
+                    (leader_round, leader_index),
+                    (leader_round - 1, ordinary_a),
+                ]
             );
 
             let next_block = VerifiedBlock::new_for_test(
