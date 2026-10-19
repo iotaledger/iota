@@ -7,7 +7,7 @@
 //! blocklist is, until its block expires.
 
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{IpAddr, Ipv6Addr},
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -119,7 +119,7 @@ impl ClientAccessManager {
     /// `policy_config`. Without an allowlist, spawns the task that drops
     /// expired blocks, so it must then be called from within a tokio runtime,
     /// and panics if a blocklist TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`] or the
-    /// IPv6 prefix length is not between 1 and 128.
+    /// IPv6 prefix length is not between [`MIN_IPV6_PREFIX_LEN`] and 128.
     pub fn new(policy_config: &PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         metrics
@@ -137,10 +137,10 @@ impl ClientAccessManager {
                 )
                 .unwrap_or_else(|err| fatal!("Invalid traffic control config: {err}"));
                 let ipv6_prefix_len = policy_config.ipv6_prefix_len;
-                if !(1..=128).contains(&ipv6_prefix_len) {
+                if !(MIN_IPV6_PREFIX_LEN..=128).contains(&ipv6_prefix_len) {
                     fatal!(
                         "Invalid traffic control config: the IPv6 prefix length \
-                         {ipv6_prefix_len} is not between 1 and 128"
+                         {ipv6_prefix_len} is not between {MIN_IPV6_PREFIX_LEN} and 128"
                     );
                 }
                 if policy_config.connection_blocklist_ttl_sec == 0 {
@@ -348,14 +348,11 @@ pub(crate) fn validate_blocklist_ttls(
 /// client is its full address. An IPv6 client is the first `ipv6_prefix_len`
 /// bits of its address, with the rest set to zero: the node cannot see how
 /// long a client's own network prefix is, so it assumes the same length for
-/// every IPv6 client. An IPv6 address that carries an IPv4 client, either
-/// IPv4-mapped or under the NAT64 prefix `64:ff9b::/96`, counts as that IPv4
-/// address. See [`ipv6_prefix_len_of`] for the IPv6 addresses kept whole.
+/// every IPv6 client. An IPv4 client seen as an IPv4-mapped IPv6 address
+/// counts as that IPv4 address. See [`ipv6_prefix_len_of`] for the IPv6
+/// addresses kept whole.
 pub(crate) fn client_prefix(client: IpAddr, ipv6_prefix_len: u8) -> IpAddr {
     match client.to_canonical() {
-        IpAddr::V6(address) if address.segments()[..6] == [0x64, 0xff9b, 0, 0, 0, 0] => {
-            IpAddr::V4(Ipv4Addr::from(u128::from(address) as u32))
-        }
         IpAddr::V6(address) => {
             let prefix_len = ipv6_prefix_len_of(address, ipv6_prefix_len);
             let mask = u128::MAX
@@ -367,14 +364,23 @@ pub(crate) fn client_prefix(client: IpAddr, ipv6_prefix_len: u8) -> IpAddr {
     }
 }
 
+/// The shortest IPv6 prefix length accepted. The ranges that
+/// [`ipv6_prefix_len_of`] keeps whole are set by at most the first 32 bits, so
+/// that cutting any other address to 32 bits or more never lands it in one.
+pub(crate) const MIN_IPV6_PREFIX_LEN: u8 = 32;
+
 /// How many leading bits of `address` identify its client: `ipv6_prefix_len`,
-/// or all 128 where unrelated clients share the leading bits. These are the
-/// unspecified, loopback and IPv4-compatible addresses (`::/96`), link-local
-/// addresses (`fe80::/10`) and Teredo addresses (`2001::/32`).
+/// or all 128 where unrelated clients share the leading bits. These are
+/// `::/32`, with the unspecified, loopback and IPv4-compatible addresses,
+/// link-local addresses (`fe80::/10`), Teredo addresses (`2001::/32`), and
+/// the NAT64 prefixes in `64:ff9b::/32`, each of whose addresses carries one
+/// IPv4 client.
 pub(crate) fn ipv6_prefix_len_of(address: Ipv6Addr, ipv6_prefix_len: u8) -> u8 {
     let segments = address.segments();
-    let kept_whole =
-        segments[..6] == [0; 6] || segments[0] & 0xffc0 == 0xfe80 || segments[..2] == [0x2001, 0];
+    let kept_whole = segments[..2] == [0, 0]
+        || segments[0] & 0xffc0 == 0xfe80
+        || segments[..2] == [0x2001, 0]
+        || segments[..2] == [0x64, 0xff9b];
     if kept_whole { 128 } else { ipv6_prefix_len }
 }
 
@@ -678,8 +684,6 @@ mod tests {
         };
         let mapped = IpAddr::V6(address.to_ipv6_mapped());
         assert_eq!(client_prefix(mapped, 64), CLIENT);
-        let nat64 = v6([0x64, 0xff9b, 0, 0, 0, 0, 0x0a00, 0x0001]);
-        assert_eq!(client_prefix(nat64, 64), CLIENT);
     }
 
     #[test]
@@ -689,8 +693,40 @@ mod tests {
             v6([0, 0, 0, 0, 0, 0, 0x0a00, 0x0001]),
             v6([0xfe80, 0, 0, 0, 1, 2, 3, 4]),
             v6([0x2001, 0, 0x4136, 0xe378, 0x8000, 0x63bf, 0x3fff, 0xfdd2]),
+            v6([0x64, 0xff9b, 0, 0, 0, 0, 0x0a00, 0x0001]),
+            v6([0x64, 0xff9b, 1, 0x0a00, 0x0001, 0, 0, 0]),
         ] {
             assert_eq!(client_prefix(client, 64), client);
+        }
+    }
+
+    #[test]
+    fn a_cut_address_keeps_the_prefix_length_of_its_address() {
+        // The block log line works the prefix length out again from the
+        // blocklist key, so cutting must not move an address into or out of
+        // a range kept whole.
+        for client in [
+            v6([0x2001, 0xdb8, 1, 2, 3, 4, 5, 6]),
+            v6([0x2001, 1, 2, 3, 4, 5, 6, 7]),
+            v6([0xfec0, 0, 0, 0, 0, 0, 0, 1]),
+            v6([0x64, 0xff9a, 1, 2, 3, 4, 5, 6]),
+            v6([0, 1, 2, 3, 4, 5, 6, 7]),
+            v6([0, 0, 0, 0, 0xffff, 0, 0x0a00, 1]),
+            v6([0xfe80, 0, 0, 0, 1, 2, 3, 4]),
+        ] {
+            let IpAddr::V6(address) = client else {
+                unreachable!()
+            };
+            for ipv6_prefix_len in MIN_IPV6_PREFIX_LEN..=128 {
+                let IpAddr::V6(key) = client_prefix(client, ipv6_prefix_len) else {
+                    unreachable!()
+                };
+                assert_eq!(
+                    ipv6_prefix_len_of(key, ipv6_prefix_len),
+                    ipv6_prefix_len_of(address, ipv6_prefix_len),
+                    "{client} at /{ipv6_prefix_len}"
+                );
+            }
         }
     }
 
@@ -718,16 +754,16 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "the IPv6 prefix length 0 is not between 1 and 128")]
-    async fn a_prefix_length_of_zero_is_rejected() {
+    #[should_panic(expected = "the IPv6 prefix length 31 is not between 32 and 128")]
+    async fn a_prefix_length_below_32_is_rejected() {
         manager(PolicyConfig {
-            ipv6_prefix_len: 0,
+            ipv6_prefix_len: 31,
             ..blocklist_mode(false, 120)
         });
     }
 
     #[tokio::test]
-    #[should_panic(expected = "the IPv6 prefix length 129 is not between 1 and 128")]
+    #[should_panic(expected = "the IPv6 prefix length 129 is not between 32 and 128")]
     async fn a_prefix_length_above_128_is_rejected() {
         manager(PolicyConfig {
             ipv6_prefix_len: 129,

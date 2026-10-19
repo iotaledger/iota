@@ -224,7 +224,7 @@ pub struct PolicyConfig {
     /// and any blocklist related configuration will be ignored.
     #[serde(default)]
     pub allow_list: Option<Vec<String>>,
-    /// How many leading bits of an IPv6 address identify a client, from 1 to
+    /// How many leading bits of an IPv6 address identify a client, from 32 to
     /// 128. The node cannot see how long a client's own network prefix is, so
     /// it assumes this length for every IPv6 client: the policies count, and
     /// the node blocks, the addresses that share these bits as one client.
