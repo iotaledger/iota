@@ -2232,3 +2232,18 @@ fn a_directory_still_to_be_created_reports_its_file_systems_free_space() {
         "{free} vs {parent_free}"
     );
 }
+
+/// A directory still to be created is on its parent's file system, and the
+/// device files are on a file system of their own.
+#[cfg(unix)]
+#[test]
+fn file_systems_are_told_apart_also_for_a_directory_still_to_be_created() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("historic").join("ledger");
+
+    assert_eq!(super::on_same_file_system(dir.path(), &missing), Some(true));
+    assert_eq!(
+        super::on_same_file_system(dir.path(), std::path::Path::new("/dev")),
+        Some(false)
+    );
+}

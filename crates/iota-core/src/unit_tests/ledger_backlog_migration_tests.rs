@@ -493,7 +493,7 @@ fn assert_migrated(
     assert_eq!(flat_rows(store, checkpoint_store), 0);
     assert_eq!(
         ledger_progress(store),
-        Some(LedgerBacklogMigrationProgress::Done)
+        Some(LedgerBacklogMigrationProgress::Cleared)
     );
     assert_eq!(
         checkpoint_progress(checkpoint_store),
@@ -799,10 +799,11 @@ async fn a_run_stopped_between_an_ingestion_and_its_progress_write_resumes() {
     assert_migrated(&store, &checkpoint_store, &seeded, 0);
 }
 
-/// Once both stores' flat tables are drained, a later start moves nothing
-/// more into the buckets; it only clears what a flat table still holds.
+/// A row in a flat table after the migration cleared them was written by
+/// another release, such as an earlier one started on the database: a later
+/// start refuses instead of deleting it unread, and moves nothing.
 #[tokio::test]
-async fn a_finished_migration_moves_nothing_on_later_starts() {
+async fn rows_written_after_the_clear_refuse_the_start() {
     let store_dir = iota_common::tempdir();
     let checkpoint_dir = iota_common::tempdir();
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
@@ -811,9 +812,11 @@ async fn a_finished_migration_moves_nothing_on_later_starts() {
     migration(&store, checkpoint_store.clone(), None, 5_000)
         .run()
         .unwrap();
+    assert_eq!(
+        ledger_progress(&store),
+        Some(LedgerBacklogMigrationProgress::Cleared)
+    );
 
-    // A row written to the flat table after the migration finished must not
-    // be picked up.
     let stray = random_transaction();
     store
         .perpetual_tables
@@ -821,18 +824,18 @@ async fn a_finished_migration_moves_nothing_on_later_starts() {
         .insert(stray.digest(), stray.serializable_ref())
         .unwrap();
 
-    migration(&store, checkpoint_store, None, 5_000)
+    let err = migration(&store, checkpoint_store, None, 5_000)
         .run()
-        .unwrap();
-
+        .expect_err("a row written after the clear must stop the start");
+    assert!(err.to_string().contains("transactions"), "{err}");
     assert!(
         store
             .perpetual_tables
             .transactions
             .get(stray.digest())
             .unwrap()
-            .is_none(),
-        "a later start must clear the flat table"
+            .is_some(),
+        "the refused start must leave the row"
     );
     assert!(
         store
@@ -841,6 +844,42 @@ async fn a_finished_migration_moves_nothing_on_later_starts() {
             .unwrap()
             .is_none(),
         "a later start must not move anything into a bucket"
+    );
+}
+
+/// A migration stopped after its drains finished but before it cleared the
+/// flat tables clears what it left there on the next start.
+#[tokio::test]
+async fn a_migration_stopped_before_its_clear_clears_on_the_next_start() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed(&store, &checkpoint_store);
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+    // The state of a run stopped between its last drain and the clear.
+    store
+        .perpetual_tables
+        .ledger_backlog_migration_progress
+        .insert(&(), &LedgerBacklogMigrationProgress::Done)
+        .unwrap();
+    let leftover = random_transaction();
+    store
+        .perpetual_tables
+        .transactions
+        .insert(leftover.digest(), leftover.serializable_ref())
+        .unwrap();
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+
+    assert_eq!(flat_rows(&store, &checkpoint_store), 0);
+    assert_eq!(
+        ledger_progress(&store),
+        Some(LedgerBacklogMigrationProgress::Cleared)
     );
 }
 
@@ -939,7 +978,10 @@ async fn a_restart_after_the_migration_keeps_the_synced_watermark() {
         .run()
         .unwrap();
 
-    let ahead = seed_checkpoint(&checkpoint_store, RUNNING_EPOCH, 91);
+    // Synced the way the running node writes checkpoints, into the buckets.
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let ahead = test_checkpoint_with_contents(RUNNING_EPOCH, 91, &full_contents);
+    checkpoint_store.insert_verified_checkpoint(&ahead).unwrap();
     checkpoint_store
         .update_highest_synced_checkpoint(&ahead)
         .unwrap();
@@ -1226,11 +1268,71 @@ fn the_disk_space_check_measures_before_the_history_directory_exists() {
     let historic = dir.path().join("live").join("historic");
     assert!(!historic.exists());
 
-    let err = super::ensure_free_space(&historic, u64::MAX)
+    let err = super::ensure_free_space(&historic, u64::MAX, 0)
         .expect_err("no file system has that much free space");
     assert!(err.to_string().contains("free disk space"), "{err}");
 
-    super::ensure_free_space(&historic, 1 << 20).expect("one MiB is free");
+    super::ensure_free_space(&historic, 1 << 20, 0).expect("one MiB is free");
+}
+
+/// A first start with the checkpoint retention unset refuses while the
+/// database holds history older than the default keeps, before anything is
+/// deleted; set explicitly, the same retention starts.
+#[tokio::test]
+async fn an_unset_retention_refuses_a_start_that_would_delete_history() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    let err = super::check_before_first_start(
+        &store,
+        checkpoint_store.clone(),
+        RUNNING_EPOCH,
+        None,
+        Some(NARROWEST_RETENTION),
+        0,
+    )
+    .expect_err("history below the default's floor must stop the start");
+    assert!(
+        err.to_string()
+            .contains("num-epochs-to-retain-for-checkpoints is not set"),
+        "{err}"
+    );
+    assert_eq!(
+        ledger_progress(&store),
+        None,
+        "the refused start must not have begun the migration"
+    );
+
+    super::check_before_first_start(
+        &store,
+        checkpoint_store.clone(),
+        RUNNING_EPOCH,
+        Some(NARROWEST_RETENTION),
+        Some(NARROWEST_RETENTION),
+        0,
+    )
+    .expect("a retention set on purpose starts");
+
+    // Once the migration runs, its floor is settled and the check is done.
+    let mut interrupted = migration(
+        &store,
+        checkpoint_store.clone(),
+        Some(NARROWEST_RETENTION),
+        1,
+    );
+    interrupted.pin_floor().unwrap();
+    move_first_transactions_slice(&interrupted, &seeded);
+    super::check_before_first_start(
+        &store,
+        checkpoint_store,
+        RUNNING_EPOCH,
+        None,
+        Some(NARROWEST_RETENTION),
+        0,
+    )
+    .expect("a started migration is not checked again");
 }
 
 /// Writes a sequence-keyed summary for checkpoint `sequence` of `epoch` that
@@ -1289,4 +1391,13 @@ async fn the_rows_to_drain_are_counted_from_the_checkpoint_summaries() {
         2 * (1_800 - 1_000)
     );
     assert_eq!(migration.rows_to_drain(false, true).unwrap(), 30 - 11 + 1);
+}
+
+/// A refusal names the free space below the needed amount, even when the two
+/// are close.
+#[test]
+fn disk_sizes_are_shown_to_a_tenth() {
+    assert_eq!(super::disk_size(21 << 29), "10.5 GiB");
+    assert_eq!(super::disk_size((102 << 30) / 10), "10.2 GiB");
+    assert_eq!(super::disk_size(3 << 19), "1.5 MiB");
 }

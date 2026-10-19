@@ -4142,3 +4142,21 @@ async fn test_a_json_rpc_store_finds_coin_objects_in_the_coin_table() {
         None
     );
 }
+
+/// The space a legacy index database frees counts only for a history
+/// directory on its file system.
+#[cfg(unix)]
+#[test]
+fn legacy_index_space_counts_only_on_the_history_file_system() {
+    let db_path = iota_common::tempdir();
+    let indexes = db_path.path().join("indexes");
+    std::fs::create_dir_all(&indexes).unwrap();
+    std::fs::write(indexes.join("000001.sst"), vec![0; 4096]).unwrap();
+
+    let same = db_path.path().join("historic");
+    assert_eq!(super::legacy_index_dirs_size(db_path.path(), &same), 4096);
+    assert_eq!(
+        super::legacy_index_dirs_size(db_path.path(), std::path::Path::new("/dev")),
+        0
+    );
+}
