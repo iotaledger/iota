@@ -37,10 +37,7 @@ use crate::{
         authority_per_epoch_store::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
             ExecutionIndicesWithStats,
-            handler_object_state::{
-                AssignedCommit, CommitIndex, failed_transactions_for_commit,
-                handler_rows_for_commit,
-            },
+            handler_object_state::{AssignedCommit, CommitIndex, handler_rows_for_commit},
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
         shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
@@ -733,11 +730,10 @@ impl ExecutionWatcher {
             let upserts = handler_rows_for_commit(&effects, index);
             #[cfg(test)]
             epoch_store.injected_watcher_completion_error()?;
-            let failed_transactions = failed_transactions_for_commit(&effects, index);
             // A no-op once the commit's output has flushed: the flush derives
             // the durable rows from the same effects and completes the commit
             // itself.
-            epoch_store.record_commit_fully_executed(index, &upserts, &failed_transactions)?;
+            epoch_store.record_commit_fully_executed(index, &upserts)?;
         }
         Ok(())
     }

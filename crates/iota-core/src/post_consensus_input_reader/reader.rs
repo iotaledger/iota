@@ -72,12 +72,6 @@ impl CommitIndexedReader {
         }
     }
 
-    /// The horizon: the highest commit whose rows this reader's results rely
-    /// on.
-    pub fn horizon(&self) -> CommitIndex {
-        self.horizon
-    }
-
     /// Reads one owned or immutable input: the row at the named version or
     /// the store, then, for a kept version, the rows above it. A storage error
     /// is returned as `Err`, never as a result.

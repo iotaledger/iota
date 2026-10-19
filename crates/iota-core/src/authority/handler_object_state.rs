@@ -5,16 +5,12 @@
 //! validation: object state as of the commit height being processed by the
 //! consensus handler, independent of local execution progress.
 //!
-//! The bookkeeping is two epoch tables, each with an in-memory overlay
-//! holding the rows not yet durable:
-//! - **handler-processed rows** - every version a commit the handler has processed produced, one
-//!   row per (object, version), so writes need no ordering among themselves. Rows are read by the
-//!   exact version a transaction names or, for a shared object that is gone, at the object's
-//!   highest version.
-//! - **failed transactions** - every transaction of a commit the handler has processed whose
-//!   execution failed, with that commit's index. The lock check reads it to tell whether a lock
-//!   such a transaction took is released: a failure that leaves an owned input unconsumed keeps the
-//!   input's version live.
+//! The bookkeeping is one epoch table of handler-processed rows plus an
+//! in-memory overlay holding the rows not yet durable: every version a commit
+//! the handler has processed produced, one row per (object, version), so
+//! writes need no ordering among themselves. Rows are read by the exact
+//! version a transaction names or, for a shared object that is gone, at the
+//! object's highest version.
 //!
 //! On a committee validator every execution belongs to a commit the handler
 //! has processed: the checkpoint executor runs a transaction only after the
@@ -50,12 +46,10 @@
 //! Durable writes happen at exactly two trigger points; everything else the
 //! module does is in-memory plus point reads:
 //! - the quarantine flush of a commit's output (once its checkpoint is certified and executed):
-//!   inserts the commit's handler-processed rows not yet durable and its failed transactions
-//!   atomically with `last_consensus_stats` ([`HandlerObjectState::write_commit_rows_to_batch`]).
-//!   For a commit the watcher completed these are the rows still in the overlays
-//!   ([`HandlerObjectState::take_completed_commit_rows`],
-//!   [`HandlerObjectState::failed_transactions_of_commit`]); otherwise all of the commit's rows,
-//!   derived from its effects;
+//!   inserts the commit's rows not yet durable atomically with `last_consensus_stats`
+//!   ([`HandlerObjectState::write_commit_rows_to_batch`]). For a commit the watcher completed these
+//!   are the rows still in the overlay ([`HandlerObjectState::take_completed_commit_rows`]);
+//!   otherwise all of the commit's rows, derived from its effects;
 //! - the checkpoint executor's batch for every executed checkpoint, durable before the checkpoint's
 //!   outputs and its watermark bump: inserts the rows its executions left in the overlay
 //!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]), so an object is never durable
@@ -152,19 +146,6 @@ pub fn handler_rows_for_commit<'a>(
     effects
         .into_iter()
         .flat_map(|effects| handler_processed_upserts(effects, index))
-        .collect()
-}
-
-/// The transactions of a commit whose execution failed, each with the commit's
-/// index. Like the rows, every writer derives them here.
-pub fn failed_transactions_for_commit<'a>(
-    effects: impl IntoIterator<Item = &'a TransactionEffects>,
-    index: CommitIndex,
-) -> Vec<(TransactionDigest, CommitIndex)> {
-    effects
-        .into_iter()
-        .filter(|effects| effects.status().is_failure())
-        .map(|effects| (*effects.transaction_digest(), index))
         .collect()
 }
 
@@ -318,7 +299,6 @@ fn present_entries<K: Ord, V: Clone>(
 pub(super) struct FlushedCommitRows {
     pub index: CommitIndex,
     pub rows: Vec<(ObjectKey, HandlerProcessedObject)>,
-    pub failed_transactions: Vec<(TransactionDigest, CommitIndex)>,
 }
 
 /// In-memory side of the bookkeeping plus every operation composing it with
@@ -359,9 +339,6 @@ pub struct HandlerObjectState {
     /// moves `highest_fully_executed_commit`.
     execution_watcher_error: OnceLock<String>,
     handler_processed_overlay: RwLock<BTreeMap<ObjectKey, HandlerProcessedObject>>,
-    /// Failed transactions of commits not yet flushed, each with the index of
-    /// its commit.
-    failed_transactions_overlay: RwLock<BTreeMap<TransactionDigest, CommitIndex>>,
 
     /// Read-through cache over the durable handler-processed table, so the cold
     /// path of the hot per-input lookup is usually served without a table
@@ -404,7 +381,6 @@ impl HandlerObjectState {
             highest_fully_executed_commit: watch::Sender::new(resume_point),
             execution_watcher_error: OnceLock::new(),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
-            failed_transactions_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100_000),
             metrics,
         }
@@ -509,8 +485,7 @@ impl HandlerObjectState {
     /// Puts one executed transaction's rows in the overlay when the handler
     /// has assigned its commit, and returns whether it had. Must be called by
     /// the execution hook before the outputs become readable, so no object is
-    /// ever readable without its row. A transaction whose execution failed
-    /// is recorded with its commit as well, for the lock check.
+    /// ever readable without its row.
     ///
     /// `key` is the executed transaction's [`TransactionKey`], the identity
     /// the handler registered for it; a digest lookup would miss a
@@ -524,13 +499,11 @@ impl HandlerObjectState {
             return false;
         };
         self.upsert_handler_processed_rows(&handler_processed_upserts(effects, index));
-        self.insert_failed_transactions(&failed_transactions_for_commit([effects], index));
         true
     }
 
     /// Marks commit `index` fully executed: applies the commit's
-    /// handler-processed upserts and records its failed transactions, keeps
-    /// the upserts' keys for the commit's flush
+    /// handler-processed upserts, keeps their keys for the commit's flush
     /// ([`Self::take_completed_commit_rows`]), and drops the transaction key
     /// -> commit index map entries.
     ///
@@ -551,13 +524,11 @@ impl HandlerObjectState {
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
         inserts: &[(ObjectKey, HandlerProcessedObject)],
-        failed_transactions: &[(TransactionDigest, CommitIndex)],
     ) {
         if !self.is_commit_assigned(index) {
             return;
         }
         self.upsert_handler_processed_rows(inserts);
-        self.insert_failed_transactions(failed_transactions);
         self.row_keys_by_completed_commit
             .lock()
             .insert(index, upserts.iter().map(|(key, _)| *key).collect());
@@ -639,21 +610,6 @@ impl HandlerObjectState {
             keys?
         };
         Some(present_entries(&self.handler_processed_overlay, keys))
-    }
-
-    /// The failed transactions of commit `index` its flush must write, when
-    /// the watcher completed the commit: the watcher recorded them all, and
-    /// only that flush evicts them.
-    pub fn failed_transactions_of_commit(
-        &self,
-        index: CommitIndex,
-    ) -> Vec<(TransactionDigest, CommitIndex)> {
-        self.failed_transactions_overlay
-            .read()
-            .iter()
-            .filter(|(_, failed_at)| **failed_at == index)
-            .map(|(digest, failed_at)| (*digest, *failed_at))
-            .collect()
     }
 
     /// Whether commit `index` is still waiting to be completed. False once
@@ -798,30 +754,10 @@ impl HandlerObjectState {
         })
     }
 
-    /// The index of the commit that holds transaction `digest`, when its
-    /// execution failed, from the overlay or the durable table; `None` when
-    /// the transaction has not failed, has not executed yet, or its commit has
-    /// not been reached by the handler.
-    ///
-    /// Returns the index unconditionally; a caller validating at a commit
-    /// must apply the reading condition itself (an index above its horizon
-    /// answers not failed).
-    pub fn failed_transaction_commit(
-        &self,
-        tables: &AuthorityEpochTables,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<CommitIndex>> {
-        if let Some(index) = self.failed_transactions_overlay.read().get(digest) {
-            return Ok(Some(*index));
-        }
-        Ok(tables.failed_transaction_commits.get(digest)?)
-    }
-
-    /// Stages a commit's handler-processed rows and failed transactions into
-    /// `batch`, the quarantine flush of the commit's own output, atomic with
-    /// `last_consensus_stats`. After the batch is durably written - never
-    /// before - pass the same commit index, rows and failed transactions to
-    /// [`Self::evict_flushed_commit_rows`].
+    /// Stages a commit's handler-processed rows into `batch`, the quarantine
+    /// flush of the commit's own output, atomic with `last_consensus_stats`.
+    /// After the batch is durably written - never before - pass the same
+    /// commit index and rows to [`Self::evict_flushed_commit_rows`].
     ///
     /// Rows are keyed per version, so flushes of different commits may land
     /// in any order without one overwriting another.
@@ -830,25 +766,17 @@ impl HandlerObjectState {
         tables: &AuthorityEpochTables,
         batch: &mut DBBatch,
         handler_rows: &[(ObjectKey, HandlerProcessedObject)],
-        failed_transactions: &[(TransactionDigest, CommitIndex)],
     ) -> IotaResult {
         batch.insert_batch(
             &tables.handler_processed_objects,
             handler_rows.iter().map(|(key, row)| (key, row)),
         )?;
-        batch.insert_batch(
-            &tables.failed_transaction_commits,
-            failed_transactions
-                .iter()
-                .map(|(digest, failed_at)| (digest, failed_at)),
-        )?;
         Ok(())
     }
 
-    /// Evicts a commit's handler-processed and failed-transaction overlay
-    /// entries once their rows are durable; the caller's write-then-evict
-    /// order is what keeps a concurrent reader from finding a row in neither
-    /// the overlay nor the table.
+    /// Evicts a commit's handler-processed overlay entries once their rows are
+    /// durable; the caller's write-then-evict order is what keeps a concurrent
+    /// reader from finding a row in neither the overlay nor the table.
     ///
     /// A flushed commit's checkpoint has executed, so this also raises the
     /// highest fully executed commit.
@@ -856,15 +784,8 @@ impl HandlerObjectState {
         &self,
         commit_index: CommitIndex,
         handler_rows: &[(ObjectKey, HandlerProcessedObject)],
-        failed_transactions: &[(TransactionDigest, CommitIndex)],
     ) {
         self.remove_handler_overlay_rows(handler_rows);
-        if !failed_transactions.is_empty() {
-            let mut overlay = self.failed_transactions_overlay.write();
-            for (digest, _) in failed_transactions {
-                overlay.remove(digest);
-            }
-        }
         // Last, so a validation released by the signal finds the rows.
         self.advance_highest_fully_executed_commit(commit_index);
     }
@@ -937,13 +858,6 @@ impl HandlerObjectState {
         self.handler_processed_overlay.read().len()
     }
 
-    /// The number of failed transactions in the overlay, for asserting
-    /// eviction behavior.
-    #[cfg(test)]
-    pub fn failed_transactions_overlay_len_for_testing(&self) -> usize {
-        self.failed_transactions_overlay.read().len()
-    }
-
     /// Raises the highest fully executed commit to `index`; a repeated or late
     /// completion of an earlier commit never lowers it.
     fn advance_highest_fully_executed_commit(&self, index: CommitIndex) {
@@ -980,18 +894,6 @@ impl HandlerObjectState {
         self.metrics
             .handler_object_state_handler_processed_overlay_entries
             .set(overlay.len() as i64);
-    }
-
-    /// Inserts failed transactions into the overlay. A transaction executes
-    /// once per epoch, so the hook and the watcher insert the same value for
-    /// it. Like the rows, a commit that already flushed must not reach here.
-    fn insert_failed_transactions(&self, failed_transactions: &[(TransactionDigest, CommitIndex)]) {
-        if failed_transactions.is_empty() {
-            return;
-        }
-        self.failed_transactions_overlay
-            .write()
-            .extend(failed_transactions.iter().copied());
     }
 }
 
@@ -1218,7 +1120,6 @@ mod tests {
             highest_fully_executed_commit: watch::Sender::new(0),
             execution_watcher_error: OnceLock::new(),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
-            failed_transactions_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100),
             metrics: EpochMetrics::new(&Registry::new()),
         }
@@ -1235,10 +1136,10 @@ mod tests {
         assert_eq!(state.commit_index_of(&key_a), Some(3));
         assert_eq!(state.commit_index_of(&key_b), Some(4));
         assert_eq!(state.commit_index_of(&key_c), Some(4));
-        state.record_commit_fully_executed(3, &[], &[], &[]);
+        state.record_commit_fully_executed(3, &[], &[]);
         assert_eq!(state.commit_index_of(&key_a), None);
         assert_eq!(state.commit_index_of(&key_b), Some(4));
-        state.record_commit_fully_executed(4, &[], &[], &[]);
+        state.record_commit_fully_executed(4, &[], &[]);
         assert_eq!(state.commit_index_of(&key_b), None);
         assert_eq!(state.commit_index_of(&key_c), None);
     }
@@ -1292,13 +1193,13 @@ mod tests {
         state.complete_commit_at_flush(3, &[(key(1), row(3))]);
         assert_eq!(state.overlay_size_for_testing(), 1);
         let late = [(key(2), row(3))];
-        state.record_commit_fully_executed(3, &late, &late, &[]);
+        state.record_commit_fully_executed(3, &late, &late);
         assert_eq!(state.overlay_size_for_testing(), 1);
 
         // Full execution completes commit 4 first.
         state.assign_commit_to_transactions(4, vec![]);
         let executed = [(key(3), row(4))];
-        state.record_commit_fully_executed(4, &executed, &executed, &[]);
+        state.record_commit_fully_executed(4, &executed, &executed);
         assert_eq!(state.overlay_size_for_testing(), 2);
         state.complete_commit_at_flush(4, &[(key(4), row(4))]);
         assert_eq!(state.overlay_size_for_testing(), 2);

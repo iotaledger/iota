@@ -2753,7 +2753,6 @@ impl BookkeepingSetup {
                         deleted_by: None,
                     },
                 )],
-                &[],
             )
             .unwrap();
     }
@@ -2869,7 +2868,7 @@ impl BookkeepingSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[], &[])
+            .record_commit_fully_executed(index, &[])
             .unwrap();
     }
 
@@ -2990,7 +2989,7 @@ impl BookkeepingSetup {
             .flat_map(|effects| handler_processed_upserts(effects, index))
             .collect();
         self.epoch_store
-            .record_commit_fully_executed(index, &upserts, &[])
+            .record_commit_fully_executed(index, &upserts)
             .unwrap();
     }
 
@@ -6317,7 +6316,7 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
         .find(|effects| effects.transaction_digest() == first[0].digest())
         .unwrap();
     s.epoch_store
-        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1), &[])
+        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1))
         .unwrap();
     assert!(
         s.process_at(3, std::slice::from_ref(&deferred))
@@ -6398,7 +6397,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
     assert_eq!(retry.dropped.len(), 1);
     normal
         .epoch_store
-        .record_commit_fully_executed(13, &[], &[])
+        .record_commit_fully_executed(13, &[])
         .unwrap();
     let accepted = normal
         .validate_at(15, std::slice::from_ref(&consumer))
@@ -7631,8 +7630,8 @@ async fn epoch_end_releases_a_pending_wait() {
 }
 
 /// A bookkeeping setup with a transaction that failed at execution in commit
-/// `failed_at`, and objects its sender owns that the failure did not touch:
-/// a spare gas coin and an object.
+/// `failed_at`, and a spare gas coin its sender owns that the failure did not
+/// touch.
 struct FailedHoldingTransaction {
     s: BookkeepingSetup,
     sender: Address,
@@ -7642,19 +7641,16 @@ struct FailedHoldingTransaction {
     /// consumed.
     consumed_gas: ObjectReference,
     spare_gas_id: ObjectId,
-    untouched_id: ObjectId,
 }
 
 async fn setup_failed_holding_transaction(failed_at: CommitIndex) -> FailedHoldingTransaction {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let spare_gas_id = ObjectId::random();
-    let untouched_id = ObjectId::random();
     let s = setup_bookkeeping(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             Object::with_id_owner_for_testing(spare_gas_id, sender),
-            Object::with_id_owner_for_testing(untouched_id, sender),
         ],
         true,
     )
@@ -7671,153 +7667,14 @@ async fn setup_failed_holding_transaction(failed_at: CommitIndex) -> FailedHoldi
         holding_tx,
         consumed_gas,
         spare_gas_id,
-        untouched_id,
     }
 }
 
-/// The execution hook records a transaction of a commit the handler has
-/// processed with that commit when its execution fails, and records nothing
-/// when it succeeds.
+/// A transaction naming a version a failed transaction consumed is dropped on
+/// the failed transaction's lock, also once the horizon reaches the commit of
+/// the failure.
 #[tokio::test]
-async fn handler_known_failed_execution_is_recorded_with_its_commit() {
-    let f = setup_failed_holding_transaction(5).await;
-    let succeeding = f.s.build_transfer(
-        &f.untouched_id,
-        &f.spare_gas_id,
-        f.sender,
-        &f.sender_key,
-        f.sender,
-    );
-    let succeeding_digest = *succeeding.digest();
-    f.s.execute_as_handler_known(vec![succeeding], 6);
-
-    assert_eq!(
-        f.s.epoch_store
-            .failed_transaction_commit(&f.holding_tx)
-            .unwrap(),
-        Some(5)
-    );
-    assert_eq!(
-        f.s.epoch_store
-            .failed_transaction_commit(&succeeding_digest)
-            .unwrap(),
-        None
-    );
-}
-
-/// The flush of a commit the watcher completed makes its failed transactions
-/// durable and evicts them from the overlay.
-#[tokio::test]
-async fn failed_transaction_completed_by_the_watcher_is_durable_once_its_commit_flushes() {
-    let f = setup_failed_holding_transaction(5).await;
-    let _watcher = f.s.start_execution_watcher();
-    f.s.wait_for_fully_executed_commit(5).await;
-
-    f.s.epoch_store
-        .flush_commit_through_quarantine_for_testing(5, vec![f.holding_tx])
-        .unwrap();
-
-    assert_eq!(
-        f.s.epoch_store
-            .durable_failed_transaction_commit_for_testing(&f.holding_tx)
-            .unwrap(),
-        Some(5)
-    );
-    assert_eq!(
-        f.s.epoch_store
-            .handler_object_state_for_testing()
-            .failed_transactions_overlay_len_for_testing(),
-        0
-    );
-}
-
-/// A flush that completes its commit itself, as after a restart, derives the
-/// commit's failed transactions from their effects.
-#[tokio::test]
-async fn flush_completing_its_commit_derives_failed_transactions_from_effects() {
-    let f = setup_failed_holding_transaction(5).await;
-
-    f.s.epoch_store
-        .flush_commit_through_quarantine_for_testing(5, vec![f.holding_tx])
-        .unwrap();
-
-    assert_eq!(
-        f.s.epoch_store
-            .durable_failed_transaction_commit_for_testing(&f.holding_tx)
-            .unwrap(),
-        Some(5)
-    );
-    assert_eq!(
-        f.s.epoch_store
-            .handler_object_state_for_testing()
-            .failed_transactions_overlay_len_for_testing(),
-        0
-    );
-}
-
-/// A lock whose holding transaction failed without consuming the locked
-/// version keeps that version until the horizon reaches the holding
-/// transaction's commit; from then on, another transaction naming the version
-/// is kept and takes the lock.
-#[tokio::test]
-async fn lock_of_a_failed_holding_transaction_is_released_once_the_horizon_reaches_its_commit() {
-    let failed_at = 5;
-    let f = setup_failed_holding_transaction(failed_at).await;
-    // Stands in for an owned input the failure left unconsumed: the holding
-    // transaction's effects do not touch this version.
-    let untouched = f.s.latest_ref(&f.untouched_id);
-    seed_quarantined_lock(&f.s.epoch_store, untouched, f.holding_tx);
-    let contender = f.s.build_transfer(
-        &f.untouched_id,
-        &f.spare_gas_id,
-        f.sender,
-        &f.sender_key,
-        Address::random(),
-    );
-    let contender_digest = *contender.digest();
-    let at_horizon = failed_at + f.s.horizon_distance();
-
-    let mut transactions = vec![make_user_tx_v1_verified(contender.clone())];
-    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
-        &f.s.authority,
-        &f.s.epoch_store,
-        at_horizon - 1,
-        true,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
-    assert!(transactions.is_empty());
-    assert!(
-        matches!(
-            dropped.as_slice(),
-            [(digest, IotaError::ObjectLockConflict { obj_ref, pending_transaction })]
-                if *digest == contender_digest
-                    && *obj_ref == untouched
-                    && *pending_transaction == f.holding_tx
-        ),
-        "{dropped:?}"
-    );
-
-    let mut transactions = vec![make_user_tx_v1_verified(contender)];
-    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
-        &f.s.authority,
-        &f.s.epoch_store,
-        at_horizon,
-        true,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
-    assert!(dropped.is_empty(), "{dropped:?}");
-    assert_eq!(transactions.len(), 1);
-    assert_eq!(locks.get(&untouched), Some(&contender_digest));
-}
-
-/// A failed holding transaction that consumed the locked version keeps its
-/// lock: the failure still spent that version.
-#[tokio::test]
-async fn lock_on_a_version_the_failed_holding_transaction_consumed_is_not_released() {
+async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_on_its_lock() {
     let failed_at = 5;
     let f = setup_failed_holding_transaction(failed_at).await;
     seed_quarantined_lock(&f.s.epoch_store, f.consumed_gas, f.holding_tx);
@@ -7854,47 +7711,6 @@ async fn lock_on_a_version_the_failed_holding_transaction_consumed_is_not_releas
         ),
         "{dropped:?}"
     );
-}
-
-/// An already-executed transaction whose input is locked by a holding
-/// transaction whose failure released that version is retained and takes the
-/// lock, rather than being reported as out-locked. The replay of its commit,
-/// as after a restart, is where validation meets the executed transaction.
-#[tokio::test]
-async fn already_executed_winner_takes_a_lock_its_failed_holding_transaction_released() {
-    let failed_at = 5;
-    let f = setup_failed_holding_transaction(failed_at).await;
-    let untouched = f.s.latest_ref(&f.untouched_id);
-    seed_quarantined_lock(&f.s.epoch_store, untouched, f.holding_tx);
-    let winner = f.s.build_transfer(
-        &f.untouched_id,
-        &f.spare_gas_id,
-        f.sender,
-        &f.sender_key,
-        Address::random(),
-    );
-    let winner_digest = *winner.digest();
-    let at_horizon = failed_at + f.s.horizon_distance();
-
-    // The handler keeps the winner once the horizon reaches the failure, and
-    // the winner executes. The watcher completes the failure's commit, which
-    // the handler waits for before validating.
-    let _watcher = f.s.start_execution_watcher();
-    let scheduled =
-        f.s.process_at(at_horizon, std::slice::from_ref(&winner))
-            .await;
-    assert_eq!(scheduled.len(), 1);
-    f.s.execute(winner.clone());
-
-    // The handler's output replaced the holding transaction's lock with the
-    // winner's. Seeded again, it is the lock the replay finds.
-    seed_quarantined_lock(&f.s.epoch_store, untouched, f.holding_tx);
-    let replayed =
-        f.s.validate_at(at_horizon, std::slice::from_ref(&winner))
-            .await;
-    assert!(replayed.dropped.is_empty(), "{:?}", replayed.dropped);
-    assert_eq!(replayed.kept, vec![winner_digest]);
-    assert_eq!(replayed.locks.get(&untouched), Some(&winner_digest));
 }
 
 /// A bookkeeping setup with the flags on, a shared object that was never made

@@ -179,7 +179,7 @@ use consensus_quarantine::{
 };
 use handler_object_state::{
     AssignedCommit, CommitIndex, FlushedCommitRows, HandlerObjectState, HandlerProcessedObject,
-    failed_transactions_for_commit, handler_rows_for_commit,
+    handler_rows_for_commit,
 };
 use iota_types::crypto::AggregateAuthorityPublicKey;
 use scorer::Scoreboard;
@@ -875,11 +875,6 @@ pub struct AuthorityEpochTables {
     /// per commit, one point lookup per validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
-
-    /// Failed transactions of commits the handler processed, each with the
-    /// index of its commit (see [`handler_object_state`]). Flushed with the
-    /// handler-processed rows; one write per failed transaction.
-    failed_transaction_commits: DBMap<TransactionDigest, CommitIndex>,
 
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
@@ -2116,7 +2111,6 @@ impl AuthorityPerEpochStore {
         &self,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
-        failed_transactions: &[(TransactionDigest, CommitIndex)],
     ) -> IotaResult {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(());
@@ -2130,23 +2124,18 @@ impl AuthorityPerEpochStore {
         // Held so a flush cannot complete this commit between the guard inside
         // and the upserts: the flush runs under the write lock throughout.
         let _quarantine = self.consensus_quarantine.read();
-        handler_object_state.record_commit_fully_executed(
-            index,
-            upserts,
-            &inserts,
-            failed_transactions,
-        );
+        handler_object_state.record_commit_fully_executed(index, upserts, &inserts);
         Ok(())
     }
 
-    /// Stages the handler rows and failed transactions of a commit flushing
-    /// out of the quarantine into `batch`. Returns them for the caller to
-    /// evict once `batch` is durable, or `None` when the bookkeeping is off.
+    /// Stages the handler rows of a commit flushing out of the quarantine into
+    /// `batch`. Returns them for the caller to evict once `batch` is durable, or `None`
+    /// when the bookkeeping is off.
     ///
     /// A commit the watcher completed stages only its rows still in the
-    /// overlays; see [`HandlerObjectState::take_completed_commit_rows`].
+    /// overlay; see [`HandlerObjectState::take_completed_commit_rows`].
     /// Otherwise the flush completes the commit, deriving its rows from the
-    /// effects of the transactions it checkpointed: the overlays hold nothing
+    /// effects of the transactions it checkpointed: the overlay holds nothing
     /// for a commit replayed after a restart, since its transactions executed
     /// before the crash and the execution hook does not run for them again.
     fn stage_flushed_commit_rows(
@@ -2162,45 +2151,30 @@ impl AuthorityPerEpochStore {
             return Ok(None);
         }
         let tables = self.tables()?;
-        let (rows, failed_transactions) = match handler_object_state
-            .take_completed_commit_rows(index)
-        {
-            Some(rows) => (
-                rows,
-                handler_object_state.failed_transactions_of_commit(index),
-            ),
+        let rows = match handler_object_state.take_completed_commit_rows(index) {
+            Some(rows) => rows,
             None => {
-                let effects = self.root_effects_of_commit(&tables, index, pending_checkpoints)?;
-                let rows = handler_rows_for_commit(&effects, index);
+                let rows = self.handler_rows_from_effects(&tables, index, pending_checkpoints)?;
                 handler_object_state.complete_commit_at_flush(index, &rows);
-                (rows, failed_transactions_for_commit(&effects, index))
+                rows
             }
         };
-        handler_object_state.write_commit_rows_to_batch(
-            &tables,
-            batch,
-            &rows,
-            &failed_transactions,
-        )?;
-        Ok(Some(FlushedCommitRows {
-            index,
-            rows,
-            failed_transactions,
-        }))
+        handler_object_state.write_commit_rows_to_batch(&tables, batch, &rows)?;
+        Ok(Some(FlushedCommitRows { index, rows }))
     }
 
-    /// The effects of the transactions the pending checkpoints of commit
-    /// `index` hold.
+    /// The handler rows of commit `index`, derived from the effects of the
+    /// transactions its pending checkpoints hold.
     ///
     /// Every root of a flushing commit is in a checkpoint that has been built
     /// and executed, so it has a digest and effects. A root missing either is
     /// an error, so the flush batch is never written without its rows.
-    fn root_effects_of_commit(
+    fn handler_rows_from_effects(
         &self,
         tables: &AuthorityEpochTables,
         index: CommitIndex,
         pending_checkpoints: &[PendingCheckpoint],
-    ) -> IotaResult<Vec<TransactionEffects>> {
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
         let mut digests = Vec::new();
         for key in pending_checkpoints
             .iter()
@@ -2217,14 +2191,16 @@ impl AuthorityPerEpochStore {
             digests.push(digest);
         }
 
-        self.effects_store()
+        let effects = self
+            .effects_store()
             .multi_get_executed_effects(&digests)
             .into_iter()
             .zip(&digests)
             .map(|(effects, digest)| {
                 effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
             })
-            .collect()
+            .collect::<IotaResult<Vec<_>>>()?;
+        Ok(handler_rows_for_commit(&effects, index))
     }
 
     /// Evicts the overlay entries of commits whose rows are now durable, and
@@ -2235,11 +2211,7 @@ impl AuthorityPerEpochStore {
             return;
         };
         for commit in flushed {
-            handler_object_state.evict_flushed_commit_rows(
-                commit.index,
-                &commit.rows,
-                &commit.failed_transactions,
-            );
+            handler_object_state.evict_flushed_commit_rows(commit.index, &commit.rows);
         }
     }
 
@@ -2336,19 +2308,6 @@ impl AuthorityPerEpochStore {
         handler_object_state.highest_handler_processed_row_below(&tables, id, version)
     }
 
-    /// The index of the commit that holds transaction `digest`, when its
-    /// execution failed; see [`HandlerObjectState::failed_transaction_commit`].
-    pub fn failed_transaction_commit(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<CommitIndex>> {
-        let Some(handler_object_state) = &self.handler_object_state else {
-            return Ok(None);
-        };
-        let tables = self.tables()?;
-        handler_object_state.failed_transaction_commit(&tables, digest)
-    }
-
     #[cfg(test)]
     pub fn handler_object_state_for_testing(&self) -> &HandlerObjectState {
         self.handler_object_state
@@ -2386,7 +2345,7 @@ impl AuthorityPerEpochStore {
         let _quarantine = self.consensus_quarantine.write();
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state_for_testing()
-            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows, &[])?;
+            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
         let resume_point = tables
             .get_last_consensus_index()?
             .map_or(0, |index| index.sub_dag_index);
@@ -2409,7 +2368,7 @@ impl AuthorityPerEpochStore {
         between();
         batch.write()?;
         self.handler_object_state_for_testing()
-            .evict_flushed_commit_rows(commit_index, &handler_rows, &[]);
+            .evict_flushed_commit_rows(commit_index, &handler_rows);
         Ok(())
     }
 
@@ -2421,16 +2380,6 @@ impl AuthorityPerEpochStore {
         key: &ObjectKey,
     ) -> IotaResult<Option<HandlerProcessedObject>> {
         Ok(self.tables()?.handler_processed_objects.get(key)?)
-    }
-
-    /// The commit index of failed transaction `digest` in the durable table,
-    /// skipping the overlay.
-    #[cfg(test)]
-    pub fn durable_failed_transaction_commit_for_testing(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<CommitIndex>> {
-        Ok(self.tables()?.failed_transaction_commits.get(digest)?)
     }
 
     /// Runs `during` while holding the consensus quarantine write lock, as a
