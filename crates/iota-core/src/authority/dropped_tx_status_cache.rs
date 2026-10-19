@@ -19,6 +19,9 @@ const MAX_DROPPED_ENTRIES: usize = 100_000;
 pub(crate) struct DroppedTxStatusCache {
     inner: RwLock<Inner>,
     notify_read: NotifyRead<TransactionDigest, IotaError>,
+    /// Told about every drop that `notify_read` is told about, and also about
+    /// the drop of one copy of a digest, which is not the digest's status.
+    any_drop_notify_read: NotifyRead<TransactionDigest, IotaError>,
 }
 
 struct Inner {
@@ -58,6 +61,7 @@ impl DroppedTxStatusCache {
         Self {
             inner: RwLock::new(Inner::new()),
             notify_read: NotifyRead::new(),
+            any_drop_notify_read: NotifyRead::new(),
         }
     }
 
@@ -74,6 +78,7 @@ impl DroppedTxStatusCache {
         // so the register-then-check pattern in notify_read_dropped is safe.
         for (digest, error) in dropped {
             self.notify_read.notify(digest, error);
+            self.any_drop_notify_read.notify(digest, error);
         }
     }
 
@@ -83,6 +88,17 @@ impl DroppedTxStatusCache {
     pub(crate) fn notify_without_recording(&self, dropped: &[(TransactionDigest, IotaError)]) {
         for (digest, error) in dropped {
             self.notify_read.notify(digest, error);
+            self.any_drop_notify_read.notify(digest, error);
+        }
+    }
+
+    /// Notify only the waiters of [`Self::notify_read_any_drop`] of the drop
+    /// of one copy of each digest at a commit. Another copy of the same
+    /// digest can still be kept, so the drop is neither recorded nor sent to
+    /// the waiters of [`Self::notify_read_dropped`].
+    pub(crate) fn notify_dropped_copies(&self, dropped: &[(TransactionDigest, IotaError)]) {
+        for (digest, error) in dropped {
+            self.any_drop_notify_read.notify(digest, error);
         }
     }
 
@@ -102,6 +118,16 @@ impl DroppedTxStatusCache {
     /// race where `notify()` fires before the caller registers.
     pub(crate) async fn notify_read_dropped(&self, digest: TransactionDigest) -> IotaError {
         let registration = self.notify_read.register_one(&digest);
+        if let Some(error) = self.inner.read().entries.get(&digest) {
+            return error.clone();
+        }
+        registration.await
+    }
+
+    /// Like [`Self::notify_read_dropped`], but also returns on the drop of one
+    /// copy of the digest at a commit, which is not the digest's status.
+    pub(crate) async fn notify_read_any_drop(&self, digest: TransactionDigest) -> IotaError {
+        let registration = self.any_drop_notify_read.register_one(&digest);
         if let Some(error) = self.inner.read().entries.get(&digest) {
             return error.clone();
         }
@@ -181,6 +207,39 @@ mod tests {
             .await
             .is_err(),
             "a request after the keep must wait for the kept transaction's outcome"
+        );
+    }
+
+    /// The drop of one copy of a digest ends a wait for any drop, but is not
+    /// sent to a status request nor recorded for a later one.
+    #[tokio::test]
+    async fn test_dropped_copy_ends_only_a_wait_for_any_drop() {
+        let cache = DroppedTxStatusCache::new();
+        let digest = TransactionDigest::random();
+        let any_drop = cache.notify_read_any_drop(digest);
+        let status = cache.notify_read_dropped(digest);
+        futures::pin_mut!(any_drop, status);
+        assert!(futures::poll!(&mut any_drop).is_pending());
+        assert!(futures::poll!(&mut status).is_pending());
+
+        cache.notify_dropped_copies(&[(digest, IotaError::TransactionExpired)]);
+
+        let error = timeout(Duration::from_secs(5), any_drop)
+            .await
+            .expect("a wait for any drop must end at the drop of a copy");
+        assert_eq!(error, IotaError::TransactionExpired);
+        assert!(
+            timeout(Duration::from_millis(100), status).await.is_err(),
+            "a status request must not get the drop of a copy"
+        );
+        assert!(
+            timeout(
+                Duration::from_millis(100),
+                cache.notify_read_dropped(digest)
+            )
+            .await
+            .is_err(),
+            "the drop of a copy must not be recorded"
         );
     }
 
