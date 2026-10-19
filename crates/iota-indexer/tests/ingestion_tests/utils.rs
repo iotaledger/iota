@@ -18,7 +18,7 @@ use iota_types::{
 };
 use simulacrum::Simulacrum;
 
-use crate::common::start_simulacrum_grpc_with_write_indexer;
+use crate::common::{indexer_wait_for_checkpoint, start_simulacrum_grpc_with_write_indexer};
 
 macro_rules! read_only_blocking {
     ($pool:expr, $query:expr) => {{
@@ -39,11 +39,24 @@ macro_rules! read_only_blocking {
     }};
 }
 
+/// Asserts that `$table` has rows if `$ingested` is `true`, or is empty if it is `false`.
+///
+/// `$table` is a module of `iota_indexer::schema` in scope at the call site. The macro
+/// expands to a future that returns `Result<(), IndexerError>`.
+///
+/// # Examples
+///
+/// ```ignore
+/// assert_row_count!(&pg_store, events, level.includes(FilteredQueries)).await?;
+/// ```
 macro_rules! assert_row_count {
     ($pg_store:expr, $table:ident, $ingested:expr) => {
         async {
+            use ::diesel::{QueryDsl as _, RunQueryDsl as _};
+            use ::iota_indexer::errors::Context as _;
+
             let table_name = stringify!($table);
-            let count = read_only_blocking!($pg_store.blocking_cp(), |conn| {
+            let count = $crate::utils::read_only_blocking!($pg_store.blocking_cp(), |conn| {
                 $table::table.count().get_result::<i64>(conn)
             })
             .context(&format!("failed reading {table_name}"))?;
@@ -52,7 +65,7 @@ macro_rules! assert_row_count {
             } else {
                 assert_eq!(count, 0, "{table_name} is not empty");
             };
-            Ok::<(), IndexerError>(())
+            Ok::<(), ::iota_indexer::errors::IndexerError>(())
         }
     };
 }
@@ -168,6 +181,18 @@ impl TestSim {
     }
 }
 
+/// Starts an indexer that has ingested a simulated genesis checkpoint.
+pub(crate) async fn start_indexer_at_genesis(
+    level: OperationalLevel,
+    database_name: &str,
+) -> PgIndexerStore {
+    let sim = TestSim::new(level, database_name);
+    let pg_store = sim.start_indexer(None).await;
+    indexer_wait_for_checkpoint(&pg_store, 0).await;
+    pg_store
+}
+
+/// A trait for ingestion tests that need non-trivial setup or assertion.
 pub(crate) trait IngestionTest {
     /// The lowest level that ingests the tables of the test.
     const MIN_LEVEL: OperationalLevel = OperationalLevel::Basic;

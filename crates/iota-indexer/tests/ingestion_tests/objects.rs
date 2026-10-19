@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use iota_indexer::{
     errors::{Context, IndexerError},
@@ -36,7 +34,10 @@ use crate::{
         indexer_wait_for_checkpoint,
         object_versions::find_object_versions_at_checkpoint,
     },
-    utils::{IngestionTest, TestSim, find_object_ref, read_only_blocking},
+    utils::{
+        IngestionTest, TestSim, assert_row_count, find_object_ref, read_only_blocking,
+        start_indexer_at_genesis,
+    },
 };
 
 #[tokio::test]
@@ -120,20 +121,12 @@ pub async fn objects_version_ingestion_wraps_and_removals(
 
 #[rstest]
 #[tokio::test]
-pub async fn display_table(
+pub async fn displays_and_packages(
     #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
 ) -> Result<(), IndexerError> {
-    DisplayTable.run(level, "ingestion_display_table").await
-}
-
-#[rstest]
-#[tokio::test]
-pub async fn packages_table(
-    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
-) -> Result<(), IndexerError> {
-    PackagesTable(DisplayTable)
-        .run(level, "ingestion_packages_table")
-        .await
+    let pg_store = start_indexer_at_genesis(level, "ingestion_displays_and_packages").await;
+    assert_row_count!(&pg_store, display, true).await?;
+    assert_row_count!(&pg_store, packages, true).await
 }
 
 struct ObjectType;
@@ -496,12 +489,7 @@ impl IngestionTest for BackwardHistoryIngestion {
     }
 
     async fn assert_not_ingested(&self, pg_store: &PgIndexerStore) -> Result<(), IndexerError> {
-        let count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            objects_backward_history::table.count().get_result(conn)
-        })
-        .context("failed reading objects_backward_history")?;
-        assert_eq!(count, 0, "objects_backward_history must be empty");
-        Ok(())
+        assert_row_count!(pg_store, objects_backward_history, false).await
     }
 }
 
@@ -826,94 +814,4 @@ async fn assert_present(
         "expected {label} in cp{cp}; rows: {rows:?}",
     );
     Ok(())
-}
-
-struct DisplayTable;
-
-impl IngestionTest for DisplayTable {
-    /// The ID of the published `display_no_version_update` package.
-    type ExpectedState = ObjectId;
-
-    /// Publishes the `display_no_version_update` test package in checkpoint 1.
-    ///
-    /// The `init` of the package creates a `Display<Nft>`, but it does not
-    /// call `display::update_version`.
-    async fn setup(
-        &self,
-        level: OperationalLevel,
-        database_name: &str,
-    ) -> (PgIndexerStore, Self::ExpectedState) {
-        let sim = TestSim::new(level, database_name);
-        let sender = sim.sender();
-        let rgp = sim.inner.reference_gas_price();
-        let publish_fx = sim.execute_signed(
-            TestTransactionBuilder::new(sender, sim.pick_gas(), rgp)
-                .publish(
-                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                        .join("tests/data/display_no_version_update"),
-                )
-                .build(),
-        );
-        let package_id = publish_fx
-            .created()
-            .into_iter()
-            .find(|created| matches!(created.owner(), Owner::Immutable))
-            .expect("publish must create an immutable package")
-            .reference()
-            .object_id;
-        sim.inner.create_checkpoint();
-
-        let pg_store = sim.start_indexer(None).await;
-        indexer_wait_for_checkpoint(&pg_store, 1).await;
-        (pg_store, package_id)
-    }
-
-    async fn assert_ingested(
-        &self,
-        pg_store: &PgIndexerStore,
-        package_id: Self::ExpectedState,
-    ) -> Result<(), IndexerError> {
-        let object_type = format!("{package_id}::display_no_version_update::Nft");
-        let filter = object_type.clone();
-        let count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            display::table
-                .filter(display::object_type.eq(filter))
-                .count()
-                .get_result(conn)
-        })
-        .context("failed reading display")?;
-        assert_eq!(count, 1, "display must have a row for {object_type}");
-        Ok(())
-    }
-}
-
-struct PackagesTable(DisplayTable);
-
-impl IngestionTest for PackagesTable {
-    /// The ID of the published `display_no_version_update` package.
-    type ExpectedState = ObjectId;
-
-    async fn setup(
-        &self,
-        level: OperationalLevel,
-        database_name: &str,
-    ) -> (PgIndexerStore, Self::ExpectedState) {
-        self.0.setup(level, database_name).await
-    }
-
-    async fn assert_ingested(
-        &self,
-        pg_store: &PgIndexerStore,
-        package_id: Self::ExpectedState,
-    ) -> Result<(), IndexerError> {
-        let count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            packages::table
-                .filter(packages::package_id.eq(package_id.as_bytes().to_vec()))
-                .count()
-                .get_result(conn)
-        })
-        .context("failed reading packages")?;
-        assert_eq!(count, 1, "packages must have a row for {package_id}");
-        Ok(())
-    }
 }

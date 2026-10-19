@@ -52,9 +52,11 @@ pub async fn transaction_table(
 pub async fn tx_global_order_table(
     #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
 ) -> Result<(), IndexerError> {
-    TxGlobalOrderTable::new(false)
-        .run(level, "ingestion_tx_global_order")
-        .await
+    TxGlobalOrderTable {
+        pre_inserted: false,
+    }
+    .run(level, "ingestion_tx_global_order")
+    .await
 }
 
 #[rstest]
@@ -62,7 +64,7 @@ pub async fn tx_global_order_table(
 pub async fn tx_global_order_table_on_conflict_do_nothing(
     #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
 ) -> Result<(), IndexerError> {
-    TxGlobalOrderTable::new(true)
+    TxGlobalOrderTable { pre_inserted: true }
         .run(level, "ingestion_tx_global_order_on_conflict_do_nothing")
         .await
 }
@@ -101,9 +103,10 @@ pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
 pub async fn tx_index_tables(
     #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
 ) -> Result<(), IndexerError> {
-    TxIndexTables(ObjectsVersionIngestionWrapsAndRemovals)
-        .run(level, "ingestion_tx_index_tables")
-        .await
+    let (pg_store, _) = ObjectsVersionIngestionWrapsAndRemovals
+        .setup(level, "ingestion_tx_index_tables")
+        .await;
+    assert_count_tx_index(&pg_store, level.includes(FilteredQueries)).await
 }
 
 struct TransactionTable;
@@ -161,12 +164,6 @@ struct TxGlobalOrderTable {
     /// If `true`, a DB init hook inserts the `tx_global_order` row before the
     /// indexer starts, as optimistic indexing does.
     pre_inserted: bool,
-}
-
-impl TxGlobalOrderTable {
-    fn new(pre_inserted: bool) -> Self {
-        Self { pre_inserted }
-    }
 }
 
 impl IngestionTest for TxGlobalOrderTable {
@@ -246,46 +243,18 @@ fn emulate_insertion_order_set_earlier_by_optimistic_indexing(
     })
 }
 
-struct TxIndexTables(ObjectsVersionIngestionWrapsAndRemovals);
-
-impl TxIndexTables {
-    async fn assert(pg_store: &PgIndexerStore, ingested: bool) -> Result<(), IndexerError> {
-        assert_row_count!(pg_store, tx_input_objects, ingested).await?;
-        assert_row_count!(pg_store, tx_changed_objects, ingested).await?;
-        assert_row_count!(pg_store, tx_wrapped_or_deleted_objects, ingested).await?;
-        assert_row_count!(pg_store, tx_senders, ingested).await?;
-        assert_row_count!(pg_store, tx_recipients, ingested).await?;
-        assert_row_count!(pg_store, tx_kinds, ingested).await?;
-        assert_row_count!(pg_store, tx_calls_pkg, ingested).await?;
-        assert_row_count!(pg_store, tx_calls_mod, ingested).await?;
-        assert_row_count!(pg_store, tx_calls_fun, ingested).await?;
-        Ok(())
-    }
-}
-
-impl IngestionTest for TxIndexTables {
-    type ExpectedState = ();
-
-    const MIN_LEVEL: OperationalLevel = FilteredQueries;
-
-    async fn setup(
-        &self,
-        level: OperationalLevel,
-        database_name: &str,
-    ) -> (PgIndexerStore, Self::ExpectedState) {
-        let (pg_store, _) = self.0.setup(level, database_name).await;
-        (pg_store, ())
-    }
-
-    async fn assert_ingested(
-        &self,
-        pg_store: &PgIndexerStore,
-        _state: Self::ExpectedState,
-    ) -> Result<(), IndexerError> {
-        Self::assert(pg_store, true).await
-    }
-
-    async fn assert_not_ingested(&self, pg_store: &PgIndexerStore) -> Result<(), IndexerError> {
-        Self::assert(pg_store, false).await
-    }
+async fn assert_count_tx_index(
+    pg_store: &PgIndexerStore,
+    ingested: bool,
+) -> Result<(), IndexerError> {
+    assert_row_count!(pg_store, tx_input_objects, ingested).await?;
+    assert_row_count!(pg_store, tx_changed_objects, ingested).await?;
+    assert_row_count!(pg_store, tx_wrapped_or_deleted_objects, ingested).await?;
+    assert_row_count!(pg_store, tx_senders, ingested).await?;
+    assert_row_count!(pg_store, tx_recipients, ingested).await?;
+    assert_row_count!(pg_store, tx_kinds, ingested).await?;
+    assert_row_count!(pg_store, tx_calls_pkg, ingested).await?;
+    assert_row_count!(pg_store, tx_calls_mod, ingested).await?;
+    assert_row_count!(pg_store, tx_calls_fun, ingested).await?;
+    Ok(())
 }
