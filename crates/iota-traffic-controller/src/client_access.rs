@@ -228,8 +228,8 @@ impl ClientAccessManager {
 
     /// Refuses `client`, which reached this node through a fullnode, for the
     /// proxy blocklist TTL. No-op in allowlist mode and while the TTL is zero.
-    /// Not logged: the client
-    /// never connects to this node, so a host firewall cannot act on it.
+    /// Not logged: the client never connects to this node, so a host firewall
+    /// cannot act on it.
     pub fn block_proxied_client(&self, client: IpAddr, reason: BlockReason) {
         if let Access::Blocklist { blocklists, .. } = &self.access {
             insert_block(
@@ -369,7 +369,15 @@ fn insert_block(
         }
         Entry::Occupied(mut entry) => {
             let block = entry.get_mut();
-            let already_logged = block.logged && now < block.expiration;
+            let active = now < block.expiration;
+            let already_logged = block.logged && active;
+            // A breach never shortens an active block, so that the block lasts
+            // at least as long as its log line told the firewall.
+            let expiration = if active {
+                block.expiration.max(expiration)
+            } else {
+                expiration
+            };
             *block = Block {
                 expiration,
                 reason,
@@ -456,6 +464,17 @@ mod tests {
                 }
             }
         }
+
+        /// When the block of the direct client `client` expires, if it has one.
+        fn client_block_expiration(&self, client: IpAddr) -> Option<SystemTime> {
+            match &self.access {
+                Access::Blocklist { blocklists, .. } => blocklists
+                    .clients
+                    .get(&client)
+                    .map(|block| block.expiration),
+                Access::Allowlist(_) => None,
+            }
+        }
     }
 
     fn manager(policy_config: PolicyConfig) -> ClientAccessManager {
@@ -492,6 +511,20 @@ mod tests {
         manager.block_client(CLIENT, BlockReason::Spam);
         manager.expire_client_blocks();
         assert!(manager.check(&Some(CLIENT), &None));
+    }
+
+    #[tokio::test]
+    async fn a_breach_never_shortens_an_active_block() {
+        let manager = manager(blocklist_mode(false, 3600));
+        manager.block_client(CLIENT, BlockReason::Spam);
+        let first_expiration = manager.client_block_expiration(CLIENT).unwrap();
+
+        manager.reconfigure(None, Some(60), None);
+        manager.block_client(CLIENT, BlockReason::Spam);
+        assert_eq!(
+            manager.client_block_expiration(CLIENT),
+            Some(first_expiration)
+        );
     }
 
     #[tokio::test]

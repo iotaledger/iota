@@ -12,7 +12,7 @@ use std::{fmt, net::IpAddr};
 use tracing::info;
 
 /// Tracing target of the block log line.
-pub const BLOCK_LOG_TARGET: &str = "iota_node::client_blocked";
+pub(crate) const BLOCK_LOG_TARGET: &str = "iota_node::client_blocked";
 
 /// The policy whose limit the client exceeded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,9 +34,10 @@ impl fmt::Display for BlockReason {
 /// it once when a block takes effect, not for every refused request, and not
 /// for a block that dry run keeps from taking effect.
 ///
-/// The line carries no span context, so that it reads the same whichever
-/// request caused the block.
-pub fn log_block(client: IpAddr, reason: BlockReason, ttl_secs: u64) {
+/// In the plain-text log the line carries no span, so that it reads the same
+/// whichever request caused the block. The JSON log may still add the span of
+/// that request after the `target` key.
+pub(crate) fn log_block(client: IpAddr, reason: BlockReason, ttl_secs: u64) {
     info!(
         target: BLOCK_LOG_TARGET,
         parent: None,

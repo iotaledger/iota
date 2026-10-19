@@ -6,7 +6,7 @@
 //! policies inline, so a breaching client is blocked before
 //! [`TrafficController::tally`] returns.
 
-pub mod block_log;
+mod block_log;
 mod client_access;
 pub mod metrics;
 pub mod policies;
