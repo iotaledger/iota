@@ -27,7 +27,7 @@ use tracing::error;
 
 use self::{
     block_log::BlockReason,
-    client_access::{ClientAccessManager, client_prefix, validate_blocklist_ttls},
+    client_access::{ClientAccessManager, client_prefix},
     metrics::TrafficControllerMetrics,
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
@@ -104,7 +104,10 @@ impl TrafficController {
         )
     }
 
+    /// The settings in force. The thresholds and the blocklist TTLs are
+    /// `None` in allowlist mode, which neither tallies nor blocks.
     pub fn get_current_state(&self) -> TrafficControlReconfigParams {
+        let ttls = self.client_access.blocklist_ttls_sec();
         TrafficControlReconfigParams {
             error_threshold: self
                 .policies
@@ -115,8 +118,8 @@ impl TrafficController {
                 .as_ref()
                 .and_then(|policies| policies.spam.client_threshold()),
             dry_run: Some(self.client_access.dry_run()),
-            connection_blocklist_ttl_sec: Some(self.client_access.connection_blocklist_ttl_sec()),
-            proxy_blocklist_ttl_sec: Some(self.client_access.proxy_blocklist_ttl_sec()),
+            connection_blocklist_ttl_sec: ttls.map(|(connection, _)| connection),
+            proxy_blocklist_ttl_sec: ttls.map(|(_, proxy)| proxy),
         }
     }
 
@@ -153,7 +156,8 @@ impl TrafficController {
                 validate_threshold(policy, threshold, kind)?;
             }
         }
-        validate_blocklist_ttls(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
+        self.client_access
+            .validate_reconfigure(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
             .map_err(IotaError::InvalidAdminRequest)?;
         for (threshold, policy, gauge, _) in updates {
             if let (Some(threshold), Some(policy)) = (threshold, policy) {
@@ -930,5 +934,57 @@ mod tests {
         }
         let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
         assert!(!controller.check(&Some(stranger), &None));
+    }
+
+    fn allowlist_mode() -> TrafficController {
+        TrafficController::init_for_test(PolicyConfig {
+            allow_list: Some(vec![CLIENT.to_string()]),
+            dry_run: false,
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn allowlist_mode_reports_no_blocklist_ttls() {
+        let state = allowlist_mode().get_current_state();
+        assert_eq!(state.connection_blocklist_ttl_sec, None);
+        assert_eq!(state.proxy_blocklist_ttl_sec, None);
+    }
+
+    #[test]
+    fn the_admin_api_rejects_a_blocklist_ttl_in_allowlist_mode() {
+        let controller = allowlist_mode();
+        for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in
+            [(Some(60), None), (None, Some(60))]
+        {
+            let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(true),
+                connection_blocklist_ttl_sec,
+                proxy_blocklist_ttl_sec,
+            });
+            assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+        }
+        // A rejected request applies nothing, not even its valid settings.
+        assert_eq!(controller.get_current_state().dry_run, Some(false));
+    }
+
+    #[test]
+    fn the_admin_api_turns_dry_run_on_in_allowlist_mode() {
+        let controller = allowlist_mode();
+        let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
+        assert!(!controller.check(&Some(stranger), &None));
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(true),
+                connection_blocklist_ttl_sec: None,
+                proxy_blocklist_ttl_sec: None,
+            })
+            .expect("allowlist mode has a dry-run flag");
+        assert!(controller.check(&Some(stranger), &None));
     }
 }
