@@ -2732,6 +2732,18 @@ impl AuthorityPerEpochStore {
             .await
     }
 
+    /// Wait for any drop of a transaction at a commit. Unlike
+    /// [`Self::notify_read_dropped_digests`], this also returns on the drop of
+    /// one copy of the transaction for a reason that may come from that
+    /// copy's own signatures, which leaves the digest open for another copy.
+    /// Not for answering a client: the error returned is not necessarily
+    /// the final status of the transaction.
+    pub(crate) async fn notify_read_any_drop(&self, digest: TransactionDigest) -> IotaError {
+        self.dropped_tx_status_cache
+            .notify_read_any_drop(digest)
+            .await
+    }
+
     #[cfg(test)]
     pub(crate) fn pending_dropped_digest_requests_for_testing(&self) -> usize {
         self.dropped_tx_status_cache.num_pending_for_testing()
@@ -4886,12 +4898,15 @@ impl AuthorityPerEpochStore {
                 // A drop that may come from the signatures of the copy
                 // validated is not even reported to the current waiters:
                 // another copy can be kept, so they wait for its outcome, or
-                // until their own timeout or the end of the epoch.
+                // until their own timeout or the end of the epoch. The
+                // consensus adapter is still told, so that it stops waiting
+                // for the transaction it submitted.
                 let mut final_drops = Vec::new();
                 let mut not_final = Vec::new();
+                let mut dropped_copies = Vec::new();
                 for (digest, error, decision) in dropped {
                     match decision {
-                        PostConsensusDecision::DroppedCopy => {}
+                        PostConsensusDecision::DroppedCopy => dropped_copies.push((digest, error)),
                         PostConsensusDecision::DroppedInputNotVisibleYet => {
                             not_final.push((digest, error))
                         }
@@ -4901,6 +4916,8 @@ impl AuthorityPerEpochStore {
                 self.dropped_tx_status_cache.insert_and_notify(&final_drops);
                 self.dropped_tx_status_cache
                     .notify_without_recording(&not_final);
+                self.dropped_tx_status_cache
+                    .notify_dropped_copies(&dropped_copies);
             }
 
             // Split back for downstream processing (separate reordering and
