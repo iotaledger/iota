@@ -24,7 +24,7 @@ use iota_types::committee::EpochId;
 use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
 use tracing::{info, warn};
 use typed_store::{
-    TypedStoreError,
+    DBMetrics, TypedStoreError,
     database::Database,
     rocks::{
         DBMap, DBOptions, available_disk_space, list_tables, synced_write_options,
@@ -37,6 +37,9 @@ use typed_store::{
 /// The directory in a node's live database directory that holds the
 /// per-epoch history of all its stores.
 pub const HISTORIC_DB_DIR: &str = "historic";
+
+/// How often a store reports the size of its buckets.
+const SIZE_REPORT_PERIOD: Duration = Duration::from_secs(30);
 
 /// The root a database's buckets live under: `historic_db_path` if given,
 /// otherwise [`HISTORIC_DB_DIR`] in the database directory itself.
@@ -346,7 +349,7 @@ pub(crate) struct EpochBuckets<B> {
     /// Where the buckets keep their files, `None` for a store that keeps them
     /// in the database directory.
     paths: Option<BucketPaths>,
-    buckets: RwLock<BTreeMap<EpochId, Arc<B>>>,
+    buckets: Arc<RwLock<BTreeMap<EpochId, Arc<B>>>>,
     /// Mirrors the persisted retention floor; never moves backwards.
     earliest_retained_epoch: AtomicU64,
     earliest_retained_table: DBMap<(), EpochId>,
@@ -359,7 +362,7 @@ pub(crate) struct EpochBuckets<B> {
     pruning: Mutex<()>,
 }
 
-impl<B: BucketReopen> EpochBuckets<B> {
+impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
     /// Assembles the store's buckets from the ones found on disk, dropping
     /// those below the persisted retention floor, which a failed drop leaves
     /// behind.
@@ -419,18 +422,64 @@ impl<B: BucketReopen> EpochBuckets<B> {
             paths.remove_empty_dirs_below(earliest_retained_epoch);
         }
         let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
+        let buckets = Arc::new(RwLock::new(buckets));
+        Self::spawn_size_reporting(&db, name, cf_prefix, &buckets);
         Ok(Self {
             db,
             name,
             cf_prefix,
             cf_options,
             paths,
-            buckets: RwLock::new(buckets),
+            buckets,
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
             earliest_bucket_epoch: AtomicU64::new(earliest_bucket_epoch),
             pruning: Mutex::new(()),
         })
+    }
+
+    /// Reports the size of the SST files of all the store's buckets together
+    /// under the store's name in `rocksdb_total_sst_files_size`, which reports
+    /// a column family each, while the store is open. The buckets report
+    /// nothing on their own: one series each would grow with every epoch.
+    fn spawn_size_reporting(
+        db: &Arc<Database>,
+        name: &'static str,
+        cf_prefix: &'static str,
+        buckets: &Arc<RwLock<BTreeMap<EpochId, Arc<B>>>>,
+    ) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let db = Arc::downgrade(db);
+        let buckets = Arc::downgrade(buckets);
+        runtime.spawn(async move {
+            let mut interval = tokio::time::interval(SIZE_REPORT_PERIOD);
+            loop {
+                interval.tick().await;
+                let (Some(db), Some(buckets)) = (db.upgrade(), buckets.upgrade()) else {
+                    break;
+                };
+                let epochs: Vec<EpochId> = buckets.read().keys().copied().collect();
+                drop(buckets);
+                let size = tokio::task::spawn_blocking(move || {
+                    epochs
+                        .into_iter()
+                        .filter_map(|epoch| {
+                            db.sst_files_size(&bucket_cf_name(cf_prefix, epoch)).ok()
+                        })
+                        .sum::<u64>()
+                })
+                .await;
+                if let Ok(size) = size {
+                    DBMetrics::get()
+                        .cf_metrics
+                        .rocksdb_total_sst_files_size
+                        .with_label_values(&[name])
+                        .set(size.min(i64::MAX as u64) as i64);
+                }
+            }
+        });
     }
 
     /// The oldest epoch in `buckets`, [`NO_BUCKET`] when there is none.
@@ -796,8 +845,9 @@ mod tests {
     };
 
     use super::{
-        Arc, BTreeMap, BucketPaths, BucketReopen, Database, EpochBuckets, EpochId, Map, Path,
-        PathBuf, TypedStoreError, bucket_cf_epoch, bucket_cf_name, bucket_cf_options, fs, rocksdb,
+        Arc, BTreeMap, BucketPaths, BucketReopen, DBMetrics, Database, Duration, EpochBuckets,
+        EpochId, Map, Path, PathBuf, SIZE_REPORT_PERIOD, TypedStoreError, bucket_cf_epoch,
+        bucket_cf_name, bucket_cf_options, fs, rocksdb,
     };
 
     /// A bucket keeps no memtable in memory once it is flushed: a node holds
@@ -956,6 +1006,14 @@ mod tests {
     fn test_buckets(
         epochs: &[EpochId],
     ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
+        named_test_buckets("test buckets", epochs)
+    }
+
+    /// [`test_buckets`] for a store called `name`.
+    fn named_test_buckets(
+        name: &'static str,
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
         let dir = iota_common::tempdir();
         let db_options = default_db_options().options;
         let cf_names: Vec<String> = epochs
@@ -978,7 +1036,7 @@ mod tests {
 
         let buckets = EpochBuckets::open(
             db,
-            "test buckets",
+            name,
             TEST_CF_PREFIX,
             db_options,
             None,
@@ -1298,5 +1356,36 @@ mod tests {
         let result = buckets.prune(4, 0, |_, _| Err(TypedStoreError::RocksDB("no".to_string())));
         assert!(result.is_err());
         assert_eq!(buckets.iter(false).len(), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_size_of_all_buckets_is_reported_under_the_store_name() {
+        const NAME: &str = "size reporting test buckets";
+        let (buckets, _dir) = named_test_buckets(NAME, &[1, 2]);
+        let mut expected = 0;
+        for epoch in [1, 2] {
+            let cf_name = bucket_cf_name(TEST_CF_PREFIX, epoch);
+            let map: DBMap<u64, Vec<u8>> = DBMap::reopen(
+                &buckets.db,
+                Some(&cf_name),
+                &ReadWriteOptions::default(),
+                true,
+            )
+            .unwrap();
+            map.insert(&epoch, &vec![7; 4096]).unwrap();
+            map.flush().unwrap();
+            expected += buckets.db.sst_files_size(&cf_name).unwrap();
+        }
+        assert!(expected > 0);
+
+        let gauge = DBMetrics::get()
+            .cf_metrics
+            .rocksdb_total_sst_files_size
+            .with_label_values(&[NAME]);
+        let deadline = tokio::time::Instant::now() + SIZE_REPORT_PERIOD * 3;
+        while gauge.get() != expected as i64 && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        assert_eq!(gauge.get(), expected as i64);
     }
 }
