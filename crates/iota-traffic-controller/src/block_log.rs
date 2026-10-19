@@ -11,6 +11,8 @@ use std::{fmt, net::IpAddr};
 
 use tracing::info;
 
+use crate::client_access::ipv6_prefix_len_of;
+
 /// Tracing target of the block log line.
 pub(crate) const BLOCK_LOG_TARGET: &str = "iota_node::client_blocked";
 
@@ -30,9 +32,10 @@ impl fmt::Display for BlockReason {
     }
 }
 
-/// Logs that the node refuses `client` for the next `ttl_secs` seconds. An
-/// IPv6 `client` is the network the node blocks, and the line names it with
-/// its `ipv6_prefix_len`, as in `2001:db8:1:2::/64`, unless that is 128. Call
+/// Logs that the node refuses `client` for the next `ttl_secs` seconds.
+/// `client` is the blocklist key that `client_prefix` gives with
+/// `ipv6_prefix_len`, and the line names a cut IPv6 key with its prefix
+/// length, as in `2001:db8:1:2::/64`. Call
 /// it once when a block takes effect, not for every refused request, and not
 /// for a block that dry run keeps from taking effect.
 ///
@@ -58,7 +61,10 @@ fn block_log_line(
     ttl_secs: u64,
 ) -> String {
     let client = match client.to_canonical() {
-        IpAddr::V6(network) if ipv6_prefix_len < 128 => format!("{network}/{ipv6_prefix_len}"),
+        IpAddr::V6(prefix) => match ipv6_prefix_len_of(prefix, ipv6_prefix_len) {
+            128 => prefix.to_string(),
+            prefix_len => format!("{prefix}/{prefix_len}"),
+        },
         client => client.to_string(),
     };
     format!("client_blocked client={client} reason={reason} ttl_secs={ttl_secs}")
@@ -158,11 +164,20 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn an_ipv6_network_is_named_with_its_prefix_length() {
-        let network = IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 0));
+    fn an_ipv6_prefix_is_named_with_its_length() {
+        let prefix = IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 0));
         assert_eq!(
-            block_log_line(network, 64, BlockReason::Spam, 300),
+            block_log_line(prefix, 64, BlockReason::Spam, 300),
             "client_blocked client=2001:db8:1:2::/64 reason=spam ttl_secs=300"
+        );
+    }
+
+    #[test]
+    fn an_ipv6_address_kept_whole_is_named_without_a_length() {
+        let link_local = IpAddr::V6(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1));
+        assert_eq!(
+            block_log_line(link_local, 64, BlockReason::Spam, 300),
+            "client_blocked client=fe80::1 reason=spam ttl_secs=300"
         );
     }
 

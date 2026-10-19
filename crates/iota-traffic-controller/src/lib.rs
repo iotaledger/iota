@@ -27,7 +27,7 @@ use tracing::error;
 
 use self::{
     block_log::BlockReason,
-    client_access::{ClientAccessManager, client_network, validate_blocklist_ttls},
+    client_access::{ClientAccessManager, client_prefix, validate_blocklist_ttls},
     metrics::TrafficControllerMetrics,
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
@@ -172,8 +172,8 @@ impl TrafficController {
 
     /// Charges the tally against the spam and error policies, and has the
     /// client access manager refuse each client that breaches one, before
-    /// returning. An IPv6 client is charged for its network of
-    /// `ipv6-prefix-len` bits. No-op in allowlist mode.
+    /// returning. An IPv6 client is charged for the first `ipv6-prefix-len`
+    /// bits of its address. No-op in allowlist mode.
     pub fn tally(&self, mut tally: TrafficTally) {
         let Some(policies) = &self.policies else {
             return;
@@ -181,10 +181,10 @@ impl TrafficController {
         let ipv6_prefix_len = self.policy_config.ipv6_prefix_len;
         tally.direct = tally
             .direct
-            .map(|client| client_network(client, ipv6_prefix_len));
+            .map(|client| client_prefix(client, ipv6_prefix_len));
         tally.through_fullnode = tally
             .through_fullnode
-            .map(|client| client_network(client, ipv6_prefix_len));
+            .map(|client| client_prefix(client, ipv6_prefix_len));
         self.metrics.tallies.inc();
         if tally.spam_weight.is_sampled() && self.policy_config.spam_sample_rate.is_sampled() {
             let response = policies.spam.charge(&tally);
@@ -566,7 +566,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_addresses_of_one_ipv6_network_are_counted_and_blocked_together() {
+    async fn the_addresses_of_one_ipv6_prefix_are_counted_and_blocked_together() {
         let controller = TrafficController::init_for_test(PolicyConfig {
             spam_policy_type: PolicyType::TestNConnIP(2),
             ..policy_config(false, PolicyKind::Spam)
