@@ -23,10 +23,10 @@ pub(super) type AuthorityIndex = u8;
 pub enum Attestation {
     /// Produced by the block-proposing validator and authenticated by the
     /// block signature, so it carries no signature of its own.
-    Validator {
+    Authority {
         payload: AttestationData,
         /// Index of the attesting validator in the current epoch's committee
-        validator_index: AuthorityIndex,
+        authority_index: AuthorityIndex,
     },
 }
 
@@ -61,16 +61,16 @@ pub struct AttestedTransaction {
 }
 
 impl Attestation {
-    /// An attestation by the block-proposing validator at `validator_index`.
-    pub fn new_validator(payload: AttestationData, validator_index: AuthorityIndex) -> Self {
-        Self::Validator {
+    /// An attestation by the block-proposing validator at `authority_index`.
+    pub fn new_authority(payload: AttestationData, authority_index: AuthorityIndex) -> Self {
+        Self::Authority {
             payload,
-            validator_index,
+            authority_index,
         }
     }
 
     pub fn computation_units(&self) -> u64 {
-        let Attestation::Validator { payload, .. } = self;
+        let Attestation::Authority { payload, .. } = self;
         let AttestationData::V1 {
             computation_units, ..
         } = payload;
@@ -78,7 +78,7 @@ impl Attestation {
     }
 
     pub fn object_versions(&self) -> &[ObjectReference] {
-        let Attestation::Validator { payload, .. } = self;
+        let Attestation::Authority { payload, .. } = self;
         let AttestationData::V1 {
             object_versions, ..
         } = payload;
@@ -152,11 +152,11 @@ pub struct AttestationRecord {
 
 impl AttestationRecord {
     pub fn new(attestation: &Attestation, verdict: AttestationVerdict) -> Self {
-        let Attestation::Validator {
-            validator_index, ..
+        let Attestation::Authority {
+            authority_index, ..
         } = attestation;
         Self {
-            attestor: *validator_index,
+            attestor: *authority_index,
             verdict,
         }
     }
@@ -196,10 +196,10 @@ mod tests {
     }
 
     #[test]
-    fn attestation_validator_bcs_round_trip() {
-        let attestation = Attestation::Validator {
+    fn attestation_authority_bcs_round_trip() {
+        let attestation = Attestation::Authority {
             payload: make_attestation_data(),
-            validator_index: 3,
+            authority_index: 3,
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
@@ -273,9 +273,9 @@ mod tests {
     fn attested_transaction_bcs_round_trip() {
         let attested = AttestedTransaction::new(
             create_fake_transaction(),
-            Attestation::Validator {
+            Attestation::Authority {
                 payload: make_attestation_data(),
-                validator_index: 0,
+                authority_index: 0,
             },
         );
         let encoded = bcs::to_bytes(&attested).unwrap();

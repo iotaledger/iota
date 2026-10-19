@@ -250,12 +250,12 @@ pub async fn validate_and_resolve_conflicts(
         if let Some(attestation) = attestation {
             let block_author = u8::try_from(tx.0.certificate_author_index)
                 .expect("consensus committee indices fit in a u8");
-            let Attestation::Validator {
-                validator_index, ..
+            let Attestation::Authority {
+                authority_index, ..
             } = attestation;
-            let checked = if *validator_index != block_author {
+            let checked = if *authority_index != block_author {
                 Err(IotaError::AttestationAuthorMismatch {
-                    expected: *validator_index,
+                    expected: *authority_index,
                     actual: block_author,
                 })
             } else {
@@ -274,7 +274,7 @@ pub async fn validate_and_resolve_conflicts(
             authority_state
                 .metrics
                 .post_consensus_attested_tx
-                .with_label_values(&["validator"])
+                .with_label_values(&["authority"])
                 .inc();
         }
 

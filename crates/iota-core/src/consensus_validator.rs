@@ -560,12 +560,12 @@ mod tests {
                 "UserTransactionV2",
                 ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
                     signed_tx.clone(),
-                    Attestation::Validator {
+                    Attestation::Authority {
                         payload: AttestationData::V1 {
                             computation_units: 0,
                             object_versions: vec![],
                         },
-                        validator_index: 0,
+                        authority_index: 0,
                     },
                 ))),
             ),
