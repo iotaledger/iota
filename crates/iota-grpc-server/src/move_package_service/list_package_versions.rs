@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
+    metrics::RequestMetrics,
     types::GrpcReader,
     validation::{
         decode_page_token, encode_page_token, object_id_proto, page_token_mismatch,
@@ -30,9 +31,10 @@ struct PageToken {
     last_version: u64,
 }
 
-#[tracing::instrument(skip(reader))]
+#[tracing::instrument(skip(reader, metrics))]
 pub(crate) fn list_package_versions(
     reader: Arc<GrpcReader>,
+    metrics: &RequestMetrics,
     ListPackageVersionsRequest {
         package_id,
         page_size,
@@ -41,6 +43,7 @@ pub(crate) fn list_package_versions(
         ..
     }: ListPackageVersionsRequest,
 ) -> Result<ListPackageVersionsResponse, RpcError> {
+    metrics.record_requested_max_message_size(max_message_size_bytes);
     let pkg_id = require_object_id(&package_id, "package_id")?;
     let page_size = validate_page_size(page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;

@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Re-exports of the [`iota-rust-sdk`](https://github.com/iotaledger/iota-rust-sdk)
-//! crates pinned by this repository.
+//! crates at the version this repository pins.
 //!
-//! Depend on this crate (instead of declaring your own `iota-rust-sdk` git
-//! dependency) to use those crates version-matched to the revision this
+//! Depend on this crate (instead of declaring your own `iota-rust-sdk`
+//! dependency) to use those crates version-matched to the version this
 //! repository pins. The module layout and feature flags mirror the upstream
 //! `iota-sdk` meta-crate.
 //!
 //! To actually get version unification, reach these crates only through this
-//! crate's re-exports; adding a separate `iota-rust-sdk` git dependency at a
-//! different revision reintroduces incompatible duplicate types.
+//! crate's re-exports; adding a separate `iota-rust-sdk` dependency at a
+//! different version reintroduces incompatible duplicate types.
 
 #[cfg(feature = "grpc")]
 pub use iota_grpc_client as grpc_client;

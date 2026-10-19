@@ -11,20 +11,26 @@ use fastcrypto::{
 };
 use futures::future::join_all;
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointSummary, GasCostSummary, PasskeyPublicKey,
     SimpleSignature, Transaction, UserSignature,
     crypto::{
-        MultisigAggregatedSignature, MultisigCommittee, MultisigMember, PasskeyAuthenticator,
+        Intent, IntentMessage, IntentScope, MultisigAggregatedSignature, MultisigCommittee,
+        MultisigMember, PasskeyAuthenticator,
     },
 };
 use iota_types::{
-    base_types::random_object_ref,
+    base_types::{AuthorityName, random_object_ref},
     committee::Committee,
-    crypto::{AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair},
+    crypto::{
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignature,
+        IotaAuthoritySignature as _, get_authority_key_pair, get_key_pair,
+    },
     messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, SignedCheckpointSummary},
+    messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
         CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
         TransactionEnvelope,
@@ -315,4 +321,55 @@ async fn test_async_verifier_batch_with_invalid_cert_accepts_passkey_multisig() 
             .contains("Passkey sig not supported inside multisig"),
         "unexpected error: {err}"
     );
+}
+
+#[test]
+fn test_authority_capabilities_cache_hit_still_checks_signature() {
+    let (committee, _) = Committee::new_simple_test_committee();
+    let committee = Arc::new(committee);
+    let epoch = committee.epoch();
+    let (_, signer_key): (_, AuthorityKeyPair) = get_authority_key_pair();
+    let (_, other_key): (_, AuthorityKeyPair) = get_authority_key_pair();
+    let signer = AuthorityName::from(signer_key.public());
+
+    let capabilities = AuthorityCapabilitiesV1::new(
+        signer,
+        Chain::Unknown,
+        SupportedProtocolVersions::new_for_testing(1, 10),
+        vec![],
+    );
+    let sign = |key: &AuthorityKeyPair| {
+        let signature = AuthoritySignature::new_secure(
+            &IntentMessage::new(
+                Intent::iota_app(IntentScope::AuthorityCapabilities),
+                &capabilities,
+            ),
+            &epoch,
+            key,
+        );
+        SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities.clone(), signature)
+    };
+    let genuine = sign(&signer_key);
+    let forged = sign(&other_key);
+
+    let verifier = || {
+        SignatureVerifier::new(
+            committee.clone(),
+            BTreeSet::from([signer]),
+            SignatureVerifierMetrics::new(&Registry::new()),
+            true, // accept_passkey_in_multisig
+            true, // additional_multisig_checks
+        )
+    };
+
+    verifier()
+        .verify_authority_capabilities(&forged)
+        .unwrap_err();
+
+    // The same data was already verified under a valid signature, which must not
+    // let a different signature through.
+    let warm = verifier();
+    warm.verify_authority_capabilities(&genuine).unwrap();
+    warm.verify_authority_capabilities(&forged).unwrap_err();
+    warm.verify_authority_capabilities(&genuine).unwrap();
 }

@@ -6,9 +6,11 @@
 //! [`PeakGauge`] keeps the exact maximum over a window of the same length as
 //! that of the quantile gauges, for values that move faster than the scrape
 //! interval and would otherwise only ever be sampled at one arbitrary instant.
+//! [`PeakGaugeVec`] keeps one such peak for each value of a label.
 //! [`IntGaugeWithPeakGauge`] pairs an `IntGauge` with such a peak.
 
 use std::{
+    collections::HashMap,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -16,11 +18,11 @@ use std::{
     time::Instant,
 };
 
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::{Mutex, MutexGuard, RwLock};
 use prometheus_filtered::{
     MetricLevel, Opts, Registry,
     core::{Collector, Desc},
-    prometheus::{IntGauge, proto::MetricFamily},
+    prometheus::{IntGauge, IntGaugeVec, proto::MetricFamily},
 };
 
 use crate::quantile_gauge::{WINDOW_SLOT, WINDOW_SLOTS};
@@ -114,7 +116,8 @@ impl PeakWindow {
 }
 
 /// The highest value observed over the window, exposed as `<name>`. The value
-/// is exact.
+/// is exact. It is a scalar from [`PeakGauge::register`], or the gauge of one
+/// label value from [`PeakGaugeVec::with_label_values`].
 ///
 /// Register with [`PeakGauge::register`], feed it with [`observe`], and the
 /// registry's scrape reports the peak over the current window. A window with
@@ -184,6 +187,87 @@ impl Collector for PeakGauge {
             .map_or(0, |gauge| gauge.get().max(0) as u64);
         self.gauge
             .set(i64::try_from(self.window.max().max(current)).unwrap_or(i64::MAX));
+        self.gauge.collect()
+    }
+}
+
+/// The highest value observed over the window per value of one label, exposed
+/// as `<name>{<label>="..."}`. A series stays after its window empties and then
+/// reports zero, so the label values must be a small fixed set.
+#[derive(Clone)]
+pub struct PeakGaugeVec {
+    gauge: IntGaugeVec,
+    windows: Arc<RwLock<HashMap<String, Arc<PeakWindow>>>>,
+}
+
+impl PeakGaugeVec {
+    /// # Panics
+    ///
+    /// Panics if a metric of this name is already registered.
+    pub fn register(
+        name: &str,
+        help: &str,
+        label: &str,
+        module: &str,
+        registry: &Registry,
+        level: MetricLevel,
+    ) -> Self {
+        let gauge = IntGaugeVec::new(Opts::new(name, help), &[label]).expect("valid gauge options");
+        let this = Self {
+            gauge,
+            windows: Arc::new(RwLock::new(HashMap::new())),
+        };
+        registry
+            .register_filtered(name, module, level, this)
+            .expect("peak gauge registers without collision")
+    }
+
+    /// The peak of `label_values`, created if needed. Its window is shared by
+    /// all peaks of the same label values.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `label_values` does not hold exactly one value.
+    pub fn with_label_values(&self, label_values: &[&str]) -> PeakGauge {
+        let [label_value] = label_values else {
+            panic!("a peak gauge vector has one label");
+        };
+        PeakGauge {
+            gauge: self.gauge.with_label_values(label_values),
+            window: self.window(label_value),
+            floor: None,
+        }
+    }
+
+    fn window(&self, label_value: &str) -> Arc<PeakWindow> {
+        if let Some(window) = self.windows.read().get(label_value) {
+            return window.clone();
+        }
+        self.windows
+            .write()
+            .entry(label_value.to_owned())
+            .or_insert_with(|| Arc::new(PeakWindow::new(Instant::now())))
+            .clone()
+    }
+}
+
+impl Collector for PeakGaugeVec {
+    fn desc(&self) -> Vec<&Desc> {
+        self.gauge.desc()
+    }
+
+    fn collect(&self) -> Vec<MetricFamily> {
+        let windows: Vec<_> = self
+            .windows
+            .read()
+            .iter()
+            .map(|(label, window)| (label.clone(), window.clone()))
+            .collect();
+        for (label_value, window) in windows {
+            self.gauge
+                .with_label_values(&[label_value.as_str()])
+                .set(i64::try_from(window.max()).unwrap_or(i64::MAX));
+        }
         self.gauge.collect()
     }
 }
@@ -459,5 +543,64 @@ mod tests {
             1.0,
             "the window is empty, so the peak is the current gauge"
         );
+    }
+
+    #[test]
+    fn peak_gauge_vec_reports_the_peak_per_label_value() {
+        let registry = Registry::new();
+        let gauge = PeakGaugeVec::register(
+            "test_gauge_vec_peak",
+            "help",
+            "kind",
+            module_path!(),
+            &registry,
+            MetricLevel::Warn,
+        );
+        let (a, b) = (
+            gauge.with_label_values(&["a"]),
+            gauge.with_label_values(&["b"]),
+        );
+        a.observe(2);
+        a.observe(1);
+        b.observe(7);
+        let reader = MetricsReader::new(&registry);
+        assert_eq!(reader.value("test_gauge_vec_peak", &[("kind", "a")]), 2.0);
+        assert_eq!(reader.value("test_gauge_vec_peak", &[("kind", "b")]), 7.0);
+        assert_eq!(
+            gauge.with_label_values(&["a"]).window.max(),
+            2,
+            "a second peak of the label value shares the window"
+        );
+    }
+
+    #[test]
+    fn threads_that_get_the_same_peak_share_one_window() {
+        let registry = Registry::new();
+        let gauge = PeakGaugeVec::register(
+            "test_gauge_vec_threads",
+            "help",
+            "kind",
+            module_path!(),
+            &registry,
+            MetricLevel::Warn,
+        );
+        for round in 0..200 {
+            let label = round.to_string();
+            let barrier = std::sync::Barrier::new(8);
+            std::thread::scope(|scope| {
+                for value in 1..=8 {
+                    let (gauge, barrier, label) = (&gauge, &barrier, label.as_str());
+                    scope.spawn(move || {
+                        barrier.wait();
+                        gauge.with_label_values(&[label]).observe(value);
+                    });
+                }
+            });
+            assert_eq!(
+                gauge.with_label_values(&[&label]).window.max(),
+                8,
+                "round {round}"
+            );
+        }
     }
 }

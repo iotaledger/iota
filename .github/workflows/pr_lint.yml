@@ -31,6 +31,7 @@ jobs:
             upstream
             backport
             release
+            revert
           requireScope: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

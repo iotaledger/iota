@@ -605,3 +605,85 @@ fn sync_checkpoint(
         .update_highest_synced_checkpoint(checkpoint)
         .unwrap();
 }
+
+/// The synced watermark promises that the contents of every checkpoint up to
+/// it are stored: the checkpoint executor loads them as soon as its wait
+/// returns, and panics when they are missing. A write that would carry the
+/// watermark past a checkpoint whose contents are still being downloaded
+/// moves nothing, and the executor waiting for that checkpoint is released
+/// once the checkpoint is marked synced itself.
+#[tokio::test]
+async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+    let committee =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    // Random contents, so that no checkpoint finds its contents under the
+    // digest of another.
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(3, None);
+    for checkpoint in &checkpoints {
+        checkpoint_store
+            .insert_verified_checkpoint(checkpoint)
+            .unwrap();
+    }
+    for i in [0, 2] {
+        checkpoint_store
+            .insert_checkpoint_contents(contents[i].clone().into_checkpoint_contents())
+            .unwrap();
+    }
+    assert!(
+        checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[0])
+            .unwrap()
+    );
+
+    let downloading = checkpoints[1].sequence_number();
+    let mut waiter = tokio::spawn({
+        let checkpoint_store = checkpoint_store.clone();
+        async move {
+            checkpoint_store
+                .notify_read_synced_checkpoint(downloading)
+                .await
+        }
+    });
+
+    // Checkpoint 2 is marked synced while the contents of checkpoint 1 are
+    // still being downloaded.
+    assert!(
+        !checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[2])
+            .unwrap()
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(0)
+    );
+    assert!(
+        timeout(Duration::from_millis(200), &mut waiter)
+            .await
+            .is_err(),
+        "the waiter for checkpoint {downloading} was released before its contents were stored"
+    );
+
+    // The contents arrive, and the checkpoints are marked synced in order.
+    checkpoint_store
+        .insert_checkpoint_contents(contents[1].clone().into_checkpoint_contents())
+        .unwrap();
+    assert!(
+        checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[1])
+            .unwrap()
+    );
+    let released = timeout(Duration::from_secs(5), waiter)
+        .await
+        .expect("the waiter should be released once its checkpoint is synced")
+        .unwrap();
+    assert_eq!(released.sequence_number(), downloading);
+    assert!(
+        checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[2])
+            .unwrap()
+    );
+}

@@ -15,7 +15,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use iota_grpc_client::{
     GrpcClient,
-    read_mask_fields::{ObjectField, ObjectReadMask, OwnedObjectReadMask, TransactionField},
+    read_mask_fields::{ObjectField, TransactionField},
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
@@ -124,13 +124,8 @@ impl SimpleFaucet {
             GrpcClient::new(&config.fullnode_grpc_url).map_err(FaucetError::internal)?;
 
         let coins = grpc_client
-            .owned_objects(
-                active_address,
-                StructTag::new_gas_coin(),
-                None,
-                None,
-                OwnedObjectReadMask::default(),
-            )
+            .owned_objects(active_address)
+            .object_type(StructTag::new_gas_coin())
             .collect(None)
             .await
             .map_err(|e| FaucetError::FullnodeReading(e.to_string()))?
@@ -369,10 +364,7 @@ impl SimpleFaucet {
     ///
     /// Returns Ok(None) if the object does not exist (anymore).
     async fn get_object(&self, object_id: ObjectId) -> anyhow::Result<Option<Object>> {
-        let response = self
-            .grpc_client
-            .objects([object_id], ObjectReadMask::default())
-            .await?;
+        let response = self.grpc_client.objects([object_id]).await?;
         match response.into_parts().0.into_iter().next() {
             Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
             // Per-item error: the object does not exist (anymore).
@@ -390,7 +382,8 @@ impl SimpleFaucet {
     async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectReference> {
         let response = self
             .grpc_client
-            .objects([object_id], ObjectField::REFERENCE)
+            .objects([object_id])
+            .read_mask(ObjectField::REFERENCE)
             .await?;
         let proto_object = response
             .into_parts()
@@ -687,11 +680,9 @@ impl SimpleFaucet {
         let signed_tx: iota_sdk_types::SignedTransaction = tx.clone().into();
         let response = self
             .grpc_client
-            .execute_transaction(
-                signed_tx,
-                CHECKPOINT_INCLUSION_TIMEOUT.as_millis() as u64,
-                [TransactionField::EFFECTS_BCS, TransactionField::CHECKPOINT],
-            )
+            .execute_transaction(signed_tx)
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT.as_millis() as u64)
+            .read_mask([TransactionField::EFFECTS_BCS, TransactionField::CHECKPOINT])
             .await
             .tap_err(|e| {
                 error!(

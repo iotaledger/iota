@@ -578,7 +578,14 @@ fn set_restore_watermarks(
     checkpoint: &VerifiedCheckpoint,
 ) -> Result<(), anyhow::Error> {
     checkpoint_store.update_highest_verified_checkpoint(checkpoint)?;
-    checkpoint_store.update_highest_synced_checkpoint(checkpoint)?;
+    // The checkpoint store marks a checkpoint synced only after the ones
+    // below it, whose contents the restored range does not hold. Set the
+    // watermark directly, forwards only like the other three.
+    if checkpoint_store.get_highest_synced_checkpoint_seq_number()?
+        < Some(checkpoint.sequence_number())
+    {
+        checkpoint_store.set_highest_synced_checkpoint_subtle(checkpoint)?;
+    }
     checkpoint_store.update_highest_executed_checkpoint(checkpoint)?;
     checkpoint_store.update_highest_pruned_checkpoint(checkpoint)?;
     Ok(())

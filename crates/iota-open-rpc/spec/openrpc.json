@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.34.0-alpha"
+    "version": "1.35.0-alpha"
   },
   "methods": [
     {
@@ -1287,20 +1287,21 @@
           "params": [
             {
               "name": "version",
-              "value": 38
+              "value": 39
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "38",
-              "protocolVersion": "38",
+              "maxSupportedProtocolVersion": "39",
+              "protocolVersion": "39",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
                 "additional_multisig_checks": true,
                 "adjust_rewards_by_score": true,
+                "allow_dkg_completion_after_timeout": true,
                 "allow_unbounded_system_objects": true,
                 "always_advance_dkg_to_resolution": true,
                 "calculate_validator_scores": true,

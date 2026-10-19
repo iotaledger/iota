@@ -25,7 +25,7 @@ use iota_types::{
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
 };
 use once_cell::sync::OnceCell;
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
@@ -224,16 +224,12 @@ pub struct NodeConfig {
     ///
     /// With the key absent the default denial-of-service protection policy
     /// applies, an explicit `null` turns traffic control off, and a value
-    /// configures it. A node that turns it off must also drop
-    /// `firewall_config`. `validate` rejects a firewall without a policy.
+    /// configures it.
     #[serde(
         skip_serializing_if = "is_default_traffic_controller_policy_config",
         default = "default_traffic_controller_policy_config"
     )]
     pub policy_config: Option<PolicyConfig>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub firewall_config: Option<RemoteFirewallConfig>,
 
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
@@ -878,17 +874,6 @@ impl NodeConfig {
             anyhow::bail!(
                 "`state-snapshot-write-config.object-store-config` has no `object-store`; \
                  snapshot upload needs a storage backend"
-            );
-        }
-        // The firewall is driven by the traffic controller, which only runs
-        // when a policy is set. In a file, an absent `policy-config`
-        // deserializes to the default policy. `None` here therefore means an
-        // explicit `null`, or a config built in code.
-        if self.firewall_config.is_some() && self.policy_config.is_none() {
-            anyhow::bail!(
-                "`firewall-config` is set but `policy-config` is `null`; the firewall is driven \
-                 by the traffic controller, which does not run without a policy; remove \
-                 `firewall-config` or set a `policy-config`"
             );
         }
         Ok(())
@@ -1656,7 +1641,7 @@ mod tests {
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_types::{
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng},
-        traffic_control::{PolicyConfig, RemoteFirewallConfig},
+        traffic_control::PolicyConfig,
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde::Serialize;
@@ -1793,29 +1778,6 @@ mod tests {
 
         let err = config.validate().unwrap_err().to_string();
         assert!(err.contains("storage backend"), "{err}");
-    }
-
-    #[test]
-    fn validate_rejects_a_firewall_without_a_policy() {
-        let mut config = template_config();
-        config.firewall_config = Some(RemoteFirewallConfig {
-            remote_fw_url: "http://localhost:65000".to_owned(),
-            destination_port: 8080,
-            delegate_spam_blocking: false,
-            delegate_error_blocking: false,
-            drain_path: PathBuf::from("/tmp/drain"),
-            drain_timeout_secs: 300,
-        });
-
-        // The template leaves `policy-config` unmentioned, so the default
-        // policy applies and drives the firewall.
-        config.validate().unwrap();
-
-        // `policy-config: null` turns traffic control off, which leaves
-        // nothing to drive the firewall.
-        config.policy_config = None;
-        let err = config.validate().unwrap_err().to_string();
-        assert!(err.contains("`firewall-config` is set"), "{err}");
     }
 
     #[test]
