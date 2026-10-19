@@ -92,9 +92,13 @@ pub struct EpochMetrics {
     /// Buffer stake current in effect for this epoch
     pub effective_buffer_stake: IntGauge,
 
-    /// Set to 1 if the random beacon DKG protocol failed for the most recent
-    /// epoch.
+    /// Set to 1 while the random beacon DKG protocol is unavailable after its
+    /// timeout.
     pub epoch_random_beacon_dkg_failed: IntGauge,
+
+    /// Set to 1 if the random beacon DKG protocol completed after its timeout.
+    /// Process-local: not restored after a mid-epoch restart.
+    pub epoch_random_beacon_dkg_completed_after_timeout: IntGauge,
 
     /// The number of shares held by this node after the random beacon DKG
     /// protocol completed.
@@ -230,7 +234,13 @@ impl EpochMetrics {
             ).unwrap(),
             epoch_random_beacon_dkg_failed: register_int_gauge_with_registry!(
                 "epoch_random_beacon_dkg_failed",
-                "Set to 1 if the random beacon DKG protocol failed for the most recent epoch.",
+                "Set to 1 while the random beacon DKG protocol is unavailable after its timeout.",
+                registry
+            )
+            .unwrap(),
+            epoch_random_beacon_dkg_completed_after_timeout: register_int_gauge_with_registry!(
+                "epoch_random_beacon_dkg_completed_after_timeout",
+                "Set to 1 if the random beacon DKG protocol completed after its timeout.",
                 registry
             )
             .unwrap(),

@@ -183,9 +183,11 @@ impl ObjectFetcher for GraphQLFetcher {
         // exist must read as absent, not fault), so missing refs are skipped.
         let mut objects = Vec::with_capacity(refs.len());
         for (id, version) in refs {
-            if let Some(obj) = self
-                .client
-                .object(*id, *version)
+            let mut query = self.client.object(*id);
+            if let Some(version) = *version {
+                query = query.version(version);
+            }
+            if let Some(obj) = query
                 .await
                 .map_err(|e| StoreError::new(format!("fetch object {id} via GraphQL"), e))?
             {

@@ -70,7 +70,7 @@ use iota_types::{
     object::Object,
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
     transaction::{CertifiedTransaction, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
@@ -678,11 +678,9 @@ impl TestCluster {
     pub async fn execute_transaction(&self, tx: TransactionEnvelope) -> TransactionEffects {
         let executed = self
             .grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap_or_else(|e| panic!("Transaction submission failed: {e}"))
             .into_inner();
@@ -718,11 +716,9 @@ impl TestCluster {
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
         self.grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap();
         Ok(results)
@@ -1135,7 +1131,6 @@ pub struct TestClusterBuilder {
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
-    fullnode_fw_config: Option<RemoteFirewallConfig>,
     fullnode_enable_grpc_api: bool,
     fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
@@ -1168,7 +1163,6 @@ impl TestClusterBuilder {
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
-            fullnode_fw_config: None,
             fullnode_enable_grpc_api: true,
             fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
@@ -1190,11 +1184,6 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.fullnode_policy_config = config;
-        self
-    }
-
-    pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.fullnode_fw_config = config;
         self
     }
 
@@ -1472,8 +1461,7 @@ impl TestClusterBuilder {
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
-            .with_fullnode_policy_config(self.fullnode_policy_config.clone())
-            .with_fullnode_fw_config(self.fullnode_fw_config.clone());
+            .with_fullnode_policy_config(self.fullnode_policy_config.clone());
 
         if let Some(chain) = self.chain_override {
             builder = builder.with_chain_override(chain);

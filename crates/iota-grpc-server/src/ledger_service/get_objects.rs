@@ -24,6 +24,7 @@ use crate::{
     constants::validate_max_message_size,
     error::{ObjectNotFoundError, RpcError},
     merge::Merge,
+    metrics::{RequestMetrics, ResponseItemKind},
     types::{GrpcReader, ObjectsStreamResult},
     validation::validate_read_mask,
 };
@@ -75,11 +76,12 @@ pub(crate) fn validate_get_object_requests(
 /// ## Data Fields
 /// - `bcs` - the full BCS-encoded object
 #[tracing::instrument(
-    skip(reader, requests),
+    skip(reader, metrics, requests),
     fields(batch_size = requests.as_ref().map_or(0, |r| r.requests.len()))
 )]
 pub(crate) fn get_objects(
     reader: Arc<GrpcReader>,
+    metrics: RequestMetrics,
     GetObjectsRequest {
         requests,
         read_mask,
@@ -87,6 +89,7 @@ pub(crate) fn get_objects(
         ..
     }: GetObjectsRequest,
 ) -> Result<impl Stream<Item = ObjectsStreamResult> + Send, RpcError> {
+    metrics.record_requested_max_message_size(max_message_size_bytes);
     let requests = requests
         .map(|r| r.requests)
         .unwrap_or_default()
@@ -118,6 +121,7 @@ pub(crate) fn get_objects(
             let object_size = object_result.encoded_len();
             (object_result, object_size)
         },
+        |size| metrics.record_response_item(ResponseItemKind::Object, size),
         max_message_size,
         GetObjectsResponse,
         objects,

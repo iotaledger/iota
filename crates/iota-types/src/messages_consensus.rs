@@ -220,13 +220,15 @@ impl AuthorityCapabilitiesV1 {
 }
 
 impl SignedAuthorityCapabilitiesV1 {
+    /// Key under which a successful signature verification of this message is
+    /// cached. Covers the signature, so a cache hit never vouches for a
+    /// signature that was not itself verified.
     pub fn cache_digest(&self, epoch: u64) -> AuthorityCapabilitiesDigest {
-        // Create a tuple that includes both the capabilities data and the epoch
-        let data_with_epoch = (self.data(), epoch);
+        let signed_data_with_epoch = (self.data(), self.auth_sig(), epoch);
 
         // Ensure deterministic serialization for digest
         let mut hasher = DefaultHash::new();
-        let serialized = bcs::to_bytes(&data_with_epoch).expect("BCS should not fail");
+        let serialized = bcs::to_bytes(&signed_data_with_epoch).expect("BCS should not fail");
         hasher.update(&serialized);
         AuthorityCapabilitiesDigest::new(<[u8; 32]>::from(hasher.finalize()))
     }

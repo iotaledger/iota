@@ -82,7 +82,8 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
     // DKG state, the inner Option value persisted to `dkg_output_v2`:
     // - `Some(Some(out))` -- DKG success
-    // - `Some(None)` -- terminal DKG failure
+    // - `Some(None)` -- terminal DKG failure, only set when `allow_dkg_completion_after_timeout`
+    //   is off
     // - `None` -- DKG pending (default value)
     dkg_output: Option<Option<dkg_v1::Output<PkG, EncG>>>,
 

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 38;
+pub const MAX_PROTOCOL_VERSION: u64 = 39;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -251,6 +251,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Abort `iota::account::create_immutable_account_v1`, so no new
 //             immutable account object can be created.
 //             Validate PTB indices at signing time.
+// Version 39: Allow random beacon DKG to complete after its timeout on devnet
+//             and testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -737,6 +739,11 @@ struct FeatureFlags {
     // Validate PTB input and result indices before signing.
     #[serde(skip_serializing_if = "is_false")]
     validate_ptb_argument_indices: bool,
+
+    // If true, keep DKG pending after its timeout so that it can complete later
+    // in the epoch.
+    #[serde(skip_serializing_if = "is_false")]
+    allow_dkg_completion_after_timeout: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2248,6 +2255,10 @@ impl ProtocolConfig {
     pub fn validate_ptb_argument_indices(&self) -> bool {
         self.feature_flags.validate_ptb_argument_indices
     }
+
+    pub fn allow_dkg_completion_after_timeout(&self) -> bool {
+        self.feature_flags.allow_dkg_completion_after_timeout
+    }
 }
 
 #[cfg(not(msim))]
@@ -3654,6 +3665,13 @@ impl ProtocolConfig {
 
                     cfg.feature_flags.validate_ptb_argument_indices = true;
                 }
+                39 => {
+                    // Keep random beacon DKG running after its timeout round, so
+                    // randomness is enabled again mid-epoch if DKG completes late.
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags.allow_dkg_completion_after_timeout = true;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -4013,6 +4031,10 @@ impl ProtocolConfig {
     pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
         self.feature_flags
             .consensus_enable_absolute_score_leader_schedule = val;
+    }
+
+    pub fn set_allow_dkg_completion_after_timeout_for_testing(&mut self, val: bool) {
+        self.feature_flags.allow_dkg_completion_after_timeout = val;
     }
 }
 
