@@ -16,7 +16,7 @@ sudo nft -c -f iota-node.nft
 sudo nft -f iota-node.nft
 ```
 
-The ruleset replaces only its own `iota_node` table when you reload it, so the rules of Docker, fail2ban, or the CrowdSec bouncer stay in place. To load it at boot, include it from `/etc/nftables.conf` and enable the `nftables` service.
+The ruleset replaces only its own `iota_node` table when you reload it, so the rules of Docker or fail2ban stay in place. To load it at boot, include it from `/etc/nftables.conf` and enable the `nftables` service. The stock `/etc/nftables.conf` of Debian and Ubuntu starts with `flush ruleset`, which removes the tables of Docker and fail2ban whenever the `nftables` service reloads; remove that line, or load the ruleset from a unit of its own.
 
 Floods of TCP connection requests from spoofed addresses cannot be blocked by address. The kernel handles them with SYN cookies, which are on by default (`net.ipv4.tcp_syncookies = 1`).
 
@@ -26,16 +26,16 @@ The TrafficController refuses a blocked client, but each refused request still c
 
 fail2ban bans for the `bantime` in its jail, not for the time in the log line. Set it to the node's `connection-blocklist-ttl-sec`. The bans expire on their own.
 
-For an IPv6 client the line names the network the node blocks, such as `2001:db8:1:2::/64` (see `ipv6-prefix-len`), and fail2ban bans that whole network.
+For an IPv6 client the line names the address prefix the node blocks, such as `2001:db8:1:2::/64` (see `ipv6-prefix-len`), and fail2ban bans that whole prefix.
 
-The filter matches the line only from its start and under its target, so text a client manages to get into another log line cannot ban an address.
+The filter matches only a line that starts like the block line and is logged under its target, so text a client manages to get into the middle of another log line cannot ban an address.
 
 1. Install fail2ban and copy the filter to `/etc/fail2ban/filter.d/iota-node.conf`:
 
    ```ini file=<rootDir>/setups/traffic-control/fail2ban/filter.d/iota-node.conf
    ```
 
-2. Copy the action override to `/etc/fail2ban/action.d/nftables.local`. Before version 1.1.1, fail2ban's nftables actions cannot ban a network, so nftables rejects every IPv6 ban. From 1.1.1 on, the file changes nothing:
+2. On fail2ban older than 1.1.1 (`fail2ban-client --version`), copy the action override to `/etc/fail2ban/action.d/nftables.local`. Those versions cannot ban an address prefix with their nftables actions, so nftables rejects every IPv6 ban. Do not install it on 1.1.1 or later, which handle prefixes themselves:
 
    ```ini file=<rootDir>/setups/traffic-control/fail2ban/action.d/nftables.local
    ```
@@ -55,7 +55,7 @@ The filter matches the line only from its start and under its target, so text a 
    sudo fail2ban-client status iota-node
    ```
 
-Other tools, such as CrowdSec, can match the line as well, since its format is stable. Make sure such a tool bans an IPv6 entry as a network: a tool that bans it as a single address bans only the first address of the network.
+Other tools, such as CrowdSec, can match the line as well, since its format is stable. Make sure such a tool bans an IPv6 entry as a prefix: a tool that bans it as a single address bans only the first address of the prefix.
 
 ## Behind a Reverse Proxy
 

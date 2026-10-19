@@ -1,11 +1,16 @@
-# Lets fail2ban's nftables actions ban a network such as 2001:db8:1:2::/64,
-# which the IOTA node logs for an IPv6 client. Before fail2ban 1.1.1, these
-# actions create their set without the interval flag, so nftables rejects a
-# network. From 1.1.1 on, this file changes nothing.
+# Lets fail2ban's nftables actions ban an IPv6 prefix such as
+# 2001:db8:1:2::/64, which the IOTA node logs for an IPv6 client. Install this
+# file only on fail2ban older than 1.1.1: those versions create their sets
+# without the interval flag, so nftables rejects a prefix. From 1.1.1 on,
+# fail2ban sets the flag itself, and this file would replace its newer rules.
 #
-# A set that fail2ban created before you added this file keeps its old flags.
-# Delete it once, or restart fail2ban after `nft delete table inet f2b-table`.
+# The value is the stock one of fail2ban 1.0 and 1.1.0 with `flags interval`
+# added. A set that fail2ban created before you added this file keeps its old
+# flags: stop fail2ban, run `nft delete table inet f2b-table`, and start it.
 
 [Definition]
 
 _nft_add_set = <nftables> add set <table_family> <table> <addr_set> \{ type <addr_type>\; flags interval\; \}
+              <_nft_for_proto-<type>-iter>
+              <nftables> add rule <table_family> <table> <chain> %(rule_stat)s
+              <_nft_for_proto-<type>-done>
