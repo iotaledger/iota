@@ -49,6 +49,9 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
+};
 use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
     Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
@@ -59,16 +62,13 @@ use iota_sdk_types::{
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        authenticator_function::{
-            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
-        },
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
     },
     coin::{PAY_SPLIT_N_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     crypto::EmptySignInfo,
     digests::ChainIdentifier,
-    dynamic_field::{DynamicFieldInfo, Field},
+    dynamic_field::DynamicFieldInfo,
     error::IotaError,
     gas::get_gas_balance,
     gas_coin::GasCoin,
@@ -1654,7 +1654,9 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 // Two coins are enough to tell a lone coin from several
                 let iota_coins = client
-                    .coins(signer, StructTag::new_gas(), Some(2), None)
+                    .coins(signer)
+                    .coin_type(StructTag::new_gas())
+                    .page_size(2)
                     .await?
                     .into_inner();
 
@@ -3011,6 +3013,7 @@ pub async fn request_tokens_from_faucet(
     }];
 
     // make the request to the faucet JSON RPC API for coin
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)
@@ -3724,7 +3727,7 @@ fn to_package(o: IotaObjectResponse) -> anyhow::Result<MovePackage> {
         bail!("Object {id} not a package");
     };
 
-    Ok(p.to_move_package(u64::MAX /* safe as this pkg comes from the network */)?)
+    Ok(p.to_move_package())
 }
 
 /// Fetch move packages
@@ -3991,7 +3994,7 @@ async fn create_move_authenticator_signature(
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
     Ok(UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             call_args,
             type_args,
             SharedObjectReference::new(address.into(), initial_shared_version, false),

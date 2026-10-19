@@ -147,12 +147,11 @@ pub(crate) trait PaginatedKeyValueStoreClient {
     ///
     /// # Pagination
     ///
-    /// * **Cursor:** The `cursor` is an *exclusive* boundary. Pass `None` to
-    ///   fetch the first page. For subsequent pages, provide the
-    ///   [`TransactionSequenceNumber`] from the last item of the previous
-    ///   result.
-    /// * **Limit:** The `limit` is the maximum number of items per page. The
-    ///   actual result may contain fewer items than requested.
+    /// * **Cursor:** The `cursor` is an *exclusive* boundary. Pass `None` to fetch the first page.
+    ///   For subsequent pages, provide the [`TransactionSequenceNumber`] from the last item of the
+    ///   previous result.
+    /// * **Limit:** The `limit` is the maximum number of items per page. The actual result may
+    ///   contain fewer items than requested.
     /// * **Ordering:**
     ///   - `oldest_first = false` (default): newest to oldest.
     ///   - `oldest_first = true`: oldest to newest.
@@ -198,6 +197,7 @@ impl HttpRestKVClient {
             "creating HttpRestKVClient with base_url: {base_url}, batch_size: {batch_size}, max_concurrent_batches: {max_concurrent_batches}",
         );
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = Client::builder().http2_prior_knowledge().build()?;
 
         let base_url = if base_url.ends_with('/') {
@@ -339,9 +339,9 @@ impl HttpRestKVClient {
     ///
     /// # Pagination Logic
     ///
-    /// * **Cursor-based:** The `cursor` is an *exclusive* boundary. When
-    ///   requesting the first page, pass `None`. For subsequent pages, use the
-    ///   cursor identifier from the last item of the previous result set.
+    /// * **Cursor-based:** The `cursor` is an *exclusive* boundary. When requesting the first page,
+    ///   pass `None`. For subsequent pages, use the cursor identifier from the last item of the
+    ///   previous result set.
     /// * **Limits:** The `limit` enforces an upper bound on items returned.
     /// * **Reversed:** The `reversed` flag determines the scan direction.
     ///   - `false` (default): Follows the natural storage order of the `Key`.

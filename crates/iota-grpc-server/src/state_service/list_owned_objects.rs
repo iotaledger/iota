@@ -20,6 +20,7 @@ use crate::{
     constants::validate_max_message_size,
     error::RpcError,
     merge::Merge,
+    metrics::{RequestMetrics, ResponseItemKind},
     types::{GrpcReader, OwnedObjectCursor},
     validation::{
         decode_page_token, encode_page_token, page_token_mismatch, require_address,
@@ -37,9 +38,10 @@ struct PageToken {
     cursor: OwnedObjectCursor,
 }
 
-#[tracing::instrument(skip(reader))]
+#[tracing::instrument(skip(reader, metrics))]
 pub(crate) fn list_owned_objects(
     reader: Arc<GrpcReader>,
+    metrics: &RequestMetrics,
     ListOwnedObjectsRequest {
         owner,
         page_size,
@@ -50,6 +52,7 @@ pub(crate) fn list_owned_objects(
         ..
     }: ListOwnedObjectsRequest,
 ) -> Result<ListOwnedObjectsResponse, RpcError> {
+    metrics.record_requested_max_message_size(max_message_size_bytes);
     let owner_address = require_address(&owner, "owner")?;
 
     let read_mask = validate_read_mask::<Object>(read_mask, LIST_OWNED_OBJECTS_READ_MASK)?;
@@ -108,6 +111,7 @@ pub(crate) fn list_owned_objects(
             .map_err(|e| e.with_context("failed to merge object"))?;
 
         let item_size = merged.encoded_len();
+        metrics.record_response_item(ResponseItemKind::OwnedObject, item_size);
 
         if !objects.is_empty() && size_bytes + item_size > max_message_size {
             let response = ListOwnedObjectsResponse::default()

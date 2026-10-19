@@ -449,6 +449,18 @@ pub(crate) enum ConsensusError {
         round: Round,
         last_round: Round,
     },
+
+    #[error("Transaction {transaction_ref} of a requested commit is not available on this node")]
+    TransactionsNotAvailable { transaction_ref: TransactionRef },
+
+    #[error("Peer {peer} sent commits or certifier headers after transactions")]
+    CommitDataAfterTransactions { peer: AuthorityIndex },
+
+    #[error("Peer {peer} sent transactions {received} before an earlier commit's transactions")]
+    TransactionsOutOfCommitOrder {
+        peer: AuthorityIndex,
+        received: TransactionRef,
+    },
 }
 
 impl ConsensusError {

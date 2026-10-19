@@ -57,9 +57,10 @@ use iota_types::{
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use pin_project_lite::pin_project;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Notify, mpsc, watch},
@@ -101,6 +102,16 @@ use crate::{
 };
 
 pub type CheckpointHeight = u64;
+
+/// Digest of checkpoint contents with no transactions. Every empty checkpoint
+/// has this contents digest, so they all share one `checkpoint_content` row,
+/// which must never be deleted.
+pub(crate) static EMPTY_CHECKPOINT_CONTENTS_DIGEST: Lazy<CheckpointContentsDigest> =
+    Lazy::new(|| empty_checkpoint_contents().digest());
+
+fn empty_checkpoint_contents() -> CheckpointContents {
+    CheckpointContents::new_with_digests_and_signatures([], Vec::new())
+}
 
 pub struct EpochStats {
     pub checkpoint_count: u64,
@@ -256,6 +267,16 @@ impl CheckpointStore {
         contents_cache: FullCheckpointContentsCache,
     ) -> Arc<Self> {
         let tables = CheckpointStoreTables::new(path, "checkpoint");
+        // Written on every open so that the shared empty contents row also
+        // exists on a database where it was deleted while empty checkpoints
+        // still used it.
+        tables
+            .checkpoint_content
+            .insert(
+                &EMPTY_CHECKPOINT_CONTENTS_DIGEST,
+                &empty_checkpoint_contents(),
+            )
+            .expect("inserting the empty checkpoint contents should succeed");
         Arc::new(Self {
             tables,
             full_checkpoint_contents_cache: contents_cache,
@@ -675,28 +696,48 @@ impl CheckpointStore {
         Ok(())
     }
 
+    /// Marks `checkpoint` as synced. Returns whether the watermark moved; see
+    /// [`Self::multi_update_highest_synced_checkpoint`].
     pub fn update_highest_synced_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         self.multi_update_highest_synced_checkpoint(std::slice::from_ref(checkpoint))
     }
 
     /// Marks a consecutive run of checkpoints as synced: writes the watermark
     /// once, for the last checkpoint, and notifies the waiters that write
     /// releases. Does nothing when another writer has already carried the
-    /// watermark past the run.
+    /// watermark past the run, or when the run starts above the checkpoint
+    /// after the watermark. Returns whether the watermark moved.
+    ///
+    /// Tooling that has to set the watermark regardless uses
+    /// [`Self::set_highest_synced_checkpoint_subtle`].
     pub fn multi_update_highest_synced_checkpoint(
         &self,
         checkpoints: &[VerifiedCheckpoint],
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         let Some(last) = checkpoints.last() else {
-            return Ok(());
+            return Ok(false);
         };
 
         // Only ever forwards, like the other two: another writer advances this
         // as well, and moving it back offers contents that may not be there.
         let previous = self.get_highest_synced_checkpoint_seq_number()?;
+        // The watermark promises that the contents of every checkpoint up to
+        // it are stored, and a writer stores them only for the run it marks.
+        // A run that starts above the checkpoint after the watermark would
+        // pass checkpoints whose contents may still be missing; they are
+        // marked synced once the checkpoints before them are.
+        let first = checkpoints[0].sequence_number();
+        if previous.is_some_and(|previous_seq_number| first > previous_seq_number + 1) {
+            debug!(
+                checkpoint_seq = first,
+                highest_synced = previous,
+                "Not marking checkpoints synced before the ones below them",
+            );
+            return Ok(false);
+        }
         if previous.is_none_or(|previous_seq_number| previous_seq_number < last.sequence_number()) {
             debug!(
                 checkpoint_seq = last.sequence_number(),
@@ -715,8 +756,9 @@ impl CheckpointStore {
                 self.synced_checkpoint_notify_read
                     .notify(&checkpoint.sequence_number(), checkpoint);
             }
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
     async fn notify_read_checkpoint_watermark<F>(
@@ -934,11 +976,10 @@ impl CheckpointStore {
     /// INVARIANT: The caller must have durably written the matching
     /// `checkpoint_content` row (and the contained transactions and
     /// effects) first for two reasons:
-    /// 1. once the cache evicts the entry (or after a restart), readers
-    ///    reconstruct the full contents from those stores.
-    /// 2. state-sync treats available contents as proof of that row and skips
-    ///    its own durable write, and the checkpoint executor panics on a
-    ///    missing row.
+    /// 1. once the cache evicts the entry (or after a restart), readers reconstruct the full
+    ///    contents from those stores.
+    /// 2. state-sync treats available contents as proof of that row and skips its own durable
+    ///    write, and the checkpoint executor panics on a missing row.
     ///
     /// Best-effort: a serialization failure is logged and the insert skipped;
     /// readers fall back to reconstructing the contents from the durable
@@ -2030,6 +2071,10 @@ impl CheckpointBuilder {
                     contents.clone(),
                     execution_data,
                 )
+                // `contents` was built from these same transactions and
+                // effects a few lines above, so the two cannot differ in
+                // length.
+                .expect("checkpoint builder pins one signature set per transaction it includes")
             });
 
             last_checkpoint = Some((sequence_number, summary.clone()));
@@ -3180,6 +3225,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn open_restores_empty_checkpoint_contents() {
+        let tempdir = iota_common::tempdir();
+        let path = tempdir.path();
+
+        {
+            let store = CheckpointStore::new(path);
+            assert_eq!(
+                store
+                    .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                    .unwrap()
+                    .map(|c| c.digest()),
+                Some(*EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+            );
+            store
+                .tables
+                .checkpoint_content
+                .remove(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                .unwrap();
+        }
+
+        let store = CheckpointStore::new(path);
+        assert!(
+            store
+                .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                .unwrap()
+                .is_some_and(|c| c.is_empty())
+        );
+    }
+
+    #[tokio::test]
     async fn cache_full_checkpoint_contents_serves_reads_without_disk_writes() {
         let store = CheckpointStore::new_for_tests();
         let full_contents = FullCheckpointContents::random_for_testing();
@@ -3348,24 +3423,17 @@ mod tests {
             id[0] = seed;
             VerifiedTransaction::new_genesis_transaction(
                 vec![GenesisObject::new(
-                    ObjectData::Package(
-                        MovePackage::new(
-                            ObjectId::new(id),
-                            Version::default(),
-                            BTreeMap::from([(
-                                Identifier::new_unchecked("m"),
-                                vec![0u8; payload_size],
-                            )]),
-                            100_000,
-                            // no modules so empty type_origin_table as no types are defined in
-                            // this package
-                            Vec::new(),
-                            // no modules so empty linkage_table as no dependencies of this package
-                            // exist
-                            BTreeMap::new(),
-                        )
-                        .unwrap(),
-                    ),
+                    ObjectData::Package(MovePackage::new(
+                        ObjectId::new(id),
+                        Version::default(),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
+                        // no modules so empty type_origin_table as no types are defined in
+                        // this package
+                        Vec::new(),
+                        // no modules so empty linkage_table as no dependencies of this package
+                        // exist
+                        BTreeMap::new(),
+                    )),
                     Owner::Immutable,
                 )],
                 vec![],
@@ -3627,21 +3695,17 @@ mod tests {
             id[0] = seed;
             VerifiedTransaction::new_genesis_transaction(
                 vec![GenesisObject::new(
-                    ObjectData::Package(
-                        MovePackage::new(
-                            ObjectId::new(id),
-                            Version::default(),
-                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
-                            100_000,
-                            // no modules so empty type_origin_table as no types are defined in
-                            // this package
-                            Vec::new(),
-                            // no modules so empty linkage_table as no dependencies of this package
-                            // exist
-                            BTreeMap::new(),
-                        )
-                        .unwrap(),
-                    ),
+                    ObjectData::Package(MovePackage::new(
+                        ObjectId::new(id),
+                        Version::default(),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
+                        // no modules so empty type_origin_table as no types are defined in
+                        // this package
+                        Vec::new(),
+                        // no modules so empty linkage_table as no dependencies of this package
+                        // exist
+                        BTreeMap::new(),
+                    )),
                     Owner::Immutable,
                 )],
                 vec![],

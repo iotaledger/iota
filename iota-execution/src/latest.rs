@@ -21,7 +21,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
     },
     auth_context::AuthContextData,
     base_types::TxContext,
@@ -192,11 +192,7 @@ impl executor::Executor for Executor {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -310,6 +306,10 @@ impl executor::Executor for Executor {
 impl verifier::Verifier for Verifier<'_> {
     fn meter(&self, config: MeterConfig) -> Box<dyn Meter> {
         Box::new(IotaVerifierMeter::new(config))
+    }
+
+    fn override_deprecate_global_storage_ops_during_deserialization(&self) -> Option<bool> {
+        Some(true)
     }
 
     fn meter_compiled_modules(

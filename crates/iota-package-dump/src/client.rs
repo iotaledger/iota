@@ -16,6 +16,7 @@ impl Client {
     /// Create a new GraphQL client, talking to an IOTA GraphQL service at
     /// `url`.
     pub(crate) fn new(url: impl IntoUrl) -> Result<Self> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         Ok(Self {
             inner: reqwest::Client::builder()
                 .user_agent(concat!("iota-package-dump/", env!("CARGO_PKG_VERSION")))

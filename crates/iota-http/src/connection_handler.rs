@@ -7,7 +7,9 @@ use std::{pin::pin, time::Duration};
 use http::{Request, Response};
 use tracing::{debug, trace};
 
-use crate::{ActiveConnections, BoxError, ConnectionId, fuse::Fuse};
+use crate::{
+    ActiveConnections, BoxError, ConnectionId, connection_info::PeerConnectionGuard, fuse::Fuse,
+};
 
 // This is moved to its own function as a way to get around
 // https://github.com/rust-lang/rust/issues/102211
@@ -66,13 +68,19 @@ pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {
 pub(crate) struct OnConnectionClose<A> {
     id: ConnectionId,
     active_connections: ActiveConnections<A>,
+    _peer_connection_guard: Option<PeerConnectionGuard>,
 }
 
 impl<A> OnConnectionClose<A> {
-    pub(crate) fn new(id: ConnectionId, active_connections: ActiveConnections<A>) -> Self {
+    pub(crate) fn new(
+        id: ConnectionId,
+        active_connections: ActiveConnections<A>,
+        peer_connection_guard: Option<PeerConnectionGuard>,
+    ) -> Self {
         Self {
             id,
             active_connections,
+            _peer_connection_guard: peer_connection_guard,
         }
     }
 }

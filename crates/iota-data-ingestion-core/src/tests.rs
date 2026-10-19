@@ -220,11 +220,9 @@ async fn basic_flow() {
 //
 // This test verifies that:
 // 1. The framework process checkpoints not exceeding the upper limit.
-// 2. The Executor handles the upper limit correctly by not sending any more
-//    checkpoints to workers.
-// 3. The graceful shutdown is triggered by the Executor when the Worker reports
-//    the processed checkpoint matching the upper limit one, making sure to not
-//    trigger the shutdown prematurely.
+// 2. The Executor handles the upper limit correctly by not sending any more checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports the processed
+//    checkpoint matching the upper limit one, making sure to not trigger the shutdown prematurely.
 #[tokio::test]
 async fn basic_flow_with_checkpoint_upper_limit() {
     let mut bundle = create_executor_bundle().await;
@@ -264,11 +262,9 @@ async fn basic_flow_with_checkpoint_upper_limit() {
 //
 // This test verifies that:
 // 1. The framework process checkpoints not exceeding the upper limit.
-// 2. The Executor handles the upper limit correctly by not sending any more
-//    checkpoints to workers.
-// 3. The graceful shutdown is triggered by the Executor when the Worker reports
-//    the processed checkpoint matching the upper limit one, making sure to not
-//    trigger the shutdown prematurely.
+// 2. The Executor handles the upper limit correctly by not sending any more checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports the processed
+//    checkpoint matching the upper limit one, making sure to not trigger the shutdown prematurely.
 #[tokio::test]
 async fn basic_flow_with_custom_callback_checkpoint_limit() {
     let mut bundle = create_executor_bundle().await;
@@ -312,11 +308,9 @@ async fn basic_flow_with_custom_callback_checkpoint_limit() {
 //
 // This test verifies that:
 // 1. The framework process checkpoints not exceeding the epoch upper limit.
-// 2. The Executor handles the upper limit correctly by not sending any more
-//    checkpoints to workers.
-// 3. The graceful shutdown is triggered by the Executor when the Worker reports
-//    the processed checkpoint matching the upper limit one, making sure to not
-//    trigger the shutdown prematurely.
+// 2. The Executor handles the upper limit correctly by not sending any more checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports the processed
+//    checkpoint matching the upper limit one, making sure to not trigger the shutdown prematurely.
 #[tokio::test]
 async fn basic_flow_with_epoch_upper_limit() {
     let mut bundle = create_executor_bundle().await;
@@ -362,11 +356,9 @@ async fn basic_flow_with_epoch_upper_limit() {
 //
 // This test verifies that:
 // 1. The framework process checkpoints not exceeding the epoch upper limit.
-// 2. The Executor handles the upper limit correctly by not sending any more
-//    checkpoints to workers.
-// 3. The graceful shutdown is triggered by the Executor when the Worker reports
-//    the processed checkpoint matching the upper limit one, making sure to not
-//    trigger the shutdown prematurely.
+// 2. The Executor handles the upper limit correctly by not sending any more checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports the processed
+//    checkpoint matching the upper limit one, making sure to not trigger the shutdown prematurely.
 #[tokio::test]
 async fn basic_flow_with_custom_callback_epoch_limit() {
     let mut bundle = create_executor_bundle().await;
@@ -422,13 +414,12 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
 // skipped and becomes the upper limit.
 //
 // This test verifies that:
-// 1. The framework only processes checkpoints with sequence numbers strictly
-//    less than the one containing the matching transaction digest (0.chk =>
-//    10.chk).
-// 2. Upon hitting the shutdown condition, the Executor stops dispatching
-//    further checkpoints (11.chk and later are not sent to workers).
-// 3. Graceful shutdown is triggered exactly when the matching digest would be
-//    encountered, never prematurely.
+// 1. The framework only processes checkpoints with sequence numbers strictly less than the one
+//    containing the matching transaction digest (0.chk => 10.chk).
+// 2. Upon hitting the shutdown condition, the Executor stops dispatching further checkpoints
+//    (11.chk and later are not sent to workers).
+// 3. Graceful shutdown is triggered exactly when the matching digest would be encountered, never
+//    prematurely.
 #[tokio::test]
 async fn basic_flow_with_custom_callback() {
     let mut bundle = create_executor_bundle().await;
@@ -512,10 +503,9 @@ async fn basic_flow_with_custom_callback() {
 //
 // This test verifies that:
 // 1. When Worker::process_checkpoint implementation continuously fails.
-// 2. The exponential backoff retry mechanism would normally create an loop
-//    until the successful value is returned.
-// 3. The graceful shutdown logic successfully breaks these retry loops upon
-//    cancellation.
+// 2. The exponential backoff retry mechanism would normally create an loop until the successful
+//    value is returned.
+// 3. The graceful shutdown logic successfully breaks these retry loops upon cancellation.
 // 4. All workers exit cleanly without processing any checkpoints.
 //
 // The test uses `FaultyWorker` which always fails, simulating a worst-case
@@ -597,10 +587,9 @@ async fn worker_pool_with_reducer() {
 //
 // This test verifies that:
 // 1. When Reducer::commit implementation continuously fails.
-// 2. The exponential backoff retry mechanism would normally create a loop until
-//    the successful value is returned.
-// 3. The graceful shutdown logic successfully breaks these retry loops upon
-//    cancellation.
+// 2. The exponential backoff retry mechanism would normally create a loop until the successful
+//    value is returned.
+// 3. The graceful shutdown logic successfully breaks these retry loops upon cancellation.
 // 4. The Reducer exit cleanly without committing any batch.
 //
 // The test uses `FaultyReducer` which always fails, simulating a worst-case

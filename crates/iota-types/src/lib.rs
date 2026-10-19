@@ -88,7 +88,6 @@ pub mod signature_verification;
 pub mod stardust;
 pub mod storage;
 pub mod supported_protocol_versions;
-pub mod system_admin_cap;
 pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;
@@ -97,7 +96,6 @@ pub mod transaction_deny_rules;
 pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
-pub mod versioned;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;
@@ -160,10 +158,8 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 
 /// Parses `s` as an address. Valid formats for addresses are:
 ///
-/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x"
-///   prefix.
-/// - One of a number of pre-defined named addresses: std, iota, iota_system,
-///   stardust.
+/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x" prefix.
+/// - One of a number of pre-defined named addresses: std, iota, iota_system, stardust.
 ///
 /// Parsing succeeds if and only if `s` matches one of these formats exactly,
 /// with no remaining suffix. This function is intended for use within the
@@ -268,6 +264,34 @@ impl MoveTypeTagTrait for Address {
 impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::object::ID {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(StructTag::new_id()))
+    }
+}
+
+impl<N: MoveTypeTagTrait> MoveTypeTagTrait
+    for iota_sdk_move_types::iota_framework::dynamic_object_field::Wrapper<N>
+{
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(
+            dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(N::get_type_tag()),
+        ))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::ConfigKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::AddressKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::GlobalPauseKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }
 }
 

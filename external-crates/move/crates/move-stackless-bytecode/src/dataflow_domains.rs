@@ -153,7 +153,7 @@ impl<E: Ord + Clone> SetDomain<E> {
     /// Implements set difference, which is not following standard APIs for rust
     /// sets in OrdSet
     pub fn difference<'a>(&'a self, other: &'a Self) -> impl Iterator<Item = &'a E> {
-        self.iter().filter(move |e| !other.contains(e))
+        self.iter().filter(move |e| !other.contains(*e))
     }
 
     /// Implements is_disjoint which is not available in OrdSet
@@ -225,7 +225,7 @@ impl<K: Ord + Clone, V: AbstractDomain + Clone> std::iter::FromIterator<(K, V)>
 
 impl<K: Ord + Clone, V: AbstractDomain + Clone> std::iter::IntoIterator for MapDomain<K, V> {
     type Item = (K, V);
-    type IntoIter = imbl::ordmap::ConsumingIter<(K, V), DefaultSharedPtr>;
+    type IntoIter = imbl::ordmap::ConsumingIter<K, V, DefaultSharedPtr>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }

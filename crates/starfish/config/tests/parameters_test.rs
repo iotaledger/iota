@@ -130,3 +130,45 @@ fn validate_rejects_zero_values() {
     let error = parameters.validate().unwrap_err();
     assert!(error.contains("excessive_message_size"));
 }
+
+#[test]
+fn validate_rejects_bundle_caps_above_the_decoding_ceiling() {
+    let parameters = starfish_config::Parameters {
+        max_headers_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_headers_per_bundle"));
+
+    let parameters = starfish_config::Parameters {
+        max_shards_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_shards_per_bundle"));
+
+    starfish_config::Parameters {
+        max_headers_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE,
+        max_shards_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}
+
+#[test]
+fn validate_rejects_header_sync_cap_above_the_response_ceiling() {
+    let parameters = starfish_config::Parameters {
+        max_headers_per_header_sync_fetch: starfish_config::MAX_HEADERS_PER_HEADER_SYNC_FETCH + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_headers_per_header_sync_fetch"));
+
+    starfish_config::Parameters {
+        max_headers_per_header_sync_fetch: starfish_config::MAX_HEADERS_PER_HEADER_SYNC_FETCH,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}

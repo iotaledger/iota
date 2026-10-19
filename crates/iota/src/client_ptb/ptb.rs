@@ -223,6 +223,14 @@ impl PTB {
         }
 
         let grpc_client = context.get_grpc_client().await?;
+        let env = context.active_env()?;
+        grpc_client.service_info().await.map_err(|e| {
+            anyhow!(
+                "cannot reach the gRPC endpoint for env [{}] at {}: {e}",
+                env.alias(),
+                grpc_client.uri()
+            )
+        })?;
 
         let (res, warnings) = Self::build_ptb(program, context, grpc_client).await;
 

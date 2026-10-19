@@ -169,7 +169,7 @@ impl<'backing> TemporaryStore<'backing> {
             loaded_runtime_objects: self.loaded_runtime_objects,
             runtime_packages_loaded_from_db: self.runtime_packages_loaded_from_db.into_inner(),
             lamport_version: self.lamport_timestamp,
-            binary_config: to_binary_config(self.protocol_config),
+            binary_config: to_binary_config(self.protocol_config, None),
         }
     }
 
@@ -885,10 +885,9 @@ impl TemporaryStore<'_> {
 
     /// Return the list of all modified objects, for each object, returns
     /// - Object ID,
-    /// - Input: If the object existed prior to this transaction, include their
-    ///   version and storage_rebate,
-    /// - Output: If a new version of the object is written, include the new
-    ///   object.
+    /// - Input: If the object existed prior to this transaction, include their version and
+    ///   storage_rebate,
+    /// - Output: If a new version of the object is written, include the new object.
     fn get_modified_objects(&self) -> Vec<ModifiedObjectInfo<'_>> {
         self.execution_results
             .modified_objects
@@ -919,11 +918,10 @@ impl TemporaryStore<'_> {
     /// Specifically, this checks two key invariants about storage
     /// fees and storage rebate:
     ///
-    /// 1. all IOTA in storage rebate fields of input objects should flow either
-    ///    to the transaction storage rebate, or the transaction non-refundable
-    ///    storage rebate
-    /// 2. all IOTA charged for storage should flow into the storage rebate
-    ///    field of some output object
+    /// 1. all IOTA in storage rebate fields of input objects should flow either to the transaction
+    ///    storage rebate, or the transaction non-refundable storage rebate
+    /// 2. all IOTA charged for storage should flow into the storage rebate field of some output
+    ///    object
     ///
     /// This function is intended to be called *after* we have charged for
     /// gas + applied the storage rebate to the gas object, but *before* we
@@ -995,9 +993,9 @@ impl TemporaryStore<'_> {
     /// This more expensive check will check a third invariant on top of the 2
     /// performed by `check_iota_conserved` above:
     ///
-    /// * all IOTA in input objects (including coins etc in the Move part of an
-    ///   object) should flow either to an output object, or be burned as part
-    ///   of computation fees or non-refundable storage rebate
+    /// * all IOTA in input objects (including coins etc in the Move part of an object) should flow
+    ///   either to an output object, or be burned as part of computation fees or non-refundable
+    ///   storage rebate
     ///
     /// This function is intended to be called *after* we have charged for gas +
     /// applied the storage rebate to the gas object, but *before* we have

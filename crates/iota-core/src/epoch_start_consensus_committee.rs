@@ -62,7 +62,6 @@ mod test {
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
     };
-    use rand::thread_rng;
 
     use super::get_consensus_committee;
 
@@ -73,7 +72,7 @@ mod test {
 
         for i in 0..10 {
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
+            let protocol_network_key = NetworkKeyPair::generate(&mut rand08::thread_rng());
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
@@ -142,7 +141,7 @@ mod test {
 
         for i in 0..10 {
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
+            let protocol_network_key = NetworkKeyPair::generate(&mut rand08::thread_rng());
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
@@ -157,7 +156,7 @@ mod test {
             });
 
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
+            let protocol_network_key = NetworkKeyPair::generate(&mut rand08::thread_rng());
 
             non_committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,

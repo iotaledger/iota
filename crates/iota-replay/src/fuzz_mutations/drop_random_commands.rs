@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::TransactionKind;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use tracing::info;
 
 use crate::fuzz::TransactionKindMutator;
@@ -27,7 +27,7 @@ impl TransactionKindMutator for DropRandomCommands {
             }
             p.commands = p
                 .commands
-                .choose_multiple(&mut self.rng, p.commands.len() - 1)
+                .sample(&mut self.rng, p.commands.len() - 1)
                 .cloned()
                 .collect();
             info!("Mutation: Dropping random commands");

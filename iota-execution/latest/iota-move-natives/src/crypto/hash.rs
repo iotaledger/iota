@@ -72,10 +72,10 @@ pub struct HashKeccak256CostParams {
 /// Implementation of the Move native function `hash::keccak256(data:
 /// &vector<u8>): vector<u8>`   gas cost: hash_keccak256_cost_base
 /// | base cost for function call and fixed opers
-///              + hash_keccak256_data_cost_per_byte * msg.len()       | cost
-///                depends on length of message
-///              + hash_keccak256_data_cost_per_block * num_blocks     | cost
-///                depends on number of blocks in message
+///              + hash_keccak256_data_cost_per_byte * msg.len()       | cost depends on length of
+///                message
+///              + hash_keccak256_data_cost_per_block * num_blocks     | cost depends on number of
+///                blocks in message
 /// ****************************************************************************
 /// *******************
 pub fn keccak256(
@@ -116,10 +116,10 @@ pub struct HashBlake2b256CostParams {
 /// Implementation of the Move native function `hash::blake2b256(data:
 /// &vector<u8>): vector<u8>`   gas cost: hash_blake2b256_cost_base
 /// | base cost for function call and fixed opers
-///              + hash_blake2b256_data_cost_per_byte * msg.len()       | cost
-///                depends on length of message
-///              + hash_blake2b256_data_cost_per_block * num_blocks     | cost
-///                depends on number of blocks in message
+///              + hash_blake2b256_data_cost_per_byte * msg.len()       | cost depends on length of
+///                message
+///              + hash_blake2b256_data_cost_per_block * num_blocks     | cost depends on number of
+///                blocks in message
 /// ****************************************************************************
 /// *******************
 pub fn blake2b256(

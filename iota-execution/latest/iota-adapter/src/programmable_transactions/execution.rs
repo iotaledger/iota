@@ -40,6 +40,7 @@ mod checked {
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
+        transaction::ProgrammableTransactionExt,
         transfer::RESOLVED_RECEIVING_STRUCT,
     };
     use iota_verifier::{
@@ -52,14 +53,14 @@ mod checked {
     use move_binary_format::{
         CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
-        errors::{Location, PartialVMResult, VMResult},
+        errors::{Location, PartialVMError, PartialVMResult, VMResult},
         file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
-        file_format_common::VERSION_6,
+        file_format_common::{BinaryConstants, BinaryFlavor, VERSION_6},
         normalized,
     };
     use move_core_types::{
         account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
-        u256::U256,
+        u256::U256, vm_status::StatusCode,
     };
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
@@ -137,6 +138,13 @@ mod checked {
         pt: ProgrammableTransaction,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
+        if protocol_config.validate_ptb_argument_indices() {
+            if let Err(err) = pt.validate_argument_indices() {
+                invariant_violation!(
+                    "PTB argument indices are checked at signing -- this should be impossible: {err}"
+                );
+            }
+        }
         let ProgrammableTransaction { inputs, commands } = pt;
         let mut context = ExecutionContext::new(
             protocol_config,
@@ -815,7 +823,7 @@ mod checked {
         };
 
         let pool = &mut normalized::RcPool::new();
-        let binary_config = to_binary_config(context.protocol_config);
+        let binary_config = to_binary_config(context.protocol_config, None);
         let current_normalized = match normalize_modules_with_metadata(
             pool,
             existing_package.serialized_module_map().values(),
@@ -1095,12 +1103,19 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: &[Vec<u8>],
     ) -> Result<Vec<CompiledModule>, ExecutionError> {
-        let binary_config = to_binary_config(context.protocol_config);
+        let check_canonical_header = context
+            .protocol_config
+            .check_canonical_module_version_header();
+        let binary_config = to_binary_config(context.protocol_config, None);
         let modules = module_bytes
             .iter()
             .map(|b| {
-                CompiledModule::deserialize_with_config(b, &binary_config)
-                    .map_err(|e| e.finish(Location::Undefined))
+                let module = CompiledModule::deserialize_with_config(b, &binary_config)
+                    .map_err(|e| e.finish(Location::Undefined))?;
+                if check_canonical_header {
+                    canonical_version_header(b, &module)?;
+                }
+                Ok(module)
             })
             .collect::<VMResult<Vec<CompiledModule>>>()
             .map_err(|e| context.convert_vm_error(e))?;
@@ -1111,6 +1126,26 @@ mod checked {
         );
 
         Ok(modules)
+    }
+
+    /// Rejects a module header that is not the encoding the serializer writes
+    /// for the version the header decodes to.
+    ///
+    /// Below binary format version 7 the flavor is not part of the header, so
+    /// the deserializer masks the high byte off instead of reading it.
+    /// Requiring the round trip through `encode_version` keeps the header
+    /// the only encoding of its version.
+    fn canonical_version_header(module_bytes: &[u8], module: &CompiledModule) -> VMResult<()> {
+        let start = BinaryConstants::MOVE_MAGIC_SIZE;
+        let header: Option<[u8; 4]> = module_bytes
+            .get(start..start + 4)
+            .and_then(|bytes| bytes.try_into().ok());
+        if header.map(u32::from_le_bytes) != Some(BinaryFlavor::encode_version(module.version)) {
+            return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION)
+                .with_message("Non-canonical version header".to_string())
+                .finish(Location::Undefined));
+        }
+        Ok(())
     }
 
     /// Publishes a set of `CompiledModule` instances to the blockchain under

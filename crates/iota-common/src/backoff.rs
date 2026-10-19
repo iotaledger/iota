@@ -4,7 +4,7 @@
 
 use std::{iter::Iterator, time::Duration};
 
-use rand::Rng as _;
+use rand::RngExt;
 
 /// Creates a generator which yields an approximately exponential series of
 /// durations, as back-off delays. Jitters are added to each delay by default to
@@ -82,9 +82,7 @@ impl Iterator for ExponentialBackoff {
         let jitter = if self.max_jitter.is_zero() {
             Duration::ZERO
         } else {
-            Duration::from_secs_f64(
-                rand::thread_rng().gen_range(0.0..self.max_jitter.as_secs_f64()),
-            )
+            Duration::from_secs_f64(rand::rng().random_range(0.0..self.max_jitter.as_secs_f64()))
         };
         self.next = current
             .mul_f64(self.factor)

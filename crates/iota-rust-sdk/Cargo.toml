@@ -31,7 +31,7 @@ default = [
   "secp256k1",
   "secp256r1",
   "serde",
-  "txn-builder",
+  "transaction-builder",
   "types",
 ]
 # Crypto
@@ -49,7 +49,7 @@ graphql = ["dep:iota-sdk-graphql-client"]
 # gRPC
 grpc = ["dep:iota-grpc-client", "dep:iota-grpc-types"]
 # Transaction Builder
-txn-builder = ["dep:iota-sdk-transaction-builder"]
+transaction-builder = ["dep:iota-sdk-transaction-builder"]
 # Types
 types = ["dep:iota-sdk-types"]
 serde = ["types", "iota-sdk-types/serde"]

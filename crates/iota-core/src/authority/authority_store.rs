@@ -1611,10 +1611,10 @@ impl AuthorityStore {
             &self.perpetual_tables,
             checkpoint_store,
             grpc_indexes_store,
-            None,
             pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),
             EPOCH_DURATION_MS_FOR_TESTING,
+            None,
             None,
         )
         .await;

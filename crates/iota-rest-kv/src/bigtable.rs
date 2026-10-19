@@ -308,8 +308,7 @@ impl KvStoreClient {
     /// the input. This allows the caller to easily determine which
     /// requested keys have data:
     /// - `Some(value)` at index `i` means `key[i]` exists and has data
-    /// - `None` at index `i` means `key[i]` was not found or has no matching
-    ///   data
+    /// - `None` at index `i` means `key[i]` was not found or has no matching data
     #[instrument(
         level = "debug",
         skip_all,
@@ -525,8 +524,8 @@ impl KvStoreClient {
 ///
 /// Takes:
 /// - `keys`: The list of keys to extract from
-/// - `extractor`: Function that returns Some(extracted_value) for the target
-///   variant, None otherwise
+/// - `extractor`: Function that returns Some(extracted_value) for the target variant, None
+///   otherwise
 ///
 /// Returns a vector of extracted values. Returns [`ApiError::BadRequest`]
 /// if any extraction returns None value.

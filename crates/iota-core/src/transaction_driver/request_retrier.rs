@@ -23,8 +23,8 @@ use crate::{
 /// In TransactionDriver, submitting a transaction and getting full effects
 /// follow the same pattern:
 /// 1. Retry against all validators until the operation succeeds.
-/// 2. If non-retriable errors from a quorum of validators are returned, the
-///    operation should fail permanently.
+/// 2. If non-retriable errors from a quorum of validators are returned, the operation should fail
+///    permanently.
 ///
 /// When an `allowed_validators` is provided, only the validators in the list
 /// will be used to submit the transaction to. When the allowed validator list

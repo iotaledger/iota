@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     iter,
+    ops::Range,
     sync::Arc,
     time::Duration,
     vec,
@@ -33,6 +34,7 @@ use crate::storage::rocksdb_store::RocksDBStore;
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
     Transaction,
+    acknowledgment_stats::AcknowledgmentStats,
     authority_set::AuthoritySet,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
@@ -63,6 +65,9 @@ pub(crate) struct Core {
     /// The consumer to use in order to pull transactions to be included for the
     /// next proposals
     transaction_consumer: TransactionConsumer,
+    /// How soon voters acknowledge blocks; chooses our leader blocks'
+    /// acknowledgments.
+    acknowledgment_stats: AcknowledgmentStats,
     /// The block manager which is responsible for keeping track of the DAG
     /// dependencies when processing new blocks and accept them or suspend
     /// if we are missing their causal history
@@ -133,6 +138,8 @@ pub(crate) enum ReasonToCreateBlock {
     AddBlock,
     AddBlockHeader,
     SoftTimeout,
+    /// A round the threshold clock passed before we proposed in it.
+    CatchUp,
     MaxLeaderTimeout,
     Recover,
     QuorumSubscribersExist,
@@ -149,6 +156,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::MaxLeaderTimeout => "MaxLeaderTimeout",
             ReasonToCreateBlock::AddBlockHeader => "AddBlockHeader",
             ReasonToCreateBlock::SoftTimeout => "SoftTimeout",
+            ReasonToCreateBlock::CatchUp => "CatchUp",
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
@@ -165,12 +173,29 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::MaxLeaderTimeout => true,
             ReasonToCreateBlock::AddBlockHeader => false,
             ReasonToCreateBlock::SoftTimeout => false,
+            ReasonToCreateBlock::CatchUp => true,
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
             ReasonToCreateBlock::FastSyncComplete => true,
         }
     }
+}
+
+/// Rounds below `clock_round` to propose for after the clock passed them:
+/// above our last proposal, above the round peers know we proposed in and
+/// above the approximate quorum commit round.
+fn skipped_rounds_to_propose(
+    clock_round: Round,
+    last_proposed_round: Round,
+    last_known_proposed_round: Round,
+    approx_quorum_commit_round: Round,
+) -> Range<Round> {
+    let first = last_proposed_round
+        .max(last_known_proposed_round)
+        .max(approx_quorum_commit_round)
+        .saturating_add(1);
+    first..clock_round
 }
 
 /// Reason a proposal attempt was skipped, either in `Core::should_propose` or
@@ -272,6 +297,7 @@ impl Core {
         }
 
         Self {
+            acknowledgment_stats: AcknowledgmentStats::new(context.committee.size()),
             context,
             last_signaled_round,
             last_included_ancestors,
@@ -386,13 +412,9 @@ impl Core {
         let (accepted_blocks_headers, missing_block_refs) =
             self.block_manager.try_accept_blocks(blocks, source);
 
-        if !accepted_blocks_headers.is_empty()
-            && self.context.protocol_config.consensus_starfish_speed()
-        {
-            self.record_strong_vote_complaints(
-                &mut self.dag_state.write(),
-                &accepted_blocks_headers,
-            );
+        if self.context.protocol_config.consensus_starfish_speed() {
+            self.record_strong_blame_metrics(&accepted_blocks_headers);
+            self.record_acknowledgment_stats(&accepted_blocks_headers);
         }
 
         let missing_committed_txns = if !accepted_blocks_headers.is_empty() {
@@ -460,13 +482,9 @@ impl Core {
             .block_manager
             .try_accept_block_headers(block_headers, source);
 
-        if !accepted_block_headers.is_empty()
-            && self.context.protocol_config.consensus_starfish_speed()
-        {
-            self.record_strong_vote_complaints(
-                &mut self.dag_state.write(),
-                &accepted_block_headers,
-            );
+        if self.context.protocol_config.consensus_starfish_speed() {
+            self.record_strong_blame_metrics(&accepted_block_headers);
+            self.record_acknowledgment_stats(&accepted_block_headers);
         }
 
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
@@ -610,8 +628,7 @@ impl Core {
     ///
     /// This method follows a similar flow to `try_commit`:
     /// 1. Store commits and transactions in DagState
-    /// 2. For commits with reputation scores, update leader schedule and store
-    ///    CommitInfo
+    /// 2. For commits with reputation scores, update leader schedule and store CommitInfo
     /// 3. Flush to storage
     /// 4. Process subdags via commit_observer
     ///
@@ -819,16 +836,53 @@ impl Core {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
         }
-        if let Some(verified_block) = self.try_new_block(reason) {
+        let caught_up = self.propose_skipped_rounds()?;
+        let verified_block = self.try_new_block(reason);
+        if let Some(verified_block) = &verified_block {
             self.signals.new_block(verified_block.clone())?;
 
             fail_point!("consensus-after-propose");
-
-            // The new block may help commit.
-            let (_, missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
-            return Ok((Some(verified_block), missing_committed_txns));
         }
-        Ok((None, BTreeMap::new()))
+        if verified_block.is_none() && !caught_up {
+            return Ok((None, BTreeMap::new()));
+        }
+        // The new blocks may help commit.
+        let (_, missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
+        Ok((verified_block, missing_committed_txns))
+    }
+
+    /// Proposes and broadcasts a block for each round the threshold clock
+    /// passed since our last proposal, oldest first. A quorum of blocks exists
+    /// at every round below the clock round, so each block has its ancestors,
+    /// and it votes for the previous round's leader block when we hold it by
+    /// now. The bounds of `skipped_rounds_to_propose` and the block rate
+    /// budget apply. Returns whether a block was proposed.
+    fn propose_skipped_rounds(&mut self) -> ConsensusResult<bool> {
+        let Some(last_known_proposed_round) = self.last_known_proposed_round else {
+            return Ok(false);
+        };
+        let rounds = skipped_rounds_to_propose(
+            self.dag_state.read().threshold_clock_round(),
+            self.last_proposed_round(),
+            last_known_proposed_round,
+            self.approx_quorum_commit_round(),
+        );
+        let mut proposed = false;
+        for round in rounds {
+            if !self
+                .proposal_rate_limiter
+                .is_conforming(self.context.clock.timestamp_utc_ms())
+            {
+                self.skip_proposal(round, SkipProposalReason::BlockRateLimited);
+                break;
+            }
+            let strong_vote =
+                self.strong_vote_for(self.leader_header(round.saturating_sub(1)).as_ref());
+            let block = self.build_block(round, strong_vote, ReasonToCreateBlock::CatchUp);
+            self.signals.new_block(block)?;
+            proposed = true;
+        }
+        Ok(proposed)
     }
 
     /// Attempts to propose a new block at the current clock round. Eligibility
@@ -927,13 +981,7 @@ impl Core {
 
         // Compute the strong_vote once; reused for readiness check 2 and
         // the block header below.
-        let strong_vote = if self.context.protocol_config.consensus_starfish_speed() {
-            leader_header
-                .as_ref()
-                .map(|h| Self::compute_strong_vote(&self.dag_state.read(), h))
-        } else {
-            None
-        };
+        let strong_vote = self.strong_vote_for(leader_header.as_ref());
 
         // Strong-vote readiness check 2 (StarfishSpeed only, bypassed on
         // soft-timeout): our block would itself be a strong vote for the
@@ -944,15 +992,6 @@ impl Core {
             && !strong_vote.as_ref().is_some_and(|sv| sv.is_strong_vote())
         {
             return None;
-        }
-
-        // Determine the ancestors to be included in proposal. A quorum of ancestor must
-        // exist due to a threshold clock
-        let ancestors = self.ancestors_to_propose(clock_round);
-
-        // Update the last included ancestor block refs
-        for ancestor in &ancestors {
-            self.last_included_ancestors[ancestor.author()] = Some(ancestor.reference());
         }
 
         let leader_authority = &self
@@ -992,6 +1031,27 @@ impl Core {
                 }
                 self.ordinary_propose_ready_at = None;
             }
+        }
+
+        Some(self.build_block(clock_round, strong_vote, reason))
+    }
+
+    /// Builds, persists and accepts our block for `round`, from the latest
+    /// headers below it, the pending acknowledgments and transactions. The
+    /// block is not broadcast here.
+    fn build_block(
+        &mut self,
+        round: Round,
+        strong_vote: Option<StrongVote>,
+        reason: ReasonToCreateBlock,
+    ) -> VerifiedBlock {
+        // Determine the ancestors to be included in proposal. A quorum of ancestor must
+        // exist due to a threshold clock
+        let ancestors = self.ancestors_to_propose(round);
+
+        // Update the last included ancestor block refs
+        for ancestor in &ancestors {
+            self.last_included_ancestors[ancestor.author()] = Some(ancestor.reference());
         }
 
         // Strong-vote payload metrics: distribution of the `missing` set size,
@@ -1034,8 +1094,37 @@ impl Core {
                 .node_metrics
                 .proposed_block_ancestors_depth
                 .with_label_values(&[authority])
-                .observe(clock_round.saturating_sub(ancestor.round()).into());
+                .observe(round.saturating_sub(ancestor.round()).into());
         }
+
+        // Only leader blocks feed the optimistic-commit path, so only they
+        // choose what to carry by what the voters are expected to hold.
+        let am_leader_at_round = self
+            .leaders(round)
+            .iter()
+            .any(|slot| slot.authority == self.context.own_index);
+        let adaptive_acknowledgments =
+            am_leader_at_round && self.context.adaptive_acknowledgments_enabled();
+
+        // Consume the acknowledgments about transaction data availability for past
+        // blocks to be included.
+        let max_acknowledgments = self
+            .context
+            .protocol_config
+            .max_acknowledgments_per_block(self.context.committee.size());
+        let acknowledgments = {
+            let mut dag_state = self.dag_state.write();
+            let deferred = if adaptive_acknowledgments {
+                self.acknowledgment_stats.acknowledgments_to_defer(
+                    &self.context,
+                    round,
+                    dag_state.pending_acknowledgments(),
+                )
+            } else {
+                BTreeSet::new()
+            };
+            dag_state.take_acknowledgments(round, max_acknowledgments, &deferred)
+        };
 
         // Consume the next transactions to be included. Do not drop the guards yet as
         // this would acknowledge the inclusion of transactions. Just let this
@@ -1058,37 +1147,6 @@ impl Core {
             .proposed_block_transactions
             .observe(transactions.len() as f64);
 
-        // Adaptive acknowledgment filtering: only applied to leader blocks,
-        // where included refs feed the optimistic-commit path.
-        let am_leader_at_clock_round = self
-            .leaders(clock_round)
-            .iter()
-            .any(|slot| slot.authority == self.context.own_index);
-        let exclude = if am_leader_at_clock_round
-            && self.context.protocol_config.consensus_starfish_speed()
-            && self
-                .context
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
-        {
-            self.dag_state
-                .read()
-                .starfish_speed_excluded_ack_authorities()
-        } else {
-            AuthoritySet::new()
-        };
-
-        // Consume the acknowledgments about transaction data availability for past
-        // blocks to be included.
-        let max_acknowledgments = self
-            .context
-            .protocol_config
-            .max_acknowledgments_per_block(self.context.committee.size());
-        let acknowledgments = self
-            .dag_state
-            .write()
-            .take_acknowledgments(max_acknowledgments, exclude);
-
         self.context
             .metrics
             .node_metrics
@@ -1105,7 +1163,7 @@ impl Core {
                 .node_metrics
                 .proposed_block_acknowledgments_depth
                 .with_label_values(&[authority])
-                .observe(clock_round.saturating_sub(acknowledgment.round).into());
+                .observe(round.saturating_sub(acknowledgment.round).into());
         }
 
         // Consume the commit votes to be included.
@@ -1120,7 +1178,7 @@ impl Core {
         let now = self.context.clock.timestamp_utc_ms();
         ancestors.iter().for_each(|block| {
             if block.timestamp_ms() > now {
-                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {clock_round}.",  block.timestamp_ms());
+                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {round}.",  block.timestamp_ms());
                 let authority = &self.context.committee.authority(block.author()).hostname;
                 self.context
                     .metrics
@@ -1136,7 +1194,7 @@ impl Core {
         let block_header = if self.context.protocol_config.consensus_starfish_speed() {
             BlockHeader::V2(BlockHeaderV2::new(
                 self.context.committee.epoch(),
-                clock_round,
+                round,
                 self.context.own_index,
                 now,
                 ancestor_refs,
@@ -1148,7 +1206,7 @@ impl Core {
         } else {
             BlockHeader::V1(BlockHeaderV1::new(
                 self.context.committee.epoch(),
-                clock_round,
+                round,
                 self.context.own_index,
                 now,
                 ancestor_refs,
@@ -1210,9 +1268,10 @@ impl Core {
         // Accept the block into BlockManager and DagState. The accepted set may also
         // include blocks unsuspended by the GC sweep, so its size is not necessarily
         // one; for an own block only the absence of missing ancestors is guaranteed.
-        let (_, missing) = self
+        let (accepted_block_headers, missing) = self
             .block_manager
             .try_accept_blocks(vec![verified_block.clone()], DataSource::OwnBlock);
+        self.record_acknowledgment_stats(&accepted_block_headers);
         if !missing.is_empty() {
             error!(
                 ?missing,
@@ -1233,7 +1292,7 @@ impl Core {
         let gen_transaction_ref = GenericTransactionRef::from(verified_block.transaction_ref());
         ack_transactions(gen_transaction_ref);
 
-        info!("Created block {block_ref} for round {clock_round}");
+        info!("Created block {block_ref} for round {round}");
 
         self.context
             .metrics
@@ -1245,7 +1304,7 @@ impl Core {
         // Every proposal spends rate budget, including forced ones.
         self.proposal_rate_limiter.record(now);
 
-        Some(verified_block)
+        verified_block
     }
 
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
@@ -1460,13 +1519,11 @@ impl Core {
     /// side effect, when proposal is greenlit, refreshes `DagState`'s
     /// last-known quorum commit index to enable eviction for commit votes.
     pub(crate) fn should_propose(&self) -> bool {
-        let (clock_round, last_proposed_round, local_commit_index, local_commit_round) = {
+        let (clock_round, last_proposed_round) = {
             let dag_state = self.dag_state.read();
             (
                 dag_state.threshold_clock_round(),
                 dag_state.get_last_proposed_block_header().round(),
-                dag_state.last_commit_index(),
-                dag_state.last_commit_round(),
             )
         };
 
@@ -1496,8 +1553,7 @@ impl Core {
         // quorum commit round. Blocks at or below it cannot improve the commit
         // rule.
         let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
-        let approx_quorum_round =
-            local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
+        let approx_quorum_round = self.approx_quorum_commit_round();
         if clock_round <= approx_quorum_round {
             return self.skip_proposal(
                 clock_round,
@@ -1514,6 +1570,18 @@ impl Core {
             .set_last_known_quorum_commit_index(quorum_commit_index);
 
         true
+    }
+
+    /// Approximates the round the quorum has committed up to, from the quorum
+    /// commit index relative to the local commit. Blocks at or below it
+    /// cannot improve the commit rule.
+    fn approx_quorum_commit_round(&self) -> Round {
+        let (local_commit_index, local_commit_round) = {
+            let dag_state = self.dag_state.read();
+            (dag_state.last_commit_index(), dag_state.last_commit_round())
+        };
+        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+        local_commit_round + quorum_commit_index.saturating_sub(local_commit_index)
     }
 
     /// Records a skipped proposal: emits the per-reason `debug!` line and
@@ -1621,6 +1689,15 @@ impl Core {
         included_ancestors
     }
 
+    /// The strong-vote payload of a block of ours voting on `leader_header`,
+    /// absent without StarfishSpeed or without the leader block.
+    fn strong_vote_for(&self, leader_header: Option<&VerifiedBlockHeader>) -> Option<StrongVote> {
+        if !self.context.protocol_config.consensus_starfish_speed() {
+            return None;
+        }
+        leader_header.map(|header| Self::compute_strong_vote(&self.dag_state.read(), header))
+    }
+
     /// Builds the `StrongVote` payload for a block voting on `leader_header`:
     /// pins the leader's authority and records the set of authorities (the
     /// leader itself and those it acknowledges) whose transactions are not
@@ -1649,25 +1726,34 @@ impl Core {
         }
     }
 
-    /// Records strong-vote complaints from each freshly-accepted block into
-    /// DagState's per-leader-round hint tables. Caller passes a write-locked
-    /// DagState. Called only when Starfish-Speed flag is on.
-    fn record_strong_vote_complaints(
-        &self,
-        dag_state: &mut DagState,
-        blocks: &[VerifiedBlockHeader],
-    ) {
+    /// Feeds freshly-accepted headers to the acknowledgment statistics,
+    /// marking the leader block of each round.
+    fn record_acknowledgment_stats(&mut self, block_headers: &[VerifiedBlockHeader]) {
+        if block_headers.is_empty() || !self.context.adaptive_acknowledgments_enabled() {
+            return;
+        }
+        self.acknowledgment_stats
+            .halve_if_due(self.dag_state.read().threshold_clock_round());
+        for header in block_headers {
+            let leader_block = self
+                .leaders(header.round())
+                .iter()
+                .any(|slot| slot.authority == header.author());
+            self.acknowledgment_stats
+                .record_header(&self.context, header, leader_block);
+        }
+    }
+
+    /// Counts the strong blames against this node's leader blocks among
+    /// freshly-accepted blocks. Called only when Starfish-Speed flag is on.
+    fn record_strong_blame_metrics(&self, blocks: &[VerifiedBlockHeader]) {
         let own_index = self.context.own_index;
         for block in blocks {
             // Use the producer's pinned leader (in the strong-vote payload),
             // not the local canonical leader. The local view can disagree
             // across schedule rotations — same misattribution surface fixed
             // for the commit path in StarfishSpeed.
-            if !block.is_strong_blame_for(own_index) {
-                continue;
-            }
-            let leader_round = block.round().saturating_sub(1);
-            if leader_round == GENESIS_ROUND {
+            if !block.is_strong_blame_for(own_index) || block.round() == GENESIS_ROUND + 1 {
                 continue;
             }
             let Some(strong_vote) = block.strong_vote() else {
@@ -1689,11 +1775,6 @@ impl Core {
                     .with_label_values(&[hostname])
                     .inc();
             }
-            dag_state.record_strong_vote_complaint(
-                block.author(),
-                leader_round,
-                strong_vote.missing,
-            );
         }
     }
 
@@ -2224,20 +2305,24 @@ mod test {
         let mut new_round = signal_receivers.new_round_receiver();
         assert_eq!(*new_round.borrow_and_update(), 5);
 
-        // During recovery, round 4 block should have been proposed.
-        let proposed_block = block_receiver
-            .recv()
-            .await
-            .expect("A block should have been created");
-        assert_eq!(proposed_block.round(), 4);
-        let ancestors = proposed_block.ancestors();
+        // During recovery the core first proposes for rounds 2 and 3, which
+        // the clock passed while it was down (round 1 is the local commit
+        // round), then for round 4.
+        for round in 2..=4 {
+            let proposed_block = block_receiver
+                .recv()
+                .await
+                .expect("A block should have been created");
+            assert_eq!(proposed_block.round(), round);
+            let ancestors = proposed_block.ancestors();
 
-        assert_eq!(ancestors.len(), 4);
-        for ancestor in ancestors {
-            if ancestor.author == context.own_index {
-                assert_eq!(ancestor.round, 0);
-            } else {
-                assert_eq!(ancestor.round, 3);
+            assert_eq!(ancestors.len(), 4);
+            for ancestor in ancestors {
+                if ancestor.author == context.own_index && round == 2 {
+                    assert_eq!(ancestor.round, 0);
+                } else {
+                    assert_eq!(ancestor.round, round - 1);
+                }
             }
         }
 
@@ -2321,7 +2406,7 @@ mod test {
         let mut acknowledgments = vec![];
         let num_acks = 2 * context.committee.size();
         let mut num_pending_acks = 0;
-        let mut rng = &mut rand::thread_rng();
+        let mut rng = &mut rand::rng();
         loop {
             acknowledgments.push(BlockRef::new(
                 0,
@@ -2536,11 +2621,11 @@ mod test {
     /// `ancestors_to_propose`'s drop-too-old filter.
     ///
     /// Two properties are checked:
-    ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the
-    ///      strict-`<` filter in `ancestors_to_propose` self-disables there and
-    ///      genesis/quorum-round ancestors can never be accidentally dropped.
-    ///   2. Well above `gc_depth`, the helper returns `clock_round - gc_depth`
-    ///      (matching `Context::min_ref_round` and the verifier's bound).
+    ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the strict-`<` filter in
+    ///      `ancestors_to_propose` self-disables there and genesis/quorum-round ancestors can never
+    ///      be accidentally dropped.
+    ///   2. Well above `gc_depth`, the helper returns `clock_round - gc_depth` (matching
+    ///      `Context::min_ref_round` and the verifier's bound).
     #[tokio::test]
     async fn test_min_ancestor_round() {
         telemetry_subscribers::init_for_testing();
@@ -3870,7 +3955,8 @@ mod test {
         // new block. If no compression is applied then we should expect
         // all the previous blocks to be referenced from round 0..=10. However, since
         // compression is applied only the last round's (10) blocks should be
-        // referenced + the authority's block of round 0.
+        // referenced, including the authority's own round-10 block, proposed
+        // while catching up on the rounds the clock passed.
         let core_fixture = &mut cores[excluded_authority];
         // Wait for min block delay to allow blocks to be proposed.
         sleep(default_params.min_block_delay).await;
@@ -3880,18 +3966,13 @@ mod test {
             .add_blocks(all_blocks, DataSource::Test)
             .unwrap();
 
-        // Assert that a block has been created for round 11 and it references to blocks
-        // of round 10 for the other peers, and to round 1 for its own block
-        // (created after recovery).
+        // Assert that a block has been created for round 11 and it references
+        // blocks of round 10 for every authority.
         let block_header = core_fixture.core.last_proposed_block_header();
         assert_eq!(block_header.round(), 11);
         assert_eq!(block_header.ancestors().len(), 4);
         for block_ref in block_header.ancestors() {
-            if block_ref.author == excluded_authority {
-                assert_eq!(block_ref.round, 1);
-            } else {
-                assert_eq!(block_ref.round, 10);
-            }
+            assert_eq!(block_ref.round, 10);
         }
 
         // Check commits have been persisted to store
@@ -4192,8 +4273,132 @@ mod test {
         assert!(!fixture.core.has_strong_vote_quorum(8, leader));
     }
 
+    #[rstest]
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn leader_blocks_defer_refs_voters_lack(#[values(false, true)] adaptive_acks: bool) {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        context
+            .parameters
+            .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+        let min_block_delay = context.parameters.min_block_delay;
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
+        let mut last_round_blocks = Vec::new();
+        for round in 1..=2 {
+            last_round_blocks = gossip_one_round(
+                &mut cores,
+                round,
+                &last_round_blocks,
+                min_block_delay,
+                &mut BTreeSet::new(),
+            )
+            .await;
+        }
+
+        // Before the leader of round 3 proposes, make the two other voters
+        // receive the author's blocks 4 rounds late, so they would lack its
+        // round-2 block when voting at round 4.
+        let leader = cores[0].core.leaders(3)[0].authority;
+        let author = AuthorityIndex::new_for_test(((leader.value() + 1) % 4) as u8);
+        let lacked_ref = last_round_blocks
+            .iter()
+            .find(|block| block.author() == author)
+            .unwrap()
+            .reference();
+        let leader_core = &mut cores[leader.value()].core;
+        leader_core
+            .dag_state
+            .write()
+            .set_pending_acknowledgments(vec![lacked_ref]);
+        for (voter, _) in leader_core.context.committee.authorities() {
+            if voter != leader && voter != author {
+                leader_core
+                    .acknowledgment_stats
+                    .set_acknowledgment_depth(voter, author, 4);
+            }
+        }
+        last_round_blocks = gossip_one_round(
+            &mut cores,
+            3,
+            &last_round_blocks,
+            min_block_delay,
+            &mut BTreeSet::new(),
+        )
+        .await;
+        let leader_block = last_round_blocks
+            .iter()
+            .find(|block| block.author() == leader)
+            .unwrap();
+        assert_eq!(
+            leader_block.acknowledgments().contains(&lacked_ref),
+            !adaptive_acks
+        );
+
+        // The leader's next block is not a leader block, so it acknowledges
+        // the deferred ref although the voters still lack it.
+        let next_blocks = gossip_one_round(
+            &mut cores,
+            4,
+            &last_round_blocks,
+            min_block_delay,
+            &mut BTreeSet::new(),
+        )
+        .await;
+        let next_block = next_blocks
+            .iter()
+            .find(|block| block.author() == leader)
+            .unwrap();
+        assert_eq!(
+            next_block.acknowledgments().contains(&lacked_ref),
+            adaptive_acks
+        );
+    }
+
     #[tokio::test]
-    async fn test_strong_vote_complaints_recorded_on_both_ingest_paths() {
+    async fn acknowledgment_stats_recorded_only_when_enabled() {
+        for (starfish_speed, adaptive_acks) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_starfish_speed_for_testing(starfish_speed);
+            context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+            let mut fixture = CoreTestFixture::new(
+                context,
+                vec![1; 4],
+                AuthorityIndex::new_for_test(0),
+                false,
+                false,
+                None,
+            )
+            .await;
+            let block_ref =
+                |round, author: u8| BlockRef::new(round, author.into(), BlockHeaderDigest::MIN);
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(2, 1)
+                    .set_ancestors(vec![block_ref(1, 1)])
+                    .set_acknowledgments(vec![block_ref(1, 2)])
+                    .build(),
+            );
+            fixture.core.record_acknowledgment_stats(&[header]);
+            assert_eq!(
+                fixture.core.acknowledgment_stats.samples(
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(2)
+                ),
+                u32::from(starfish_speed && adaptive_acks),
+                "starfish_speed={starfish_speed}, adaptive_acks={adaptive_acks}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn strong_blame_metrics_recorded_on_both_ingest_paths() {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
@@ -4259,13 +4464,156 @@ mod test {
         assert_eq!(voter_count(1), 1);
         assert_eq!(voter_count(2), 1);
 
-        // Both complaints reached the hint tables: authority 3 has f+1 = 2
-        // complaint stake and is excluded from future acknowledgments.
-        let excluded = fixture
+        let missing_hostname = &fixture
             .core
+            .context
+            .committee
+            .authority(AuthorityIndex::new_for_test(3))
+            .hostname;
+        assert_eq!(
+            fixture
+                .core
+                .context
+                .metrics
+                .node_metrics
+                .strong_blames_received_for_author
+                .with_label_values(&[missing_hostname])
+                .get(),
+            2
+        );
+    }
+
+    #[test]
+    fn skipped_rounds_respect_bounds() {
+        // Nothing skipped.
+        assert!(skipped_rounds_to_propose(5, 4, 0, 0).is_empty());
+        // The clock passed one round.
+        assert_eq!(skipped_rounds_to_propose(6, 4, 0, 0), 5..6);
+        // Not at or below the round peers know we proposed in, nor at or
+        // below the approximate quorum commit round.
+        assert_eq!(skipped_rounds_to_propose(8, 4, 6, 0), 7..8);
+        assert_eq!(skipped_rounds_to_propose(8, 4, 0, 6), 7..8);
+        // Far behind: every round since the last proposal.
+        assert_eq!(skipped_rounds_to_propose(50, 4, 0, 0), 5..50);
+    }
+
+    /// A core that receives the previous round's leader block only after a
+    /// quorum of the next round's blocks proposes for the round the clock
+    /// passed, voting for that leader, and then for the clock round.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn proposes_for_skipped_rounds() {
+        telemetry_subscribers::init_for_testing();
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let min_block_delay = context.parameters.min_block_delay;
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
+
+        let mut rounds_needing_timeout = BTreeSet::new();
+        let mut last_round_blocks = Vec::new();
+        for round in 1..=2 {
+            last_round_blocks = gossip_one_round(
+                &mut cores,
+                round,
+                &last_round_blocks,
+                min_block_delay,
+                &mut rounds_needing_timeout,
+            )
+            .await;
+        }
+        let round_2_blocks = last_round_blocks;
+
+        let leader = cores[0].core.first_leader(2);
+        let late = cores
+            .iter()
+            .position(|fixture| fixture.core.context.own_index != leader)
+            .unwrap();
+        let late_index = cores[late].core.context.own_index;
+
+        // The other cores hold every round-2 block and propose round 3.
+        sleep(min_block_delay).await;
+        let mut round_3_blocks = Vec::new();
+        for (index, fixture) in cores.iter_mut().enumerate() {
+            if index == late {
+                continue;
+            }
+            fixture
+                .core
+                .add_blocks(round_2_blocks.clone(), DataSource::Test)
+                .unwrap();
+            if fixture.core.last_proposed_round() < 3 {
+                fixture
+                    .core
+                    .new_block(3, ReasonToCreateBlock::SoftTimeout)
+                    .unwrap();
+            }
+            assert_eq!(fixture.core.last_proposed_round(), 3);
+            round_3_blocks.push(fixture.core.last_proposed_block());
+        }
+
+        // The late core lacks the round-2 leader block: its clock reaches
+        // round 3 but it does not propose, and the round-3 blocks, which
+        // reference the leader block, are suspended.
+        let late_core = &mut cores[late].core;
+        let without_leader: Vec<_> = round_2_blocks
+            .iter()
+            .filter(|block| block.author() != leader)
+            .cloned()
+            .collect();
+        late_core
+            .add_blocks(without_leader, DataSource::Test)
+            .unwrap();
+        late_core
+            .add_blocks(round_3_blocks.clone(), DataSource::Test)
+            .unwrap();
+        assert_eq!(late_core.last_proposed_round(), 2);
+        assert_eq!(late_core.dag_state.read().threshold_clock_round(), 3);
+
+        // The leader block arrives, the clock jumps to round 4 and the core
+        // proposes for rounds 3 and 4.
+        let leader_block = round_2_blocks
+            .iter()
+            .find(|block| block.author() == leader)
+            .cloned()
+            .unwrap();
+        late_core
+            .add_blocks(vec![leader_block], DataSource::Test)
+            .unwrap();
+        assert_eq!(late_core.dag_state.read().threshold_clock_round(), 4);
+        assert_eq!(late_core.last_proposed_round(), 4);
+
+        let caught_up = late_core
             .dag_state
             .read()
-            .starfish_speed_excluded_ack_authorities();
-        assert!(excluded.contains(AuthorityIndex::new_for_test(3)));
+            .get_cached_block_header_at_slot(Slot::new(3, late_index))
+            .expect("block for the skipped round");
+        assert!(caught_up.is_strong_vote_for(leader));
+        assert_eq!(
+            late_core
+                .context
+                .metrics
+                .node_metrics
+                .proposed_blocks
+                .with_label_values(&["CatchUp"])
+                .get(),
+            1
+        );
+        assert!(
+            late_core
+                .last_proposed_block()
+                .ancestors()
+                .contains(&caught_up.reference())
+        );
+
+        // Both were broadcast, oldest first.
+        for round in [3, 4] {
+            let block =
+                tokio::time::timeout(Duration::from_secs(1), cores[late].block_receiver.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            assert_eq!(block.round(), round);
+        }
     }
 }

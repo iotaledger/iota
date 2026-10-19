@@ -21,10 +21,10 @@ use crate::{
 /// Per-authority misbehavior counters.
 ///
 /// Two buckets track different lifecycle stages:
-/// - `in_memory`: from blocks currently in the DAG cache (volatile, recomputed
-///   on each flush from blocks still in cache).
-/// - `persisted`: cumulative counts from blocks evicted from cache (restored
-///   from storage on restart).
+/// - `in_memory`: from blocks currently in the DAG cache (volatile, recomputed on each flush from
+///   blocks still in cache).
+/// - `persisted`: cumulative counts from blocks evicted from cache (restored from storage on
+///   restart).
 pub(crate) struct MisbehaviorStore {
     in_memory: CommitteeMisbehaviorCounts,
     persisted: CommitteeMisbehaviorCounts,
@@ -257,15 +257,13 @@ impl MisbehaviorStore {
     /// header's author field, only trustworthy if the signature is valid).
     ///
     /// Attribution rules:
-    /// - Provable faults (valid signature, protocol violation): charged to
-    ///   `author` — cryptographic proof they produced an invalid block. If
-    ///   `peer != author`, the peer is also charged (unprovable) for
-    ///   distributing a block they could have verified themselves.
-    /// - Unprovable faults (bad/missing signature): charged to `peer` only — we
-    ///   can't verify the author field, but we know who sent it to us.
-    /// - Bundle-part faults (corrupt framing, metadata, or shard, or a shard
-    ///   the peer had no right to relay): charged to `peer` only, under the
-    ///   dedicated bundle-part counter.
+    /// - Provable faults (valid signature, protocol violation): charged to `author` — cryptographic
+    ///   proof they produced an invalid block. If `peer != author`, the peer is also charged
+    ///   (unprovable) for distributing a block they could have verified themselves.
+    /// - Unprovable faults (bad/missing signature): charged to `peer` only — we can't verify the
+    ///   author field, but we know who sent it to us.
+    /// - Bundle-part faults (corrupt framing, metadata, or shard, or a shard the peer had no right
+    ///   to relay): charged to `peer` only, under the dedicated bundle-part counter.
     pub(crate) fn record_faulty_block(
         &self,
         peer: AuthorityIndex,
@@ -338,6 +336,14 @@ impl MisbehaviorStore {
             self.in_memory.record_block_fault_unprovable(idx);
         }
     }
+
+    /// Attributes a fetch response the collector rejected to the peer that
+    /// served it: the peer is both the sender and the only party the error
+    /// can name. The block classifier decides the fault type, leaving
+    /// transport failures untracked.
+    pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
+        self.record_faulty_block(peer, peer, error);
+    }
 }
 
 /// Whether a block fault can be cryptographically proven.
@@ -368,6 +374,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // be trusted, so charge the sender, not the claimed author. A streamed
         // block that repeats or lowers the peer's own round is charged the
         // same way: the signed header proves authorship, not the send order.
+        // So is a fetch response with more entries than the request allows,
+        // with an entry larger than any valid one, or with commits after its
+        // transactions.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -382,7 +391,12 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TransactionCommitmentFailure { .. }
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
         | ConsensusError::TooManyFetchedHeadersReturned { .. }
-        | ConsensusError::StreamedBlockRoundNotIncreasing { .. } => FaultType::Unprovable,
+        | ConsensusError::TooManyFetchedTransactionsReturned(_)
+        | ConsensusError::TooManyCommitsFromPeer { .. }
+        | ConsensusError::TooManyCommitVoteHeaders { .. }
+        | ConsensusError::SerializedBlockHeaderTooLarge { .. }
+        | ConsensusError::StreamedBlockRoundNotIncreasing { .. }
+        | ConsensusError::CommitDataAfterTransactions { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had
@@ -432,12 +446,12 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::NotEnoughHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
-        // Transaction fetch faults, recorded against the serving peer at the
-        // fetch sites via `record_faulty_transactions` — deliberately not
+        // Transaction faults recorded against the serving peer where they are
+        // detected, via `record_faulty_transactions` — deliberately not
         // tracked again here.
-        | ConsensusError::TooManyFetchedTransactionsReturned(_)
         | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
+        | ConsensusError::TransactionsOutOfCommitOrder { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
         | ConsensusError::InvalidAuthorityIndexRequested { .. }
@@ -448,14 +462,11 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::EmptyMerkleTree
         | ConsensusError::MissingBlockHeader { .. }
         | ConsensusError::CommitRangeExceededAfterScanning { .. }
-        | ConsensusError::TooManyCommitsFromPeer { .. }
         | ConsensusError::NoCommitReceived { .. }
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
         | ConsensusError::NotEnoughCommitVotes { .. }
-        | ConsensusError::TooManyCommitVoteHeaders { .. }
         | ConsensusError::SerializedCommitTooLarge { .. }
-        | ConsensusError::SerializedBlockHeaderTooLarge { .. }
         | ConsensusError::InvalidCommitRange { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
@@ -477,7 +488,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::MissingVotingBlockHeaderInStorage { .. }
         | ConsensusError::WrongShardVersion { .. }
         | ConsensusError::WrongCommitVersionForFlags { .. }
-        | ConsensusError::WrongBlockHeaderVersionForFlag { .. } => FaultType::Untracked,
+        | ConsensusError::WrongBlockHeaderVersionForFlag { .. }
+        | ConsensusError::TransactionsNotAvailable { .. } => FaultType::Untracked,
     }
 }
 
@@ -1232,6 +1244,62 @@ mod tests {
         )
     }
 
+    /// A fetch response the collector rejected is the serving peer's
+    /// unprovable fault; a transport failure is nobody's.
+    #[tokio::test]
+    async fn fetch_faults_are_charged_to_the_serving_peer() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyFetchedTransactionsReturned(peer),
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::SerializedTransactionsTooLarge { size: 2, limit: 1 },
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyFetchedHeadersReturned {
+                peer,
+                requested: 1,
+                received: 2,
+            },
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyCommitsFromPeer {
+                peer,
+                count: 3,
+                limit: 2,
+            },
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyCommitVoteHeaders {
+                peer,
+                count: 9,
+                limit: 8,
+            },
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::SerializedBlockHeaderTooLarge {
+                peer,
+                size: 2,
+                limit: 1,
+            },
+        );
+        store.record_fetch_fault(peer, &ConsensusError::NetworkRequest("cut".to_string()));
+
+        let counts = store.in_memory.snapshot(peer.value());
+        assert_eq!(counts.faulty_blocks_unprovable, 6);
+        assert_eq!(counts.faulty_blocks_provable, 0);
+        assert_eq!(counts.invalid_bundle_parts, 0);
+    }
+
     #[tokio::test]
     async fn test_provable_errors() {
         let cases: &[ConsensusError] = &[
@@ -1382,6 +1450,11 @@ mod tests {
             // Commit-chain inconsistencies.
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
+            ConsensusError::SerializedCommitTooLarge {
+                peer: authority,
+                size: 2,
+                limit: 1,
+            },
             // Fetch shortfalls (client-side truncation can produce them).
             ConsensusError::NotEnoughHeadersFetched {
                 peer: authority,

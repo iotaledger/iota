@@ -62,6 +62,7 @@ impl Config {
                         tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
                     }
                     _ => {
+                        let _ = rustls::crypto::ring::default_provider().install_default();
                         let contents = reqwest::get(url.as_str()).await?.bytes().await?;
                         tokio::fs::write(self.genesis_blob_file_path(), contents).await?;
                     }

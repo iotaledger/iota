@@ -13,15 +13,10 @@
 
 mod common;
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    future::Future,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use common::{
-    MockGrpcStateReader, create_large_object, start_test_server,
+    MockGrpcStateReader, UnreachableExecutor, create_large_object, start_test_server,
     start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
@@ -41,16 +36,10 @@ use iota_grpc_types::{
         types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
     },
 };
-use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_traffic_controller::TrafficController;
 use iota_types::{
-    error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber,
-    quorum_driver_types::{
-        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
-    },
-    traffic_control::{PolicyConfig, PolicyType, Weight},
-    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
+    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
+    transaction_executor::TransactionExecutor,
 };
 use tonic::{Code, transport::Channel};
 
@@ -79,11 +68,13 @@ async fn server_with_policy(
     policy_config: PolicyConfig,
     executor: Option<Arc<dyn TransactionExecutor>>,
 ) -> GrpcServerHandle {
-    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None));
+    let client_id_source = policy_config.client_id_source.clone();
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
         executor,
+        client_id_source,
     )
     .await;
     handle
@@ -135,38 +126,6 @@ where
         }
     }
     panic!("expected the traffic controller to block the client within {attempts} requests");
-}
-
-/// A `TransactionExecutor` for tests whose requests fail validation before
-/// reaching the executor.
-struct UnreachableExecutor;
-
-#[async_trait::async_trait]
-impl TransactionExecutor for UnreachableExecutor {
-    async fn execute_transaction(
-        &self,
-        _request: ExecuteTransactionRequestV1,
-        _skip_certification: bool,
-        _client_addr: Option<std::net::SocketAddr>,
-    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        unreachable!("test requests must fail validation before execution")
-    }
-
-    fn simulate_transaction(
-        &self,
-        _transaction: Transaction,
-        _checks: VmChecks,
-    ) -> Result<SimulateTransactionResult, IotaError> {
-        unreachable!("test requests must fail validation before simulation")
-    }
-
-    async fn wait_for_checkpoint_inclusion(
-        &self,
-        _digests: &[TransactionDigest],
-        _timeout: Duration,
-    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
-        unreachable!("test requests must fail validation before execution")
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -318,17 +277,19 @@ async fn stream_errors_feed_the_error_policy() {
         objects: HashMap::from([(object_id, object)]),
         ..Default::default()
     });
-    let traffic_controller = Arc::new(TrafficController::init_for_test(
-        PolicyConfig {
-            connection_blocklist_ttl_sec: 120,
-            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
-            dry_run: false,
-            ..Default::default()
-        },
+    let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+        dry_run: false,
+        ..Default::default()
+    }));
+    let (handle, _reader) = start_test_server_with_traffic_controller(
+        state_reader,
+        traffic_controller,
         None,
-    ));
-    let (handle, _reader) =
-        start_test_server_with_traffic_controller(state_reader, traffic_controller, None).await;
+        ClientIdSource::SocketAddr,
+    )
+    .await;
     let client = LedgerServiceClient::new(connect(&handle).await);
 
     let request = GetObjectsRequest::default()
@@ -482,4 +443,44 @@ async fn read_errors_do_not_feed_the_error_policy() {
             item.expect("stream item should be Ok");
         }
     }
+}
+
+/// An allowlist admits the clients it names. The node resolves no client IP for
+/// a request that arrives without the `x-forwarded-for` header it reads, so it
+/// refuses that request, and serves one that names a listed client.
+#[tokio::test]
+async fn an_allowlist_refuses_an_unidentified_request_over_grpc() {
+    const LISTED: &str = "10.0.0.7";
+    let handle = server_with_policy(
+        PolicyConfig {
+            client_id_source: ClientIdSource::XForwardedFor(1),
+            allow_list: Some(vec![LISTED.to_string()]),
+            dry_run: false,
+            ..Default::default()
+        },
+        Some(Arc::new(UnreachableExecutor)),
+    )
+    .await;
+    let mut client = TransactionExecutionServiceClient::new(connect(&handle).await);
+
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move { client.execute_transactions(execute_batch(1)).await }
+    })
+    .await;
+
+    client
+        .execute_transactions(forwarded_for(LISTED, execute_batch(1)))
+        .await
+        .expect("a request naming an allowlisted client is served");
+}
+
+/// `message` as a request carrying an `x-forwarded-for` header that names
+/// `client` as the request's origin.
+fn forwarded_for<T>(client: &str, message: T) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(message);
+    request
+        .metadata_mut()
+        .insert("x-forwarded-for", client.parse().unwrap());
+    request
 }

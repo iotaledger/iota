@@ -13,7 +13,7 @@ use iota_core::{
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
-    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter,
+    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, Page, TransactionFilter,
 };
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag,
@@ -112,13 +112,15 @@ pub trait StateRead: Send + Sync {
     // indexer_api
     fn get_subscription_handler(&self) -> Arc<SubscriptionHandler>;
 
-    fn get_owner_objects_with_limit(
+    /// Returns one page of the owner's objects. `cursor` is exclusive;
+    /// `next_cursor` is `None` when there is no next page.
+    fn get_owner_objects_page(
         &self,
         owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>>;
+    ) -> StateReadResult<Page<ObjectInfo, ObjectId>>;
 
     async fn get_transactions(
         &self,
@@ -309,14 +311,32 @@ impl StateRead for AuthorityState {
         self.subscription_handler.clone()
     }
 
-    fn get_owner_objects_with_limit(
+    fn get_owner_objects_page(
         &self,
         owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>> {
-        Ok(self.get_owner_objects(owner, cursor, limit, filter)?)
+    ) -> StateReadResult<Page<ObjectInfo, ObjectId>> {
+        if limit == 0 {
+            // only when RPC_QUERY_MAX_RESULT_LIMIT is set to 0
+            return Ok(Page::empty());
+        }
+        let mut objects = self.get_owner_objects(owner, cursor, limit + 1, filter)?;
+        if objects.len() <= limit {
+            return Ok(Page {
+                data: objects,
+                next_cursor: None,
+                has_next_page: false,
+            });
+        }
+        objects.truncate(limit);
+        let next_cursor = objects.last().map(|object| object.object_id);
+        Ok(Page {
+            data: objects,
+            next_cursor,
+            has_next_page: true,
+        })
     }
 
     async fn get_transactions(

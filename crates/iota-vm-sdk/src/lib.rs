@@ -7,20 +7,18 @@
 //! same Move execution engine a full node uses, with no network connection:
 //!
 //! 1. **Store** — an object store ([`Store`] trait, [`InMemoryStore`]).
-//! 2. **Execute** — the [`LocalVm`] executor running in one of three
-//!    [`ExecutionMode`]s.
+//! 2. **Execute** — the [`LocalVm`] executor running in one of three [`ExecutionMode`]s.
 //! 3. **Inspect** — the [`ExecutionResult`] / [`DecodedEvent`] outputs.
 //!
 //! # Features
 //!
 //! All are off by default.
 //!
-//! - `grpc` — a `GrpcStore` that resolves objects on demand from a node via
-//!   gRPC, caching them in an [`InMemoryStore`].
+//! - `grpc` — a `GrpcStore` that resolves objects on demand from a node via gRPC, caching them in
+//!   an [`InMemoryStore`].
 //! - `graphql` — a `GraphQLStore` over GraphQL.
-//! - `tracing` — compile the Move VM gas profiler and instruction tracer into
-//!   the engine so [`DebugConfig::with_profiling`] /
-//!   [`DebugConfig::with_tracing`] capture output.
+//! - `tracing` — compile the Move VM gas profiler and instruction tracer into the engine so
+//!   [`DebugConfig::with_profiling`] / [`DebugConfig::with_tracing`] capture output.
 //! - `wasm-bindgen` — a JS-facing surface for the browser.
 //!
 //! The networked stores and their heavy dependencies are additionally

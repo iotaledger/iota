@@ -47,7 +47,7 @@ fn build_network_impl(
 ) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
     use fastcrypto::traits::KeyPair;
 
-    let keypair = iota_types::crypto::NetworkKeyPair::generate(&mut rand::thread_rng());
+    let keypair = iota_types::crypto::NetworkKeyPair::generate(&mut rand08::thread_rng());
     let router = f(anemo::Router::new());
     let network = anemo::Network::bind(address)
         .private_key(keypair.copy().private().0.to_bytes())

@@ -91,6 +91,10 @@ access-node:
   label: Access Node
   description: Node that provides access to the network.
 
+grpc:
+  label: gRPC
+  description: Remote Procedure Call framework using Protocol Buffers over HTTP/2.
+
 pruning:
   label: Pruning
 

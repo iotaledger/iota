@@ -4,7 +4,7 @@
 
 use std::{
     fs,
-    net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
+    net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -35,7 +35,7 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
-use iota_swarm::memory::{Node, Swarm};
+use iota_swarm::memory::{Node, Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{
         GenesisConfig, SsfnGenesisConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
@@ -49,7 +49,7 @@ use iota_swarm_config::{
     },
 };
 use iota_types::traffic_control::PolicyConfig;
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use tempfile::tempdir;
 use tracing::info;
 
@@ -174,11 +174,9 @@ pub enum LocalnetCommand {
     /// Protocol config parameters can be overridden individually by setting
     /// environment variables as follows:
     /// - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
-    /// - Then, to configure an override, use the prefix
-    ///   `IOTA_PROTOCOL_CONFIG_OVERRIDE_` along with the parameter name. For
-    ///   example, to increase the interval between checkpoint creation to >1/s,
-    ///   you might set:
-    ///   IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000
+    /// - Then, to configure an override, use the prefix `IOTA_PROTOCOL_CONFIG_OVERRIDE_` along with
+    ///   the parameter name. For example, to increase the interval between checkpoint creation to
+    ///   >1/s, you might set: IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000
     ///
     /// Note that protocol config parameters must match between all nodes, or
     /// the network may break. Changing these values outside of local
@@ -207,7 +205,8 @@ pub enum LocalnetCommand {
         /// accepts also a port, a host, or both (e.g., 0.0.0.0:9123).
         /// When providing a specific value, please use the = sign between the
         /// flag and value: `--with-faucet=6124` or
-        /// `--with-faucet=0.0.0.0`, or `--with-faucet=0.0.0.0:9123`
+        /// `--with-faucet=0.0.0.0`, or `--with-faucet=0.0.0.0:9123`.
+        /// This also turns on the fullnode's gRPC API at 0.0.0.0:50051.
         #[arg(
             long,
             default_missing_value = "0.0.0.0:9123",
@@ -470,6 +469,10 @@ async fn start(
         ensure!(!no_full_node, "Cannot enable gRPC without a fullnode.");
     }
 
+    if with_faucet.is_some() {
+        ensure!(!no_full_node, "Cannot start the faucet without a fullnode.");
+    }
+
     if write_config.is_some() {
         ensure!(
             with_faucet.is_none(),
@@ -687,20 +690,13 @@ async fn start(
     // must enable it by default.
     #[cfg(feature = "indexer")]
     if indexer_address.is_some() || graphql_address.is_some() {
-        // The gRPC API config is given rather than left out. The builder
-        // would otherwise put the API on a free port, which differs on every
-        // run. A `--node-config-override` still wins over it.
-        swarm_builder = swarm_builder
-            .with_fullnode_enable_grpc_api(true)
-            .with_fullnode_grpc_api_config(GrpcApiConfig::default());
+        swarm_builder = with_fullnode_grpc_api(swarm_builder);
     }
 
     // the faucet communicates with the fullnode via gRPC, we must enable it by
     // default.
     if faucet_address.is_some() {
-        // the gRPC api uses default values if config is not provided,
-        // allowing to not override it when provided in fullnode config.
-        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
+        swarm_builder = with_fullnode_grpc_api(swarm_builder);
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
@@ -736,7 +732,8 @@ async fn start(
             .with_fullnode_count(1)
             .with_fullnode_rpc_addr(fullnode_url)
             .with_fullnode_genesis_config(
-                fullnode_config_info.unwrap_or_else(|| fullnode_genesis_config(&mut OsRng, None)),
+                fullnode_config_info
+                    .unwrap_or_else(|| fullnode_genesis_config(&mut UnwrapErr(SysRng), None)),
             );
     }
 
@@ -746,6 +743,19 @@ async fn start(
     if let Some(directory) = write_config {
         return write_node_configs(&swarm, &directory);
     }
+
+    // A service reads from the fullnode's gRPC API, which an override can turn
+    // off.
+    let fullnode_grpc_address = fullnode_grpc_address(&swarm);
+    ensure!(
+        faucet_address.is_none() || fullnode_grpc_address.is_some(),
+        "Cannot start the faucet while the fullnode's gRPC API is off."
+    );
+    #[cfg(feature = "indexer")]
+    ensure!(
+        indexer_address.is_none() || fullnode_grpc_address.is_some(),
+        "Cannot start the indexer while the fullnode's gRPC API is off."
+    );
 
     let mut addresses = addresses_bound_at_launch(&swarm);
     if let Some(faucet_address) = faucet_address {
@@ -795,47 +805,25 @@ async fn start(
 
     // Taken off the built config rather than off `--fullnode-rpc-port`, since an
     // override can move the address.
-    let fullnode_url = swarm
+    let fullnode_rpc_address = swarm
         .fullnodes()
         .next()
         .map(|node| node.config().json_rpc_address)
         .unwrap_or(fullnode_url);
-    // the indexer requires a fullnode url with protocol specified
-    let fullnode_url = format!("http://{fullnode_url}");
-    info!("Fullnode URL: {}", fullnode_url);
+    if !no_full_node {
+        info!("Fullnode URL: {}", log_url(fullnode_rpc_address));
+    }
 
     // Reported off the built config rather than off `--with-grpc`, since an
     // override can turn the API on too.
-    if let Some(grpc_url) = swarm.fullnodes().next().and_then(|node| {
-        let config = node.config();
-        config.enable_grpc_api.then(|| {
-            config
-                .grpc_api_config
-                .as_ref()
-                .map(|grpc| grpc.address)
-                .unwrap_or_else(|| GrpcApiConfig::default().address)
-        })
-    }) {
-        info!("gRPC URL: http://{grpc_url}");
+    if let Some(address) = fullnode_grpc_address {
+        info!("gRPC URL: {}", log_url(address));
     }
+    // Empty only when no service below reads it, as checked before launch.
+    let fullnode_grpc_url = fullnode_grpc_address.map(local_url).unwrap_or_default();
 
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
-
-    #[cfg(feature = "indexer")]
-    let fullnode_grpc_url = {
-        let socket_addr = swarm
-            .fullnodes()
-            .next()
-            .and_then(|node| {
-                node.config()
-                    .grpc_api_config
-                    .as_ref()
-                    .map(|grpc| grpc.address)
-            })
-            .unwrap_or_else(|| GrpcApiConfig::default().address);
-        format!("http://{socket_addr}")
-    };
 
     #[cfg(feature = "indexer")]
     if let Some(indexer_address) = indexer_address {
@@ -896,7 +884,7 @@ async fn start(
         };
         start_graphql_server_with_fn_rpc(
             graphql_connection_config,
-            Some(fullnode_grpc_url),
+            Some(fullnode_grpc_url.clone()),
             None, // it will be initialized by default
             None, // resolves to default service config
         )
@@ -919,20 +907,6 @@ async fn start(
             _ => bail!("faucet configuration requires an IPv4 address"),
         };
 
-        let fullnode_grpc_url = {
-            let socket_addr = swarm
-                .fullnodes()
-                .next()
-                .and_then(|node| {
-                    node.config()
-                        .grpc_api_config
-                        .as_ref()
-                        .map(|grpc| grpc.address)
-                })
-                .unwrap_or_else(|| GrpcApiConfig::default().address);
-            format!("http://{socket_addr}")
-        };
-
         let config = FaucetConfig {
             host_ip,
             port: faucet_address.port(),
@@ -951,7 +925,7 @@ async fn start(
             let address: Address = kp.public_key().derive_address();
             keystore.add_key(None, kp).unwrap();
             IotaClientConfig::new(keystore)
-                .with_envs([IotaEnv::new("localnet", fullnode_url)])
+                .with_envs([IotaEnv::new("localnet", local_url(fullnode_rpc_address))])
                 .with_active_address(address)
                 .with_active_env("localnet".to_string())
                 .persisted(faucet_config_dir.join(IOTA_CLIENT_CONFIG).as_path())
@@ -1196,7 +1170,7 @@ async fn genesis(
     // persisted with the validators'. `start` then derives the same fullnode
     // config, and reuses its database, on every run.
     genesis_config.fullnode_config_info.get_or_insert_with(|| {
-        fullnode_genesis_config(&mut OsRng, admin_interface_address_with_port)
+        fullnode_genesis_config(&mut UnwrapErr(SysRng), admin_interface_address_with_port)
     });
 
     info!("Network genesis completed.");
@@ -1238,18 +1212,9 @@ async fn genesis(
         client_config.set_active_address(active_address);
     }
 
-    // On windows, using 0.0.0.0 will usually yield in an networking error. This
-    // localnet ip address must bind to 127.0.0.1 if the default 0.0.0.0 is
-    // used.
-    let json_rpc_address = iota_config::node::default_json_rpc_address();
-    let localnet_ip = if json_rpc_address.ip() == IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)) {
-        "127.0.0.1".to_string()
-    } else {
-        json_rpc_address.ip().to_string()
-    };
     client_config.set_env(IotaEnv::new(
         "localnet",
-        format!("http://{}:{}", localnet_ip, json_rpc_address.port()),
+        local_url(iota_config::node::default_json_rpc_address()),
     ));
     client_config.add_env(IotaEnv::devnet());
 
@@ -1270,7 +1235,7 @@ async fn genesis(
 /// Only the ports are fixed. The addresses stay on the IP the fullnode would
 /// have used anyway. That IP is localhost outside the simulator, and one
 /// address of its own inside it.
-fn fullnode_genesis_config<R: rand::RngCore + rand::CryptoRng>(
+fn fullnode_genesis_config<R: rand::CryptoRng>(
     rng: &mut R,
     admin_interface_address: Option<SocketAddr>,
 ) -> ValidatorGenesisConfig {
@@ -1317,7 +1282,7 @@ fn write_state_sync_fullnode_configs(
             .with_json_rpc_address(([0, 0, 0, 0], 9000))
             .with_genesis(deployed_genesis.clone())
             .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
-            .try_build_from_parts(&mut OsRng, validator_configs, deployed_genesis)?;
+            .try_build_from_parts(&mut UnwrapErr(SysRng), validator_configs, deployed_genesis)?;
         ssfn_config.save(path)?;
         ssfn_configs.push(ssfn_config);
     }
@@ -1422,6 +1387,48 @@ fn write_node_config(config: &NodeConfig, path: &Path) -> Result<(), anyhow::Err
     contents.push_str(&serde_yaml::to_string(config)?);
     fs::write(path, contents)
         .with_context(|| format!("Cannot write node config to {}", path.display()))
+}
+
+/// Turn the fullnode's gRPC API on at its default address. A
+/// `--node-config-override` still wins over it.
+fn with_fullnode_grpc_api(swarm_builder: SwarmBuilder) -> SwarmBuilder {
+    // Without a config, the builder puts the API on a free port that changes
+    // on every run.
+    swarm_builder
+        .with_fullnode_enable_grpc_api(true)
+        .with_fullnode_grpc_api_config(GrpcApiConfig::default())
+}
+
+/// The address the fullnode's gRPC API listens at, or `None` if the network
+/// has no fullnode or the API is off.
+fn fullnode_grpc_address(swarm: &Swarm) -> Option<SocketAddr> {
+    let node = swarm.fullnodes().next()?;
+    let config = node.config();
+    let grpc_api_config = config.grpc_api_config.as_ref()?;
+    config.enable_grpc_api.then_some(grpc_api_config.address)
+}
+
+/// The URL at which a client on this host reaches a server that listens at
+/// `address`. An unspecified host becomes loopback.
+fn local_url(mut address: SocketAddr) -> String {
+    // A connection to the unspecified address fails on Windows.
+    match address.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => address.set_ip(Ipv4Addr::LOCALHOST.into()),
+        IpAddr::V6(ip) if ip.is_unspecified() => address.set_ip(Ipv6Addr::LOCALHOST.into()),
+        _ => {}
+    }
+    format!("http://{address}")
+}
+
+/// The URL to log for a server that listens at `address`: the URL a client on
+/// this host connects to, followed by `address` when the two differ.
+fn log_url(address: SocketAddr) -> String {
+    let url = local_url(address);
+    if address.ip().is_unspecified() {
+        format!("{url} (listening on {address})")
+    } else {
+        url
+    }
 }
 
 /// Translate the deprecated `--with-grpc` value into node config overrides.
@@ -1592,7 +1599,7 @@ mod tests {
             let overrides = with_grpc_overrides(input.to_string()).unwrap();
             let mut config = FullnodeConfigBuilder::new()
                 .with_config_directory(dir.path().to_path_buf())
-                .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+                .build_from_parts(&mut UnwrapErr(SysRng), &[], Genesis::new_empty());
             // One batch, as `start` hands them to the swarm builder.
             apply_node_config_overrides(&overrides, &mut config).unwrap();
             assert!(config.enable_grpc_api, "{input}");
@@ -1608,6 +1615,88 @@ mod tests {
                 GrpcApiConfig::default().max_message_size_bytes,
                 "{input}"
             );
+        }
+    }
+
+    /// The faucet, indexer and GraphQL service turn the fullnode's gRPC API
+    /// on at its default address, which `fullnode:enable-grpc-api=true` keeps
+    /// and an address override moves.
+    #[test]
+    fn services_turn_the_fullnode_grpc_api_on_at_the_default_address() {
+        for (input, expected) in [
+            ("fullnode:enable-grpc-api=true", "0.0.0.0:50051"),
+            (
+                "fullnode:grpc-api-config={address: '127.0.0.1:50052'}",
+                "127.0.0.1:50052",
+            ),
+        ] {
+            let swarm = with_fullnode_grpc_api(Swarm::builder())
+                .with_fullnode_count(1)
+                .with_node_config_overrides(vec![input.parse().unwrap()])
+                .try_build()
+                .unwrap();
+            let config = swarm.fullnodes().next().unwrap().config();
+            assert!(config.enable_grpc_api, "{input}");
+            assert_eq!(
+                config.grpc_api_config.as_ref().unwrap().address,
+                expected.parse::<SocketAddr>().unwrap(),
+                "{input}"
+            );
+        }
+    }
+
+    /// Only a network whose fullnode serves the gRPC API gives an address for
+    /// it.
+    #[test]
+    fn a_fullnode_grpc_address_exists_only_while_the_api_is_on() {
+        let address = |builder: SwarmBuilder, overrides: &[&str]| {
+            let swarm = builder
+                .with_node_config_overrides(overrides.iter().map(|o| o.parse().unwrap()).collect())
+                .try_build()
+                .unwrap();
+            fullnode_grpc_address(&swarm)
+        };
+        let with_fullnode = || with_fullnode_grpc_api(Swarm::builder()).with_fullnode_count(1);
+
+        assert_eq!(
+            address(with_fullnode(), &[]),
+            Some("0.0.0.0:50051".parse().unwrap())
+        );
+        assert_eq!(
+            address(with_fullnode(), &["fullnode:enable-grpc-api=false"]),
+            None
+        );
+        assert_eq!(address(with_fullnode_grpc_api(Swarm::builder()), &[]), None);
+    }
+
+    /// A service on this host connects over loopback to a server that
+    /// listens on every interface, and to any other address as it is.
+    #[test]
+    fn a_wildcard_listen_address_is_reached_over_loopback() {
+        for (address, expected) in [
+            ("0.0.0.0:50051", "http://127.0.0.1:50051"),
+            ("[::]:50051", "http://[::1]:50051"),
+            ("127.0.0.1:50051", "http://127.0.0.1:50051"),
+            ("192.168.1.2:50051", "http://192.168.1.2:50051"),
+            ("[::1]:50051", "http://[::1]:50051"),
+        ] {
+            assert_eq!(local_url(address.parse().unwrap()), expected);
+        }
+    }
+
+    /// A logged URL is one a client on this host can connect to, and still
+    /// shows a wildcard listen address.
+    #[test]
+    fn a_logged_url_names_a_wildcard_listen_address() {
+        for (address, expected) in [
+            (
+                "0.0.0.0:50051",
+                "http://127.0.0.1:50051 (listening on 0.0.0.0:50051)",
+            ),
+            ("[::]:50051", "http://[::1]:50051 (listening on [::]:50051)"),
+            ("127.0.0.1:50051", "http://127.0.0.1:50051"),
+        ] {
+            assert_eq!(log_url(address.parse().unwrap()), expected);
         }
     }
 

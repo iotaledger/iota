@@ -22,6 +22,7 @@ impl MetricsPushClient {
             iota_tls::IOTA_VALIDATOR_SERVER_NAME,
         ));
         let identity = certificate.reqwest_identity();
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .identity(identity)
             .build()

@@ -24,9 +24,9 @@ use iota_types::{
     crypto::{AccountPrivateKey, PublicKey, get_key_pair_from_rng},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
 use crate::{
     genesis_config::{
@@ -100,7 +100,7 @@ pub enum GlobalStateHashV1EnabledConfig {
     PerValidator(GlobalStateHashV1EnabledCallback),
 }
 
-pub struct ConfigBuilder<R = OsRng> {
+pub struct ConfigBuilder<R = UnwrapErr<SysRng>> {
     rng: Option<R>,
     config_directory: PathBuf,
     supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
@@ -115,7 +115,6 @@ pub struct ConfigBuilder<R = OsRng> {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
-    firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     global_state_hash_v1_enabled_config: Option<GlobalStateHashV1EnabledConfig>,
@@ -127,7 +126,7 @@ pub struct ConfigBuilder<R = OsRng> {
 impl ConfigBuilder {
     pub fn new<P: AsRef<Path>>(config_directory: P) -> Self {
         Self {
-            rng: Some(OsRng),
+            rng: Some(UnwrapErr(SysRng)),
             config_directory: config_directory.as_ref().into(),
             supported_protocol_versions_config: None,
             chain_override: None,
@@ -143,7 +142,6 @@ impl ConfigBuilder {
             execution_cache_config: None,
             data_ingestion_dir: None,
             policy_config: None,
-            firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
             global_state_hash_v1_enabled_config: Some(GlobalStateHashV1EnabledConfig::Global(true)),
@@ -322,11 +320,6 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_firewall_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.firewall_config = config;
-        self
-    }
-
     pub fn with_max_submit_position(mut self, max_submit_position: usize) -> Self {
         self.max_submit_position = Some(max_submit_position);
         self
@@ -345,7 +338,7 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn rng<N: rand::RngCore + rand::CryptoRng>(self, rng: N) -> ConfigBuilder<N> {
+    pub fn rng<N: rand::CryptoRng>(self, rng: N) -> ConfigBuilder<N> {
         ConfigBuilder {
             rng: Some(rng),
             config_directory: self.config_directory,
@@ -361,7 +354,6 @@ impl<R> ConfigBuilder<R> {
             execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             policy_config: self.policy_config,
-            firewall_config: self.firewall_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
@@ -388,7 +380,7 @@ impl<R> ConfigBuilder<R> {
     }
 }
 
-impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
+impl<R: rand::CryptoRng> ConfigBuilder<R> {
     // TODO right now we always randomize ports, we may want to have a default port
     // configuration
     pub fn build(self) -> NetworkConfig {
@@ -553,8 +545,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             .map(|(idx, validator)| {
                 let mut builder = ValidatorConfigBuilder::new()
                     .with_config_directory(self.config_directory.clone())
-                    .with_policy_config(self.policy_config.clone())
-                    .with_firewall_config(self.firewall_config.clone());
+                    .with_policy_config(self.policy_config.clone());
 
                 if let Some(chain) = self.chain_override {
                     builder = builder.with_chain_override(chain);

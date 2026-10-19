@@ -369,6 +369,22 @@ pub enum UserInputError {
         "Mutable shared object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectId },
+    #[error(
+        "Immutable account object {object_id} cannot authenticate a transaction, only a shared account object is supported"
+    )]
+    ImmutableAccountObjectNotSupported { object_id: ObjectId },
+    #[error(
+        "Randomness state object {object_id} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    RandomnessStateIsInMoveAuthenticatorInput { object_id: ObjectId },
+    #[error(
+        "Invalid argument at command {command_idx}, argument {argument_idx}: index {index} is out of bounds"
+    )]
+    InvalidArgumentIndex {
+        command_idx: usize,
+        argument_idx: usize,
+        index: u16,
+    },
 }
 
 /// Custom error type for Iota.

@@ -73,22 +73,26 @@ impl RocksDbStore {
 
     /// Marks a consecutive run of checkpoints as synced, writing the watermark
     /// once for the last one but notifying waiters of every checkpoint.
+    /// Returns whether the watermark moved.
     fn update_highest_synced_checkpoints(
         &self,
         checkpoints: &[VerifiedCheckpoint],
-    ) -> Result<(), iota_types::storage::error::Error> {
+    ) -> Result<bool, iota_types::storage::error::Error> {
         let Some(last) = checkpoints.last() else {
-            return Ok(());
+            return Ok(false);
         };
         let mut locked = self.highest_synced_checkpoint.lock();
         if locked.is_some_and(|seq| seq >= last.sequence_number) {
-            return Ok(());
+            return Ok(false);
         }
-        self.checkpoint_store
+        let moved = self
+            .checkpoint_store
             .multi_update_highest_synced_checkpoint(checkpoints)
             .map_err(iota_types::storage::error::Error::custom)?;
-        *locked = locked.max(Some(last.sequence_number));
-        Ok(())
+        if moved {
+            *locked = locked.max(Some(last.sequence_number));
+        }
+        Ok(moved)
     }
 }
 
@@ -211,12 +215,12 @@ impl ReadStore for RocksDbStore {
                         >::Ok(None);
                     }
                 }
-                Ok(Some(
-                    FullCheckpointContents::from_contents_and_execution_data(
-                        contents,
-                        transactions.into_iter(),
-                    ),
-                ))
+                FullCheckpointContents::from_contents_and_execution_data(
+                    contents,
+                    transactions.into_iter(),
+                )
+                .map(Some)
+                .map_err(iota_types::storage::error::Error::custom)
             })
             .transpose()
             .map(|contents| contents.flatten())
@@ -357,7 +361,7 @@ impl WriteStore for RocksDbStore {
     fn try_update_highest_synced_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), iota_types::storage::error::Error> {
+    ) -> Result<bool, iota_types::storage::error::Error> {
         self.update_highest_synced_checkpoints(std::slice::from_ref(checkpoint))
     }
 
@@ -440,7 +444,8 @@ impl WriteStore for RocksDbStore {
         self.checkpoint_store
             .multi_insert_verified_checkpoint_contents(checkpoints)?;
 
-        self.update_highest_synced_checkpoints(&summaries)
+        self.update_highest_synced_checkpoints(&summaries)?;
+        Ok(())
     }
 }
 

@@ -115,9 +115,9 @@ impl<A: Allower> rustls::server::danger::ClientCertVerifier for ClientCertVerifi
     }
 
     // Verifies this is a valid ed25519 self-signed certificate
-    // 1. we prepare arguments for webpki's certificate verification (following the
-    //    rustls implementation) placing the public key at the root of the
-    //    certificate chain (as it should be for a self-signed certificate)
+    // 1. we prepare arguments for webpki's certificate verification (following the rustls
+    //    implementation) placing the public key at the root of the certificate chain (as it should
+    //    be for a self-signed certificate)
     // 2. we call webpki's certificate verification
     fn verify_client_cert(
         &self,
@@ -125,6 +125,14 @@ impl<A: Allower> rustls::server::danger::ClientCertVerifier for ClientCertVerifi
         intermediates: &[CertificateDer],
         now: UnixTime,
     ) -> Result<rustls::server::danger::ClientCertVerified, rustls::Error> {
+        // Every peer signs its own certificate, so only a chain of one can be valid.
+        if !intermediates.is_empty() {
+            return Err(rustls::Error::General(format!(
+                "invalid certificate chain: expected one certificate, got {}",
+                intermediates.len() + 1
+            )));
+        }
+
         // Step 1: Check this matches the key we expect
         let public_key = public_key_from_certificate(end_entity)?;
 
@@ -258,9 +266,9 @@ impl rustls::client::danger::ServerCertVerifier for ServerCertVerifier {
 }
 
 // Verifies this is a valid ed25519 self-signed certificate
-// 1. we prepare arguments for webpki's certificate verification (following the
-//    rustls implementation) placing the public key at the root of the
-//    certificate chain (as it should be for a self-signed certificate)
+// 1. we prepare arguments for webpki's certificate verification (following the rustls
+//    implementation) placing the public key at the root of the certificate chain (as it should be
+//    for a self-signed certificate)
 // 2. we call webpki's certificate verification
 fn verify_self_signed_cert(
     end_entity: &CertificateDer,

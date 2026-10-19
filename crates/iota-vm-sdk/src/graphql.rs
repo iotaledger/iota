@@ -163,22 +163,10 @@ impl GraphQLFetcher {
             "query".to_owned(),
             serde_json::Value::String(query.to_owned()),
         )]);
-        let response = self
-            .client
+        self.client
             .run_query_from_json(request)
             .await
-            .map_err(|e| StoreError::new(context, e))?;
-        if let Some(errors) = response.errors.filter(|errors| !errors.is_empty()) {
-            let message = errors
-                .iter()
-                .map(|e| e.message.as_str())
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(StoreError::new(context, message));
-        }
-        response
-            .data
-            .ok_or_else(|| StoreError::new(context, "empty response"))
+            .map_err(|e| StoreError::new(context, e))
     }
 }
 
@@ -193,9 +181,11 @@ impl ObjectFetcher for GraphQLFetcher {
         // exist must read as absent, not fault), so missing refs are skipped.
         let mut objects = Vec::with_capacity(refs.len());
         for (id, version) in refs {
-            if let Some(obj) = self
-                .client
-                .object(*id, *version)
+            let mut query = self.client.object(*id);
+            if let Some(version) = *version {
+                query = query.version(version);
+            }
+            if let Some(obj) = query
                 .await
                 .map_err(|e| StoreError::new(format!("fetch object {id} via GraphQL"), e))?
             {

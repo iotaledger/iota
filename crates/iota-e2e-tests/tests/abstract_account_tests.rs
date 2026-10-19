@@ -19,6 +19,7 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::Authenticator,
 };
+use iota_config::transaction_deny_config::TransactionDenyConfigBuilder;
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_json_rpc_types::{DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
@@ -33,6 +34,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::AuthorityName,
     crypto::PublicKey,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
@@ -54,6 +56,7 @@ const AA_ACCOUNT_NAME: &str = "AbstractAccount";
 const AA_DELAYED_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_ACCOUNT_NAME: &str = "DelayedAbstractAccount";
 const AA_CREATE_MODULE_NAME: &str = "abstract_account_keyed";
+const AA_CREATE_FN_NAME: &str = "create";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "abstract_account_keyed";
 const AA_DELAYED_CREATE_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_AUTHENTICATE_MODULE_NAME: &str = "delayed_abstract_account_keyed";
@@ -350,14 +353,11 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
-/// 1) Create a TX certificate signed by the validators where the authentication
-///    is successful
-/// 2) Tamper with the AA shared object state by creating a second TX altering
-///    the state by changing the public key that allows the authentication to
-///    pass
-/// 3) Submit the original certificate which should now fail during
-///    post-consensus, even though validators originally run the authenticate
-///    and it passed
+/// 1) Create a TX certificate signed by the validators where the authentication is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering the state by changing
+///    the public key that allows the authentication to pass
+/// 3) Submit the original certificate which should now fail during post-consensus, even though
+///    validators originally run the authenticate and it passed
 ///
 /// With `report_move_authentication_error` enabled (the latest protocol config)
 /// the failure surfaces as a distinct `MoveAuthentication` error that wraps the
@@ -492,13 +492,11 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
-/// 1) Create a TX certificate signed by the validators where the authentication
-///    is successful
-/// 2) Tamper with the AA shared object state by creating a second TX altering
-///    the state by deleting the AA shared object
-/// 3) Submit the original certificate which should now fail during
-///    post-consensus, even though validators originally run the authenticate
-///    and it passed
+/// 1) Create a TX certificate signed by the validators where the authentication is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering the state by deleting
+///    the AA shared object
+/// 3) Submit the original certificate which should now fail during post-consensus, even though
+///    validators originally run the authenticate and it passed
 #[sim_test]
 async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -887,6 +885,153 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
     Ok(())
 }
 
+/// Denying the package that holds the authenticate function must stop the
+/// transaction, even though that package is named by neither a command nor a
+/// linkage table.
+///
+/// The second half pins the ordering: with a signature that cannot verify, the
+/// deny check has to win over the authenticator execution that would otherwise
+/// report the Move abort. Reaching that abort would mean code from a denied
+/// package ran before the transaction was turned away.
+#[sim_test]
+async fn test_authenticator_package_denied() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let aa_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(1000000), aa_sender)
+        .await;
+
+    // The package id only exists once the package is published, which is after
+    // the cluster was built, so the deny list is installed by restarting. Only
+    // the validator this test queries needs it.
+    test_env
+        .test_cluster
+        .update_transaction_deny_config_on(
+            &validator,
+            TransactionDenyConfigBuilder::new()
+                .add_denied_package(test_env.aa_package_id.unwrap())
+                .build(),
+        )
+        .await;
+
+    // A plain transfer, so the account's package is named by the authenticator
+    // alone. A transaction that called into that package would be turned away
+    // by the command-level check even without the one under test.
+    let pt = test_env.craft_object_transfer(aa_coin, test_env.owner.unwrap())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // A transaction that would otherwise succeed.
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data.clone(), signatures);
+
+    let err = test_env
+        .handle_tx_in_process(&validator, tx)
+        .await
+        .unwrap_err();
+    let IotaError::UserInput {
+        error: UserInputError::TransactionDenied { error },
+    } = &err
+    else {
+        panic!("Expected TransactionDenied, got: {err:?}");
+    };
+    assert!(
+        error.contains(&test_env.aa_package_id.unwrap().to_string()),
+        "Expected the denied authenticator package to be named, got: {error}",
+    );
+
+    // A signature over the wrong digest, which `authenticate_ed25519` would
+    // abort on. The deny check must answer first.
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+
+    let err = test_env
+        .handle_tx_in_process(&validator, tx)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "Expected the deny check to precede authenticator execution, got: {err:?}",
+    );
+
+    Ok(())
+}
+
+/// Same scenario as [`test_authenticator_package_denied`] with
+/// `deny_authenticator_packages` disabled: the transaction goes through, which
+/// is both the pre-37 behaviour and the proof that the other test's rejection
+/// comes from the check under test rather than from somewhere else.
+#[sim_test]
+async fn test_authenticator_package_denied_without_flag() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_deny_authenticator_packages_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let aa_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(1000000), aa_sender)
+        .await;
+
+    test_env
+        .test_cluster
+        .update_transaction_deny_config_on(
+            &validator,
+            TransactionDenyConfigBuilder::new()
+                .add_denied_package(test_env.aa_package_id.unwrap())
+                .build(),
+        )
+        .await;
+
+    let pt = test_env.craft_object_transfer(aa_coin, test_env.owner.unwrap())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+
+    test_env.handle_tx_in_process(&validator, tx).await?;
+
+    Ok(())
+}
+
 /// Same scenario as [`test_pre_consensus_authentication_failure`], but with
 /// `report_move_authentication_error` disabled: the pre-consensus path must
 /// still gate on the flag and surface the authenticator's bare Move abort,
@@ -946,14 +1091,13 @@ async fn test_pre_consensus_authentication_failure_without_report_flag() -> Resu
 }
 
 /// Test in 3 steps
-/// 1) Create a valid TX1 certificate signed by validators where sender is an AA
-///    account using a owned Coin as gas
-/// 2) Tamper with the AA shared object by creating a second TX2, with sender
-///    being a random Bob address, altering the state calling the “receive“
-///    function for the Coin used as gas in TX1
-/// 3) Submit the original certificate TX1 which should NOT fail during
-///    post-consensus, because validators originally run the authenticate and it
-///    passed. What fails is the execution of TX2 because of the conflict on the
+/// 1) Create a valid TX1 certificate signed by validators where sender is an AA account using a
+///    owned Coin as gas
+/// 2) Tamper with the AA shared object by creating a second TX2, with sender being a random Bob
+///    address, altering the state calling the “receive“ function for the Coin used as gas in TX1
+/// 3) Submit the original certificate TX1 which should NOT fail during post-consensus, because
+///    validators originally run the authenticate and it passed. What fails is the execution of TX2
+///    because of the conflict on the
 ///   receiving object
 #[sim_test]
 async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error> {
@@ -1059,8 +1203,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
 }
 
 /// Test in 4 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by an
-///    AA account.
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by an AA account.
 /// 2) Create TX2 where the AA sender tries to use the conflict coin as input.
 /// 3) Submit the original TX1 certificate. This fails with an execution abort.
 /// 4) Submit the original TX2 certificate. This should now succeed.
@@ -1180,9 +1323,9 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
 }
 
 /// Test in 5 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
-///    AA object (before the AA account is actually created). The AA object is
-///    NOT an account yet (just a shared object).
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the AA object (before
+///    the AA account is actually created). The AA object is NOT an account yet (just a shared
+///    object).
 /// 2) Make the AA become the actual account (delayed AA creation).
 /// 3) Create TX2 where the AA sender tries to use the conflict coin as input.
 /// 4) Submit the original TX1 certificate. This fails with an execution abort.
@@ -1311,14 +1454,13 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
 }
 
 /// Test in 4 steps:
-/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the
-///    AA object (before the AA account is actually created). The AA object is
-///    NOT an account yet (just a shared object).
-/// 2) Submit the original TX1 certificate. This is successful because the AA is
-///    not yet an account.
+/// 1) Create TX1 where Bob calls the receiving function on a coin owned by the AA object (before
+///    the AA account is actually created). The AA object is NOT an account yet (just a shared
+///    object).
+/// 2) Submit the original TX1 certificate. This is successful because the AA is not yet an account.
 /// 3) Make the AA become the actual account (delayed AA creation).
-/// 4) Create and submit a TX2 where the AA sender tries to use the conflict
-///    coin using the latest reference, this should now succeed.
+/// 4) Create and submit a TX2 where the AA sender tries to use the conflict coin using the latest
+///    reference, this should now succeed.
 #[sim_test]
 async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
@@ -2409,6 +2551,7 @@ impl TestEnvironment {
             .craft_create_abstract_account(
                 owner,
                 authenticate_fn_name,
+                AA_CREATE_FN_NAME,
                 aa_package_id,
                 aa_package_metadata_ref,
             )
@@ -2472,7 +2615,7 @@ impl TestEnvironment {
         ));
 
         Ok(UserSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::new_with_shared_account_object(
+            MoveAuthenticatorV1::new(
                 vec![self_call_arg],
                 vec![],
                 SharedObjectReference::new(aa_sponsor_ref.object_id, aa_sponsor_ref.version, false),
@@ -2631,6 +2774,7 @@ impl TestEnvironment {
         &self,
         owner: Address,
         authenticate_fn_name: &str,
+        create_fn_name: &str,
         aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectReference,
     ) -> anyhow::Result<TransactionEnvelope> {
@@ -2666,7 +2810,7 @@ impl TestEnvironment {
                 builder.programmable_move_call(
                     aa_package_id,
                     Identifier::from_static(AA_CREATE_MODULE_NAME),
-                    Identifier::from_static("create"),
+                    Identifier::new(create_fn_name)?,
                     vec![],
                     arguments,
                 );
@@ -2773,6 +2917,7 @@ impl TestEnvironment {
             self.craft_create_abstract_account(
                 owner,
                 authenticate_fn_name,
+                AA_CREATE_FN_NAME,
                 aa_package_id,
                 aa_package_metadata_ref,
             )
@@ -2794,7 +2939,7 @@ impl TestEnvironment {
         aa_obj_ref: ObjectReference,
     ) -> anyhow::Result<UserSignature> {
         Ok(UserSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::new_with_shared_account_object(
+            MoveAuthenticatorV1::new(
                 vec![],
                 vec![],
                 SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
@@ -2862,7 +3007,7 @@ impl TestEnvironment {
             .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(UserSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::new_with_shared_account_object(
+            MoveAuthenticatorV1::new(
                 vec![signature_call_arg],
                 vec![],
                 SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
@@ -2879,6 +3024,31 @@ impl TestEnvironment {
         // fullnode.
         self.test_cluster.execute_transaction(tx).await;
         Ok(())
+    }
+
+    /// Runs the given validator's signing checks in process.
+    ///
+    /// Unlike [`Self::handle_tx`] this needs no network, so it still works
+    /// after that validator has been restarted — restarting leaves the
+    /// fullnode's cached authority clients pointing at dead connections.
+    async fn handle_tx_in_process(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> Result<HandleTransactionResponse, IotaError> {
+        self.test_cluster
+            .swarm
+            .node(authority)
+            .unwrap()
+            .get_node_handle()
+            .unwrap()
+            .with_async(|node| async move {
+                let state = node.state();
+                let epoch_store = state.epoch_store_for_testing();
+                let tx = epoch_store.verify_transaction(tx)?;
+                state.handle_transaction(&epoch_store, tx).await
+            })
+            .await
     }
 
     async fn handle_tx(
@@ -2916,15 +3086,17 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 fn abstract_account_from_all_changed_objects(
     all_changed_objects: &[(OwnedObjectReference, WriteKind)],
 ) -> ObjectReference {
-    // Extract the only created shared object which is the abstract account
+    // Extract the only created shared or immutable object which is the abstract
+    // account. The other object the creation transaction writes is the
+    // authenticator function ref, which is owned by the account object.
     *all_changed_objects
         .iter()
         .find_map(|(changed, kind)| {
             matches!(
                 (changed.owner(), kind),
-                (Owner::Shared(_), WriteKind::Create)
+                (Owner::Shared(_) | Owner::Immutable, WriteKind::Create)
             )
             .then_some(changed.reference())
         })
-        .expect("Expected a shared object in the transaction response")
+        .expect("Expected a shared or immutable object in the transaction response")
 }

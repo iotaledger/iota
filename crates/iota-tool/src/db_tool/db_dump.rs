@@ -227,10 +227,10 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         &perpetual_db,
         &checkpoint_store,
         Some(&grpc_indexes_store),
-        None,
         pruning_config,
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,
+        None,
         None,
     )
     .await?;
@@ -252,7 +252,6 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         &perpetual_db,
         &checkpoint_store,
         Some(&grpc_indexes_store),
-        None,
         pruning_config,
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,

@@ -21,7 +21,8 @@ use iota_sdk_types::{Address, Command, Transaction};
 use iota_types::{
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionAPI},
+    transaction::{CallArg, MAX_PROGRAMMABLE_TX_INPUTS, TransactionAPI},
+    utils::ptb_with_pure_inputs,
 };
 use prost_types::FieldMask;
 
@@ -47,20 +48,16 @@ fn first_simulated_transaction(response: &SimulateTransactionsResponse) -> &Simu
 
 /// Simulate a transaction and assert field presence at three levels:
 ///
-/// 1. **`expected_response_paths` / `ignored_response_paths`** — asserted on
-///    the [`SimulatedTransaction`].
-/// 2. **`expected_command_results_paths`** — when non-empty, `execution_result`
-///    is extracted as [`ExecutionResult::CommandResults`] and
-///    [`assert_field_presence`] is called on it.  Paths are relative to
-///    `CommandResults` (i.e. strip the leading
-///    `"execution_result.command_results."` prefix).  Panics if
-///    `execution_result` is not the `CommandResults` variant.
-/// 3. **`expected_execution_error_paths`** — when non-empty, `execution_result`
-///    is extracted as [`ExecutionResult::ExecutionError`] and
-///    [`assert_field_presence`] is called on it.  Paths are relative to
-///    `ExecutionError` (i.e. strip the leading
-///    `"execution_result.execution_error."` prefix).  Panics if
-///    `execution_result` is not the `ExecutionError` variant.
+/// 1. **`expected_response_paths` / `ignored_response_paths`** — asserted on the
+///    [`SimulatedTransaction`].
+/// 2. **`expected_command_results_paths`** — when non-empty, `execution_result` is extracted as
+///    [`ExecutionResult::CommandResults`] and [`assert_field_presence`] is called on it.  Paths are
+///    relative to `CommandResults` (i.e. strip the leading `"execution_result.command_results."`
+///    prefix).  Panics if `execution_result` is not the `CommandResults` variant.
+/// 3. **`expected_execution_error_paths`** — when non-empty, `execution_result` is extracted as
+///    [`ExecutionResult::ExecutionError`] and [`assert_field_presence`] is called on it.  Paths are
+///    relative to `ExecutionError` (i.e. strip the leading `"execution_result.execution_error."`
+///    prefix).  Panics if `execution_result` is not the `ExecutionError` variant.
 async fn assert_simulate_transaction_request(
     exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
     transaction: ProtoTransaction,
@@ -764,6 +761,78 @@ async fn simulate_transaction_invalid_bcs() {
         tonic::Code::InvalidArgument as i32,
         "Expected InvalidArgument error code for invalid BCS, got code {}",
         error.code
+    );
+}
+
+#[sim_test]
+async fn simulate_transaction_rejects_a_randomness_input_past_the_last_input_index() {
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    // The randomness object sits at an index no `Argument::Input` can name.
+    // The payload is also above `max_tx_size_bytes`, so the size cap answers
+    // first. A simulation must reject it with a user error and keep serving.
+    let gas_price = test_cluster.get_reference_gas_price().await;
+    let tx = Transaction::new_programmable(
+        test_cluster.get_address_0(),
+        vec![],
+        ptb_with_pure_inputs(MAX_PROGRAMMABLE_TX_INPUTS + 1, 0, true),
+        10_000_000,
+        gas_price,
+    );
+    let item = build_simulate_item(
+        ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap())),
+    );
+    let response = exec_client
+        .simulate_transactions(SimulateTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let result = response.transaction_results.first().unwrap();
+    let error = result
+        .error()
+        .expect("Expected per-item error for a randomness input past the last input index");
+    assert_eq!(
+        error.code,
+        tonic::Code::InvalidArgument as i32,
+        "Expected InvalidArgument error code, got {error:?}"
+    );
+    assert!(
+        error
+            .message
+            .contains("serialized transaction size exceeded maximum"),
+        "Expected the size limit to be what rejects it, got {}",
+        error.message
+    );
+
+    // The node keeps serving simulations afterwards.
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let tx = Transaction::new_transfer(
+        Address::random(),
+        *gas.first().unwrap(),
+        sender,
+        *gas.last().unwrap(),
+        10_000_000,
+        gas_price,
+    );
+    let item = build_simulate_item(
+        ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap())),
+    );
+    let response = exec_client
+        .simulate_transactions(SimulateTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+    let result = response.transaction_results.first().unwrap();
+    assert!(
+        result.simulated_transaction().is_some(),
+        "Expected success after the rejected request, got: {:?}",
+        result.result
     );
 }
 

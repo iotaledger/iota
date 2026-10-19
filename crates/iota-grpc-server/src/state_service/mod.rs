@@ -10,7 +10,7 @@ use std::sync::Arc;
 use iota_grpc_types::v1::state_service::{self as grpc_state_service};
 use tonic::Response;
 
-use crate::types::*;
+use crate::{metrics::RequestMetrics, types::*};
 
 pub struct StateGrpcService {
     pub reader: Arc<GrpcReader>,
@@ -31,10 +31,14 @@ impl grpc_state_service::state_service_server::StateService for StateGrpcService
         tonic::Response<grpc_state_service::ListDynamicFieldsResponse>,
         tonic::Status,
     > {
-        let response =
-            list_dynamic_fields::list_dynamic_fields(self.reader.clone(), request.into_inner())
-                .map(Response::new)
-                .map_err(tonic::Status::from)?;
+        let metrics = RequestMetrics::from_extensions(request.extensions());
+        let response = list_dynamic_fields::list_dynamic_fields(
+            self.reader.clone(),
+            &metrics,
+            request.into_inner(),
+        )
+        .map(Response::new)
+        .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -45,10 +49,14 @@ impl grpc_state_service::state_service_server::StateService for StateGrpcService
         tonic::Response<grpc_state_service::ListOwnedObjectsResponse>,
         tonic::Status,
     > {
-        let response =
-            list_owned_objects::list_owned_objects(self.reader.clone(), request.into_inner())
-                .map(Response::new)
-                .map_err(tonic::Status::from)?;
+        let metrics = RequestMetrics::from_extensions(request.extensions());
+        let response = list_owned_objects::list_owned_objects(
+            self.reader.clone(),
+            &metrics,
+            request.into_inner(),
+        )
+        .map(Response::new)
+        .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 

@@ -28,7 +28,10 @@ use crate::{
     leader_scoring::ReputationScores,
     misbehavior_store::MisbehaviorCounts,
     storage::Store,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::{
+        GenericTransactionRef, GenericTransactionRefAPI as _, SERIALIZED_TRANSACTION_REF_BYTES,
+        TransactionRef,
+    },
 };
 
 /// Index of a commit among all consensus commits.
@@ -60,8 +63,6 @@ pub(crate) fn max_commit_bytes(committee_size: usize, gc_depth: usize) -> usize 
     if gc_depth == 0 || committee_size == 0 {
         return usize::MAX;
     }
-    // `TransactionRef` is round (4) + author (1) + transactions_commitment (32).
-    const SERIALIZED_TRANSACTION_REF_BYTES: usize = 37;
     // enum tag (1) + index (4) + previous_digest (32) + timestamp_ms (8) +
     // leader BlockRef (37) + is_optimistic (1).
     const FIXED_COMMIT_BYTES: usize = 1 + 4 + 32 + 8 + SERIALIZED_BLOCK_REF_BYTES + 1;
@@ -937,17 +938,15 @@ pub(crate) enum Decision {
 /// A leader slot advances through three nested levels — every finalized leader
 /// is resolved, and every resolved leader is decided:
 ///
-/// - **Decided** — commit-vs-skip is answered: `Skip`, or `Commit` with any
-///   metastate (including `Pending`). Convertible to a `DecidedLeader`.
-/// - **Resolved** — the outcome is fully pinned: `Skip`, or `Commit` with a
-///   settled (non-`Pending`) metastate, so sequencing can proceed past it
-///   (`is_resolved`). `Commit(Pending)` is decided but not resolved — the
-///   indirect rule upgrades its metastate on a later commit pass.
-/// - **Finalized** — a resolved leader the committer has processed as part of a
-///   contiguous, rotation-boundary-respecting prefix (its `last_finalized`
-///   boundary has advanced past the leader). Permanent; Decided and Resolved
-///   are provisional and recomputed on every commit pass — before finalization
-///   a slot's outcome can still flip between `Commit` and `Skip`.
+/// - **Decided** — commit-vs-skip is answered: `Skip`, or `Commit` with any metastate (including
+///   `Pending`). Convertible to a `DecidedLeader`.
+/// - **Resolved** — the outcome is fully pinned: `Skip`, or `Commit` with a settled (non-`Pending`)
+///   metastate, so sequencing can proceed past it (`is_resolved`). `Commit(Pending)` is decided but
+///   not resolved — the indirect rule upgrades its metastate on a later commit pass.
+/// - **Finalized** — a resolved leader the committer has processed as part of a contiguous,
+///   rotation-boundary-respecting prefix (its `last_finalized` boundary has advanced past the
+///   leader). Permanent; Decided and Resolved are provisional and recomputed on every commit pass —
+///   before finalization a slot's outcome can still flip between `Commit` and `Skip`.
 ///
 /// `Undecided` is none of these: the slot has no commit-vs-skip decision yet.
 ///

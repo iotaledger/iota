@@ -18,19 +18,16 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
+use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
-use iota_types::{
-    dynamic_field::{DynamicFieldName, Field},
-    event::EventID,
-    object::ObjectRead,
-};
+use iota_types::{dynamic_field::DynamicFieldName, event::EventID, object::ObjectRead};
 use jsonrpsee::{
     PendingSubscriptionSink, RpcModule,
     core::{RpcResult, SubscriptionResult, client::Error as RpcClientError},
 };
 use tap::TapFallible;
 
-use crate::{errors::IndexerError, read::IndexerReader};
+use crate::{apis::common, errors::IndexerError, read::IndexerReader};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
@@ -289,6 +286,7 @@ impl IndexerApiServer for IndexerApi {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage> {
+        common::validate_cursor(cursor.map(|c| c.event_seq))?;
         let limit = cap_page_limit(limit);
         if limit == 0 {
             return Ok(EventPage::empty());

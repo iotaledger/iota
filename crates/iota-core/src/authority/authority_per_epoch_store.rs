@@ -973,7 +973,9 @@ pub struct AuthorityEpochTables {
     pub(crate) dkg_output: DBMap<u64, dkg_v1::Output<PkG, EncG>>,
     /// Successor of `dkg_output`. Wraps the output in an `Option` so the
     /// terminal-failure verdict is persistable: `Some(out)` = success,
-    /// `None` = DKG failed (terminal), table-absent = still pending.
+    /// `None` = DKG failed (terminal), table-absent = still pending. `None` is
+    /// only written when `allow_dkg_completion_after_timeout` is off; with the
+    /// flag on, DKG times out per commit instead and can still complete.
     /// `RandomnessManager::try_new` loads this table first and falls back to
     /// `dkg_output` for backward compatibility with existing epoch stores.
     pub(crate) dkg_output_v2: DBMap<u64, Option<dkg_v1::Output<PkG, EncG>>>,
@@ -2392,8 +2394,8 @@ impl AuthorityPerEpochStore {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> SchedulingResult {
         // Defer transaction if it uses randomness but we aren't generating any this
-        // round. Don't defer if DKG has permanently failed; in that case we
-        // need to ignore.
+        // round. Don't defer if DKG has failed or timed out for this commit; in
+        // that case we need to ignore.
         if !dkg_failed && !generating_randomness && transaction.uses_randomness() {
             let deferred_from_round = previously_deferred_tx_digests
                 .get(transaction.digest())
@@ -3822,9 +3824,9 @@ impl AuthorityPerEpochStore {
             let randomness_manager = randomness_manager
                 .as_mut()
                 .expect("randomness manager should exist if randomness is enabled");
-            match randomness_manager.dkg_status() {
+            match randomness_manager.dkg_status_for_commit_round(consensus_commit_info.round)? {
                 DkgStatus::Pending => None,
-                DkgStatus::Failed => {
+                DkgStatus::TimedOut => {
                     dkg_failed = true;
                     None
                 }
@@ -4115,11 +4117,10 @@ impl AuthorityPerEpochStore {
             }
 
             // Determine whether to write pending checkpoint for user tx with randomness.
-            // - If randomness is not generated for this commit, we will skip the checkpoint
-            //   with the associated height. Therefore checkpoint heights may not be
-            //   contiguous.
-            // - Exception: if DKG fails, we always need to write out a PendingCheckpoint
-            //   for randomness tx that are canceled.
+            // - If randomness is not generated for this commit, we will skip the checkpoint with
+            //   the associated height. Therefore checkpoint heights may not be contiguous.
+            // - Exception: if DKG fails, we always need to write out a PendingCheckpoint for
+            //   randomness tx that are canceled.
             let should_write_random_checkpoint =
                 randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
 
@@ -4863,17 +4864,25 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        // Advance the DKG state machine on every commit while it is still
-        // pending, even when no new messages or confirmations arrived this
-        // commit, so it can resolve from already-persisted state -- completing,
-        // or failing once the timeout round passes. Without this, advance_dkg
-        // only runs on commits carrying fresh DKG traffic, so a validator that
-        // sees no new inbound traffic (e.g. one that restarted) can stay Pending
-        // forever -- deferring all randomness-using transactions and blocking
-        // epoch close.
-        let dkg_pending = randomness_manager
-            .as_ref()
-            .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
+        // With `allow_dkg_completion_after_timeout` off, advance the DKG state
+        // machine on every commit while it is still pending, even when no new
+        // messages or confirmations arrived this commit, so it can resolve from
+        // already-persisted state -- completing, or failing once the timeout
+        // round passes. Without this, advance_dkg only runs on commits carrying
+        // fresh DKG traffic, so a validator that sees no new inbound traffic
+        // (e.g. one that restarted) can stay Pending forever -- deferring all
+        // randomness-using transactions and blocking epoch close.
+        //
+        // With the flag on, DKG never fails, and the timeout is checked per
+        // commit by `dkg_status_for_commit_round`, so randomness-using
+        // transactions are canceled instead of deferred and do not block epoch
+        // close. Merging and completion can then only make progress when new
+        // DKG messages or confirmations arrive, so DKG is advanced only on
+        // those commits.
+        let dkg_pending = !self.protocol_config().allow_dkg_completion_after_timeout()
+            && randomness_manager
+                .as_ref()
+                .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
         if randomness_state_updated || dkg_pending {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager

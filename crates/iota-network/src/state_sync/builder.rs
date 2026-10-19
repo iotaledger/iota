@@ -232,6 +232,7 @@ where
                 checkpoint_archive_config,
                 sync_checkpoint_from_archive_task: None,
                 genesis_checkpoint,
+                highest_checkpoint_from_consensus: None,
             },
             handle,
         )

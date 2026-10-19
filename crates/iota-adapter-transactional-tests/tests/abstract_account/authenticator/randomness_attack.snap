@@ -55,11 +55,4 @@ Contents: simple_abstract_account::abstract_account::AbstractAccount {
 
 task 5, lines 30-31:
 //# abstract --account immshared(4,2) --auth-inputs immshared(8) --ptb-inputs immshared(8)
-mutated: object(4,0)
-unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000008, object(4,2)
-gas summary:
-├── Computation Cost: 1000000
-├── Computation Cost Burned: 1000000
-├── Storage Cost: 980400
-├── Storage Rebate: 980400
-└── Non-Refundable Storage Fee: 0
+Error: Error checking transaction input objects: Randomness state object object(0xobject(0x0000000000000000000000000000000000000000000000000000000000000008)) is in the `MoveAuthenticator` input that is unsupported

@@ -35,7 +35,7 @@ use iota_types::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
     },
     supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
 };
 
 use crate::{
@@ -56,7 +56,6 @@ pub struct ValidatorConfigBuilder {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
-    firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     discovery_config: Option<DiscoveryConfig>,
@@ -118,11 +117,6 @@ impl ValidatorConfigBuilder {
 
     pub fn with_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.policy_config = config;
-        self
-    }
-
-    pub fn with_firewall_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.firewall_config = config;
         self
     }
 
@@ -253,7 +247,6 @@ impl ValidatorConfigBuilder {
             run_with_range: None,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
-            firewall_config: self.firewall_config,
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
@@ -276,7 +269,7 @@ impl ValidatorConfigBuilder {
         config
     }
 
-    pub fn build_new_validator<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_new_validator<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -305,7 +298,6 @@ pub struct FullnodeConfigBuilder {
     network_key_pair: Option<KeyPairWithPath>,
     run_with_range: Option<RunWithRange>,
     policy_config: Option<PolicyConfig>,
-    fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
@@ -313,11 +305,18 @@ pub struct FullnodeConfigBuilder {
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
+    state_snapshot_write_config: Option<StateSnapshotConfig>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Publishes formal state snapshots to the store the config names.
+    pub fn with_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.state_snapshot_write_config = Some(config);
+        self
     }
 
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
@@ -425,11 +424,6 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.fw_config = config;
-        self
-    }
-
     pub fn with_data_ingestion_dir(mut self, path: Option<PathBuf>) -> Self {
         self.data_ingestion_dir = path;
         self
@@ -460,7 +454,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build_from_parts`] returns an error.
-    pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -474,7 +468,7 @@ impl FullnodeConfigBuilder {
     /// the fullnode freshly generated key pairs and addresses.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -648,7 +642,7 @@ impl FullnodeConfigBuilder {
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
-            state_snapshot_write_config: StateSnapshotConfig::default(),
+            state_snapshot_write_config: self.state_snapshot_write_config.unwrap_or_default(),
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
@@ -656,7 +650,6 @@ impl FullnodeConfigBuilder {
             run_with_range: self.run_with_range,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
-            firewall_config: self.fw_config,
             execution_cache_config: ExecutionCacheConfig::default(),
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
             ),
@@ -680,7 +673,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build`] returns an error.
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -692,7 +685,7 @@ impl FullnodeConfigBuilder {
     /// Build the fullnode config against the given network config.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -740,7 +733,7 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::{FullnodeConfigBuilder, Genesis, ValidatorGenesisConfigBuilder};
 
@@ -751,7 +744,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
         genesis_config.p2p_address = "/ip4/127.0.0.1/udp/9186/http".parse().unwrap();
@@ -793,7 +786,7 @@ mod tests {
     fn an_address_set_on_the_builder_wins_over_the_genesis_config() {
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
 

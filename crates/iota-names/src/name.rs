@@ -190,8 +190,7 @@ fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNames
 }
 
 /// Checks the validity of a label according to these rules:
-/// - length must be in
-///   [IOTA_NAMES_MIN_LABEL_LENGTH..IOTA_NAMES_MAX_LABEL_LENGTH]
+/// - length must be in [IOTA_NAMES_MIN_LABEL_LENGTH..IOTA_NAMES_MAX_LABEL_LENGTH]
 /// - must contain only '0'..'9', 'a'..'z' and '-'
 /// - must not start or end with '-'
 pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
