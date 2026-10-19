@@ -882,7 +882,6 @@ mod tests {
             .record_commit_fully_executed(
                 WRITING_COMMIT,
                 &handler_processed_upserts(&effects, WRITING_COMMIT),
-                &[],
             )
             .unwrap();
         authority.insert_genesis_object(object(x_id, written));
