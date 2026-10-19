@@ -287,10 +287,9 @@ mod checked {
     /// It creates a temporary store, gas charger, and transaction context for
     /// the authentication execution and then reuses these for the normal
     /// transaction execution.
-    /// When consensus cancelled the transaction and
-    /// `check_cancellation_before_move_authentication` is enabled, no
-    /// authenticator runs and the effects carry the cancellation. Otherwise,
-    /// running the Move authentication can have two outcomes:
+    /// When consensus cancelled the transaction, no authenticator runs and
+    /// the effects carry the cancellation. Otherwise, running the Move
+    /// authentication can have two outcomes:
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
     ///     produces transaction effects with the appropriate error status.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
@@ -397,12 +396,8 @@ mod checked {
         // reported. The cancellation is reported as is, not as an
         // authentication failure, and only once: the transaction execution
         // gets no cancelled objects to check.
-        let cancellation_check = if protocol_config.check_cancellation_before_move_authentication()
-        {
-            run_inputs_checks(protocol_config, false, false, cancelled_objects.take())
-        } else {
-            Ok(())
-        };
+        let cancellation_check =
+            run_inputs_checks(protocol_config, false, false, cancelled_objects.take());
 
         let authentication_execution_result = cancellation_check.and_then(|()| {
             // A resolution failure skips the authenticators entirely, so the objects
