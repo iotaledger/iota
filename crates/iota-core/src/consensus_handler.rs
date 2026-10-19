@@ -2205,13 +2205,38 @@ mod tests {
     /// A submitter already waiting for the status of an honest transaction
     /// when a faulty validator's copy of it is dropped on its authenticator
     /// is not told about the drop: the honest copy can still be kept, so the
-    /// submitter keeps waiting for its outcome.
+    /// submitter keeps waiting for its outcome. The consensus adapter that
+    /// submitted the transaction stops waiting for it at the drop, which
+    /// frees its in-flight slot. The same holds when the commit is replayed
+    /// over its saved verdicts, as after a restart.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn waiting_submitter_is_not_told_about_the_drop_of_a_failing_copy() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
             config
         });
+        let saved_error: IotaError =
+            UserInputError::Unsupported("saved drop of a copy".to_string()).into();
+        for saved in [None, Some(saved_error)] {
+            assert_only_the_adapter_is_told_about_the_drop_of_a_failing_copy(saved).await;
+        }
+    }
+
+    /// Submits an honest transaction through a consensus adapter, then
+    /// handles a commit with a failing copy of it and a commit with the honest
+    /// transaction. With `saved`, the failing copy's drop is saved with that
+    /// error for the first commit before it is handled, so the commit repeats
+    /// the saved verdict instead of validating the copy.
+    async fn assert_only_the_adapter_is_told_about_the_drop_of_a_failing_copy(
+        saved: Option<IotaError>,
+    ) {
+        use crate::{
+            consensus_adapter::{
+                ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+            },
+            mock_consensus::{ConsensusMode, MockConsensusClient},
+        };
+
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..2)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
@@ -2221,6 +2246,43 @@ mod tests {
         let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
         let digest = *honest.digest();
+        if let Some(error) = &saved {
+            epoch
+                .persist_post_consensus_verdicts(
+                    1,
+                    &[(digest, PostConsensusVerdict::DroppedCopy(error.clone()))],
+                )
+                .unwrap();
+        }
+
+        // A consensus client that sequences nothing, so only the drop can end
+        // the adapter's wait.
+        let adapter = Arc::new(ConsensusAdapter::new(
+            Arc::new(MockConsensusClient::new(
+                Arc::downgrade(&state),
+                ConsensusMode::Noop,
+            )),
+            state.checkpoint_store.clone(),
+            state.name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+        ));
+        let adapter_wait = adapter
+            .submit(
+                ConsensusTransaction::new_user_transaction(honest.clone()),
+                None,
+                &epoch,
+            )
+            .unwrap();
+        // Lets the adapter's task register its wait before the commit.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        assert!(!adapter_wait.is_finished());
+        assert_eq!(adapter.num_inflight_transactions(), 1);
 
         // Polled once so it is registered before the commit is processed.
         let waiting_submitter = epoch.notify_read_dropped_digests(digest);
@@ -2235,10 +2297,23 @@ mod tests {
             ))
             .await;
 
-        assert!(matches!(
-            epoch.post_consensus_verdict(1, digest).unwrap(),
-            Some(PostConsensusVerdict::DroppedCopy(_))
-        ));
+        let verdict = epoch.post_consensus_verdict(1, digest).unwrap();
+        match &saved {
+            Some(error) => assert_eq!(
+                verdict,
+                Some(PostConsensusVerdict::DroppedCopy(error.clone())),
+                "the commit must repeat the saved verdict"
+            ),
+            None => assert!(
+                matches!(verdict, Some(PostConsensusVerdict::DroppedCopy(_))),
+                "{verdict:?}"
+            ),
+        }
+        tokio::time::timeout(Duration::from_secs(5), adapter_wait)
+            .await
+            .expect("the adapter must stop waiting at the drop of the copy")
+            .unwrap();
+        assert_eq!(adapter.num_inflight_transactions(), 0);
         assert!(
             tokio::time::timeout(Duration::from_secs(5), &mut waiting_submitter)
                 .await
