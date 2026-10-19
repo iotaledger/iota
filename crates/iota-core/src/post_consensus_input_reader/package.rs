@@ -259,7 +259,6 @@ mod tests {
             .record_commit_fully_executed(
                 PUBLISHING_COMMIT,
                 &handler_processed_upserts(&effects, PUBLISHING_COMMIT),
-                &[],
             )
             .unwrap();
         assert!(matches!(

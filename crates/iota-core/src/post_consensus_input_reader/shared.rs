@@ -643,7 +643,6 @@ mod tests {
             .record_commit_fully_executed(
                 PRODUCING_COMMIT,
                 &handler_processed_upserts(&effects, PRODUCING_COMMIT),
-                &[],
             )
             .unwrap();
         authority.insert_genesis_object(shared);
@@ -726,7 +725,6 @@ mod tests {
             .record_commit_fully_executed(
                 PRODUCING_COMMIT,
                 &handler_processed_upserts(&effects, PRODUCING_COMMIT),
-                &[],
             )
             .unwrap();
 
