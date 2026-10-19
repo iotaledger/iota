@@ -54,8 +54,8 @@ impl StarfishManager {
     /// But for security, the protocol keypair must be different from the
     /// network keypair.
     pub fn new(
-        protocol_keypair: iota_types::crypto::NetworkKeyPair,
-        network_keypair: iota_types::crypto::NetworkKeyPair,
+        protocol_keypair: iota_types::crypto::NetworkPrivateKey,
+        network_keypair: iota_types::crypto::NetworkPrivateKey,
         storage_base_path: PathBuf,
         registry_service: RegistryService,
         metrics: Arc<ConsensusManagerMetrics>,

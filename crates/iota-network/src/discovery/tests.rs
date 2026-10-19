@@ -102,7 +102,7 @@ fn set_up_network_with_trusted_peer_change_rx(
     UnstartedDiscovery,
     DiscoveryServer<impl Discovery>,
     Network,
-    NetworkKeyPair,
+    NetworkPrivateKey,
 ) {
     let anemo_config = p2p_config.anemo_config.clone().unwrap_or_default();
 
@@ -132,7 +132,7 @@ fn set_up_network(
     UnstartedDiscovery,
     DiscoveryServer<impl Discovery>,
     Network,
-    NetworkKeyPair,
+    NetworkPrivateKey,
 ) {
     set_up_network_with_trusted_peer_change_rx(p2p_config, address, create_test_channel().1)
 }
@@ -140,7 +140,7 @@ fn set_up_network(
 fn start_network(
     discovery: UnstartedDiscovery,
     network: Network,
-    keypair: NetworkKeyPair,
+    keypair: NetworkPrivateKey,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
     let (mut event_loop, handle) = discovery.build(network.clone(), keypair);
     event_loop.config.external_address = Some(local_multiaddr_from_network(&network));
@@ -151,7 +151,7 @@ fn start_network(
 fn start_network_without_external_address(
     discovery: UnstartedDiscovery,
     network: Network,
-    keypair: NetworkKeyPair,
+    keypair: NetworkPrivateKey,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
     let (event_loop, handle) = discovery.build(network, keypair);
     let state = event_loop.state.clone();
@@ -1179,7 +1179,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
 
     for i in 0..5 {
         // Create different keypairs (different private keys) for each malicious peer
-        let malicious_key = NetworkKeyPair::random();
+        let malicious_key = NetworkPrivateKey::random();
         let malicious_peer_id = anemo::PeerId(malicious_key.public_key().into_bytes());
         let timestamp_malicious = start_timestamp_ms + i + 100;
 
@@ -1199,7 +1199,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Malicious actor claims to be a legitimate peer but at a fake
     // non-existing/non-reachable address
     let fake_address: Multiaddr = "/dns/localhost/udp/54321".parse()?;
-    let key_malicious_2 = NetworkKeyPair::random();
+    let key_malicious_2 = NetworkPrivateKey::random();
     let peer_id_malicious_2 = anemo::PeerId(key_malicious_2.public_key().into_bytes());
     let timestamp_malicious_2 = start_timestamp_ms + 1000; // Newer timestamp
     let signed_peer_info_spoof_fake_addr = NodeInfo {
@@ -1610,8 +1610,8 @@ async fn test_peer_deduplication() -> Result<()> {
     // each field in NodeInfo individually
 
     // Create test keypairs
-    let key1 = NetworkKeyPair::random();
-    let key2 = NetworkKeyPair::random();
+    let key1 = NetworkPrivateKey::random();
+    let key2 = NetworkPrivateKey::random();
 
     let peer_id1 = anemo::PeerId(key1.public_key().into_bytes());
     let peer_id2 = anemo::PeerId(key2.public_key().into_bytes());
@@ -1903,7 +1903,7 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with private/unroutable addresses (should be filtered)
     for (i, address_str) in filtered_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::random();
+        let key = NetworkPrivateKey::random();
         let peer_id = anemo::PeerId(key.public_key().into_bytes());
 
         let peer_info = NodeInfo {
@@ -1923,7 +1923,7 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with public addresses (should reach verification)
     for (i, address_str) in public_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::random();
+        let key = NetworkPrivateKey::random();
         let peer_id = anemo::PeerId(key.public_key().into_bytes());
 
         let peer_info = NodeInfo {
