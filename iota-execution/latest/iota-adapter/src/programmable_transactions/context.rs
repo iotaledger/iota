@@ -1362,7 +1362,7 @@ mod checked {
         let data_store = IotaDataStore::new(linkage_view, new_packages);
         let res = vm.get_runtime().load_type(
             &runtime_id,
-            IdentStr::new(struct_tag.name().as_str()).unwrap(),
+            &identifier_sdk_to_core(struct_tag.name()),
             &data_store,
         );
         linkage_view.reset_linkage().map_err(|e| {
