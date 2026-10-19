@@ -20,6 +20,24 @@ The ruleset replaces only its own `iota_node` table when you reload it, so the r
 
 Floods of TCP connection requests from spoofed addresses cannot be blocked by address. The kernel handles them with SYN cookies, which are on by default (`net.ipv4.tcp_syncookies = 1`).
 
+## Run the Node in Docker
+
+The ruleset and the fail2ban bans below filter the traffic that reaches the host itself, in the `input` hook of nftables. On Docker's default bridge network, traffic to a port the container publishes is forwarded to the container instead, so it passes the `forward` hook and neither of them sees it: the bans do nothing, and a published metrics port stays open.
+
+Run the node on the host's network instead. The node then binds its ports on the host, and the ruleset and the bans apply as on a node without Docker. With the Docker Compose setups in `setups/validator` and `setups/fullnode/docker`, add the override for your node type, which needs Docker Compose 2.24 or later:
+
+```yaml file=<rootDir>/setups/traffic-control/docker/validator-host-network.yml
+```
+
+```yaml file=<rootDir>/setups/traffic-control/docker/fullnode-host-network.yml
+```
+
+```bash
+docker compose -f docker-compose-mainnet.yml -f validator-host-network.yml up -d
+```
+
+The override also names the container `iota-node` and writes its log to the journal, where the fail2ban jail below reads it.
+
 ## Ban Blocked Clients in the Firewall
 
 The TrafficController refuses a blocked client, but each refused request still costs the node a connection, and the block ends when the node restarts. fail2ban can read the [block log line](#read-the-block-log-line) and add the client to an nftables set, so that the kernel drops its packets for the same time.
@@ -45,7 +63,7 @@ The filter matches only a line that starts like the block line and is logged und
    ```ini file=<rootDir>/setups/traffic-control/fail2ban/jail.d/iota-node.conf
    ```
 
-   For a node in Docker, run the container with the `journald` log driver (`--log-driver=journald`, or `logging: driver: journald` in Docker Compose) and add `journalmatch = CONTAINER_NAME=<container name>` to the jail. The default `json-file` driver wraps each line in JSON of its own, which the filter does not match.
+   For a node in Docker, run it as in [Run the Node in Docker](#run-the-node-in-docker) and add `journalmatch = CONTAINER_NAME=iota-node` to the jail. Without the override, run the container with the `journald` log driver (`--log-driver=journald`) and set `CONTAINER_NAME` to its name: the default `json-file` driver wraps each line in JSON of its own, which the filter does not match.
 
 4. Check the filter against the node's log, then restart fail2ban:
 

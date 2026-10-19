@@ -1,0 +1,20 @@
+# Compose override that runs the IOTA node on the host's network, so that the
+# nftables ruleset and the fail2ban bans in setups/traffic-control apply to it.
+# On Docker's default bridge network, traffic to a published port passes the
+# `forward` hook rather than `input`, so neither of them sees it.
+#
+# Use it next to setups/validator/docker-compose-mainnet.yml (or -testnet):
+#
+#   docker compose -f docker-compose-mainnet.yml -f validator-host-network.yml up -d
+#
+# Needs Docker Compose 2.24 or later for `!reset`.
+services:
+  iota-node:
+    network_mode: host
+    # The node binds its ports on the host itself, so publish none.
+    ports: !reset []
+    # The name the fail2ban jail matches with `journalmatch`.
+    container_name: iota-node
+    # Writes the node's log to the journal, where the fail2ban jail reads it.
+    logging:
+      driver: journald
