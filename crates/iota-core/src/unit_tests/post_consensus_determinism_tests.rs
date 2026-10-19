@@ -2965,7 +2965,7 @@ impl<'a> Validator<'a> {
     /// row of the id above the version drops.
     fn load_bytes(
         &self,
-        ctx: &CommitIndexedReader,
+        horizon: CommitIndex,
         need_bytes: owned::OwnedReader<owned::NeedBytes>,
     ) -> Outcome<OwnedVerdict> {
         let reference = need_bytes.into_reference();
@@ -2982,10 +2982,7 @@ impl<'a> Validator<'a> {
                         .handler_processed_object(&ObjectKey(reference.object_id, initial)),
                 )?;
                 return Ok(
-                    match owned::classify_shared_named_as_owned(
-                        creation_row.as_ref(),
-                        ctx.horizon(),
-                    ) {
+                    match owned::classify_shared_named_as_owned(creation_row.as_ref(), horizon) {
                         owned::SharedNamedAsOwned::Missing(reason) => OwnedVerdict::Missing(reason),
                         owned::SharedNamedAsOwned::Drop(reason) => OwnedVerdict::Drop(reason),
                     },
@@ -3031,7 +3028,7 @@ impl<'a> Validator<'a> {
         }
         let no_entry = match lookup {
             TablesLookup::LiveAtVersion(live_at_version) => {
-                return self.owned_rows_above(ctx, live_at_version, reference, writers);
+                return self.owned_rows_above(ctx, horizon, live_at_version, reference, writers);
             }
             TablesLookup::Missing(reason) => {
                 return Ok(Ok(
@@ -3049,16 +3046,16 @@ impl<'a> Validator<'a> {
         }
         let verdict = match self.storage(store_answered.reread_handler_row(ctx))? {
             TablesRecheck::LiveAtVersion(live_at_version) => {
-                return self.owned_rows_above(ctx, live_at_version, reference, writers);
+                return self.owned_rows_above(ctx, horizon, live_at_version, reference, writers);
             }
             TablesRecheck::NotAtVersion(not_at_version) => {
                 let lookup = self.storage(not_at_version.read_other_rows(ctx))?;
                 if let Err(Crashed) = self.inject(&[ReaderPoint::LastTableRead], writers)? {
                     return Ok(Err(Crashed));
                 }
-                self.decide_rows_above(ctx, lookup)?
+                self.decide_rows_above(horizon, lookup)?
             }
-            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(ctx, need_bytes)?,
+            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(horizon, need_bytes)?,
             TablesRecheck::Missing(reason) => OwnedVerdict::Missing(reason),
             TablesRecheck::Drop(reason) => OwnedVerdict::Drop(reason),
         };
@@ -3095,6 +3092,7 @@ impl<'a> Validator<'a> {
     fn owned_rows_above(
         &mut self,
         ctx: &CommitIndexedReader,
+        horizon: CommitIndex,
         live_at_version: owned::OwnedReader<owned::LiveAtVersion>,
         reference: ObjectReference,
         writers: &[(ReaderPoint, WriterStep)],
@@ -3103,17 +3101,19 @@ impl<'a> Validator<'a> {
         if let Err(Crashed) = self.inject(&[ReaderPoint::LastTableRead], writers)? {
             return Ok(Err(Crashed));
         }
-        let verdict = self.decide_rows_above(ctx, lookup)?;
+        let verdict = self.decide_rows_above(horizon, lookup)?;
         Ok(Ok(self.owned_read(verdict, reference)?))
     }
 
     fn decide_rows_above(
         &self,
-        ctx: &CommitIndexedReader,
+        horizon: CommitIndex,
         lookup: owned::RowsAboveLookup,
     ) -> Outcome<OwnedVerdict> {
         Ok(match lookup {
-            owned::RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(ctx, need_bytes)?,
+            owned::RowsAboveLookup::NeedBytes(need_bytes) => {
+                self.load_bytes(horizon, need_bytes)?
+            }
             owned::RowsAboveLookup::Missing(reason) => OwnedVerdict::Missing(reason),
             owned::RowsAboveLookup::Drop(reason) => OwnedVerdict::Drop(reason),
         })
