@@ -335,9 +335,28 @@ pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
 }
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
-/// picks up where it left off in the event of a mid-epoch node crash.
+/// picks up where it left off in the event of a mid-epoch node crash, on a
+/// committee validator without `pcool_deterministic_validation`.
 #[tokio::test]
 pub async fn test_checkpoint_executor_crash_recovery() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pcool_deterministic_validation_for_testing(false);
+        config
+    });
+    run_crash_recovery(true).await;
+}
+
+/// The same crash recovery on a node outside the committee, which executes
+/// synced checkpoints as a committee validator does once it has switched to
+/// them.
+#[tokio::test]
+pub async fn test_checkpoint_executor_crash_recovery_outside_the_committee() {
+    run_crash_recovery(false).await;
+}
+
+/// Executes synced checkpoints, restarts the executor mid-epoch, and checks
+/// that it continues from the highest executed checkpoint.
+async fn run_crash_recovery(in_committee: bool) {
     telemetry_subscribers::init_for_testing();
 
     let buffer_size = num_cpus::get() * 2;
@@ -349,7 +368,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         CheckpointExecutor,
         Arc<GlobalStateHasher>,
         CommitteeFixture,
-    ) = init_executor_test(checkpoint_store.clone(), false).await;
+    ) = init_executor_test(checkpoint_store.clone(), in_committee).await;
 
     assert!(
         checkpoint_store

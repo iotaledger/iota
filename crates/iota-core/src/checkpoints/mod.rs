@@ -3515,6 +3515,7 @@ mod tests {
             .unwrap()
             .unwrap();
     }
+
     #[sim_test]
     pub async fn checkpoint_builder_test() {
         telemetry_subscribers::init_for_testing();
