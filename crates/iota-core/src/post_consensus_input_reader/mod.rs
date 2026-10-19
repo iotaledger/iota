@@ -86,20 +86,19 @@
 //! # Loading the object of a kept version
 //!
 //! A kept owned input is loaded by exact key, and this validator may already
-//! have consumed and pruned that version. A version consumed by a commit at
-//! or below the horizon drops, from the consuming commit's row, before any
-//! load. A version consumed above the horizon is kept, as on a validator that
-//! has not executed that commit, unless the consuming transaction holds a
-//! lock that the lock conflict check finds first. That holds for a version
-//! the epoch started with too: a newer version in the store does not drop it
-//! by itself, as the owned module explains. A version that a transaction in
-//! the last `K` commits consumed without a lock (a received object or a
-//! dynamic-field child) can be pruned here while a validation still keeps
-//! it. If this validator has already pruned it, the consuming commit's row
-//! above `V` drops the input. That is also the result on a validator that
-//! still holds the object: the input checks reject a child named as an owned
-//! input, and a received object unless the sender is the address of the
-//! object it was sent to.
+//! have consumed that version. A version consumed by a commit at or below the
+//! horizon drops, from the consuming commit's row, before any load. A version
+//! consumed above the horizon is kept, as on a validator that has not
+//! executed that commit, unless the consuming transaction holds a lock that
+//! the lock conflict check finds first. That holds for a version the epoch
+//! started with too: a newer version in the store does not drop it by
+//! itself, as the owned module explains. The object of such a version,
+//! including one consumed without a lock as a received object or a
+//! dynamic-field child, stays in the store, because the objects pruner does
+//! not pass the pruning limit, which covers every commit that a validation,
+//! or a replay after a restart, can still read (see
+//! `AuthorityPerEpochStore::object_pruning_limit`). A kept version missing
+//! from the store is therefore a storage error.
 //!
 //! # Dynamic fields as of the horizon
 //!
@@ -236,9 +235,6 @@ pub enum DropKind {
     /// The row at `(id, V)` is a shared object's creation row, but the
     /// transaction names the object as owned.
     HandlerRowSharedObject,
-    /// A row of `id` above `V` while this validator has already pruned `V`:
-    /// `V` was consumed without a lock.
-    HandlerRowAbovePrunedVersion,
     /// No row at `(id, V)`, and `V` was replaced before this epoch: the store
     /// holds a newer version or a tombstone, and the lowest row of `id` above
     /// `V`, if there is one, replaced another version.
