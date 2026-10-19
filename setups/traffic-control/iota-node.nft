@@ -25,7 +25,9 @@ define CLIENT_TCP_PORTS = { 8080, 9000, 50051 }
 define SSH_PORT = 22
 
 # Mask that cuts an IPv6 client address to the prefix the node counts as one
-# client. Keep it at the node's `ipv6-prefix-len` (64 by default).
+# client. Keep it at the node's `ipv6-prefix-len` (64 by default). Unlike the
+# node, which counts each address under the NAT64 prefix 64:ff9b::/96 as a
+# client of its own, the limits below count all those clients as one.
 define IPV6_CLIENT_MASK = ffff:ffff:ffff:ffff::
 
 table inet iota_node
