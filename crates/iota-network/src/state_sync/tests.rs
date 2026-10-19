@@ -16,7 +16,7 @@ use iota_data_ingestion_core::history::{
     CHECKPOINT_FILE_MAGIC,
     manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
 };
-use iota_sdk_types::CheckpointDigest;
+use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
@@ -36,8 +36,8 @@ use tokio::time::{Instant, timeout};
 
 use crate::{
     state_sync::{
-        Builder, GetCheckpointSummaryRequest, PeerStateSyncInfo, StateSync, StateSyncMessage,
-        UnstartedStateSync,
+        Builder, GetCheckpointSummaryRequest, PeerStateSyncInfo, StateSync, StateSyncEventLoop,
+        StateSyncHandshake, StateSyncMessage, UnstartedStateSync,
     },
     utils::build_network,
 };
@@ -1343,6 +1343,187 @@ async fn pushed_summaries_above_the_sync_target_are_dropped() {
     // Dropping them does not cost node 2 the peers' height, so sync resumes.
     store_2.inner_mut().set_highest_executed_checkpoint(3);
     wait_for_watermarks(&store_2, last_checkpoint_seq, last_checkpoint_seq).await;
+}
+
+#[tokio::test]
+// Test that checkpoint summary sync crosses an epoch boundary: the end-of-epoch
+// checkpoint gives the store the next epoch's committee, and the checkpoints
+// signed by that committee are then verified and stored.
+async fn sync_across_epoch_boundary() {
+    let (committee_0, (epoch_0_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+    let committee_1 = CommitteeFixture::generate(rand::rngs::OsRng, 1, 4);
+    let (_, _, end_of_epoch_checkpoint) = committee_0.make_end_of_epoch_checkpoint(
+        epoch_0_checkpoints.last().cloned().unwrap(),
+        Some(EndOfEpochData {
+            next_epoch_committee: committee_1.committee().committee_members(),
+            next_epoch_protocol_version: 1,
+            epoch_commitments: vec![],
+            epoch_supply_change: 0,
+        }),
+    );
+    let (epoch_1_checkpoints, _, _, _) =
+        committee_1.make_empty_checkpoints(3, Some(end_of_epoch_checkpoint.clone()));
+    let ordered_checkpoints = epoch_0_checkpoints
+        .into_iter()
+        .chain(std::iter::once(end_of_epoch_checkpoint))
+        .chain(epoch_1_checkpoints)
+        .collect::<Vec<_>>();
+    let last_checkpoint = ordered_checkpoints.last().cloned().unwrap();
+    assert_eq!(last_checkpoint.epoch(), 1);
+
+    let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
+    let store_1 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee_0.committee().to_owned(),
+    );
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee_0.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
+    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let (mut event_loop_1, _handle_1) = builder.build(network_1.clone());
+    let (builder, server) = Builder::new().store(store_2).build();
+    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
+    network_1.connect(network_2.local_addr()).await.unwrap();
+
+    {
+        let mut store = event_loop_2.store.inner_mut();
+        for checkpoint in &ordered_checkpoints {
+            store.insert_checkpoint(checkpoint);
+        }
+    }
+
+    event_loop_1.peer_heights.write().unwrap().peers.insert(
+        network_2.peer_id(),
+        PeerStateSyncInfo {
+            genesis_checkpoint_digest: *genesis_checkpoint.digest(),
+            on_same_chain_as_us: true,
+            height: last_checkpoint.sequence_number(),
+            lowest: 0,
+        },
+    );
+    event_loop_1
+        .peer_heights
+        .write()
+        .unwrap()
+        .insert_checkpoint(last_checkpoint.clone().into_inner());
+
+    assert!(event_loop_1.store.get_committee(1).is_none());
+    event_loop_1.maybe_start_checkpoint_summary_sync_task();
+    event_loop_1.tasks.join_next().await.unwrap().unwrap();
+
+    assert_eq!(
+        event_loop_1
+            .store
+            .try_get_highest_verified_checkpoint()
+            .unwrap()
+            .data(),
+        last_checkpoint.data()
+    );
+    assert_eq!(
+        event_loop_1.store.get_committee(1).as_deref(),
+        Some(committee_1.committee())
+    );
+}
+
+#[tokio::test]
+// Test that a peer's checkpoint from an epoch we have no committee for is
+// rejected instead of crashing the sync task, whether it arrives in the
+// handshake or is pushed afterwards. Epoch 1 is the next epoch without
+// end-of-epoch data in genesis, and epoch 42 is far ahead.
+async fn peer_checkpoint_with_unknown_epoch_is_rejected() {
+    telemetry_subscribers::init_for_testing();
+    for epoch in [1, 42] {
+        let (committee, (ordered_checkpoints, _, _, _)) =
+            make_committee_and_checkpoints(0, 4, 1, None, empty_contents);
+        let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
+        let store = store_with_genesis_state(
+            genesis_checkpoint.clone(),
+            empty_contents(),
+            committee.committee().to_owned(),
+        );
+
+        let (_, (forged_checkpoints, _, _, _)) = make_committee_and_checkpoints(
+            epoch,
+            4,
+            1,
+            Some(genesis_checkpoint.clone()),
+            empty_contents,
+        );
+        let forged_checkpoint = forged_checkpoints.first().cloned().unwrap().into_inner();
+        assert_eq!(forged_checkpoint.sequence_number(), 1);
+
+        let (builder, server) = Builder::new().store(store).build_internal();
+        let (mut event_loop, _handle) = builder.build(build_network(|router| router));
+
+        let handshake = StateSyncHandshake {
+            genesis_checkpoint: genesis_checkpoint.clone().into_inner(),
+            highest_synced_checkpoint: forged_checkpoint.clone(),
+            lowest_available_checkpoint: 0,
+        };
+        server
+            .exchange_state_sync_handshake(Request::new(handshake).with_extension(PeerId([9; 32])))
+            .await
+            .unwrap();
+        sync_and_assert_checkpoint_1_rejected(&mut event_loop).await;
+
+        let pushing_peer_id = PeerId([10; 32]);
+        event_loop.peer_heights.write().unwrap().peers.insert(
+            pushing_peer_id,
+            PeerStateSyncInfo {
+                genesis_checkpoint_digest: *genesis_checkpoint.digest(),
+                on_same_chain_as_us: true,
+                height: 0,
+                lowest: 0,
+            },
+        );
+        server
+            .push_checkpoint_summary(
+                Request::new(forged_checkpoint).with_extension(pushing_peer_id),
+            )
+            .await
+            .unwrap();
+        event_loop.sync_checkpoint_summaries_task = None;
+        sync_and_assert_checkpoint_1_rejected(&mut event_loop).await;
+    }
+}
+
+/// Runs one checkpoint summary sync with a peer's summary for checkpoint 1
+/// cached, and asserts that verification rejects the summary and drops it.
+async fn sync_and_assert_checkpoint_1_rejected(
+    event_loop: &mut StateSyncEventLoop<SharedInMemoryStore>,
+) {
+    assert!(
+        event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .get_checkpoint_by_sequence_number(1)
+            .is_some()
+    );
+
+    event_loop.maybe_start_checkpoint_summary_sync_task();
+    event_loop.tasks.join_next().await.unwrap().unwrap();
+
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        0
+    );
+    assert!(
+        event_loop
+            .peer_heights
+            .read()
+            .unwrap()
+            .get_checkpoint_by_sequence_number(1)
+            .is_none()
+    );
 }
 
 /// Waits for a store to reach the given verified and synced watermarks,
