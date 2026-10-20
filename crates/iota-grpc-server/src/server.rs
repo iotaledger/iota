@@ -28,7 +28,7 @@ use crate::{
 /// Handle to control a running gRPC server
 pub struct GrpcServerHandle {
     /// Handle to the task that shuts the server down
-    pub server_handle: tokio::task::JoinHandle<()>,
+    server_handle: tokio::task::JoinHandle<()>,
     /// Shutdown signal sender
     shutdown_token: CancellationToken,
     /// Broadcaster for checkpoint data
@@ -44,7 +44,7 @@ impl GrpcServerHandle {
         self.shutdown_token.cancel();
         self.server_handle
             .await
-            .map_err(|join_error| anyhow::anyhow!("Server task failed: {join_error}"))
+            .map_err(|join_error| anyhow::anyhow!("server task failed: {join_error}"))
     }
 
     /// Get the server address (actual bound address)
