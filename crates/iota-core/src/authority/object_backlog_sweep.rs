@@ -22,19 +22,17 @@ use std::{
     },
 };
 
-use iota_sdk_types::{ObjectId, TransactionEffects};
+use iota_sdk_types::ObjectId;
 use iota_types::{
     base_types::VersionNumber,
     committee::EpochId,
-    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
-    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
+use tracing::debug;
 use typed_store::{rocks::DBBatch, traits::Map};
 
 use crate::{
@@ -42,11 +40,10 @@ use crate::{
         AuthorityStore,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreObject, StoreObjectWrapper, try_construct_object},
-        historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
         ledger_backlog_migration::RangeProgress,
     },
-    checkpoints::CheckpointStore,
+    par_index_live_object_set::id_position,
     progress_logger::ProgressLogger,
 };
 
@@ -54,10 +51,6 @@ use crate::{
 /// object id's versions, bounding its memory and what an interrupted run walks
 /// again.
 const KEYS_PER_SLICE: usize = 5_000;
-
-/// Checkpoints one slice of the bounded walk resolves before it writes its
-/// batch, bounding what an interrupted run has to replay.
-const CHECKPOINTS_PER_SLICE: u64 = 200;
 
 /// How many key ranges the walk of the whole live table splits it into, by
 /// the first byte of the object id; each range is walked by its own thread.
@@ -70,8 +63,7 @@ pub enum ObjectBacklogSweepProgress {
     /// How far each key range of the walk of the whole live table has got:
     /// every key up to and including a range's position has been swept.
     Walking(Vec<RangeProgress<ObjectKey>>),
-    /// The sweep has finished, by either route, and later node starts do
-    /// nothing.
+    /// The sweep has finished, and later node starts do nothing.
     Done,
     /// Recorded without a sweep, by `iota-tool db-tool
     /// mark-object-backlog-swept`. Later node starts do nothing, but the
@@ -83,37 +75,22 @@ pub enum ObjectBacklogSweepProgress {
 /// `epoch`'s bucket, and records the tombstones alongside them. Returns at once
 /// if an earlier run finished.
 ///
-/// Where the objects pruner left its watermark, only the effects of the
-/// checkpoints above it are read; otherwise the whole live table is walked.
-///
-/// Call this after [`crate::authority::ledger_backlog_migration::migrate`],
-/// which moves the effects this reads into the historic buckets. Call it
-/// before starting anything that scans the live table for its latest versions
-/// or can expire a historic bucket: an expiry could otherwise leave a
-/// superseded version as the newest row of a deleted object.
+/// Call this before starting anything that scans the live table for its
+/// latest versions or can expire a historic bucket: an expiry could otherwise
+/// leave a superseded version as the newest row of a deleted object.
 ///
 /// # Errors
 ///
 /// A failure is returned rather than retried. Progress is durable, so the next
 /// start resumes where this one stopped.
-pub async fn sweep(
-    store: Arc<AuthorityStore>,
-    checkpoint_store: Arc<CheckpointStore>,
-    epoch: EpochId,
-) -> IotaResult<()> {
+pub async fn sweep(store: Arc<AuthorityStore>, epoch: EpochId) -> IotaResult<()> {
     // Each slice is a range scan and a write batch, both blocking.
     tokio::task::spawn_blocking(move || {
         let sweep = ObjectBacklogSweep::new(&store);
         if sweep.is_done()? {
             return IotaResult::Ok(());
         }
-        match sweep.bound(&checkpoint_store)? {
-            Some(bound) => {
-                sweep.sweep_above_bound(&checkpoint_store, epoch, bound)?;
-            }
-            None => sweep.walk_in_parallel(epoch)?,
-        }
-        IotaResult::Ok(())
+        sweep.walk_in_parallel(epoch)
     })
     .await
     .map_err(|e| IotaError::Storage(format!("the object backlog sweep task failed: {e}")))?
@@ -124,7 +101,6 @@ pub async fn sweep(
 struct ObjectBacklogSweep {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     historic_objects: Arc<HistoricObjects>,
-    historic_ledger: Arc<HistoricLedger>,
     keys_per_slice: usize,
 }
 
@@ -133,12 +109,11 @@ impl ObjectBacklogSweep {
         Self {
             perpetual_tables: store.perpetual_tables.clone(),
             historic_objects: store.get_historic_objects().clone(),
-            historic_ledger: store.get_historic_ledger().clone(),
             keys_per_slice: KEYS_PER_SLICE,
         }
     }
 
-    /// Whether an earlier run already finished, whichever route it took.
+    /// Whether an earlier run already finished.
     fn is_done(&self) -> IotaResult<bool> {
         Ok(matches!(
             self.perpetual_tables
@@ -146,207 +121,6 @@ impl ObjectBacklogSweep {
                 .get(&())?,
             Some(ObjectBacklogSweepProgress::Done | ObjectBacklogSweepProgress::Skipped)
         ))
-    }
-
-    /// The checkpoint above which the backlog can still hold a superseded
-    /// version, `None` when the whole live table has to be walked instead.
-    fn bound(
-        &self,
-        checkpoint_store: &CheckpointStore,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        let Some(bound) = self.perpetual_tables.object_backlog_sweep_bound.get(&())? else {
-            return Ok(None);
-        };
-        // The checkpoints above the bound name the backlog, so all of them must
-        // still be here. The checkpoint pruner may have outpaced the objects
-        // pruner, and a version no remaining checkpoint names would be missed.
-        let pruned = checkpoint_store
-            .get_highest_pruned_checkpoint_seq_number()?
-            .unwrap_or(0);
-        if bound < pruned {
-            warn!(
-                bound,
-                pruned,
-                "the checkpoints above the objects pruner's watermark have themselves been \
-                 pruned, so they no longer name the backlog; walking the whole live table"
-            );
-            return Ok(None);
-        }
-        // The same holds for their effects. The ledger migration deletes the
-        // effects of the epochs below its floor, and its record of that in the
-        // pruned watermark is best effort, so the oldest ledger bucket decides.
-        let first_with_effects = match self.historic_ledger.earliest_bucket_epoch() {
-            Some(0) => Some(0),
-            Some(epoch) => checkpoint_store
-                .get_epoch_last_checkpoint_seq_number(epoch - 1)?
-                .map(|last| last + 1),
-            None => None,
-        };
-        if first_with_effects.is_none_or(|first| bound.saturating_add(1) < first) {
-            warn!(
-                bound,
-                ?first_with_effects,
-                "the effects of the checkpoints above the objects pruner's watermark are gone, \
-                 so they no longer name the backlog; walking the whole live table"
-            );
-            return Ok(None);
-        }
-        Ok(Some(bound))
-    }
-
-    /// Relocates the versions the checkpoints above `bound` superseded, and
-    /// records the tombstones they wrote. Every version superseded at or below
-    /// `bound` is already gone.
-    ///
-    /// A pre-image the live table no longer holds is skipped: a checkpoint may
-    /// be replayed across the watermark, or an earlier slice relocated it.
-    fn sweep_above_bound(
-        &self,
-        checkpoint_store: &CheckpointStore,
-        epoch: EpochId,
-        bound: CheckpointSequenceNumber,
-    ) -> IotaResult<()> {
-        // Walk up to the newest certified checkpoint, not the executed one: a
-        // crash between committing a checkpoint's effects and bumping
-        // `HighestExecuted` leaves superseded versions above the executed
-        // watermark, and the ledger migration has by now brought the synced
-        // watermark back to the executed one. A checkpoint not executed yet
-        // has no effects to read.
-        let executed = checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
-        let certified = checkpoint_store
-            .get_latest_certified_checkpoint()?
-            .map(|checkpoint| checkpoint.sequence_number);
-        let Some(highest) = certified.max(executed) else {
-            // Nothing has been executed or certified, so nothing can have been
-            // superseded.
-            return self.mark_done(epoch);
-        };
-        let resumed = self
-            .perpetual_tables
-            .object_backlog_sweep_checkpoint
-            .get(&())?;
-        let mut next = resumed.unwrap_or(bound).saturating_add(1);
-        let mut progress = ProgressLogger::new(
-            "object backlog sweep above the objects pruner's watermark",
-            "checkpoints",
-            highest.saturating_sub(next).saturating_add(1),
-        );
-        while next <= highest {
-            let last = highest.min(next.saturating_add(CHECKPOINTS_PER_SLICE - 1));
-            let ended_at = self.sweep_checkpoint_slice(checkpoint_store, epoch, next, last)?;
-            progress.advance(ended_at - next + 1);
-            next = ended_at.saturating_add(1);
-        }
-        progress.finish();
-        self.mark_done(epoch)
-    }
-
-    /// Adds the versions `effects` superseded that the live table still holds
-    /// to `superseded`, and the tombstones it wrote to `tombstones`.
-    fn collect_superseded(
-        &self,
-        effects: &TransactionEffects,
-        superseded: &mut Vec<(ObjectKey, Object)>,
-        tombstones: &mut Vec<ObjectKey>,
-    ) -> IotaResult<()> {
-        let objects = &self.perpetual_tables.objects;
-        for modified in effects.modified_at_versions() {
-            let key = ObjectKey(*modified.object_id(), modified.version());
-            let Some(row) = objects.get(&key)? else {
-                continue;
-            };
-            if let StoreObject::Value(value) = row.migrate().into_inner() {
-                superseded.push((key, try_construct_object(&key, *value)?));
-            }
-        }
-        for (object_id, version) in effects.all_tombstones() {
-            tombstones.push(ObjectKey(object_id, version));
-        }
-        Ok(())
-    }
-
-    /// Adds to `batch` the move of `superseded` from the live table into
-    /// `epoch`'s bucket, and the record of `tombstones` there.
-    fn relocate(
-        &self,
-        batch: &mut DBBatch,
-        epoch: EpochId,
-        superseded: Vec<(ObjectKey, Object)>,
-        tombstones: &[ObjectKey],
-    ) -> IotaResult<()> {
-        if superseded.is_empty() && tombstones.is_empty() {
-            return Ok(());
-        }
-        let objects = &self.perpetual_tables.objects;
-        let bucket = self.historic_objects.ensure(epoch)?;
-        let keys: Vec<ObjectKey> = superseded.iter().map(|(key, _)| *key).collect();
-        batch.insert_batch_tagged(&bucket.objects, superseded)?;
-        batch.delete_batch(objects, keys)?;
-        batch.insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
-        Ok(())
-    }
-
-    /// Relocates the versions superseded by the checkpoints in `first..=last`,
-    /// recording progress in the same batch. Returns the last checkpoint
-    /// swept, which is below `last` if the slice reached the row cap.
-    fn sweep_checkpoint_slice(
-        &self,
-        checkpoint_store: &CheckpointStore,
-        epoch: EpochId,
-        first: CheckpointSequenceNumber,
-        last: CheckpointSequenceNumber,
-    ) -> IotaResult<CheckpointSequenceNumber> {
-        let objects = &self.perpetual_tables.objects;
-        let mut superseded = Vec::new();
-        let mut tombstones = Vec::new();
-        // One checkpoint can supersede any number of versions, so also stop
-        // at the first checkpoint boundary past the row cap.
-        let mut ended_at = last;
-        for sequence_number in first..=last {
-            if superseded.len() + tombstones.len() >= self.keys_per_slice {
-                ended_at = sequence_number - 1;
-                break;
-            }
-            let Some(summary) =
-                checkpoint_store.get_checkpoint_by_sequence_number(sequence_number)?
-            else {
-                // `bound` guarantees the range was not pruned, so a missing
-                // checkpoint is one the node never had.
-                continue;
-            };
-            let Some(contents) =
-                checkpoint_store.get_checkpoint_contents(&summary.contents_digest)?
-            else {
-                continue;
-            };
-            for digests in contents.iter() {
-                let Some(effects) = self
-                    .historic_ledger
-                    .get_executed_effects(&digests.transaction)?
-                else {
-                    continue;
-                };
-                self.collect_superseded(&effects, &mut superseded, &mut tombstones)?;
-            }
-        }
-
-        let relocated = superseded.len();
-        let mut batch = objects.batch();
-        self.relocate(&mut batch, epoch, superseded, &tombstones)?;
-        batch.insert_batch(
-            &self.perpetual_tables.object_backlog_sweep_checkpoint,
-            [((), ended_at)],
-        )?;
-        batch.write()?;
-
-        debug!(
-            first,
-            last = ended_at,
-            relocated,
-            tombstones = tombstones.len(),
-            "swept the superseded versions of a slice of checkpoints"
-        );
-        Ok(ended_at)
     }
 
     fn mark_done(&self, epoch: EpochId) -> IotaResult<()> {
@@ -379,12 +153,15 @@ impl ObjectBacklogSweep {
             // walked again are decided the same way.
             _ => vec![RangeProgress::At(None); WALK_RANGES],
         };
+        let logger = Mutex::new(
+            ProgressLogger::new(
+                "object backlog sweep",
+                "objects",
+                self.perpetual_tables.objects.estimated_len()?,
+            )
+            .measured_by_position(walked_fraction(&ranges)),
+        );
         let ranges = Mutex::new(ranges);
-        let logger = Mutex::new(ProgressLogger::new(
-            "object backlog sweep",
-            "objects",
-            self.perpetual_tables.objects.estimated_len()?,
-        ));
         let failed = AtomicBool::new(false);
         // The database starts tasks on the caller's runtime, e.g. to sample
         // iterator metrics.
@@ -445,8 +222,11 @@ impl ObjectBacklogSweep {
             // Only once written, or another range could record a position
             // whose rows a failed write left behind.
             *positions = written;
+            let walked = walked_fraction(&positions);
             drop(positions);
-            logger.lock().advance(decided as u64);
+            let mut logger = logger.lock();
+            logger.set_position(walked);
+            logger.advance(decided as u64);
         }
     }
 
@@ -566,6 +346,26 @@ fn walk_range_bounds(range: usize) -> (ObjectKey, Bound<ObjectKey>) {
         Bound::Unbounded
     };
     (first_key(range), end)
+}
+
+/// How much of the live table the walk has covered, from 0 to 1, by each
+/// range's place in its share of the object id space. Unlike a key count,
+/// this holds on a table full of deletions and after a restart.
+fn walked_fraction(ranges: &[RangeProgress<ObjectKey>]) -> f64 {
+    let span = (1u64 << 64u32.saturating_sub(WALK_RANGES.ilog2())) as f64;
+    let sum: f64 = ranges
+        .iter()
+        .enumerate()
+        .map(|(range, progress)| match progress {
+            RangeProgress::Done => 1.0,
+            RangeProgress::At(None) => 0.0,
+            RangeProgress::At(Some(key)) => {
+                let start = id_position(&walk_range_bounds(range).0.0);
+                (id_position(&key.0).saturating_sub(start) as f64 / span).clamp(0.0, 1.0)
+            }
+        })
+        .sum();
+    sum / ranges.len().max(1) as f64
 }
 
 #[cfg(test)]
