@@ -108,7 +108,7 @@ fn main() {
 
     // Initialize logging
     let prometheus_registry = registry_service.default_registry();
-    let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
+    let (telemetry_guards, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)
         .with_disable_span_latency(true)
@@ -203,8 +203,12 @@ fn main() {
         .unwrap()
         .block_on(wait_termination(runtime_shutdown_rx));
 
-    // Drop and wait all runtimes on main thread
-    drop(runtimes);
+    // Exit without dropping the runtimes. While a runtime is being dropped,
+    // tokio cancels blocking tasks but can still poll the tasks waiting on
+    // them, which then panic. The node is crash-safe, so it needs no teardown.
+    // `process::exit` skips destructors, so flush the logs first.
+    drop(telemetry_guards);
+    std::process::exit(0);
 }
 
 #[cfg(not(unix))]
