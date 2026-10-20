@@ -12,13 +12,14 @@ use iota_types::{
     base_types::ObjectIdParseError,
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::SdkTypeConversionError,
-    messages_checkpoint::CheckpointSequenceNumber,
 };
 use jsonrpsee::{
     core::ClientError as RpcError,
     types::{ErrorObjectOwned, error::INTERNAL_ERROR_CODE},
 };
 use thiserror::Error;
+
+use crate::pruning::oldest_available_checkpoint::OldestAvailableCheckpoint;
 
 #[derive(Debug, Error)]
 pub struct DataDownloadError {
@@ -178,7 +179,7 @@ pub enum IndexerError {
         /// The oldest checkpoint the request could have found data in.
         ///
         /// Anything before it has been pruned and is no longer served.
-        oldest_available_checkpoint: CheckpointSequenceNumber,
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
     },
 
     #[error("grpc error: `{0}`")]
@@ -206,24 +207,6 @@ impl<T> Context<T> for Result<T, IndexerError> {
     }
 }
 
-impl IndexerError {
-    /// Raises the oldest available checkpoint a [`Self::DataPruned`] reports to
-    /// at least `checkpoint`, for a caller that reads more tables than the function that returned
-    /// the error.
-    pub fn raise_oldest_available_checkpoint(self, checkpoint: CheckpointSequenceNumber) -> Self {
-        match self {
-            Self::DataPruned {
-                message,
-                oldest_available_checkpoint,
-            } => Self::DataPruned {
-                message,
-                oldest_available_checkpoint: oldest_available_checkpoint.max(checkpoint),
-            },
-            other => other,
-        }
-    }
-}
-
 impl From<IndexerError> for RpcError {
     fn from(e: IndexerError) -> Self {
         RpcError::Call(e.into())
@@ -240,7 +223,9 @@ impl From<IndexerError> for ErrorObjectOwned {
             return ErrorObjectOwned::owned(
                 INTERNAL_ERROR_CODE,
                 value.to_string(),
-                Some(DataPrunedErrorData::new(*oldest_available_checkpoint)),
+                Some(DataPrunedErrorData::new(
+                    (*oldest_available_checkpoint).into(),
+                )),
             );
         }
 

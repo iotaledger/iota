@@ -36,6 +36,7 @@ use iota_indexer::{
         events::StoredEvent,
         transactions::{StoredTransaction, stored_events_to_events},
     },
+    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
     read::IndexerReader,
 };
 use iota_sdk_types::{Event, TransactionDigest};
@@ -1025,7 +1026,10 @@ impl HistoricalFetch {
                             state
                                 .reader
                                 .db()
-                                .resolve_cursor_tx_digest_to_seq_num(state.start_from_digest)
+                                .resolve_cursor_tx_digest_to_seq_num(
+                                    state.start_from_digest,
+                                    OldestAvailableCheckpoint::transaction_by_digest(&state.reader),
+                                )
                                 .await
                                 .map_err(backoff::Error::transient)
                         })
