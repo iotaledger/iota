@@ -119,6 +119,6 @@ pub fn verify_module_with_config_metered_up_to_code_units<'env>(
     friends::verify_module(module)?;
     ability_field_requirements::verify_module(module, ability_cache, meter)?;
     RecursiveDataDefChecker::verify_module(module)?;
-    InstantiationLoopChecker::verify_module(module)?;
+    InstantiationLoopChecker::verify_module(config, module, meter)?;
     Ok(())
 }
