@@ -744,6 +744,15 @@ struct FeatureFlags {
     // in the epoch.
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
+
+    // If true, P-COOL deterministic validation is on. A committee validator
+    // does not execute state-synced checkpoints while its epoch is running: it
+    // waits for its own checkpoint builder and takes only randomness signatures
+    // from state sync. Once the certified last checkpoint of the epoch is
+    // known, it executes the rest of the epoch from state sync and stops
+    // processing consensus commits. Requires `enable_pcool_flow`.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_deterministic_validation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2080,6 +2089,15 @@ impl ProtocolConfig {
 
     pub fn pcool_skip_immutable_object_locks(&self) -> bool {
         self.feature_flags.pcool_skip_immutable_object_locks
+    }
+
+    pub fn pcool_deterministic_validation(&self) -> bool {
+        let res = self.feature_flags.pcool_deterministic_validation;
+        assert!(
+            !res || self.enable_pcool_flow(),
+            "pcool_deterministic_validation requires enable_pcool_flow to be enabled"
+        );
+        res
     }
 
     /// Effective only with its prerequisite `enable_pcool_flow`: a config
@@ -3956,6 +3974,10 @@ impl ProtocolConfig {
 
     pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
         self.feature_flags.pcool_skip_immutable_object_locks = val;
+    }
+
+    pub fn set_pcool_deterministic_validation_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_deterministic_validation = val;
     }
 
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
