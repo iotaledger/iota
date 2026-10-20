@@ -900,12 +900,12 @@ fn attest(
     let (inner, _) = tx.into_parts();
     VerifiedExecutableAttestedTransaction::new(
         inner,
-        Some(Attestation::Validator {
+        Some(Attestation::Authority {
             payload: AttestationData::V1 {
                 computation_units,
                 object_versions: vec![],
             },
-            attestor_index: 0,
+            authority_index: 0,
         }),
     )
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, GasCostSummary, ObjectReference, TransactionDigest, UserSignature};
+use iota_sdk_types::{GasCostSummary, ObjectReference, TransactionDigest};
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::TransactionEnvelope;
@@ -17,34 +17,23 @@ pub(super) type AuthorityIndex = u8;
 /// a separate artifact that travels alongside the transaction; the transaction
 /// and the user's signature are completely unchanged.
 ///
-/// Two variants are supported:
-/// - [`Attestation::Validator`]: produced by the block-proposing validator.
-///   Authenticated implicitly by the block signature — no separate attestor
-///   signature is needed.
-/// - [`Attestation::Explicit`]: produced by a registered third-party attestor.
-///   Requires a signature binding the attestation to the transaction.
+/// An enum so that other attestor kinds can be appended later; the variant
+/// order is protocol-significant.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Attestation {
-    Validator {
+    /// Produced by the block-proposing validator and authenticated by the
+    /// block signature, so it carries no signature of its own.
+    Authority {
         payload: AttestationData,
         /// Index of the attesting validator in the current epoch's committee
-        attestor_index: AuthorityIndex,
-    },
-    Explicit {
-        payload: AttestationData,
-        attestor_address: Address,
-        /// Signs over `hash(transaction.digest() || BCS(payload) ||
-        /// attestor_address)`, binding the attestation to both the
-        /// specific transaction and the attestor's identity.
-        signature: Box<UserSignature>,
+        authority_index: AuthorityIndex,
     },
 }
 
-/// The attested content carried by all [`Attestation`] variants.
+/// The attested content carried by every [`Attestation`] variant.
 ///
 /// Versioned to allow new fields to be introduced without breaking existing
-/// match arms. Both `Validator` and `Explicit` share the same `AttestationData`
-/// so any extension applies uniformly across attestation types.
+/// match arms.
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttestationData {
@@ -72,12 +61,16 @@ pub struct AttestedTransaction {
 }
 
 impl Attestation {
+    /// An attestation by the block-proposing validator at `authority_index`.
+    pub fn new_authority(payload: AttestationData, authority_index: AuthorityIndex) -> Self {
+        Self::Authority {
+            payload,
+            authority_index,
+        }
+    }
+
     pub fn computation_units(&self) -> u64 {
-        let payload = match self {
-            Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
-                payload
-            }
-        };
+        let Attestation::Authority { payload, .. } = self;
         let AttestationData::V1 {
             computation_units, ..
         } = payload;
@@ -85,11 +78,7 @@ impl Attestation {
     }
 
     pub fn object_versions(&self) -> &[ObjectReference] {
-        let payload = match self {
-            Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
-                payload
-            }
-        };
+        let Attestation::Authority { payload, .. } = self;
         let AttestationData::V1 {
             object_versions, ..
         } = payload;
@@ -162,14 +151,13 @@ pub struct AttestationRecord {
 }
 
 impl AttestationRecord {
-    /// `None` for explicit attestations, which never reach execution.
-    pub fn new(attestation: &Attestation, verdict: AttestationVerdict) -> Option<Self> {
-        match attestation {
-            Attestation::Validator { attestor_index, .. } => Some(Self {
-                attestor: *attestor_index,
-                verdict,
-            }),
-            Attestation::Explicit { .. } => None,
+    pub fn new(attestation: &Attestation, verdict: AttestationVerdict) -> Self {
+        let Attestation::Authority {
+            authority_index, ..
+        } = attestation;
+        Self {
+            attestor: *authority_index,
+            verdict,
         }
     }
 }
@@ -190,10 +178,7 @@ impl AttestedTransaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        base_types::random_object_ref, crypto::zero_ed25519_signature,
-        utils::create_fake_transaction,
-    };
+    use crate::{base_types::random_object_ref, utils::create_fake_transaction};
 
     fn make_attestation_data() -> AttestationData {
         AttestationData::V1 {
@@ -211,22 +196,10 @@ mod tests {
     }
 
     #[test]
-    fn attestation_validator_bcs_round_trip() {
-        let attestation = Attestation::Validator {
+    fn attestation_authority_bcs_round_trip() {
+        let attestation = Attestation::Authority {
             payload: make_attestation_data(),
-            attestor_index: 3,
-        };
-        let encoded = bcs::to_bytes(&attestation).unwrap();
-        let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
-        assert_eq!(decoded, attestation);
-    }
-
-    #[test]
-    fn attestation_explicit_bcs_round_trip() {
-        let attestation = Attestation::Explicit {
-            payload: make_attestation_data(),
-            attestor_address: Address::random(),
-            signature: Box::new(UserSignature::Simple(zero_ed25519_signature())),
+            authority_index: 3,
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
@@ -300,9 +273,9 @@ mod tests {
     fn attested_transaction_bcs_round_trip() {
         let attested = AttestedTransaction::new(
             create_fake_transaction(),
-            Attestation::Validator {
+            Attestation::Authority {
                 payload: make_attestation_data(),
-                attestor_index: 0,
+                authority_index: 0,
             },
         );
         let encoded = bcs::to_bytes(&attested).unwrap();

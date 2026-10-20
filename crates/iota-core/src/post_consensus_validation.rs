@@ -28,8 +28,7 @@
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
 //!   the claimed attestor matches the block author and that the attested
 //!   computation units fall within the valid range (cost floor and ceiling).
-//!   Drop with error on mismatch, out-of-range cost, or unsupported attestation
-//!   variant.
+//!   Drop with error on mismatch or out-of-range cost.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -72,6 +71,7 @@ use iota_types::{
 use tracing::{debug, warn};
 
 use crate::{
+    attestation_checks::check_attested_units,
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
@@ -247,41 +247,20 @@ pub async fn validate_and_resolve_conflicts(
         // verify the claimed attestor matches the actual block author and that
         // the payload is not malformed.
         if let Some(attestation) = attestation {
-            let block_author = tx.0.certificate_author_index as u8;
-            let protocol_config = epoch_store.protocol_config();
-            let min_attested_units = protocol_config
-                .base_tx_cost_fixed()
-                .min(protocol_config.gas_rounding_step());
-            let attested_units = attestation.computation_units();
-            let txn = transaction.data().transaction();
-            let max_attested_units = txn.gas_budget().checked_div(txn.gas_price()).unwrap_or(0);
-            let error = match attestation {
-                Attestation::Validator { attestor_index, .. } => {
-                    if *attestor_index != block_author {
-                        Some(IotaError::AttestationAuthorMismatch {
-                            expected: *attestor_index,
-                            actual: block_author,
-                        })
-                    } else if attested_units < min_attested_units {
-                        Some(IotaError::AttestationUnitsBelowMinimum {
-                            actual: attested_units,
-                            minimum: min_attested_units,
-                        })
-                    } else if attested_units > max_attested_units {
-                        Some(IotaError::AttestationUnitsAboveBudget {
-                            actual: attested_units,
-                            maximum: max_attested_units,
-                        })
-                    } else {
-                        None
-                    }
-                }
-                // Reject Explicit variant as not yet implemented.
-                Attestation::Explicit { .. } => Some(IotaError::UnsupportedFeature {
-                    error: "Explicit attestation not yet supported".into(),
-                }),
+            let block_author = u8::try_from(tx.0.certificate_author_index)
+                .expect("consensus committee indices should fit in a u8");
+            let Attestation::Authority {
+                authority_index, ..
+            } = attestation;
+            let checked = if *authority_index != block_author {
+                Err(IotaError::AttestationAuthorMismatch {
+                    expected: *authority_index,
+                    actual: block_author,
+                })
+            } else {
+                check_attested_units(epoch_store.protocol_config(), transaction, attestation)
             };
-            if let Some(e) = error {
+            if let Err(e) = checked {
                 warn!(
                     ?digest,
                     error = ?e,
@@ -529,6 +508,13 @@ pub async fn validate_and_resolve_conflicts(
             owned_inputs = ?locked_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
+        if attestation.is_some() {
+            authority_state
+                .metrics
+                .consensus_handler_validation_attested_transactions
+                .with_label_values(&["authority"])
+                .inc();
+        }
     }
 
     if !dropped.is_empty() {

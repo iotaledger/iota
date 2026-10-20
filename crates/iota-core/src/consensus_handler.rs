@@ -1281,12 +1281,12 @@ mod tests {
         // eligible for load shedding.
         let attested = AttestedTransaction::new(
             tx,
-            Attestation::Validator {
+            Attestation::Authority {
                 payload: AttestationData::V1 {
                     computation_units: 0,
                     object_versions: vec![],
                 },
-                attestor_index: 0,
+                authority_index: 0,
             },
         );
         let v2 = external(ConsensusTransactionKind::UserTransactionV2(Box::new(
