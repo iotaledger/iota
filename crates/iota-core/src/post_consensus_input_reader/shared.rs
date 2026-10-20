@@ -4,9 +4,12 @@
 //! Reads one shared input: whether the object exists and is shared at the
 //! declared initial version. It reads the object's creation row (the row at
 //! the declared initial shared version) and the latest object in the store,
-//! and, for an object that is gone, the highest row of `id`. It never reads
-//! the object's contents. As for owned inputs, each step is its own type, and
-//! a store answer is kept until the creation row has been read a second time.
+//! and, for an object that is gone, the highest row of `id`. These reads
+//! never use the object's contents. As for owned inputs, each step is its own
+//! type, and a store answer is kept until the creation row has been read a
+//! second time. A separate read, once the input is kept, loads an object of
+//! the input for its type, which the coin deny check needs; its section below
+//! explains it.
 
 use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
 use iota_types::{
