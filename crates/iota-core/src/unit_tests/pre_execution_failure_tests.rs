@@ -14,9 +14,9 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator, MoveAuthenticatorV1,
-    ObjectId, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
-    TransactionEffects, TypeTag, UnchangedSharedKind, UserSignature, Version, VersionAssignment,
-    crypto::Intent,
+    ObjectId, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    Transaction, TransactionEffects, TypeTag, UnchangedSharedKind, UserSignature, Version,
+    VersionAssignment, crypto::Intent,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -485,8 +485,11 @@ async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validat
     assert_no_object_created_deleted_or_wrapped(&effects, &[]);
     assert_eq!(
         effects.as_v1().gas_object(),
-        None,
-        "the effects must name no gas object"
+        Some(OwnedObjectReference::new(
+            object(&setup.gas_id).object_ref(),
+            Owner::Address(setup.sender),
+        )),
+        "the effects must name the gas coin at its next version as the gas object"
     );
     let mut changed: Vec<ObjectId> = effects
         .old_object_metadata()
@@ -557,7 +560,8 @@ async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged()
 
 /// An account that pays with two gas coins but did not authorize the
 /// transaction keeps both: nothing is merged, so no coin is deleted, and each
-/// moves to its next version with its balance unchanged.
+/// moves to its next version with its balance unchanged. The effects name the
+/// first coin as the gas object.
 #[tokio::test]
 async fn unauthorized_transaction_merges_no_gas_coin() {
     let _guard = enable_deterministic_validation();
@@ -588,6 +592,22 @@ async fn unauthorized_transaction_merges_no_gas_coin() {
     for (before, after) in coins_before.iter().zip(&coins_after) {
         assert_moved_unchanged(before, after, effects.lamport_version());
     }
+    assert_eq!(
+        effects.as_v1().gas_object(),
+        Some(OwnedObjectReference::new(
+            coins_after[0].object_ref(),
+            Owner::Address(setup.sender),
+        )),
+        "the effects must name the first gas coin as the gas object"
+    );
+    assert!(
+        effects
+            .mutated_excluding_gas()
+            .iter()
+            .any(|mutated| mutated.reference() == &coins_after[1].object_ref()),
+        "the second gas coin must be mutated as an ordinary input: {:?}",
+        effects.mutated_excluding_gas()
+    );
     setup
         .authority
         .get_object_cache_reader()

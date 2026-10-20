@@ -623,6 +623,9 @@ mod checked {
     ///     storage rebates unchanged, so later transactions find them at the versions consensus
     ///     gave those transactions.
     ///
+    /// The effects name the first gas coin, at its next version, as the gas
+    /// object, with a zero gas cost; no other gas coin is merged into it.
+    ///
     /// The checks every transaction runs on its inputs come first, as when gas
     /// is charged, so a deleted or cancelled input is reported the same way
     /// whoever pays.
@@ -664,7 +667,7 @@ mod checked {
         // dependencies
         transaction_dependencies.remove(&TransactionDigest::GENESIS_MARKER);
 
-        // No gas coin was smashed, so the effects name no gas object.
+        gas_charger.set_gas_coin_without_smashing();
         let (inner, effects) = temporary_store.into_effects(
             shared_object_refs,
             &transaction_digest,
