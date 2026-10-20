@@ -24,7 +24,7 @@ Floods of TCP connection requests from spoofed addresses cannot be blocked by ad
 
 The ruleset and the fail2ban bans below filter the traffic that reaches the host itself, in the `input` hook of nftables. On Docker's default bridge network, traffic to a port the container publishes is forwarded to the container instead, so it passes the `forward` hook and neither of them sees it: the bans do nothing, and a published metrics port stays open.
 
-Run the node on the host's network instead. The node then binds its ports on the host, and the ruleset and the bans apply as on a node without Docker. With the Docker Compose setups in `setups/validator` and `setups/fullnode/docker`, add the override for your node type, which needs Docker Compose 2.24 or later:
+Run the node on the host's network instead. The node then binds its ports on the host, and the ruleset and the bans apply as on a node without Docker. With the Docker Compose setups in `setups/validator` and `setups/fullnode/docker`, copy the override for your node type next to the Compose file and start the node with both files. The override needs Docker Compose 2.24 or later:
 
 ```yaml file=<rootDir>/setups/traffic-control/docker/validator-host-network.yml
 ```
@@ -37,6 +37,8 @@ docker compose -f docker-compose-mainnet.yml -f validator-host-network.yml up -d
 ```
 
 The override also names the container `iota-node` and writes its log to the journal, where the fail2ban jail below reads it.
+
+On the host's network, the admin interface (`127.0.0.1:1337` by default) listens on the host's loopback rather than inside the container, so every local user of the host can call it, for example to turn dry run on. Keep shell access to the host limited to its operators.
 
 ## Ban Blocked Clients in the Firewall
 
@@ -63,7 +65,7 @@ The filter matches only a line that starts like the block line and is logged und
    ```ini file=<rootDir>/setups/traffic-control/fail2ban/jail.d/iota-node.conf
    ```
 
-   For a node in Docker, run it as in [Run the Node in Docker](#run-the-node-in-docker) and add `journalmatch = CONTAINER_NAME=iota-node` to the jail. Without the override, run the container with the `journald` log driver (`--log-driver=journald`) and set `CONTAINER_NAME` to its name: the default `json-file` driver wraps each line in JSON of its own, which the filter does not match.
+   For a node in Docker, run it as in [Run the Node in Docker](#run-the-node-in-docker) and add `journalmatch = CONTAINER_NAME=iota-node` to the jail. Without the override, run the container with the `journald` log driver (`--log-driver=journald`) and use its name in `journalmatch = CONTAINER_NAME=<container name>`: the default `json-file` driver wraps each line in JSON of its own, which the filter does not match.
 
 4. Check the filter against the node's log, then restart fail2ban:
 
@@ -72,6 +74,8 @@ The filter matches only a line that starts like the block line and is logged und
    sudo systemctl restart fail2ban
    sudo fail2ban-client status iota-node
    ```
+
+   For a node in Docker, `fail2ban-regex` does not read the jail, so pass it the container's journal match instead: `sudo fail2ban-regex -m 'CONTAINER_NAME=iota-node' systemd-journal /etc/fail2ban/filter.d/iota-node.conf`.
 
 Other tools, such as CrowdSec, can match the line as well, since its format is stable. Make sure such a tool bans an IPv6 entry as a prefix: a tool that bans it as a single address bans only the first address of the prefix.
 
