@@ -1102,7 +1102,8 @@ impl HistoricalFetch {
 
                     // fetch transaction batch from database and update the cursor.
                     let start = state.cursor_value();
-                    let end = (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
+                    let end =
+                        (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
 
                     let db_query_timer = state.query_tx_from_indexer_db_latency.start_timer();
                     match Self::with_retry(|| async {
