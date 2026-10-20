@@ -1,22 +1,22 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The dynamic-field machine. Reads a dynamic field as it stood once every
-//! commit up to the horizon had executed, for the deny checks at the commit:
-//! a field of the coin deny list, or an account's authenticator function
-//! field. It answers live or absent, not keep, drop or missing.
+//! Reads a dynamic field as it stood once every commit up to the horizon had
+//! executed, for the deny checks at the commit: a field of the coin deny
+//! list, or an account's authenticator function field. It answers live or
+//! absent, not keep, drop or missing.
 //!
-//! The read walks down from the id's highest handler row to the highest one
-//! at or below the horizon, so it relies on the field's versions rising with
-//! the commits that change it. That holds for a field that changes only
+//! The read walks down from the highest row of `id` to the highest one at or
+//! below the horizon, so it relies on the field's versions rising with the
+//! commits that change it. That holds for a field that changes only
 //! through its shared parent object, in the order of the commits that change
 //! it: the deny list's fields change only through the shared deny list
 //! object, and an account's authenticator function field only through the
 //! shared account. When every row is above the horizon, the field is
 //! as the epoch started: the version the lowest row replaced, or absent if
 //! that row created it. An id with no row reads the store and then the rows
-//! again, for the reason the module doc gives for the owned and shared
-//! machines.
+//! again, for the reason the parent module doc gives for the owned and shared
+//! readers.
 
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
@@ -30,16 +30,12 @@ use crate::authority::authority_per_epoch_store::handler_object_state::{
     CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
 };
 
-// ---------------------------------------------------------------------------
-// Carrier
-// ---------------------------------------------------------------------------
-
-/// Marker for the dynamic-field machine's states.
+/// A step of a dynamic field's read.
 pub trait DynamicFieldState {}
 
-/// One dynamic field being read at commit `C`. `S` is what the reader has
-/// established so far. Each state exposes only the transition the algorithm
-/// allows next, and every transition consumes the reader.
+/// One dynamic field being read for validation at commit `C`. `S` is the step
+/// reached so far. It offers only the next allowed read, and each read
+/// consumes this value.
 pub struct DynamicFieldReader<S: DynamicFieldState> {
     id: ObjectId,
     /// The commit being validated minus the protocol config's horizon
@@ -57,7 +53,7 @@ impl<S: DynamicFieldState> DynamicFieldReader<S> {
         }
     }
 
-    /// The next step from `row`, a handler row of `id`.
+    /// The next step from `row`, a row of `id`.
     fn decide_row(self, (key, row): (ObjectKey, HandlerProcessedObject)) -> RowLookup {
         match classify_row(&row, self.horizon) {
             RowClass::Live => RowLookup::NeedBytes(self.into_state(NeedBytes { version: key.1 })),
@@ -93,13 +89,13 @@ impl DynamicFieldState for Start {}
 #[must_use]
 pub enum HighestRowLookup {
     Row(RowLookup),
-    /// Not a decision. No row, so the machine continues with the store.
+    /// No row, so no result yet: the read goes on to the store.
     NoRow(DynamicFieldReader<NoRow>),
 }
 
 impl DynamicFieldReader<Start> {
-    /// Begins the read of dynamic field `id` at `horizon`. The only
-    /// constructor of a reader in any state.
+    /// Starts reading dynamic field `id` with `horizon`. Every later step is
+    /// reached from here.
     pub fn start(id: ObjectId, horizon: CommitIndex) -> DynamicFieldReader<Start> {
         DynamicFieldReader {
             id,
@@ -108,7 +104,8 @@ impl DynamicFieldReader<Start> {
         }
     }
 
-    /// The id's highest row, from the overlay or the durable table.
+    /// Reads the highest row of `id`, from the rows held in memory and the
+    /// table.
     pub fn read_highest_row(self, ctx: &CommitIndexedReader) -> IotaResult<HighestRowLookup> {
         Ok(
             match ctx.epoch_store.highest_handler_processed_row(&self.id)? {
@@ -180,8 +177,9 @@ pub struct ObjectAnswered {
 impl DynamicFieldState for ObjectAnswered {}
 
 impl DynamicFieldReader<ObjectAnswered> {
-    /// Reads the highest row again. A row decides as on the first pass. Else
-    /// the held object is epoch-start state and stands.
+    /// Reads the highest row again. A row decides as on the first read.
+    /// Otherwise the kept object is the state the epoch started with, and
+    /// stands.
     pub fn reread_highest_row(self, ctx: &CommitIndexedReader) -> IotaResult<RowLookup> {
         if let Some(row) = ctx.epoch_store.highest_handler_processed_row(&self.id)? {
             return Ok(self.decide_row(row));
@@ -217,7 +215,7 @@ impl DynamicFieldReader<NeedBytes> {
 }
 
 // ---------------------------------------------------------------------------
-// Pure comparison
+// Decisions on what a read returned
 // ---------------------------------------------------------------------------
 
 /// What one row says about the field at the horizon.

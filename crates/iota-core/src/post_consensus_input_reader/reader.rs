@@ -267,9 +267,9 @@ impl CommitIndexedReader {
     /// Whether `account_id` had its authenticator function field at the
     /// horizon. An object can receive only while it is not an account, and a
     /// receive takes no lock. So every receive through an account whose
-    /// field is at the horizon is at or below it too, where the owned machine
-    /// sees what the receive consumed. The field changes only through the
-    /// account object, in the order of the commits that change it, as the
+    /// field is at the horizon is at or below it too, where the owned input
+    /// read sees what the receive consumed. The field changes only through
+    /// the account object, in the order of the commits that change it, as
     /// [`Self::read_dynamic_field`] requires. Storage errors propagate.
     pub fn read_account(&self, account_id: ObjectId) -> IotaResult<AccountVerdict> {
         let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id)?;
@@ -385,10 +385,11 @@ impl ObjectStore for DenyListAtCommit<'_> {
     }
 }
 
-/// Lets the deny check load packages as of the commit. A package the reader
-/// answers missing reads as absent, which the deny check reports as not
-/// found, so validation runs the deny check only after every package input
-/// has loaded.
+/// Lets the deny checks load packages as of the commit. A package the reader
+/// answers missing reads as absent, which the deny checks report as not
+/// found. So validation runs the deny check of the commands only after every
+/// package input has loaded, and gives the authenticator package check only
+/// functions whose package this reader sees.
 impl BackingPackageStore for CommitIndexedReader {
     fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         Ok(match self.read_package(*package_id)? {
