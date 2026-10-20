@@ -31,7 +31,9 @@ pub struct SharedReader<S: SharedState> {
     /// The initial shared version the transaction declares. The object's
     /// creation row is the row at this version.
     initial_shared_version: Version,
-    /// The horizon, `C - K`. A row produced above it answers missing.
+    /// The horizon, `C - K`. A creation row produced above it answers
+    /// missing, and a tombstone row produced above it keeps the input as
+    /// deleted.
     horizon: CommitIndex,
     state: S,
 }

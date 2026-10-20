@@ -70,7 +70,8 @@ impl CommitIndexedReader {
     /// the store, then, for a kept version, the rows above it. A storage error
     /// is returned as `Err`, never as a result.
     pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
-        // The row at the named version decides when it exists.
+        // The row at the named version, when it exists, decides a drop or a
+        // missing. A keep from it goes on to the rows above it.
         let no_tables_entry =
             match OwnedReader::start(input, self.horizon).read_handler_row(self)? {
                 TablesLookup::LiveAtVersion(live_at_version) => {
