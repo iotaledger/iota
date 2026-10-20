@@ -263,7 +263,7 @@ fn task_range_span(bits: u8) -> u64 {
 }
 
 /// An object id's position in the id space: its first 8 bytes as an integer.
-fn id_position(id: &ObjectId) -> u64 {
+pub(crate) fn id_position(id: &ObjectId) -> u64 {
     id.as_bytes()
         .iter()
         .take(8)

@@ -649,9 +649,7 @@ impl IotaNode {
                 anyhow!("failed to migrate the object markers written before this build: {e}")
             })?;
 
-        // Before any service starts, since nothing reads the flat tables, and
-        // before the sweep below, which reads checkpoint contents through the
-        // buckets this fills.
+        // Before any service starts, since nothing reads the flat tables.
         // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
         ledger_backlog_migration::migrate(
             store.clone(),
@@ -671,7 +669,7 @@ impl IotaNode {
         // Before any service that could expire a historic bucket starts, and
         // before the index rebuild below scans the live `objects` table.
         // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
-        object_backlog_sweep::sweep(store.clone(), checkpoint_store.clone(), epoch_store.epoch())
+        object_backlog_sweep::sweep(store.clone(), epoch_store.epoch())
             .await
             .map_err(|e| {
                 anyhow!("failed to sweep the object versions superseded before this build: {e}")
