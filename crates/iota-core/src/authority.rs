@@ -1871,6 +1871,13 @@ impl AuthorityState {
             epoch_store.insert_tx_key(key, *tx_digest)?;
         }
 
+        if epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+        {
+            epoch_store.record_executed_transaction(&key, effects);
+        }
+
         // Allow testing what happens if we crash here.
         fail_point!("crash");
 
