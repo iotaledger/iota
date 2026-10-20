@@ -40,7 +40,7 @@ use iota_types::{
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
     object::{MoveStructExt, Object, ObjectRead, PastObjectRead},
-    transaction::{TransactionAPI, TransactionEnvelope},
+    transaction::{InputObjectKind, TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -93,9 +93,52 @@ impl IntermediateTransactionResponse {
             ..Default::default()
         }
     }
+}
 
-    pub fn transaction(&self) -> &Option<TransactionEnvelope> {
-        &self.transaction
+/// Fills in the balance and object changes requested in `opts`. Leaves them out
+/// when `cache_entry` has no effects, or, for object changes, no transaction;
+/// failures to derive them are added to the entry's errors.
+async fn add_balance_and_object_changes<P>(
+    cache_entry: &mut IntermediateTransactionResponse,
+    opts: &IotaTransactionBlockResponseOptions,
+    object_cache: &P,
+    input_objects: Vec<InputObjectKind>,
+) where
+    P: ObjectProvider,
+    P::Error: std::fmt::Display,
+{
+    let Some(effects) = &cache_entry.effects else {
+        return;
+    };
+
+    if opts.show_balance_changes {
+        match get_balance_changes_from_effect(object_cache, effects, input_objects, None).await {
+            Ok(balance_changes) => cache_entry.balance_changes = Some(balance_changes),
+            Err(e) => cache_entry
+                .errors
+                .push(format!("Cannot retrieve balance changes: {e}")),
+        }
+    }
+
+    if let Some(transaction) = cache_entry
+        .transaction
+        .as_ref()
+        .filter(|_| opts.show_object_changes)
+    {
+        let object_changes = get_object_changes(
+            object_cache,
+            transaction.data().transaction().sender(),
+            effects.modified_at_versions(),
+            effects.all_changed_objects(),
+            effects.all_removed_objects(),
+        )
+        .await;
+        match object_changes {
+            Ok(object_changes) => cache_entry.object_changes = Some(object_changes),
+            Err(e) => cache_entry
+                .errors
+                .push(format!("Cannot retrieve object changes: {e}")),
+        }
     }
 }
 
@@ -245,6 +288,18 @@ impl ReadApi {
             }
         }
 
+        // Fields that depend on a missing transaction or missing effects are left
+        // out of that entry without further errors.
+        for cache_entry in temp_response.values_mut() {
+            if opts.require_input() && cache_entry.transaction.is_none() {
+                cache_entry.errors.push("transaction not found".to_string());
+            } else if opts.require_effects() && cache_entry.effects.is_none() {
+                cache_entry
+                    .errors
+                    .push("transaction effects not found".to_string());
+            }
+        }
+
         trace!("getting checkpoint sequence numbers");
         let checkpoint_seq_list = self
             .transaction_kv_store
@@ -310,29 +365,23 @@ impl ReadApi {
                 multiplier: 1.0,
                 ..ExponentialBackoff::default()
             };
+            // Retry while some events are missing; once the time is up, the events
+            // found so far are used and each missing one is reported in its own entry.
             let mut events = retry(backoff, || async {
                 match self
                     .transaction_kv_store
                     .multi_get_events_by_tx_digests(&non_empty_digests)
                     .await
                 {
-                    // Only return Ok when all the queried transaction events are found, otherwise
-                    // retry until timeout, then return Err.
                     Ok(events) if !events.contains(&None) => Ok(events),
-                    Ok(_) => Err(backoff::Error::transient(Error::Unexpected(
-                        "events not found, transaction execution may be incomplete.".into(),
-                    ))),
-                    Err(e) => Err(backoff::Error::permanent(Error::Unexpected(format!(
-                        "failed to call multi_get_events: {e:?}"
-                    )))),
+                    Ok(events) => Err(backoff::Error::transient(Ok(events))),
+                    Err(e) => Err(backoff::Error::permanent(Err(Error::Unexpected(format!(
+                        "retrieving events failed for transaction digests {digests:?}: {e:?}"
+                    ))))),
                 }
             })
             .await
-            .map_err(|e| {
-                Error::Unexpected(format!(
-                    "retrieving events with retry failed for transaction digests {digests:?}: {e:?}"
-                ))
-            })?
+            .or_else(|partial_or_err| partial_or_err)?
             .into_iter();
 
             // fill cache with the events
@@ -343,8 +392,10 @@ impl ReadApi {
                 {
                     match events.next() {
                         Some(Some(ev)) => {
-                            cache_entry.events =
-                                Some(to_iota_transaction_events(self, cache_entry.digest, ev)?)
+                            match to_iota_transaction_events(self, transaction_digest, ev) {
+                                Ok(ev) => cache_entry.events = Some(ev),
+                                Err(e) => cache_entry.errors.push(e.to_string()),
+                            }
                         }
                         None | Some(None) => {
                             error!(
@@ -359,75 +410,25 @@ impl ReadApi {
                     // events field will be Some if and only if `show_events` is true and
                     // there is no error in converting fetching events
                     cache_entry.events = Some(IotaTransactionBlockEvents::default());
-                } else {
-                    cache_entry
-                        .errors
-                        .push("unable to derive events because effect is empty".to_string());
                 }
             }
         }
 
-        let object_cache =
-            ObjectProviderCache::new((self.state.clone(), self.transaction_kv_store.clone()));
-        if opts.show_balance_changes {
-            trace!("getting balance changes");
-
-            let results = join_all(temp_response.values().map(|resp| async {
-                let effects = resp.effects.as_ref().ok_or_else(|| {
-                    "unable to derive balance changes because effect is empty".to_string()
-                })?;
-                let input_objects = if let Some(tx) = resp.transaction() {
-                    tx.data().transaction().input_objects().unwrap_or_default()
-                } else {
-                    // don't have the input tx, so not much we can do. perhaps this is an Err?
-                    Vec::new()
-                };
-                get_balance_changes_from_effect(&object_cache, effects, input_objects, None)
-                    .await
-                    .map_err(|e| format!("Failed to fetch balance changes {e:?}"))
-            }))
-            .await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
-                match result {
-                    Ok(balance_changes) => entry.1.balance_changes = Some(balance_changes),
-                    Err(e) => entry.1.errors.push(e),
-                }
-            }
-        }
-
-        if opts.show_object_changes {
-            trace!("getting object changes");
-
-            let results = join_all(temp_response.values().map(|resp| async {
-                let effects = resp.effects.as_ref().ok_or_else(|| {
-                    "unable to derive object changes because effect is empty".to_string()
-                })?;
-                let sender = resp
+        if opts.show_balance_changes || opts.show_object_changes {
+            trace!("getting balance and object changes");
+            let object_cache =
+                ObjectProviderCache::new((self.state.clone(), self.transaction_kv_store.clone()));
+            join_all(temp_response.values_mut().map(|cache_entry| {
+                // Without the transaction (not requested, or not found) balance changes
+                // are derived from the effects alone.
+                let input_objects = cache_entry
                     .transaction
                     .as_ref()
-                    .ok_or_else(|| {
-                        "unable to derive object changes because transaction is empty".to_string()
-                    })?
-                    .data()
-                    .transaction()
-                    .sender();
-                get_object_changes(
-                    &object_cache,
-                    sender,
-                    effects.modified_at_versions(),
-                    effects.all_changed_objects(),
-                    effects.all_removed_objects(),
-                )
-                .await
-                .map_err(|e| format!("Failed to fetch object changes {e:?}"))
+                    .and_then(|tx| tx.data().transaction().input_objects().ok())
+                    .unwrap_or_default();
+                add_balance_and_object_changes(cache_entry, &opts, &object_cache, input_objects)
             }))
             .await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
-                match result {
-                    Ok(object_changes) => entry.1.object_changes = Some(object_changes),
-                    Err(e) => entry.1.errors.push(e),
-                }
-            }
         }
 
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
@@ -818,7 +819,8 @@ impl ReadApiServer for ReadApi {
                 temp_response.timestamp = Some(checkpoint.timestamp_ms);
             }
 
-            if opts.show_events && temp_response.effects.is_some() {
+            if let Some(effects) = temp_response.effects.as_ref().filter(|_| opts.show_events) {
+                let events_digest = effects.events_digest().copied();
                 let transaction_kv_store = self.transaction_kv_store.clone();
                 let events = spawn_monitored_task!(async move {
                     transaction_kv_store
@@ -833,61 +835,32 @@ impl ReadApiServer for ReadApi {
                     .map_err(Error::from)??
                     .pop()
                     .flatten();
-                match events {
-                    None => temp_response.events = Some(IotaTransactionBlockEvents::default()),
-                    Some(events) => match to_iota_transaction_events(self, digest, events) {
+                match (events, events_digest) {
+                    (Some(events), _) => match to_iota_transaction_events(self, digest, events) {
                         Ok(e) => temp_response.events = Some(e),
                         Err(e) => temp_response.errors.push(e.to_string()),
                     },
+                    (None, None) => {
+                        temp_response.events = Some(IotaTransactionBlockEvents::default())
+                    }
+                    (None, Some(events_digest)) => temp_response.errors.push(format!(
+                        "failed to fetch events with event digest {events_digest}",
+                    )),
                 }
             }
 
-            let object_cache =
-                ObjectProviderCache::new((self.state.clone(), self.transaction_kv_store.clone()));
-            if opts.show_balance_changes {
-                if let Some(effects) = &temp_response.effects {
-                    let balance_changes = get_balance_changes_from_effect(
-                        &object_cache,
-                        effects,
-                        input_objects,
-                        None,
-                    )
-                    .await;
-
-                    if let Ok(balance_changes) = balance_changes {
-                        temp_response.balance_changes = Some(balance_changes);
-                    } else {
-                        temp_response.errors.push(format!(
-                            "Cannot retrieve balance changes: {}",
-                            balance_changes.unwrap_err()
-                        ));
-                    }
-                }
-            }
-
-            if opts.show_object_changes {
-                if let (Some(effects), Some(input)) =
-                    (&temp_response.effects, &temp_response.transaction)
-                {
-                    let sender = input.data().transaction().sender();
-                    let object_changes = get_object_changes(
-                        &object_cache,
-                        sender,
-                        effects.modified_at_versions(),
-                        effects.all_changed_objects(),
-                        effects.all_removed_objects(),
-                    )
-                    .await;
-
-                    if let Ok(object_changes) = object_changes {
-                        temp_response.object_changes = Some(object_changes);
-                    } else {
-                        temp_response.errors.push(format!(
-                            "Cannot retrieve object changes: {}",
-                            object_changes.unwrap_err()
-                        ));
-                    }
-                }
+            if opts.show_balance_changes || opts.show_object_changes {
+                let object_cache = ObjectProviderCache::new((
+                    self.state.clone(),
+                    self.transaction_kv_store.clone(),
+                ));
+                add_balance_and_object_changes(
+                    &mut temp_response,
+                    &opts,
+                    &object_cache,
+                    input_objects,
+                )
+                .await;
             }
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
             let resolver = Resolver::new(self.clone());

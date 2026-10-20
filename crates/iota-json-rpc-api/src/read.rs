@@ -45,7 +45,10 @@ pub trait ReadApi {
 
     /// Returns an ordered list of transaction responses
     /// The method will throw an error if the input contains any duplicate or
-    /// the input size exceeds QUERY_MAX_RESULT_LIMIT
+    /// the input size exceeds QUERY_MAX_RESULT_LIMIT.
+    /// If the node does not have a transaction or its effects, the response
+    /// for that digest leaves out the requested fields that depend on them and
+    /// says why in its `errors`.
     #[rustfmt::skip]
     #[method(name = "multiGetTransactionBlocks")]
     async fn multi_get_transaction_blocks(
