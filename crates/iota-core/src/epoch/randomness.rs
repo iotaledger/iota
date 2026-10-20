@@ -133,6 +133,23 @@ impl VersionedUsedProcessedMessages {
     }
 }
 
+/// Error from advancing DKG. Runtime shutdown is a separate variant so that a
+/// cancelled blocking task is never handled like a failed DKG step.
+#[derive(Debug)]
+pub(crate) enum AdvanceDkgError {
+    Iota(IotaError),
+    /// The runtime is shutting down and cancelled DKG message processing. The
+    /// commit being processed must be abandoned without persisting its
+    /// output.
+    RuntimeShutdown,
+}
+
+impl From<IotaError> for AdvanceDkgError {
+    fn from(e: IotaError) -> Self {
+        Self::Iota(e)
+    }
+}
+
 // State machine for randomness DKG and generation.
 //
 // DKG protocol:
@@ -491,7 +508,7 @@ impl RandomnessManager {
         &mut self,
         consensus_output: &mut ConsensusCommitOutput,
         round: CommitRound,
-    ) -> IotaResult {
+    ) -> Result<(), AdvanceDkgError> {
         let epoch_store = self.epoch_store()?;
 
         // Once we have enough Messages, send a Confirmation.
@@ -501,7 +518,14 @@ impl RandomnessManager {
                 .into_values()
                 .collect();
             while let Some(res) = handles.next().await {
-                if let Ok(Some(processed)) = res {
+                let processed = match res {
+                    Ok(processed) => processed,
+                    Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+                    // Only runtime shutdown cancels the task. Treating it like an invalid
+                    // message would persist DKG state that is missing this message.
+                    Err(_) => return Err(AdvanceDkgError::RuntimeShutdown),
+                };
+                if let Some(processed) = processed {
                     self.processed_messages
                         .insert(processed.sender(), processed.clone());
                     consensus_output.insert_dkg_processed_message(processed);
@@ -1061,6 +1085,23 @@ mod tests {
                 _ => panic!("wrong type of message sent"),
             }
         }
+
+        // A DKG message task cancelled by runtime shutdown must abandon the
+        // commit instead of being skipped like an invalid message.
+        let shutdown_runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let shutdown_handle = shutdown_runtime.handle().clone();
+        shutdown_runtime.shutdown_background();
+        randomness_managers[0]
+            .enqueued_messages
+            .insert(0, shutdown_handle.spawn_blocking(|| None));
+        let result = randomness_managers[0]
+            .advance_dkg(&mut ConsensusCommitOutput::new(0, 0), 0)
+            .await;
+        assert!(matches!(result, Err(AdvanceDkgError::RuntimeShutdown)));
+        assert!(randomness_managers[0].processed_messages.is_empty());
+
         for i in 0..randomness_managers.len() {
             let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {

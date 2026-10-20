@@ -47,6 +47,7 @@ use crate::{
         AuthorityIndex,
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
+    epoch::randomness::AdvanceDkgError,
     epoch_start_consensus_committee::get_consensus_committee,
     execution_cache::ObjectCacheRead,
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
@@ -109,6 +110,11 @@ impl ConsensusHandlerInitializer {
         )
     }
 }
+
+/// Runtime shutdown cancelled blocking work while a consensus commit was being
+/// processed.
+#[derive(Debug)]
+pub(crate) struct RuntimeShutdown;
 
 pub struct ConsensusHandler<C> {
     /// A store created for each epoch. ConsensusHandler is recreated each
@@ -227,7 +233,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     ) {
         let block_transactions = consensus_output.transactions();
         self.handle_consensus_output(consensus_output, block_transactions)
-            .await;
+            .await
+            .expect("runtime should not shut down during a test commit");
     }
 
     /// Processes one commit, unless this node executes downloaded checkpoints
@@ -239,12 +246,16 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     /// and in-memory deferred-transaction, randomness and handler state.
     /// Nothing reads them again in this epoch, and the next epoch starts from
     /// a new epoch store.
+    ///
+    /// Returns `Err(RuntimeShutdown)` if runtime shutdown cancelled work that
+    /// the commit depends on. The commit's output is then not persisted, and
+    /// it is replayed after restart.
     #[instrument("handle_consensus_output", level = "trace", skip_all)]
     async fn handle_consensus_output(
         &mut self,
         consensus_output: impl ConsensusOutputAPI,
         block_transactions: ConsensusOutputTransactions,
-    ) {
+    ) -> Result<(), RuntimeShutdown> {
         let epoch_store = self.epoch_store.clone();
         // Only deterministic validation switches a validator to executing
         // synced checkpoints within an epoch.
@@ -252,19 +263,19 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .protocol_config()
             .pcool_deterministic_validation()
         {
-            self.process_consensus_output(consensus_output, block_transactions)
+            return self
+                .process_consensus_output(consensus_output, block_transactions)
                 .await;
-            return;
         }
         if epoch_store.is_executing_synced_checkpoints() {
             debug!("not processing consensus commit: executing synced checkpoints");
-            return;
+            return Ok(());
         }
         let _commit_guard = epoch_store.lock_consensus_commit().await;
         // The switch may have happened while waiting for the guard.
         if epoch_store.is_executing_synced_checkpoints() {
             debug!("not processing consensus commit: executing synced checkpoints");
-            return;
+            return Ok(());
         }
         // Every wait while processing the commit races against the switch, so
         // the commit cannot run against state that executing downloaded
@@ -273,8 +284,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             biased;
             _ = epoch_store.wait_for_synced_checkpoint_execution() => {
                 info!("abandoned consensus commit: executing synced checkpoints for the rest of the epoch");
+                Ok(())
             }
-            _ = self.process_consensus_output(consensus_output, block_transactions) => {}
+            result = self.process_consensus_output(consensus_output, block_transactions) => result,
         }
     }
 
@@ -282,7 +294,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         &mut self,
         consensus_output: impl ConsensusOutputAPI,
         block_transactions: ConsensusOutputTransactions,
-    ) {
+    ) -> Result<(), RuntimeShutdown> {
         // This may block until one of two conditions happens:
         // - Number of uncommitted transactions in the writeback cache goes below the backpressure
         //   threshold.
@@ -311,7 +323,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 "Ignoring consensus output for round {} as it is already committed. NOTE: This is only expected if consensus is running.",
                 round
             );
-            return;
+            return Ok(());
         }
 
         // (serialized, transaction, output_cert)
@@ -502,7 +514,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             }
         }
 
-        let (transactions_to_schedule, assigned_versions, processed_keys) = self
+        let (transactions_to_schedule, assigned_versions, processed_keys) = match self
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 all_transactions,
@@ -514,7 +526,13 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 &self.state,
             )
             .await
-            .expect("Unrecoverable error in consensus handler");
+        {
+            Ok(result) => result,
+            Err(AdvanceDkgError::RuntimeShutdown) => return Err(RuntimeShutdown),
+            Err(AdvanceDkgError::Iota(e)) => {
+                panic!("Unrecoverable error in consensus handler: {e:?}")
+            }
+        };
         for key in processed_keys {
             self.processed_cache.put(key, ());
         }
@@ -533,6 +551,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         self.transaction_scheduler
             .schedule(transactions_to_schedule, assigned_versions)
             .await;
+        Ok(())
     }
 }
 
@@ -746,10 +765,14 @@ impl StarfishConsensusHandler {
                 let commit_index = consensus_output.commit_ref.index;
                 if commit_index <= last_processed_commit_at_startup {
                     consensus_handler.handle_prior_consensus_output(consensus_output);
-                } else {
-                    consensus_handler
-                        .handle_consensus_output(consensus_output, block_transactions)
-                        .await;
+                } else if let Err(e) = consensus_handler
+                    .handle_consensus_output(consensus_output, block_transactions)
+                    .await
+                {
+                    info!(
+                        "Consensus commit {commit_index} was not handled ({e:?}); it will be replayed after restart"
+                    );
+                    break;
                 }
                 commit_consumer_monitor.set_highest_handled_commit(commit_index);
             }

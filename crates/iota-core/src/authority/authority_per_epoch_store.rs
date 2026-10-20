@@ -123,8 +123,8 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
-            VersionedProcessedMessage, VersionedUsedProcessedMessages,
+            AdvanceDkgError, CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter,
+            SINGLETON_KEY, VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
     },
@@ -4179,6 +4179,10 @@ impl AuthorityPerEpochStore {
     /// it created. The keys are returned only with
     /// `consensus_dedup_only_recorded_messages` on; otherwise the list
     /// is empty.
+    ///
+    /// Returns `Err(AdvanceDkgError::RuntimeShutdown)` if runtime shutdown
+    /// cancelled DKG message processing. The commit's output is then not
+    /// persisted, and it is replayed after restart.
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
@@ -4191,11 +4195,14 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
-    ) -> IotaResult<(
-        Vec<Schedulable>,
-        AssignedTxAndVersions,
-        Vec<SequencedConsensusTransactionKey>,
-    )> {
+    ) -> Result<
+        (
+            Vec<Schedulable>,
+            AssignedTxAndVersions,
+            Vec<SequencedConsensusTransactionKey>,
+        ),
+        AdvanceDkgError,
+    > {
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
@@ -5012,6 +5019,9 @@ impl AuthorityPerEpochStore {
     // VerifiedSequencedConsensusTransaction.
     // Also, ConsensusStats and hash will not be updated in the db with this
     // function, unlike in process_consensus_transactions_and_commit_boundary().
+    /// # Panics
+    ///
+    /// Panics if runtime shutdown cancels DKG message processing.
     pub async fn process_consensus_transactions_for_tests<C: CheckpointServiceNotify>(
         self: &Arc<Self>,
         transactions: Vec<SequencedConsensusTransaction>,
@@ -5046,6 +5056,10 @@ impl AuthorityPerEpochStore {
         )
         .await
         .map(|(schedulables, assigned_versions, _)| (schedulables, assigned_versions))
+        .map_err(|e| match e {
+            AdvanceDkgError::Iota(e) => e,
+            AdvanceDkgError::RuntimeShutdown => panic!("runtime shutdown during test commit"),
+        })
     }
 
     pub fn assign_shared_object_versions_for_tests(
@@ -5119,15 +5133,18 @@ impl AuthorityPerEpochStore {
         mut shared_object_using_randomness_congestion_tracker: Option<
             SharedObjectCongestionTracker,
         >,
-    ) -> IotaResult<(
-        Vec<Schedulable>,                      // non-randomness transactions to schedule
-        Vec<Schedulable>,                      // randomness transactions to schedule
-        Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
-        Option<RwLockWriteGuard<'_, ReconfigState>>,
-        bool,                   // true if final round
-        Option<TransactionKey>, // consensus commit prologue root
-        AssignedTxAndVersions,
-    )> {
+    ) -> Result<
+        (
+            Vec<Schedulable>,                      // non-randomness transactions to schedule
+            Vec<Schedulable>,                      // randomness transactions to schedule
+            Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
+            Option<RwLockWriteGuard<'_, ReconfigState>>,
+            bool,                   // true if final round
+            Option<TransactionKey>, // consensus commit prologue root
+            AssignedTxAndVersions,
+        ),
+        AdvanceDkgError,
+    > {
         if randomness_round.is_some() {
             assert!(!dkg_failed); // invariant check
         }
