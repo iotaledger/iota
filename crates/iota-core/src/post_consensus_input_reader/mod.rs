@@ -49,7 +49,8 @@
 //!    rows for an id.
 //! 2. The rows are kept per epoch and start empty. An id with no row has not been written this
 //!    epoch on this validator, so the store holds the version the epoch started with, and every
-//!    validator starts the epoch with the same state.
+//!    validator starts the epoch with the same state. A shared object is the exception: its
+//!    mutations write no rows, so the store can hold a later version of it, with the same owner.
 //! 3. The pruner removes only older versions that a newer one replaced, so the latest version of a
 //!    live object stays. A deleted or wrapped object is the exception: pruning the checkpoint that
 //!    deleted or wrapped it removes its tombstone too, so for an object deleted or wrapped in an
@@ -180,10 +181,12 @@ pub enum DropKind {
     /// The row at `(id, V)` is a shared object's creation row, but the
     /// transaction names the object as owned.
     HandlerRowSharedObject,
-    /// No row, and the store's latest reference is a newer version or a
-    /// tombstone.
+    /// No row at `(id, V)`, and `V` was replaced before this epoch: the store
+    /// holds a newer version or a tombstone, and the lowest row of `id` above
+    /// `V`, if there is one, replaced another version.
     StoreSuperseded,
-    /// No row, and the store's latest reference is `V` with another digest.
+    /// No row at `(id, V)`, and the store's object at `V` has another digest:
+    /// as the latest reference, or as the object loaded for a kept input.
     StoreDigestMismatch,
     /// Named as shared, but the row or the store object is not shared at the
     /// declared initial version.

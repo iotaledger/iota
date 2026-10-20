@@ -4,9 +4,11 @@
 //! Reads one owned or immutable input, named by `(id, V)`. Each step is its
 //! own type that offers only the next allowed read, so a read cannot be
 //! skipped, repeated or taken out of order. The decisions on what a read
-//! returned are plain functions, used by both reads of the row.
+//! returned are plain functions.
 //!
-//! The row at `(id, V)` decides when there is one. Without one, the store's
+//! The row at `(id, V)`, when there is one, decides a drop or a missing, and
+//! a keep from it is checked against the rows above `V` as described below.
+//! Without one, the store's
 //! latest reference for `id` is read and kept, and the row is read once more
 //! before that store answer may decide. The doc of the parent module explains
 //! why one more read is enough.
@@ -56,7 +58,9 @@ pub trait OwnedState {}
 pub struct OwnedReader<S: OwnedState> {
     /// The `(id, version, digest)` the transaction names.
     input: ObjectReference,
-    /// The horizon, `C - K`. A row produced above it answers missing.
+    /// The horizon, `C - K`. The row at `(id, V)` answers missing when it was
+    /// produced above it, and a row of `id` above `V` produced above it is
+    /// ignored.
     horizon: CommitIndex,
     state: S,
 }
@@ -177,9 +181,12 @@ pub enum TablesRecheck {
 }
 
 impl OwnedReader<StoreAnswered> {
-    /// Reads the row at `(id, V)` again and decides.
+    /// Reads the row at `(id, V)` again. A row decides as on the first read.
+    /// Without one, the kept store answer decides: the named reference keeps,
+    /// and a newer version or a tombstone goes on to the rows above `V`.
     pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesRecheck> {
-        // A row decides. Without one, the kept store answer does.
+        // A row decides as on the first read. Without one, the kept store
+        // answer is used.
         if let Some(classification) = self.row_classification(ctx)? {
             return Ok(match classification {
                 Classification::Keep => {
@@ -266,8 +273,9 @@ impl OwnedReader<LiveAtVersion> {
     }
 }
 
-/// The input is kept once its object at `(id, V)` is loaded. Only a keep
-/// result creates this step, so an object is loaded only for a kept input.
+/// A keep so far: the object at `(id, V)` is loaded next, and its digest can
+/// still drop the input. Only a keep result creates this step, so an object
+/// is loaded only for an input kept so far.
 pub struct NeedBytes;
 impl OwnedState for NeedBytes {}
 
@@ -280,7 +288,7 @@ impl OwnedReader<NeedBytes> {
 }
 
 // ---------------------------------------------------------------------------
-// Decisions on what a read returned, used by both reads of the row
+// Decisions on what a read returned
 // ---------------------------------------------------------------------------
 
 /// The result one read gave for `(id, V)`.
@@ -510,16 +518,18 @@ mod tests {
         ));
     }
 
-    /// `X@7` is the epoch-start version of `X`, so no row exists at
-    /// `(X, 7)`. A transaction of commit 11, above the horizon of commit 12,
-    /// replaces it without a lock, as a receive does. A validator that has
-    /// not executed commit 11 holds `X@7` as latest and keeps it. One that
-    /// has holds the row at `(X, 8)` and `X@8` as latest, and must keep it
-    /// too. Once commit 11 is at the horizon, the row drops it.
+    /// Object `x` is at version 7 when the epoch starts, so there is no row
+    /// for version 7. A transaction in commit 11, above the horizon of commit
+    /// 12, replaces version 7 without a lock, as a receive does, and writes
+    /// version 8. A validator that has not executed commit 11 still holds
+    /// version 7 as the latest and keeps it. A validator that has executed it
+    /// holds the row for version 8 and version 8 as the latest, and must keep
+    /// version 7 too. Once commit 11 is at the horizon, its row drops version
+    /// 7.
     ///
-    /// `X@6`, superseded before the epoch, drops on both validators even
-    /// though a row above it exists, and so does `Y@3`, superseded before
-    /// the epoch with no row above it.
+    /// Version 6 of `x`, replaced before the epoch, drops on both validators
+    /// even though a row above it exists. So does version 3 of `y`, replaced
+    /// before the epoch with no row above it.
     #[tokio::test]
     async fn epoch_start_version_consumed_above_the_horizon_keeps_as_on_a_validator_behind() {
         use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
@@ -601,7 +611,8 @@ mod tests {
             DropKind::StoreSuperseded,
         );
 
-        // Commit 11 executes here: the row at (X, 8), then X@8.
+        // Commit 11 executes here: the row for version 8 of `x`, then the
+        // object.
         let consumer = SenderSignedTransaction::new(
             TestTransactionBuilder::new(Address::ZERO, gas.object_ref(), 0)
                 .transfer_iota(None, Address::ZERO)
