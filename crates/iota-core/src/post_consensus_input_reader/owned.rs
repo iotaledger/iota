@@ -79,8 +79,8 @@ pub struct OwnedReader<S: OwnedState> {
     /// The `(id, version, digest)` the transaction names.
     input: ObjectReference,
     /// The horizon, `C - K`. The row at `(id, V)` answers missing when it was
-    /// produced above it, and a row of `id` above `V` produced above it is
-    /// ignored.
+    /// produced above it. The module doc says how a row of `id` above `V`
+    /// produced above it counts.
     horizon: CommitIndex,
     state: S,
 }
@@ -202,7 +202,7 @@ pub enum TablesRecheck {
 impl OwnedReader<StoreAnswered> {
     /// Reads the row at `(id, V)` again. A row decides as on the first read.
     /// Without one, the kept store answer decides: the named reference keeps,
-    /// and a newer version or a tombstone goes on to the rows above `V`.
+    /// and any other answer goes on to the other rows of `id`.
     pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesRecheck> {
         // A row decides as on the first read. Without one, the kept store
         // answer is used.
@@ -333,9 +333,10 @@ impl OwnedReader<LiveAtVersion> {
     }
 }
 
-/// A keep so far: the object at `(id, V)` is loaded next, and its digest can
-/// still drop the input. Only a keep result creates this step, so an object
-/// is loaded only for an input kept so far.
+/// A keep so far: the object at `(id, V)` is loaded next. Its digest can still
+/// drop the input, and a shared owner turns the result into a drop or a
+/// missing. Only a keep result creates this step, so an object is loaded only
+/// for an input kept so far.
 pub struct NeedBytes;
 impl OwnedState for NeedBytes {}
 
@@ -482,7 +483,7 @@ fn classify_live_latest(latest: &ObjectReference, input: &ObjectReference) -> Cl
     }
 }
 
-/// The verdict for a shared object named as owned, from its creation row.
+/// The result for a shared object named as owned, from its creation row.
 #[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SharedNamedAsOwned {
@@ -787,12 +788,12 @@ mod tests {
         );
     }
 
-    /// `X@7` is the epoch-start version of `X`. Commit 11, above the horizon
-    /// of commit 12, replaces it with `X@11` and creates `Z@11`. `X@9`, a
-    /// version between the two, and `Z@5`, below the creation, do not exist
-    /// at the horizon: a validator that has not executed commit 11 answers
-    /// missing, and one that has must too. Once commit 11 is at the horizon,
-    /// both drop.
+    /// Object `x` is at version 7 when the epoch starts. Commit 11, above the
+    /// horizon of commit 12, replaces it with version 11 and creates object
+    /// `z` at version 11. Version 9 of `x`, between the two, and version 5 of
+    /// `z`, below its creation, do not exist at the horizon: a validator that
+    /// has not executed commit 11 answers missing, and one that has must too.
+    /// Once commit 11 is at the horizon, both drop.
     #[tokio::test]
     async fn versions_not_live_at_the_horizon_are_missing_after_a_write_above_it() {
         use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
@@ -863,7 +864,7 @@ mod tests {
             MissingKind::StoreNotFound,
         );
 
-        // Commit 11 executes here: the rows, then X@11 and Z@11.
+        // Commit 11 executes here: the rows, then version 11 of `x` and `z`.
         let writer = SenderSignedTransaction::new(
             TestTransactionBuilder::new(Address::ZERO, gas.object_ref(), 0)
                 .transfer_iota(None, Address::ZERO)
