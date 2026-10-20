@@ -53,10 +53,6 @@ pub trait GlobalStateHashStore: ObjectStore + Send + Sync {
         epoch: EpochId,
     ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>>;
 
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>>;
-
     fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
@@ -76,12 +72,6 @@ impl GlobalStateHashStore for InMemoryStorage {
         &self,
         _epoch: EpochId,
     ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
-        unreachable!("not used for testing")
-    }
-
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
         unreachable!("not used for testing")
     }
 
@@ -219,14 +209,18 @@ impl GlobalStateHasher {
         assert!(checkpoint_seq_num > 0);
 
         // Check if this is the first checkpoint of the new epoch, in which case
-        // there is nothing to wait for.
-        if self
-            .store
-            .get_root_state_hash_for_highest_epoch()?
-            .map(|(_, (last_checkpoint_prev_epoch, _))| last_checkpoint_prev_epoch)
-            == Some(checkpoint_seq_num - 1)
-        {
-            return Ok(());
+        // there is nothing to wait for. Look up the previous epoch explicitly: when
+        // this checkpoint is rebuilt after a restart, the root of the current epoch
+        // may already be stored.
+        if let Some(prev_epoch) = epoch_store.epoch().checked_sub(1) {
+            if self
+                .store
+                .get_root_state_hash_for_epoch(prev_epoch)?
+                .map(|(last_checkpoint_prev_epoch, _)| last_checkpoint_prev_epoch)
+                == Some(checkpoint_seq_num - 1)
+            {
+                return Ok(());
+            }
         }
 
         // There is an edge case here where checkpoint_seq_num is 1. This means the
@@ -248,12 +242,13 @@ impl GlobalStateHasher {
             return Ok(GlobalStateHash::default());
         }
 
-        if let Some((prev_epoch, (last_checkpoint_prev_epoch, prev_acc))) =
-            self.store.get_root_state_hash_for_highest_epoch()?
-        {
-            assert_eq!(prev_epoch + 1, epoch_store.epoch());
-            if last_checkpoint_prev_epoch == checkpoint_seq_num - 1 {
-                return Ok(prev_acc);
+        if let Some(prev_epoch) = epoch_store.epoch().checked_sub(1) {
+            if let Some((last_checkpoint_prev_epoch, prev_acc)) =
+                self.store.get_root_state_hash_for_epoch(prev_epoch)?
+            {
+                if last_checkpoint_prev_epoch == checkpoint_seq_num - 1 {
+                    return Ok(prev_acc);
+                }
             }
         }
 

@@ -2357,12 +2357,6 @@ impl GlobalStateHashStore for WritebackCache {
         self.store.get_root_state_hash_for_epoch(epoch)
     }
 
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
-        self.store.get_root_state_hash_for_highest_epoch()
-    }
-
     fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
