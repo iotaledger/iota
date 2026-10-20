@@ -1284,7 +1284,7 @@ impl AuthorityState {
     /// coin deny list is read epoch-gated, so every validator gets the same
     /// answer.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
-    pub fn handle_transaction_validation_checks_at_commit(
+    pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
         reader: &CommitIndexedReader,
         transaction: &VerifiedTransaction,
@@ -6200,7 +6200,7 @@ impl AuthorityState {
     /// inputs and packages come from the commit-indexed reader. Receiving
     /// objects are read as at signing, from this validator's latest state,
     /// not as of the commit.
-    pub fn read_objects_for_validation_at_commit(
+    pub(crate) fn read_objects_for_validation_at_commit(
         &self,
         reader: &CommitIndexedReader,
         transaction: &VerifiedTransaction,
