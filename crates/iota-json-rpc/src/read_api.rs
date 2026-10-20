@@ -355,10 +355,14 @@ impl ReadApi {
                             ))
                         }
                     }
-                } else {
+                } else if cache_entry.effects.is_some() {
                     // events field will be Some if and only if `show_events` is true and
                     // there is no error in converting fetching events
                     cache_entry.events = Some(IotaTransactionBlockEvents::default());
+                } else {
+                    cache_entry
+                        .errors
+                        .push("unable to derive events because effect is empty".to_string());
                 }
             }
         }
@@ -368,33 +372,25 @@ impl ReadApi {
         if opts.show_balance_changes {
             trace!("getting balance changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
+            let results = join_all(temp_response.values().map(|resp| async {
+                let effects = resp.effects.as_ref().ok_or_else(|| {
+                    "unable to derive balance changes because effect is empty".to_string()
+                })?;
                 let input_objects = if let Some(tx) = resp.transaction() {
                     tx.data().transaction().input_objects().unwrap_or_default()
                 } else {
                     // don't have the input tx, so not much we can do. perhaps this is an Err?
                     Vec::new()
                 };
-                results.push(get_balance_changes_from_effect(
-                    &object_cache,
-                    resp.effects.as_ref().ok_or_else(|| {
-                        IotaRpcInputError::GenericNotFound(
-                            "unable to derive balance changes because effect is empty".to_string(),
-                        )
-                    })?,
-                    input_objects,
-                    None,
-                ));
-            }
-            let results = join_all(results).await;
+                get_balance_changes_from_effect(&object_cache, effects, input_objects, None)
+                    .await
+                    .map_err(|e| format!("Failed to fetch balance changes {e:?}"))
+            }))
+            .await;
             for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
                 match result {
                     Ok(balance_changes) => entry.1.balance_changes = Some(balance_changes),
-                    Err(e) => entry
-                        .1
-                        .errors
-                        .push(format!("Failed to fetch balance changes {e:?}")),
+                    Err(e) => entry.1.errors.push(e),
                 }
             }
         }
@@ -402,40 +398,34 @@ impl ReadApi {
         if opts.show_object_changes {
             trace!("getting object changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
+            let results = join_all(temp_response.values().map(|resp| async {
                 let effects = resp.effects.as_ref().ok_or_else(|| {
-                    IotaRpcInputError::GenericNotFound(
-                        "unable to derive object changes because effect is empty".to_string(),
-                    )
+                    "unable to derive object changes because effect is empty".to_string()
                 })?;
-
-                results.push(get_object_changes(
+                let sender = resp
+                    .transaction
+                    .as_ref()
+                    .ok_or_else(|| {
+                        "unable to derive object changes because transaction is empty".to_string()
+                    })?
+                    .data()
+                    .transaction()
+                    .sender();
+                get_object_changes(
                     &object_cache,
-                    resp.transaction
-                        .as_ref()
-                        .ok_or_else(|| {
-                            IotaRpcInputError::GenericNotFound(
-                                "unable to derive object changes because transaction is empty"
-                                    .to_string(),
-                            )
-                        })?
-                        .data()
-                        .transaction()
-                        .sender(),
+                    sender,
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
                     effects.all_removed_objects(),
-                ));
-            }
-            let results = join_all(results).await;
+                )
+                .await
+                .map_err(|e| format!("Failed to fetch object changes {e:?}"))
+            }))
+            .await;
             for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
                 match result {
                     Ok(object_changes) => entry.1.object_changes = Some(object_changes),
-                    Err(e) => entry
-                        .1
-                        .errors
-                        .push(format!("Failed to fetch object changes {e:?}")),
+                    Err(e) => entry.1.errors.push(e),
                 }
             }
         }

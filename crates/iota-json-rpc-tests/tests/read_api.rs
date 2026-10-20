@@ -744,6 +744,58 @@ async fn multi_get_transaction_blocks_with_input() {
     .await;
 }
 
+/// A digest the node does not have gets an entry of its own, with errors
+/// naming what could not be derived, instead of failing the whole request.
+#[sim_test]
+async fn multi_get_transaction_blocks_reports_an_unknown_digest_per_transaction() {
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let options = IotaTransactionBlockResponseOptions::default()
+        .with_input()
+        .with_effects()
+        .with_events()
+        .with_balance_changes()
+        .with_object_changes();
+
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
+    let known = cluster
+        .transfer_objects(address, address, object_ids, gas, Some(options.clone()))
+        .await
+        .unwrap()[0]
+        .digest;
+    let unknown = TransactionDigest::new([7; 32]);
+
+    let blocks = http_client
+        .multi_get_transaction_blocks(vec![known, unknown], Some(options.clone()))
+        .await
+        .unwrap();
+
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].digest, known);
+    assert!(blocks[0].matches_response_options(&options));
+    assert!(blocks[0].errors.is_empty(), "{:?}", blocks[0].errors);
+
+    let missing = &blocks[1];
+    assert_eq!(missing.digest, unknown);
+    assert!(missing.transaction.is_none());
+    assert!(missing.effects.is_none());
+    assert!(missing.events.is_none());
+    assert!(missing.balance_changes.is_none());
+    assert!(missing.object_changes.is_none());
+    assert_eq!(
+        missing.errors,
+        vec![
+            "unable to derive events because effect is empty",
+            "unable to derive balance changes because effect is empty",
+            "unable to derive object changes because effect is empty",
+        ]
+    );
+}
+
 #[sim_test]
 async fn get_object() {
     get_object_with_options(IotaObjectDataOptions::default()).await;
