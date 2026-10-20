@@ -1008,6 +1008,10 @@ impl AuthorityState {
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
     ///
+    /// [`Self::handle_transaction_validation_checks_at_commit`] repeats the
+    /// checks after loading the inputs for post-consensus validation at a
+    /// commit, so a check added here belongs there too.
+    ///
     /// `deny_config` is the deny rule source to enforce, chosen per caller:
     /// the local config alone, the local config combined with the governance
     /// rules (admission), or the governance-derived active set alone
