@@ -12,8 +12,10 @@ use iota_sdk_types::{
     TransactionEffects, TransactionEvents,
 };
 use iota_types::{
-    error::{ExecutionError, IotaError},
+    error::{ExecutionError, IotaError, IotaResult},
+    layout_resolver::LayoutResolver,
     object::Object,
+    storage::{BackingPackageStore, PackageObject},
     transaction::TransactionAPI as _,
 };
 use move_binary_format::CompiledModule;
@@ -21,8 +23,10 @@ use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{annotated_value::MoveValue, language_storage::ModuleId};
 
 use crate::{
+    VmSdkError,
     debug::{DebugArtifacts, DebugConfig},
     executor::LocalVm,
+    store::StoreBackend,
 };
 
 /// The chain parameters a [`LocalVm`](super::LocalVm) needs.
@@ -298,6 +302,22 @@ impl ExecutionResult {
             vm,
         }
     }
+
+    /// A type-layout resolver over the same packages as
+    /// [`module_resolver`](Self::module_resolver): the run's own published
+    /// packages first, then `vm`'s store.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError`] when the executor cannot be built.
+    pub fn layout_resolver<'a>(
+        &'a self,
+        vm: &'a LocalVm,
+    ) -> Result<Box<dyn LayoutResolver + 'a>, VmSdkError> {
+        Ok(vm
+            .cached_executor()?
+            .type_layout_resolver(Box::new(self.module_resolver(vm))))
+    }
 }
 
 /// Module resolver for one execution, built with
@@ -305,6 +325,15 @@ impl ExecutionResult {
 pub struct ExecutionModuleResolver<'a> {
     published: BTreeMap<ObjectId, &'a Object>,
     vm: &'a LocalVm,
+}
+
+impl BackingPackageStore for ExecutionModuleResolver<'_> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        match self.published.get(package_id) {
+            Some(object) => Ok(Some(PackageObject::new((*object).clone()))),
+            None => StoreBackend::new(self.vm.store()).get_package_object(package_id),
+        }
+    }
 }
 
 impl GetModule for ExecutionModuleResolver<'_> {
