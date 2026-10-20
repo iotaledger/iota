@@ -177,6 +177,13 @@ impl ConsensusCommitOutput {
         self.consensus_messages_processed.insert(key);
     }
 
+    /// The keys recorded as processed by this commit.
+    pub(crate) fn consensus_messages_processed(
+        &self,
+    ) -> impl Iterator<Item = &SequencedConsensusTransactionKey> {
+        self.consensus_messages_processed.iter()
+    }
+
     pub(crate) fn record_report_state_snapshot(
         &mut self,
         authority_index: crate::consensus_types::AuthorityIndex,
