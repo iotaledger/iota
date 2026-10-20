@@ -3151,7 +3151,9 @@ impl<'a> DBReader<'a> {
         )))
     }
 
-    async fn resolve_cursor_tx_digest_to_seq_num_maybe(
+    /// Resolves a cursor digest to its transaction sequence number, `None` when
+    /// `tx_global_order` has no row for it.
+    pub async fn resolve_cursor_tx_digest_to_seq_num_maybe(
         &self,
         cursor: TransactionDigest,
     ) -> IndexerResult<Option<i64>> {

@@ -36,7 +36,6 @@ use iota_indexer::{
         events::StoredEvent,
         transactions::{StoredTransaction, stored_events_to_events},
     },
-    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
     read::IndexerReader,
 };
 use iota_sdk_types::{Event, TransactionDigest};
@@ -1026,23 +1025,30 @@ impl HistoricalFetch {
                             state
                                 .reader
                                 .db()
-                                .resolve_cursor_tx_digest_to_seq_num(
-                                    state.start_from_digest,
-                                    OldestAvailableCheckpoint::transaction_by_digest(&state.reader),
-                                )
+                                .resolve_cursor_tx_digest_to_seq_num_maybe(state.start_from_digest)
                                 .await
                                 .map_err(backoff::Error::transient)
                         })
                         .await
                         {
-                            Ok(cursor) => {
+                            Ok(Some(cursor)) => {
                                 state.cursor_resolved = true;
                                 state.update_cursor(cursor);
-                            },
+                            }
+                            Ok(None) => {
+                                state.should_close_stream = true;
+                                let e = IndexerStreamingError::NotFound(format!(
+                                    "transaction {} may not exist or has been pruned",
+                                    state.start_from_digest
+                                ));
+                                error!("{e}");
+                                return Some((Err(e), state));
+                            }
                             Err(e) => {
                                 state.should_close_stream = true;
                                 let e = IndexerStreamingError::NotFound(format!(
-                                    "unable to resolve transaction, may not exist or has been pruned: {e}"
+                                    "unable to resolve transaction {}: {e}",
+                                    state.start_from_digest
                                 ));
                                 error!("{e}");
                                 return Some((Err(e), state));
