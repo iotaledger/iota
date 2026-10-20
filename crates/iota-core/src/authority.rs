@@ -1274,17 +1274,6 @@ impl AuthorityState {
 
         let tx = transaction.data().transaction();
 
-        // The deny rules load packages through the reader, so they see the
-        // same package view as the input loader below.
-        iota_transaction_checks::deny::check_transaction_for_validation(
-            tx,
-            transaction.signatures(),
-            &transaction.input_objects()?,
-            &tx.receiving_objects(),
-            deny_config,
-            reader,
-        )?;
-
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             match self.read_objects_for_validation_at_commit(reader, transaction, epoch)? {
                 ValidationInputsAtCommit::Loaded {
@@ -1303,6 +1292,19 @@ impl AuthorityState {
                     return Ok(ValidationAtCommit::Missing(kind, reason));
                 }
             };
+
+        // The deny rules load packages through the reader. They run after the
+        // inputs are loaded, so a call into a package not visible at this
+        // commit has already answered missing instead of failing here as not
+        // found.
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx,
+            transaction.signatures(),
+            &transaction.input_objects()?,
+            &tx.receiving_objects(),
+            deny_config,
+            reader,
+        )?;
 
         let move_authenticators = transaction.move_authenticators();
 

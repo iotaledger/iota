@@ -3776,6 +3776,58 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
     }
 }
 
+/// With a denied package in the deny rules, the deny check loads the package
+/// of every call. A call into a package published above the horizon answers
+/// missing, as without denied packages, and not as an object not found.
+#[tokio::test]
+async fn denied_packages_leave_a_package_above_the_horizon_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let deny_config = iota_config::transaction_deny_config::TransactionDenyConfigBuilder::new()
+        .add_denied_package(ObjectId::random())
+        .build();
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference().object_id();
+    s.record_package_published_at(11);
+    let tx = s.build_move_call(
+        "object_basics",
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            &deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Missing(InputObjectKind::MovePackage(id), reason) => {
+            assert_eq!(id, s.package_id);
+            assert_eq!(reason.kind(), MissingKind::PackageAboveHorizon);
+        }
+        other => panic!("expected missing on the package, got {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // P-COOL deterministic-validation reader: owned inputs
 // ---------------------------------------------------------------------------
