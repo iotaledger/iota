@@ -325,9 +325,9 @@ pub struct AuthorityMetrics {
     /// post-consensus conflict/lock validation rejected them. Distinct from
     /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
-    /// Verdicts of the commit-indexed reader in post-consensus validation, by
-    /// verdict and the reason that decided it. Only with deterministic
-    /// validation on.
+    /// Results of the commit-indexed reader in post-consensus validation, by
+    /// result (keep, drop or missing) and the reason that decided it. Only
+    /// with deterministic validation on.
     pub consensus_handler_validation_reader_verdicts: IntCounterVec,
     /// The commit being validated minus the highest fully executed commit, set
     /// once per commit. Only with deterministic validation on.
@@ -1280,9 +1280,10 @@ impl AuthorityState {
     /// post-consensus validation at the commit `reader` was built for: the
     /// inputs are read as of that commit through the commit-indexed reader.
     /// Returns `Drop` or `Missing` when an input is dropped or not visible
-    /// yet. Any other failed check returns the same `Err` as at admission. The
-    /// coin deny list is read epoch-gated, so every validator gets the same
-    /// answer.
+    /// yet. Any other failed check returns the same `Err` as at admission,
+    /// except that a deleted Move authenticator account object is not
+    /// rejected (see [`Self::check_move_account_at_commit`]). The coin deny
+    /// list is read epoch-gated, so every validator gets the same answer.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1333,12 +1334,14 @@ impl AuthorityState {
 
         let move_authenticators = transaction.move_authenticators();
 
-        // An account object the reader answered as deleted is not rejected
-        // here. Above the horizon the deletion is invisible to validators that
-        // have not executed it, so the only answer every validator shares is
-        // to keep the transaction and let execution fail its authenticator.
-        // Such an authenticator is also left out of the pre-consensus
-        // execution below, which would fail only here.
+        // A Move authenticator's account object that the reader answered as
+        // deleted is not rejected here. When a commit above the horizon
+        // deleted it, validators that have executed that commit see it
+        // deleted and the others do not, so the only result they all share is
+        // to keep the transaction and let its authenticator fail at
+        // execution. For the same reason such an authenticator is not run
+        // below: there it would fail only on the validators that see the
+        // deletion.
         let account_object_present: Vec<bool> = per_authenticator_inputs
             .iter()
             .map(|(_, account_object)| {
@@ -5993,10 +5996,11 @@ impl AuthorityState {
     }
 
     /// Resolves the account's `AuthenticatorFunctionRef` for post-consensus
-    /// validation at a commit. A deleted account object yields its version, as
-    /// at execution: the deletion may be above the horizon and invisible to
-    /// validators that have not executed it, so rejecting here would differ
-    /// between validators. The authenticator is left to execution instead.
+    /// validation at a commit. A deleted account object returns its version
+    /// instead of an error, as at execution: a commit above the horizon may
+    /// have deleted it, and validators that have not executed that commit
+    /// still see it, so rejecting it here would give different results on
+    /// different validators. Its authenticator then fails at execution.
     pub(crate) fn check_move_account_at_commit(
         &self,
         auth_account_object_id: ObjectId,
@@ -6323,9 +6327,9 @@ impl AuthorityState {
         ))
     }
 
-    /// [`Self::check_transaction_inputs_for_validation`] for post-consensus
-    /// validation at a commit. The one difference is the account check: a
-    /// deleted account object is tolerated, see
+    /// Like [`Self::check_transaction_inputs_for_validation`], but for
+    /// post-consensus validation at a commit. The one difference is the
+    /// account check: a deleted account object is not rejected, see
     /// [`Self::check_move_account_at_commit`].
     fn check_transaction_inputs_at_commit(
         &self,
