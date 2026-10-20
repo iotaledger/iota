@@ -333,11 +333,11 @@ pub async fn validate_and_resolve_conflicts(
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
         let checked = match &reader {
-            // Inputs read as of the commit. A reader drop or a missing input
-            // is reported with the error the admission path gives a missing
-            // input, so clients see a known error. The reason stays in the
-            // log. Missing drops here until the Increment 8 wait and
-            // re-resolve land in front of this arm.
+            // Inputs read as of the commit. A dropped or a missing input is
+            // reported with the error admission gives a missing input, so
+            // clients see a known error, and the reason goes to the log. A
+            // missing input drops the transaction too: nothing here waits for
+            // it to become visible or validates the transaction again.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,

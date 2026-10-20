@@ -277,8 +277,9 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             debug!("not processing consensus commit: executing synced checkpoints");
             return Ok(());
         }
-        // After a restart, a node that switched before stops at the same
-        // commit: synced checkpoints executed since then have written outputs
+        // A node that switched to executing synced checkpoints and then
+        // restarted stops after the same commit as before the restart: the
+        // synced checkpoints it has executed since the switch wrote outputs
         // that validating a later commit would read.
         let commit_index = consensus_output.commit_sub_dag_index();
         let last_commit_before_switch = epoch_store

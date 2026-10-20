@@ -4262,7 +4262,7 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
-        // Read once per commit: validation and the roots registration below
+        // Read once per commit, so validation and the commit assignment below
         // decide on the same value.
         let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
 
@@ -4506,12 +4506,15 @@ impl AuthorityPerEpochStore {
                 );
             }
 
-            // With deterministic validation, rows become visible before the
-            // fully executed commit advances, so after the wait every row
-            // with `produced_at <= C - K` is readable before validation of
-            // `C` starts and does not change during it. Churn is confined to
-            // rows above the horizon, which answer missing. Validating before
-            // that wait would make verdicts depend on execution timing.
+            // With deterministic validation, validation of commit `C` reads
+            // the rows of the commits at or below the horizon `C - K`, so its
+            // result depends only on the commit if every one of those commits
+            // is fully executed first. A commit's rows are written before the
+            // highest fully executed commit advances past it, so from then on
+            // those rows are all readable and do not change during validation.
+            // Rows of later commits can still appear, but they answer missing.
+            // Nothing here waits for those commits, so the result can
+            // still depend on how far this validator's execution has got.
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -4733,13 +4736,14 @@ impl AuthorityPerEpochStore {
                     commit_roots.extend(randomness_roots.iter().copied());
                 }
                 self.assign_commit_to_transactions(consensus_commit_info.index, commit_roots);
-                if let Some(frontier) = self.subscribe_highest_fully_executed_commit() {
+                if let Some(highest_fully_executed) = self.subscribe_highest_fully_executed_commit()
+                {
                     authority_metrics
                         .consensus_handler_commit_execution_lag
                         .set(
                             consensus_commit_info
                                 .index
-                                .saturating_sub(*frontier.borrow())
+                                .saturating_sub(*highest_fully_executed.borrow())
                                 as i64,
                         );
                 }
