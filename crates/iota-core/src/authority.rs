@@ -1250,14 +1250,13 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
-    /// [`Self::handle_transaction_validation_checks`] for post-consensus
-    /// validation at the commit `reader` was built for. Inputs come from the
-    /// commit-indexed reader, so a drop or a missing input is a resolution
-    /// the caller matches on. The coin deny list is always read epoch-gated.
-    /// Every check after loading keeps its admission-time behaviour and error.
-    ///
-    /// Visibility is `pub` until the validation loop consumes it;
-    /// `pub(crate)` would be dead code under `-D warnings` until then.
+    /// Like [`Self::handle_transaction_validation_checks`], but for
+    /// post-consensus validation at the commit `reader` was built for: the
+    /// inputs are read as of that commit through the commit-indexed reader.
+    /// Returns `Drop` or `Missing` when an input is dropped or not visible
+    /// yet. Any other failed check returns the same `Err` as at admission. The
+    /// coin deny list is read epoch-gated, so every validator gets the same
+    /// answer.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1309,9 +1308,9 @@ impl AuthorityState {
         let move_authenticators = transaction.move_authenticators();
 
         // A Move authenticator's account object that the reader answered as
-        // deleted is rejected here as at admission. Above the horizon that
-        // verdict differs between validators. Settled with the wiring, see the
-        // handoff's open items.
+        // deleted is rejected here, as at admission. When a commit above the
+        // horizon deleted it, validators that have executed that commit and
+        // validators that have not can reach different results.
         let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_for_validation(
                 protocol_config,
@@ -1336,7 +1335,7 @@ impl AuthorityState {
             "Move authenticator input objects must not contain owned objects"
         );
 
-        // Epoch-gated: the verdict decides whether the transaction stays in
+        // Epoch-gated: the result decides whether the transaction stays in
         // the committed set, so it must not depend on this validator's
         // execution progress.
         check_coin_deny_list_v1(
@@ -1413,8 +1412,9 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            // Authenticators execute against the store as it is now, not as
-            // of the commit. Tracked as a follow-up in the handoff.
+            // Authenticators run against this validator's latest store state,
+            // not the state as of the commit, so their result can differ
+            // between validators.
             let validation_result = epoch_store.executor().authenticate_transaction(
                 self.get_backing_store().as_ref(),
                 protocol_config,
@@ -6130,13 +6130,11 @@ impl AuthorityState {
             })
     }
 
-    /// [`Self::read_objects_for_validation`] for post-consensus validation at
-    /// the commit `reader` was built for. Owned and shared inputs and packages
-    /// come from the commit-indexed reader. Receiving objects are read as at
-    /// signing, per the design.
-    ///
-    /// Visibility is `pub` until the validation loop consumes it;
-    /// `pub(crate)` would be dead code under `-D warnings` until then.
+    /// Like [`Self::read_objects_for_validation`], but for post-consensus
+    /// validation at the commit `reader` was built for. Owned and shared
+    /// inputs and packages come from the commit-indexed reader. Receiving
+    /// objects are read as at signing, from this validator's latest state,
+    /// not as of the commit.
     pub fn read_objects_for_validation_at_commit(
         &self,
         reader: &CommitIndexedReader,

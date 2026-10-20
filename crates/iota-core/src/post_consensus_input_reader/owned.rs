@@ -1,15 +1,15 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The owned-input machine. One state per fact established about the named
-//! `(id, version)` and one transition per read, so a read cannot be skipped,
-//! repeated or taken out of order. The comparisons on what a read returned
-//! are pure functions shared by the first pass and the re-check.
+//! Reads one owned or immutable input, named by `(id, V)`. Each step is its
+//! own type that offers only the next allowed read, so a read cannot be
+//! skipped, repeated or taken out of order. The decisions on what a read
+//! returned are plain functions, used by both reads of the row.
 //!
-//! The handler row at `(id, V)` decides when there is one. Without one the
-//! store's latest reference is read and held, and the row is read once more
-//! before the held answer may decide; the module doc of the reader explains
-//! why one re-read is enough.
+//! The row at `(id, V)` decides when there is one. Without one, the store's
+//! latest reference for `id` is read and kept, and the row is read once more
+//! before that store answer may decide. The doc of the parent module explains
+//! why one more read is enough.
 
 use std::cmp::Ordering;
 
@@ -21,20 +21,16 @@ use crate::authority::authority_per_epoch_store::handler_object_state::{
     CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
 };
 
-// ---------------------------------------------------------------------------
-// Carrier
-// ---------------------------------------------------------------------------
-
-/// Marker for the owned machine's states.
+/// A step of an owned input's read.
 pub trait OwnedState {}
 
-/// One owned input being read at commit `C`. `S` is what the reader has
-/// established so far. Each state exposes only the transition the algorithm
-/// allows next, and every transition consumes the reader.
+/// One owned input being read for validation at commit `C`. `S` is the step
+/// reached so far. It offers only the next allowed read, and each read
+/// consumes this value.
 pub struct OwnedReader<S: OwnedState> {
     /// The `(id, version, digest)` the transaction names.
     input: ObjectReference,
-    /// `C - K`. A row produced above it answers missing.
+    /// The horizon, `C - K`. A row produced above it answers missing.
     horizon: CommitIndex,
     state: S,
 }
@@ -52,8 +48,8 @@ impl<S: OwnedState> OwnedReader<S> {
         ObjectKey(self.input.object_id, self.input.version)
     }
 
-    /// Rule 1 against the current tables, `None` when no row exists at
-    /// `(id, V)`. Shared by the first pass and the re-read.
+    /// Decides from the row at `(id, V)`, or `None` when there is no row.
+    /// Used by both reads of the row.
     fn row_classification(&self, ctx: &CommitIndexedReader) -> IotaResult<Option<Classification>> {
         Ok(ctx
             .epoch_store
@@ -63,7 +59,7 @@ impl<S: OwnedState> OwnedReader<S> {
 }
 
 // ---------------------------------------------------------------------------
-// Rule 1: the row at (id, V)
+// First read: the row at (id, V)
 // ---------------------------------------------------------------------------
 
 /// Nothing read yet.
@@ -73,21 +69,20 @@ impl OwnedState for Start {}
 /// Outcome of the first read of the row at `(id, V)`.
 #[must_use]
 pub enum TablesLookup {
-    /// A `Live` row at or below `C - K` with the named digest. Next: the
-    /// bytes.
+    /// A live row at or below the horizon with the named digest. Next: load
+    /// the object.
     NeedBytes(OwnedReader<NeedBytes>),
-    /// A row above `C - K`, never skipped.
+    /// A row produced above the horizon. The store is not asked.
     Missing(MissingReason),
     /// A tombstone row or a `Live` row with another digest.
     Drop(DropReason),
-    /// Not a verdict. No row at `(id, V)`, so the machine continues with the
-    /// store.
+    /// No row at `(id, V)`, so no result yet: the read goes on to the store.
     NoEntry(OwnedReader<NoTablesEntry>),
 }
 
 impl OwnedReader<Start> {
-    /// Begins the read of `input` at horizon `C - K`. The only constructor of
-    /// a reader in any state.
+    /// Starts reading `input` with the horizon `C - K`. Every later step is
+    /// reached from here.
     pub fn start(input: ObjectReference, horizon: CommitIndex) -> OwnedReader<Start> {
         OwnedReader {
             input,
@@ -96,8 +91,8 @@ impl OwnedReader<Start> {
         }
     }
 
-    /// Overlay first, then the table through the cache. Decides when a row
-    /// exists.
+    /// Reads the row at `(id, V)`: the rows held in memory first, then the
+    /// table. Decides when a row exists.
     pub fn read_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesLookup> {
         let Some(classification) = self.row_classification(ctx)? else {
             return Ok(TablesLookup::NoEntry(self.into_state(NoTablesEntry)));
@@ -111,7 +106,7 @@ impl OwnedReader<Start> {
 }
 
 // ---------------------------------------------------------------------------
-// Rule 3: the store, then the row again
+// No row: the store, then the row again
 // ---------------------------------------------------------------------------
 
 /// No row at `(id, V)`. The store has not been asked.
@@ -119,8 +114,8 @@ pub struct NoTablesEntry;
 impl OwnedState for NoTablesEntry {}
 
 impl OwnedReader<NoTablesEntry> {
-    /// The latest reference or tombstone of `id`. The answer is held, not
-    /// decided: the row must be read again first.
+    /// Reads the latest reference or tombstone of `id`. The answer is kept,
+    /// not decided yet: the row is read again first.
     pub fn read_store(self, ctx: &CommitIndexedReader) -> IotaResult<OwnedReader<StoreAnswered>> {
         let latest = ctx
             .cache
@@ -130,15 +125,16 @@ impl OwnedReader<NoTablesEntry> {
 }
 
 /// The store answered with the latest reference, a tombstone, or nothing.
-/// Held until the row is re-read.
+/// Kept until the row has been read again.
 pub struct StoreAnswered {
     latest: Option<ObjectReference>,
 }
 impl OwnedState for StoreAnswered {}
 
-/// Outcome of the re-read of the row. A row decides as in rule 1, else the
-/// held store answer stands: equal to the named reference keeps, a newer
-/// version, a tombstone or no entry drops.
+/// Outcome of the second read of the row. A row decides as on the first
+/// read. Otherwise the kept store answer decides: the named reference keeps,
+/// an older version is missing, and a newer version, a tombstone or nothing
+/// drops.
 #[must_use]
 pub enum TablesRecheck {
     NeedBytes(OwnedReader<NeedBytes>),
@@ -147,10 +143,9 @@ pub enum TablesRecheck {
 }
 
 impl OwnedReader<StoreAnswered> {
-    /// Re-reads the handler-processed row and decides.
+    /// Reads the row at `(id, V)` again and decides.
     pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesRecheck> {
-        // The row decides. No row means the store answer predates every
-        // this-epoch write for `id` and stands.
+        // A row decides. Without one, the kept store answer does.
         let classification = self
             .row_classification(ctx)?
             .unwrap_or_else(|| classify_latest(self.state.latest.as_ref(), &self.input));
@@ -163,26 +158,27 @@ impl OwnedReader<StoreAnswered> {
 }
 
 // ---------------------------------------------------------------------------
-// Keep: the bytes are loaded by the caller
+// Keep: the caller loads the object
 // ---------------------------------------------------------------------------
 
-/// The verdict is keep once the bytes at `(id, V)` are loaded. Only the
-/// machine constructs this, so bytes are only ever loaded on a keep path.
+/// The input is kept once its object at `(id, V)` is loaded. Only a keep
+/// result creates this step, so an object is loaded only for a kept input.
 pub struct NeedBytes;
 impl OwnedState for NeedBytes {}
 
 impl OwnedReader<NeedBytes> {
-    /// The exact key to load, consuming the token so it is loaded once.
+    /// The exact key to load. Consumes this step, so the object is loaded
+    /// once.
     pub fn into_key(self) -> ObjectKey {
         self.key()
     }
 }
 
 // ---------------------------------------------------------------------------
-// Pure comparisons, shared by the first pass and the re-check
+// Decisions on what a read returned, used by both reads of the row
 // ---------------------------------------------------------------------------
 
-/// What one source decided about `(id, V)`.
+/// The result one read gave for `(id, V)`.
 #[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Classification {
@@ -191,7 +187,8 @@ enum Classification {
     Drop(DropReason),
 }
 
-/// Rule 1 on a row at `(id, V)`: horizon first, then kind, then digest.
+/// Decides from the row at `(id, V)`: first the horizon, then the kind, then
+/// the digest.
 fn classify_row(
     row: &HandlerProcessedObject,
     input: &ObjectReference,
@@ -211,9 +208,9 @@ fn classify_row(
     }
 }
 
-/// Rule 3 on the held store answer: the latest reference against the named
-/// reference. A tombstone is checked before equality so that a transaction
-/// naming a tombstone reference drops instead of reaching the bytes load.
+/// Decides from the kept store answer: the latest reference against the named
+/// one. A tombstone is checked before equality, so a transaction that names a
+/// tombstone reference drops instead of reaching the object load.
 fn classify_latest(latest: Option<&ObjectReference>, input: &ObjectReference) -> Classification {
     let Some(latest) = latest else {
         return Classification::Drop(DropReason(DropKind::StoreNotFound));
@@ -263,11 +260,13 @@ mod tests {
         Classification::Missing(MissingReason(kind))
     }
 
-    /// `P` produces `X@8` in commit 11, above the horizon of commit 12. The
-    /// first read finds no row at `(X, 8)`. Commit 11 then executes: its row
-    /// is in place before `X@8` reaches the store. The store answers `X@8`,
-    /// so the held answer alone would keep it. The re-read finds the row and
-    /// answers missing, as a fresh read does.
+    /// A transaction in commit 11 mutates object `x` to version 8. Commit 12
+    /// is validated with horizon 10, so version 8 must not be visible yet.
+    /// The first read finds no row at `(x, 8)`. Commit 11 then executes, and
+    /// writes its row before the new version reaches the store. The store now
+    /// returns version 8, so the store answer alone would keep it, but the
+    /// second read of the row finds the row and answers missing, the same as
+    /// a fresh read.
     #[tokio::test]
     async fn recheck_finds_the_row_of_a_write_the_store_answer_reflects() {
         use iota_sdk_types::{Address, Owner, SenderSignedTransaction};

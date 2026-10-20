@@ -1,10 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The shared-input machine. Answers existence and creation metadata from the
-//! creation row at the initial shared version, the store's deletion info and
-//! the store object, with no content read. One state per read, the store
-//! answer held until the creation row is re-read, as in the owned machine.
+//! Reads one shared input: whether the object exists and is shared at the
+//! declared initial version. It reads the object's creation row (the row at
+//! the declared initial shared version), the latest object in the store, and
+//! the store's record of a deletion in this epoch, never the object's
+//! contents. As for owned inputs, each step is its own type, and a store
+//! answer is kept until the creation row has been read a second time.
 
 use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
 use iota_types::{error::IotaResult, object::Object, storage::ObjectKey};
@@ -14,22 +16,18 @@ use crate::authority::authority_per_epoch_store::handler_object_state::{
     CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
 };
 
-// ---------------------------------------------------------------------------
-// Carrier
-// ---------------------------------------------------------------------------
-
-/// Marker for the shared machine's states.
+/// A step of a shared input's read.
 pub trait SharedState {}
 
-/// One shared input being read at commit `C`. `S` is what the reader has
-/// established so far. Each state exposes only the transition the algorithm
-/// allows next, and every transition consumes the reader.
+/// One shared input being read for validation at commit `C`. `S` is the step
+/// reached so far. It offers only the next allowed read, and each read
+/// consumes this value.
 pub struct SharedReader<S: SharedState> {
     id: ObjectId,
-    /// The initial shared version the transaction declares. The creation row
-    /// sits at this version.
+    /// The initial shared version the transaction declares. The object's
+    /// creation row is the row at this version.
     initial_shared_version: Version,
-    /// `C - K`. A row produced above it answers missing.
+    /// The horizon, `C - K`. A row produced above it answers missing.
     horizon: CommitIndex,
     state: S,
 }
@@ -44,9 +42,9 @@ impl<S: SharedState> SharedReader<S> {
         }
     }
 
-    /// The creation row against the current tables, `None` when no row
-    /// exists at `(id, declared initial version)`. Shared by the first pass
-    /// and the re-read.
+    /// Decides from the creation row, or `None` when there is no row at
+    /// `(id, declared initial version)`. Used by both reads of the creation
+    /// row.
     fn creation_row_classification(
         &self,
         ctx: &CommitIndexedReader,
@@ -68,9 +66,8 @@ pub struct Start;
 impl SharedState for Start {}
 
 impl SharedReader<Start> {
-    /// Begins the read of shared input `id` declared at
-    /// `initial_shared_version`, at horizon `C - K`. The only constructor of a
-    /// reader in any state.
+    /// Starts reading shared input `id` declared at `initial_shared_version`,
+    /// with the horizon `C - K`. Every later step is reached from here.
     pub fn start(
         id: ObjectId,
         initial_shared_version: Version,
@@ -88,22 +85,23 @@ impl SharedReader<Start> {
 /// Outcome of the first read of the creation row.
 #[must_use]
 pub enum SharedTablesLookup {
-    /// A `Live` row with the created-shared flag, at or below `C - K`. Next:
-    /// the store object, for deletion.
+    /// A live row at or below the horizon that records the declared version
+    /// as the initial shared version. Next: the store object, to check for a
+    /// deletion.
     Created(SharedReader<CreatedShared>),
-    /// A row above `C - K`, never skipped.
+    /// A creation row produced above the horizon. The store is not asked.
     Missing(MissingReason),
-    /// A row without the flag, or a tombstone at that key: not created
-    /// shared at the declared version.
+    /// A row that records another initial shared version or none, or a
+    /// tombstone: the object was not created shared at the declared version.
     Drop(DropReason),
-    /// Not a verdict. No creation row at `(id, declared initial version)`, so
-    /// the machine continues with the store.
+    /// No creation row at `(id, declared initial version)`, so no result yet:
+    /// the read goes on to the store.
     NoEntry(SharedReader<NoTablesEntry>),
 }
 
 impl SharedReader<Start> {
-    /// Overlay first, then the table through the cache. Decides when a row
-    /// exists.
+    /// Reads the creation row: the rows held in memory first, then the table.
+    /// Decides when a row exists.
     pub fn read_creation_row(self, ctx: &CommitIndexedReader) -> IotaResult<SharedTablesLookup> {
         Ok(match self.creation_row_classification(ctx)? {
             Some(CreationClass::Created) => {
@@ -121,10 +119,12 @@ impl SharedReader<Start> {
 pub struct CreatedShared;
 impl SharedState for CreatedShared {}
 
-/// Outcome of the store object read after the creation row proved the flag.
+/// Outcome of the store read after the creation row showed the object was
+/// created shared.
 #[must_use]
 pub enum CreatedObjectLookup {
-    /// The object is live locally, at whatever version this validator holds.
+    /// The object is live in this validator's store, at whatever version it
+    /// holds.
     Exists(Object),
     /// No live object locally. Next: the deletion info.
     Absent(SharedReader<ObjectAbsent>),
@@ -151,8 +151,9 @@ pub struct NoTablesEntry;
 impl SharedState for NoTablesEntry {}
 
 impl SharedReader<NoTablesEntry> {
-    /// The latest object by id, or `None` for a tombstone or an unknown id.
-    /// Held, not decided: the creation row must be read again first.
+    /// Reads the latest object by id, or `None` for a tombstone or an unknown
+    /// id. The answer is kept, not decided yet: the creation row is read again
+    /// first.
     pub fn read_object(
         self,
         ctx: &CommitIndexedReader,
@@ -162,17 +163,17 @@ impl SharedReader<NoTablesEntry> {
     }
 }
 
-/// The store answered with the latest object or nothing. Held until the
-/// creation row is re-read.
+/// The store answered with the latest object or nothing. Kept until the
+/// creation row has been read again.
 pub struct ObjectAnswered {
     object: Option<Object>,
 }
 impl SharedState for ObjectAnswered {}
 
-/// Outcome of the re-read of the creation row. A creation row decides as on
-/// the first pass. Else the held object decides: owner `Shared` at the
-/// declared version exists, another owner drops, and no object moves on to
-/// the deletion info.
+/// Outcome of the second read of the creation row. A creation row decides as
+/// on the first read. Otherwise the kept object decides: owner `Shared` at
+/// the declared version exists, another owner drops, and no object goes on to
+/// the store's deletion record.
 #[must_use]
 pub enum SharedTablesRecheck {
     Created(SharedReader<CreatedShared>),
@@ -184,7 +185,7 @@ pub enum SharedTablesRecheck {
 }
 
 impl SharedReader<ObjectAnswered> {
-    /// Re-reads the creation row and decides.
+    /// Reads the creation row again and decides.
     pub fn reread_creation_row(self, ctx: &CommitIndexedReader) -> IotaResult<SharedTablesRecheck> {
         match self.creation_row_classification(ctx)? {
             Some(CreationClass::Created) => {
@@ -198,8 +199,8 @@ impl SharedReader<ObjectAnswered> {
         }
         // An `Arc` bump: `Object` wraps its contents in one.
         Ok(match self.state.object.clone() {
-            // No creation row: the held object predates every write this
-            // epoch for `id` and stands.
+            // No creation row at the declared version: the kept object
+            // decides, from its owner alone.
             Some(object) => match classify_object(&object, self.initial_shared_version) {
                 ObjectClass::Exists => SharedTablesRecheck::Exists(object),
                 ObjectClass::Drop(reason) => SharedTablesRecheck::Drop(reason),
@@ -210,14 +211,14 @@ impl SharedReader<ObjectAnswered> {
 }
 
 // ---------------------------------------------------------------------------
-// Deletion: this epoch's deletion marker, then the row at the deleted version
+// Deletion: the store's deletion record, then the row at the deleted version
 // ---------------------------------------------------------------------------
 
 /// No live object for `id` in the store.
 pub struct ObjectAbsent;
 impl SharedState for ObjectAbsent {}
 
-/// Outcome of the deletion info read for this epoch.
+/// Outcome of the read of the store's deletion record for this epoch.
 #[must_use]
 pub enum DeletionInfoLookup {
     /// No deletion this epoch: the id never existed or was deleted before
@@ -228,8 +229,9 @@ pub enum DeletionInfoLookup {
 }
 
 impl SharedReader<ObjectAbsent> {
-    /// This epoch's deletion marker for `id`. A deletion in an earlier epoch
-    /// leaves no marker and reads as not found.
+    /// Reads the store's record of a deletion of `id` in this epoch. A
+    /// deletion in an earlier epoch has no such record and reads as not
+    /// found.
     pub fn read_deletion_info(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionInfoLookup> {
         let epoch = ctx.epoch_store.epoch();
         Ok(
@@ -266,8 +268,8 @@ pub enum DeletionRowLookup {
 }
 
 impl SharedReader<DeletionInfoFound> {
-    /// The handler-processed row at the deleted version, which carries the
-    /// deleting commit and the deleted object's initial shared version.
+    /// Reads the row at the deleted version, which records the deleting commit
+    /// and the deleted object's initial shared version.
     pub fn read_deletion_row(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionRowLookup> {
         let DeletionInfoFound { version, digest } = self.state;
         let row = ctx
@@ -283,7 +285,7 @@ impl SharedReader<DeletionInfoFound> {
 }
 
 // ---------------------------------------------------------------------------
-// Pure comparisons, shared by the first pass and the re-check
+// Decisions on what a read returned, used by both reads of the creation row
 // ---------------------------------------------------------------------------
 
 /// What the creation row decided about `(id, declared initial version)`.
@@ -295,8 +297,8 @@ enum CreationClass {
     Drop(DropReason),
 }
 
-/// What a bookkeeping entry's `initial_shared_version` decided, once the
-/// object bytes that carried the owner are gone.
+/// What a row's `initial_shared_version` decided, once the object that
+/// carried the owner is gone.
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
 enum RecordedOwnerClass {
@@ -353,7 +355,7 @@ enum DeletionClass {
 
 /// The row at `(id, deleted version)`. The row's initial shared version is
 /// checked first: a wrong declared version drops at every horizon. Then a row
-/// at or below the horizon means the handler passed the deletion.
+/// at or below the horizon means every validator has executed the deletion.
 fn classify_deletion_row(
     row: Option<&HandlerProcessedObject>,
     declared: Version,
@@ -372,7 +374,7 @@ fn classify_deletion_row(
 }
 
 /// The creation row at `(id, declared)`: horizon first, then the row must be
-/// `Live` and carry the created-shared flag at the declared version.
+/// live and record the declared version as the initial shared version.
 fn classify_creation_row(
     row: &HandlerProcessedObject,
     declared: Version,
@@ -436,11 +438,13 @@ mod tests {
         }
     }
 
-    /// `P` creates `S` shared at version 8 in commit 11, above the horizon of
-    /// commit 12. The first read finds no creation row. Commit 11 then
-    /// executes: its row is in place before `S` reaches the store. The store
-    /// answers `S`, so the held object alone would exist. The re-read finds
-    /// the row and answers missing, as a fresh read does.
+    /// A transaction in commit 11 creates a shared object with initial shared
+    /// version 8. Commit 12 is validated with horizon 10, so the object must
+    /// not be visible yet. The first read finds no creation row. Commit 11
+    /// then executes, and writes its row before the object reaches the store.
+    /// The store now returns the object, so the store answer alone would
+    /// report it as existing, but the second read of the creation row finds
+    /// the row and answers missing, the same as a fresh read.
     #[tokio::test]
     async fn recheck_finds_the_creation_row_of_an_object_the_store_answer_holds() {
         use iota_sdk_types::SenderSignedTransaction;
@@ -565,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn creation_row_above_the_horizon_answers_missing_before_the_flag() {
+    fn creation_row_above_the_horizon_answers_missing_before_the_initial_shared_version() {
         let not_shared = creation_row(HandlerProcessedObjectKind::Live, None, HORIZON + 1);
         assert_eq!(
             classify_creation_row(&not_shared, declared(), HORIZON),
@@ -574,7 +578,7 @@ mod tests {
     }
 
     #[test]
-    fn creation_row_without_the_flag_or_a_tombstone_drops() {
+    fn creation_row_without_an_initial_shared_version_or_a_tombstone_drops() {
         for kind in [
             HandlerProcessedObjectKind::Live,
             HandlerProcessedObjectKind::Deleted,
@@ -588,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn creation_row_with_the_flag_at_another_version_drops() {
+    fn creation_row_with_another_initial_shared_version_drops() {
         let other = creation_row(
             HandlerProcessedObjectKind::Live,
             Some(DECLARED + 1),

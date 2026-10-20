@@ -271,10 +271,8 @@ impl TransactionInputLoader {
 }
 
 impl TransactionInputLoader {
-    /// Reads receiving objects as at signing: the received marker for this
-    /// epoch, then the object at latest. Also used by post-consensus
-    /// validation at a commit, where receiving objects are out of the
-    /// commit-indexed reader's scope.
+    /// Reads receiving objects as at signing: this epoch's received marker,
+    /// then the latest object.
     pub(crate) fn read_receiving_objects_for_signing(
         &self,
         receiving_objects: &[ObjectReference],
@@ -314,9 +312,8 @@ impl TransactionInputLoader {
     /// Reads the inputs of a transaction being validated post-consensus, as of
     /// the commit `reader` was built for. Owned and shared inputs and packages
     /// go through the commit-indexed reader. Receiving objects are not read
-    /// here: the caller reads them as at signing, per the design. `Err` is a
-    /// storage failure. A drop or a missing input is a resolution, never an
-    /// error.
+    /// here: the caller reads them as at signing. `Err` is a storage failure.
+    /// A dropped or missing input is a result, never an error.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn read_objects_at_commit(
         &self,

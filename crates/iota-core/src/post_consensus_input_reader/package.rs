@@ -1,15 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The package machine. Loads the package from the store first, then decides
-//! visibility from the row at its version, for both the input loader and the
-//! deny check's package store.
+//! Reads one package input, for both the input loader and the deny check.
 //!
-//! A package input names only an id, so the store is read first and the row
-//! after it. The execution hook writes the row of a publish before the
-//! package reaches the store, so a package the store returns that was
-//! published this epoch has its row in place for the read that follows. No
-//! row means the package was published before the epoch.
+//! A package input names only an id, not a version, so the package is loaded
+//! from the store first, and the row at its version is read after it.
+//! Executing a publish writes its row before the package reaches the store,
+//! so a package the store returns that was published this epoch already has
+//! its row. No row means the package was published before this epoch.
 
 use iota_sdk_types::ObjectId;
 use iota_types::{
@@ -22,19 +20,15 @@ use crate::authority::authority_per_epoch_store::handler_object_state::{
     CommitIndex, HandlerProcessedObject,
 };
 
-// ---------------------------------------------------------------------------
-// Carrier
-// ---------------------------------------------------------------------------
-
-/// Marker for the package machine's states.
+/// A step of a package input's read.
 pub trait PackageState {}
 
-/// One package input being read at commit `C`. `S` is what the reader has
-/// established so far. Each state exposes only the transition the algorithm
-/// allows next, and every transition consumes the reader.
+/// One package input being read for validation at commit `C`. `S` is the
+/// step reached so far. It offers only the next allowed read, and each read
+/// consumes this value.
 pub struct PackageReader<S: PackageState> {
     id: ObjectId,
-    /// `C - K`. A row produced above it answers missing.
+    /// The horizon, `C - K`. A row produced above it answers missing.
     horizon: CommitIndex,
     state: S,
 }
@@ -60,15 +54,15 @@ impl PackageState for Start {}
 /// Outcome of the package load.
 #[must_use]
 pub enum PackageLookup {
-    /// Published locally. Next: the row at its version.
+    /// In this validator's store. Next: the row at its version.
     Loaded(PackageReader<PackageLoaded>),
-    /// Not published locally, or not at all.
+    /// Not in this validator's store: not published here yet, or not at all.
     Missing(MissingReason),
 }
 
 impl PackageReader<Start> {
-    /// Begins the read of package `id` at horizon `C - K`. The only
-    /// constructor of a reader in any state.
+    /// Starts reading package `id` with the horizon `C - K`. Every later step
+    /// is reached from here.
     pub fn start(id: ObjectId, horizon: CommitIndex) -> PackageReader<Start> {
         PackageReader {
             id,
@@ -77,9 +71,10 @@ impl PackageReader<Start> {
         }
     }
 
-    /// The package from the store. Packages are never superseded or pruned,
-    /// so presence is the only question, and a miss is already missing on a
-    /// slower validator too.
+    /// Reads the package from the store. Packages are never replaced or
+    /// pruned, so the only question is whether it is there, and a package
+    /// this store lacks is also missing on a validator that has executed
+    /// less.
     pub fn read_package(self, ctx: &CommitIndexedReader) -> IotaResult<PackageLookup> {
         Ok(match ctx.cache.try_get_package_object(&self.id)? {
             Some(package) => PackageLookup::Loaded(self.into_state(PackageLoaded { package })),
@@ -89,7 +84,7 @@ impl PackageReader<Start> {
 }
 
 // ---------------------------------------------------------------------------
-// Row: the handler-processed row at (id, package version)
+// Row: the row at (id, package version)
 // ---------------------------------------------------------------------------
 
 /// The package is in the store. Its producing commit is not known yet.
@@ -101,14 +96,15 @@ impl PackageState for PackageLoaded {}
 /// Outcome of the row lookup at `(id, package version)`.
 #[must_use]
 pub enum PackageRowLookup {
-    /// Published at or below `C - K`, or before this epoch.
+    /// Published at or below the horizon, or before this epoch.
     Visible(PackageObject),
-    /// Published above `C - K`.
+    /// Published above the horizon.
     Missing(MissingReason),
 }
 
 impl PackageReader<PackageLoaded> {
-    /// Overlay first, then the table through the cache.
+    /// Reads the row at the package's version: the rows held in memory first,
+    /// then the table.
     pub fn read_row(self, ctx: &CommitIndexedReader) -> IotaResult<PackageRowLookup> {
         let key = ObjectKey(self.id, self.state.package.object().version());
         let row = ctx.epoch_store.handler_processed_object(&key)?;
@@ -179,8 +175,9 @@ mod tests {
         assert_eq!(classify_package(None, HORIZON), PackageClass::Visible);
     }
 
-    /// A package published at commit `HORIZON + 1` answers missing once its
-    /// row is in place, which is before the package reaches the store.
+    /// A package published by commit 11, above the horizon (10) of commit 12,
+    /// answers missing once its row exists. The row is written before the
+    /// package reaches the store.
     #[tokio::test]
     async fn package_published_above_the_horizon_is_missing() {
         use iota_sdk_types::{Address, ObjectReference, Owner, SenderSignedTransaction, Version};

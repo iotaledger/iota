@@ -1,10 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The reader context and the driver. Holds the horizon and the store
-//! handles, walks each input machine from its first lookup to a verdict, and
-//! loads a transaction's inputs at a commit for the post-consensus validation
-//! entry point.
+//! [`CommitIndexedReader`], the reader for one commit. It holds the horizon
+//! and the store handles, and takes each input through its read steps, from
+//! the first read to a result.
 
 use std::sync::Arc;
 
@@ -30,8 +29,9 @@ use crate::{
     execution_cache::ObjectCacheRead,
 };
 
-/// Distance between the commit being validated and the highest commit whose
-/// rows a verdict may trust. A future protocol parameter.
+/// How many commits behind the commit being validated, `C`, the object state
+/// is read. Validation at `C` reads the state as of commit `C - K`, the
+/// horizon.
 pub const K: CommitIndex = 2;
 
 /// Reads inputs as of one consensus commit. Built once per commit and passed
@@ -39,7 +39,7 @@ pub const K: CommitIndex = 2;
 pub struct CommitIndexedReader {
     pub(super) cache: Arc<dyn ObjectCacheRead>,
     pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
-    /// `C - K`.
+    /// The horizon, `C - K`.
     horizon: CommitIndex,
 }
 
@@ -56,10 +56,10 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Rules 1 and 3 for one owned input. Storage errors propagate. They are
-    /// never a verdict.
+    /// Reads one owned or immutable input. A storage error is returned as
+    /// `Err`, never as a result.
     pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
-        // Rule 1: the row at the named version, deciding.
+        // The row at the named version decides when it exists.
         let no_tables_entry =
             match OwnedReader::start(input, self.horizon).read_handler_row(self)? {
                 TablesLookup::NeedBytes(need_bytes) => {
@@ -70,7 +70,8 @@ impl CommitIndexedReader {
                 TablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
             };
 
-        // Rule 3: ask the store, hold the answer, read the row again.
+        // No row: read the store, keep its answer, and read the row once more
+        // before using that answer.
         match no_tables_entry.read_store(self)?.reread_handler_row(self)? {
             TablesRecheck::NeedBytes(need_bytes) => {
                 Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?))
@@ -80,16 +81,18 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Existence and creation metadata for one shared input declared at
-    /// `initial_shared_version`. No content read. Storage errors propagate.
+    /// Reads one shared input declared at `initial_shared_version`: whether
+    /// the object exists and is shared at that version. Its contents are not
+    /// read. A storage error is returned as `Err`, never as a result.
     pub fn read_shared(
         &self,
         id: ObjectId,
         initial_shared_version: Version,
     ) -> IotaResult<SharedVerdict> {
-        // The creation row at the declared initial version, deciding. A row
-        // at or below the horizon proved the flag, so only the object's
-        // presence is left.
+        // The row at the declared initial shared version is the object's
+        // creation row, and decides when it exists. One at or below the
+        // horizon shows the object was created shared at that version, so
+        // only whether the object still exists is left to check.
         let no_tables_entry = match SharedReader::start(id, initial_shared_version, self.horizon)
             .read_creation_row(self)?
         {
@@ -106,7 +109,8 @@ impl CommitIndexedReader {
             SharedTablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
         };
 
-        // Store: hold the latest object, read the creation row again.
+        // No creation row: read the latest object from the store, keep it, and
+        // read the creation row once more before using it.
         match no_tables_entry
             .read_object(self)?
             .reread_creation_row(self)?
@@ -122,9 +126,9 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Deletion: this epoch's marker, then the row at the deleted version.
-    /// Reached from a created object that is gone, in either pass, and from a
-    /// store answer no creation row claimed.
+    /// Decides a shared input whose object is not in the store: reads the
+    /// store's record of a deletion in this epoch, then the row at the deleted
+    /// version. Called after either read of the creation row.
     fn check_deletion(
         &self,
         object_absent: SharedReader<ObjectAbsent>,
@@ -139,9 +143,10 @@ impl CommitIndexedReader {
         })
     }
 
-    /// Visibility of one package input. The store is read first, because a
-    /// package input names no version, then the row. The package module doc
-    /// explains the order. Storage errors propagate.
+    /// Reads one package input: whether it is visible at this commit. The
+    /// store is read first, because a package input names no version, then
+    /// the row. The package module doc explains the order. A storage error is
+    /// returned as `Err`, never as a result.
     pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
         let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
             PackageLookup::Loaded(loaded) => loaded,
@@ -153,9 +158,10 @@ impl CommitIndexedReader {
         })
     }
 
-    /// The bytes at exactly `(id, V)` from the store. Reachable only with the
-    /// machine's keep token. No bytes break the design's invariant, so that
-    /// is a storage error and halts commit processing, never a verdict.
+    /// Loads the object of a kept input at exactly `(id, V)`. Takes the
+    /// `NeedBytes` step, which only a keep result creates. A kept version must
+    /// still be in the store, so a missing object is a storage error, which
+    /// stops commit processing, and never a result.
     fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<KeptObject> {
         let key = need_bytes.into_key();
         if let Some(object) = self.cache.try_get_object_by_key(&key.0, key.1)? {
@@ -167,9 +173,10 @@ impl CommitIndexedReader {
     }
 }
 
-/// The deny check's package view as of the commit. A package the reader
+/// Lets the deny check load packages as of the commit. A package the reader
 /// answers missing reads as absent, which the deny check reports as not
-/// found. The missing reason is set aside on this path.
+/// found, so validation runs the deny check only after every package input
+/// has loaded.
 impl BackingPackageStore for CommitIndexedReader {
     fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         Ok(match self.read_package(*package_id)? {

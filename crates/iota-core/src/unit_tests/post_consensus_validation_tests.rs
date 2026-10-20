@@ -3377,6 +3377,10 @@ async fn bookkeeping_disabled_writes_nothing() {
 // P-COOL deterministic-validation reader: shared inputs whose object is gone
 // ---------------------------------------------------------------------------
 
+// Validation at commit `C` reads the object state as of commit `C - K`, the
+// horizon, where `K` is `reader::K` (2). So commit 12 reads the state as of
+// commit 10, and a row produced by commit 11 is above its horizon.
+
 #[track_caller]
 fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
     match verdict {
@@ -3402,9 +3406,9 @@ fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects
     }
 }
 
-/// The handler executed the deletion in the window above the horizon. The
-/// tombstone row is the only place left that knows the initial shared
-/// version, and a wrong declaration must drop at every horizon.
+/// Commit 15 deletes a shared object. The tombstone row is then the only
+/// place that still records the initial shared version, and a wrong declared
+/// version must drop whether the deletion is above the horizon or not.
 #[tokio::test]
 async fn reader_checks_the_declared_version_against_the_deletion_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -3668,8 +3672,8 @@ async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
     ));
 }
 
-/// The entry point passes the reader's verdicts through and answers `Keep`
-/// with the owned references to lock once every check passed.
+/// Validation at a commit passes the reader's results through, and answers
+/// `Keep` with the owned references to lock once every check passed.
 #[tokio::test]
 async fn validation_at_commit_keeps_drops_and_reports_missing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -3859,8 +3863,9 @@ fn assert_owned_drops(verdict: OwnedVerdict, kind: DropKind) {
     }
 }
 
-/// A row at `produced_at = C - K` decides. One commit later it is above the
-/// horizon and answers missing.
+/// A row produced by commit 10 is at the horizon of commit 12 and keeps. For
+/// commit 11, whose horizon is 9, the same row is above the horizon and
+/// answers missing.
 #[tokio::test]
 async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -3886,9 +3891,9 @@ async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
     );
 }
 
-/// Rule 3, the store fallback. Untouched epoch-start objects keep, owned or
-/// immutable. A version consumed by a handler-known commit drops as
-/// superseded.
+/// With no row for an owned input, the reader falls back to the store.
+/// Objects untouched since the epoch started keep, owned or immutable. A
+/// version consumed by a commit the handler has assigned drops as superseded.
 #[tokio::test]
 async fn owned_store_fallback_keeps_untouched_and_drops_superseded_versions() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
