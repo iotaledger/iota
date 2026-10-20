@@ -1933,15 +1933,14 @@ mod tests {
     /// must schedule (and eventually checkpoint) the same set of user
     /// transactions.
     ///
-    /// This test reproduces a divergence: a transaction dropped by load
-    /// shedding is never recorded in the durable
-    /// `consensus_message_processed` set (so its retry can be accepted
-    /// later), but its key has already been inserted into the consensus
-    /// handler's in-memory `processed_cache` LRU. When the transaction is
-    /// retried and committed again after shedding has cleared, a validator
-    /// whose handler kept running skips it via the LRU, while a validator
-    /// that restarted in between (fresh LRU, durable set unset) processes
-    /// and schedules it — a checkpoint fork.
+    /// A transaction dropped by load shedding is not recorded in the durable
+    /// `consensus_message_processed` set, so its retry can be accepted later.
+    /// Without `consensus_dedup_only_recorded_messages`, its key still entered
+    /// the consensus handler's in-memory `processed_cache` LRU: when the
+    /// transaction was retried after shedding cleared, a validator whose
+    /// handler kept running skipped it via the LRU, while a validator that
+    /// restarted in between (fresh LRU, durable set unset) processed and
+    /// scheduled it — a checkpoint fork.
     ///
     /// Scenario, driven by identical commits on both validators:
     /// - Commit A: every committee member broadcasts a 100% overload notification, plus user
@@ -1952,9 +1951,10 @@ mod tests {
     ///   commit A was flushed (the epoch store's consensus-derived state is the same either way —
     ///   only the handler's LRU is lost).
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_load_shedding_dropped_transaction_retry_diverges_across_restart() {
+    async fn test_load_shedding_dropped_transaction_retry_is_processed_after_restart() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(true);
+            config.set_consensus_dedup_only_recorded_messages_for_testing(true);
             config
         });
 
@@ -2083,9 +2083,9 @@ mod tests {
             )
         };
 
-        // Commit A: 100% notifications from all 4 members, then T. T is the
-        // last key inserted into the handler LRU, so it survives even the
-        // smallest randomized test capacity (2).
+        // Commit A: 100% notifications from all 4 members, then T. Without the
+        // flag, T is the last key inserted into the handler LRU, so it survives
+        // even the smallest randomized test capacity (2).
         let mut blocks_a: Vec<_> = (0..4u32)
             .map(|i| notification_block(i, 100 + i, 1, 100))
             .collect();
