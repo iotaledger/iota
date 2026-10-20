@@ -49,9 +49,9 @@ const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB
 const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 
 /// Copies the objects pruner's progress watermark out of `pruned_checkpoint`
-/// into `object_backlog_sweep_bound`, so that the one-time sweep can still
-/// read it after the deprecated column family has been dropped. Writes nothing
-/// when there is no watermark.
+/// into `object_backlog_sweep_bound`, so that it can still be read after the
+/// deprecated column family has been dropped. Writes nothing when there is no
+/// watermark.
 // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
 fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreError> {
     let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
@@ -74,10 +74,7 @@ fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreE
     let mut batch = bound.batch();
     batch.insert_batch(&bound, [((), watermark)])?;
     batch.write_opt(&synced_write_options())?;
-    info!(
-        watermark,
-        "carried the objects pruner's watermark over for the one-time sweep"
-    );
+    info!(watermark, "carried the objects pruner's watermark over");
     Ok(())
 }
 
@@ -221,16 +218,10 @@ pub struct AuthorityPerpetualTables {
 
     /// The last checkpoint the objects pruner pruned, copied out of
     /// `pruned_checkpoint`; absent if the pruner never ran. Every version
-    /// superseded at or below it is already deleted, so the sweep only looks
-    /// above it.
+    /// superseded at or below it is already deleted, so the object history
+    /// is complete only above it.
     // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_backlog_sweep_bound: DBMap<(), CheckpointSequenceNumber>,
-
-    /// The last checkpoint whose superseded versions the bounded sweep has
-    /// relocated. Unused by the unbounded walk, which records its place in
-    /// `object_backlog_sweep_progress`.
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
-    pub(crate) object_backlog_sweep_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 
     /// The epoch whose bucket the one-time sweep moved the superseded
     /// versions into, written when the sweep finishes. Absent where no sweep
@@ -1254,8 +1245,8 @@ mod tests {
         assert_eq!(reconstructed.object_ref(), object_ref);
     }
 
-    /// The objects pruner's watermark is copied into the table the sweep
-    /// reads its bound from.
+    /// The objects pruner's watermark is copied into
+    /// `object_backlog_sweep_bound`.
     #[tokio::test]
     async fn the_objects_pruner_watermark_is_carried_over() {
         let tmp_dir = iota_common::tempdir();
