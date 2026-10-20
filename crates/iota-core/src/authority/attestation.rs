@@ -220,7 +220,7 @@ impl AuthorityState {
             )));
         }
 
-        // Step 7: build AttestationData. The claim is in gas units, independent
+        // Build `AttestationData`. The claim is in gas units, independent
         // of the gas price the user chose.
         let computation_units =
             attestation::computation_units(effects.gas_cost_summary(), tx.gas_price());
