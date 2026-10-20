@@ -30,12 +30,13 @@ use iota_macros::{
     clear_fail_point, register_fail_point, register_fail_point_arg, register_fail_point_async,
     sim_test,
 };
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{Address, TransactionKind};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, dbg_addr},
     messages_checkpoint::CheckpointSequenceNumber,
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::TransactionAPI,
 };
 use rand::distr::{Distribution, Uniform};
@@ -838,10 +839,67 @@ fn hold_execution_on_nodes(
 /// mid-epoch, which saves the same state.
 #[sim_test]
 async fn test_restart_after_switching_with_unexecuted_locally_built_checkpoints() {
-    const AT_RISK_BEFORE_THE_SWITCH: usize = 3;
     telemetry_subscribers::init_for_testing();
     let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
+    restart_after_switching_with_unexecuted_locally_built_checkpoints(test_cluster).await;
+}
+
+/// `test_restart_after_switching_with_unexecuted_locally_built_checkpoints` in
+/// the first epoch after a protocol upgrade turns deterministic validation on.
+/// The validators started with it off, so they hold the synced watermark in
+/// memory only from that epoch change on.
+#[sim_test]
+async fn test_restart_after_switching_with_unexecuted_checkpoints_after_an_upgrade() {
+    const UPGRADE_VERSION: u64 = ProtocolVersion::MAX.as_u64();
+    telemetry_subscribers::init_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        if version.as_u64() >= UPGRADE_VERSION {
+            config.enable_pcool_deterministic_validation_for_testing();
+        }
+        config
+    });
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_protocol_version((UPGRADE_VERSION - 1).into())
+        .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+            UPGRADE_VERSION - 1,
+            UPGRADE_VERSION,
+        ))
+        .with_epoch_duration_ms(60_000)
+        .build()
+        .await;
+    let deterministic_validation = |test_cluster: &TestCluster| {
+        test_cluster
+            .all_validator_handles()
+            .iter()
+            .map(|handle| {
+                handle.with(|node| {
+                    node.state()
+                        .epoch_store_for_testing()
+                        .protocol_config()
+                        .pcool_deterministic_validation()
+                })
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(deterministic_validation(&test_cluster), [false; 4]);
+    test_cluster
+        .wait_for_all_nodes_upgrade_to(UPGRADE_VERSION)
+        .await;
+    assert_eq!(deterministic_validation(&test_cluster), [true; 4]);
+    restart_after_switching_with_unexecuted_locally_built_checkpoints(Arc::new(test_cluster)).await;
+}
+
+/// Switches one validator of `test_cluster` to executing synced checkpoints
+/// while it holds certified checkpoints it built itself whose transactions are
+/// only in memory, restarts it, and checks that the cluster reaches later
+/// epochs on the same checkpoints. Deterministic validation must be on.
+async fn restart_after_switching_with_unexecuted_locally_built_checkpoints(
+    test_cluster: Arc<TestCluster>,
+) {
+    const AT_RISK_BEFORE_THE_SWITCH: usize = 3;
     let names = test_cluster.get_validator_pubkeys();
     let victim = names[0];
     let others = sim_node_ids_of_all_nodes_but(&test_cluster, &victim);
