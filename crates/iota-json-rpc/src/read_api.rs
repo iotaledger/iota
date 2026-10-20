@@ -6,8 +6,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use backoff::{ExponentialBackoff, future::retry};
-use futures::{StreamExt, TryStreamExt, future::join_all, stream};
+use futures::{StreamExt, future::join_all, stream};
 use indexmap::map::IndexMap;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
@@ -52,7 +51,7 @@ use tracing::{debug, error, instrument, trace, warn};
 use crate::{
     IotaRpcModule, ObjectProvider, ObjectProviderCache,
     authority_state::{StateRead, StateReadError, StateReadResult},
-    error::{Error, IotaRpcInputError, RpcInterimResult},
+    error::{Error, IotaRpcInputError},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing as _,
 };
@@ -60,6 +59,9 @@ use crate::{
 const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
 /// Size of buffer of concurrent tasks
 const FUTURES_BUFFERED_SIZE: usize = 10;
+/// How long to keep retrying events that are missing for a transaction.
+const EVENTS_RETRY_TIMEOUT: Duration = Duration::from_secs(3);
+const EVENTS_RETRY_INTERVAL: Duration = Duration::from_millis(500);
 
 // An implementation of the read portion of the JSON-RPC interface intended for
 // use in Fullnodes.
@@ -250,7 +252,7 @@ impl ReadApi {
         let opts = opts.unwrap_or_default();
 
         // use LinkedHashMap to dedup and can iterate in insertion order.
-        let mut temp_response: IndexMap<TransactionDigest, IntermediateTransactionResponse> =
+        let temp_response: IndexMap<TransactionDigest, IntermediateTransactionResponse> =
             IndexMap::from_iter(
                 digests
                     .iter()
@@ -260,40 +262,86 @@ impl ReadApi {
             Err(IotaRpcInputError::ContainsDuplicates)?
         }
 
-        if opts.require_input() {
-            trace!("getting input");
-            let digests_clone = digests.clone();
-            let transactions =
-                self.transaction_kv_store.multi_get_tx(&digests_clone).await.tap_err(
-                    |err| debug!(digests=?digests_clone, "Failed to multi get transactions: {:?}", err),
-                )?;
+        let converted_tx_block_resps = self
+            .load_transaction_block_responses(temp_response, &opts)
+            .await?;
 
-            for ((_digest, cache_entry), txn) in temp_response.iter_mut().zip(transactions) {
-                cache_entry.transaction = txn;
-            }
-        }
+        self.metrics
+            .get_tx_blocks_result_size
+            .observe(converted_tx_block_resps.len() as f64);
+        self.metrics
+            .get_tx_blocks_result_size_total
+            .inc_by(converted_tx_block_resps.len() as u64);
 
+        trace!("done");
+
+        Ok(converted_tx_block_resps)
+    }
+
+    /// Loads what `opts` asks for into each entry and returns the responses in
+    /// the same order. Transactions and effects already in an entry are not
+    /// loaded again. Data missing or failing to convert for one transaction is
+    /// reported in that transaction's `errors`; only a failing store read
+    /// fails the whole call.
+    async fn load_transaction_block_responses(
+        &self,
+        mut temp_response: IndexMap<TransactionDigest, IntermediateTransactionResponse>,
+        opts: &IotaTransactionBlockResponseOptions,
+    ) -> Result<Vec<IotaTransactionBlockResponse>, Error> {
         // Fetch effects when `show_events` is true because events relies on effects
         if opts.require_effects() {
             trace!("getting effects");
-            let digests_clone = digests.clone();
+            let digests = temp_response
+                .values()
+                .filter(|cache_entry| cache_entry.effects.is_none())
+                .map(|cache_entry| cache_entry.digest)
+                .collect::<Vec<_>>();
             let effects_list = self.transaction_kv_store
-                .multi_get_fx_by_tx_digest(&digests_clone)
+                .multi_get_fx_by_tx_digest(&digests)
                 .await
                 .tap_err(
-                    |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
+                    |err| debug!(digests=?digests, "Failed to multi get effects for transactions: {:?}", err),
                 )?;
-            for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
-                cache_entry.effects = e;
+            for (digest, effects) in digests.iter().zip(effects_list) {
+                if let Some(cache_entry) = temp_response.get_mut(digest) {
+                    cache_entry.effects = effects;
+                }
             }
         }
 
-        // Fields that depend on a missing transaction or missing effects are left
-        // out of that entry without further errors.
+        // The transaction is also fetched when the effects are missing, to tell an
+        // unknown transaction from one whose effects are missing.
+        trace!("getting input");
+        let digests = temp_response
+            .values()
+            .filter(|cache_entry| {
+                cache_entry.transaction.is_none()
+                    && (opts.require_input() || cache_entry.effects.is_none())
+            })
+            .map(|cache_entry| cache_entry.digest)
+            .collect::<Vec<_>>();
+        let transactions = self
+            .transaction_kv_store
+            .multi_get_tx(&digests)
+            .await
+            .tap_err(
+                |err| debug!(digests=?digests, "Failed to multi get transactions: {:?}", err),
+            )?;
+        // One error per entry; the fields that can't be derived without the missing
+        // transaction or effects are then left out without further errors.
+        for (digest, transaction) in digests.iter().zip(transactions) {
+            if let Some(cache_entry) = temp_response.get_mut(digest) {
+                if transaction.is_none() {
+                    cache_entry.errors.push("transaction not found".to_string());
+                }
+                cache_entry.transaction = transaction;
+            }
+        }
         for cache_entry in temp_response.values_mut() {
-            if opts.require_input() && cache_entry.transaction.is_none() {
-                cache_entry.errors.push("transaction not found".to_string());
-            } else if opts.require_effects() && cache_entry.effects.is_none() {
+            if opts.require_effects()
+                && cache_entry.effects.is_none()
+                && cache_entry.transaction.is_some()
+            {
                 cache_entry
                     .errors
                     .push("transaction effects not found".to_string());
@@ -301,6 +349,7 @@ impl ReadApi {
         }
 
         trace!("getting checkpoint sequence numbers");
+        let digests = temp_response.keys().copied().collect::<Vec<_>>();
         let checkpoint_seq_list = self
             .transaction_kv_store
             .multi_get_transactions_perpetual_checkpoints(&digests)
@@ -351,38 +400,20 @@ impl ReadApi {
 
         if opts.show_events {
             trace!("getting events");
-            let mut non_empty_digests = vec![];
-            for cache_entry in temp_response.values() {
-                if let Some(effects) = &cache_entry.effects {
-                    if effects.events_digest().is_some() {
-                        non_empty_digests.push(cache_entry.digest);
-                    }
-                }
-            }
-            // fetch events from the DB with retry, retry each 0.5s for 3s
-            let backoff = ExponentialBackoff {
-                max_elapsed_time: Some(Duration::from_secs(3)),
-                multiplier: 1.0,
-                ..ExponentialBackoff::default()
-            };
-            // Retry while some events are missing; once the time is up, the events
-            // found so far are used and each missing one is reported in its own entry.
-            let mut events = retry(backoff, || async {
-                match self
-                    .transaction_kv_store
-                    .multi_get_events_by_tx_digests(&non_empty_digests)
-                    .await
-                {
-                    Ok(events) if !events.contains(&None) => Ok(events),
-                    Ok(events) => Err(backoff::Error::transient(Ok(events))),
-                    Err(e) => Err(backoff::Error::permanent(Err(Error::Unexpected(format!(
-                        "retrieving events failed for transaction digests {digests:?}: {e:?}"
-                    ))))),
-                }
-            })
-            .await
-            .or_else(|partial_or_err| partial_or_err)?
-            .into_iter();
+            let non_empty_digests = temp_response
+                .values()
+                .filter(|cache_entry| {
+                    cache_entry
+                        .effects
+                        .as_ref()
+                        .is_some_and(|effects| effects.events_digest().is_some())
+                })
+                .map(|cache_entry| cache_entry.digest)
+                .collect::<Vec<_>>();
+            let mut events = self
+                .get_events_with_retry(&non_empty_digests)
+                .await?
+                .into_iter();
 
             // fill cache with the events
             for (_, cache_entry) in temp_response.iter_mut() {
@@ -407,8 +438,7 @@ impl ReadApi {
                         }
                     }
                 } else if cache_entry.effects.is_some() {
-                    // events field will be Some if and only if `show_events` is true and
-                    // there is no error in converting fetching events
+                    // The effects show that the transaction has no events.
                     cache_entry.events = Some(IotaTransactionBlockEvents::default());
                 }
             }
@@ -419,44 +449,58 @@ impl ReadApi {
             let object_cache =
                 ObjectProviderCache::new((self.state.clone(), self.transaction_kv_store.clone()));
             join_all(temp_response.values_mut().map(|cache_entry| {
-                // Without the transaction (not requested, or not found) balance changes
-                // are derived from the effects alone.
                 let input_objects = cache_entry
                     .transaction
                     .as_ref()
                     .and_then(|tx| tx.data().transaction().input_objects().ok())
                     .unwrap_or_default();
-                add_balance_and_object_changes(cache_entry, &opts, &object_cache, input_objects)
+                add_balance_and_object_changes(cache_entry, opts, &object_cache, input_objects)
             }))
             .await;
         }
 
-        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let epoch_store = opts
+            .show_input
+            .then(|| self.state.load_epoch_store_one_call_per_task());
+        let module_cache = epoch_store
+            .as_ref()
+            .map(|epoch_store| epoch_store.module_cache());
         let resolver = Resolver::new(self.clone());
 
-        let converted_tx_block_resps: Vec<_> = stream::iter(temp_response)
+        Ok(stream::iter(temp_response)
             .map(|(_, interim_response)| {
-                convert_to_response(
-                    interim_response,
-                    &opts,
-                    epoch_store.module_cache(),
-                    &resolver,
-                )
+                convert_to_response(interim_response, opts, module_cache, &resolver)
             })
             .buffered(FUTURES_BUFFERED_SIZE)
-            .try_collect()
-            .await?;
+            .collect()
+            .await)
+    }
 
-        self.metrics
-            .get_tx_blocks_result_size
-            .observe(converted_tx_block_resps.len() as f64);
-        self.metrics
-            .get_tx_blocks_result_size_total
-            .inc_by(converted_tx_block_resps.len() as u64);
-
-        trace!("done");
-
-        Ok(converted_tx_block_resps)
+    /// Returns the events of each of `digests`, in the same order. Retries for
+    /// a while when some are missing, and then returns `None` for those.
+    async fn get_events_with_retry(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Result<Vec<Option<TransactionEvents>>, Error> {
+        let deadline = tokio::time::Instant::now() + EVENTS_RETRY_TIMEOUT;
+        loop {
+            let events = self
+                .transaction_kv_store
+                .multi_get_events_by_tx_digests(digests)
+                .await
+                .map_err(|e| {
+                    Error::Unexpected(format!(
+                        "failed to fetch events for transactions {}: {e}",
+                        digests.iter().join(", ")
+                    ))
+                })?;
+            // Events of a transaction can become readable a little after its
+            // effects.
+            if !events.contains(&None) || tokio::time::Instant::now() >= deadline {
+                return Ok(events);
+            }
+            tokio::time::sleep(EVENTS_RETRY_INTERVAL).await;
+        }
     }
 }
 
@@ -747,30 +791,22 @@ impl ReadApiServer for ReadApi {
             let opts = opts.unwrap_or_default();
             let mut temp_response = IntermediateTransactionResponse::new(digest);
 
-            // Fetch transaction to determine existence
+            // Unlike in the multi-get, a missing transaction or missing effects
+            // fail the request.
             let transaction_kv_store = self.transaction_kv_store.clone();
-            let transaction = spawn_monitored_task!(async move {
-                let ret = transaction_kv_store.get_tx(digest).await.map_err(|err| {
-                    debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
-                    Error::from(err)
-                });
-                add_server_timing("tx_kv_lookup");
-                ret
-            })
-            .await
-            .map_err(Error::from)??;
-            let input_objects = transaction
-                .data()
-                .transaction()
-                .input_objects()
-                .unwrap_or_default();
+            temp_response.transaction = Some(
+                spawn_monitored_task!(async move {
+                    let ret = transaction_kv_store.get_tx(digest).await.map_err(|err| {
+                        debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
+                        Error::from(err)
+                    });
+                    add_server_timing("tx_kv_lookup");
+                    ret
+                })
+                .await
+                .map_err(Error::from)??,
+            );
 
-            // the input is needed for object_changes to retrieve the sender address.
-            if opts.require_input() {
-                temp_response.transaction = Some(transaction);
-            }
-
-            // Fetch effects when `show_events` is true because events relies on effects
             if opts.require_effects() {
                 let transaction_kv_store = self.transaction_kv_store.clone();
                 temp_response.effects = Some(
@@ -788,83 +824,10 @@ impl ReadApiServer for ReadApi {
                 );
             }
 
-            // `AuthorityPerpetualTables::executed_transactions_to_checkpoint`
-            // table and `CheckpointCache` trait exist for the sole purpose
-            // of being able to execute the following call below.
-            // It if gets removed or rewritten then the table and associated
-            // code can be removed as well.
-            temp_response.checkpoint_seq = self
-                .transaction_kv_store
-                .get_transaction_perpetual_checkpoint(digest)
-                .await
-                .map_err(|e| {
-                    error!("failed to retrieve checkpoint sequence for transaction {digest} with error: {e:?}");
-                    Error::from(e)
-                })?;
-
-            if let Some(checkpoint_seq) = &temp_response.checkpoint_seq {
-                let kv_store = self.transaction_kv_store.clone();
-                let checkpoint_seq = *checkpoint_seq;
-                let checkpoint = spawn_monitored_task!(async move {
-                    kv_store
-                    // safe to unwrap because we have checked `is_some` above
-                    .get_checkpoint_summary(checkpoint_seq)
-                    .await
-                    .map_err(|e| {
-                        error!("failed to get checkpoint by sequence number: {checkpoint_seq:?} with error: {e:?}");
-                        Error::from(e)
-                    })
-                }).await.map_err(Error::from)??;
-                // TODO(chris): we don't need to fetch the whole checkpoint summary
-                temp_response.timestamp = Some(checkpoint.timestamp_ms);
-            }
-
-            if let Some(effects) = temp_response.effects.as_ref().filter(|_| opts.show_events) {
-                let events_digest = effects.events_digest().copied();
-                let transaction_kv_store = self.transaction_kv_store.clone();
-                let events = spawn_monitored_task!(async move {
-                    transaction_kv_store
-                        .multi_get_events_by_tx_digests(&[digest])
-                        .await
-                        .map_err(|e| {
-                            error!("failed to call get transaction events for transaction: {digest} with error {e:?}");
-                            Error::from(e)
-                        })
-                    })
-                    .await
-                    .map_err(Error::from)??
-                    .pop()
-                    .flatten();
-                match (events, events_digest) {
-                    (Some(events), _) => match to_iota_transaction_events(self, digest, events) {
-                        Ok(e) => temp_response.events = Some(e),
-                        Err(e) => temp_response.errors.push(e.to_string()),
-                    },
-                    (None, None) => {
-                        temp_response.events = Some(IotaTransactionBlockEvents::default())
-                    }
-                    (None, Some(events_digest)) => temp_response.errors.push(format!(
-                        "failed to fetch events with event digest {events_digest}",
-                    )),
-                }
-            }
-
-            if opts.show_balance_changes || opts.show_object_changes {
-                let object_cache = ObjectProviderCache::new((
-                    self.state.clone(),
-                    self.transaction_kv_store.clone(),
-                ));
-                add_balance_and_object_changes(
-                    &mut temp_response,
-                    &opts,
-                    &object_cache,
-                    input_objects,
-                )
-                .await;
-            }
-            let epoch_store = self.state.load_epoch_store_one_call_per_task();
-            let resolver = Resolver::new(self.clone());
-            convert_to_response(temp_response, &opts, epoch_store.module_cache(), &resolver).await
+            self.load_transaction_block_responses(IndexMap::from([(digest, temp_response)]), &opts)
+                .await?
+                .pop()
+                .ok_or_else(|| Error::Unexpected(format!("no response for transaction {digest}")))
         }
         .trace()
         .await
@@ -1299,52 +1262,65 @@ fn get_value_from_move_struct(
     }
 }
 
+/// Converts `cache` to a response with the fields `opts` asks for. A field that
+/// fails to convert is left out and the failure is added to `errors`.
+/// `module_cache` is only needed when `opts.show_input` is set.
 async fn convert_to_response<S: PackageStore>(
     cache: IntermediateTransactionResponse,
     opts: &IotaTransactionBlockResponseOptions,
-    module_cache: &impl GetModule,
+    module_cache: Option<&impl GetModule>,
     resolver: &Resolver<S>,
-) -> RpcInterimResult<IotaTransactionBlockResponse> {
+) -> IotaTransactionBlockResponse {
     let mut response = IotaTransactionBlockResponse::new(cache.digest);
     response.errors = cache.errors;
 
     if opts.show_raw_input {
         if let Some(transaction) = &cache.transaction {
-            let sender_signed_data = transaction.data();
-            let raw_tx = bcs::to_bytes(sender_signed_data)
-                .map_err(|e| anyhow!("Failed to serialize raw transaction with error: {e}"))?; // TODO: is this a client or server error?
-            response.raw_transaction = raw_tx;
+            match bcs::to_bytes(transaction.data()) {
+                Ok(raw_tx) => response.raw_transaction = raw_tx,
+                Err(e) => response
+                    .errors
+                    .push(format!("failed to serialize raw transaction: {e}")),
+            }
         }
     }
 
     if opts.show_input {
-        if let Some(transaction) = cache.transaction {
-            let tx_block = IotaTransactionBlock::try_from(
+        if let (Some(transaction), Some(module_cache)) = (cache.transaction, module_cache) {
+            match IotaTransactionBlock::try_from(
                 transaction.into_data(),
                 module_cache,
                 cache.digest,
-            )?;
-            response.transaction = Some(tx_block);
+            ) {
+                Ok(tx_block) => response.transaction = Some(tx_block),
+                Err(e) => response
+                    .errors
+                    .push(format!("failed to convert transaction: {e}")),
+            }
         }
     }
 
     if opts.show_raw_effects {
-        let raw_effects = cache
-            .effects
-            .as_ref()
-            .map(bcs::to_bytes)
-            .transpose()
-            .map_err(|e| anyhow!("Failed to serialize raw effects with error: {e}"))?
-            .unwrap_or_default();
-        response.raw_effects = raw_effects;
+        if let Some(effects) = &cache.effects {
+            match bcs::to_bytes(effects) {
+                Ok(raw_effects) => response.raw_effects = raw_effects,
+                Err(e) => response
+                    .errors
+                    .push(format!("failed to serialize raw effects: {e}")),
+            }
+        }
     }
 
     if opts.show_effects {
         if let Some(effects) = cache.effects {
-            let effects =
-                IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver)
-                    .await?;
-            response.effects = Some(effects);
+            match IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver)
+                .await
+            {
+                Ok(effects) => response.effects = Some(effects),
+                Err(e) => response
+                    .errors
+                    .push(format!("failed to convert effects: {e}")),
+            }
         }
     }
 
@@ -1363,7 +1339,7 @@ async fn convert_to_response<S: PackageStore>(
         response.object_changes = cache.object_changes;
     }
 
-    Ok(response)
+    response
 }
 
 fn calculate_checkpoint_numbers(
@@ -1427,7 +1403,7 @@ mod tests {
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
         CheckpointContents, CheckpointDigest, CheckpointSummary, GasCostSummary,
-        TransactionEffectsDigest, TransactionEvents,
+        TransactionEffectsDigest, TransactionEvents, TransactionEventsDigest,
     };
     use iota_storage::{
         key_value_store::{
@@ -1438,6 +1414,7 @@ mod tests {
     use iota_types::{
         base_types::ExecutionDigests,
         crypto::AuthorityStrongQuorumSignInfo,
+        effects::TestEffectsBuilder,
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
@@ -1445,6 +1422,7 @@ mod tests {
         },
         object::Object,
         storage::ObjectKey,
+        transaction::VerifiedTransaction,
     };
     use mockall::mock;
     use roaring::RoaringBitmap;
@@ -1692,5 +1670,155 @@ mod tests {
                 checkpoint.sequence_number,
             );
         }
+    }
+
+    // A key-value store that answers transaction reads from the given maps and
+    // has no checkpoints. Events are never found.
+    fn test_read_api(
+        transactions: HashMap<TransactionDigest, TransactionEnvelope>,
+        effects: HashMap<TransactionDigest, TransactionEffects>,
+    ) -> ReadApi {
+        let mut mock_kv = MockCheckpointKvStore::new();
+        mock_kv
+            .expect_multi_get()
+            .returning(move |transaction_digests, effects_digests| {
+                Ok((
+                    transaction_digests
+                        .iter()
+                        .map(|digest| transactions.get(digest).cloned())
+                        .collect(),
+                    effects_digests
+                        .iter()
+                        .map(|digest| effects.get(digest).cloned())
+                        .collect(),
+                ))
+            });
+        mock_kv
+            .expect_multi_get_transactions_perpetual_checkpoints()
+            .returning(|digests| Ok(vec![None; digests.len()]));
+        mock_kv
+            .expect_multi_get_checkpoints()
+            .returning(|_, _, _| Ok((vec![], vec![], vec![])));
+        mock_kv
+            .expect_multi_get_events_by_tx_digests()
+            .returning(|digests| Ok(vec![None; digests.len()]));
+
+        ReadApi {
+            state: Arc::new(MockStateRead::new()),
+            transaction_kv_store: Arc::new(TransactionKeyValueStore::new(
+                "test",
+                KeyValueStoreMetrics::new_for_tests(),
+                Arc::new(mock_kv),
+            )),
+            metrics: Arc::new(JsonRpcMetrics::new_for_tests()),
+        }
+    }
+
+    fn test_transaction() -> TransactionEnvelope {
+        VerifiedTransaction::new_genesis_transaction(vec![], vec![]).into_inner()
+    }
+
+    #[tokio::test]
+    async fn test_multi_get_reports_missing_transaction_and_effects_per_entry() {
+        let without_effects = TransactionDigest::new([1; 32]);
+        let unknown = TransactionDigest::new([2; 32]);
+        let read_api = test_read_api(
+            HashMap::from([(without_effects, test_transaction())]),
+            HashMap::new(),
+        );
+        let options = IotaTransactionBlockResponseOptions::default()
+            .with_events()
+            .with_balance_changes();
+
+        let responses = read_api
+            .multi_get_transaction_blocks_internal(vec![without_effects, unknown], Some(options))
+            .await
+            .unwrap();
+
+        assert_eq!(responses.len(), 2);
+        assert_eq!(responses[0].digest, without_effects);
+        assert_eq!(responses[0].errors, vec!["transaction effects not found"]);
+        assert_eq!(responses[1].digest, unknown);
+        assert_eq!(responses[1].errors, vec!["transaction not found"]);
+        for response in &responses {
+            assert!(response.events.is_none());
+            assert!(response.balance_changes.is_none());
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_multi_get_reports_events_missing_after_retry_per_entry() {
+        let transaction = test_transaction();
+        let events_digest = TransactionEventsDigest::new([3; 32]);
+        let with_events = TransactionDigest::new([1; 32]);
+        let without_events = TransactionDigest::new([2; 32]);
+        let read_api = test_read_api(
+            HashMap::from([
+                (with_events, transaction.clone()),
+                (without_events, transaction.clone()),
+            ]),
+            HashMap::from([
+                (
+                    with_events,
+                    TestEffectsBuilder::new(transaction.data())
+                        .with_events_digest(events_digest)
+                        .build(),
+                ),
+                (
+                    without_events,
+                    TestEffectsBuilder::new(transaction.data()).build(),
+                ),
+            ]),
+        );
+
+        let responses = read_api
+            .multi_get_transaction_blocks_internal(
+                vec![with_events, without_events],
+                Some(IotaTransactionBlockResponseOptions::default().with_events()),
+            )
+            .await
+            .unwrap();
+
+        assert!(responses[0].events.is_none());
+        assert_eq!(
+            responses[0].errors,
+            vec![format!(
+                "failed to fetch events with event digest {events_digest}"
+            )]
+        );
+        assert_eq!(responses[1].events, Some(Default::default()));
+        assert!(responses[1].errors.is_empty(), "{:?}", responses[1].errors);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_get_transaction_block_reports_missing_events() {
+        let transaction = test_transaction();
+        let events_digest = TransactionEventsDigest::new([3; 32]);
+        let digest = TransactionDigest::new([1; 32]);
+        let read_api = test_read_api(
+            HashMap::from([(digest, transaction.clone())]),
+            HashMap::from([(
+                digest,
+                TestEffectsBuilder::new(transaction.data())
+                    .with_events_digest(events_digest)
+                    .build(),
+            )]),
+        );
+
+        let response = read_api
+            .get_transaction_block(
+                digest,
+                Some(IotaTransactionBlockResponseOptions::default().with_events()),
+            )
+            .await
+            .unwrap();
+
+        assert!(response.events.is_none());
+        assert_eq!(
+            response.errors,
+            vec![format!(
+                "failed to fetch events with event digest {events_digest}"
+            )]
+        );
     }
 }

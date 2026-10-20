@@ -6785,7 +6785,6 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "axum 0.8.8",
- "backoff",
  "bcs 0.2.1",
  "cached",
  "chrono",

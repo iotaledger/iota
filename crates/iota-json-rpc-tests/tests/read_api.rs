@@ -763,27 +763,13 @@ async fn multi_get_transaction_blocks_reports_an_unknown_digest_per_transaction(
         .digest;
     let unknown = TransactionDigest::new([7; 32]);
 
-    for (options, expected_error) in [
-        (
-            IotaTransactionBlockResponseOptions::default().with_input(),
-            "transaction not found",
-        ),
-        (
-            IotaTransactionBlockResponseOptions::default().with_effects(),
-            "transaction effects not found",
-        ),
-        (
-            IotaTransactionBlockResponseOptions::default().with_events(),
-            "transaction effects not found",
-        ),
-        (
-            IotaTransactionBlockResponseOptions::default().with_balance_changes(),
-            "transaction effects not found",
-        ),
-        (
-            IotaTransactionBlockResponseOptions::full_content(),
-            "transaction not found",
-        ),
+    for options in [
+        IotaTransactionBlockResponseOptions::default(),
+        IotaTransactionBlockResponseOptions::default().with_input(),
+        IotaTransactionBlockResponseOptions::default().with_effects(),
+        IotaTransactionBlockResponseOptions::default().with_events(),
+        IotaTransactionBlockResponseOptions::default().with_balance_changes(),
+        IotaTransactionBlockResponseOptions::full_content(),
     ] {
         let blocks = http_client
             .multi_get_transaction_blocks(vec![known, unknown], Some(options.clone()))
@@ -802,7 +788,7 @@ async fn multi_get_transaction_blocks_reports_an_unknown_digest_per_transaction(
         assert!(missing.events.is_none());
         assert!(missing.balance_changes.is_none());
         assert!(missing.object_changes.is_none());
-        assert_eq!(missing.errors, vec![expected_error], "{options:?}");
+        assert_eq!(missing.errors, vec!["transaction not found"], "{options:?}");
     }
 }
 

@@ -15,7 +15,6 @@ anyhow.workspace = true
 arc-swap.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-backoff.workspace = true
 bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true
@@ -68,6 +67,7 @@ typed-store.workspace = true
 expect-test.workspace = true
 mockall.workspace = true
 roaring.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 telemetry-subscribers.workspace = true
