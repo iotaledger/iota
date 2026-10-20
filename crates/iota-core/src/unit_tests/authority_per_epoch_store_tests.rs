@@ -2123,6 +2123,17 @@ mod handler_object_state_storage {
         }
     }
 
+    /// Turns on P-COOL deterministic validation, without which the quarantine
+    /// flush derives no handler rows. Build the authority while the guard
+    /// lives.
+    fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        })
+    }
+
     #[tokio::test]
     async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
         let _guard =
@@ -2247,8 +2258,6 @@ mod handler_object_state_storage {
         );
     }
 
-    /// A handler-known execution puts its rows in the overlay, produced at
-    /// the commit the handler assigned.
     #[tokio::test]
     async fn map_hit_writes_handler_rows_at_the_assigned_commit() {
         let _guard =
@@ -2278,12 +2287,7 @@ mod handler_object_state_storage {
     /// never moves down.
     #[tokio::test]
     async fn highest_fully_executed_commit_resumes_from_the_flushed_commit() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_enable_pcool_flow_for_testing(true);
-                config.set_pcool_deterministic_validation_for_testing(true);
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let store = authority.epoch_store_for_testing().clone();
         let assert_highest = |store: &AuthorityPerEpochStore, index: CommitIndex| {

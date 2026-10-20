@@ -1875,22 +1875,29 @@ impl AuthorityPerEpochStore {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(());
         };
+        let tables = self.tables()?;
+        // Outside the lock: a row found stays found, since rows are never
+        // deleted and are evicted only once durable. A row that appears after
+        // this check is inserted again with the same value, and the commit's
+        // flush writes and evicts it like any other row still in the overlay.
+        let inserts = handler_object_state.rows_not_yet_present(&tables, upserts)?;
         // Held so a flush cannot complete this commit between the guard inside
         // and the upserts: the flush runs under the write lock throughout.
         let _quarantine = self.consensus_quarantine.read();
-        handler_object_state.record_commit_fully_executed(index, upserts);
+        handler_object_state.record_commit_fully_executed(index, upserts, &inserts);
         Ok(())
     }
 
-    /// Derives the rows of a commit flushing out of the quarantine from the
-    /// effects of the transactions it checkpointed, and stages them into
-    /// `batch`. Returns them for the caller to evict once `batch` is durable,
-    /// or `None` when the bookkeeping is off.
+    /// Stages the handler rows of a commit flushing out of the quarantine into
+    /// `batch`. Returns them for the caller to evict once `batch` is durable, or `None`
+    /// when the bookkeeping is off.
     ///
-    /// The rows come from the effects rather than from the overlay because the
-    /// overlay holds nothing for a commit replayed after a restart: its
-    /// transactions executed before the crash, so the execution hook does not
-    /// run for them again.
+    /// A commit the watcher completed stages only its rows still in the
+    /// overlay; see [`HandlerObjectState::take_completed_commit_rows`].
+    /// Otherwise the flush completes the commit, deriving its rows from the
+    /// effects of the transactions it checkpointed: the overlay holds nothing
+    /// for a commit replayed after a restart, since its transactions executed
+    /// before the crash and the execution hook does not run for them again.
     fn stage_flushed_commit_rows(
         &self,
         index: CommitIndex,
@@ -1904,39 +1911,56 @@ impl AuthorityPerEpochStore {
             return Ok(None);
         }
         let tables = self.tables()?;
+        let rows = match handler_object_state.take_completed_commit_rows(index) {
+            Some(rows) => rows,
+            None => {
+                let rows = self.handler_rows_from_effects(&tables, index, pending_checkpoints)?;
+                handler_object_state.complete_commit_at_flush(index, &rows);
+                rows
+            }
+        };
+        handler_object_state.write_commit_rows_to_batch(&tables, batch, &rows)?;
+        Ok(Some(FlushedCommitRows { index, rows }))
+    }
+
+    /// The handler rows of commit `index`, derived from the effects of the
+    /// transactions its pending checkpoints hold.
+    ///
+    /// Every root of a flushing commit is in a checkpoint that has been built
+    /// and executed, so it has a digest and effects. A root missing either is
+    /// an error, so the flush batch is never written without its rows.
+    fn handler_rows_from_effects(
+        &self,
+        tables: &AuthorityEpochTables,
+        index: CommitIndex,
+        pending_checkpoints: &[PendingCheckpoint],
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
         let mut digests = Vec::new();
         for key in pending_checkpoints
             .iter()
             .flat_map(|checkpoint| checkpoint.roots())
         {
-            match key {
-                TransactionKey::Digest(digest) => digests.push(*digest),
-                // Every root of a flushing commit is in a checkpoint that has
-                // been built and executed, so it has a digest and effects.
-                key => match tables.transaction_key_to_digest.get(key)? {
-                    Some(digest) => digests.push(digest),
-                    None => debug_fatal!("no digest for root {key:?} of flushing commit {index}"),
-                },
-            }
+            let digest = match key {
+                TransactionKey::Digest(digest) => *digest,
+                key => tables.transaction_key_to_digest.get(key)?.ok_or_else(|| {
+                    IotaError::GenericAuthority {
+                        error: format!("no digest for root {key:?} of flushing commit {index}"),
+                    }
+                })?,
+            };
+            digests.push(digest);
         }
 
-        let effects: Vec<_> = self
+        let effects = self
             .effects_store()
             .multi_get_executed_effects(&digests)
             .into_iter()
             .zip(&digests)
-            .filter_map(|(effects, digest)| {
-                if effects.is_none() {
-                    debug_fatal!("no effects for {digest} of flushing commit {index}");
-                }
-                effects
+            .map(|(effects, digest)| {
+                effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
             })
-            .collect();
-        let rows = handler_rows_for_commit(&effects, index);
-
-        handler_object_state.complete_commit_at_flush(index, &rows);
-        handler_object_state.write_commit_rows_to_batch(&tables, batch, &rows)?;
-        Ok(Some(FlushedCommitRows { index, rows }))
+            .collect::<IotaResult<Vec<_>>>()?;
+        Ok(handler_rows_for_commit(&effects, index))
     }
 
     /// Evicts the overlay entries of commits whose rows are now durable, and
@@ -1949,6 +1973,44 @@ impl AuthorityPerEpochStore {
         for commit in flushed {
             handler_object_state.evict_flushed_commit_rows(commit.index, &commit.rows);
         }
+    }
+
+    /// Makes the handler rows left by the executions behind `effects` - one
+    /// checkpoint's transactions - durable, then evicts them from the
+    /// overlay. The checkpoint executor calls this before this checkpoint's
+    /// outputs and its commits' quarantine flushes, so an object is never
+    /// durable without its handler row. Does nothing when the bookkeeping is
+    /// off or the epoch has ended.
+    ///
+    /// Takes no lock: rows never change once written for a key, and no flush
+    /// deletes them, so this write commutes with every other row write.
+    pub fn persist_checkpoint_bookkeeping<'a>(
+        &self,
+        effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    ) -> IotaResult {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(());
+        };
+        if !self.protocol_config.pcool_deterministic_validation() {
+            return Ok(());
+        }
+        let tables = match self.tables() {
+            Ok(tables) => tables,
+            Err(IotaError::EpochEnded(_)) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        let rows = handler_object_state.checkpoint_rows(effects);
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let mut batch = tables.handler_processed_objects.batch();
+        handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
+        batch.write()?;
+        // Lets a test crash the node with the bookkeeping durable and the
+        // checkpoint's outputs not.
+        fail_point!("crash-after-checkpoint-bookkeeping-write");
+        handler_object_state.evict_flushed_checkpoint_rows(&rows);
+        Ok(())
     }
 
     /// The handler-processed row at `key`, the exact version a transaction
@@ -1972,19 +2034,34 @@ impl AuthorityPerEpochStore {
     }
 
     /// Durably writes `handler_rows`, then evicts them from the overlay - the
-    /// quarantine flush's write-then-evict order, without its row derivation
-    /// or its completion of the commit. Tests of the flush itself use
-    /// [`Self::flush_commit_through_quarantine_for_testing`].
+    /// quarantine flush's locking and write-then-evict order, without its row
+    /// derivation or its completion of the commit. Tests of the flush itself
+    /// use [`Self::flush_commit_through_quarantine_for_testing`].
     #[cfg(test)]
     pub fn flush_commit_rows_for_testing(
         &self,
         commit_index: CommitIndex,
         handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
     ) -> IotaResult {
+        self.flush_commit_rows_interleaved_for_testing(commit_index, handler_rows, || {})
+    }
+
+    /// [`Self::flush_commit_rows_for_testing`] with `between` run once the
+    /// rows are staged and before the batch is written, still
+    /// under the quarantine write lock.
+    #[cfg(test)]
+    pub fn flush_commit_rows_interleaved_for_testing(
+        &self,
+        commit_index: CommitIndex,
+        handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+        between: impl FnOnce(),
+    ) -> IotaResult {
         let tables = self.tables()?;
+        let _quarantine = self.consensus_quarantine.write();
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state_for_testing()
             .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+        between();
         batch.write()?;
         self.handler_object_state_for_testing()
             .evict_flushed_commit_rows(commit_index, &handler_rows);
@@ -2001,16 +2078,63 @@ impl AuthorityPerEpochStore {
         Ok(self.tables()?.handler_processed_objects.get(key)?)
     }
 
+    /// Runs `during` while holding the consensus quarantine write lock, as a
+    /// commit push or a quarantine flush does.
+    #[cfg(test)]
+    pub fn hold_consensus_quarantine_for_testing(&self, during: impl FnOnce()) {
+        let _quarantine = self.consensus_quarantine.write();
+        during();
+    }
+
     /// Flushes commit `index` out of the consensus quarantine through the
     /// same path a running node takes, with one pending checkpoint of `roots`
     /// at height `index` and checkpoint sequence number `index`. Calls must
-    /// use increasing indices.
+    /// use increasing indices. Returns the handler rows the flush wrote.
     #[cfg(test)]
     pub fn flush_commit_through_quarantine_for_testing(
         &self,
         index: CommitIndex,
         roots: Vec<TransactionDigest>,
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let summary = self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        Ok(self
+            .finalize_checkpoint(&summary, &roots)?
+            .into_iter()
+            .flat_map(|commit| commit.rows)
+            .collect())
+    }
+
+    /// [`Self::flush_commit_through_quarantine_for_testing`] with `between`
+    /// run once the flush has completed the commit and staged its rows, and
+    /// before the batch is written, still under the quarantine write lock.
+    /// Runs only the flush part of the finalized checkpoint's handling.
+    #[cfg(test)]
+    pub fn flush_commit_through_quarantine_interleaved_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: Vec<TransactionDigest>,
+        between: impl FnOnce(),
     ) -> IotaResult {
+        self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        let tables = self.tables()?;
+        let mut batch = tables.signed_effects_digests.batch();
+        let mut quarantine = self.consensus_quarantine.write();
+        let flushed = quarantine.update_highest_executed_checkpoint(index, self, &mut batch)?;
+        between();
+        batch.write()?;
+        self.evict_flushed_commit_rows(&flushed);
+        Ok(())
+    }
+
+    /// Pushes commit `index` into the consensus quarantine with one pending
+    /// checkpoint of `roots`, and builds that checkpoint, so that its
+    /// execution flushes the commit.
+    #[cfg(test)]
+    fn build_checkpoint_of_commit_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: &[TransactionDigest],
+    ) -> IotaResult<CheckpointSummary> {
         use iota_sdk_types::GasCostSummary;
         use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
 
@@ -2054,7 +2178,7 @@ impl AuthorityPerEpochStore {
             Vec::new(),
         );
         self.process_constructed_checkpoint(index, NonEmpty::new((summary.clone(), contents)));
-        self.handle_finalized_checkpoint(&summary, &roots)
+        Ok(summary)
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
@@ -2328,11 +2452,22 @@ impl AuthorityPerEpochStore {
         checkpoint: &CheckpointSummary,
         digests: &[TransactionDigest],
     ) -> IotaResult<()> {
+        self.finalize_checkpoint(checkpoint, digests)?;
+        Ok(())
+    }
+
+    /// [`Self::handle_finalized_checkpoint`], returning the handler rows of
+    /// the commits it flushed out of the quarantine.
+    fn finalize_checkpoint(
+        &self,
+        checkpoint: &CheckpointSummary,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<FlushedCommitRows>> {
         let tables = match self.tables() {
             Ok(tables) => tables,
             // After Epoch ends, it is no longer necessary to remove pending transactions
             // because the table will not be used anymore and be deleted eventually.
-            Err(IotaError::EpochEnded(_)) => return Ok(()),
+            Err(IotaError::EpochEnded(_)) => return Ok(Vec::new()),
             Err(e) => return Err(e),
         };
         let mut batch = tables.signed_effects_digests.batch();
@@ -2359,7 +2494,7 @@ impl AuthorityPerEpochStore {
         self.consensus_output_cache
             .remove_executed_in_epoch(digests);
 
-        Ok(())
+        Ok(flushed)
     }
 
     pub fn get_all_pending_consensus_transactions(&self) -> Vec<ConsensusTransaction> {
