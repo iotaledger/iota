@@ -106,8 +106,9 @@ pub struct HandlerProcessedObject {
     /// Index of the commit whose execution produced this row; reads at a
     /// commit treat rows above that commit's validation horizon as missing.
     pub produced_at: CommitIndex,
-    /// `Some` iff the object was created as shared this epoch; doubles as the
-    /// created-shared flag for the shared-input checks.
+    /// The initial shared version on a shared object's creation row and on
+    /// its `Deleted` row. `None` on every other row. The shared-input checks
+    /// read it as the created-shared flag and to verify a declared version.
     pub initial_shared_version: Option<Version>,
     /// The version of the object this row's write replaced: the consumed
     /// input of a mutation, deletion or wrap. `None` for a creation or an
@@ -130,7 +131,9 @@ pub fn handler_rows_for_commit<'a>(
 
 /// Derives the handler-processed upserts for one executed transaction of the
 /// commit at `produced_at`: created / mutated / unwrapped objects become
-/// `Live` rows, deletions and wraps become tombstone rows.
+/// `Live` rows, deletions and wraps become tombstone rows. A deleted shared
+/// object's row keeps its initial shared version, taken from the consumed
+/// input's owner.
 pub fn handler_processed_upserts(
     effects: &TransactionEffects,
     produced_at: CommitIndex,
@@ -192,16 +195,19 @@ pub fn handler_processed_upserts(
         .into_iter()
         .map(|reference| (reference, HandlerProcessedObjectKind::Wrapped));
     for (reference, kind) in deleted.chain(wrapped) {
-        let replaced_version = old_objects
-            .get(&reference.object_id)
-            .map(|(version, _)| *version);
+        let old_object = old_objects.get(&reference.object_id);
+        let initial_shared_version = match old_object {
+            Some((_, Owner::Shared(initial))) => Some(*initial),
+            _ => None,
+        };
+        let replaced_version = old_object.map(|(version, _)| *version);
         rows.push((
             ObjectKey(reference.object_id, reference.version),
             HandlerProcessedObject {
                 digest: reference.digest,
                 kind,
                 produced_at,
-                initial_shared_version: None,
+                initial_shared_version,
                 replaced_version,
             },
         ));
@@ -588,12 +594,15 @@ mod tests {
         created_shared: ObjectId,
         mutated_owned: ObjectId,
         deleted: ObjectId,
+        deleted_shared: ObjectId,
         wrapped: ObjectId,
         unwrapped: ObjectId,
         gas: ObjectId,
     }
 
     const CREATED_SHARED_INITIAL_VERSION: u64 = 42;
+    const DELETED_SHARED_INITIAL_VERSION: u64 = 4;
+    const DELETED_SHARED_CONSUMED_VERSION: u64 = 6;
 
     fn effects_fixture() -> EffectsFixture {
         let transaction = owned_inputs_tx(1);
@@ -602,6 +611,7 @@ mod tests {
         let created_shared = ObjectId::random();
         let mutated_owned = ObjectId::random();
         let deleted = ObjectId::random();
+        let deleted_shared = ObjectId::random();
         let wrapped = ObjectId::random();
         let unwrapped = ObjectId::random();
         let effects = TestEffectsBuilder::new(&transaction)
@@ -618,6 +628,11 @@ mod tests {
                 Owner::Address(Address::ZERO),
             )])
             .with_deleted_objects([(deleted, Version::from_u64(3))])
+            .with_deleted_objects_owned_by([(
+                deleted_shared,
+                Version::from_u64(DELETED_SHARED_CONSUMED_VERSION),
+                Owner::Shared(Version::from_u64(DELETED_SHARED_INITIAL_VERSION)),
+            )])
             .with_wrapped_objects([(wrapped, Version::from_u64(2))])
             .with_unwrapped_objects([(unwrapped, Owner::Address(Address::ZERO))])
             .build();
@@ -627,6 +642,7 @@ mod tests {
             created_shared,
             mutated_owned,
             deleted,
+            deleted_shared,
             wrapped,
             unwrapped,
             gas,
@@ -679,6 +695,10 @@ mod tests {
             rows[&fixture.wrapped].replaced_version,
             Some(Version::from_u64(2))
         );
+        assert_eq!(
+            rows[&fixture.deleted_shared].replaced_version,
+            Some(Version::from_u64(DELETED_SHARED_CONSUMED_VERSION))
+        );
         assert_eq!(version(&fixture.mutated_owned), lamport);
         assert_eq!(rows[&fixture.gas].kind, HandlerProcessedObjectKind::Live);
         assert_eq!(
@@ -686,18 +706,28 @@ mod tests {
             HandlerProcessedObjectKind::Live
         );
 
-        assert_eq!(
-            rows[&fixture.deleted].kind,
-            HandlerProcessedObjectKind::Deleted
-        );
+        let deleted = &rows[&fixture.deleted];
+        assert_eq!(deleted.kind, HandlerProcessedObjectKind::Deleted);
         assert_eq!(version(&fixture.deleted), lamport);
-        assert_eq!(
-            rows[&fixture.wrapped].kind,
-            HandlerProcessedObjectKind::Wrapped
-        );
-        assert_eq!(version(&fixture.wrapped), lamport);
+        assert_eq!(deleted.initial_shared_version, None);
 
-        assert_eq!(rows.len(), 7);
+        // A deleted shared object's tombstone row keeps the initial shared
+        // version, the only place a validator that executed the deletion can
+        // still read it.
+        let deleted_shared = &rows[&fixture.deleted_shared];
+        assert_eq!(deleted_shared.kind, HandlerProcessedObjectKind::Deleted);
+        assert_eq!(version(&fixture.deleted_shared), lamport);
+        assert_eq!(
+            deleted_shared.initial_shared_version,
+            Some(Version::from_u64(DELETED_SHARED_INITIAL_VERSION))
+        );
+
+        let wrapped = &rows[&fixture.wrapped];
+        assert_eq!(wrapped.kind, HandlerProcessedObjectKind::Wrapped);
+        assert_eq!(version(&fixture.wrapped), lamport);
+        assert_eq!(wrapped.initial_shared_version, None);
+
+        assert_eq!(rows.len(), 8);
     }
 
     #[test]
