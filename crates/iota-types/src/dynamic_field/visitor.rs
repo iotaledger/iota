@@ -13,7 +13,7 @@ use move_core_types::{
 
 use super::{DynamicFieldInfo, DynamicFieldType};
 use crate::{
-    id::IDExt,
+    id::MoveLayout,
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 

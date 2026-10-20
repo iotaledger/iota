@@ -79,7 +79,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::id::IDExt;
+    use crate::id::MoveLayout;
 
     #[test]
     fn test_traverse_balance() {

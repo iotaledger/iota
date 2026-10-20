@@ -18,7 +18,7 @@ use iota_types::{
         is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
     error::IotaError,
-    id::{IDExt, RESOLVED_IOTA_ID},
+    id::{MoveLayout, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     move_package::{
         IotaAttributeV2, ProtocolBuildConfig, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,

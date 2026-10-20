@@ -39,7 +39,7 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     event::EventID,
     gas_coin::GasCoin,
-    id::IDExt,
+    id::MoveLayout,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::MoveStructExt,
     parse_iota_struct_tag,

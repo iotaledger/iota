@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     balance::{Balance, Supply},
     error::{ExecutionError, ExecutionErrorKind, IotaError},
-    id::IDExt,
+    id::MoveLayout,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::Object,
 };
