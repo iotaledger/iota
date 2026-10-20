@@ -77,9 +77,11 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Reads one owned or immutable input: the row at the named version or
-    /// the store, then, for a kept version, the rows above it. A storage error
-    /// is returned as `Err`, never as a result.
+    /// Reads one owned or immutable input: the row at the named version, or
+    /// without one the store and then, unless the store holds the named
+    /// reference, the other rows of `id`. A keep from the row first reads the
+    /// rows above it, and every keep loads the object. A storage error is
+    /// returned as `Err`, never as a result.
     pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
         // The row at the named version, when it exists, decides a drop or a
         // missing. A keep from it goes on to the rows above it.

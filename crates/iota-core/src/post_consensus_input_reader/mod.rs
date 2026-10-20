@@ -283,8 +283,8 @@ pub enum MissingKind {
     VersionNotLiveAtHorizon,
     /// The shared object's creation row was produced above the horizon.
     SharedCreationAboveHorizon,
-    /// No creation row, the store has no live object and no handler row
-    /// shows a deletion.
+    /// No creation row, the store has no live object and no row shows a
+    /// deletion.
     SharedNotFound,
     /// The package is not in the store.
     PackageNotFound,
