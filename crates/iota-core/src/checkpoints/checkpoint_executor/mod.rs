@@ -23,7 +23,7 @@
 
 use std::{future::Future, sync::Arc, time::Instant};
 
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
@@ -45,6 +45,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};
+use tokio::task::JoinError;
 use tracing::{debug, info, instrument};
 
 use crate::{
@@ -77,6 +78,9 @@ type CheckpointDataSender = Box<dyn Fn(&CheckpointData) + Send + Sync>;
 pub enum StopReason {
     EpochComplete,
     RunWithRangeCondition,
+    /// The tokio runtime is shutting down and cancelled checkpoint execution
+    /// work.
+    RuntimeShutdown,
 }
 
 pub(crate) struct CheckpointExecutionData {
@@ -285,21 +289,26 @@ impl CheckpointExecutor {
                 let pipeline_handle = async move { pipeline_stages.handle(seq).await };
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))
                     .await
-                    .unwrap()
+                    .and_then(|result| result)
             }
         })
         .buffered(concurrency)
         // Take the last value from the stream to determine if we completed the epoch
-        .fold(false, |state, is_final_checkpoint| async move {
+        .try_fold(false, |state, is_final_checkpoint| async move {
             assert!(!state, "Cannot execute checkpoint after epoch end");
-            is_final_checkpoint
+            Ok(is_final_checkpoint)
         })
         .await;
 
-        if final_checkpoint_executed {
-            StopReason::EpochComplete
-        } else {
-            StopReason::RunWithRangeCondition
+        match final_checkpoint_executed {
+            Ok(true) => StopReason::EpochComplete,
+            Ok(false) => StopReason::RunWithRangeCondition,
+            Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+            // Tasks are only cancelled when the runtime shuts down.
+            Err(e) => {
+                info!("Checkpoint execution cancelled by runtime shutdown: {e}");
+                StopReason::RuntimeShutdown
+            }
         }
     }
 }
@@ -312,7 +321,7 @@ impl CheckpointExecutor {
         self: Arc<Self>,
         checkpoint: VerifiedCheckpoint,
         pipeline_handle: impl Future<Output = PipelineHandle> + Send,
-    ) -> bool /* is final checkpoint */ {
+    ) -> Result<bool /* is final checkpoint */, JoinError> {
         debug!("executing checkpoint");
         let sequence_number = checkpoint.sequence_number;
         let is_last_checkpoint_of_epoch = checkpoint.is_last_checkpoint_of_epoch();
@@ -430,8 +439,7 @@ impl CheckpointExecutor {
                 ckpt_state
             }
         })
-        .await
-        .unwrap();
+        .await?;
 
         finish_stage!(pipeline_handle, CommitTransactionOutputs);
 
@@ -508,7 +516,7 @@ impl CheckpointExecutor {
         // Important: code after the last pipeline stage is finished can run out of
         // checkpoint order.
 
-        ckpt_state.data.checkpoint.is_last_checkpoint_of_epoch()
+        Ok(ckpt_state.data.checkpoint.is_last_checkpoint_of_epoch())
     }
 
     // On validators, checkpoints have often already been constructed locally, in

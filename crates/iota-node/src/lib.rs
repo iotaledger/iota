@@ -1964,6 +1964,10 @@ impl IotaNode {
 
             let stop_condition = checkpoint_executor.run_epoch(run_with_range).await;
 
+            if stop_condition == StopReason::RuntimeShutdown {
+                return Ok(());
+            }
+
             if stop_condition == StopReason::RunWithRangeCondition {
                 IotaNode::shutdown(&self).await;
                 self.shutdown_channel_tx
