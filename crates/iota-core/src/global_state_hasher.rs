@@ -242,6 +242,12 @@ impl GlobalStateHasher {
             return Ok(GlobalStateHash::default());
         }
 
+        if let Some(prior_running_root) =
+            epoch_store.get_running_root_state_hash(checkpoint_seq_num - 1)?
+        {
+            return Ok(prior_running_root);
+        }
+
         if let Some(prev_epoch) = epoch_store.epoch().checked_sub(1) {
             if let Some((last_checkpoint_prev_epoch, prev_acc)) =
                 self.store.get_root_state_hash_for_epoch(prev_epoch)?
@@ -252,16 +258,10 @@ impl GlobalStateHasher {
             }
         }
 
-        let Some(prior_running_root) =
-            epoch_store.get_running_root_state_hash(checkpoint_seq_num - 1)?
-        else {
-            fatal!(
-                "Running root state hasher must exist for checkpoint {}",
-                checkpoint_seq_num - 1
-            );
-        };
-
-        Ok(prior_running_root)
+        fatal!(
+            "Running root state hasher must exist for checkpoint {}",
+            checkpoint_seq_num - 1
+        );
     }
 
     // Accumulate the running root.
