@@ -19,9 +19,9 @@ use iota_sdk_types::{
 use iota_types::{
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
-    id::MoveLayout,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    move_layout::MoveLayout,
     object::{MoveStructExt, Object},
     storage::{BackingPackageStore, ChildObjectResolver},
 };

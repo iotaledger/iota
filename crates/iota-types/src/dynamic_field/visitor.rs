@@ -13,8 +13,8 @@ use move_core_types::{
 
 use super::{DynamicFieldInfo, DynamicFieldType};
 use crate::{
-    id::MoveLayout,
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+    move_layout::MoveLayout,
 };
 
 /// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field`
