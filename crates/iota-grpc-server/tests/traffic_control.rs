@@ -16,8 +16,8 @@ mod common;
 use std::{collections::HashMap, future::Future, sync::Arc};
 
 use common::{
-    MockGrpcStateReader, UnreachableExecutor, create_large_object, start_test_server,
-    start_test_server_with_traffic_controller,
+    MockGrpcStateReader, TestCertificate, UnreachableExecutor, create_large_object,
+    start_test_server, start_test_server_with, start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
 use iota_grpc_server::GrpcServerHandle;
@@ -149,6 +149,40 @@ async fn handler_errors_feed_the_error_policy() {
     )
     .await;
     let client = StateServiceClient::new(connect(&handle).await);
+
+    assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+}
+
+/// The traffic controller tells clients apart by their address also when they
+/// connect over TLS.
+#[tokio::test]
+async fn handler_errors_over_tls_feed_the_error_policy() {
+    let certificate = TestCertificate::new();
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+        dry_run: false,
+        ..Default::default()
+    };
+    let client_id_source = policy_config.client_id_source.clone();
+    let (handle, _reader) = start_test_server_with(
+        Arc::new(MockGrpcStateReader::default()),
+        None,
+        Some(Arc::new(TrafficController::init_for_test(policy_config))),
+        Some(client_id_source),
+        None,
+        |config| config.tls = Some(certificate.tls_config.clone()),
+    )
+    .await;
+    let client = StateServiceClient::new(certificate.connect(handle.address()).await);
 
     assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
         let mut client = client.clone();

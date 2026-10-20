@@ -247,6 +247,20 @@ impl Config {
         }
     }
 
+    /// Sets whether HTTP/2 connections offer the extended CONNECT protocol
+    /// ([RFC 8441]), which lets a client tunnel another protocol, such as
+    /// WebSocket, through an HTTP/2 stream.
+    ///
+    /// Default is `true`.
+    ///
+    /// [RFC 8441]: https://www.rfc-editor.org/rfc/rfc8441
+    pub fn enable_connect_protocol(self, enable_connect_protocol: bool) -> Self {
+        Config {
+            enable_connect_protocol,
+            ..self
+        }
+    }
+
     /// Sets how long an HTTP/1 connection may take to send a complete request
     /// header block before it is closed. Until the headers arrive no request
     /// exists that a request deadline could apply to, so this is the only bound

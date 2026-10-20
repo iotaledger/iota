@@ -31,11 +31,12 @@ use std::{
     task::{Context, Poll},
 };
 
+use iota_http::ConnectInfo;
 use iota_traffic_controller::{
     ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
 };
 use iota_types::traffic_control::{ClientIdSource, Weight};
-use tonic::{Code, Status, transport::server::TcpConnectInfo};
+use tonic::{Code, Status};
 use tower::{Layer, Service};
 use tracing::warn;
 
@@ -98,8 +99,8 @@ where
         let traffic_controller = self.traffic_controller.clone();
         let remote_addr = req
             .extensions()
-            .get::<TcpConnectInfo>()
-            .and_then(|info| info.remote_addr());
+            .get::<ConnectInfo>()
+            .map(|info| info.remote_addr);
         let client = match get_client_ip(req.headers(), remote_addr, &self.client_id_source) {
             ClientIpStatus::Ok(ip) => Some(ip),
             status => {
