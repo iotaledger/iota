@@ -3822,8 +3822,9 @@ impl AuthorityPerEpochStore {
     }
 
     /// Processes one consensus commit. Returns the transactions to schedule,
-    /// their assigned versions, and the keys the commit recorded as processed.
-    /// The keys are returned only with
+    /// their assigned versions, and the keys of the consensus messages the
+    /// commit recorded as processed, without the keys of system transactions
+    /// it created. The keys are returned only with
     /// `consensus_dedup_only_recorded_messages` on; otherwise the list
     /// is empty.
     #[instrument(level = "trace", skip_all)]
@@ -4339,7 +4340,11 @@ impl AuthorityPerEpochStore {
             .protocol_config
             .consensus_dedup_only_recorded_messages()
         {
-            output.consensus_messages_processed().cloned().collect()
+            output
+                .consensus_messages_processed()
+                .filter(|key| matches!(key, SequencedConsensusTransactionKey::External(_)))
+                .cloned()
+                .collect()
         } else {
             Vec::new()
         };

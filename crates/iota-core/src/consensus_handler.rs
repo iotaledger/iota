@@ -1915,6 +1915,8 @@ mod tests {
                 .has_sent_end_of_publish(&b)
                 .unwrap()
         );
+        // The commit prologue key recorded by the same commit is not cached.
+        assert_eq!(handler.processed_cache.len(), 1);
 
         handler
             .handle_consensus_output_for_test(end_of_publish(11))
