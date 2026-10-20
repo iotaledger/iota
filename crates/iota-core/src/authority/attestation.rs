@@ -21,14 +21,19 @@ use iota_types::{
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
     move_authenticator::MoveAuthenticatorExt,
-    transaction::*,
+    transaction::{
+        CheckedInputObjects, InputObjectKind, SenderSignedTransactionAPI, TransactionAPI,
+        VerifiedTransaction,
+    },
 };
 
-use super::{
-    AuthorityState, ValidationOutputs, attestation_verdict::ExecutionOutcome,
-    authority_per_epoch_store::AuthorityPerEpochStore,
+use crate::{
+    authority::{
+        AuthorityState, ValidationOutputs, attestation_verdict::ExecutionOutcome,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+    },
+    execution_scheduler::transaction_manager::AttestationSource,
 };
-use crate::execution_scheduler::transaction_manager::AttestationSource;
 
 impl AuthorityState {
     /// Dry-runs a verified transaction and returns `AttestationData` together
