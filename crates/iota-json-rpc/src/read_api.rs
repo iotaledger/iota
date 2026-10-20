@@ -296,12 +296,16 @@ impl ReadApi {
                 .filter(|cache_entry| cache_entry.effects.is_none())
                 .map(|cache_entry| cache_entry.digest)
                 .collect::<Vec<_>>();
-            let effects_list = self.transaction_kv_store
-                .multi_get_fx_by_tx_digest(&digests)
-                .await
-                .tap_err(
-                    |err| debug!(digests=?digests, "Failed to multi get effects for transactions: {:?}", err),
-                )?;
+            let effects_list = if digests.is_empty() {
+                vec![]
+            } else {
+                self.transaction_kv_store
+                    .multi_get_fx_by_tx_digest(&digests)
+                    .await
+                    .tap_err(|err| {
+                        debug!(digests=?digests, "Failed to multi get effects for transactions: {:?}", err)
+                    })?
+            };
             for (digest, effects) in digests.iter().zip(effects_list) {
                 if let Some(cache_entry) = temp_response.get_mut(digest) {
                     cache_entry.effects = effects;
@@ -320,13 +324,16 @@ impl ReadApi {
             })
             .map(|cache_entry| cache_entry.digest)
             .collect::<Vec<_>>();
-        let transactions = self
-            .transaction_kv_store
-            .multi_get_tx(&digests)
-            .await
-            .tap_err(
-                |err| debug!(digests=?digests, "Failed to multi get transactions: {:?}", err),
-            )?;
+        let transactions = if digests.is_empty() {
+            vec![]
+        } else {
+            self.transaction_kv_store
+                .multi_get_tx(&digests)
+                .await
+                .tap_err(
+                    |err| debug!(digests=?digests, "Failed to multi get transactions: {:?}", err),
+                )?
+        };
         // One error per entry; the fields that can't be derived without the missing
         // transaction or effects are then left out without further errors.
         for (digest, transaction) in digests.iter().zip(transactions) {
@@ -476,24 +483,38 @@ impl ReadApi {
             .await)
     }
 
-    /// Returns the events of each of `digests`, in the same order. Retries for
-    /// a while when some are missing, and then returns `None` for those.
+    /// Returns the events of each of `digests`, in the same order. Retries the
+    /// missing ones for a while, and then returns `None` for those.
     async fn get_events_with_retry(
         &self,
         digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>, Error> {
+        let mut events = digests.iter().map(|_| None).collect::<Vec<_>>();
         let deadline = tokio::time::Instant::now() + EVENTS_RETRY_TIMEOUT;
         loop {
-            let events = self
+            let missing = digests
+                .iter()
+                .zip(&events)
+                .filter(|(_, events)| events.is_none())
+                .map(|(digest, _)| *digest)
+                .collect::<Vec<_>>();
+            if missing.is_empty() {
+                return Ok(events);
+            }
+            let mut found = self
                 .transaction_kv_store
-                .multi_get_events_by_tx_digests(digests)
+                .multi_get_events_by_tx_digests(&missing)
                 .await
                 .map_err(|e| {
                     Error::Unexpected(format!(
                         "failed to fetch events for transactions {}: {e}",
-                        digests.iter().join(", ")
+                        missing.iter().join(", ")
                     ))
-                })?;
+                })?
+                .into_iter();
+            for slot in events.iter_mut().filter(|events| events.is_none()) {
+                *slot = found.next().flatten();
+            }
             // Events of a transaction can become readable a little after its
             // effects.
             if !events.contains(&None) || tokio::time::Instant::now() >= deadline {
@@ -824,10 +845,32 @@ impl ReadApiServer for ReadApi {
                 );
             }
 
-            self.load_transaction_block_responses(IndexMap::from([(digest, temp_response)]), &opts)
-                .await?
-                .pop()
-                .ok_or_else(|| Error::Unexpected(format!("no response for transaction {digest}")))
+            let read_api = self.clone();
+            let load_opts = opts.clone();
+            let response = spawn_monitored_task!(async move {
+                read_api
+                    .load_transaction_block_responses(
+                        IndexMap::from([(digest, temp_response)]),
+                        &load_opts,
+                    )
+                    .await
+            })
+            .await
+            .map_err(Error::from)??
+            .pop()
+            .ok_or_else(|| Error::Unexpected(format!("no response for transaction {digest}")))?;
+
+            // The transaction and effects were found above, so if one of them is
+            // missing here it failed to convert.
+            if (opts.show_input && response.transaction.is_none())
+                || (opts.show_effects && response.effects.is_none())
+            {
+                return Err(Error::Unexpected(format!(
+                    "failed to load transaction {digest}: {}",
+                    response.errors.join("; ")
+                )));
+            }
+            Ok(response)
         }
         .trace()
         .await
