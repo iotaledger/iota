@@ -458,17 +458,8 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
         });
         assert_eq!(row, None, "the fullnode keeps a handler row for {key:?}");
     }
-    let highest_executed = |name| {
-        node_handle(name).with(|node| {
-            node.state()
-                .get_checkpoint_store()
-                .get_highest_executed_checkpoint_seq_number()
-                .unwrap()
-                .unwrap_or_default()
-        })
-    };
     tokio::time::timeout(Duration::from_secs(120), async {
-        while highest_executed(victim) < target {
+        while highest_executed_checkpoint(&test_cluster, &victim) < target {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
     })
@@ -793,17 +784,8 @@ async fn test_crash_after_post_consensus_decisions_recovers() {
         })
         .unwrap()
         .expect("the fullnode has executed the transfers' checkpoints");
-    let highest_executed = |name| {
-        node_handle(name).with(|node| {
-            node.state()
-                .get_checkpoint_store()
-                .get_highest_executed_checkpoint_seq_number()
-                .unwrap()
-                .unwrap_or_default()
-        })
-    };
     tokio::time::timeout(Duration::from_secs(120), async {
-        while highest_executed(victim) < target {
+        while highest_executed_checkpoint(&test_cluster, &victim) < target {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
     })
