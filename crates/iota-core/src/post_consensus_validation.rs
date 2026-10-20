@@ -271,11 +271,6 @@ pub async fn validate_and_resolve_conflicts(
                 keep[i] = false;
                 continue;
             }
-            authority_state
-                .metrics
-                .post_consensus_attested_tx
-                .with_label_values(&["authority"])
-                .inc();
         }
 
         // Check #4: Extract owned input objects for lock conflict detection.
@@ -514,6 +509,13 @@ pub async fn validate_and_resolve_conflicts(
             owned_inputs = ?locked_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
+        if attestation.is_some() {
+            authority_state
+                .metrics
+                .post_consensus_attested_tx
+                .with_label_values(&["authority"])
+                .inc();
+        }
     }
 
     if !dropped.is_empty() {
