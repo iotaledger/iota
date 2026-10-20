@@ -7255,6 +7255,308 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
     );
 }
 
+/// The protocol config override with deterministic validation on, under which
+/// congestion control schedules one transaction per commit and defers the
+/// others.
+fn enable_deterministic_validation_with_one_transaction_per_commit() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        config
+    })
+}
+
+/// A transaction kept at commit 1 and deferred by congestion control holds
+/// the locks it took there in the lock table once commit 1 flushes. A
+/// competitor naming the same inputs at commit 2 is dropped on them, while the
+/// deferred transaction is reloaded and kept.
+#[tokio::test]
+async fn deferred_transaction_lock_blocks_a_competitor_after_its_commit_flushes() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
+    let s = setup_bookkeeping_with_config_guard(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        Some(enable_deterministic_validation_with_one_transaction_per_commit()),
+    )
+    .await;
+    let transactions = vec![
+        s.build_transfer(&ids[0], &ids[1], sender, &key, Address::random()),
+        s.build_transfer(&ids[2], &ids[3], sender, &key, Address::random()),
+    ];
+    let first = s.process_at(1, &transactions).await;
+    assert_eq!(first.len(), 1);
+    let (kept, deferred, object_id, gas_id) = if first[0].digest() == transactions[0].digest() {
+        (
+            transactions[0].clone(),
+            transactions[1].clone(),
+            ids[2],
+            ids[3],
+        )
+    } else {
+        (
+            transactions[1].clone(),
+            transactions[0].clone(),
+            ids[0],
+            ids[1],
+        )
+    };
+    let deferred_digest = *deferred.digest();
+    let deferred_inputs = [s.latest_ref(&object_id), s.latest_ref(&gas_id)];
+
+    let kept_effects = s.execute(kept);
+    let height = s
+        .checkpoint_roots()
+        .into_iter()
+        .map(|(height, _)| height)
+        .max()
+        .expect("commit 1 has a pending checkpoint");
+    s.epoch_store
+        .flush_pushed_commits_for_testing(height, 1, vec![*kept_effects.transaction_digest()])
+        .unwrap();
+    let tables = s.epoch_store.tables().unwrap();
+    for input in &deferred_inputs {
+        assert_eq!(s.epoch_store.get_quarantined_owned_object_lock(input), None);
+        assert_eq!(
+            tables.get_locked_transaction(input).unwrap(),
+            Some(deferred_digest),
+            "the flush must move the deferred transaction's lock to the lock table"
+        );
+    }
+
+    let competitor = s.build_transfer(&object_id, &gas_id, sender, &key, Address::random());
+    let second = s.process_at(2, std::slice::from_ref(&competitor)).await;
+    assert_eq!(
+        second.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![deferred_digest]
+    );
+    let verdict = s
+        .epoch_store
+        .post_consensus_verdict(2, *competitor.digest())
+        .unwrap();
+    assert!(
+        matches!(
+            &verdict,
+            Some(PostConsensusVerdict::Dropped(IotaError::ObjectLockConflict {
+                obj_ref,
+                pending_transaction,
+            })) if deferred_inputs.contains(obj_ref) && *pending_transaction == deferred_digest
+        ),
+        "{verdict:?}"
+    );
+}
+
+/// An account's transaction that pays its own gas, kept at commit 1 behind a
+/// transfer with a higher gas price and deferred by congestion control, is
+/// reloaded and kept at commit 2 and executes through the scheduler. The
+/// account never authorized it, so it fails without a charge and its gas coin
+/// moves to its next version, and the account's next transaction naming that
+/// version is kept once the horizon reaches commit 2.
+#[tokio::test]
+async fn deferred_unauthorized_account_transaction_moves_its_gas_coin_at_execution() {
+    let (other, other_key): (Address, AccountPrivateKey) = get_key_pair();
+    let other_ids = [ObjectId::random(), ObjectId::random()];
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner(
+        enable_deterministic_validation_with_one_transaction_per_commit(),
+        other_ids
+            .iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, other))
+            .collect(),
+    )
+    .await;
+    let _watcher = s.start_execution_watcher();
+    let transfer = s
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            s.latest_ref(&other_ids[0]),
+            s.latest_ref(&other_ids[1]),
+            other,
+            &other_key,
+            Address::random(),
+            2 * s.rgp,
+        ))
+        .unwrap();
+    let unauthorized =
+        s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);
+    let unauthorized_digest = *unauthorized.digest();
+
+    let (first, assigned_versions) = s
+        .process_at_with_versions(1, &[transfer.clone(), unauthorized])
+        .await;
+    assert_eq!(
+        first.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![*transfer.digest()]
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_verdict(1, unauthorized_digest)
+            .unwrap(),
+        Some(PostConsensusVerdict::Kept)
+    );
+    let transfer_effects = s
+        .schedule_kept_transaction(first[0].clone(), assigned_versions)
+        .await
+        .expect("the transfer must execute");
+    assert!(
+        transfer_effects.status().is_success(),
+        "{:?}",
+        transfer_effects.status()
+    );
+    s.wait_for_fully_executed_commit(1).await;
+
+    let (second, assigned_versions) = s.process_at_with_versions(2, &[]).await;
+    assert_eq!(
+        second.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![unauthorized_digest]
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_verdict(2, unauthorized_digest)
+            .unwrap(),
+        Some(PostConsensusVerdict::Kept)
+    );
+    let effects = s
+        .schedule_kept_transaction(second[0].clone(), assigned_versions)
+        .await
+        .expect("the deferred transaction must execute");
+    assert!(effects.status().is_failure(), "{:?}", effects.status());
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &GasCostSummary::default(),
+        "nobody may be charged"
+    );
+    assert_eq!(
+        s.latest_ref(&gas_id).version,
+        effects.lamport_version(),
+        "the gas coin must move to its next version"
+    );
+    s.wait_for_fully_executed_commit(2).await;
+
+    let next = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 2);
+    let scheduled = s
+        .process_at(2 + s.horizon_distance(), std::slice::from_ref(&next))
+        .await;
+    assert_eq!(
+        scheduled.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![*next.digest()]
+    );
+}
+
+/// A receive of the child of a shared parent, kept at commit `C` behind a
+/// transaction that deletes, wraps or receives the same child at `C` and
+/// deferred by congestion control, is reloaded and kept at `C + K`, whose
+/// horizon covers the consumption, without being validated again. It executes
+/// through the scheduler and aborts with the sender charged.
+#[tokio::test]
+async fn receive_deferred_behind_a_consumption_of_its_child_is_kept_and_aborts() {
+    for consume in ["deleter", "wrapper", "receiver"] {
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+        let gas_id = ObjectId::random();
+        let consumer_gas_id = ObjectId::random();
+        let s = setup_bookkeeping_with_package_and_config_guard(
+            "tto_shared",
+            sender,
+            gas_id,
+            Some(enable_deterministic_validation_with_one_transaction_per_commit()),
+        )
+        .await;
+        s.authority
+            .insert_genesis_object(Object::with_id_owner_for_testing(consumer_gas_id, sender));
+        let _watcher = s.start_execution_watcher();
+
+        let start_effects =
+            s.handler_known_move_call("M", "start", vec![], &gas_id, sender, &sender_key, 1);
+        s.wait_for_fully_executed_commit(1).await;
+        let (parent, child) = parent_and_child(start_effects.created());
+        let parent_id = parent.reference().object_id;
+        let child = *child.reference();
+
+        // The higher gas price orders the consumption first.
+        let consumption = {
+            let gas_price = 2 * s.rgp;
+            let tx = Transaction::new_move_call(
+                sender,
+                s.package_id,
+                Identifier::from_static("M"),
+                Identifier::from_static(consume),
+                vec![],
+                s.latest_ref(&consumer_gas_id),
+                vec![s.shared_arg(&parent_id), CallArg::Receiving(child)],
+                TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * gas_price,
+                gas_price,
+            )
+            .unwrap();
+            s.epoch_store
+                .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
+                .unwrap()
+        };
+        let receive = s.build_move_call(
+            "M",
+            "receiver",
+            vec![s.shared_arg(&parent_id), CallArg::Receiving(child)],
+            &gas_id,
+            sender,
+            &sender_key,
+        );
+        let receive_digest = *receive.digest();
+
+        let commit = 1 + s.horizon_distance();
+        let (first, assigned_versions) = s
+            .process_at_with_versions(commit, &[consumption.clone(), receive])
+            .await;
+        assert_eq!(
+            first.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+            vec![*consumption.digest()],
+            "{consume}"
+        );
+        assert_eq!(
+            s.epoch_store
+                .post_consensus_verdict(commit, receive_digest)
+                .unwrap(),
+            Some(PostConsensusVerdict::Kept),
+            "{consume}"
+        );
+        let consumption_effects = s
+            .schedule_kept_transaction(first[0].clone(), assigned_versions)
+            .await
+            .expect("the consumption must execute");
+        assert!(
+            consumption_effects.status().is_success(),
+            "{consume}: {:?}",
+            consumption_effects.status()
+        );
+        s.wait_for_fully_executed_commit(commit).await;
+
+        let reload_at = commit + s.horizon_distance();
+        let (second, assigned_versions) = s.process_at_with_versions(reload_at, &[]).await;
+        assert_eq!(
+            second.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+            vec![receive_digest],
+            "{consume}"
+        );
+        assert_eq!(
+            s.epoch_store
+                .post_consensus_verdict(reload_at, receive_digest)
+                .unwrap(),
+            Some(PostConsensusVerdict::Kept),
+            "{consume}"
+        );
+        let effects = s
+            .schedule_kept_transaction(second[0].clone(), assigned_versions)
+            .await;
+        assert_receive_aborted(&s, effects);
+        s.wait_for_fully_executed_commit(reload_at).await;
+    }
+}
+
 /// Once commit 12 flushes, its saved drop is gone, and a retry of the dropped
 /// transaction at a later commit is validated afresh, the same way on a store
 /// that kept running and on one reopened after the flush.
@@ -8768,25 +9070,26 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
     );
 }
 
-/// A bookkeeping setup with the flags on, an account since the epoch started
-/// whose authenticator function does not exist, and a gas coin owned by the
-/// account's address. Returns the setup, the account's id and the coin's id. A
-/// transaction naming the account and paying with the coin fails at
-/// execution, since its authenticator cannot run, so the account never
-/// authorized it.
-async fn setup_unauthorized_gas_owner() -> (BookkeepingSetup, ObjectId, ObjectId) {
+/// A bookkeeping setup under `config_guard`, with an account since the epoch
+/// started whose authenticator function does not exist, a gas coin owned by
+/// the account's address, and `other_objects` at genesis. Returns the setup,
+/// the account's id and the coin's id. A transaction naming the account and
+/// paying with the coin fails at execution, since its authenticator cannot
+/// run, so the account never authorized it.
+async fn setup_unauthorized_gas_owner(
+    config_guard: OverrideGuard,
+    other_objects: Vec<Object>,
+) -> (BookkeepingSetup, ObjectId, ObjectId) {
     let account_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let account = shared_object_with_id(account_id);
-    let s = setup_bookkeeping(
-        vec![
-            authenticator_field(&account, "missing_function"),
-            account,
-            Object::with_id_owner_for_testing(gas_id, account_id.into()),
-        ],
-        true,
-    )
-    .await;
+    let mut genesis_objects = vec![
+        authenticator_field(&account, "missing_function"),
+        account,
+        Object::with_id_owner_for_testing(gas_id, account_id.into()),
+    ];
+    genesis_objects.extend(other_objects);
+    let s = setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await;
     (s, account_id, gas_id)
 }
 
@@ -8832,7 +9135,8 @@ fn account_authenticator(account_id: ObjectId) -> MoveAuthenticatorV1 {
 /// failure consumed is still dropped on the failed transaction's lock.
 #[tokio::test]
 async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
-    let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
+    let (s, account_id, gas_id) =
+        setup_unauthorized_gas_owner(enable_deterministic_validation(), vec![]).await;
     let failed_at = 5;
     let gas_ref = s.latest_ref(&gas_id);
     let unauthorized =
@@ -8936,7 +9240,8 @@ async fn keep_and_fail(
 /// is kept once the horizon reaches the commit of the failure.
 #[tokio::test]
 async fn consecutive_failures_each_move_the_gas_coin_on() {
-    let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
+    let (s, account_id, gas_id) =
+        setup_unauthorized_gas_owner(enable_deterministic_validation(), vec![]).await;
     let mut commit = 5;
     for value in 1..=3 {
         let tx = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, value);
@@ -8952,7 +9257,8 @@ async fn consecutive_failures_each_move_the_gas_coin_on() {
 /// dropped.
 #[tokio::test]
 async fn already_executed_transaction_locks_the_gas_coin_it_names() {
-    let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
+    let (s, account_id, gas_id) =
+        setup_unauthorized_gas_owner(enable_deterministic_validation(), vec![]).await;
     let gas_ref = s.latest_ref(&gas_id);
     let unauthorized =
         s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);

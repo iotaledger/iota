@@ -2400,7 +2400,23 @@ impl AuthorityPerEpochStore {
         index: CommitIndex,
         roots: Vec<TransactionDigest>,
     ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
-        let summary = self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        self.push_commit_with_one_pending_checkpoint_for_testing(index, &roots)?;
+        self.flush_pushed_commits_for_testing(index, index, roots)
+    }
+
+    /// Flushes the commits already in the consensus quarantine whose pending
+    /// checkpoints are at or below `height`, through the same path a running
+    /// node takes: builds checkpoint `sequence` of `roots` at `height` and
+    /// handles it as executed. `sequence` must be above every checkpoint
+    /// built before. Returns the handler rows the flush wrote.
+    #[cfg(test)]
+    pub fn flush_pushed_commits_for_testing(
+        &self,
+        height: CheckpointHeight,
+        sequence: CheckpointSequenceNumber,
+        roots: Vec<TransactionDigest>,
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let summary = self.build_checkpoint_for_testing(height, sequence, &roots);
         Ok(self
             .finalize_checkpoint(&summary, &roots)?
             .into_iter()
@@ -2419,7 +2435,8 @@ impl AuthorityPerEpochStore {
         roots: Vec<TransactionDigest>,
         between: impl FnOnce(),
     ) -> IotaResult {
-        self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        self.push_commit_with_one_pending_checkpoint_for_testing(index, &roots)?;
+        self.build_checkpoint_for_testing(index, index, &roots);
         let tables = self.tables()?;
         let mut batch = tables.signed_effects_digests.batch();
         let mut quarantine = self.consensus_quarantine.write();
@@ -2431,17 +2448,13 @@ impl AuthorityPerEpochStore {
     }
 
     /// Pushes commit `index` into the consensus quarantine with one pending
-    /// checkpoint of `roots`, and builds that checkpoint, so that its
-    /// execution flushes the commit.
+    /// checkpoint of `roots` at height `index`.
     #[cfg(test)]
-    fn build_checkpoint_of_commit_for_testing(
+    fn push_commit_with_one_pending_checkpoint_for_testing(
         &self,
         index: CommitIndex,
         roots: &[TransactionDigest],
-    ) -> IotaResult<CheckpointSummary> {
-        use iota_sdk_types::GasCostSummary;
-        use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
-
+    ) -> IotaResult {
         let checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
             roots: roots.iter().copied().map(TransactionKey::Digest).collect(),
             details: PendingCheckpointInfo {
@@ -2463,6 +2476,21 @@ impl AuthorityPerEpochStore {
             ..Default::default()
         });
         self.push_consensus_output_for_tests(output);
+        Ok(())
+    }
+
+    /// Builds checkpoint `sequence` of `roots` at checkpoint height `height`,
+    /// as the checkpoint builder does, so that its execution flushes the
+    /// commits whose pending checkpoints are at or below `height`.
+    #[cfg(test)]
+    fn build_checkpoint_for_testing(
+        &self,
+        height: CheckpointHeight,
+        sequence: CheckpointSequenceNumber,
+        roots: &[TransactionDigest],
+    ) -> CheckpointSummary {
+        use iota_sdk_types::GasCostSummary;
+        use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
 
         let contents = CheckpointContents::new_with_digests_only_for_tests(
             roots
@@ -2472,7 +2500,7 @@ impl AuthorityPerEpochStore {
         let summary = CheckpointSummary::new_with_protocol_config(
             self.protocol_config(),
             self.epoch(),
-            index,
+            sequence,
             0,
             &contents,
             None,
@@ -2481,8 +2509,8 @@ impl AuthorityPerEpochStore {
             0,
             Vec::new(),
         );
-        self.process_constructed_checkpoint(index, NonEmpty::new((summary.clone(), contents)));
-        Ok(summary)
+        self.process_constructed_checkpoint(height, NonEmpty::new((summary.clone(), contents)));
+        summary
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
