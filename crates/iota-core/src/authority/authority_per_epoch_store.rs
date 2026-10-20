@@ -4314,21 +4314,35 @@ impl AuthorityPerEpochStore {
         // A user transaction from an authority that has sent EndOfPublish must not be processed.
         // Drop it here, before its key enters the duplicate checks of this commit, so that it
         // cannot make a later transaction with the same key be skipped.
-        if self
-            .protocol_config()
-            .consensus_dedup_only_recorded_messages()
-            && transaction.transaction.user_transaction_digest().is_some()
-            && self
-                .has_sent_end_of_publish(&transaction.certificate_author)
-                .expect("the end-of-publish set is readable")
-        {
-            warn!(
-                "[Byzantine authority] Authority {:?} sent user transaction {:?} after it sent \
-                 EndOfPublish message to consensus",
-                transaction.certificate_author.concise(),
-                transaction.transaction.user_transaction_digest(),
-            );
-            return None;
+        if let Some(digest) = transaction.transaction.user_transaction_digest() {
+            if self
+                .protocol_config()
+                .consensus_dedup_only_recorded_messages()
+                && self
+                    .has_sent_end_of_publish(&transaction.certificate_author)
+                    .expect("the end-of-publish set is readable")
+            {
+                warn!(
+                    "[Byzantine authority] Authority {:?} sent user transaction {:?} after it \
+                     sent EndOfPublish message to consensus",
+                    transaction.certificate_author.concise(),
+                    digest,
+                );
+                // The copy is not recorded as processed, so the consensus adapter
+                // that submitted it would hold its submit permit, which checkpoint
+                // signatures also need, until the epoch ends. Only this
+                // validator's adapter is told: another author's copy can still be
+                // kept. Without deterministic validation the adapter waits until
+                // the epoch ends, as for the other copies ignored at the end of
+                // the epoch.
+                if self.protocol_config().pcool_deterministic_validation()
+                    && transaction.certificate_author == self.name
+                {
+                    self.dropped_tx_status_cache
+                        .notify_dropped_copies(&[(digest, IotaError::ValidatorHaltedAtEpochEnd)]);
+                }
+                return None;
+            }
         }
         // Signatures are verified as part of the consensus payload verification in
         // IotaTxValidator
@@ -4367,6 +4381,15 @@ impl AuthorityPerEpochStore {
                          transactions",
                         user_transaction.digest()
                     );
+                    // An ignored copy is not recorded as processed, so the
+                    // consensus adapter that submitted it would hold its submit
+                    // permit, which checkpoint signatures also need, until the
+                    // epoch ends. Only the adapter is told: another copy may
+                    // still be kept.
+                    self.dropped_tx_status_cache.notify_dropped_copies(&[(
+                        *user_transaction.digest(),
+                        IotaError::ValidatorHaltedAtEpochEnd,
+                    )]);
                     return None;
                 }
             }

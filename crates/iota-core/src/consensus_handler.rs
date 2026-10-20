@@ -2540,6 +2540,180 @@ mod tests {
         );
     }
 
+    /// Why a user transaction is ignored at the end of the epoch.
+    #[derive(Clone, Copy, Debug)]
+    enum IgnoredAtEpochEnd {
+        /// This validator sent EndOfPublish before its own copy was sequenced.
+        OwnCopyAfterOwnEndOfPublish,
+        /// Another validator sent EndOfPublish before its copy was sequenced.
+        OtherCopyAfterOtherEndOfPublish,
+        /// The epoch no longer accepts consensus transactions.
+        CertsClosed,
+    }
+
+    /// A user transaction ignored at the end of the epoch is not recorded as
+    /// processed, so its consensus adapter would otherwise hold its submit
+    /// slot until the epoch ends. Under deterministic validation the adapter
+    /// stops waiting when its own copy is ignored after its EndOfPublish, or
+    /// any copy is ignored once the epoch accepts no consensus transactions;
+    /// another validator's copy ignored after that validator's EndOfPublish
+    /// leaves it waiting. Without deterministic validation it keeps waiting in
+    /// every case. A client waiting for the transaction's status is never
+    /// told.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn adapter_stops_waiting_for_a_transaction_ignored_at_epoch_end() {
+        for deterministic_validation in [false, true] {
+            for case in [
+                IgnoredAtEpochEnd::OwnCopyAfterOwnEndOfPublish,
+                IgnoredAtEpochEnd::OtherCopyAfterOtherEndOfPublish,
+                IgnoredAtEpochEnd::CertsClosed,
+            ] {
+                assert_adapter_wait_for_transaction_ignored_at_epoch_end(
+                    deterministic_validation,
+                    case,
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn assert_adapter_wait_for_transaction_ignored_at_epoch_end(
+        deterministic_validation: bool,
+        case: IgnoredAtEpochEnd,
+    ) {
+        use crate::{
+            consensus_adapter::{
+                ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+            },
+            mock_consensus::{ConsensusMode, MockConsensusClient},
+        };
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            if deterministic_validation {
+                config.enable_pcool_deterministic_validation_for_testing();
+            } else {
+                config.set_enable_pcool_flow_for_testing(true);
+            }
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<_> = (0..2)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
+        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let transaction = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
+        let digest = *transaction.digest();
+        let own_index = u8::try_from(epoch.committee().authority_index(&state.name).unwrap())
+            .expect("a four-member committee index fits in a byte");
+        let other_index = (own_index + 1) % 4;
+        let other = *epoch
+            .committee()
+            .authority_by_index(u32::from(other_index))
+            .unwrap();
+
+        // A consensus client that sequences nothing, so only the handler can
+        // end the adapter's wait.
+        let adapter = Arc::new(ConsensusAdapter::new(
+            Arc::new(MockConsensusClient::new(
+                Arc::downgrade(&state),
+                ConsensusMode::Noop,
+            )),
+            state.checkpoint_store.clone(),
+            state.name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+        ));
+        let adapter_wait = adapter
+            .submit(
+                ConsensusTransaction::new_user_transaction(transaction.clone()),
+                None,
+                &epoch,
+            )
+            .unwrap();
+        // Lets the adapter's task register its wait before the commits.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        assert!(!adapter_wait.is_finished());
+        // Polled once so it is registered before the commits are processed.
+        let waiting_submitter = epoch.notify_read_dropped_digests(digest);
+        pin_mut!(waiting_submitter);
+        assert!(futures::poll!(&mut waiting_submitter).is_pending());
+
+        let copy_author = match case {
+            IgnoredAtEpochEnd::OwnCopyAfterOwnEndOfPublish => {
+                handler
+                    .handle_consensus_output_for_test(commit_with_transactions(
+                        1,
+                        100,
+                        vec![(
+                            own_index,
+                            ConsensusTransaction::new_end_of_publish(state.name),
+                        )],
+                    ))
+                    .await;
+                own_index
+            }
+            IgnoredAtEpochEnd::OtherCopyAfterOtherEndOfPublish => {
+                handler
+                    .handle_consensus_output_for_test(commit_with_transactions(
+                        1,
+                        100,
+                        vec![(other_index, ConsensusTransaction::new_end_of_publish(other))],
+                    ))
+                    .await;
+                other_index
+            }
+            IgnoredAtEpochEnd::CertsClosed => {
+                epoch
+                    .get_reconfig_state_write_lock_guard()
+                    .close_all_certs();
+                other_index
+            }
+        };
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                2,
+                200,
+                vec![(
+                    copy_author,
+                    ConsensusTransaction::new_user_transaction(transaction.clone()),
+                )],
+            ))
+            .await;
+
+        assert!(
+            !epoch
+                .is_consensus_message_processed(&user_transaction_key(digest))
+                .unwrap(),
+            "{case:?}, deterministic validation {deterministic_validation}: the ignored \
+             transaction must not be recorded as processed"
+        );
+        let released = tokio::time::timeout(Duration::from_secs(5), adapter_wait)
+            .await
+            .is_ok();
+        let expect_released = deterministic_validation
+            && !matches!(case, IgnoredAtEpochEnd::OtherCopyAfterOtherEndOfPublish);
+        assert_eq!(
+            released, expect_released,
+            "{case:?}, deterministic validation {deterministic_validation}: adapter released"
+        );
+        if expect_released {
+            assert_eq!(adapter.num_inflight_transactions(), 0);
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_secs(5), &mut waiting_submitter)
+                .await
+                .is_err(),
+            "{case:?}, deterministic validation {deterministic_validation}: a client waiting \
+             for the status must not be told"
+        );
+    }
+
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_user_transaction_v1() {
         // GIVEN
