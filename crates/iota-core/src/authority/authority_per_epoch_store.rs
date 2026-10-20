@@ -59,7 +59,7 @@ use iota_types::{
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TransactionDenyRuleProposal,
         VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
     },
-    storage::{BackingPackageStore, InputKey},
+    storage::{BackingPackageStore, InputKey, ObjectKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionAPI,
         TransactionEnvelope, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
@@ -160,6 +160,9 @@ pub(crate) type EncG = bls12381::G2Element;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
+#[path = "handler_object_state.rs"]
+pub mod handler_object_state;
+
 #[path = "misbehavior.rs"]
 pub(crate) mod misbehavior;
 #[path = "misbehavior_monitor.rs"]
@@ -172,6 +175,7 @@ pub(crate) mod scorer;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
+use handler_object_state::{CommitIndex, HandlerObjectState, HandlerProcessedObject};
 use iota_types::crypto::AggregateAuthorityPublicKey;
 use scorer::Scoreboard;
 
@@ -688,6 +692,11 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
+    /// P-COOL deterministic-validation bookkeeping: the transaction-key ->
+    /// commit-index map and the overlay over the bookkeeping table, holding
+    /// entries not yet durable.
+    /// `None` without deterministic validation.
+    handler_object_state: Option<HandlerObjectState>,
 
     protocol_config: ProtocolConfig,
 
@@ -839,6 +848,15 @@ pub struct AuthorityEpochTables {
     /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
+
+    /// Every object version produced by a commit the handler processed, for
+    /// P-COOL deterministic post-consensus validation (see
+    /// [`handler_object_state`]). Flushed through each commit's quarantined
+    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
+    /// access profile as the lock table: one write per written object version
+    /// per commit, one point lookup per validated input.
+    #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
+    handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
@@ -1284,6 +1302,9 @@ impl AuthorityPerEpochStore {
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
+        let handler_object_state = protocol_config
+            .pcool_deterministic_validation()
+            .then(HandlerObjectState::new);
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1337,6 +1358,7 @@ impl AuthorityPerEpochStore {
             protocol_config,
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
+            handler_object_state,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
                 cached_overload_notifications,
@@ -1764,6 +1786,79 @@ impl AuthorityPerEpochStore {
         } else {
             Ok(tables.transaction_key_to_digest.get(key).expect("db error"))
         }
+    }
+
+    /// Registers the roots of commit `index` in the transaction-key ->
+    /// commit-index map. Must be called once per commit while the handler
+    /// processes it, before any of its transactions can be scheduled: the
+    /// execution hook records an execution's rows only when this map holds
+    /// its key.
+    pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        handler_object_state.assign_commit_to_transactions(index, roots);
+    }
+
+    /// Records one executed transaction's object writes for the P-COOL
+    /// deterministic-validation bookkeeping; see
+    /// [`HandlerObjectState::record_executed_transaction`]. An execution the
+    /// handler has not assigned to a commit records nothing.
+    pub fn record_executed_transaction(&self, key: &TransactionKey, effects: &TransactionEffects) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        handler_object_state.record_executed_transaction(key, effects);
+    }
+
+    /// Marks commit `index` fully executed; see
+    /// [`HandlerObjectState::record_commit_fully_executed`].
+    pub fn record_commit_fully_executed(
+        &self,
+        index: CommitIndex,
+        upserts: &[(ObjectKey, HandlerProcessedObject)],
+    ) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        handler_object_state.record_commit_fully_executed(index, upserts);
+    }
+
+    /// The handler-processed row at `key`, the exact version a transaction
+    /// names.
+    pub fn handler_processed_object(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<HandlerProcessedObject>> {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(None);
+        };
+        let tables = self.tables()?;
+        handler_object_state.handler_processed_object(&tables, key)
+    }
+
+    #[cfg(test)]
+    pub fn handler_object_state_for_testing(&self) -> &HandlerObjectState {
+        self.handler_object_state
+            .as_ref()
+            .expect("tests of the handler object state turn deterministic validation on")
+    }
+
+    /// Durably writes a commit's handler-processed rows and then evicts them
+    /// from the overlay, in that order - the quarantine-flush path.
+    #[cfg(test)]
+    pub fn flush_commit_rows_for_testing(
+        &self,
+        handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let mut batch = tables.handler_processed_objects.batch();
+        self.handler_object_state_for_testing()
+            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+        batch.write()?;
+        self.handler_object_state_for_testing()
+            .evict_flushed_commit_rows(&handler_rows);
+        Ok(())
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
