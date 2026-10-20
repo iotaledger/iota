@@ -1349,9 +1349,10 @@ impl AuthorityState {
         // shared input at the version consensus assigned, so both happen
         // there, and a failure there produces failure effects. What is left
         // here asks only what the rows can answer: whether each authenticator
-        // input exists and is what the transaction declares, and, last,
-        // whether each account had its authenticator function field at the
-        // horizon.
+        // input exists and is what the transaction declares, and whether each
+        // account had its authenticator function field at the horizon. That
+        // field also names the package checked against the deny rules below,
+        // and an account without it is reported missing last.
         let (tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_at_commit(
                 protocol_config,

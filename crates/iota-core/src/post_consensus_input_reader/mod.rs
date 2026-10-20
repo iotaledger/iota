@@ -159,8 +159,8 @@ pub enum PackageVerdict {
     Missing(MissingReason),
 }
 
-/// The reader's result for one dynamic field, as of the horizon. The deny
-/// check that reads the field decides from it.
+/// The reader's result for one dynamic field, as of the horizon. The check
+/// that reads the field decides from it.
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
 pub enum DynamicFieldAtHorizon {
