@@ -11,7 +11,7 @@ use iota_grpc_types::v1::{
     service_methods, state_service as grpc_state_service,
     transaction_execution_service as grpc_tx_service,
 };
-use iota_network_stack::grpc_timeout::GrpcTimeout;
+use iota_network_stack::{grpc_timeout::GrpcTimeout, server::insert_tonic_connect_info};
 use iota_traffic_controller::TrafficController;
 use iota_types::{traffic_control::ClientIdSource, transaction_executor::TransactionExecutor};
 use tokio::sync::broadcast;
@@ -154,10 +154,12 @@ pub async fn start_grpc_server(
     }
 
     // Order matters: `GrpcTimeout` outermost, so the deadline covers every layer;
-    // metrics before traffic control, to count blocked requests; server-timing
-    // innermost, to time only the requests that traffic control lets through.
+    // the address copy before traffic control, which reads it; metrics before
+    // traffic control, to count blocked requests; server-timing innermost, to time
+    // only the requests that traffic control lets through.
     let service = tower::ServiceBuilder::new()
         .layer_fn(|service| GrpcTimeout::new(service, None))
+        .map_request(insert_tonic_connect_info)
         .option_layer(
             metrics.map(|m| GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)),
         )

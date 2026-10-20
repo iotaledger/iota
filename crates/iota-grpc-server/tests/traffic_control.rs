@@ -13,7 +13,7 @@
 
 mod common;
 
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{collections::HashMap, future::Future, net::IpAddr, sync::Arc};
 
 use common::{
     MockGrpcStateReader, TestCertificate, UnreachableExecutor, create_large_object,
@@ -82,8 +82,15 @@ async fn server_with_policy(
 
 /// Connect a channel to the test server.
 async fn connect(handle: &GrpcServerHandle) -> Channel {
+    connect_from(handle, None).await
+}
+
+/// Connect a channel to the test server from `local_address`, or from an
+/// address the system picks if it is `None`.
+async fn connect_from(handle: &GrpcServerHandle, local_address: Option<IpAddr>) -> Channel {
     Channel::from_shared(format!("http://{}", handle.address()))
         .unwrap()
+        .local_address(local_address)
         .connect()
         .await
         .expect("failed to connect to test gRPC server")
@@ -161,8 +168,8 @@ async fn handler_errors_feed_the_error_policy() {
     .await;
 }
 
-/// The traffic controller tells clients apart by their address also when they
-/// connect over TLS.
+/// The traffic controller finds the client address also when the client
+/// connects over TLS.
 #[tokio::test]
 async fn handler_errors_over_tls_feed_the_error_policy() {
     let certificate = TestCertificate::new();
@@ -193,6 +200,52 @@ async fn handler_errors_over_tls_feed_the_error_policy() {
         }
     })
     .await;
+}
+
+/// The traffic controller blocks a client by its own address: a client from
+/// another address is still served. The server listens on 127.0.0.1, so a
+/// client address that is mixed up with the server address blocks both
+/// clients.
+// Other systems than Linux do not send 127.0.0.2 and 127.0.0.3 to the
+// loopback interface by default.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_blocked_client_does_not_block_a_client_from_another_address() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    )
+    .await;
+    let blocked_client =
+        StateServiceClient::new(connect_from(&handle, Some(IpAddr::from([127, 0, 0, 2]))).await);
+    let other_client =
+        StateServiceClient::new(connect_from(&handle, Some(IpAddr::from([127, 0, 0, 3]))).await);
+
+    assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
+        let mut client = blocked_client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+
+    let status = other_client
+        .clone()
+        .list_owned_objects(ListOwnedObjectsRequest::default())
+        .await
+        .expect_err("a request without an owner must fail");
+    assert_eq!(
+        status.code(),
+        Code::InvalidArgument,
+        "the client from another address must reach the handler: {status:?}"
+    );
 }
 
 /// Batch APIs embed per-item errors inside a successful gRPC response, where
