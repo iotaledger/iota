@@ -135,8 +135,10 @@ impl CommitObserver {
         .await?;
 
         info!(
-            "CommitObserver reinitialized at commit index {}, took {:?}",
+            "CommitObserver reinitialized: commits up to {} were already sent to execution, \
+             recovery sent up to {}, took {:?}",
             last_sent_commit_index,
+            self.last_sent_commit_index,
             now.elapsed()
         );
         Ok(())
