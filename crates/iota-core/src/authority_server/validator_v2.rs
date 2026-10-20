@@ -444,8 +444,9 @@ impl ValidatorService {
             let authority_index = epoch_store
                 .committee()
                 .authority_index(&state.name)
-                .and_then(|i| u8::try_from(i).ok())
                 .expect("validator must be present in its own consensus committee");
+            let authority_index = u8::try_from(authority_index)
+                .expect("consensus committee indices should fit in a u8");
 
             ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
                 verified_tx.into_inner(),

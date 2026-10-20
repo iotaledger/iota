@@ -248,7 +248,7 @@ pub async fn validate_and_resolve_conflicts(
         // the payload is not malformed.
         if let Some(attestation) = attestation {
             let block_author = u8::try_from(tx.0.certificate_author_index)
-                .expect("consensus committee indices fit in a u8");
+                .expect("consensus committee indices should fit in a u8");
             let Attestation::Authority {
                 authority_index, ..
             } = attestation;
