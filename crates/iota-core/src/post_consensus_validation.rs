@@ -28,8 +28,7 @@
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
 //!   the claimed attestor matches the block author and that the attested
 //!   computation units fall within the valid range (cost floor and ceiling).
-//!   Drop with error on mismatch, out-of-range cost, or unsupported attestation
-//!   variant.
+//!   Drop with error on mismatch or out-of-range cost.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -512,7 +511,7 @@ pub async fn validate_and_resolve_conflicts(
         if attestation.is_some() {
             authority_state
                 .metrics
-                .post_consensus_attested_tx
+                .consensus_handler_validation_attested_transactions
                 .with_label_values(&["authority"])
                 .inc();
         }

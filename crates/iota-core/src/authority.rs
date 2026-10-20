@@ -265,9 +265,6 @@ pub struct AuthorityMetrics {
     total_cert_attempts: IntCounter,
     total_effects: IntCounter,
     pub shared_obj_tx: IntCounter,
-    /// Attested transactions that passed post-consensus validation, by
-    /// attestation kind; a deferred transaction counts again when reloaded.
-    pub(crate) post_consensus_attested_tx: IntCounterVec,
     sponsored_tx: IntCounter,
     tx_already_processed: IntCounter,
     num_input_objs: Histogram,
@@ -341,6 +338,9 @@ pub struct AuthorityMetrics {
     /// post-consensus conflict/lock validation rejected them. Distinct from
     /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
+    /// Attested transactions that passed post-consensus validation, by
+    /// attestation kind; a deferred transaction counts again when reloaded.
+    pub(crate) consensus_handler_validation_attested_transactions: IntCounterVec,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -464,14 +464,6 @@ impl AuthorityMetrics {
                 MetricLevel::Warn,
             )
                 .unwrap(),
-
-            post_consensus_attested_tx: register_int_counter_vec_with_registry!(
-                "authority_state_post_consensus_attested_tx",
-                "Number of attested transactions that passed post-consensus validation, by attestation kind; a deferred transaction counts again when reloaded",
-                &["attestation"],
-                registry,
-            )
-            .unwrap(),
 
             sponsored_tx: register_int_counter_with_registry!(
                 "num_sponsored_tx",
@@ -798,6 +790,13 @@ impl AuthorityMetrics {
                 "consensus_handler_validation_dropped_transactions",
                 "Number of UserTransactionV1/V2 transactions dropped by post-consensus validation",
                 registry,
+            ).unwrap(),
+            consensus_handler_validation_attested_transactions: register_int_counter_vec_with_registry!(
+                "consensus_handler_validation_attested_transactions",
+                "Number of attested transactions that passed post-consensus validation, by attestation kind; a deferred transaction counts again when reloaded",
+                &["attestation"],
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
