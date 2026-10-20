@@ -4306,10 +4306,11 @@ impl AuthorityPerEpochStore {
 
         // Validation reads rows produced at or below the horizon, so every
         // commit up to it must be fully executed before any input is read.
-        // Only a node that keeps the bookkeeping has a frontier that moves.
-        // Commits after the final round make no checkpoint and are never
-        // assigned, so the frontier cannot reach them. They admit no user
-        // transaction either, so they do not wait.
+        // Only a node that keeps the handler object state advances the highest
+        // fully executed commit. Commits after the final round make no
+        // checkpoint and are never assigned, so the highest fully executed
+        // commit cannot reach them. They admit no user transaction either, so
+        // they do not wait.
         if self.pcool_bookkeeping_enabled
             && self.get_reconfig_state_read_lock_guard().should_accept_tx()
         {

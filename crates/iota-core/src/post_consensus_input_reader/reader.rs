@@ -30,9 +30,10 @@ use crate::{
     execution_cache::ObjectCacheRead,
 };
 
-/// The highest commit whose rows a verdict at `commit_index` may trust: the
-/// commit minus the protocol config's horizon distance. The reader applies it
-/// to rows, and the handler waits for it before validating.
+/// The horizon of `commit_index`: the highest commit whose rows validation at
+/// `commit_index` relies on, which is the commit minus the protocol config's
+/// horizon distance. The reader treats rows produced above it as missing, and
+/// the handler waits until it is fully executed before validating.
 pub fn horizon(protocol_config: &ProtocolConfig, commit_index: CommitIndex) -> CommitIndex {
     commit_index.saturating_sub(
         protocol_config.pcool_deterministic_validation_horizon_distance_or_default(),
