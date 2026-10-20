@@ -27,10 +27,7 @@ use crate::{
     },
 };
 
-/// Visibility is `pub` until the validation entry point consumes
-/// `read_objects_at_commit`; `pub(crate)` would be dead code under
-/// `-D warnings` until then.
-pub struct TransactionInputLoader {
+pub(crate) struct TransactionInputLoader {
     cache: Arc<dyn ObjectCacheRead>,
 }
 
@@ -321,7 +318,7 @@ impl TransactionInputLoader {
     /// storage failure. A drop or a missing input is a resolution, never an
     /// error.
     #[instrument(level = "trace", skip_all)]
-    pub fn read_objects_at_commit(
+    pub(crate) fn read_objects_at_commit(
         &self,
         reader: &CommitIndexedReader,
         input_object_kinds: &[InputObjectKind],
