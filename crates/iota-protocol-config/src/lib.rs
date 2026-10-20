@@ -3703,6 +3703,22 @@ impl ProtocolConfig {
             self.additional_borrow_checks()
         };
 
+        // Far above the largest instantiation-loop graph in the system packages
+        // and examples.
+        const MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING: usize = 100_000;
+
+        // Applied with the signing limits only: execution verifies without a
+        // meter. Both fail with PROGRAM_TOO_COMPLEX, which signing rejects. On
+        // chains with the P-COOL flow, the signing limits also decide which
+        // transactions post-consensus validation keeps, so validators running
+        // binaries with different values here can disagree.
+        let (meter_instantiation_loops, max_instantiation_loop_graph_edges) =
+            if signing_limits.is_some() {
+                (true, Some(MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING))
+            } else {
+                (false, None)
+            };
+
         VerifierConfig {
             max_loop_depth: Some(self.max_loop_depth() as usize),
             max_generic_instantiation_length: Some(self.max_generic_instantiation_length() as usize),
@@ -3729,6 +3745,8 @@ impl ProtocolConfig {
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
             check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
+            meter_instantiation_loops,
+            max_instantiation_loop_graph_edges,
         }
     }
 
@@ -4145,6 +4163,19 @@ mod test {
             prot.max_arguments(),
             prot.max_arguments_as_option().unwrap()
         );
+    }
+
+    #[test]
+    fn only_signing_bounds_the_instantiation_loop_checker() {
+        let prot = ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let signing = prot.verifier_config(Some((0, 0, 0)));
+        assert!(signing.max_instantiation_loop_graph_edges.is_some());
+        assert!(signing.meter_instantiation_loops);
+
+        let execution = prot.verifier_config(None);
+        assert_eq!(execution.max_instantiation_loop_graph_edges, None);
+        assert!(!execution.meter_instantiation_loops);
     }
 
     #[test]
