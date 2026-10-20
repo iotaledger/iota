@@ -760,8 +760,8 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     pcool_deterministic_validation: bool,
 
-    // If true, a consensus message is skipped as a duplicate only of an earlier message with the
-    // same key that was recorded as processed or, in the same commit, passed verification:
+    // If true, a consensus message is skipped as a duplicate of an earlier message with the same
+    // key that was recorded as processed or passed verification in the same commit:
     // - The consensus handler adds a message to its processed-transaction cache only after the
     //   epoch store recorded it as processed. Otherwise the cache also holds messages that were
     //   dropped without being recorded, and since it differs between validators and after a

@@ -3588,7 +3588,7 @@ impl AuthorityPerEpochStore {
     /// after all earlier commits were processed. The result may depend on the
     /// state left by earlier commits, but not on other transactions of the
     /// same commit. Within a commit, a transaction is skipped as a duplicate
-    /// only of an earlier one with the same key that passed this check.
+    /// of an earlier one with the same key that passed this check.
     pub(crate) fn verify_consensus_transaction(
         &self,
         transaction: SequencedConsensusTransaction,
