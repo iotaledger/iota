@@ -403,7 +403,7 @@ async fn test_restart_after_crash_before_the_state_hash_is_saved_catches_up() {
 /// saved decisions. It keeps building the same checkpoints as its peers, and
 /// the saved decisions of every flushed commit are gone.
 #[sim_test]
-async fn test_crash_after_post_consensus_verdicts_recovers() {
+async fn test_crash_after_post_consensus_decisions_recovers() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = TestClusterBuilder::new()
@@ -428,7 +428,7 @@ async fn test_crash_after_post_consensus_verdicts_recovers() {
     let fired = Arc::new(AtomicBool::new(false));
     {
         let fired = fired.clone();
-        register_fail_point("crash-after-post-consensus-verdicts", move || {
+        register_fail_point("crash-after-post-consensus-decisions", move || {
             if iota_simulator::current_simnode_id() == victim_sim_id
                 && !fired.swap(true, Ordering::SeqCst)
             {
@@ -519,7 +519,7 @@ async fn test_crash_after_post_consensus_verdicts_recovers() {
             let saved = node_handle(victim).with(|node| {
                 node.state()
                     .epoch_store_for_testing()
-                    .has_post_consensus_verdict_for_testing(index, digest)
+                    .has_post_consensus_decision_for_testing(index, digest)
                     .unwrap()
             });
             assert!(

@@ -303,17 +303,17 @@ impl ConsensusCommitOutput {
         // never replays it, so its saved validation decisions retire with it.
         if epoch_store.pcool_bookkeeping_enabled() {
             if let Some(candidates) = tables
-                .post_consensus_verdict_candidates
+                .post_consensus_decision_candidates
                 .get(&self.commit_index)?
             {
                 batch.delete_batch(
-                    &tables.post_consensus_verdicts,
+                    &tables.post_consensus_decisions,
                     candidates
                         .into_iter()
                         .map(|digest| (self.commit_index, digest)),
                 )?;
                 batch.delete_batch(
-                    &tables.post_consensus_verdict_candidates,
+                    &tables.post_consensus_decision_candidates,
                     [self.commit_index],
                 )?;
             }

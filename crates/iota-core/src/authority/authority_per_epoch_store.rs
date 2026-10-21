@@ -134,7 +134,7 @@ use crate::{
     overload_monitor::should_reject_tx,
     post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
-    post_consensus_validation::{self, PostConsensusVerdict},
+    post_consensus_validation::{self, PostConsensusDecision},
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
 };
@@ -909,12 +909,12 @@ pub struct AuthorityEpochTables {
     /// consensus commit, keyed by commit and transaction digest. Written when
     /// the handler first validates the commit and deleted when the commit's
     /// output flushes, so a commit replayed after a restart finds them.
-    pub(crate) post_consensus_verdicts:
-        DBMap<(CommitIndex, TransactionDigest), PostConsensusVerdict>,
+    pub(crate) post_consensus_decisions:
+        DBMap<(CommitIndex, TransactionDigest), PostConsensusDecision>,
     /// The candidates of a consensus commit in consensus order, written in
-    /// the same batch as their rows in `post_consensus_verdicts`, so its
+    /// the same batch as their rows in `post_consensus_decisions`, so its
     /// presence means every candidate of the commit has a decision.
-    pub(crate) post_consensus_verdict_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
+    pub(crate) post_consensus_decision_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
 
     /// The last commit the consensus handler processed before this node
     /// switched to executing synced checkpoints for the rest of the epoch,
@@ -1942,49 +1942,49 @@ impl AuthorityPerEpochStore {
     /// The saved post-consensus validation decision for `digest` at commit
     /// `index`, if the handler validated that commit and its output has not
     /// flushed yet.
-    pub(crate) fn post_consensus_verdict(
+    pub(crate) fn post_consensus_decision(
         &self,
         index: CommitIndex,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<PostConsensusVerdict>> {
+    ) -> IotaResult<Option<PostConsensusDecision>> {
         Ok(self
             .tables()?
-            .post_consensus_verdicts
+            .post_consensus_decisions
             .get(&(index, digest))?)
     }
 
     /// Whether a post-consensus validation decision for `digest` at commit
-    /// `index` is saved; see [`Self::post_consensus_verdict`]. For cluster
+    /// `index` is saved; see [`Self::post_consensus_decision`]. For cluster
     /// tests.
     #[cfg(msim)]
-    pub fn has_post_consensus_verdict_for_testing(
+    pub fn has_post_consensus_decision_for_testing(
         &self,
         index: CommitIndex,
         digest: TransactionDigest,
     ) -> IotaResult<bool> {
-        Ok(self.post_consensus_verdict(index, digest)?.is_some())
+        Ok(self.post_consensus_decision(index, digest)?.is_some())
     }
 
     /// Saves the decisions of every candidate of commit `index`, in consensus
     /// order, together with the commit's candidate list, in one batch.
-    pub(crate) fn persist_post_consensus_verdicts(
+    pub(crate) fn persist_post_consensus_decisions(
         &self,
         index: CommitIndex,
-        verdicts: &[(TransactionDigest, PostConsensusVerdict)],
+        decisions: &[(TransactionDigest, PostConsensusDecision)],
     ) -> IotaResult {
         let tables = self.tables()?;
-        let mut batch = tables.post_consensus_verdicts.batch();
+        let mut batch = tables.post_consensus_decisions.batch();
         batch.insert_batch(
-            &tables.post_consensus_verdicts,
-            verdicts
+            &tables.post_consensus_decisions,
+            decisions
                 .iter()
-                .map(|(digest, verdict)| ((index, *digest), verdict)),
+                .map(|(digest, decision)| ((index, *digest), decision)),
         )?;
         batch.insert_batch(
-            &tables.post_consensus_verdict_candidates,
+            &tables.post_consensus_decision_candidates,
             [(
                 index,
-                verdicts
+                decisions
                     .iter()
                     .map(|(digest, _)| *digest)
                     .collect::<Vec<_>>(),
@@ -4655,8 +4655,8 @@ impl AuthorityPerEpochStore {
                 for drop in &dropped {
                     let missing = deterministic_validation
                         && matches!(
-                            self.post_consensus_verdict(consensus_commit_info.index, drop.0)?,
-                            Some(PostConsensusVerdict::Missing(_))
+                            self.post_consensus_decision(consensus_commit_info.index, drop.0)?,
+                            Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
                         );
                     if missing {
                         not_final.push(drop.clone());

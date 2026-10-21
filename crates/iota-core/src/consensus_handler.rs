@@ -1689,7 +1689,7 @@ mod tests {
             authority::authority_per_epoch_store::handler_object_state::{
                 HandlerProcessedObject, HandlerProcessedObjectKind,
             },
-            post_consensus_validation::PostConsensusVerdict,
+            post_consensus_validation::PostConsensusDecision,
         };
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -1775,11 +1775,14 @@ mod tests {
                 vec![],
             );
             handler.handle_consensus_output_for_test(subdag).await;
-            let verdict = epoch.post_consensus_verdict(index as u64, digest).unwrap();
+            let decision = epoch.post_consensus_decision(index as u64, digest).unwrap();
             match index {
-                1 | 2 => assert!(matches!(verdict, Some(PostConsensusVerdict::Missing(_)))),
-                3 => assert_eq!(verdict, Some(PostConsensusVerdict::Kept)),
-                4 => assert_eq!(verdict, None),
+                1 | 2 => assert!(matches!(
+                    decision,
+                    Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
+                )),
+                3 => assert_eq!(decision, Some(PostConsensusDecision::Kept)),
+                4 => assert_eq!(decision, None),
                 _ => unreachable!(),
             }
             assert_eq!(handler.processed_cache.contains(&cache_key), index >= 3);

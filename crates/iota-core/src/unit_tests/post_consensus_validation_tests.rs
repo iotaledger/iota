@@ -60,7 +60,7 @@ use crate::{
         DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
         reader::CommitIndexedReader,
     },
-    post_consensus_validation::{self, PostConsensusVerdict},
+    post_consensus_validation::{self, PostConsensusDecision},
     test_utils::make_transfer_object_transaction,
     transaction_input_loader::TransactionInputLoader,
 };
@@ -4614,17 +4614,19 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
 
     // Every candidate's decision is saved at the commit, with the error the
     // caller reports for a drop. The input not visible at the horizon yet is
-    // saved as `Missing`, so the drop is not final for the digest.
+    // saved as `DroppedInputNotVisibleYet`, so the drop is not final for the digest.
     let saved: Vec<_> = all_digests
         .iter()
-        .map(|digest| s.epoch_store.post_consensus_verdict(12, *digest).unwrap())
+        .map(|digest| s.epoch_store.post_consensus_decision(12, *digest).unwrap())
         .collect();
     assert_eq!(
         saved,
         vec![
-            Some(PostConsensusVerdict::Kept),
-            Some(PostConsensusVerdict::Dropped(dropped[0].1.clone())),
-            Some(PostConsensusVerdict::Missing(dropped[1].1.clone())),
+            Some(PostConsensusDecision::Kept),
+            Some(PostConsensusDecision::Dropped(dropped[0].1.clone())),
+            Some(PostConsensusDecision::DroppedInputNotVisibleYet(
+                dropped[1].1.clone()
+            )),
         ]
     );
 }
@@ -4632,7 +4634,7 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
 /// The decisions of a commit and its candidate list read back as written,
 /// before and after a restart.
 #[tokio::test]
-async fn post_consensus_verdicts_survive_a_restart() {
+async fn post_consensus_decisions_survive_a_restart() {
     use typed_store::Map;
 
     let mut s = setup_bookkeeping(vec![], true).await;
@@ -4643,33 +4645,36 @@ async fn post_consensus_verdicts_survive_a_restart() {
         version: None,
     }
     .into();
-    let verdicts = vec![
-        (kept, PostConsensusVerdict::Kept),
-        (dropped, PostConsensusVerdict::Dropped(error)),
+    let decisions = vec![
+        (kept, PostConsensusDecision::Kept),
+        (dropped, PostConsensusDecision::Dropped(error)),
     ];
     s.epoch_store
-        .persist_post_consensus_verdicts(1, &verdicts)
+        .persist_post_consensus_decisions(1, &decisions)
         .unwrap();
     for reopened in [false, true] {
         if reopened {
             s.epoch_store = reopen(&s.authority, &s.epoch_store);
         }
-        for (digest, verdict) in &verdicts {
+        for (digest, decision) in &decisions {
             assert_eq!(
-                s.epoch_store.post_consensus_verdict(1, *digest).unwrap(),
-                Some(verdict.clone())
+                s.epoch_store.post_consensus_decision(1, *digest).unwrap(),
+                Some(decision.clone())
             );
         }
         assert_eq!(
             s.epoch_store
                 .tables()
                 .unwrap()
-                .post_consensus_verdict_candidates
+                .post_consensus_decision_candidates
                 .get(&1)
                 .unwrap(),
             Some(vec![kept, dropped])
         );
-        assert_eq!(s.epoch_store.post_consensus_verdict(2, kept).unwrap(), None);
+        assert_eq!(
+            s.epoch_store.post_consensus_decision(2, kept).unwrap(),
+            None
+        );
     }
 }
 
@@ -4718,7 +4723,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
     output.write_to_batch(&s.epoch_store, &mut batch).unwrap();
     assert!(
         s.epoch_store
-            .post_consensus_verdict(1, *tx.digest())
+            .post_consensus_decision(1, *tx.digest())
             .unwrap()
             .is_some()
     );
@@ -4727,7 +4732,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
     let reopened = reopen(&s.authority, &s.epoch_store);
     assert!(
         reopened
-            .post_consensus_verdict(1, *tx.digest())
+            .post_consensus_decision(1, *tx.digest())
             .unwrap()
             .is_none()
     );
@@ -4747,7 +4752,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
     assert!(s.process_at(2, std::slice::from_ref(&tx)).await.is_empty());
     assert_eq!(
         s.epoch_store
-            .post_consensus_verdict(2, *tx.digest())
+            .post_consensus_decision(2, *tx.digest())
             .unwrap(),
         None
     );
@@ -4755,7 +4760,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
         s.epoch_store
             .tables()
             .unwrap()
-            .post_consensus_verdict_candidates
+            .post_consensus_decision_candidates
             .get(&2)
             .unwrap(),
         Some(vec![])
@@ -4805,9 +4810,9 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
     );
     assert_eq!(
         s.epoch_store
-            .post_consensus_verdict(1, *deferred.digest())
+            .post_consensus_decision(1, *deferred.digest())
             .unwrap(),
-        Some(PostConsensusVerdict::Kept)
+        Some(PostConsensusDecision::Kept)
     );
     let second = s.process_at(2, std::slice::from_ref(&deferred)).await;
     assert_eq!(second.len(), 1);
@@ -4819,9 +4824,9 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
     );
     assert_eq!(
         s.epoch_store
-            .post_consensus_verdict(2, *deferred.digest())
+            .post_consensus_decision(2, *deferred.digest())
             .unwrap(),
-        Some(PostConsensusVerdict::Kept)
+        Some(PostConsensusDecision::Kept)
     );
     let roots = s.checkpoint_roots();
     let effects: Vec<_> = transactions
@@ -4866,7 +4871,7 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
     );
     assert_eq!(
         s.epoch_store
-            .post_consensus_verdict(3, *deferred.digest())
+            .post_consensus_decision(3, *deferred.digest())
             .unwrap(),
         None
     );
@@ -4926,7 +4931,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
         batch.write().unwrap();
         assert!(
             node.epoch_store
-                .post_consensus_verdict(12, *consumer.digest())
+                .post_consensus_decision(12, *consumer.digest())
                 .unwrap()
                 .is_none()
         );
@@ -4988,7 +4993,7 @@ async fn incomplete_saved_decisions_are_not_revalidated() {
     s.epoch_store
         .tables()
         .unwrap()
-        .post_consensus_verdicts
+        .post_consensus_decisions
         .remove(&(1, *tx.digest()))
         .unwrap();
     let task = tokio::spawn(async move { s.validate_at(1, &[tx]).await });
@@ -5042,8 +5047,8 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
     });
     assert!(task.await.unwrap_err().is_panic());
     assert_eq!(
-        s.epoch_store.post_consensus_verdict(2, digest).unwrap(),
-        Some(PostConsensusVerdict::Kept)
+        s.epoch_store.post_consensus_decision(2, digest).unwrap(),
+        Some(PostConsensusDecision::Kept)
     );
 }
 

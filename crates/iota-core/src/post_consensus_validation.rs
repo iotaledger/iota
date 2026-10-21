@@ -81,7 +81,7 @@ use crate::{
 /// consensus commit, saved so a replay of the commit after a restart reaches
 /// the same decision.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PostConsensusVerdict {
+pub enum PostConsensusDecision {
     /// The transaction stayed in the commit.
     Kept,
     /// The transaction was dropped with this error.
@@ -89,7 +89,7 @@ pub enum PostConsensusVerdict {
     /// The transaction was dropped because an input is not visible at the
     /// commit's horizon yet. The digest can be kept when sequenced again, so
     /// the drop is not its final status.
-    Missing(IotaError),
+    DroppedInputNotVisibleYet(IotaError),
 }
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
@@ -191,14 +191,14 @@ pub async fn validate_and_resolve_conflicts(
     let saved_candidates = if deterministic_validation {
         epoch_store
             .tables()?
-            .post_consensus_verdict_candidates
+            .post_consensus_decision_candidates
             .get(&commit_index)?
     } else {
         None
     };
-    let mut saved_verdicts = HashMap::new();
-    // The dropped transactions whose drop is `PostConsensusVerdict::Missing`.
-    let mut not_visible_yet = HashSet::new();
+    let mut saved_decisions = HashMap::new();
+    // The dropped transactions whose drop is `PostConsensusDecision::DroppedInputNotVisibleYet`.
+    let mut dropped_input_not_visible_yet = HashSet::new();
 
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
@@ -232,8 +232,8 @@ pub async fn validate_and_resolve_conflicts(
         all_user_tx_digests.push(digest);
 
         let saved = match &saved_candidates {
-            Some(_) => match epoch_store.post_consensus_verdict(commit_index, digest)? {
-                Some(verdict) => Some(verdict),
+            Some(_) => match epoch_store.post_consensus_decision(commit_index, digest)? {
+                Some(decision) => Some(decision),
                 None => fatal!(
                     "commit {commit_index} has a saved candidate list but no saved \
                      validation decision for {digest:?}"
@@ -241,16 +241,21 @@ pub async fn validate_and_resolve_conflicts(
             },
             None => None,
         };
-        if let Some(verdict) = &saved {
-            saved_verdicts.insert(digest, verdict.clone());
+        if let Some(decision) = &saved {
+            saved_decisions.insert(digest, decision.clone());
         }
         // A saved drop is replayed as is: the inputs it was decided on may
         // have changed since.
-        if let Some(PostConsensusVerdict::Dropped(error) | PostConsensusVerdict::Missing(error)) =
-            &saved
+        if let Some(
+            PostConsensusDecision::Dropped(error)
+            | PostConsensusDecision::DroppedInputNotVisibleYet(error),
+        ) = &saved
         {
-            if matches!(saved, Some(PostConsensusVerdict::Missing(_))) {
-                not_visible_yet.insert(digest);
+            if matches!(
+                saved,
+                Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
+            ) {
+                dropped_input_not_visible_yet.insert(digest);
             }
             dropped.push((digest, error.clone()));
             keep[i] = false;
@@ -268,7 +273,7 @@ pub async fn validate_and_resolve_conflicts(
         // commit the transaction was kept, so only a saved keep at this commit
         // skips validation; its consumed inputs may be pruned by now. Without
         // one, the commit-indexed reader decides, as on every other validator.
-        if (!deterministic_validation || saved == Some(PostConsensusVerdict::Kept))
+        if (!deterministic_validation || saved == Some(PostConsensusDecision::Kept))
             && authority_state
                 .get_transaction_cache_reader()
                 .try_is_tx_already_executed(&digest)?
@@ -409,14 +414,14 @@ pub async fn validate_and_resolve_conflicts(
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
-        let mut input_not_visible = false;
+        let mut input_not_visible_yet = false;
         let checked = match &reader {
             // Inputs read as of the commit. A dropped or a missing input is
             // reported with the error admission gives a missing input, so
             // clients see a known error, and the reason goes to the log. A
             // missing input drops the transaction from this commit only: the
-            // decision is saved as `Missing`, which does not stop a
-            // resubmission from being kept at a later commit.
+            // decision is saved as `DroppedInputNotVisibleYet`, which does not
+            // stop a resubmission from being kept at a later commit.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,
@@ -458,7 +463,7 @@ pub async fn validate_and_resolve_conflicts(
                                 ?reason,
                                 "input not visible at this commit"
                             );
-                            input_not_visible = true;
+                            input_not_visible_yet = true;
                             Err(kind.object_not_found_error().into())
                         }
                     }
@@ -490,8 +495,8 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                if input_not_visible {
-                    not_visible_yet.insert(digest);
+                if input_not_visible_yet {
+                    dropped_input_not_visible_yet.insert(digest);
                 }
                 dropped.push((digest, e));
                 keep[i] = false;
@@ -524,17 +529,17 @@ pub async fn validate_and_resolve_conflicts(
 
     if deterministic_validation {
         let errors: HashMap<_, _> = dropped.iter().cloned().collect();
-        let verdicts: Vec<_> = all_user_tx_digests
+        let decisions: Vec<_> = all_user_tx_digests
             .iter()
             .map(|digest| {
-                let verdict = match errors.get(digest) {
-                    Some(error) if not_visible_yet.contains(digest) => {
-                        PostConsensusVerdict::Missing(error.clone())
+                let decision = match errors.get(digest) {
+                    Some(error) if dropped_input_not_visible_yet.contains(digest) => {
+                        PostConsensusDecision::DroppedInputNotVisibleYet(error.clone())
                     }
-                    Some(error) => PostConsensusVerdict::Dropped(error.clone()),
-                    None => PostConsensusVerdict::Kept,
+                    Some(error) => PostConsensusDecision::Dropped(error.clone()),
+                    None => PostConsensusDecision::Kept,
                 };
-                (*digest, verdict)
+                (*digest, decision)
             })
             .collect();
         match &saved_candidates {
@@ -545,20 +550,20 @@ pub async fn validate_and_resolve_conflicts(
                          ones: saved {candidates:?}, now {all_user_tx_digests:?}"
                     );
                 }
-                for (digest, verdict) in &verdicts {
-                    let saved = saved_verdicts.get(digest);
-                    if saved != Some(verdict) {
+                for (digest, decision) in &decisions {
+                    let saved = saved_decisions.get(digest);
+                    if saved != Some(decision) {
                         fatal!(
                             "validation decision for {digest:?} at commit {commit_index} \
-                             differs from the saved one: saved {saved:?}, now {verdict:?}"
+                             differs from the saved one: saved {saved:?}, now {decision:?}"
                         );
                     }
                 }
             }
             None => {
-                epoch_store.persist_post_consensus_verdicts(commit_index, &verdicts)?;
-                if !verdicts.is_empty() {
-                    fail_point!("crash-after-post-consensus-verdicts");
+                epoch_store.persist_post_consensus_decisions(commit_index, &decisions)?;
+                if !decisions.is_empty() {
+                    fail_point!("crash-after-post-consensus-decisions");
                 }
             }
         }
