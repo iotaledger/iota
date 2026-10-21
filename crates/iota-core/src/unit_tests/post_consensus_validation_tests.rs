@@ -3358,14 +3358,13 @@ async fn assigned_commit_delete_writes_a_deleted_tombstone_row() {
         3,
     );
     let created_ref = *create_effects.created()[0].reference();
-    assert_eq!(
-        s.handler_processed_object(created_ref.object_id(), created_ref.version)
-            .kind,
-        HandlerProcessedObjectKind::Live
-    );
+    let created_row = s.handler_processed_object(created_ref.object_id(), created_ref.version);
+    assert_eq!(created_row.kind, HandlerProcessedObjectKind::Live);
 
-    // The deletion in a later commit replaces the live row with a tombstone
-    // at the deletion version, carrying the store's deleted-object digest.
+    // The deletion in a later commit writes a tombstone at the deletion
+    // version, carrying the store's deleted-object digest and naming the
+    // deleted version as `replaced_version`; the live row of the deleted
+    // version stays.
     let delete_effects = s.assigned_commit_object_basics_call(
         "delete",
         vec![CallArg::ImmutableOrOwned(created_ref)],
@@ -3385,10 +3384,14 @@ async fn assigned_commit_delete_writes_a_deleted_tombstone_row() {
             deleted_by: Some(*delete_effects.transaction_digest()),
         }
     );
+    assert_eq!(
+        s.handler_processed_object(created_ref.object_id(), created_ref.version),
+        created_row
+    );
 }
 
 #[tokio::test]
-async fn assigned_commit_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone() {
+async fn assigned_commit_wrap_and_unwrap_write_a_wrapped_tombstone_and_a_new_live_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let s = setup_handler_object_state(
@@ -3398,6 +3401,9 @@ async fn assigned_commit_wrap_and_unwrap_move_the_row_through_a_wrapped_tombston
     .await;
 
     let (created_ref, _) = s.create_object(&gas_id, sender, &sender_key, 4);
+    let created_row = s.handler_processed_object(created_ref.object_id(), created_ref.version);
+    // The wrap writes a tombstone at the wrap version and leaves the live row
+    // of the wrapped version in place.
     let wrap_effects = s.assigned_commit_object_basics_call(
         "wrap",
         vec![CallArg::ImmutableOrOwned(created_ref)],
@@ -3416,6 +3422,10 @@ async fn assigned_commit_wrap_and_unwrap_move_the_row_through_a_wrapped_tombston
             replaced_version: Some(created_ref.version),
             deleted_by: None,
         }
+    );
+    assert_eq!(
+        s.handler_processed_object(created_ref.object_id(), created_ref.version),
+        created_row
     );
     let wrapper_ref = *wrap_effects.created()[0].reference();
     assert_eq!(
