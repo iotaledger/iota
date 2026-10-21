@@ -255,7 +255,7 @@ impl<'a> TablePruner<'a> {
             Ok(Some(w)) => w,
             Ok(None) => {
                 // No watermark entry yet, skip
-                tracing::warn!("no watermark entry found for table {}", self.table.as_ref());
+                tracing::debug!("no watermark entry found for table {}", self.table.as_ref());
                 return Ok(());
             }
             Err(e) => {
