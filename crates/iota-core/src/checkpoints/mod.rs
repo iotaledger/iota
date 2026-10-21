@@ -35,7 +35,7 @@ use iota_sdk_types::{
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use iota_types::{
-    attestation::AttestationRecord,
+    attestation::{AttestationRecord, AttestationTotals},
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
@@ -588,6 +588,8 @@ impl CheckpointStore {
                 // show.
                 attestation_verdict_differences =
                     ?attestation_verdict_differences(local_checkpoint, verified_checkpoint),
+                attestation_totals_difference =
+                    ?attestation_totals_difference(local_checkpoint, verified_checkpoint),
                 "Local checkpoint fork detected!",
             );
             fatal!(
@@ -1930,6 +1932,10 @@ impl CheckpointBuilder {
             ) = chunk.into_iter().multiunzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
+            let attestation_totals = self.get_epoch_attestation_totals(
+                last_checkpoint.as_ref().map(|(_, c)| c),
+                &attestations,
+            );
 
             let end_of_epoch_data = if last_checkpoint_of_epoch {
                 let scores: Vec<u64> = if self
@@ -2047,6 +2053,7 @@ impl CheckpointBuilder {
                 timestamp_ms,
                 matching_randomness_rounds,
                 attestations,
+                attestation_totals,
             );
             summary.report_checkpoint_age(&self.metrics.last_created_checkpoint_age);
             if last_checkpoint_of_epoch {
@@ -2088,6 +2095,35 @@ impl CheckpointBuilder {
         }
 
         Ok(NonEmpty::from_vec(checkpoints).expect("at least one checkpoint"))
+    }
+
+    /// The epoch's fault counts through this checkpoint: the previous
+    /// summary's totals when it belongs to this epoch, plus this checkpoint's
+    /// `Refuted` records. Empty without validator attestation.
+    ///
+    /// # Panics
+    ///
+    /// If the previous summary's version-specific data does not decode: the
+    /// builder wrote it itself.
+    fn get_epoch_attestation_totals(
+        &self,
+        last_checkpoint: Option<&CheckpointSummary>,
+        attestations: &[Option<AttestationRecord>],
+    ) -> AttestationTotals {
+        let protocol_config = self.epoch_store.protocol_config();
+        if !protocol_config.enable_validator_attestation() {
+            return AttestationTotals::default();
+        }
+        last_checkpoint
+            .filter(|summary| summary.epoch == self.epoch_store.epoch())
+            .and_then(|summary| {
+                summary
+                    .parse_version_specific_data(protocol_config)
+                    .expect("the builder's own summary decodes")
+            })
+            .and_then(|data| data.attestation_totals().cloned())
+            .unwrap_or_default()
+            .with_records(attestations)
     }
 
     fn get_epoch_total_gas_cost(
@@ -2575,11 +2611,9 @@ fn attestation_verdict_differences(
     verified: &CheckpointSummary,
 ) -> Vec<(usize, Option<AttestationRecord>, Option<AttestationRecord>)> {
     let decode = |summary: &CheckpointSummary| {
-        bcs::from_bytes::<iota_types::messages_checkpoint::CheckpointVersionSpecificData>(
-            &summary.version_specific_data,
-        )
-        .map(|data| data.attestations().to_vec())
-        .unwrap_or_default()
+        decode_version_specific_data(summary)
+            .map(|data| data.attestations().to_vec())
+            .unwrap_or_default()
     };
     let (local, verified) = (decode(local), decode(verified));
     (0..local.len().max(verified.len()))
@@ -2589,6 +2623,26 @@ fn attestation_verdict_differences(
             (local != verified).then_some((slot, local, verified))
         })
         .collect()
+}
+
+/// The attestation totals of two summaries when they disagree.
+fn attestation_totals_difference(
+    local: &CheckpointSummary,
+    verified: &CheckpointSummary,
+) -> Option<(AttestationTotals, AttestationTotals)> {
+    let decode = |summary: &CheckpointSummary| {
+        decode_version_specific_data(summary)
+            .and_then(|data| data.attestation_totals().cloned())
+            .unwrap_or_default()
+    };
+    let (local, verified) = (decode(local), decode(verified));
+    (local != verified).then_some((local, verified))
+}
+
+fn decode_version_specific_data(
+    summary: &CheckpointSummary,
+) -> Option<iota_types::messages_checkpoint::CheckpointVersionSpecificData> {
+    bcs::from_bytes(&summary.version_specific_data).ok()
 }
 
 /// Create data dump containing relevant data for diagnosing cause of the
@@ -3422,6 +3476,96 @@ mod tests {
         let slot = |digest| contents.iter().position(|d| *d == digest).unwrap();
         assert_eq!(attestations[slot(digests[1])], Some(record));
         assert_eq!(attestations[slot(digests[0])], None);
+    }
+
+    /// The summary carries the epoch's refuted totals so far: the previous
+    /// summary's totals plus this checkpoint's `Refuted` records.
+    #[tokio::test]
+    async fn summary_attestation_totals_accumulate_across_checkpoints() {
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(true);
+        protocol_config.set_enable_validator_attestation_for_testing(true);
+        protocol_config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        let txs = [
+            genesis_package_tx(1, 1),
+            genesis_package_tx(2, 1),
+            genesis_package_tx(3, 1),
+        ];
+        let digests: Vec<_> = txs.iter().map(|tx| *tx.digest()).collect();
+        let mut effects_map = HashMap::new();
+        for tx in &txs {
+            store_executed_tx(&state, &mut effects_map, tx);
+        }
+        let record = |digest, attestor, verdict| {
+            state
+                .database_for_testing()
+                .perpetual_tables
+                .attestation_records
+                .insert(digest, &AttestationRecord { attestor, verdict })
+                .unwrap();
+        };
+        record(&digests[0], 1, AttestationVerdict::Valid);
+        record(&digests[1], 2, AttestationVerdict::Refuted);
+        record(&digests[2], 2, AttestationVerdict::Refuted);
+
+        let tmp_dir = iota_common::tempdir();
+        let service = manual_checkpoint_service(
+            &state,
+            CheckpointStore::new(tmp_dir.path()),
+            effects_map.clone(),
+        );
+        let (builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
+        let builder = &builder;
+        let build = |height, roots: Vec<TransactionDigest>| {
+            let effects = roots.iter().map(|d| effects_map[d].clone()).collect();
+            let roots_set: HashSet<_> = roots.iter().copied().collect();
+            service
+                .service
+                .write_and_notify_checkpoint_for_testing(&epoch_store, p(height, roots, 0))
+                .unwrap();
+            let details = PendingCheckpointInfo {
+                timestamp_ms: 0,
+                last_of_epoch: false,
+                checkpoint_height: height,
+            };
+            async move {
+                builder
+                    .create_checkpoints(effects, &details, &roots_set)
+                    .await
+                    .unwrap()
+            }
+        };
+        let totals_of = |built: &BuiltCheckpoint| {
+            built
+                .summary
+                .parse_version_specific_data(epoch_store.protocol_config())
+                .unwrap()
+                .expect("version 2 summaries carry version specific data")
+                .attestation_totals()
+                .cloned()
+                .expect("version 2 summaries carry totals")
+        };
+
+        let checkpoints = build(0, digests[..2].to_vec()).await;
+        assert_eq!(
+            totals_of(checkpoints.first()).refuted,
+            BTreeMap::from([(2, 1)])
+        );
+        builder.write_checkpoints(0, checkpoints).await.unwrap();
+
+        let checkpoints = build(1, digests[2..].to_vec()).await;
+        assert_eq!(
+            totals_of(checkpoints.first()).refuted,
+            BTreeMap::from([(2, 2)]),
+            "the second checkpoint adds to the first one's totals"
+        );
     }
 
     #[sim_test]

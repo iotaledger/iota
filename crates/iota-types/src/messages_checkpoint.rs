@@ -29,7 +29,7 @@ use tracing::instrument;
 use tracing::warn;
 
 use crate::{
-    attestation::AttestationRecord,
+    attestation::{AttestationRecord, AttestationTotals},
     base_types::{ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref},
     committee::{Committee, EpochId},
     crypto::{
@@ -125,8 +125,9 @@ mod checkpoint_summary_ext {
 /// cannot be added to a type that is foreign to this crate.
 pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
     /// `attestations` holds one verdict slot per transaction in `transactions`
-    /// order, or nothing when no transaction was attested. It is certified from
-    /// summary version 2 on and ignored before.
+    /// order, or nothing when no transaction was attested; `attestation_totals`
+    /// are the epoch's fault counts through this checkpoint. Both are
+    /// certified from summary version 2 on and ignored before.
     ///
     /// # Panics
     ///
@@ -144,6 +145,7 @@ pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
         attestations: Vec<Option<AttestationRecord>>,
+        attestation_totals: AttestationTotals,
     ) -> Self;
 
     fn verify_epoch(&self, epoch: EpochId) -> IotaResult;
@@ -172,6 +174,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
         attestations: Vec<Option<AttestationRecord>>,
+        attestation_totals: AttestationTotals,
     ) -> Self {
         let contents_digest = transactions.digest();
 
@@ -197,6 +200,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
                         CheckpointVersionSpecificDataV2 {
                             randomness_rounds,
                             attestations,
+                            attestation_totals,
                         },
                     ))
                     .expect("version specific data should serialize")
@@ -745,6 +749,14 @@ impl CheckpointVersionSpecificData {
         }
     }
 
+    /// `None` for V1.
+    pub fn attestation_totals(&self) -> Option<&AttestationTotals> {
+        match self {
+            Self::V1(_) => None,
+            Self::V2(v) => Some(&v.attestation_totals),
+        }
+    }
+
     pub fn empty_for_tests() -> CheckpointVersionSpecificData {
         CheckpointVersionSpecificData::V1(CheckpointVersionSpecificDataV1 {
             randomness_rounds: Vec::new(),
@@ -767,10 +779,15 @@ pub struct CheckpointVersionSpecificDataV2 {
     /// One entry per transaction in checkpoint-contents order; `None` for
     /// unattested transactions.
     pub attestations: Vec<Option<AttestationRecord>>,
+    /// The epoch's fault counts through this checkpoint: the previous
+    /// summary's totals plus this checkpoint's `Refuted` records.
+    pub attestation_totals: AttestationTotals,
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use fastcrypto::traits::KeyPair;
     use iota_sdk_types::{ConsensusCommitDigest, TransactionDigest, TransactionEffectsDigest};
     use rand::{SeedableRng, prelude::StdRng};
@@ -816,6 +833,7 @@ mod tests {
                         0,
                         Vec::new(),
                         Vec::new(),
+                        AttestationTotals::default(),
                     ),
                     k,
                     name,
@@ -853,6 +871,7 @@ mod tests {
             0,
             Vec::new(),
             Vec::new(),
+            AttestationTotals::default(),
         );
 
         let sign_infos: Vec<_> = keys
@@ -897,6 +916,7 @@ mod tests {
                         0,
                         Vec::new(),
                         Vec::new(),
+                        AttestationTotals::default(),
                     ),
                     k,
                     name,
@@ -937,6 +957,7 @@ mod tests {
                 0,
                 Vec::new(),
                 Vec::new(),
+                AttestationTotals::default(),
             )
         };
         let certify = |summary: CheckpointSummary| {
@@ -1004,6 +1025,7 @@ mod tests {
             100,
             Vec::new(),
             Vec::new(),
+            AttestationTotals::default(),
         )
     }
 
@@ -1071,6 +1093,9 @@ mod tests {
                 None,
                 Some(attestation_record(2, AttestationVerdict::Refuted)),
             ],
+            attestation_totals: AttestationTotals {
+                refuted: BTreeMap::from([(2, 4)]),
+            },
         });
 
         let v1_bytes = bcs::to_bytes(&v1).unwrap();
@@ -1094,6 +1119,9 @@ mod tests {
             ExecutionDigests::random(),
             ExecutionDigests::random(),
         ]);
+        let totals = || AttestationTotals {
+            refuted: BTreeMap::from([(1, 2)]),
+        };
         let parsed_for = |version: u64, attestations: Vec<Option<AttestationRecord>>| {
             let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
             config.set_checkpoint_summary_version_specific_data_for_testing(version);
@@ -1109,6 +1137,7 @@ mod tests {
                 100,
                 vec![RandomnessRound::new(5)],
                 attestations,
+                totals(),
             )
             .parse_version_specific_data(&config)
             .unwrap()
@@ -1119,10 +1148,12 @@ mod tests {
         let v1 = parsed_for(1, attestations.clone());
         assert_eq!(v1.randomness_rounds(), &[RandomnessRound::new(5)]);
         assert!(v1.attestations().is_empty());
+        assert!(v1.attestation_totals().is_none());
 
         let v2 = parsed_for(2, attestations.clone());
         assert_eq!(v2.randomness_rounds(), &[RandomnessRound::new(5)]);
         assert_eq!(v2.attestations(), attestations.as_slice());
+        assert_eq!(v2.attestation_totals(), Some(&totals()));
 
         // No attested transactions still yields one slot per transaction.
         let v2 = parsed_for(2, Vec::new());

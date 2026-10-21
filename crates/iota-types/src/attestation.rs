@@ -1,6 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use iota_sdk_types::{GasCostSummary, ObjectReference, TransactionDigest};
 use serde::{Deserialize, Serialize};
 
@@ -162,6 +164,28 @@ impl AttestationRecord {
     }
 }
 
+/// Per-attestor fault counts for the epoch so far, certified in every
+/// checkpoint summary. An attestor without faults has no entry.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttestationTotals {
+    /// Committee index to the number of `Refuted` verdicts since the epoch
+    /// started, saturating.
+    pub refuted: BTreeMap<AuthorityIndex, u16>,
+}
+
+impl AttestationTotals {
+    /// These totals plus the `Refuted` records of one more checkpoint.
+    pub fn with_records(mut self, records: &[Option<AttestationRecord>]) -> Self {
+        for record in records.iter().flatten() {
+            if record.verdict == AttestationVerdict::Refuted {
+                let faults = self.refuted.entry(record.attestor).or_default();
+                *faults = faults.saturating_add(1);
+            }
+        }
+        self
+    }
+}
+
 impl AttestedTransaction {
     pub fn new(transaction: TransactionEnvelope, attestation: Attestation) -> Self {
         Self {
@@ -266,6 +290,31 @@ mod tests {
         assert_eq!(
             AttestationVerdict::new(true, 3 * STEP, Some(3 * STEP), Some(10)),
             AttestationVerdict::Refuted
+        );
+    }
+
+    #[test]
+    fn totals_count_only_refuted_records() {
+        let record = |attestor, verdict| Some(AttestationRecord { attestor, verdict });
+        let totals = AttestationTotals::default().with_records(&[
+            record(2, AttestationVerdict::Refuted),
+            record(1, AttestationVerdict::Valid),
+            record(1, AttestationVerdict::Inaccurate),
+            None,
+            record(2, AttestationVerdict::Refuted),
+        ]);
+        assert_eq!(totals.refuted, BTreeMap::from([(2, 2)]));
+
+        // A later checkpoint adds to the running counts.
+        let totals = totals.with_records(&[
+            record(0, AttestationVerdict::Refuted),
+            record(2, AttestationVerdict::Refuted),
+        ]);
+        assert_eq!(totals.refuted, BTreeMap::from([(0, 1), (2, 3)]));
+        assert_eq!(
+            bcs::to_bytes(&AttestationTotals::default()).unwrap(),
+            vec![0],
+            "no faults cost one byte"
         );
     }
 

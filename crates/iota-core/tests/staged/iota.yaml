@@ -29,6 +29,12 @@ AttestationRecord:
     - attestor: U8
     - verdict:
         TYPENAME: AttestationVerdict
+AttestationTotals:
+  STRUCT:
+    - refuted:
+        MAP:
+          KEY: U8
+          VALUE: U16
 AttestationVerdict:
   ENUM:
     0:
@@ -220,6 +226,8 @@ CheckpointVersionSpecificDataV2:
         SEQ:
           OPTION:
             TYPENAME: AttestationRecord
+    - attestation_totals:
+        TYPENAME: AttestationTotals
 Command:
   ENUM:
     0:

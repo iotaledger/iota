@@ -36,7 +36,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    attestation::AttestationVerdict,
+    attestation::{AttestationTotals, AttestationVerdict},
     effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, VerifiedCheckpoint},
     messages_grpc::TxStatusUpdate,
@@ -296,12 +296,16 @@ async fn attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), 
                 .unwrap()
                 .expect("contents are stored with the checkpoint");
             let digests: Vec<_> = contents.iter().map(|d| d.transaction).collect();
-            let records = checkpoint
+            let data = checkpoint
                 .parse_version_specific_data(epoch_store.protocol_config())
                 .unwrap()
-                .expect("summaries carry version specific data")
-                .attestations()
-                .to_vec();
+                .expect("summaries carry version specific data");
+            let records = data.attestations().to_vec();
+            assert_eq!(
+                data.attestation_totals(),
+                Some(&AttestationTotals::default()),
+                "an honest attestor leaves the totals empty"
+            );
             let is_system: Vec<bool> = digests
                 .iter()
                 .map(|digest| {
