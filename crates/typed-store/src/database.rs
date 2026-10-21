@@ -1693,6 +1693,16 @@ impl<K, V> TaggedDBMap<K, V> {
         row.map(|((_, key), value)| (key, value))
     }
 
+    pub(crate) fn tag(&self) -> u8 {
+        self.tag
+    }
+
+    /// [`DBMap::ingest_sst_files`] for this map's column family, which the
+    /// files may hold rows of any table sharing it for.
+    pub fn ingest_sst_files(&self, paths: &[PathBuf]) -> Result<(), TypedStoreError> {
+        self.map.ingest_sst_files(paths)
+    }
+
     /// Reopens an open database as a tagged map operating under `cf_name`.
     /// See [`DBMap::reopen`] for the remaining parameters.
     pub fn reopen(
