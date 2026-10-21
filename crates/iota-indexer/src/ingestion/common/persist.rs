@@ -103,7 +103,7 @@ pub enum CommitterTables {
 }
 
 impl CommitterTables {
-    pub(crate) fn basic() -> impl IntoIterator<Item = Self> {
+    pub fn basic() -> impl IntoIterator<Item = Self> {
         [
             Self::ChainIdentifier,
             Self::Display,
@@ -120,11 +120,11 @@ impl CommitterTables {
         ]
     }
 
-    pub(crate) fn objects_history() -> impl IntoIterator<Item = Self> {
+    pub fn objects_history() -> impl IntoIterator<Item = Self> {
         [Self::ObjectsBackwardHistory]
     }
 
-    pub(crate) fn filtered_queries() -> impl IntoIterator<Item = Self> {
+    pub fn filtered_queries() -> impl IntoIterator<Item = Self> {
         [
             Self::TxCallsPkg,
             Self::TxCallsMod,
@@ -139,7 +139,7 @@ impl CommitterTables {
         ]
     }
 
-    pub(crate) fn combined_event_filters() -> impl IntoIterator<Item = Self> {
+    pub fn combined_event_filters() -> impl IntoIterator<Item = Self> {
         [
             Self::EventEmitPackage,
             Self::EventEmitModule,
