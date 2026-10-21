@@ -1876,9 +1876,9 @@ impl AuthorityPerEpochStore {
     /// Whether this node keeps the P-COOL deterministic-validation
     /// bookkeeping: the flag is on and this node is in the epoch's committee.
     /// Every bookkeeping write, the execution watcher and the commit
-    /// assignment gate on this rather than on the flag alone. A node outside
-    /// the committee runs no consensus handler, so every execution there
-    /// would count as sync-ahead and nothing would ever clear its entries.
+    /// assignment check this rather than the flag alone. A node outside the
+    /// committee runs no consensus handler, so no transaction it executes
+    /// would have its commit assigned.
     pub fn pcool_bookkeeping_enabled(&self) -> bool {
         self.pcool_bookkeeping_enabled
     }
@@ -1886,9 +1886,9 @@ impl AuthorityPerEpochStore {
     /// Registers the roots of commit `index` in the transaction-key ->
     /// commit-index map and hands the commit to the execution watcher. Must
     /// be called once per commit while the handler processes it, before any
-    /// of its transactions can be scheduled: the execution hook classifies
-    /// each execution by this map - hit means the handler has passed the
-    /// producing commit, miss means state sync is running ahead.
+    /// of its transactions can be scheduled:
+    /// [`Self::record_executed_transaction`] records rows only for a
+    /// transaction whose commit is assigned.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;

@@ -2175,9 +2175,8 @@ async fn post_consensus_validation_applies_relaxed_rules() {
 /// Shared setup for the execution-hook bookkeeping tests: the P-COOL flags
 /// (held by `_config_guard` for the test's duration when enabled), plus
 /// helpers to execute transactions and assert the bookkeeping rows they
-/// leave. Execution provenance never matters to the hook - only whether the
-/// transaction key is registered in the transaction-key -> commit-index map
-/// (handler-known) or not (sync-ahead).
+/// leave. Rows are written for an executed transaction only if its commit was
+/// assigned beforehand with `assign_commit_to_transactions`.
 struct BookkeepingSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
