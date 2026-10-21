@@ -45,10 +45,6 @@ pub struct HistoricalReader {
 
 /// The manifest as of the last sync, together with the file list derived from
 /// it.
-///
-/// Deriving the list means sorting and verifying every entry, which for a
-/// long-lived chain is hundreds of thousands of them. Doing it once per sync
-/// keeps that cost off every read.
 struct ManifestState {
     manifest: Manifest,
     files: Arc<[FileMetadata]>,
@@ -64,12 +60,9 @@ impl ManifestState {
     }
 
     /// Verifies `manifest` and derives its file list, sorted by starting
-    /// sequence number.
-    ///
-    /// # Errors
-    ///
-    /// Fails unless the files cover every checkpoint from sequence number 0
-    /// up to the latest available one, with no missing checkpoint.
+    /// sequence number. Returns an error if checkpoints since genesis are
+    /// missing, or if the files do not reach the manifest's next sequence
+    /// number.
     fn new(manifest: Manifest) -> Result<Self> {
         let mut files = manifest.to_files();
         if files.is_empty() {
@@ -80,6 +73,13 @@ impl ManifestState {
 
         files.sort_by_key(|f| f.checkpoint_seq_range.start);
 
+        if let Some(empty) = files.iter().find(|f| f.checkpoint_seq_range.is_empty()) {
+            return Err(IngestionError::HistoryRead(format!(
+                "historical data file {} covers no checkpoint",
+                empty.file_path()
+            )));
+        }
+
         let start = files[0].checkpoint_seq_range.start;
         if start != 0 {
             return Err(IngestionError::HistoryRead(format!(
@@ -87,13 +87,24 @@ impl ManifestState {
             )));
         }
 
-        if let Some(gap) = files
+        if let Some(pair) = files
             .windows(2)
             .find(|w| w[1].checkpoint_seq_range.start != w[0].checkpoint_seq_range.end)
         {
             return Err(IngestionError::HistoryRead(format!(
-                "historical data is missing checkpoints {} to {}",
-                gap[0].checkpoint_seq_range.end, gap[1].checkpoint_seq_range.start
+                "historical data files are not contiguous: {} is followed by {}",
+                pair[0].file_path(),
+                pair[1].file_path()
+            )));
+        }
+
+        // Without this the reader would keep fetching the last file and
+        // discarding every checkpoint in it, or keep re-syncing the manifest.
+        let end = files[files.len() - 1].checkpoint_seq_range.end;
+        let next = manifest.next_checkpoint_seq_num();
+        if end != next {
+            return Err(IngestionError::HistoryRead(format!(
+                "historical data ends at checkpoint {end} but the manifest expects {next}"
             )));
         }
 
@@ -133,7 +144,7 @@ impl HistoricalReader {
     /// as verified when the manifest was last synced.
     ///
     /// The list is empty until the first successful sync.
-    pub async fn manifest_files(&self) -> Arc<[FileMetadata]> {
+    pub(crate) async fn manifest_files(&self) -> Arc<[FileMetadata]> {
         self.manifest.lock().await.files.clone()
     }
 
@@ -246,9 +257,7 @@ impl HistoricalReader {
     /// deserialized values.
     ///
     /// The file is fetched with a single request, so the caller is
-    /// responsible for retrying. The request is bounded by the store
-    /// client's connect and stall timeouts rather than by a total duration,
-    /// since a transfer takes as long as the file is large.
+    /// responsible for retrying and for bounding how long a transfer may run.
     ///
     /// # Errors
     ///
@@ -301,11 +310,7 @@ impl HistoricalReader {
     }
 
     /// Syncs the Manifest from remote store with a single request.
-    ///
-    /// Unlike [`Self::sync_manifest_once`], a failed request is reported to
-    /// the caller instead of being retried, so a caller that already runs a
-    /// retry loop does not end up nesting two backoff schedules.
-    pub async fn sync_manifest_no_retry(&self) -> Result<()> {
+    pub(crate) async fn sync_manifest_no_retry(&self) -> Result<()> {
         let bytes = self
             .remote_object_store
             .get_bytes(&Manifest::file_path())
@@ -331,16 +336,13 @@ impl HistoricalReader {
         Ok(())
     }
 
-    /// Resolve the files to fetch for the specified range.
-    ///
-    /// The method retrieves the manifest from the remote store and
-    /// searches for the files that cover the given range of checkpoint
-    /// data.
+    /// Resolve the files covering the specified range, from the manifest as
+    /// of the last sync.
     ///
     /// # Errors
     ///
-    /// The method fails if the remote store has no data, or if the
-    /// manifest fails to verify.
+    /// Fails if the manifest holds no checkpoint data, or if the range starts
+    /// past the latest available checkpoint.
     async fn get_files_for_range(
         &self,
         checkpoint_range: Range<CheckpointSequenceNumber>,
@@ -438,13 +440,26 @@ mod tests {
         }
     }
 
+    /// Builds a manifest whose next sequence number is the highest end of the
+    /// given files, as the writer maintains it.
     fn manifest(files: impl IntoIterator<Item = FileMetadata>) -> Manifest {
         let mut manifest = Manifest::new(0);
+        let mut next = 0;
         for file in files {
-            let next_checkpoint_seq_num = file.checkpoint_seq_range.end;
-            manifest.update(next_checkpoint_seq_num, file);
+            next = next.max(file.checkpoint_seq_range.end);
+            manifest.update(next, file);
         }
         manifest
+    }
+
+    /// The reason a manifest was rejected, so that a test cannot pass on the
+    /// wrong error.
+    fn rejection(manifest: Manifest) -> String {
+        match ManifestState::new(manifest) {
+            Err(IngestionError::HistoryRead(reason)) => reason,
+            Err(other) => panic!("expected a HistoryRead rejection, got {other:?}"),
+            Ok(_) => panic!("expected the manifest to be rejected"),
+        }
     }
 
     #[test]
@@ -461,25 +476,37 @@ mod tests {
 
     #[test]
     fn manifest_state_rejects_an_empty_manifest() {
-        assert!(matches!(
-            ManifestState::new(manifest([])),
-            Err(IngestionError::HistoryRead(_))
-        ));
+        assert!(rejection(manifest([])).contains("empty remote store"));
     }
 
     #[test]
     fn manifest_state_rejects_files_not_starting_at_genesis() {
-        assert!(matches!(
-            ManifestState::new(manifest([file(1..10)])),
-            Err(IngestionError::HistoryRead(_))
-        ));
+        assert!(rejection(manifest([file(1..10)])).contains("starts at checkpoint 1"));
     }
 
     #[test]
     fn manifest_state_rejects_a_gap_between_files() {
-        assert!(matches!(
-            ManifestState::new(manifest([file(0..10), file(11..20)])),
-            Err(IngestionError::HistoryRead(_))
-        ));
+        assert!(rejection(manifest([file(0..10), file(11..20)])).contains("are not contiguous"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_overlapping_files() {
+        assert!(rejection(manifest([file(0..10), file(5..15)])).contains("are not contiguous"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_a_file_covering_no_checkpoint() {
+        assert!(rejection(manifest([file(0..0), file(0..10)])).contains("covers no checkpoint"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_files_short_of_the_next_sequence_number() {
+        let mut manifest = manifest([file(0..10)]);
+        manifest.update(20, file(10..20));
+        // Drop the file again, keeping the sequence number the writer set.
+        let Manifest::V1(ref mut v1) = manifest;
+        v1.file_metadata.pop();
+
+        assert!(rejection(manifest).contains("ends at checkpoint 10 but the manifest expects 20"));
     }
 }
