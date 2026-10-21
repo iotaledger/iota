@@ -8,42 +8,15 @@
 //! into the bucket of the epoch the sweep runs in, which keeps them for the
 //! whole retention window.
 //!
-//! A superseded version now leaves the live `objects` table in the batch
-//! that supersedes it, and arrives in the epoch's historic bucket. A
-//! database written by an earlier build still holds roughly one retention
-//! window of superseded versions in the live table, and the pruner that used
-//! to drain them is gone, so they are walked once and relocated here, into
-//! the bucket of the epoch the walk runs in.
-//!
-//! They go into that bucket even though they are older than the versions an
-//! earlier epoch's bucket holds. [`HistoricObjects::find_lt_or_eq_version`]
-//! searches buckets newest first and takes the first hit, so what would give
-//! a wrong answer is a newer bucket holding a lower version of the same
-//! object. This walk cannot produce one: it finishes before the node executes
-//! anything, so no bucket holds a version a commit relocated, and every
-//! version the walk itself relocates lands in that one bucket, where order
-//! does not matter, since a bucket is searched by a reverse range scan that
-//! takes the newest version under the bound.
-//!
-//! The epoch the walk runs in rather than an older one, because with a
-//! retention of `N` epochs at epoch `E` the oldest bucket kept after the next
-//! boundary is `E - N + 1`: an older bucket would be dropped one boundary
-//! later and take history with it that the node could otherwise still serve.
-//! The current epoch's bucket gives these versions the whole retention
-//! window, and retaining them for up to one window too long is the harmless
-//! direction.
-//!
-//! The walk runs at node startup, before any service that could expire a
-//! historic bucket has started. A bucket's tombstones may only be
-//! deleted once every version beneath them is out of reach; the tombstones this
-//! walk records land in the same bucket as the versions it relocates, so the
-//! two expire together, but a version superseded before this build sits in
-//! the live table until the walk reaches it, and finishing the walk first is
-//! what keeps an expiry from leaving such a version as the newest row of a
-//! deleted object.
+//! Putting older versions in the newest bucket is safe:
+//! [`HistoricObjects::find_lt_or_eq_version`] searches buckets newest first,
+//! which goes wrong only if a newer bucket holds a lower version of an object.
+//! The sweep finishes before the node executes anything, so no other bucket
+//! holds a version relocated by a commit yet.
 
 use std::{ops::Bound, sync::Arc};
 
+use iota_sdk_types::{TransactionDigest, TransactionEffects, TransactionEffectsDigest};
 use iota_types::{
     committee::EpochId,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -53,23 +26,24 @@ use iota_types::{
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
-use typed_store::traits::Map;
+use tracing::{debug, warn};
+use typed_store::{rocks::DBBatch, traits::Map};
 
 use crate::{
     authority::{
         AuthorityStore,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreObject, StoreObjectWrapper, try_construct_object},
+        historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
     },
     checkpoints::CheckpointStore,
+    progress_logger::ProgressLogger,
 };
 
-/// Keys one slice decides before it writes its batch. A slice stops at this
-/// many wherever it is, including in the middle of an object id's versions, so
-/// it bounds how many versions the slice holds in memory whatever the table
-/// looks like, and bounds what an interrupted run has to walk again.
+/// Keys one slice decides before it writes its batch, even in the middle of an
+/// object id's versions, bounding its memory and what an interrupted run walks
+/// again.
 const KEYS_PER_SLICE: usize = 5_000;
 
 /// Checkpoints one slice of the bounded walk resolves before it writes its
@@ -95,21 +69,14 @@ pub enum ObjectBacklogSweepProgress {
 /// `epoch`'s bucket, and records the tombstones alongside them. Returns at once
 /// if an earlier run finished.
 ///
-/// Takes one of two routes. Where the objects pruner of an earlier build left
-/// its watermark, only the checkpoints above it can still hold a superseded
-/// version, so their effects name the backlog outright and the walk reads
-/// them instead of the live table. Otherwise every row of `objects` is
-/// walked, which on a large live set is the difference between minutes and
-/// hours.
+/// Where the objects pruner left its watermark, only the effects of the
+/// checkpoints above it are read; otherwise the whole live table is walked.
 ///
-/// `pruner_db_present` refuses the bounded route: a database whose pruner ran
-/// with the compaction filter enabled recorded object ids for the filter to
-/// remove later rather than deleting rows itself, so its watermark does not
-/// say the rows beneath it are gone.
-///
-/// Call this before starting anything that can expire a historic bucket, and
-/// before anything that scans the live table for its latest versions: until it
-/// returns, that table holds a retention window of rows no reader wants.
+/// Call this after [`crate::authority::ledger_backlog_migration::migrate`],
+/// which moves the effects this reads into the historic buckets. Call it
+/// before starting anything that scans the live table for its latest versions
+/// or can expire a historic bucket: an expiry could otherwise leave a
+/// superseded version as the newest row of a deleted object.
 ///
 /// # Errors
 ///
@@ -119,7 +86,6 @@ pub async fn sweep(
     store: Arc<AuthorityStore>,
     checkpoint_store: Arc<CheckpointStore>,
     epoch: EpochId,
-    pruner_db_present: bool,
 ) -> IotaResult<()> {
     // Each slice is a range scan and a write batch, both blocking.
     tokio::task::spawn_blocking(move || {
@@ -127,24 +93,26 @@ pub async fn sweep(
         if sweep.is_done()? {
             return IotaResult::Ok(());
         }
-        match sweep.bound(&checkpoint_store, pruner_db_present)? {
+        match sweep.bound(&checkpoint_store)? {
             Some(bound) => {
-                info!(
-                    bound,
-                    "sweeping the object versions superseded before this build, from the \
-                     checkpoints the earlier build's pruner had not reached"
-                );
                 sweep.sweep_above_bound(&checkpoint_store, epoch, bound)?;
             }
             None => {
-                info!(
-                    "sweeping the object versions superseded before this build out of the live \
-                     table"
+                let mut progress = ProgressLogger::new(
+                    "object backlog sweep",
+                    "objects",
+                    sweep.perpetual_tables.objects.estimated_len()?,
                 );
-                while sweep.sweep_slice(epoch)? {}
+                loop {
+                    let (decided, more) = sweep.sweep_slice(epoch)?;
+                    progress.advance(decided as u64);
+                    if !more {
+                        break;
+                    }
+                }
+                progress.finish();
             }
         }
-        info!("the object backlog sweep is done");
         IotaResult::Ok(())
     })
     .await
@@ -156,6 +124,7 @@ pub async fn sweep(
 struct ObjectBacklogSweep {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     historic_objects: Arc<HistoricObjects>,
+    historic_ledger: Arc<HistoricLedger>,
     keys_per_slice: usize,
 }
 
@@ -164,6 +133,7 @@ impl ObjectBacklogSweep {
         Self {
             perpetual_tables: store.perpetual_tables.clone(),
             historic_objects: store.get_historic_objects().clone(),
+            historic_ledger: store.get_historic_ledger().clone(),
             keys_per_slice: KEYS_PER_SLICE,
         }
     }
@@ -183,15 +153,7 @@ impl ObjectBacklogSweep {
     fn bound(
         &self,
         checkpoint_store: &CheckpointStore,
-        pruner_db_present: bool,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        if pruner_db_present {
-            warn!(
-                "the objects pruner of this database ran with the compaction filter, whose \
-                 deletes its watermark does not account for; walking the whole live table"
-            );
-            return Ok(None);
-        }
         let Some(bound) = self.perpetual_tables.object_backlog_sweep_bound.get(&())? else {
             return Ok(None);
         };
@@ -210,6 +172,25 @@ impl ObjectBacklogSweep {
             );
             return Ok(None);
         }
+        // The same holds for their effects. The ledger migration deletes the
+        // effects of the epochs below its floor, and its record of that in the
+        // pruned watermark is best effort, so the oldest ledger bucket decides.
+        let first_with_effects = match self.historic_ledger.earliest_bucket_epoch() {
+            Some(0) => Some(0),
+            Some(epoch) => checkpoint_store
+                .get_epoch_last_checkpoint_seq_number(epoch - 1)?
+                .map(|last| last + 1),
+            None => None,
+        };
+        if first_with_effects.is_none_or(|first| bound.saturating_add(1) < first) {
+            warn!(
+                bound,
+                ?first_with_effects,
+                "the effects of the checkpoints above the objects pruner's watermark are gone, \
+                 so they no longer name the backlog; walking the whole live table"
+            );
+            return Ok(None);
+        }
         Ok(Some(bound))
     }
 
@@ -225,14 +206,18 @@ impl ObjectBacklogSweep {
         epoch: EpochId,
         bound: CheckpointSequenceNumber,
     ) -> IotaResult<()> {
-        // Walk up to the synced watermark, not the executed one: a crash
-        // between committing a checkpoint's effects and bumping
+        // Walk up to the newest certified checkpoint, not the executed one: a
+        // crash between committing a checkpoint's effects and bumping
         // `HighestExecuted` leaves superseded versions above the executed
-        // watermark. A checkpoint not executed yet has no effects to read.
+        // watermark, and the ledger migration has by now brought the synced
+        // watermark back to the executed one. A checkpoint not executed yet
+        // has no effects to read.
         let executed = checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
-        let synced = checkpoint_store.get_highest_synced_checkpoint_seq_number()?;
-        let Some(highest) = synced.max(executed) else {
-            // Nothing has been executed or synced, so nothing can have been
+        let certified = checkpoint_store
+            .get_latest_certified_checkpoint()?
+            .map(|checkpoint| checkpoint.sequence_number);
+        let Some(highest) = certified.max(executed) else {
+            // Nothing has been executed or certified, so nothing can have been
             // superseded.
             return self.mark_done(epoch);
         };
@@ -241,17 +226,114 @@ impl ObjectBacklogSweep {
             .object_backlog_sweep_checkpoint
             .get(&())?;
         let mut next = resumed.unwrap_or(bound).saturating_add(1);
-        info!(
-            from = next,
-            through = highest,
-            "walking the checkpoints the earlier build's pruner had not reached"
+        let mut progress = ProgressLogger::new(
+            "object backlog sweep above the objects pruner's watermark",
+            "checkpoints",
+            highest.saturating_sub(next).saturating_add(1),
         );
         while next <= highest {
             let last = highest.min(next.saturating_add(CHECKPOINTS_PER_SLICE - 1));
             let ended_at = self.sweep_checkpoint_slice(checkpoint_store, epoch, next, last)?;
+            progress.advance(ended_at - next + 1);
             next = ended_at.saturating_add(1);
         }
+        progress.finish();
+        self.sweep_unfinalized_transactions(epoch)?;
         self.mark_done(epoch)
+    }
+
+    /// Relocates the versions superseded by the transactions of `epoch` that
+    /// this node executed but no checkpoint has finalized yet, and records
+    /// their tombstones. A node can execute a transaction ahead of its
+    /// checkpoint, and no checkpoint walked above names it. Only `epoch` can
+    /// hold such a transaction: an epoch change reverts the ones its
+    /// checkpoints left out.
+    ///
+    /// Has no progress row of its own: an interrupted run walks the epoch
+    /// again, and a version already relocated is skipped.
+    fn sweep_unfinalized_transactions(&self, epoch: EpochId) -> IotaResult<()> {
+        let ledger = self.historic_ledger.ensure(epoch)?;
+        let mut records = ledger.executed_effects.safe_iter();
+        loop {
+            let chunk: Vec<(TransactionDigest, TransactionEffectsDigest)> = records
+                .by_ref()
+                .take(self.keys_per_slice)
+                .collect::<Result<_, _>>()?;
+            if chunk.is_empty() {
+                return Ok(());
+            }
+            let finalized = ledger
+                .tx_to_checkpoint
+                .multi_get(chunk.iter().map(|(digest, _)| digest))?;
+            let mut superseded = Vec::new();
+            let mut tombstones = Vec::new();
+            for ((_, effects_digest), checkpoint) in chunk.iter().zip(finalized) {
+                if checkpoint.is_some() {
+                    continue;
+                }
+                if let Some(effects) = ledger.effects.get(effects_digest)? {
+                    self.collect_superseded(&effects, &mut superseded, &mut tombstones)?;
+                }
+            }
+            if superseded.is_empty() && tombstones.is_empty() {
+                continue;
+            }
+            let relocated = superseded.len();
+            let tombstone_count = tombstones.len();
+            let mut batch = self.perpetual_tables.objects.batch();
+            self.relocate(&mut batch, epoch, superseded, &tombstones)?;
+            batch.write()?;
+            debug!(
+                relocated,
+                tombstones = tombstone_count,
+                "swept the superseded versions of transactions no checkpoint has finalized"
+            );
+        }
+    }
+
+    /// Adds the versions `effects` superseded that the live table still holds
+    /// to `superseded`, and the tombstones it wrote to `tombstones`.
+    fn collect_superseded(
+        &self,
+        effects: &TransactionEffects,
+        superseded: &mut Vec<(ObjectKey, Object)>,
+        tombstones: &mut Vec<ObjectKey>,
+    ) -> IotaResult<()> {
+        let objects = &self.perpetual_tables.objects;
+        for modified in effects.modified_at_versions() {
+            let key = ObjectKey(*modified.object_id(), modified.version());
+            let Some(row) = objects.get(&key)? else {
+                continue;
+            };
+            if let StoreObject::Value(value) = row.migrate().into_inner() {
+                superseded.push((key, try_construct_object(&key, *value)?));
+            }
+        }
+        for (object_id, version) in effects.all_tombstones() {
+            tombstones.push(ObjectKey(object_id, version));
+        }
+        Ok(())
+    }
+
+    /// Adds to `batch` the move of `superseded` from the live table into
+    /// `epoch`'s bucket, and the record of `tombstones` there.
+    fn relocate(
+        &self,
+        batch: &mut DBBatch,
+        epoch: EpochId,
+        superseded: Vec<(ObjectKey, Object)>,
+        tombstones: &[ObjectKey],
+    ) -> IotaResult<()> {
+        if superseded.is_empty() && tombstones.is_empty() {
+            return Ok(());
+        }
+        let objects = &self.perpetual_tables.objects;
+        let bucket = self.historic_objects.ensure(epoch)?;
+        let keys: Vec<ObjectKey> = superseded.iter().map(|(key, _)| *key).collect();
+        batch.insert_batch_tagged(&bucket.objects, superseded)?;
+        batch.delete_batch(objects, keys)?;
+        batch.insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
+        Ok(())
     }
 
     /// Relocates the versions superseded by the checkpoints in `first..=last`,
@@ -288,34 +370,19 @@ impl ObjectBacklogSweep {
                 continue;
             };
             for digests in contents.iter() {
-                let Some(effects) = self.perpetual_tables.effects.get(&digests.effects)? else {
+                let Some(effects) = self
+                    .historic_ledger
+                    .get_executed_effects(&digests.transaction)?
+                else {
                     continue;
                 };
-                for modified in effects.modified_at_versions() {
-                    let key = ObjectKey(*modified.object_id(), modified.version());
-                    let Some(row) = objects.get(&key)? else {
-                        continue;
-                    };
-                    if let StoreObject::Value(value) = row.migrate().into_inner() {
-                        superseded.push((key, try_construct_object(&key, *value)?));
-                    }
-                }
-                for (object_id, version) in effects.all_tombstones() {
-                    tombstones.push(ObjectKey(object_id, version));
-                }
+                self.collect_superseded(&effects, &mut superseded, &mut tombstones)?;
             }
         }
 
         let relocated = superseded.len();
         let mut batch = objects.batch();
-        if !superseded.is_empty() || !tombstones.is_empty() {
-            let bucket = self.historic_objects.ensure(epoch)?;
-            let keys: Vec<ObjectKey> = superseded.iter().map(|(key, _)| *key).collect();
-            batch.insert_batch_tagged(&bucket.objects, superseded)?;
-            batch.delete_batch(objects, keys)?;
-            batch
-                .insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
-        }
+        self.relocate(&mut batch, epoch, superseded, &tombstones)?;
         batch.insert_batch(
             &self.perpetual_tables.object_backlog_sweep_checkpoint,
             [((), ended_at)],
@@ -340,20 +407,15 @@ impl ObjectBacklogSweep {
         Ok(())
     }
 
-    /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key and
-    /// records how far it got. Returns whether rows are left to sweep.
-    ///
-    /// Each relocated version's insert into `epoch`'s bucket and its delete
-    /// from the live table are one batch, together with the tombstones
-    /// recorded in that bucket and the progress row: a crash leaves every
-    /// version in one of the two tables, and an interrupted run resumes at
-    /// the key it last wrote and never skips a row.
-    fn sweep_slice(&self, epoch: EpochId) -> IotaResult<bool> {
+    /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key, in
+    /// one batch with the progress row. Returns how many rows it decided and
+    /// whether any are left to sweep.
+    fn sweep_slice(&self, epoch: EpochId) -> IotaResult<(usize, bool)> {
         let objects = &self.perpetual_tables.objects;
         let progress = &self.perpetual_tables.object_backlog_sweep_progress;
         let lower_bound = match progress.get(&())? {
             Some(ObjectBacklogSweepProgress::Done | ObjectBacklogSweepProgress::Skipped) => {
-                return Ok(false);
+                return Ok((0, false));
             }
             Some(ObjectBacklogSweepProgress::SweptThrough(key)) => Bound::Excluded(key),
             None => Bound::Unbounded,
@@ -425,7 +487,7 @@ impl ObjectBacklogSweep {
             tombstones = tombstones.len(),
             "swept a slice of the superseded object versions"
         );
-        Ok(sliced)
+        Ok((decided, sliced))
     }
 
     /// Sorts one row into the versions to relocate and the tombstones to
