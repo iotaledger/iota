@@ -229,7 +229,7 @@ impl PrimaryWriter {
             // Its partitions already exist.
             if let Some(last_epoch) = last_epoch {
                 self.state
-                    .advance_epoch(last_epoch, new_epoch)
+                    .advance_epoch(last_epoch, new_epoch, committer_tables.clone())
                     .await
                     .tap_err(|e| {
                         error!("failed to advance epoch with error: {e}");
