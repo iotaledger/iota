@@ -20,7 +20,7 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
         GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
-        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
+        default_enable_jsonrpc_api, default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
@@ -215,7 +215,8 @@ impl ValidatorConfigBuilder {
             metrics_address: validator.metrics_address,
             admin_interface_address: validator.admin_interface_address,
             consensus_config: Some(consensus_config),
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: default_enable_jsonrpc_api(),
+            enable_index_processing: None,
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -302,6 +303,8 @@ pub struct FullnodeConfigBuilder {
     disable_pruning: bool,
     num_epochs_to_retain_for_indexes: Option<u64>,
     iota_names_config: Option<IotaNamesConfig>,
+    /// Unset takes the node config's default.
+    enable_jsonrpc_api: Option<bool>,
     enable_grpc_api: bool,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
@@ -437,6 +440,13 @@ impl FullnodeConfigBuilder {
 
     pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
         self.iota_names_config = config;
+        self
+    }
+
+    /// A `FullNodeHandle` cannot be built with `false`, as it needs a JSON-RPC
+    /// client.
+    pub fn with_enable_jsonrpc_api(mut self, enable_jsonrpc_api: bool) -> Self {
+        self.enable_jsonrpc_api = Some(enable_jsonrpc_api);
         self
     }
 
@@ -630,7 +640,10 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(genesis_config.admin_interface_address),
             json_rpc_address,
             consensus_config: None,
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: self
+                .enable_jsonrpc_api
+                .unwrap_or_else(default_enable_jsonrpc_api),
+            enable_index_processing: None,
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -806,5 +819,24 @@ mod tests {
 
         assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:1337");
         assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
+    }
+    /// `default()` and `new()` build the same JSON-RPC setting, the node
+    /// config's default, and `with_enable_jsonrpc_api` overrides it.
+    #[test]
+    fn every_builder_constructor_serves_json_rpc_unless_told_otherwise() {
+        let build = |builder: FullnodeConfigBuilder| {
+            let genesis_config = ValidatorGenesisConfigBuilder::new()
+                .with_ip("127.0.0.1".to_owned())
+                .build(&mut UnwrapErr(SysRng));
+            builder
+                .try_build_from_genesis_config(genesis_config, &[], Genesis::new_empty())
+                .unwrap()
+                .enable_jsonrpc_api
+        };
+        assert!(build(FullnodeConfigBuilder::default()));
+        assert!(build(FullnodeConfigBuilder::new()));
+        assert!(!build(
+            FullnodeConfigBuilder::new().with_enable_jsonrpc_api(false)
+        ));
     }
 }
