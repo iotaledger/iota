@@ -533,7 +533,7 @@ fn wait_for_epoch_db_to_close() {
 }
 
 /// Empties every table a run of P-COOL deterministic validation writes: the
-/// bookkeeping, the saved validation decisions, the owned-object locks, the
+/// handler object state, the saved validation decisions, the owned-object locks, the
 /// processed consensus messages, the resume point and the commit the node
 /// switched to synced checkpoints after. A [`reopen`] after it
 /// starts from an empty epoch.
@@ -2159,7 +2159,13 @@ async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
     assert!(reopened.is_executing_synced_checkpoints());
 }
 
-// === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
+// === P-COOL deterministic validation: the handler object state ===
+//
+// A row is one entry of the handler object state. It records that a
+// transaction in some commit produced version `V` of object `id`: the commit,
+// the digest, and whether the object is live, deleted or wrapped at that
+// version. "The row at `(id, V)`" is that entry. Rows not yet written to the
+// table are held in memory.
 
 mod handler_object_state_storage {
     use futures::FutureExt;
@@ -2221,7 +2227,7 @@ mod handler_object_state_storage {
     }
 
     /// Turns on P-COOL deterministic validation, without which the quarantine
-    /// flush derives no handler rows. Build the authority while the guard
+    /// flush derives no rows. Build the authority while the guard
     /// lives.
     fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
         iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -2231,7 +2237,7 @@ mod handler_object_state_storage {
     }
 
     #[tokio::test]
-    async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
+    async fn handler_processed_rows_are_read_by_exact_key_from_memory_and_the_table() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();
@@ -2264,8 +2270,8 @@ mod handler_object_state_storage {
         assert_eq!(read_processed_object(3), Some(v3));
         assert_eq!(read_processed_object(5), Some(v5));
 
-        // Flushing the newer commit moves only its row out of the overlay,
-        // without a read gap.
+        // Flushing the newer commit moves only its row from memory to the
+        // table, and the row stays readable throughout.
         epoch_store
             .flush_commit_rows_for_testing(1, vec![(key(5), v5)])
             .unwrap();
@@ -2292,8 +2298,8 @@ mod handler_object_state_storage {
         assert_eq!(read_processed_object(5), Some(v5));
         assert_eq!(read_processed_object(4), None);
 
-        // A later commit's row is readable through the overlay while the
-        // durable ones stay readable too.
+        // A later commit's row is readable from memory while the rows in the
+        // table stay readable too.
         let v7 = generate_live_entry(2);
         complete_commit(2, &[(key(7), v7)]);
         assert_eq!(read_processed_object(7), Some(v7));
@@ -2354,11 +2360,11 @@ mod handler_object_state_storage {
         );
     }
 
-    /// The highest row of an id is found in the overlay alone, in the table
+    /// The highest row of an id is found in memory alone, in the table
     /// alone, and across both from whichever holds the higher version, never
     /// from a neighbouring id.
     #[tokio::test]
-    async fn highest_handler_processed_row_reads_across_overlay_and_table() {
+    async fn highest_handler_processed_row_reads_from_memory_and_the_table() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();
@@ -2381,7 +2387,7 @@ mod handler_object_state_storage {
 
         assert_eq!(highest(low), None);
 
-        // Overlay only.
+        // In memory only.
         let low_v3 = generate_live_entry(1);
         let high_v9 = generate_live_entry(1);
         let commit_1_rows = vec![(key(low, 3), low_v3), (key(high, 9), high_v9)];
@@ -2398,7 +2404,7 @@ mod handler_object_state_storage {
         assert_eq!(highest(low), Some((key(low, 3), low_v3)));
         assert_eq!(highest(high), Some((key(high, 9), high_v9)));
 
-        // Both, the overlay holding the higher version.
+        // Both, memory holding the higher version.
         let low_v5 = generate_live_entry(2);
         complete_commit(2, &[(key(low, 5), low_v5)]);
         assert_eq!(highest(low), Some((key(low, 5), low_v5)));
@@ -2414,11 +2420,11 @@ mod handler_object_state_storage {
         assert_eq!(highest(high), Some((key(high, 9), high_v9)));
     }
 
-    /// The lowest row of an id above a version is found in the overlay alone,
+    /// The lowest row of an id above a version is found in memory alone,
     /// in the table alone, and across both from whichever holds the lower
     /// version, never at the version itself or from a neighbouring id.
     #[tokio::test]
-    async fn lowest_handler_processed_row_above_reads_across_overlay_and_table() {
+    async fn lowest_handler_processed_row_above_reads_from_memory_and_the_table() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();
@@ -2445,7 +2451,7 @@ mod handler_object_state_storage {
 
         assert_eq!(lowest_above(high, 0), None);
 
-        // Overlay only.
+        // In memory only.
         let low_v9 = generate_live_entry(1);
         let high_v5 = generate_live_entry(1);
         let commit_1_rows = vec![(key(low, 9), low_v9), (key(high, 5), high_v5)];
@@ -2466,7 +2472,7 @@ mod handler_object_state_storage {
         assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
         assert_eq!(lowest_above(low, 9), None);
 
-        // Both, the overlay holding the lower version.
+        // Both, memory holding the lower version.
         let high_v4 = generate_live_entry(2);
         complete_commit(2, &[(key(high, 4), high_v4)]);
         assert_eq!(lowest_above(high, 3), Some((key(high, 4), high_v4)));
@@ -2485,10 +2491,10 @@ mod handler_object_state_storage {
         assert_eq!(lowest_above(low, 9), None);
     }
 
-    /// A handler-known execution puts its rows in the overlay, produced at
-    /// the commit the handler assigned.
+    /// Executing a transaction whose commit the handler has assigned puts its
+    /// rows in memory, produced at that commit.
     #[tokio::test]
-    async fn map_hit_writes_handler_rows_at_the_assigned_commit() {
+    async fn executing_a_transaction_of_an_assigned_commit_records_its_rows_at_that_commit() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();
@@ -2507,7 +2513,7 @@ mod handler_object_state_storage {
         let row = epoch_store
             .handler_processed_object(&ObjectKey(mutated, effects.lamport_version()))
             .unwrap()
-            .expect("handler-processed row must exist for a handler-known commit");
+            .expect("the transaction executed in assigned commit 6 has a handler-processed row");
         assert_eq!(row.produced_at, 6);
     }
 
@@ -2516,7 +2522,7 @@ mod handler_object_state_storage {
     /// it writes nothing. The report is a `fatal!`, which panics, so the
     /// first call runs under `catch_unwind`.
     #[tokio::test]
-    async fn map_miss_is_reported_unless_executing_synced_checkpoints() {
+    async fn execution_without_an_assigned_commit_panics_unless_executing_synced_checkpoints() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();

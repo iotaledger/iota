@@ -2,8 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Unit tests for post-consensus transaction validation, owned-object
-//! conflict resolution, and the P-COOL bookkeeping written by executed
-//! transactions.
+//! conflict resolution, and the rows of the P-COOL handler object state
+//! written by executed transactions.
+//!
+//! Terms used here, as in `post_consensus_input_reader`:
+//! - `C` is the commit being validated, and `K` is how many commits behind `C` the object state is
+//!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`, 2 unless a test
+//!   sets it. Validation at `C` reads the state as of commit `C - K`, called the horizon. So
+//!   "commit 12, horizon 10" is validation at commit 12 with `K = 2`, and a row produced by commit
+//!   11 is above that horizon.
+//! - A row is one entry of the handler object state (`handler_object_state`). It records that a
+//!   transaction in some commit produced version `V` of object `id`: the commit, the digest, and
+//!   whether the object is live, deleted or wrapped at that version. "The row at `(id, V)`" is that
+//!   entry.
+//! - A transaction's commit is assigned once the consensus handler has recorded which commit the
+//!   transaction belongs to (`assign_commit_to_transactions`). Executing a transaction whose commit
+//!   is assigned writes its rows. A transaction executed from a synced checkpoint before the
+//!   handler assigned its commit writes none.
+//! - The roots of a commit are the transactions the handler put in the commit's pending
+//!   checkpoints. The commit is fully executed once every root has effects, and the execution
+//!   watcher is the task that waits for that.
+//! - "After the final round" means after this validator stopped accepting user transactions for the
+//!   epoch. Commits from then on make no checkpoint and do not wait for the horizon to be fully
+//!   executed.
 
 use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
@@ -2221,15 +2242,16 @@ async fn post_consensus_validation_applies_relaxed_rules() {
 }
 
 // ---------------------------------------------------------------------------
-// P-COOL deterministic-validation bookkeeping (execution hook)
+// P-COOL handler object state: rows written when a transaction executes
+// (`record_executed_transaction`)
 // ---------------------------------------------------------------------------
 
-/// Shared setup for the execution-hook bookkeeping tests: the P-COOL flags
-/// (held by `_config_guard` for the test's duration when enabled), plus
-/// helpers to execute transactions and assert the bookkeeping rows they
-/// leave. Rows are written for an executed transaction only if its commit was
-/// assigned beforehand with `assign_commit_to_transactions`.
-struct BookkeepingSetup {
+/// Authority and epoch store for the tests of the rows of the handler object
+/// state. With `validation_enabled`, the P-COOL protocol flags are overridden
+/// for as long as the setup lives. Rows are written for an executed
+/// transaction only if its commit was assigned beforehand with
+/// `assign_commit_to_transactions`.
+struct HandlerObjectStateSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
     package_id: ObjectId,
@@ -2246,10 +2268,10 @@ struct ValidationResult {
     locks: std::collections::HashMap<ObjectReference, LockDetails>,
 }
 
-async fn setup_bookkeeping(
+async fn setup_handler_object_state(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
-) -> BookkeepingSetup {
+) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         if validation_enabled {
             config.enable_pcool_deterministic_validation_for_testing();
@@ -2258,12 +2280,14 @@ async fn setup_bookkeeping(
         }
         config
     });
-    setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await
+    setup_handler_object_state_with_config_guard(genesis_objects, Some(config_guard)).await
 }
 
-/// Like [`setup_bookkeeping`] with the flags on, but for a node whose authority
+/// Like [`setup_handler_object_state`] with the flags on, but for a node whose authority
 /// key is not in the committee, as on a full node.
-async fn setup_bookkeeping_outside_committee(genesis_objects: Vec<Object>) -> BookkeepingSetup {
+async fn setup_handler_object_state_outside_committee(
+    genesis_objects: Vec<Object>,
+) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.enable_pcool_deterministic_validation_for_testing();
         config
@@ -2271,23 +2295,23 @@ async fn setup_bookkeeping_outside_committee(genesis_objects: Vec<Object>) -> Bo
     // The builder's genesis committee holds its own generated validator keys,
     // so a node signing with a fresh key is outside it.
     let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
-    build_bookkeeping_setup(genesis_objects, Some(config_guard), Some(&keypair)).await
+    build_handler_object_state_setup(genesis_objects, Some(config_guard), Some(&keypair)).await
 }
 
-/// Like [`setup_bookkeeping`], under the protocol config override the caller
+/// Like [`setup_handler_object_state`], under the protocol config override the caller
 /// installed. The guard lives as long as the setup.
-async fn setup_bookkeeping_with_config_guard(
+async fn setup_handler_object_state_with_config_guard(
     genesis_objects: Vec<Object>,
     config_guard: Option<OverrideGuard>,
-) -> BookkeepingSetup {
-    build_bookkeeping_setup(genesis_objects, config_guard, None).await
+) -> HandlerObjectStateSetup {
+    build_handler_object_state_setup(genesis_objects, config_guard, None).await
 }
 
-async fn build_bookkeeping_setup(
+async fn build_handler_object_state_setup(
     genesis_objects: Vec<Object>,
     _config_guard: Option<OverrideGuard>,
     keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
-) -> BookkeepingSetup {
+) -> HandlerObjectStateSetup {
     let builder = match keypair {
         Some(keypair) => TestAuthorityBuilder::new().with_keypair(keypair),
         None => TestAuthorityBuilder::new(),
@@ -2299,7 +2323,7 @@ async fn build_bookkeeping_setup(
     let (authority, package) = publish_object_basics(authority).await;
     let epoch_store = (*authority.epoch_store_for_testing()).clone();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    BookkeepingSetup {
+    HandlerObjectStateSetup {
         authority,
         epoch_store,
         package_id: package.object_id,
@@ -2308,20 +2332,20 @@ async fn build_bookkeeping_setup(
     }
 }
 
-/// Like [`setup_bookkeeping`] with the flags on, but with the given test
+/// Like [`setup_handler_object_state`] with the flags on, but with the given test
 /// package instead of `object_basics`, inserted at genesis like it, so the
 /// package is epoch-start state. `gas_id` is created at genesis for `sender`
 /// and funds the test's transactions.
-async fn setup_bookkeeping_with_package(
+async fn setup_handler_object_state_with_package(
     package_name: &str,
     sender: Address,
     gas_id: ObjectId,
-) -> BookkeepingSetup {
+) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.enable_pcool_deterministic_validation_for_testing();
         config
     });
-    setup_bookkeeping_with_package_and_config_guard(
+    setup_handler_object_state_with_package_and_config_guard(
         package_name,
         sender,
         gas_id,
@@ -2330,15 +2354,15 @@ async fn setup_bookkeeping_with_package(
     .await
 }
 
-/// [`setup_bookkeeping_with_package`] under the protocol config override the
+/// [`setup_handler_object_state_with_package`] under the protocol config override the
 /// caller installed, or none, for a second validator sharing the override
 /// another one holds.
-async fn setup_bookkeeping_with_package_and_config_guard(
+async fn setup_handler_object_state_with_package_and_config_guard(
     package_name: &str,
     sender: Address,
     gas_id: ObjectId,
     _config_guard: Option<OverrideGuard>,
-) -> BookkeepingSetup {
+) -> HandlerObjectStateSetup {
     let authority = TestAuthorityBuilder::new().build().await;
     authority.insert_genesis_object(Object::with_id_owner_for_testing(gas_id, sender));
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2360,7 +2384,7 @@ async fn setup_bookkeeping_with_package_and_config_guard(
     authority.insert_genesis_object(package);
     let epoch_store = (*authority.epoch_store_for_testing()).clone();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    BookkeepingSetup {
+    HandlerObjectStateSetup {
         authority,
         epoch_store,
         package_id,
@@ -2402,7 +2426,7 @@ fn initial_shared_version(owner: &Owner) -> Version {
     }
 }
 
-impl BookkeepingSetup {
+impl HandlerObjectStateSetup {
     /// The latest reference of `id` in the authority's view.
     fn latest_ref(&self, id: &ObjectId) -> ObjectReference {
         self.authority.get_object(id).unwrap().object_ref()
@@ -2416,10 +2440,12 @@ impl BookkeepingSetup {
             .get_object_by_key(id, version)
     }
 
-    /// Executes `tx` directly (`new_from_checkpoint` merely avoids needing a
-    /// certificate). With the bookkeeping on, the handler must have assigned
-    /// the transaction's commit first, as [`Self::execute_as_handler_known`]
-    /// does; otherwise the execution hook reports it.
+    /// Executes `tx` and checks that it succeeded. `new_from_checkpoint` is
+    /// used only because it builds an executable transaction without a
+    /// certificate. With the handler object state kept, the handler must have
+    /// assigned the transaction's commit first, as
+    /// [`Self::execute_with_assigned_commit`] does; otherwise
+    /// `record_executed_transaction` panics.
     fn execute(&self, tx: VerifiedTransaction) -> TransactionEffects {
         let effects = self.execute_unchecked(tx);
         assert!(effects.status().is_success(), "{:?}", effects.status());
@@ -2448,8 +2474,7 @@ impl BookkeepingSetup {
         effects
     }
 
-    /// The handler-processed row of `id` at `version`, which the handler must
-    /// have written.
+    /// The row at `(id, version)`, which must exist.
     #[track_caller]
     fn handler_processed_object(&self, id: &ObjectId, version: Version) -> HandlerProcessedObject {
         self.epoch_store
@@ -2462,9 +2487,9 @@ impl BookkeepingSetup {
             })
     }
 
-    /// Asserts that no handler-processed row exists for `id` at `version`.
+    /// Asserts that there is no row at `(id, version)`.
     #[track_caller]
-    fn assert_no_handler_row(&self, id: &ObjectId, version: Version) {
+    fn assert_no_handler_processed_object(&self, id: &ObjectId, version: Version) {
         assert_eq!(
             self.epoch_store
                 .handler_processed_object(&ObjectKey(*id, version))
@@ -2473,10 +2498,10 @@ impl BookkeepingSetup {
         );
     }
 
-    /// Assigns `txs` to commit `index` as its roots, then executes them in
-    /// order, so the hook writes their handler-processed rows. A commit is
-    /// assigned once, so every transaction of a commit goes in one call.
-    fn execute_as_handler_known(
+    /// Assigns commit `index` to `txs`, then executes them in order, so their
+    /// rows are written. A commit is assigned once, so every transaction of a
+    /// commit goes in one call.
+    fn execute_with_assigned_commit(
         &self,
         txs: Vec<VerifiedTransaction>,
         index: CommitIndex,
@@ -2490,9 +2515,9 @@ impl BookkeepingSetup {
         txs.into_iter().map(|tx| self.execute(tx)).collect()
     }
 
-    /// [`Self::execute_as_handler_known`] of a call into the `object_basics`
+    /// [`Self::execute_with_assigned_commit`] of a call into the `object_basics`
     /// module.
-    fn handler_known_object_basics_call(
+    fn assigned_commit_object_basics_call(
         &self,
         function: &'static str,
         args: Vec<CallArg>,
@@ -2501,7 +2526,7 @@ impl BookkeepingSetup {
         sender_key: &AccountPrivateKey,
         index: CommitIndex,
     ) -> TransactionEffects {
-        self.handler_known_move_call(
+        self.assigned_commit_move_call(
             "object_basics",
             function,
             args,
@@ -2512,9 +2537,9 @@ impl BookkeepingSetup {
         )
     }
 
-    /// [`Self::execute_as_handler_known`] of a call into `module::function`
+    /// [`Self::execute_with_assigned_commit`] of a call into `module::function`
     /// of the published test package.
-    fn handler_known_move_call(
+    fn assigned_commit_move_call(
         &self,
         module: &'static str,
         function: &'static str,
@@ -2525,7 +2550,7 @@ impl BookkeepingSetup {
         index: CommitIndex,
     ) -> TransactionEffects {
         let tx = self.build_move_call(module, function, args, gas_id, sender, sender_key);
-        self.execute_as_handler_known(vec![tx], index).remove(0)
+        self.execute_with_assigned_commit(vec![tx], index).remove(0)
     }
 
     /// Commits the outputs of `committed` to the database in order, as the
@@ -2593,7 +2618,7 @@ impl BookkeepingSetup {
     /// Builds a call into the `object_basics` module taking shared-object
     /// inputs and executes it as a root of commit `index`, with the shared
     /// versions assigned directly rather than through consensus.
-    fn handler_known_shared_object_basics_call(
+    fn assigned_commit_shared_object_basics_call(
         &self,
         function: &'static str,
         args: Vec<CallArg>,
@@ -2760,7 +2785,7 @@ impl BookkeepingSetup {
     /// Executes a call naming the deleted shared object `id`, created at
     /// `initial_shared_version`, as a mutable input. The call aborts, and
     /// execution writes a deletion marker for `id` at the call's version
-    /// with no handler row for `id`. The call is a root of commit `index`.
+    /// with no row for `id`. The call is assigned to commit `index`.
     fn name_deleted_shared_object(
         &self,
         id: &ObjectId,
@@ -2803,13 +2828,13 @@ impl BookkeepingSetup {
         )
     }
 
-    /// The commit-indexed reader's verdict for the owned input `reference`,
+    /// The commit-indexed reader's result for the owned input `reference`,
     /// as of `commit_index`.
     fn read_owned(&self, commit_index: CommitIndex, reference: ObjectReference) -> OwnedVerdict {
         self.reader_at(commit_index).read_owned(reference).unwrap()
     }
 
-    /// The commit-indexed reader's verdict for shared input `id` declared at
+    /// The commit-indexed reader's result for shared input `id` declared at
     /// `initial_shared_version`, as of `commit_index`.
     fn read_shared(
         &self,
@@ -2836,7 +2861,7 @@ impl BookkeepingSetup {
             .unwrap()
     }
 
-    /// Records the handler row of a publish of the `object_basics` package,
+    /// Records the row of a publish of the `object_basics` package,
     /// which the fixture inserts at genesis, by commit `index`, so the reader
     /// treats the package as published by that commit.
     fn record_package_published_at(&self, index: CommitIndex) {
@@ -2861,8 +2886,8 @@ impl BookkeepingSetup {
             .unwrap();
     }
 
-    /// Stores `object` and records its handler row at commit `index` as the
-    /// write of a root of that commit that replaced `replaced_version`, so
+    /// Stores `object` and records its row at commit `index` as the write of
+    /// a transaction of that commit that replaced `replaced_version`, so
     /// the reader treats the object as written by that commit.
     fn record_write_at(&self, object: Object, replaced_version: Version, index: CommitIndex) {
         let row = (
@@ -2921,7 +2946,7 @@ impl BookkeepingSetup {
         sender_key: &AccountPrivateKey,
         index: CommitIndex,
     ) -> (ObjectReference, TransactionEffects) {
-        let effects = self.handler_known_object_basics_call(
+        let effects = self.assigned_commit_object_basics_call(
             "create",
             create_object_args(sender),
             gas_id,
@@ -3151,9 +3176,9 @@ impl BookkeepingSetup {
         self.initialize_randomness().await;
     }
 
-    /// [`Self::execute_as_handler_known`] of one transaction that fails at
+    /// [`Self::execute_with_assigned_commit`] of one transaction that fails at
     /// execution.
-    fn execute_failing_as_handler_known(
+    fn execute_failing_with_assigned_commit(
         &self,
         tx: VerifiedTransaction,
         index: CommitIndex,
@@ -3184,8 +3209,8 @@ impl BookkeepingSetup {
         )
     }
 
-    /// The protocol config's horizon distance: validation at commit `C`
-    /// trusts what commits up to `C` minus this distance produced.
+    /// `K`, the protocol config's horizon distance: validation at commit `C`
+    /// reads the object state as of commit `C - K`.
     fn horizon_distance(&self) -> CommitIndex {
         self.epoch_store
             .protocol_config()
@@ -3275,12 +3300,12 @@ impl BookkeepingSetup {
 }
 
 #[tokio::test]
-async fn handler_known_transaction_writes_handler_processed_only() {
+async fn assigned_commit_transaction_writes_handler_processed_only() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -3300,10 +3325,10 @@ async fn handler_known_transaction_writes_handler_processed_only() {
     );
     let tx = s.epoch_store.verify_transaction(tx).unwrap();
 
-    // The handler registered the digest before execution: the hook writes
-    // handler-processed rows.
+    // The handler assigned the transaction's commit before execution, so the
+    // execution writes rows.
     let gas_genesis_ref = s.latest_ref(&gas_id);
-    let effects = s.execute_as_handler_known(vec![tx], 7).remove(0);
+    let effects = s.execute_with_assigned_commit(vec![tx], 7).remove(0);
 
     // The gas coin is a written object like any other.
     for consumed_ref in [obj_genesis_ref, gas_genesis_ref] {
@@ -3315,16 +3340,16 @@ async fn handler_known_transaction_writes_handler_processed_only() {
 }
 
 #[tokio::test]
-async fn handler_known_delete_writes_a_deleted_tombstone_row() {
+async fn assigned_commit_delete_writes_a_deleted_tombstone_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
-    let create_effects = s.handler_known_object_basics_call(
+    let create_effects = s.assigned_commit_object_basics_call(
         "create",
         create_object_args(sender),
         &gas_id,
@@ -3341,7 +3366,7 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
 
     // The deletion in a later commit replaces the live row with a tombstone
     // at the deletion version, carrying the store's deleted-object digest.
-    let delete_effects = s.handler_known_object_basics_call(
+    let delete_effects = s.assigned_commit_object_basics_call(
         "delete",
         vec![CallArg::ImmutableOrOwned(created_ref)],
         &gas_id,
@@ -3363,17 +3388,17 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
 }
 
 #[tokio::test]
-async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone() {
+async fn assigned_commit_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let (created_ref, _) = s.create_object(&gas_id, sender, &sender_key, 4);
-    let wrap_effects = s.handler_known_object_basics_call(
+    let wrap_effects = s.assigned_commit_object_basics_call(
         "wrap",
         vec![CallArg::ImmutableOrOwned(created_ref)],
         &gas_id,
@@ -3402,7 +3427,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
     // Unwrapping resurfaces the id at a higher version with a live row; the
     // wrapped tombstone stays at its own version, and the wrapper gets a
     // deleted tombstone.
-    let unwrap_effects = s.handler_known_object_basics_call(
+    let unwrap_effects = s.assigned_commit_object_basics_call(
         "unwrap",
         vec![CallArg::ImmutableOrOwned(wrapper_ref)],
         &gas_id,
@@ -3442,21 +3467,21 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
 }
 
 #[tokio::test]
-async fn handler_known_share_records_the_initial_shared_version() {
+async fn assigned_commit_share_records_the_initial_shared_version() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
 
-    // The creation row doubles as the created-shared flag: it carries the
-    // initial shared version, which the shared-input checks read.
+    // The row written for a newly shared object holds its initial shared
+    // version, so a later read can tell the object was created as shared.
     assert_eq!(
         s.handler_processed_object(shared.reference().object_id(), shared.reference().version),
         HandlerProcessedObject {
@@ -3471,17 +3496,17 @@ async fn handler_known_share_records_the_initial_shared_version() {
 }
 
 #[tokio::test]
-async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tombstone_row() {
+async fn assigned_commit_shared_delete_keeps_the_initial_shared_version_on_the_tombstone_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     let initial = initial_shared_version(shared.owner());
@@ -3490,7 +3515,7 @@ async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tom
     // validator can still read the initial shared version a transaction
     // declares against, and the deleting transaction a kept input is handed
     // on with.
-    let delete_effects = s.handler_known_shared_object_basics_call(
+    let delete_effects = s.assigned_commit_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(shared_id)],
         &gas_id,
@@ -3516,7 +3541,7 @@ async fn watcher_completes_a_commit_once_its_roots_execute() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -3527,8 +3552,8 @@ async fn watcher_completes_a_commit_once_its_roots_execute() {
     let _watcher = s.start_execution_watcher();
     let state = s.epoch_store.handler_object_state_for_testing();
 
-    // The handler assigns the commit before its root executes; the watcher
-    // must wait for the root's effects.
+    // The handler assigns the commit before its transaction executes, and the
+    // execution watcher must wait for the transaction's effects.
     let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
     let key = TransactionKey::Digest(*tx.digest());
     s.epoch_store.assign_commit_to_transactions(1, vec![key]);
@@ -3556,7 +3581,7 @@ async fn watcher_completes_commits_in_assignment_order() {
     let gas1_id = ObjectId::random();
     let obj2_id = ObjectId::random();
     let gas2_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj1_id, address_1),
             Object::with_id_owner_for_testing(gas1_id, address_1),
@@ -3590,7 +3615,7 @@ async fn watcher_completes_commits_in_assignment_order() {
     s.epoch_store
         .assign_commit_to_transactions(2, vec![second_key]);
 
-    // The later commit's root executes first. Completing commit 2 now would
+    // The later commit's transaction executes first. Completing commit 2 now would
     // claim commit 1 executed too, so the watcher must hold it back.
     s.execute(second);
     s.assert_commit_not_fully_executed(1).await;
@@ -3607,11 +3632,11 @@ async fn watcher_completes_commits_in_assignment_order() {
 /// the commit from its own batch; the watcher reaching it afterwards must
 /// change nothing.
 #[tokio::test]
-async fn flush_first_completion_leaves_the_watcher_a_no_op() {
+async fn watcher_changes_nothing_for_a_commit_the_flush_completed_first() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -3625,7 +3650,7 @@ async fn flush_first_completion_leaves_the_watcher_a_no_op() {
     // executes and the commit flushes before any watcher runs.
     let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
     let key = TransactionKey::Digest(*tx.digest());
-    let effects = s.execute_as_handler_known(vec![tx], 1).remove(0);
+    let effects = s.execute_with_assigned_commit(vec![tx], 1).remove(0);
     let version = effects.lamport_version();
     let written = s
         .epoch_store
@@ -3647,8 +3672,8 @@ async fn flush_first_completion_leaves_the_watcher_a_no_op() {
 
     // The watcher now receives commit 1, then an empty commit 2; once commit
     // 2 is complete, commit 1 has been handled. Had the watcher completed
-    // commit 1 again, its rows would sit in the overlay with no flush left
-    // to evict them.
+    // commit 1 again, its rows would stay in memory with no flush left to
+    // remove them.
     let _watcher = s.start_execution_watcher();
     s.epoch_store.assign_commit_to_transactions(2, vec![]);
     s.wait_for_fully_executed_commit(2).await;
@@ -3660,7 +3685,7 @@ async fn flush_first_completion_leaves_the_watcher_a_no_op() {
 /// commit stays waiting to be completed.
 #[tokio::test]
 async fn flush_fails_when_a_root_has_no_effects() {
-    let s = setup_bookkeeping(vec![], true).await;
+    let s = setup_handler_object_state(vec![], true).await;
     let state = s.epoch_store.handler_object_state_for_testing();
 
     let missing = TransactionDigest::random();
@@ -3678,14 +3703,15 @@ async fn flush_fails_when_a_root_has_no_effects() {
     assert_eq!(s.highest_fully_executed_commit(), 0);
 }
 
-/// The checkpoint batch makes a completed commit's rows durable before the
-/// commit flushes, so the flush has none of them left to write.
+/// The checkpoint executor's batch writes a completed commit's rows to the
+/// table before the commit flushes, so the flush has none of them left to
+/// write.
 #[tokio::test]
 async fn flush_skips_rows_the_checkpoint_batch_made_durable() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -3697,7 +3723,7 @@ async fn flush_skips_rows_the_checkpoint_batch_made_durable() {
 
     let _watcher = s.start_execution_watcher();
     let effects = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
             1,
         )
@@ -3725,13 +3751,13 @@ async fn flush_skips_rows_the_checkpoint_batch_made_durable() {
 }
 
 /// Without a checkpoint batch in between, the flush of a commit the watcher
-/// completed writes all of the commit's rows and evicts them.
+/// completed writes all of the commit's rows and removes them from memory.
 #[tokio::test]
-async fn flush_writes_completed_commit_rows_still_in_the_overlay() {
+async fn flush_writes_completed_commit_rows_still_held_in_memory() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -3743,7 +3769,7 @@ async fn flush_writes_completed_commit_rows_still_in_the_overlay() {
 
     let _watcher = s.start_execution_watcher();
     let effects = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
             1,
         )
@@ -3767,15 +3793,15 @@ async fn flush_writes_completed_commit_rows_still_in_the_overlay() {
     }
 }
 
-/// The checkpoint batch makes a commit's rows durable before the watcher
-/// completes the commit, so the watcher leaves them out of the overlay and
-/// the commit's flush has none of them left to write.
+/// The checkpoint executor's batch writes a commit's rows to the table
+/// before the watcher completes the commit, so the watcher does not put them
+/// in memory again and the commit's flush has none of them left to write.
 #[tokio::test]
 async fn watcher_skips_rows_the_checkpoint_batch_made_durable() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -3786,7 +3812,7 @@ async fn watcher_skips_rows_the_checkpoint_batch_made_durable() {
     let state = s.epoch_store.handler_object_state_for_testing();
 
     let effects = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
             1,
         )
@@ -3816,7 +3842,7 @@ async fn watcher_skips_rows_the_checkpoint_batch_made_durable() {
 }
 
 /// The watcher completed a commit, then the node crashed before the commit
-/// flushed. After the restart the overlay is empty and the watcher has not
+/// flushed. After the restart no rows are held in memory and the watcher has not
 /// completed the replayed commit, so its flush derives every row from
 /// effects and writes them.
 #[tokio::test]
@@ -3824,7 +3850,7 @@ async fn replayed_flush_after_restart_writes_rows_from_effects() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -3835,7 +3861,7 @@ async fn replayed_flush_after_restart_writes_rows_from_effects() {
 
     let watcher = s.start_execution_watcher();
     let effects = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
             1,
         )
@@ -3870,9 +3896,9 @@ async fn replayed_flush_after_restart_writes_rows_from_effects() {
     }
 }
 
-/// A commit executed before a crash but not yet flushed loses its rows with
-/// the overlay, and the execution hook does not run again for its
-/// transactions. When the handler replays the commit, the watcher must
+/// A commit executed before a crash but not yet flushed loses its rows held
+/// in memory, and its transactions are not executed again. When the handler
+/// replays the commit, the watcher must
 /// restore the rows from the effects already on disk.
 #[tokio::test]
 async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
@@ -3882,7 +3908,7 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     let gas1_id = ObjectId::random();
     let obj2_id = ObjectId::random();
     let gas2_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj1_id, address_1),
             Object::with_id_owner_for_testing(gas1_id, address_1),
@@ -3897,7 +3923,7 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     // output is still in the quarantine when the node crashes.
     let watcher = s.start_execution_watcher();
     let first = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(
                 &obj1_id,
                 &gas1_id,
@@ -3913,7 +3939,7 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
         .flush_commit_through_quarantine_for_testing(1, vec![*first.transaction_digest()])
         .unwrap();
     let second = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(
                 &obj2_id,
                 &gas2_id,
@@ -3936,7 +3962,7 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     };
 
     // The value resumes from the flushed commit. Commit 1's rows are on disk;
-    // commit 2's were only in the overlay and are gone.
+    // commit 2's were only held in memory and are gone.
     assert_eq!(
         *reopened
             .subscribe_highest_fully_executed_commit()
@@ -3974,9 +4000,9 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     }
 }
 
-/// A checkpoint's handler rows become durable with the checkpoint, before
+/// A checkpoint's rows are written to the table with the checkpoint, before
 /// its commit flushes: a restart in between finds every row on disk,
-/// although the overlay is gone.
+/// although the rows held in memory are gone.
 #[tokio::test]
 async fn checkpoint_bookkeeping_is_durable_before_its_commit_flushes() {
     let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -3985,7 +4011,7 @@ async fn checkpoint_bookkeeping_is_durable_before_its_commit_flushes() {
     let gas1_id = ObjectId::random();
     let obj2_id = ObjectId::random();
     let gas2_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj1_id, address_1),
             Object::with_id_owner_for_testing(gas1_id, address_1),
@@ -4014,13 +4040,13 @@ async fn checkpoint_bookkeeping_is_durable_before_its_commit_flushes() {
     );
     let first_key = TransactionKey::Digest(*first.digest());
     let second_key = TransactionKey::Digest(*second.digest());
-    let first = s.execute_as_handler_known(vec![first], 1).remove(0);
-    let second = s.execute_as_handler_known(vec![second], 2).remove(0);
+    let first = s.execute_with_assigned_commit(vec![first], 1).remove(0);
+    let second = s.execute_with_assigned_commit(vec![second], 2).remove(0);
     s.epoch_store
         .persist_checkpoint_bookkeeping([&first, &second])
         .unwrap();
 
-    // The rows left the overlay once durable.
+    // The rows are removed from memory once written to the table.
     assert_eq!(state.overlay_size_for_testing(), 0);
 
     // The node crashes before either commit flushes.
@@ -4055,7 +4081,7 @@ async fn checkpoint_bookkeeping_is_durable_before_its_commit_flushes() {
     assert_eq!(reopened_state.overlay_size_for_testing(), 0);
 }
 
-/// A checkpoint's handler rows are written without the consensus
+/// A checkpoint's rows are written without the consensus
 /// quarantine lock, so a commit push or a quarantine flush does not hold up
 /// checkpoint execution.
 #[tokio::test]
@@ -4063,7 +4089,7 @@ async fn checkpoint_bookkeeping_does_not_wait_for_the_quarantine() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -4072,7 +4098,7 @@ async fn checkpoint_bookkeeping_does_not_wait_for_the_quarantine() {
     )
     .await;
     let effects = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
             1,
         )
@@ -4120,7 +4146,7 @@ async fn bookkeeping_disabled_writes_nothing() {
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -4135,10 +4161,10 @@ async fn bookkeeping_disabled_writes_nothing() {
         .persist_checkpoint_bookkeeping([&effects])
         .unwrap();
 
-    s.assert_no_handler_row(&obj_id, effects.lamport_version());
+    s.assert_no_handler_processed_object(&obj_id, effects.lamport_version());
 }
 
-/// Only a committee member keeps the bookkeeping. A node outside the
+/// Only a committee member keeps the handler object state. A node outside the
 /// committee runs no consensus handler, so nothing would ever assign its
 /// executions to a commit or clear their rows.
 #[rstest::rstest]
@@ -4150,13 +4176,13 @@ async fn bookkeeping_is_kept_only_by_committee_members(#[values(true, false)] in
         .map(|id| Object::with_id_owner_for_testing(id, sender))
         .to_vec();
     let s = if in_committee {
-        setup_bookkeeping(genesis_objects, true).await
+        setup_handler_object_state(genesis_objects, true).await
     } else {
-        setup_bookkeeping_outside_committee(genesis_objects).await
+        setup_handler_object_state_outside_committee(genesis_objects).await
     };
 
     let effects = s
-        .execute_as_handler_known(
+        .execute_with_assigned_commit(
             vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
             1,
         )
@@ -4178,14 +4204,13 @@ async fn bookkeeping_is_kept_only_by_committee_members(#[values(true, false)] in
 }
 
 /// Genesis is the root of no consensus commit, so no commit would ever clear
-/// bookkeeping its execution wrote; the objects it creates are epoch-start
-/// state.
+/// rows its execution wrote. The objects it creates are epoch-start state.
 #[tokio::test]
 async fn genesis_execution_leaves_no_bookkeeping() {
-    let s = setup_bookkeeping(vec![], true).await;
+    let s = setup_handler_object_state(vec![], true).await;
 
     for id in [IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID] {
-        s.assert_no_handler_row(&id, s.latest_ref(&id).version);
+        s.assert_no_handler_processed_object(&id, s.latest_ref(&id).version);
     }
     assert_eq!(
         s.epoch_store
@@ -4196,12 +4221,13 @@ async fn genesis_execution_leaves_no_bookkeeping() {
 }
 
 /// The change-epoch transaction is the root of no consensus commit, so no
-/// commit would ever clear bookkeeping its execution wrote; what it writes is
-/// the next epoch's epoch-start state. An execution the handler has not
-/// assigned panics in tests, so this also shows the hook skips it.
+/// commit would ever clear rows its execution wrote. What it writes is the
+/// next epoch's epoch-start state. An execution whose commit the handler has
+/// not assigned panics, so this also shows that `record_executed_transaction`
+/// is not called for it.
 #[tokio::test]
 async fn change_epoch_execution_leaves_no_bookkeeping() {
-    let s = setup_bookkeeping(vec![], true).await;
+    let s = setup_handler_object_state(vec![], true).await;
 
     // The checkpoint builder executes the transaction without committing it
     // and stores it for state sync; the checkpoint executor commits it.
@@ -4228,7 +4254,7 @@ async fn change_epoch_execution_leaves_no_bookkeeping() {
     let written = handler_processed_upserts(&effects, 0);
     assert!(!written.is_empty());
     for (key, _) in written {
-        s.assert_no_handler_row(&key.0, key.1);
+        s.assert_no_handler_processed_object(&key.0, key.1);
     }
 }
 
@@ -4265,14 +4291,14 @@ fn assert_shared_missing(verdict: SharedVerdict, kind: MissingKind) {
     }
 }
 
-/// The verdict is `Deleted` with `delete_effects`' version and digest.
+/// `verdict` is `Deleted` with `delete_effects`' version and digest.
 #[track_caller]
 fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects) {
     let digest = assert_deleted_at(verdict, delete_effects.lamport_version());
     assert_eq!(digest, *delete_effects.transaction_digest());
 }
 
-/// The verdict is `Deleted` at `expected_version`. Returns its digest.
+/// `verdict` is `Deleted` at `expected_version`. Returns its digest.
 #[track_caller]
 fn assert_deleted_at(verdict: SharedVerdict, expected_version: Version) -> TransactionDigest {
     match verdict {
@@ -4300,18 +4326,18 @@ fn assert_deleted_at(verdict: SharedVerdict, expected_version: Version) -> Trans
 async fn reader_checks_the_declared_version_against_the_deletion_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     let initial = initial_shared_version(shared.owner());
-    let delete_effects = s.handler_known_shared_object_basics_call(
+    let delete_effects = s.assigned_commit_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(shared_id)],
         &gas_id,
@@ -4346,7 +4372,7 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
     // assigned to commit 16, writes a newer marker and no row.
     let handler_smear_effects =
         s.name_deleted_shared_object(shared_id, initial, &gas_id, sender, &sender_key, 16);
-    s.assert_no_handler_row(shared_id, handler_smear_effects.lamport_version());
+    s.assert_no_handler_processed_object(shared_id, handler_smear_effects.lamport_version());
 
     // The tombstone row decides at both commits, and gives the version and
     // the deleting transaction.
@@ -4372,7 +4398,7 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
 async fn reader_answers_missing_for_a_shared_id_the_store_does_not_have() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
@@ -4384,7 +4410,7 @@ async fn reader_answers_missing_for_a_shared_id_the_store_does_not_have() {
     );
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 11);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 11);
     let shared = share_effects.created()[0];
     assert_shared_missing(
         s.read_shared(
@@ -4411,7 +4437,7 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let deleter_gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             Object::with_id_owner_for_testing(deleter_gas_id, sender),
@@ -4420,7 +4446,7 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
     )
     .await;
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared_ref = *share_effects.created()[0].reference();
     let shared_id = shared_ref.object_id;
     let initial = initial_shared_version(share_effects.created()[0].owner());
@@ -4479,7 +4505,7 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
 async fn package_store_view_follows_the_reader() {
     let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
@@ -4505,14 +4531,14 @@ async fn package_store_view_follows_the_reader() {
 async fn loader_stops_at_a_package_published_above_the_horizon() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     s.record_package_published_at(11);
@@ -4547,14 +4573,14 @@ async fn loader_stops_at_a_package_published_above_the_horizon() {
 async fn loader_resolves_every_input_kind_at_a_commit() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     let initial = initial_shared_version(shared.owner());
@@ -4638,18 +4664,18 @@ async fn loader_resolves_every_input_kind_at_a_commit() {
 async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     // Commit 11 mutates the gas coin. At commit 12 the horizon is 10.
-    s.handler_known_shared_object_basics_call(
+    s.assigned_commit_shared_object_basics_call(
         "set_value",
         vec![
             s.shared_arg(shared_id),
@@ -4695,7 +4721,7 @@ async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
 async fn validation_at_commit_keeps_drops_and_reports_missing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
@@ -4703,7 +4729,7 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
     let deny_config = &s.authority.config.transaction_deny_config;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     let set_value = |arg: CallArg, value: u64| {
@@ -4766,7 +4792,7 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
 
     // Missing: the gas coin was produced at commit 11, above commit 12's
     // horizon.
-    s.handler_known_shared_object_basics_call(
+    s.assigned_commit_shared_object_basics_call(
         "set_value",
         vec![
             s.shared_arg(shared_id),
@@ -4805,7 +4831,7 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
 async fn denied_packages_leave_a_package_above_the_horizon_missing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
@@ -4815,7 +4841,7 @@ async fn denied_packages_leave_a_package_above_the_horizon_missing() {
         .build();
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     s.record_package_published_at(11);
@@ -4863,7 +4889,7 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
 
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let s = setup_handler_object_state_with_package("tto", sender, gas_id).await;
     let deny_config = &s.authority.config.transaction_deny_config;
 
     // Three parent and child pairs. The first child is received at commit 6,
@@ -4871,12 +4897,12 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
     // it, the third not at all.
     let start = |index| {
         let effects =
-            s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, index);
+            s.assigned_commit_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, index);
         let (parent, child) = parent_and_child(effects.created());
         (*parent.reference(), *child.reference(), effects.created())
     };
     let receive = |parent: ObjectReference, child: ObjectReference, index| {
-        s.handler_known_move_call(
+        s.assigned_commit_move_call(
             "M1",
             "receiver",
             vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)],
@@ -5056,7 +5082,7 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
 /// executed within a few seconds. `watcher` must stay alive for the commit
 /// to become fully executed.
 struct ScheduledReceive {
-    setup: BookkeepingSetup,
+    setup: HandlerObjectStateSetup,
     watcher: ExecutionWatcher,
     commit: CommitIndex,
     kept: bool,
@@ -5077,16 +5103,16 @@ async fn schedule_receive_through_the_handler(
 ) -> ScheduledReceive {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let s = setup_handler_object_state_with_package("tto", sender, gas_id).await;
     let watcher = s.start_execution_watcher();
 
     let start_effects =
-        s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 1);
+        s.assigned_commit_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 1);
     s.wait_for_fully_executed_commit(1).await;
     let (parent, child) = parent_and_child(start_effects.created());
     let parent_id = parent.reference().object_id;
     if let Some(consume) = consume {
-        let consume_effects = s.handler_known_move_call(
+        let consume_effects = s.assigned_commit_move_call(
             "M1",
             consume,
             vec![
@@ -5144,7 +5170,7 @@ async fn schedule_receive_through_the_handler(
 
 /// Asserts that a kept receive executed and aborted in `iota::transfer` as
 /// unable to receive, with the sender charged.
-fn assert_receive_aborted(s: &BookkeepingSetup, effects: Option<TransactionEffects>) {
+fn assert_receive_aborted(s: &HandlerObjectStateSetup, effects: Option<TransactionEffects>) {
     let effects = effects.unwrap_or_else(|| {
         panic!(
             "the receive must execute: {} transaction(s) still pending in the execution \
@@ -5202,7 +5228,7 @@ async fn receive_of_a_version_consumed_above_the_horizon_is_kept_and_aborts() {
         let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
         let gas_id = ObjectId::random();
         let consumer_gas_id = ObjectId::random();
-        let s = setup_bookkeeping_with_package("tto_shared", sender, gas_id).await;
+        let s = setup_handler_object_state_with_package("tto_shared", sender, gas_id).await;
         s.authority
             .insert_genesis_object(Object::with_id_owner_for_testing(consumer_gas_id, sender));
         let _watcher = s.start_execution_watcher();
@@ -5210,7 +5236,7 @@ async fn receive_of_a_version_consumed_above_the_horizon_is_kept_and_aborts() {
         // `M::start` as the root of commit 1, then
         // `M::<consume>(parent, Receiving(child))` as the root of commit 2.
         let start_effects =
-            s.handler_known_move_call("M", "start", vec![], &gas_id, sender, &sender_key, 1);
+            s.assigned_commit_move_call("M", "start", vec![], &gas_id, sender, &sender_key, 1);
         s.wait_for_fully_executed_commit(1).await;
         let (parent, child) = parent_and_child(start_effects.created());
         let parent_id = parent.reference().object_id;
@@ -5298,25 +5324,25 @@ async fn kept_receive_of_the_current_version_executes_through_the_scheduler() {
 /// marker belongs to the previous epoch, so a kept receive would leave the
 /// scheduler's view of the receiving object to whether the deleted version is
 /// still stored. The version was superseded before the epoch, which the
-/// store's tombstone and the empty handler rows show on both validators.
+/// store's tombstone and the absence of any row show on both validators.
 #[tokio::test]
 async fn receive_of_a_version_deleted_last_epoch_is_dropped_on_every_node() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let mut pruning = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let mut pruning = setup_handler_object_state_with_package("tto", sender, gas_id).await;
     // Shares the override `pruning` holds.
     let mut keeping =
-        setup_bookkeeping_with_package_and_config_guard("tto", sender, gas_id, None).await;
+        setup_handler_object_state_with_package_and_config_guard("tto", sender, gas_id, None).await;
 
     // `M1::start` as the root of commit 1, then
     // `M1::deleter(parent, Receiving(child))` as the root of commit 2, which
     // receives the child and deletes it.
-    let delete_the_child = |s: &BookkeepingSetup| {
+    let delete_the_child = |s: &HandlerObjectStateSetup| {
         let start_effects =
-            s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 1);
+            s.assigned_commit_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 1);
         s.complete_commit(1, &[&start_effects]);
         let (parent, child) = parent_and_child(start_effects.created());
-        let delete_effects = s.handler_known_move_call(
+        let delete_effects = s.assigned_commit_move_call(
             "M1",
             "deleter",
             vec![
@@ -5443,7 +5469,7 @@ fn shared_object_with_id(id: ObjectId) -> Object {
 async fn validation_at_commit_drops_a_forbidden_system_object_input() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             shared_object_with_id(ObjectId::AUTHENTICATOR_STATE),
@@ -5553,7 +5579,7 @@ async fn validation_at_commit_drops_a_forbidden_system_object_input() {
 async fn validation_at_commit_keeps_a_clock_declared_immutable() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
@@ -5605,7 +5631,7 @@ async fn validation_at_commit_keeps_a_clock_declared_immutable() {
 async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sponsor)],
         true,
     )
@@ -5614,7 +5640,7 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
 
     // A shared object that was never made an account.
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sponsor, &sponsor_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sponsor, &sponsor_key, 5);
     let account_id = *share_effects.created()[0].reference().object_id();
     let account_start_version =
         initial_shared_version(&s.authority.get_object(&account_id).unwrap().owner);
@@ -5684,7 +5710,7 @@ async fn validation_at_commit_drops_an_account_owned_by_an_address() {
     let (owner, _): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let account_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sponsor),
             Object::with_id_owner_for_testing(account_id, owner),
@@ -5735,7 +5761,7 @@ async fn validation_at_commit_drops_an_immutable_account() {
     let gas_id = ObjectId::random();
     let account = Object::immutable_for_testing();
     let account_id = account.id();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sponsor), account],
         true,
     )
@@ -5798,7 +5824,7 @@ async fn validation_at_commit_drops_an_immutable_account() {
 /// account's authenticator function field outlives the object, so the account
 /// still has it at the horizon. Those
 /// validators that have not executed yet cannot see the deletion, so keeping
-/// it is the only verdict every validator can reach. The check of the Move
+/// it is the only result every validator can reach. The check of the Move
 /// authenticator's input objects skips a deleted shared object, and execution
 /// fails the transaction with `InputObjectDeleted`.
 #[tokio::test]
@@ -5806,7 +5832,7 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let setup_gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sponsor),
             Object::with_id_owner_for_testing(setup_gas_id, sponsor),
@@ -5818,7 +5844,7 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
 
     // The account is shared and deleted with a second gas coin. Had commit 15
     // written the call's gas coin, that coin would be missing at commit 16.
-    let share_effects = s.handler_known_object_basics_call(
+    let share_effects = s.assigned_commit_object_basics_call(
         "share",
         vec![],
         &setup_gas_id,
@@ -5835,7 +5861,7 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
         &s.authority.get_object(&account_id).unwrap(),
         "authenticate",
     ));
-    s.handler_known_shared_object_basics_call(
+    s.assigned_commit_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(&account_id)],
         &setup_gas_id,
@@ -5966,11 +5992,11 @@ fn assert_kept(result: IotaResult<ValidationAtCommit>) {
 /// a sponsored transfer the account sends. Returns the setup and the transfer.
 async fn setup_account_with_authenticator_in_object_basics(
     config_guard: Option<OverrideGuard>,
-) -> (BookkeepingSetup, VerifiedTransaction) {
+) -> (HandlerObjectStateSetup, VerifiedTransaction) {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let account_id = ObjectId::random();
-    let s = setup_bookkeeping_with_config_guard(
+    let s = setup_handler_object_state_with_config_guard(
         vec![
             Object::with_id_owner_for_testing(gas_id, sponsor),
             shared_object_with_id(account_id),
@@ -6055,7 +6081,7 @@ async fn validation_at_commit_leaves_an_authenticator_package_it_does_not_see_to
     let gas_id = ObjectId::random();
     let late_account = ObjectId::random();
     let unknown_account = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sponsor),
             shared_object_with_id(late_account),
@@ -6115,9 +6141,9 @@ async fn authenticator_function_rotated_above_the_horizon_gets_one_verdict_on_ev
         Object::with_id_owner_for_testing(gas_id, sponsor),
         shared_object_with_id(account_id),
     ];
-    let rotated = setup_bookkeeping(genesis.clone(), true).await;
+    let rotated = setup_handler_object_state(genesis.clone(), true).await;
     // Share the override `rotated` holds.
-    let not_rotated = setup_bookkeeping_with_config_guard(genesis, None).await;
+    let not_rotated = setup_handler_object_state_with_config_guard(genesis, None).await;
     assert_eq!(rotated.package_id, not_rotated.package_id);
     let denied = rotated.package_id;
     for node in [&rotated, &not_rotated] {
@@ -6171,9 +6197,9 @@ async fn authenticator_function_rotated_to_a_denied_package_above_the_horizon_is
         Object::with_id_owner_for_testing(gas_id, sponsor),
         shared_object_with_id(account_id),
     ];
-    let rotated = setup_bookkeeping(genesis.clone(), true).await;
+    let rotated = setup_handler_object_state(genesis.clone(), true).await;
     // Share the override `rotated` holds.
-    let not_rotated = setup_bookkeeping_with_config_guard(genesis, None).await;
+    let not_rotated = setup_handler_object_state_with_config_guard(genesis, None).await;
     assert_eq!(rotated.package_id, not_rotated.package_id);
     let denied = rotated.package_id;
     for node in [&rotated, &not_rotated] {
@@ -6220,7 +6246,7 @@ async fn authenticator_function_field_missing_from_the_store_is_a_storage_error(
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let account_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sponsor),
             shared_object_with_id(account_id),
@@ -6262,7 +6288,7 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
     let gas_id = ObjectId::random();
     let sender_account = ObjectId::random();
     let sponsor_account = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sponsor_account.into()),
             shared_object_with_id(sender_account),
@@ -6349,8 +6375,9 @@ async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_
 
 /// A Move authenticator naming a mutable shared object as a call argument is
 /// refused at admission, and a byzantine submitter can still sequence it. At
-/// commit 16, horizon 14, `S` is deleted at commit 15 on one validator and
-/// still live on another. Both must drop the transaction on the declaration,
+/// commit 16, horizon 14, the object is already deleted at commit 15 on one
+/// validator and still live on another. Both must drop the transaction on the
+/// declaration,
 /// which no object read can change.
 #[tokio::test]
 async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_validator() {
@@ -6358,7 +6385,7 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
         let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
         let gas_id = ObjectId::random();
         let setup_gas_id = ObjectId::random();
-        let s = setup_bookkeeping(
+        let s = setup_handler_object_state(
             vec![
                 Object::with_id_owner_for_testing(gas_id, sponsor),
                 Object::with_id_owner_for_testing(setup_gas_id, sponsor),
@@ -6368,7 +6395,7 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
         .await;
 
         let share = |index| {
-            let effects = s.handler_known_object_basics_call(
+            let effects = s.assigned_commit_object_basics_call(
                 "share",
                 vec![],
                 &setup_gas_id,
@@ -6385,7 +6412,7 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
         let (account_id, account_start_version) = share(5);
         let (s_id, s_start_version) = share(6);
         if deletion_executed {
-            s.handler_known_shared_object_basics_call(
+            s.assigned_commit_shared_object_basics_call(
                 "delete",
                 vec![s.shared_arg(&s_id)],
                 &setup_gas_id,
@@ -6450,7 +6477,7 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
 async fn validation_at_commit_drops_a_forbidden_shared_authenticator_input() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sponsor),
             shared_object_with_id(ObjectId::AUTHENTICATOR_STATE),
@@ -6463,7 +6490,7 @@ async fn validation_at_commit_drops_a_forbidden_shared_authenticator_input() {
     // The account's authenticator function is not looked up here, so a shared
     // object that was never made an account will do.
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sponsor, &sponsor_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sponsor, &sponsor_key, 5);
     let account_id = *share_effects.created()[0].reference().object_id();
     let account_start_version =
         initial_shared_version(&s.authority.get_object(&account_id).unwrap().owner);
@@ -6543,7 +6570,7 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
     let gas_keep = ObjectId::random();
     let gas_wrong = ObjectId::random();
     let gas_missing = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_keep, sender),
             Object::with_id_owner_for_testing(gas_wrong, sender),
@@ -6554,11 +6581,11 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_keep, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_keep, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
     // Commit 11 mutates `gas_missing`. At commit 12 the horizon is 10.
-    s.handler_known_shared_object_basics_call(
+    s.assigned_commit_shared_object_basics_call(
         "set_value",
         vec![
             s.shared_arg(shared_id),
@@ -6695,7 +6722,7 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -6817,7 +6844,7 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
 async fn post_consensus_decisions_survive_a_restart() {
     use typed_store::Map;
 
-    let mut s = setup_bookkeeping(vec![], true).await;
+    let mut s = setup_handler_object_state(vec![], true).await;
     let kept = TransactionDigest::random();
     let dropped = TransactionDigest::random();
     let error: IotaError = UserInputError::ObjectNotFound {
@@ -6889,7 +6916,7 @@ async fn saved_drop_with_an_undecodable_error_is_repeated() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -6932,7 +6959,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -7044,7 +7071,7 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
     });
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
-    let mut s = setup_bookkeeping_with_config_guard(
+    let mut s = setup_handler_object_state_with_config_guard(
         ids.iter()
             .map(|id| Object::with_id_owner_for_testing(*id, sender))
             .collect(),
@@ -7157,7 +7184,7 @@ async fn deferred_transaction_is_kept_without_being_validated_again() {
     });
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
-    let mut s = setup_bookkeeping_with_config_guard(
+    let mut s = setup_handler_object_state_with_config_guard(
         ids.iter()
             .map(|id| Object::with_id_owner_for_testing(*id, sender))
             .collect(),
@@ -7260,7 +7287,7 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let deletion_gas = ObjectId::random();
     let gas = ObjectId::random();
-    let mut s = setup_bookkeeping_with_config_guard(
+    let mut s = setup_handler_object_state_with_config_guard(
         [deletion_gas, gas]
             .into_iter()
             .map(|id| Object::with_id_owner_for_testing(id, sender))
@@ -7269,7 +7296,7 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     )
     .await;
 
-    let setup_effects = s.execute_as_handler_known(
+    let setup_effects = s.execute_with_assigned_commit(
         vec![
             s.build_move_call(
                 "object_basics",
@@ -7330,22 +7357,23 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     let deferred_inputs = [s.latest_ref(&object_id), s.latest_ref(&gas)];
     let candidates = [deletion.clone(), deferred.clone()];
 
-    let assert_kept_with_its_locks = |s: &BookkeepingSetup, index: CommitIndex, restarted: bool| {
-        assert_eq!(
-            s.epoch_store
-                .post_consensus_decision(index, *deferred.digest())
-                .unwrap(),
-            Some(SavedPostConsensusDecision::kept()),
-            "commit {index}, restarted: {restarted}"
-        );
-        for input in &deferred_inputs {
+    let assert_kept_with_its_locks =
+        |s: &HandlerObjectStateSetup, index: CommitIndex, restarted: bool| {
             assert_eq!(
-                s.epoch_store.get_quarantined_owned_object_lock(input),
-                Some(*deferred.digest()),
+                s.epoch_store
+                    .post_consensus_decision(index, *deferred.digest())
+                    .unwrap(),
+                Some(SavedPostConsensusDecision::kept()),
                 "commit {index}, restarted: {restarted}"
             );
-        }
-    };
+            for input in &deferred_inputs {
+                assert_eq!(
+                    s.epoch_store.get_quarantined_owned_object_lock(input),
+                    Some(*deferred.digest()),
+                    "commit {index}, restarted: {restarted}"
+                );
+            }
+        };
     let mut deletion_effects = None;
     let mut reload_versions = None;
     for restarted in [false, true] {
@@ -7419,7 +7447,7 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -7516,7 +7544,7 @@ fn enable_deterministic_validation_with_one_transaction_per_commit() -> Override
 async fn deferred_transaction_lock_blocks_a_competitor_after_its_commit_flushes() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
-    let s = setup_bookkeeping_with_config_guard(
+    let s = setup_handler_object_state_with_config_guard(
         ids.iter()
             .map(|id| Object::with_id_owner_for_testing(*id, sender))
             .collect(),
@@ -7697,7 +7725,7 @@ async fn receive_deferred_behind_a_consumption_of_its_child_is_kept_and_aborts()
         let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
         let gas_id = ObjectId::random();
         let consumer_gas_id = ObjectId::random();
-        let s = setup_bookkeeping_with_package_and_config_guard(
+        let s = setup_handler_object_state_with_package_and_config_guard(
             "tto_shared",
             sender,
             gas_id,
@@ -7709,7 +7737,7 @@ async fn receive_deferred_behind_a_consumption_of_its_child_is_kept_and_aborts()
         let _watcher = s.start_execution_watcher();
 
         let start_effects =
-            s.handler_known_move_call("M", "start", vec![], &gas_id, sender, &sender_key, 1);
+            s.assigned_commit_move_call("M", "start", vec![], &gas_id, sender, &sender_key, 1);
         s.wait_for_fully_executed_commit(1).await;
         let (parent, child) = parent_and_child(start_effects.created());
         let parent_id = parent.reference().object_id;
@@ -7809,14 +7837,14 @@ async fn retry_after_retired_drop_matches_reopened_store() {
         Object::with_id_owner_for_testing(gas, sender),
         Object::with_id_owner_for_testing(consumer_gas, sender),
     ];
-    let normal = setup_bookkeeping(genesis.clone(), true).await;
+    let normal = setup_handler_object_state(genesis.clone(), true).await;
     // Shares the override `normal` holds.
-    let mut restarted = setup_bookkeeping_with_config_guard(genesis, None).await;
+    let mut restarted = setup_handler_object_state_with_config_guard(genesis, None).await;
     let producer = normal.build_transfer(&object, &gas, sender, &key, sender);
     for node in [&normal, &restarted] {
         node.complete_empty_commit(10);
         let effects = node
-            .execute_as_handler_known(vec![producer.clone()], 13)
+            .execute_with_assigned_commit(vec![producer.clone()], 13)
             .remove(0);
         node.epoch_store
             .persist_checkpoint_bookkeeping([&effects])
@@ -7884,7 +7912,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
 }
 
 /// Commit 1 keeps a transfer and drops a double spend of the same object.
-/// The transfer executes and its outputs and handler rows become durable,
+/// The transfer executes and its outputs and rows become durable,
 /// and the node crashes before commit 1 flushes. The replay of commit 1
 /// schedules the same transaction and leaves the same decisions, although
 /// this validator's store has already moved past the version both name.
@@ -7894,7 +7922,7 @@ async fn replay_of_an_executed_durable_unflushed_commit_repeats_its_decisions() 
     let object = ObjectId::random();
     let gas = ObjectId::random();
     let contender_gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         [object, gas, contender_gas]
             .into_iter()
             .map(|id| Object::with_id_owner_for_testing(id, sender))
@@ -7911,7 +7939,7 @@ async fn replay_of_an_executed_durable_unflushed_commit_repeats_its_decisions() 
         scheduled.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
         vec![*kept.digest()]
     );
-    let saved = |s: &BookkeepingSetup| {
+    let saved = |s: &HandlerObjectStateSetup| {
         candidates
             .iter()
             .map(|tx| {
@@ -7953,7 +7981,7 @@ async fn replay_after_the_consumed_version_is_pruned_repeats_the_saved_keep() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         [object, gas]
             .into_iter()
             .map(|id| Object::with_id_owner_for_testing(id, sender))
@@ -7998,7 +8026,7 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
     let object = ObjectId::random();
     let gas = ObjectId::random();
     let consumer_gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         [object, gas, consumer_gas]
             .into_iter()
             .map(|id| Object::with_id_owner_for_testing(id, sender))
@@ -8009,7 +8037,7 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
     let producer = s.build_transfer(&object, &gas, sender, &key, sender);
     let producer_key = TransactionKey::Digest(*producer.digest());
     s.complete_empty_commit(10);
-    let produced = s.execute_as_handler_known(vec![producer], 13).remove(0);
+    let produced = s.execute_with_assigned_commit(vec![producer], 13).remove(0);
     s.epoch_store
         .persist_checkpoint_bookkeeping([&produced])
         .unwrap();
@@ -8019,7 +8047,7 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
     /// processes commit 15 with the consumer again, and returns the two saved
     /// decisions.
     async fn run(
-        s: &BookkeepingSetup,
+        s: &HandlerObjectStateSetup,
         consumer: &VerifiedTransaction,
         produced: &TransactionEffects,
     ) -> (Option<PostConsensusDecision>, Option<PostConsensusDecision>) {
@@ -8068,7 +8096,7 @@ async fn incomplete_saved_decisions_are_not_revalidated() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -8099,7 +8127,7 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -8146,10 +8174,10 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
 
 /// Saves the switch to synced checkpoints after commit `last`, then executes
 /// `deletion` as a synced checkpoint does, without a commit assigned by the
-/// handler, checks that it leaves no handler row, and restarts the epoch
+/// handler, checks that it leaves no row, and restarts the epoch
 /// store.
 async fn switch_execute_synced_and_restart(
-    s: &mut BookkeepingSetup,
+    s: &mut HandlerObjectStateSetup,
     last: CommitIndex,
     deletion: VerifiedTransaction,
 ) {
@@ -8159,7 +8187,7 @@ async fn switch_execute_synced_and_restart(
     let written = handler_processed_upserts(&effects, last);
     assert!(!written.is_empty(), "{effects:?}");
     for (ObjectKey(id, version), _) in written {
-        s.assert_no_handler_row(&id, version);
+        s.assert_no_handler_processed_object(&id, version);
     }
     s.epoch_store = reopen(&s.authority, &s.epoch_store);
     assert_eq!(
@@ -8183,13 +8211,13 @@ fn assert_repeats_the_saved_keep(first: &ValidationResult, replayed: ValidationR
 /// the transaction is deferred. The node switches to synced checkpoints after
 /// commit 7, a synced checkpoint deletes the object, and the node restarts.
 /// The replay of commit 7 keeps the transaction from its saved decision,
-/// without reading the object, whose deletion has no handler row.
+/// without reading the object, whose deletion has no row.
 #[tokio::test]
 async fn replay_up_to_the_switch_repeats_a_saved_keep_without_reading_inputs() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let deleter_gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             Object::with_id_owner_for_testing(deleter_gas, sender),
@@ -8198,7 +8226,7 @@ async fn replay_up_to_the_switch_repeats_a_saved_keep_without_reading_inputs() {
     )
     .await;
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared_id = *share_effects.created()[0].reference().object_id();
     let kept = s.build_move_call(
         "object_basics",
@@ -8254,7 +8282,7 @@ async fn validation_after_the_saved_switch_stops_the_node() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object, sender),
             Object::with_id_owner_for_testing(gas, sender),
@@ -8270,8 +8298,8 @@ async fn validation_after_the_saved_switch_stops_the_node() {
 }
 
 /// With the flag on, the lock check runs before the reader. A version
-/// consumed by a locked transaction in the last K commits is kept by the
-/// reader alone, since the consumer's row is above the horizon, so the lock
+/// consumed by a locked transaction of a commit above the horizon `C - K` is
+/// kept by the reader alone, since the consumer's row is above it, so the lock
 /// is what drops a contender for it, and the reader never runs. Once the
 /// consumer's commit is at or below the horizon, the reader alone drops the
 /// version as well.
@@ -8281,7 +8309,7 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
     let obj_id = ObjectId::random();
     let gas1 = ObjectId::random();
     let gas2 = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas1, sender),
@@ -8292,7 +8320,7 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
     .await;
 
     let first = s.build_transfer(&obj_id, &gas1, sender, &sender_key, sender);
-    s.execute_as_handler_known(vec![first], 5);
+    s.execute_with_assigned_commit(vec![first], 5);
     let x_v1 = s.latest_ref(&obj_id);
 
     // The winner holds its locks in the quarantine and executes at commit 10.
@@ -8300,7 +8328,7 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
     let winner_digest = *winner.digest();
     seed_quarantined_lock(&s.epoch_store, x_v1, winner_digest);
     seed_quarantined_lock(&s.epoch_store, s.latest_ref(&gas1), winner_digest);
-    s.execute_as_handler_known(vec![winner], 10);
+    s.execute_with_assigned_commit(vec![winner], 10);
 
     // Commit 11, horizon 9: the winner's row is above the horizon.
     assert_keeps(s.read_owned(11, x_v1), x_v1);
@@ -8398,7 +8426,7 @@ async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -8408,7 +8436,7 @@ async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
     .await;
 
     let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
-    s.execute_as_handler_known(vec![tx], 10);
+    s.execute_with_assigned_commit(vec![tx], 10);
     let produced = s.latest_ref(&obj_id);
 
     assert_keeps(s.read_owned(12, produced), produced);
@@ -8430,7 +8458,7 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
         config
     });
-    let s = setup_bookkeeping_with_config_guard(
+    let s = setup_handler_object_state_with_config_guard(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -8440,7 +8468,7 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
     .await;
 
     let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
-    s.execute_as_handler_known(vec![tx], 10);
+    s.execute_with_assigned_commit(vec![tx], 10);
     let produced = s.latest_ref(&obj_id);
 
     assert_keeps(s.read_owned(15, produced), produced);
@@ -8460,7 +8488,7 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
 async fn owned_received_version_drops_from_the_receive_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let s = setup_handler_object_state_with_package("tto", sender, gas_id).await;
     let publish = s
         .authority
         .get_object(&s.package_id)
@@ -8468,10 +8496,10 @@ async fn owned_received_version_drops_from_the_receive_row() {
         .previous_transaction;
 
     let start_effects =
-        s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 5);
     let (parent, child) = parent_and_child(start_effects.created());
     let child_ref = *child.reference();
-    let receive_effects = s.handler_known_move_call(
+    let receive_effects = s.assigned_commit_move_call(
         "M1",
         "receiver",
         vec![
@@ -8531,14 +8559,14 @@ async fn owned_received_version_drops_from_the_receive_row() {
 async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let create_args = || create_object_args(sender);
-    let parent_effects = s.handler_known_object_basics_call(
+    let parent_effects = s.assigned_commit_object_basics_call(
         "create",
         create_args(),
         &gas_id,
@@ -8546,7 +8574,7 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
         &sender_key,
         2,
     );
-    let value_effects = s.handler_known_object_basics_call(
+    let value_effects = s.assigned_commit_object_basics_call(
         "create",
         create_args(),
         &gas_id,
@@ -8555,7 +8583,7 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
         3,
     );
     let parent_id = *parent_effects.created()[0].reference().object_id();
-    let add_effects = s.handler_known_object_basics_call(
+    let add_effects = s.assigned_commit_object_basics_call(
         "add_field",
         vec![
             CallArg::ImmutableOrOwned(s.latest_ref(&parent_id)),
@@ -8568,7 +8596,7 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
     );
     let field_ref = *add_effects.created()[0].reference();
     assert!(matches!(add_effects.created()[0].owner(), Owner::Object(_)));
-    let remove_effects = s.handler_known_object_basics_call(
+    let remove_effects = s.assigned_commit_object_basics_call(
         "remove_field",
         vec![CallArg::ImmutableOrOwned(s.latest_ref(&parent_id))],
         &gas_id,
@@ -8600,21 +8628,21 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
 async fn owned_read_of_a_shared_creation_version_drops() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
     .await;
 
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared_ref = *share_effects.created()[0].reference();
     assert_owned_drops(
         s.read_owned(7, shared_ref),
         DropKind::HandlerRowSharedObject,
     );
 
-    let mutate_effects = s.handler_known_shared_object_basics_call(
+    let mutate_effects = s.assigned_commit_shared_object_basics_call(
         "set_value",
         vec![
             s.shared_arg(shared_ref.object_id()),
@@ -8651,7 +8679,7 @@ async fn owned_store_fallback_keeps_untouched_and_drops_superseded_versions() {
     let immutable_id = ObjectId::random();
     let handler_consumed_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(untouched_id, sender),
             Object::immutable_with_id_for_testing(immutable_id),
@@ -8666,7 +8694,7 @@ async fn owned_store_fallback_keeps_untouched_and_drops_superseded_versions() {
     let handler_consumed = s.latest_ref(&handler_consumed_id);
 
     let tx = s.build_transfer(&handler_consumed_id, &gas_id, sender, &sender_key, sender);
-    s.execute_as_handler_known(vec![tx], 5);
+    s.execute_with_assigned_commit(vec![tx], 5);
 
     assert_keeps(s.read_owned(12, untouched), untouched);
     assert_keeps(s.read_owned(12, immutable), immutable);
@@ -8975,7 +9003,7 @@ async fn setup_publish_with_one_tick_node_limits() -> PublishSetup {
 }
 
 /// Admission on this authority rejects the package under its own limits, so
-/// the post-consensus verdict below is decided by where the limits come from.
+/// the post-consensus result below is decided by where the limits come from.
 async fn assert_node_limits_reject(setup: &PublishSetup) {
     let epoch_store = setup.authority.epoch_store_for_testing();
     let admission = setup
@@ -9113,7 +9141,7 @@ async fn process_commit_at(
 
 /// The call must return promptly: a wait that blocks fails the test through
 /// the paused clock's timeout.
-async fn process_commit_without_waiting(s: &BookkeepingSetup, index: CommitIndex) {
+async fn process_commit_without_waiting(s: &HandlerObjectStateSetup, index: CommitIndex) {
     tokio::time::timeout(
         Duration::from_secs(1),
         process_commit_at(s.authority.clone(), s.epoch_store.clone(), index, vec![]),
@@ -9125,7 +9153,7 @@ async fn process_commit_without_waiting(s: &BookkeepingSetup, index: CommitIndex
 
 #[tokio::test(start_paused = true)]
 async fn validation_does_not_wait_when_the_horizon_is_already_fully_executed() {
-    let s = setup_bookkeeping(vec![], true).await;
+    let s = setup_handler_object_state(vec![], true).await;
     assert_eq!(s.highest_fully_executed_commit(), 0);
 
     // Commit 2 has horizon 0, which is fully executed from the start.
@@ -9137,7 +9165,7 @@ async fn validation_waits_until_the_horizon_is_fully_executed() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -9180,7 +9208,7 @@ async fn validation_waits_until_the_horizon_is_fully_executed() {
 
 #[tokio::test(start_paused = true)]
 async fn validation_does_not_wait_after_the_final_round() {
-    let s = setup_bookkeeping(vec![], true).await;
+    let s = setup_handler_object_state(vec![], true).await;
     assert_eq!(s.highest_fully_executed_commit(), 0);
 
     // After the final round no commit makes a checkpoint, so the highest fully
@@ -9193,7 +9221,7 @@ async fn validation_does_not_wait_after_the_final_round() {
 
 #[tokio::test(start_paused = true)]
 async fn validation_does_not_wait_with_the_flag_off() {
-    let s = setup_bookkeeping(vec![], false).await;
+    let s = setup_handler_object_state(vec![], false).await;
     assert!(
         s.epoch_store
             .subscribe_highest_fully_executed_commit()
@@ -9205,7 +9233,7 @@ async fn validation_does_not_wait_with_the_flag_off() {
 
 #[tokio::test(start_paused = true)]
 async fn epoch_end_releases_a_pending_wait() {
-    let s = setup_bookkeeping(vec![], true).await;
+    let s = setup_handler_object_state(vec![], true).await;
     assert_eq!(s.highest_fully_executed_commit(), 0);
 
     // Commit 5 has horizon 3. Nothing has executed and no execution watcher
@@ -9236,11 +9264,11 @@ async fn epoch_end_releases_a_pending_wait() {
     ));
 }
 
-/// A bookkeeping setup with a transaction that failed at execution in commit
+/// A [`HandlerObjectStateSetup`] with a transaction that failed at execution in commit
 /// `failed_at`, and a spare gas coin its sender owns that the failure did not
 /// touch.
 struct FailedHoldingTransaction {
-    s: BookkeepingSetup,
+    s: HandlerObjectStateSetup,
     sender: Address,
     sender_key: AccountPrivateKey,
     holding_tx: TransactionDigest,
@@ -9254,7 +9282,7 @@ async fn setup_failed_holding_transaction(failed_at: CommitIndex) -> FailedHoldi
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let spare_gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             Object::with_id_owner_for_testing(spare_gas_id, sender),
@@ -9266,7 +9294,7 @@ async fn setup_failed_holding_transaction(failed_at: CommitIndex) -> FailedHoldi
     let consumed_gas = s.latest_ref(&gas_id);
     let failing = s.build_aborting_call(parent_ref.object_id(), &gas_id, sender, &sender_key);
     let holding_tx = *failing.digest();
-    s.execute_failing_as_handler_known(failing, failed_at);
+    s.execute_failing_with_assigned_commit(failing, failed_at);
     FailedHoldingTransaction {
         s,
         sender,
@@ -9321,7 +9349,7 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
     );
 }
 
-/// A bookkeeping setup under `config_guard`, with an account since the epoch
+/// A [`HandlerObjectStateSetup`] under `config_guard`, with an account since the epoch
 /// started whose authenticator function does not exist, a gas coin owned by
 /// the account's address, and `other_objects` at genesis. Returns the setup,
 /// the account's id and the coin's id. A transaction naming the account and
@@ -9330,7 +9358,7 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
 async fn setup_unauthorized_gas_owner(
     config_guard: OverrideGuard,
     other_objects: Vec<Object>,
-) -> (BookkeepingSetup, ObjectId, ObjectId) {
+) -> (HandlerObjectStateSetup, ObjectId, ObjectId) {
     let account_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let account = shared_object_with_id(account_id);
@@ -9340,7 +9368,7 @@ async fn setup_unauthorized_gas_owner(
         Object::with_id_owner_for_testing(gas_id, account_id.into()),
     ];
     genesis_objects.extend(other_objects);
-    let s = setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await;
+    let s = setup_handler_object_state_with_config_guard(genesis_objects, Some(config_guard)).await;
     (s, account_id, gas_id)
 }
 
@@ -9464,7 +9492,7 @@ async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
 /// as the handler does, and executes it as a root of that commit. It fails
 /// without a charge and leaves the coin live at its next version.
 async fn keep_and_fail(
-    s: &BookkeepingSetup,
+    s: &HandlerObjectStateSetup,
     commit: CommitIndex,
     tx: VerifiedTransaction,
     gas_id: ObjectId,
@@ -9566,14 +9594,14 @@ async fn already_executed_transaction_locks_the_gas_coin_it_names() {
 /// consumes the object a contender names.
 #[derive(Clone, Copy, Debug)]
 enum Consumption {
-    /// A transfer of an object that exists since the epoch started. No
-    /// handler row exists at the consumed version.
+    /// A transfer of an object that exists since the epoch started. There
+    /// is no row at the consumed version.
     EpochStartTransfer,
-    /// A transfer of an object a handler-known commit created.
+    /// A transfer of an object created in a commit the handler has assigned.
     Transfer,
-    /// A deletion of an object a handler-known commit created.
+    /// A deletion of an object created in a commit the handler has assigned.
     Deletion,
-    /// A wrap of an object a handler-known commit created.
+    /// A wrap of an object created in a commit the handler has assigned.
     Wrap,
 }
 
@@ -9605,9 +9633,9 @@ async fn consumed_version_drops_the_same_whatever_the_consumer_execution(
         .into_iter()
         .map(|id| Object::with_id_owner_for_testing(id, sender))
         .collect();
-    let ran = setup_bookkeeping(genesis.clone(), true).await;
+    let ran = setup_handler_object_state(genesis.clone(), true).await;
     // Share the override `ran` holds.
-    let lagging = setup_bookkeeping_with_config_guard(genesis, None).await;
+    let lagging = setup_handler_object_state_with_config_guard(genesis, None).await;
     let nodes = [&ran, &lagging];
 
     // Commit 1 creates the object the consumer takes, commit 2 is empty.
@@ -9622,7 +9650,7 @@ async fn consumed_version_drops_the_same_whatever_the_consumer_execution(
     let mut created = None;
     for node in nodes {
         let effects = node
-            .execute_as_handler_known(vec![create.clone()], 1)
+            .execute_with_assigned_commit(vec![create.clone()], 1)
             .remove(0);
         node.complete_commit(1, &[&effects]);
         node.complete_empty_commit(2);
@@ -9748,7 +9776,7 @@ async fn version_consumed_last_epoch_drops_on_every_node(#[values(true, false)] 
     let object = ObjectId::random();
     let gas = ObjectId::random();
     let contender_gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         [object, gas, contender_gas]
             .into_iter()
             .map(|id| Object::with_id_owner_for_testing(id, sender))
@@ -9760,7 +9788,7 @@ async fn version_consumed_last_epoch_drops_on_every_node(#[values(true, false)] 
     let consumed = s.latest_ref(&object);
     let consumer = s.build_transfer(&object, &gas, sender, &key, sender);
     let effects = s
-        .execute_as_handler_known(vec![consumer.clone()], 5)
+        .execute_with_assigned_commit(vec![consumer.clone()], 5)
         .remove(0);
     s.complete_commit(5, &[&effects]);
     if pruned {
@@ -9815,10 +9843,10 @@ async fn version_consumed_last_epoch_drops_on_every_node(#[values(true, false)] 
     );
 }
 
-/// A crash after a checkpoint's bookkeeping is durable and before its
-/// outputs are. The restart loses the overlay, the handler replays the
-/// commit, and the checkpoint's execution runs the hook again, which writes
-/// the same rows. At every point the consumed versions keep with their bytes
+/// A crash after a checkpoint's rows are written to the table and before its
+/// outputs are. The restart loses the rows held in memory, the handler
+/// replays the commit, and executing the checkpoint again writes the same
+/// rows. At every point the consumed versions keep with their bytes
 /// and the produced one answers missing, as its row is above the horizon.
 /// The object store is not restarted here, so the outputs stay readable from
 /// its cache; the cluster test
@@ -9828,7 +9856,7 @@ async fn crash_between_checkpoint_bookkeeping_and_outputs_keeps_every_read() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let object = ObjectId::random();
     let gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         [object, gas]
             .into_iter()
             .map(|id| Object::with_id_owner_for_testing(id, sender))
@@ -9840,12 +9868,12 @@ async fn crash_between_checkpoint_bookkeeping_and_outputs_keeps_every_read() {
     let consumed = [s.latest_ref(&object), s.latest_ref(&gas)];
     let tx = s.build_transfer(&object, &gas, sender, &key, sender);
     let tx_key = TransactionKey::Digest(*tx.digest());
-    let effects = s.execute_as_handler_known(vec![tx], 2).remove(0);
+    let effects = s.execute_with_assigned_commit(vec![tx], 2).remove(0);
     let produced = s.latest_ref(&object);
     s.epoch_store
         .persist_checkpoint_bookkeeping([&effects])
         .unwrap();
-    let check_reads = |s: &BookkeepingSetup| {
+    let check_reads = |s: &HandlerObjectStateSetup| {
         for reference in consumed {
             assert_keeps(s.read_owned(3, reference), reference);
         }
@@ -9856,7 +9884,7 @@ async fn crash_between_checkpoint_bookkeeping_and_outputs_keeps_every_read() {
     };
     check_reads(&s);
 
-    // The crash loses the overlay.
+    // The crash loses the rows held in memory.
     s.restart_epoch_store().await;
     assert_eq!(
         s.epoch_store
@@ -9905,8 +9933,8 @@ struct SharedRegulatedCoin {
 /// state.
 #[derive(Clone, Copy, Default)]
 struct RegulatedCoinOptions {
-    /// Shares the coin handler-known at this commit of epoch 1 instead of
-    /// before the epoch.
+    /// Shares the coin at this commit of epoch 1, with the commit assigned by
+    /// the handler, instead of before the epoch.
     share_at: Option<CommitIndex>,
 }
 
@@ -9915,7 +9943,7 @@ impl SharedRegulatedCoin {
     /// paid with `gas_id` on `s`.
     fn destroy_shared_coin(
         &self,
-        s: &BookkeepingSetup,
+        s: &HandlerObjectStateSetup,
         sender: Address,
         sender_key: &AccountPrivateKey,
         gas_id: &ObjectId,
@@ -9936,7 +9964,7 @@ impl SharedRegulatedCoin {
 
     /// Executes the publisher's deletion of the shared coin on `s` as a root
     /// of commit `deleting_commit`.
-    fn delete_shared_coin(&self, s: &BookkeepingSetup, deleting_commit: CommitIndex) {
+    fn delete_shared_coin(&self, s: &HandlerObjectStateSetup, deleting_commit: CommitIndex) {
         let deletion =
             self.destroy_shared_coin(s, self.publisher, &self.publisher_key, &self.publisher_gas);
         s.epoch_store.assign_commit_to_transactions(
@@ -9953,7 +9981,7 @@ impl SharedRegulatedCoin {
     /// functions.
     fn call_deny_list(
         &self,
-        s: &BookkeepingSetup,
+        s: &HandlerObjectStateSetup,
         function: &str,
         address: Option<Address>,
         index: CommitIndex,
@@ -9997,7 +10025,7 @@ impl SharedRegulatedCoin {
     /// paid with `gas_id` on `s`.
     fn transfer_owned_coin(
         &self,
-        s: &BookkeepingSetup,
+        s: &HandlerObjectStateSetup,
         sender: Address,
         sender_key: &AccountPrivateKey,
         gas_id: &ObjectId,
@@ -10011,7 +10039,7 @@ impl SharedRegulatedCoin {
 /// `share_gas`, assigned to commit `share_at` when given. Returns the shared
 /// coin's reference.
 fn share_zero_regulated_coin(
-    s: &BookkeepingSetup,
+    s: &HandlerObjectStateSetup,
     coin_type: &TypeTag,
     publisher: Address,
     publisher_key: &AccountPrivateKey,
@@ -10046,7 +10074,7 @@ fn share_zero_regulated_coin(
         .verify_transaction(to_sender_signed_transaction(share, publisher_key))
         .unwrap();
     let share_effects = match share_at {
-        Some(index) => s.execute_as_handler_known(vec![share], index).remove(0),
+        Some(index) => s.execute_with_assigned_commit(vec![share], index).remove(0),
         None => s.execute(share),
     };
     share_effects
@@ -10066,7 +10094,11 @@ fn share_zero_regulated_coin(
 /// both.
 async fn setup_validators_with_a_shared_regulated_coin(
     options: RegulatedCoinOptions,
-) -> (BookkeepingSetup, BookkeepingSetup, SharedRegulatedCoin) {
+) -> (
+    HandlerObjectStateSetup,
+    HandlerObjectStateSetup,
+    SharedRegulatedCoin,
+) {
     let (publisher, publisher_key): (Address, AccountPrivateKey) = get_key_pair();
     let (denied, denied_key): (Address, AccountPrivateKey) = get_key_pair();
     let (other, other_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -10095,7 +10127,7 @@ async fn setup_validators_with_a_shared_regulated_coin(
     let mut validators = Vec::new();
     let mut coins = Vec::new();
     for _ in 0..2 {
-        let s = build_bookkeeping_setup(genesis.clone(), None, None).await;
+        let s = build_handler_object_state_setup(genesis.clone(), None, None).await;
         let (_, publish_effects) = build_and_try_publish_test_package(
             &s.authority,
             &publisher,
@@ -10304,7 +10336,7 @@ async fn shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validat
 /// second validator here, and the commit must replay without stopping the
 /// node, with the saved decision.
 #[tokio::test]
-async fn replay_after_losing_a_shared_coin_deletion_repeats_the_saved_verdict() {
+async fn replay_after_losing_a_shared_coin_deletion_repeats_the_saved_decision() {
     run_shared_coin_deletion_replay(RegulatedCoinOptions::default()).await;
 }
 
@@ -10368,7 +10400,7 @@ async fn replay_after_the_final_round_survives_a_shared_deletion_executed_late()
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let deleter_gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             Object::with_id_owner_for_testing(deleter_gas, sender),
@@ -10377,7 +10409,7 @@ async fn replay_after_the_final_round_survives_a_shared_deletion_executed_late()
     )
     .await;
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared_id = *share_effects.created()[0].reference().object_id();
     let transaction = s.build_move_call(
         "object_basics",
@@ -10408,7 +10440,7 @@ async fn replay_after_the_final_round_survives_a_shared_deletion_executed_late()
         None
     );
 
-    let delete_effects = s.handler_known_shared_object_basics_call(
+    let delete_effects = s.assigned_commit_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(&shared_id)],
         &deleter_gas,
@@ -10447,7 +10479,7 @@ async fn commit_after_the_final_round_decides_on_a_row_whose_output_is_not_store
     let object_id = ObjectId::random();
     let producer_gas = ObjectId::random();
     let consumer_gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object_id, sender),
             Object::with_id_owner_for_testing(producer_gas, sender),
@@ -10457,8 +10489,8 @@ async fn commit_after_the_final_round_decides_on_a_row_whose_output_is_not_store
     )
     .await;
 
-    // The execution hook has run for the producer at commit 9, and its
-    // output has not reached the object store.
+    // The producer at commit 9 has executed and its rows are recorded, and
+    // its output has not reached the object store.
     let producer = s.build_transfer(&object_id, &producer_gas, sender, &sender_key, sender);
     let producer_effects = TestEffectsBuilder::new(producer.data()).build();
     let producer_key = TransactionKey::Digest(*producer.digest());
@@ -10512,7 +10544,7 @@ async fn replay_of_a_kept_transaction_survives_a_later_deletion_of_its_shared_in
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let deleter_gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             Object::with_id_owner_for_testing(deleter_gas, sender),
@@ -10521,7 +10553,7 @@ async fn replay_of_a_kept_transaction_survives_a_later_deletion_of_its_shared_in
     )
     .await;
     let share_effects =
-        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared_id = *share_effects.created()[0].reference().object_id();
     let transaction = s.build_move_call(
         "object_basics",
@@ -10537,7 +10569,7 @@ async fn replay_of_a_kept_transaction_survives_a_later_deletion_of_its_shared_in
     let first_run = s.validate_at(12, std::slice::from_ref(&transaction)).await;
     assert_eq!(first_run.kept, vec![*transaction.digest()]);
 
-    let delete_effects = s.handler_known_shared_object_basics_call(
+    let delete_effects = s.assigned_commit_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(&shared_id)],
         &deleter_gas,
@@ -10564,18 +10596,19 @@ async fn replay_of_a_kept_transaction_survives_a_later_deletion_of_its_shared_in
     );
 }
 
-/// On `s`, handler-known: creates a parent and a value at commits 2 and 3,
+/// On `s`, each in a commit the handler has assigned: creates a parent and a
+/// value at commits 2 and 3,
 /// adds the value as a dynamic field of the parent at commit 5 and removes it
 /// through the parent at commit 6, which consumes the field without a lock.
 /// `gas_id` pays for all of it. Returns the consumed field version, the
 /// digests of the four transactions in order, and the removal's effects.
 fn consume_a_dynamic_field_child_without_a_lock(
-    s: &BookkeepingSetup,
+    s: &HandlerObjectStateSetup,
     gas_id: &ObjectId,
     sender: Address,
     sender_key: &AccountPrivateKey,
 ) -> (ObjectReference, Vec<TransactionDigest>, TransactionEffects) {
-    let parent_effects = s.handler_known_object_basics_call(
+    let parent_effects = s.assigned_commit_object_basics_call(
         "create",
         create_object_args(sender),
         gas_id,
@@ -10583,7 +10616,7 @@ fn consume_a_dynamic_field_child_without_a_lock(
         sender_key,
         2,
     );
-    let value_effects = s.handler_known_object_basics_call(
+    let value_effects = s.assigned_commit_object_basics_call(
         "create",
         create_object_args(sender),
         gas_id,
@@ -10592,7 +10625,7 @@ fn consume_a_dynamic_field_child_without_a_lock(
         3,
     );
     let parent_id = *parent_effects.created()[0].reference().object_id();
-    let add_effects = s.handler_known_object_basics_call(
+    let add_effects = s.assigned_commit_object_basics_call(
         "add_field",
         vec![
             CallArg::ImmutableOrOwned(s.latest_ref(&parent_id)),
@@ -10603,7 +10636,7 @@ fn consume_a_dynamic_field_child_without_a_lock(
         sender_key,
         5,
     );
-    let remove_effects = s.handler_known_object_basics_call(
+    let remove_effects = s.assigned_commit_object_basics_call(
         "remove_field",
         vec![CallArg::ImmutableOrOwned(s.latest_ref(&parent_id))],
         gas_id,
@@ -10637,7 +10670,7 @@ async fn validation_wait_ends_after_the_execution_watcher_fails() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -10667,8 +10700,8 @@ async fn validation_wait_ends_after_the_execution_watcher_fails() {
     );
 }
 
-/// The handler executes commit 9's transaction, whose row stays in the
-/// overlay and whose output stays in the object cache. After the final round,
+/// The handler executes commit 9's transaction, whose row stays in memory
+/// and whose output stays in the object cache. After the final round,
 /// commit 11 (horizon 9) carries a transfer of that output, does not wait,
 /// and saves no decision for it. The node crashes before commit 9's
 /// checkpoint is durable, losing the row and the output. The replay of commit
@@ -10679,7 +10712,7 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
     let object_id = ObjectId::random();
     let producer_gas = ObjectId::random();
     let consumer_gas = ObjectId::random();
-    let mut s = setup_bookkeeping(
+    let mut s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(object_id, sender),
             Object::with_id_owner_for_testing(producer_gas, sender),
@@ -10691,7 +10724,7 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
     let before = s.latest_ref(&object_id);
     let producer = s.build_transfer(&object_id, &producer_gas, sender, &sender_key, sender);
     let producer_digest = *producer.digest();
-    s.execute_as_handler_known(vec![producer], 9);
+    s.execute_with_assigned_commit(vec![producer], 9);
     let consumer = s.build_transfer(
         &object_id,
         &consumer_gas,
@@ -10718,7 +10751,8 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
         None
     );
 
-    // The crash: the producer's uncommitted output and the overlay go.
+    // The crash: the producer's uncommitted output and the rows held in
+    // memory go.
     // Clearing the end-of-epoch state also clears the durable marker table,
     // which a crash does not; the owned producer writes no marker.
     s.authority
@@ -10756,10 +10790,10 @@ async fn shared_coin_created_this_epoch_and_deleted_above_the_horizon_gets_one_v
         .await;
 }
 
-/// As [`replay_after_losing_a_shared_coin_deletion_repeats_the_saved_verdict`],
+/// As [`replay_after_losing_a_shared_coin_deletion_repeats_the_saved_decision`],
 /// with the coin shared at commit 5 of the current epoch.
 #[tokio::test]
-async fn replay_after_losing_the_deletion_of_a_coin_shared_this_epoch_repeats_the_saved_verdict() {
+async fn replay_after_losing_the_deletion_of_a_coin_shared_this_epoch_repeats_the_saved_decision() {
     run_shared_coin_deletion_replay(RegulatedCoinOptions { share_at: Some(5) }).await;
 }
 
@@ -10875,7 +10909,7 @@ async fn global_pause_at_a_commit_counts_from_the_horizon_distance_after_it() {
 /// An address is denied at commit 11 and its entry removed at commit 12 on
 /// one validator, which creates the entry's dynamic field and deletes it
 /// again. Rows above the horizon from several commits, as a replay after a
-/// restart can find them, must not change the verdict: a transfer of the
+/// restart can find them, must not change the result: a transfer of the
 /// address's regulated coin is kept at commit 12 (horizon 10) on both
 /// validators. At commit 13 (horizon 11) the denial counts, and at commit 14
 /// (horizon 12) the deleted entry reads as not denied again.
@@ -10942,8 +10976,8 @@ async fn deny_entry_deleted_and_created_again_above_the_horizon_gets_one_verdict
 }
 
 /// As [`deny_entry_deleted_and_created_again_above_the_horizon_gets_one_verdict`],
-/// with every row durable and none left in the overlay, so the walk reads
-/// the durable table.
+/// with every row written to the table and none left in memory, so the walk
+/// reads the table.
 #[tokio::test]
 async fn deny_entry_deleted_and_created_again_gets_one_verdict_from_durable_rows() {
     run_deny_entry_deleted_and_created_again(true).await;
@@ -10951,8 +10985,8 @@ async fn deny_entry_deleted_and_created_again_gets_one_verdict_from_durable_rows
 
 /// The scenario of
 /// [`deny_entry_deleted_and_created_again_above_the_horizon_gets_one_verdict`].
-/// With `durable`, the rows of the deny-list changes are made durable and
-/// leave the overlay before any validation.
+/// With `durable`, the rows of the deny-list changes are written to the
+/// table and removed from memory before any validation.
 async fn run_deny_entry_deleted_and_created_again(durable: bool) {
     let (changed, unchanged, coin) =
         setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
@@ -11037,7 +11071,7 @@ async fn frozen_regulated_coin_input_is_checked_at_the_commit() {
         .epoch_store
         .verify_transaction(to_sender_signed_transaction(freeze, &coin.other_key))
         .unwrap();
-    let freeze_effects = s.execute_as_handler_known(vec![freeze], 5).remove(0);
+    let freeze_effects = s.execute_with_assigned_commit(vec![freeze], 5).remove(0);
     assert!(
         freeze_effects.status().is_success(),
         "{:?}",
@@ -11079,7 +11113,7 @@ async fn frozen_regulated_coin_input_is_checked_at_the_commit() {
 async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![Object::with_id_owner_for_testing(gas_id, sender)],
         true,
     )
@@ -11119,7 +11153,7 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let consumer_gas = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(gas_id, sender),
             Object::with_id_owner_for_testing(consumer_gas, sender),
@@ -11166,7 +11200,7 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
 /// and executes them as one certified checkpoint, followed by an empty one,
 /// then runs the object pruner over the executed checkpoints as the node does
 /// with aggressive pruning, within the epoch store's object pruning limit.
-async fn execute_checkpoint_and_prune(s: &BookkeepingSetup, executed: &[TransactionDigest]) {
+async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[TransactionDigest]) {
     use iota_types::{
         base_types::ExecutionData,
         messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
@@ -11259,7 +11293,7 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
-    let s = setup_bookkeeping(
+    let s = setup_handler_object_state(
         vec![
             Object::with_id_owner_for_testing(obj_id, sender),
             Object::with_id_owner_for_testing(gas_id, sender),
@@ -11270,11 +11304,11 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
 
     let produce = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
     let produce_digest = *produce.digest();
-    s.execute_as_handler_known(vec![produce], 3);
+    s.execute_with_assigned_commit(vec![produce], 3);
     let named = s.latest_ref(&obj_id);
     let consume = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
     let consume_digest = *consume.digest();
-    s.execute_as_handler_known(vec![consume], 5);
+    s.execute_with_assigned_commit(vec![consume], 5);
     // Commit 6 reads at horizon 4: the row of commit 3 keeps the version, the
     // consumer's row at commit 5 is above the horizon.
     assert_keeps(s.read_owned(6, named), named);
@@ -11287,7 +11321,7 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
 /// lock, and commit 7 (horizon 5) holds a transaction naming the consumed
 /// version as an owned input. On one validator the pruner runs over the
 /// executed checkpoint of those commits, the other has not run it. The
-/// child's bytes stay, and both reach the same verdict: they drop the
+/// child's bytes stay, and both reach the same result: they drop the
 /// transaction, since a child cannot be an owned input.
 #[tokio::test]
 async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep() {
@@ -11298,9 +11332,9 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
         Object::with_id_owner_for_testing(gas_id, sender),
         Object::with_id_owner_for_testing(consumer_gas, sender),
     ];
-    let pruning = setup_bookkeeping(genesis.clone(), true).await;
+    let pruning = setup_handler_object_state(genesis.clone(), true).await;
     // Shares the override `pruning` holds.
-    let keeping = setup_bookkeeping_with_config_guard(genesis, None).await;
+    let keeping = setup_handler_object_state_with_config_guard(genesis, None).await;
 
     let (field_ref, committed, _) =
         consume_a_dynamic_field_child_without_a_lock(&pruning, &gas_id, sender, &sender_key);
@@ -11326,7 +11360,7 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
             pruning.rgp,
         ))
         .unwrap();
-    let validate = |s: &BookkeepingSetup| {
+    let validate = |s: &HandlerObjectStateSetup| {
         let authority = s.authority.clone();
         let epoch_store = s.epoch_store.clone();
         let consumer = consumer.clone();
@@ -11366,7 +11400,7 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
 async fn object_pruning_limit_follows_the_flushed_commits() {
     use crate::authority::authority_store_pruner::ObjectPruningLimit;
 
-    let s = setup_bookkeeping(vec![], true).await;
+    let s = setup_handler_object_state(vec![], true).await;
     let epoch = s.epoch_store.epoch();
     let limit = |highest_prunable_checkpoint| {
         Some(ObjectPruningLimit {
@@ -11393,11 +11427,11 @@ async fn object_pruning_limit_follows_the_flushed_commits() {
     assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(5)));
 }
 
-/// A node outside the committee keeps no bookkeeping, so its object pruning
+/// A node outside the committee keeps no handler object state, so its object pruning
 /// has no limit.
 #[tokio::test]
 async fn object_pruning_limit_is_off_outside_the_committee() {
-    let s = setup_bookkeeping_outside_committee(vec![]).await;
+    let s = setup_handler_object_state_outside_committee(vec![]).await;
     assert_eq!(s.epoch_store.object_pruning_limit(), None);
 }
 
@@ -11406,14 +11440,14 @@ async fn object_pruning_limit_is_off_outside_the_committee() {
 // horizon
 // ---------------------------------------------------------------------------
 
-/// A bookkeeping setup with the flags on and the `move_authenticator` test
+/// A [`HandlerObjectStateSetup`] with the flags on and the `move_authenticator` test
 /// package published at commit 1, so a test makes its accounts with
 /// transactions at the commits it picks. `sender` pays for those transactions
 /// with `setup_gas_id`, and sponsors the account's own transactions with
 /// `sponsor_gas_id`, which nothing else uses, so it is visible at every
 /// horizon.
 struct AccountSetup {
-    s: BookkeepingSetup,
+    s: HandlerObjectStateSetup,
     package_id: ObjectId,
     sender: Address,
     sender_key: AccountPrivateKey,
@@ -11425,7 +11459,7 @@ impl AccountSetup {
     async fn new() -> Self {
         let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
         let (setup_gas_id, sponsor_gas_id) = (ObjectId::random(), ObjectId::random());
-        let s = setup_bookkeeping(
+        let s = setup_handler_object_state(
             vec![
                 Object::with_id_owner_for_testing(setup_gas_id, sender),
                 Object::with_id_owner_for_testing(sponsor_gas_id, sender),
@@ -11494,7 +11528,9 @@ impl AccountSetup {
                 .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
             self.s.execute_with_assigned_shared_versions(tx)
         } else {
-            self.s.execute_as_handler_known(vec![tx], index).remove(0)
+            self.s
+                .execute_with_assigned_commit(vec![tx], index)
+                .remove(0)
         }
     }
 
@@ -11712,7 +11748,7 @@ impl AccountSetup {
 /// An object made an account at a commit is reported missing as the account
 /// of a transaction until the horizon reaches that commit, and the
 /// transaction is kept from then on. Every validator has executed the commits
-/// up to the horizon, so all of them reach the same verdict.
+/// up to the horizon, so all of them reach the same result.
 #[tokio::test]
 async fn validation_at_commit_reports_an_account_missing_until_it_is_one_at_the_horizon() {
     let a = AccountSetup::new().await;
