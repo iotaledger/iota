@@ -43,7 +43,7 @@
 //!
 //! When the row they look for does not exist, the owned and shared readers
 //! ask the store. That answer gives the same result on every validator, for
-//! three reasons.
+//! the three reasons below, with one exception given in point 3.
 //!
 //! 1. Every write this epoch leaves its row before its object, so the store is never ahead of the
 //!    rows for an id.
@@ -55,8 +55,10 @@
 //!    live object stays. A deleted or wrapped object is the exception: pruning the checkpoint that
 //!    deleted or wrapped it removes its tombstone too, so for an object deleted or wrapped in an
 //!    earlier epoch some validators find the tombstone and others find nothing. The owned reader
-//!    drops the input in both cases, and the shared reader, which reads only live objects, finds
-//!    nothing in both.
+//!    then drops the input on a validator that still has the tombstone and answers missing on one
+//!    that pruned it. Both leave the transaction out of the commit, but the error reported differs
+//!    (final or retryable). The shared reader, which reads only live objects, finds nothing in
+//!    both.
 //!
 //! After the store answer, the row is read once more. This covers a write
 //! that lands between the first row read and the store read. Such a write
