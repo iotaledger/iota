@@ -169,20 +169,20 @@ impl IngestionTest for WatermarksTable {
             .map(|watermark| (watermark.entity, watermark.max_committed_cp))
             .collect::<HashMap<_, _>>();
 
-        assert_watermarks(&max_committed_cps, CommitterTables::basic(), true);
+        assert_watermarks(&max_committed_cps, CommitterTables::BASIC, true);
         assert_watermarks(
             &max_committed_cps,
-            CommitterTables::objects_history(),
+            CommitterTables::OBJECTS_HISTORY,
             level.includes(ObjectsHistory),
         );
         assert_watermarks(
             &max_committed_cps,
-            CommitterTables::filtered_queries(),
+            CommitterTables::FILTERED_QUERIES,
             level.includes(FilteredQueries),
         );
         assert_watermarks(
             &max_committed_cps,
-            CommitterTables::combined_event_filters(),
+            CommitterTables::COMBINED_EVENT_FILTERS,
             level.includes(CombinedEventFilters),
         );
         Ok(())
