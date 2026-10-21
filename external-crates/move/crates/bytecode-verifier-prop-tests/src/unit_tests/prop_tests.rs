@@ -22,6 +22,7 @@ use move_bytecode_verifier_meter::dummy::DummyMeter;
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
 };
+use move_vm_config::verifier::VerifierConfig;
 use proptest::{collection::vec, prelude::*, sample::Index as PropIndex};
 
 proptest! {
@@ -108,7 +109,7 @@ proptest! {
         constants::verify_module(module).expect("constants failure");
         ability_field_requirements::verify_module(module, ability_cache, &mut DummyMeter).expect("ability_field_requirements failure");
         RecursiveDataDefChecker::verify_module(module).expect("RecursiveDataDefChecker failure");
-        InstantiationLoopChecker::verify_module(module).expect("InstantiationLoopChecker failure");
+        InstantiationLoopChecker::verify_module(&VerifierConfig::default(), module, &mut DummyMeter).expect("InstantiationLoopChecker failure");
     }
 
     #[test]
