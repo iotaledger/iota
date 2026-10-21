@@ -13,12 +13,15 @@ use iota_indexer::{
     models::checkpoints::StoredCheckpoint,
     pruning::CommitterTables,
     schema::{checkpoints, epochs},
-    store::{PgIndexerStore, indexer_store::IndexerStore},
+    store::{
+        PgIndexerStore, diesel_macro, indexer_store::IndexerStore,
+        pg_partition_manager::PgPartitionManager,
+    },
 };
 use rstest::rstest;
 
 use crate::{
-    common::indexer_wait_for_checkpoint,
+    common::{indexer_wait_for_checkpoint, indexer_wait_for_epoch},
     utils::{IngestionTest, TestSim, read_only_blocking},
 };
 
@@ -49,6 +52,17 @@ pub async fn watermarks_table(
 ) -> Result<(), IndexerError> {
     WatermarksTable
         .run(level, "ingestion_watermarks_table")
+        .await
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn epoch_partitioned_tables() -> Result<(), IndexerError> {
+    EpochPartitionedTables
+        .run(
+            OperationalLevel::CombinedEventFilters,
+            "ingestion_epoch_partitioned_tables",
+        )
         .await
 }
 
@@ -190,5 +204,59 @@ fn assert_watermarks(
         } else {
             assert_eq!(max_committed_cp, 0, "{table} has a watermark");
         }
+    }
+}
+
+struct EpochPartitionedTables;
+
+impl IngestionTest for EpochPartitionedTables {
+    /// The level of the indexer and the number of epochs advanced.
+    type ExpectedState = (OperationalLevel, u64);
+
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
+        let num_epochs = 4;
+        for _i in 0..num_epochs {
+            sim.inner.create_checkpoint(); // checkpoint at epoch _i
+            sim.inner.advance_epoch(false); // last checkpoint at epoch _i and epoch _i + 1
+        }
+        sim.inner.create_checkpoint(); // checkpoint at epoch 4
+        let pg_store = sim.start_indexer(None).await;
+        indexer_wait_for_epoch(&pg_store, num_epochs).await;
+        (pg_store, (level, num_epochs))
+    }
+
+    async fn assert_ingested(
+        &self,
+        pg_store: &PgIndexerStore,
+        (indexer_level, num_epochs): Self::ExpectedState,
+    ) -> Result<(), IndexerError> {
+        let connection_pool = pg_store.blocking_cp();
+        let table_partitions = diesel_macro::spawn_blocking_task(|| {
+            PgPartitionManager::new(connection_pool).get_table_partitions()
+        })
+        .await
+        .map_err(IndexerError::from)??;
+
+        let partition_manager = PgPartitionManager::new(pg_store.blocking_cp());
+        for (table, (first, last)) in table_partitions {
+            if !partition_manager
+                .get_strategy(table.as_ref())
+                .is_epoch_partitioned()
+            {
+                continue;
+            }
+            let new_partitions = last - first;
+            let committer_table: CommitterTables = table.parse().unwrap();
+            assert_eq!(
+                new_partitions, num_epochs,
+                "incorrect partitions for ingested {table}",
+            );
+        }
+        Ok(())
     }
 }
