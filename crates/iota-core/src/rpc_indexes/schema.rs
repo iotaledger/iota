@@ -66,7 +66,7 @@ pub const RPC_INDEXES_DIR: &str = "rpc_indexes";
 /// Bump this when changing the serialization format or layout of an
 /// existing table. A version mismatch triggers a full re-index via
 /// `needs_to_do_initialization`.
-pub(super) const CURRENT_DB_VERSION: u64 = 1;
+pub(super) const CURRENT_DB_VERSION: u64 = 2;
 
 /// Prefix of the per-epoch history column families; a bucket's family is
 /// `{prefix}{epoch}`. On-disk names are the ground truth for which buckets
@@ -229,35 +229,16 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 /// narrowed by `type_filter`. The upper bound is exclusive.
 ///
 /// With a `cursor`, the lower bound excludes the cursor's own position, so a
-/// page resumes strictly after it whether or not that row still exists.
+/// page resumes strictly after it whether or not that row still exists. A
+/// cursor below `type_filter`'s range, which a client can forge, starts at the
+/// range instead, so the scan never walks the owner's rows of other types.
 /// `cursor`'s own `owner` is ignored in favor of `owner`.
 pub(super) fn owner_bounds(
     owner: Address,
     cursor: Option<&OwnerIndexKey>,
     filter: &OwnerTypeFilter,
 ) -> (Bound<OwnerIndexKey>, OwnerIndexKey) {
-    let lower_bound = if let Some(c) = cursor {
-        Bound::Excluded(OwnerIndexKey { owner, ..*c })
-    } else {
-        let (lower_id, _, lower_params, _) = match filter {
-            OwnerTypeFilter::None => (0, u64::MAX, 0, u64::MAX),
-            OwnerTypeFilter::BaseType { id_hash, .. } => (*id_hash, *id_hash, 0, u64::MAX),
-            OwnerTypeFilter::ExactType {
-                id_hash,
-                params_hash,
-                ..
-            } => (*id_hash, *id_hash, *params_hash, *params_hash),
-        };
-        Bound::Included(OwnerIndexKey {
-            owner,
-            object_type_identifier: lower_id,
-            object_type_params: lower_params,
-            inverted_balance: None,
-            object_id: ObjectId::ZERO,
-        })
-    };
-
-    let (_, upper_bound_id, _, upper_bound_params) = match filter {
+    let (lower_id, upper_id, lower_params, upper_params) = match filter {
         OwnerTypeFilter::None => (0, u64::MAX, 0, u64::MAX),
         OwnerTypeFilter::BaseType { id_hash, .. } => (*id_hash, *id_hash, 0, u64::MAX),
         OwnerTypeFilter::ExactType {
@@ -266,11 +247,24 @@ pub(super) fn owner_bounds(
             ..
         } => (*id_hash, *id_hash, *params_hash, *params_hash),
     };
+    let range_start = OwnerIndexKey {
+        owner,
+        object_type_identifier: lower_id,
+        object_type_params: lower_params,
+        inverted_balance: None,
+        object_id: ObjectId::ZERO,
+    };
+    let lower_bound = match cursor {
+        Some(c) if OwnerIndexKey { owner, ..*c } >= range_start => {
+            Bound::Excluded(OwnerIndexKey { owner, ..*c })
+        }
+        _ => Bound::Included(range_start),
+    };
 
     let upper_bound = OwnerIndexKey {
         owner,
-        object_type_identifier: upper_bound_id,
-        object_type_params: upper_bound_params,
+        object_type_identifier: upper_id,
+        object_type_params: upper_params,
         inverted_balance: Some(u64::MAX),
         object_id: ObjectId::MAX,
     };
@@ -328,6 +322,7 @@ pub(crate) struct CoinIndexInfo {
     pub(super) coin_metadata_object_id: Option<ObjectId>,
     pub(super) treasury_object_id: Option<ObjectId>,
     pub(super) regulated_coin_metadata_object_id: Option<ObjectId>,
+    pub(super) coin_manager_object_id: Option<ObjectId>,
 }
 
 impl CoinIndexInfo {
@@ -340,6 +335,7 @@ impl CoinIndexInfo {
         self.regulated_coin_metadata_object_id = self
             .regulated_coin_metadata_object_id
             .or(other.regulated_coin_metadata_object_id);
+        self.coin_manager_object_id = self.coin_manager_object_id.or(other.coin_manager_object_id);
     }
 }
 
@@ -367,8 +363,8 @@ pub(super) fn is_dynamic_field(object: &Object) -> bool {
         .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
 }
 
-/// The coin metadata row `object` contributes, when it is a `CoinMetadata<T>`
-/// or a `TreasuryCap<T>`.
+/// The coin metadata row `object` contributes, when it is a `CoinMetadata<T>`,
+/// a `TreasuryCap<T>` or a `CoinManager<T>`.
 pub(super) fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
     use iota_types::coin::{CoinMetadata, TreasuryCap};
 
@@ -394,7 +390,28 @@ pub(super) fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKe
         ));
     }
 
+    if let Some(coin_type) = coin_manager_coin_type(object_type) {
+        return Some((
+            CoinIndexKey { coin_type },
+            CoinIndexInfo {
+                coin_manager_object_id: Some(object.id()),
+                ..Default::default()
+            },
+        ));
+    }
+
     None
+}
+
+/// `T` of a `CoinManager<T>` type, `None` for any other type.
+pub(super) fn coin_manager_coin_type(object_type: &StructTag) -> Option<StructTag> {
+    if !object_type.is_coin_manager() {
+        return None;
+    }
+    match object_type.type_params().first()? {
+        TypeTag::Struct(coin_type) => Some(*coin_type.clone()),
+        _ => None,
+    }
 }
 
 /// The coin type and object id of a `RegulatedCoinMetadata<T>`, for the
@@ -694,8 +711,8 @@ impl HistoryBucket {
 /// tables live in per-epoch column families of the same database
 /// (`HistoryBucket`).
 ///
-/// `owner` and `dynamic_field` are shared by both API groups; `coin` and
-/// `package_version` are gRPC-only. JSON-RPC reads coin balances from
+/// `owner`, `dynamic_field` and `coin` are shared by both API groups;
+/// `package_version` is gRPC-only. JSON-RPC reads coin balances from
 /// `owner`.
 #[derive(DBMapUtils)]
 pub struct IndexStoreTables {
@@ -737,7 +754,9 @@ pub struct IndexStoreTables {
     /// object store at query time. Shared by both API groups.
     pub dynamic_field: DBMap<DynamicFieldKey, ()>,
 
-    /// Regulated coin metadata, one entry per coin type. gRPC-only.
+    /// The ids of a coin type's metadata, treasury cap, regulated metadata and
+    /// coin manager objects, one entry per coin type. Shared by both API
+    /// groups: JSON-RPC finds a coin's metadata and supply through it.
     pub(super) coin: DBMap<CoinIndexKey, CoinIndexInfo>,
 
     /// Maps original package ID and version to the storage ID of that

@@ -156,6 +156,10 @@ pub trait StateRead: Send + Sync {
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
     ) -> StateReadResult<(TransactionEnvelope, TransactionEffects)>;
+    /// The id of the `CoinMetadata<T>`, `TreasuryCap<T>` or `CoinManager<T>`
+    /// object `object_type` names, from the RPC index; `None` when the index
+    /// does not know it.
+    fn find_coin_object_id(&self, object_type: &StructTag) -> StateReadResult<Option<ObjectId>>;
     async fn get_balance(
         &self,
         owner: Address,
@@ -402,6 +406,13 @@ impl StateRead for AuthorityState {
         Ok(self
             .get_executed_transaction_and_effects(digest, kv_store)
             .await?)
+    }
+
+    fn find_coin_object_id(&self, object_type: &StructTag) -> StateReadResult<Option<ObjectId>> {
+        let Some(indexes) = &self.rpc_indexes_store else {
+            return Ok(None);
+        };
+        Ok(indexes.find_coin_object_id(object_type)?)
     }
 
     async fn get_balance(

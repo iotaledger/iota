@@ -26,18 +26,18 @@ use std::{
 use either::Either;
 use iota_json_rpc_types::{IotaMoveValue, IotaObjectDataFilter, TransactionFilter};
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, StructTag, TransactionDigest, TransactionEventsDigest,
+    Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TransactionEventsDigest,
     TypeTag, Version,
 };
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
-    base_types::{ObjectInfo, TxSequenceNumber},
+    base_types::{ObjectInfo, ObjectType, TxSequenceNumber},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     error::{IotaError, IotaResult, UserInputError},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
     object::{Object, bounded_visitor::BoundedVisitor},
-    storage::{DynamicFieldKey, ObjectStore, OwnedObjectCursor},
+    storage::{DynamicFieldKey, ObjectKey, ObjectStore, OwnedObjectCursor},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value as A, language_storage::ModuleId};
@@ -54,8 +54,9 @@ use typed_store::{
 use super::{
     RpcIndexesStore,
     schema::{
-        EventId, EventIndex, HistoryBucket, IndexGroup, OwnerIndexInfo, OwnerIndexKey,
-        OwnerTypeFilter, TotalBalance, owner_bounds,
+        CoinIndexInfo, CoinIndexKey, EventId, EventIndex, HistoryBucket, IndexGroup,
+        OwnerIndexInfo, OwnerIndexKey, OwnerTypeFilter, TotalBalance, coin_manager_coin_type,
+        owner_bounds,
     },
 };
 use crate::epoch_buckets::absent_if_dropped;
@@ -814,28 +815,54 @@ impl RpcIndexesStore {
             return Ok(results);
         }
         let type_filter = owner_scan_filter(filter.as_ref());
-        for item in self.owner_iter(owner, cursor_key.as_ref(), type_filter)? {
-            let (key, info) = item?;
-            if Some(key.object_id) == cursor.map(|cursor| cursor.object_id) {
-                // The cursor's object moved to a later key because its
-                // balance changed; it was returned on the previous page.
-                continue;
+        // Only address-owned objects are indexed.
+        let row_owner = Owner::Address(owner);
+        let mut rows = self
+            .owner_iter(owner, cursor_key.as_ref(), type_filter)?
+            .filter(|item| match item {
+                Ok((key, _)) => Some(key.object_id) != cursor.map(|cursor| cursor.object_id),
+                Err(_) => true,
+            })
+            .filter(|item| match (item, &filter) {
+                // The row holds every field a filter looks at, so only the
+                // objects a filter keeps are read.
+                (Ok((key, info)), Some(filter)) => filter.matches_fields(
+                    &key.object_id,
+                    info.version,
+                    &ObjectType::Struct(info.object_type.clone().into()),
+                    &row_owner,
+                ),
+                _ => true,
+            });
+        loop {
+            let matched: Vec<(OwnerIndexKey, OwnerIndexInfo)> = rows
+                .by_ref()
+                .take(limit - results.len())
+                .collect::<Result<_, _>>()?;
+            if matched.is_empty() {
+                return Ok(results);
             }
-            // Read the row's version, not the latest: the latest may belong to
-            // an object this owner has since transferred away or spent.
-            let Some(object) = object_store.try_get_object_by_key(&key.object_id, info.version)?
-            else {
-                continue;
-            };
-            let object_info = ObjectInfo::new(&object.object_ref(), &object);
-            if filter.as_ref().is_none_or(|f| f.matches(&object_info)) {
-                results.push((object_info, OwnedObjectCursor::from(&key)));
+            // The row's version, not the latest: the latest may belong to an
+            // object this owner has since transferred away or spent.
+            let keys: Vec<ObjectKey> = matched
+                .iter()
+                .map(|(key, info)| ObjectKey(key.object_id, info.version))
+                .collect();
+            let objects = object_store.try_multi_get_objects_by_key(&keys)?;
+            for ((key, _), object) in matched.iter().zip(objects) {
+                // Gone since the row was read; the next rows fill its place.
+                let Some(object) = object else {
+                    continue;
+                };
+                results.push((
+                    ObjectInfo::new(&object.object_ref(), &object),
+                    OwnedObjectCursor::from(key),
+                ));
             }
             if results.len() >= limit {
-                break;
+                return Ok(results);
             }
         }
-        Ok(results)
     }
 
     /// Owner-index rows of `owner`, narrowed by `type_filter` (excluding rows
@@ -921,6 +948,30 @@ impl RpcIndexesStore {
             }
         }
         Ok(results)
+    }
+
+    /// The id of the `CoinMetadata<T>`, `TreasuryCap<T>` or `CoinManager<T>`
+    /// object that `object_type` names, from the coin table; `None` for any
+    /// other type and for a coin type the table has no such object of. The
+    /// object may have been wrapped since, e.g. into a coin manager.
+    pub fn find_coin_object_id(&self, object_type: &StructTag) -> IotaResult<Option<ObjectId>> {
+        use iota_types::coin::{CoinMetadata, TreasuryCap};
+
+        let (coin_type, pick): (StructTag, fn(&CoinIndexInfo) -> Option<ObjectId>) =
+            if let Some(coin_type) = CoinMetadata::is_coin_metadata_with_coin_type(object_type) {
+                (coin_type.clone(), |info| info.coin_metadata_object_id)
+            } else if let Some(coin_type) = TreasuryCap::is_treasury_with_coin_type(object_type) {
+                (coin_type.clone(), |info| info.treasury_object_id)
+            } else if let Some(coin_type) = coin_manager_coin_type(object_type) {
+                (coin_type, |info| info.coin_manager_object_id)
+            } else {
+                return Ok(None);
+            };
+        Ok(self
+            .tables
+            .coin
+            .get(&CoinIndexKey { coin_type })?
+            .and_then(|info| pick(&info)))
     }
 
     /// This method first gets the balance from `per_coin_type_balance` cache.

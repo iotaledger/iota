@@ -25,7 +25,7 @@ use super::{
     IndexGroup, RpcIndexesStore,
     jsonrpc_api::CachingLayoutResolver,
     live_scan::RpcIndexesRestorer,
-    schema::{CoinIndexInfo, CoinIndexKey, OwnerIndexKey},
+    schema::{CoinIndexInfo, CoinIndexKey, OwnerIndexKey, OwnerTypeFilter, owner_bounds},
 };
 use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
@@ -1873,6 +1873,7 @@ async fn test_get_coin_info_reads_regulated_metadata() {
         coin_metadata_object_id: Some(ObjectId::random()),
         treasury_object_id: Some(ObjectId::random()),
         regulated_coin_metadata_object_id: Some(ObjectId::random()),
+        coin_manager_object_id: Some(ObjectId::random()),
     };
     index_store
         .tables
@@ -2471,6 +2472,7 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
                 coin_metadata_object_id: Some(coin_metadata.id()),
                 treasury_object_id: Some(treasury_cap.id()),
                 regulated_coin_metadata_object_id: None,
+                coin_manager_object_id: None,
             }),
             "the coin metadata of the partitions must be merged into one row"
         );
@@ -2727,8 +2729,8 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
         100
     );
     assert!(
-        jsonrpc_store.tables.coin.safe_iter().next().is_none(),
-        "the gRPC group's coin table must stay empty"
+        jsonrpc_store.tables.coin.safe_iter().next().is_some(),
+        "the coin table is shared by both groups"
     );
     assert!(
         jsonrpc_store
@@ -2882,6 +2884,7 @@ async fn test_coin_metadata_objects_merge_into_one_row() {
             coin_metadata_object_id: Some(together_metadata),
             treasury_object_id: Some(together_treasury),
             regulated_coin_metadata_object_id: Some(together_regulated),
+            coin_manager_object_id: None,
         }),
         "objects of one checkpoint must not overwrite each other's fields"
     );
@@ -2900,12 +2903,79 @@ async fn test_coin_metadata_objects_merge_into_one_row() {
             coin_metadata_object_id: Some(apart_metadata),
             treasury_object_id: Some(apart_treasury),
             regulated_coin_metadata_object_id: Some(apart_regulated),
+            coin_manager_object_id: None,
         }),
         "a later checkpoint must merge onto the row instead of replacing it"
     );
 }
 
-/// A JSON-RPC-only live scan leaves the gRPC group's tables empty.
+/// A coin type's objects created in a checkpoint staged while an earlier
+/// checkpoint's objects of that type are not yet committed merge onto them.
+#[tokio::test]
+async fn test_coin_rows_merge_across_staged_checkpoints() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let coin_type: StructTag = "0x42::managed::MANAGED".parse().unwrap();
+    let gas = TypeTag::from(StructTag::new_gas());
+
+    let mut builder = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_coin_object(0, 1, 1, gas.clone())
+        .create_coin_object(1, 1, 1, gas.clone())
+        .finish_transaction();
+    let mut publish = builder.build_checkpoint();
+    let metadata = replace_created_object_type(
+        &mut publish,
+        0,
+        format!("0x2::coin::CoinMetadata<{coin_type}>")
+            .parse()
+            .unwrap(),
+    );
+    let treasury = replace_created_object_type(
+        &mut publish,
+        1,
+        format!("0x2::coin::TreasuryCap<{coin_type}>")
+            .parse()
+            .unwrap(),
+    );
+    let mut builder = builder
+        .start_transaction(0)
+        .create_coin_object(2, 1, 1, gas)
+        .finish_transaction();
+    let mut managed = builder.build_checkpoint();
+    let manager = replace_created_object_type(
+        &mut managed,
+        2,
+        format!("0x2::coin_manager::CoinManager<{coin_type}>")
+            .parse()
+            .unwrap(),
+    );
+
+    index_store.index_checkpoint(&publish).unwrap();
+    index_store.index_checkpoint(&managed).unwrap();
+    for checkpoint in [&publish, &managed] {
+        index_store
+            .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
+            .unwrap();
+    }
+
+    assert_eq!(
+        index_store.get_coin_info(&coin_type).unwrap(),
+        Some(CoinIndexInfo {
+            coin_metadata_object_id: Some(metadata),
+            treasury_object_id: Some(treasury),
+            regulated_coin_metadata_object_id: None,
+            coin_manager_object_id: Some(manager),
+        }),
+        "the later checkpoint's row must keep the objects of the staged one"
+    );
+    assert!(
+        index_store.staged_coin_rows.lock().is_empty(),
+        "committed rows must not stay staged"
+    );
+}
+
+/// A JSON-RPC-only live scan fills the shared coin table and leaves the gRPC
+/// group's package table empty.
 #[tokio::test]
 async fn test_live_scan_gates_the_grpc_tables() {
     let dir = iota_common::tempdir();
@@ -2935,8 +3005,8 @@ async fn test_live_scan_gates_the_grpc_tables() {
         "the owner index is shared by both groups"
     );
     assert!(
-        store.tables.coin.safe_iter().next().is_none(),
-        "the gRPC group's coin table must stay empty"
+        store.tables.coin.safe_iter().next().is_some(),
+        "the coin table is shared by both groups"
     );
     assert!(
         store.tables.package_version.safe_iter().next().is_none(),
@@ -3906,5 +3976,169 @@ async fn test_a_query_of_a_dropped_bucket_skips_its_rows() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+/// Counts the objects read through it.
+struct CountingObjectStore<'a> {
+    inner: &'a BTreeMap<ObjectId, Object>,
+    reads: std::cell::Cell<usize>,
+}
+
+impl iota_types::storage::ObjectStore for CountingObjectStore<'_> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.reads.set(self.reads.get() + 1);
+        self.inner.try_get_object(object_id)
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.reads.set(self.reads.get() + 1);
+        self.inner.try_get_object_by_key(object_id, version)
+    }
+}
+
+/// A filter the owner index cannot narrow its scan by is still decided on the
+/// index rows, so only the objects it keeps are read.
+#[tokio::test]
+async fn test_a_filter_on_owned_objects_reads_only_the_objects_it_keeps() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+    let wanted = *object_store.keys().next().unwrap();
+    let store = CountingObjectStore {
+        inner: &object_store,
+        reads: Default::default(),
+    };
+
+    let page = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            Some(IotaObjectDataFilter::ObjectId(wanted)),
+            &store,
+        )
+        .unwrap();
+
+    assert_eq!(
+        page.iter()
+            .map(|(info, _)| info.object_id)
+            .collect::<Vec<_>>(),
+        vec![wanted]
+    );
+    assert_eq!(store.reads.get(), 1, "only the kept object may be read");
+}
+
+/// A cursor below the type filter's range, which a client can forge, starts
+/// the scan at the range rather than at the cursor, so the scan never walks
+/// the owner's rows of other types. A cursor inside the range resumes after
+/// itself.
+#[test]
+fn a_cursor_below_the_type_filter_starts_at_the_filters_range() {
+    use std::ops::Bound;
+
+    let owner = Address::random();
+    let coin = StructTag::new_coin(TypeTag::U64);
+    let filter = OwnerTypeFilter::from_struct_tag(Some(&coin));
+    let (Bound::Included(range_start), _) = owner_bounds(owner, None, &filter) else {
+        panic!("a scan without a cursor starts at the filter's range");
+    };
+
+    let forged = OwnerIndexKey {
+        owner,
+        object_type_identifier: 0,
+        object_type_params: 0,
+        inverted_balance: None,
+        object_id: ObjectId::ZERO,
+    };
+    assert_eq!(
+        owner_bounds(owner, Some(&forged), &filter).0,
+        Bound::Included(range_start)
+    );
+
+    let inside = OwnerIndexKey {
+        inverted_balance: Some(!5),
+        object_id: ObjectId::random(),
+        ..range_start
+    };
+    assert_eq!(
+        owner_bounds(owner, Some(&inside), &filter).0,
+        Bound::Excluded(inside)
+    );
+}
+
+/// A store maintaining only the JSON-RPC group keeps the coin table too, and
+/// finds a coin's metadata, treasury cap and coin manager objects through it,
+/// so the lookup does not depend on the publish transaction being retained.
+#[tokio::test]
+async fn test_a_json_rpc_store_finds_coin_objects_in_the_coin_table() {
+    let dir = iota_common::tempdir();
+    let json_rpc_only = BTreeSet::from([IndexGroup::JsonRpc]);
+    let index_store = RpcIndexesStore::new_without_init(
+        dir.path().join(super::schema::RPC_INDEXES_DIR),
+        None,
+        json_rpc_only.clone(),
+    );
+    index_store.tables.seed_meta(&json_rpc_only).unwrap();
+
+    let gas = TypeTag::from(StructTag::new_gas());
+    let mut checkpoint = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_coin_object(0, 1, 100, gas.clone())
+        .create_coin_object(1, 1, 1, gas.clone())
+        .create_coin_object(2, 1, 1, gas)
+        .finish_transaction()
+        .build_checkpoint();
+    let metadata_id = replace_created_object_type(
+        &mut checkpoint,
+        0,
+        "0x2::coin::CoinMetadata<0x2::iota::IOTA>".parse().unwrap(),
+    );
+    let treasury_id = replace_created_object_type(
+        &mut checkpoint,
+        1,
+        "0x2::coin::TreasuryCap<0x2::iota::IOTA>".parse().unwrap(),
+    );
+    let manager_id = replace_created_object_type(
+        &mut checkpoint,
+        2,
+        "0x2::coin_manager::CoinManager<0x2::iota::IOTA>"
+            .parse()
+            .unwrap(),
+    );
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+
+    let find = |object_type: &str| {
+        index_store
+            .find_coin_object_id(&object_type.parse().unwrap())
+            .unwrap()
+    };
+    assert_eq!(
+        find("0x2::coin::CoinMetadata<0x2::iota::IOTA>"),
+        Some(metadata_id)
+    );
+    assert_eq!(
+        find("0x2::coin::TreasuryCap<0x2::iota::IOTA>"),
+        Some(treasury_id)
+    );
+    assert_eq!(
+        find("0x2::coin_manager::CoinManager<0x2::iota::IOTA>"),
+        Some(manager_id)
+    );
+    assert_eq!(find("0x2::coin::Coin<0x2::iota::IOTA>"), None);
+    assert_eq!(
+        find(&format!(
+            "0x2::coin::CoinMetadata<{}::m::C>",
+            ObjectId::random()
+        )),
+        None
     );
 }
