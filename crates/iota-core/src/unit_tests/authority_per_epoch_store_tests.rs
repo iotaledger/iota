@@ -2186,8 +2186,7 @@ mod handler_object_state_storage {
     /// lives.
     fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
         iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_for_testing(true);
+            config.enable_pcool_deterministic_validation_for_testing();
             config
         })
     }
@@ -2196,7 +2195,7 @@ mod handler_object_state_storage {
     async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2266,7 +2265,7 @@ mod handler_object_state_storage {
     async fn flushed_rows_for_one_id_keep_every_version() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2320,7 +2319,7 @@ mod handler_object_state_storage {
     async fn map_hit_writes_handler_rows_at_the_assigned_commit() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2338,6 +2337,48 @@ mod handler_object_state_storage {
             .unwrap()
             .expect("handler-processed row must exist for a handler-known commit");
         assert_eq!(row.produced_at, 6);
+    }
+
+    /// An execution whose commit the handler has not assigned is a bug, until
+    /// this node executes synced checkpoints for the rest of the epoch; then
+    /// it writes nothing. The report is a `fatal!`, which panics, so the
+    /// first call runs under `catch_unwind`.
+    #[tokio::test]
+    async fn map_miss_is_reported_unless_executing_synced_checkpoints() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let effects = executed_owned_tx_effects(mutated, 5, 1);
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        let written = ObjectKey(mutated, effects.lamport_version());
+
+        let unassigned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            epoch_store.record_executed_transaction(&key, &effects);
+        }));
+        assert!(unassigned.is_err(), "an unassigned execution is reported");
+        assert_eq!(
+            epoch_store.handler_processed_object(&written).unwrap(),
+            None
+        );
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        epoch_store.record_executed_transaction(&key, &effects);
+        assert_eq!(
+            epoch_store.handler_processed_object(&written).unwrap(),
+            None
+        );
+        assert_eq!(
+            epoch_store
+                .handler_object_state_for_testing()
+                .overlay_size_for_testing(),
+            0
+        );
     }
 
     /// The highest fully executed commit starts at the durable resume point,

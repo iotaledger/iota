@@ -700,6 +700,8 @@ pub struct AuthorityPerEpochStore {
     /// holding entries not yet durable.
     /// `None` without deterministic validation.
     handler_object_state: Option<HandlerObjectState>,
+    /// See [`Self::pcool_bookkeeping_enabled`].
+    pcool_bookkeeping_enabled: bool,
 
     protocol_config: ProtocolConfig,
 
@@ -1328,6 +1330,8 @@ impl AuthorityPerEpochStore {
         });
         let handler_object_state =
             resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
+        let pcool_bookkeeping_enabled =
+            committee.authority_exists(&name) && protocol_config.pcool_deterministic_validation();
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1382,6 +1386,7 @@ impl AuthorityPerEpochStore {
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             handler_object_state,
+            pcool_bookkeeping_enabled,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
                 cached_overload_notifications,
@@ -1868,12 +1873,22 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Whether this node keeps the P-COOL deterministic-validation
+    /// bookkeeping: the flag is on and this node is in the epoch's committee.
+    /// Every bookkeeping write, the execution watcher and the commit
+    /// assignment check this rather than the flag alone. A node outside the
+    /// committee runs no consensus handler, so no transaction it executes
+    /// would have its commit assigned.
+    pub fn pcool_bookkeeping_enabled(&self) -> bool {
+        self.pcool_bookkeeping_enabled
+    }
+
     /// Registers the roots of commit `index` in the transaction-key ->
     /// commit-index map and hands the commit to the execution watcher. Must
     /// be called once per commit while the handler processes it, before any
-    /// of its transactions can be scheduled: the execution hook classifies
-    /// each execution by this map - hit means the handler has passed the
-    /// producing commit, miss means state sync is running ahead.
+    /// of its transactions can be scheduled:
+    /// [`Self::record_executed_transaction`] records rows only for a
+    /// transaction whose commit is assigned.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
@@ -1914,13 +1929,32 @@ impl AuthorityPerEpochStore {
 
     /// Records one executed transaction's object writes for the P-COOL
     /// deterministic-validation bookkeeping; see
-    /// [`HandlerObjectState::record_executed_transaction`]. An execution the
-    /// handler has not assigned to a commit records nothing.
+    /// [`HandlerObjectState::record_executed_transaction`]. The caller skips
+    /// genesis transactions, the epoch-0 migration transactions among them,
+    /// and the change-epoch transaction, which run outside any commit.
+    ///
+    /// Every other execution belongs to a commit the handler has assigned,
+    /// unless this node executes synced checkpoints for the rest of the
+    /// epoch; then the handler processes no further commit and nothing is
+    /// recorded.
+    ///
+    /// # Panics
+    ///
+    /// On any other execution the handler has not assigned. Its outputs would
+    /// become readable without rows, and validation would then read state the
+    /// rows do not describe. The panic comes before the outputs are written,
+    /// so after a restart the handler replays the commit and assigns it before
+    /// the transaction executes again.
     pub fn record_executed_transaction(&self, key: &TransactionKey, effects: &TransactionEffects) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
         };
-        handler_object_state.record_executed_transaction(key, effects);
+        if handler_object_state.record_executed_transaction(key, effects)
+            || self.is_executing_synced_checkpoints()
+        {
+            return;
+        }
+        fatal!("transaction {key:?} executed without its commit assigned by the consensus handler");
     }
 
     /// Marks commit `index` fully executed, or does nothing once the quarantine
@@ -1966,7 +2000,7 @@ impl AuthorityPerEpochStore {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(None);
         };
-        if !self.protocol_config.pcool_deterministic_validation() {
+        if !self.pcool_bookkeeping_enabled {
             return Ok(None);
         }
         let tables = self.tables()?;
@@ -2050,7 +2084,7 @@ impl AuthorityPerEpochStore {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(());
         };
-        if !self.protocol_config.pcool_deterministic_validation() {
+        if !self.pcool_bookkeeping_enabled {
             return Ok(());
         }
         let tables = match self.tables() {
@@ -2472,6 +2506,11 @@ impl AuthorityPerEpochStore {
             .expect("soft_locks should only be set once");
     }
 
+    /// Wires the effects reader of the quarantine flush and the execution
+    /// watcher.
+    ///
+    /// # Panics
+    /// Panics if called more than once on the same instance.
     pub fn set_effects_store(&self, effects_store: Arc<dyn TransactionCacheRead>) {
         assert!(
             self.effects_store.set(effects_store).is_ok(),
@@ -4262,8 +4301,6 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
-        // Read once per commit, so validation and the commit assignment below
-        // decide on the same value.
         let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
 
         // Split transactions into different types for processing.
@@ -4730,7 +4767,7 @@ impl AuthorityPerEpochStore {
 
             // The deterministic-validation bookkeeping tracks exactly the
             // roots written to this commit's pending checkpoints.
-            if deterministic_validation {
+            if self.pcool_bookkeeping_enabled {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {
                     commit_roots.extend(randomness_roots.iter().copied());

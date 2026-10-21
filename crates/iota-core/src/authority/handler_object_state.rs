@@ -64,7 +64,7 @@ use std::{
 };
 
 use dashmap::DashMap;
-use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use iota_sdk_types::{
     ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionEffects, Version, WriteKind,
@@ -113,7 +113,8 @@ pub struct HandlerProcessedObject {
     pub digest: ObjectDigest,
     pub kind: HandlerProcessedObjectKind,
     /// Index of the commit whose execution produced this row; reads at a
-    /// commit treat rows above that commit's validation horizon as missing.
+    /// commit treat rows above its horizon (the commit minus the protocol
+    /// config's horizon distance) as missing.
     pub produced_at: CommitIndex,
     /// The initial shared version on a shared object's creation row and on
     /// its `Deleted` row. `None` on every other row. The shared-input checks
@@ -369,17 +370,17 @@ impl HandlerObjectState {
 
     /// Records the roots of commit `index`, before any of them can be
     /// scheduled for execution, and hands the commit to the execution
-    /// watcher. Called exactly once per commit: the watcher marks the commit
-    /// fully executed after awaiting the roots it was handed, so a second
-    /// call for the same index would let it drop entries it never awaited. A
-    /// second call is therefore reported and leaves the first assignment in
-    /// place.
+    /// watcher. The watcher marks the commit fully executed after awaiting
+    /// the roots it was handed.
+    ///
+    /// # Panics
+    ///
+    /// If commit `index` is already assigned. A second call would let the
+    /// watcher drop map entries of roots it never awaited, and only a bug in
+    /// the consensus handler processes a commit twice on one epoch store.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         match self.keys_by_commit.lock().entry(index) {
-            Entry::Occupied(_) => {
-                debug_fatal!("commit index {index} assigned twice");
-                return;
-            }
+            Entry::Occupied(_) => fatal!("commit index {index} assigned twice"),
             Entry::Vacant(entry) => {
                 entry.insert(roots.clone());
             }
@@ -985,33 +986,19 @@ mod tests {
         assert_eq!(state.commit_index_of(&key_c), None);
     }
 
-    /// A second assignment of the same commit keeps the first root list and
-    /// sends the watcher nothing more. In test builds `debug_fatal!` panics,
-    /// so the second call runs under `catch_unwind`.
+    /// A second assignment of the same commit stops the node.
     #[test]
-    fn commit_assigned_twice_keeps_the_first_assignment() {
+    #[should_panic(expected = "commit index 3 assigned twice")]
+    fn commit_assigned_twice_panics() {
         let state = empty_state();
-        let mut receiver = state
-            .take_assigned_commits_receiver()
-            .expect("a new state holds the watcher's receiver");
-        let first = TransactionKey::Digest(TransactionDigest::random());
-        let second = TransactionKey::Digest(TransactionDigest::random());
-
-        state.assign_commit_to_transactions(3, vec![first]);
-        let second_call = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            state.assign_commit_to_transactions(3, vec![second]);
-        }));
-        assert!(second_call.is_err(), "the second assignment is reported");
-
-        assert_eq!(state.commit_index_of(&first), Some(3));
-        assert_eq!(state.commit_index_of(&second), None);
-        state.drop_commit_assignments(3);
-        assert_eq!(state.commit_index_of(&first), None);
-        let assigned = receiver
-            .try_recv()
-            .expect("the first assignment reaches the watcher");
-        assert_eq!((assigned.index, assigned.roots), (3, vec![first]));
-        assert!(receiver.try_recv().is_err());
+        state.assign_commit_to_transactions(
+            3,
+            vec![TransactionKey::Digest(TransactionDigest::random())],
+        );
+        state.assign_commit_to_transactions(
+            3,
+            vec![TransactionKey::Digest(TransactionDigest::random())],
+        );
     }
 
     /// A commit is completed once: whichever of full execution and the

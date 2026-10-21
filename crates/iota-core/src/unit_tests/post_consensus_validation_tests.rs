@@ -11,12 +11,13 @@ use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner,
+    Address, Command, GasCostSummary, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner,
     SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -45,7 +46,7 @@ use crate::{
                 handler_processed_upserts,
             },
         },
-        authority_tests::init_state_with_objects_and_object_basics,
+        authority_tests::{init_state_with_objects_and_object_basics, publish_object_basics},
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
@@ -2174,9 +2175,8 @@ async fn post_consensus_validation_applies_relaxed_rules() {
 /// Shared setup for the execution-hook bookkeeping tests: the P-COOL flags
 /// (held by `_config_guard` for the test's duration when enabled), plus
 /// helpers to execute transactions and assert the bookkeeping rows they
-/// leave. Execution provenance never matters to the hook - only whether the
-/// transaction key is registered in the transaction-key -> commit-index map
-/// (handler-known) or not (sync-ahead).
+/// leave. Rows are written for an executed transaction only if its commit was
+/// assigned beforehand with `assign_commit_to_transactions`.
 struct BookkeepingSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
@@ -2189,15 +2189,53 @@ async fn setup_bookkeeping(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
 ) -> BookkeepingSetup {
-    let _config_guard = validation_enabled.then(|| {
-        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_for_testing(true);
-            config
-        })
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        if validation_enabled {
+            config.enable_pcool_deterministic_validation_for_testing();
+        } else {
+            config.set_pcool_deterministic_validation_for_testing(false);
+        }
+        config
     });
+    setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await
+}
 
-    let (authority, package) = init_state_with_objects_and_object_basics(genesis_objects).await;
+/// Like [`setup_bookkeeping`] with the flags on, but for a node whose authority
+/// key is not in the committee, as on a full node.
+async fn setup_bookkeeping_outside_committee(genesis_objects: Vec<Object>) -> BookkeepingSetup {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    // The builder's genesis committee holds its own generated validator keys,
+    // so a node signing with a fresh key is outside it.
+    let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
+    build_bookkeeping_setup(genesis_objects, Some(config_guard), Some(&keypair)).await
+}
+
+/// Like [`setup_bookkeeping`], under the protocol config override the caller
+/// installed. The guard lives as long as the setup.
+async fn setup_bookkeeping_with_config_guard(
+    genesis_objects: Vec<Object>,
+    config_guard: Option<OverrideGuard>,
+) -> BookkeepingSetup {
+    build_bookkeeping_setup(genesis_objects, config_guard, None).await
+}
+
+async fn build_bookkeeping_setup(
+    genesis_objects: Vec<Object>,
+    _config_guard: Option<OverrideGuard>,
+    keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
+) -> BookkeepingSetup {
+    let builder = match keypair {
+        Some(keypair) => TestAuthorityBuilder::new().with_keypair(keypair),
+        None => TestAuthorityBuilder::new(),
+    };
+    let authority = builder.build().await;
+    for object in genesis_objects {
+        authority.insert_genesis_object(object);
+    }
+    let (authority, package) = publish_object_basics(authority).await;
     let epoch_store = (*authority.epoch_store_for_testing()).clone();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     BookkeepingSetup {
@@ -2521,7 +2559,6 @@ impl BookkeepingSetup {
     /// task.
     fn start_execution_watcher(&self) -> ExecutionWatcher {
         ExecutionWatcher::start(self.epoch_store.clone())
-            .expect("no other watcher has taken the assigned-commit receiver")
     }
 
     fn highest_fully_executed_commit(&self) -> CommitIndex {
@@ -3236,8 +3273,7 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     }
 
     // The handler replays commit 2. Its transaction is not executed again.
-    let _watcher = ExecutionWatcher::start(reopened.clone())
-        .expect("the reopened store's receiver is untaken");
+    let _watcher = ExecutionWatcher::start(reopened.clone());
     reopened.assign_commit_to_transactions(
         2,
         vec![TransactionKey::Digest(*second.transaction_digest())],
@@ -3417,13 +3453,108 @@ async fn bookkeeping_disabled_writes_nothing() {
     s.assert_no_handler_row(&obj_id, effects.lamport_version());
 }
 
+/// Only a committee member keeps the bookkeeping. A node outside the
+/// committee runs no consensus handler, so nothing would ever assign its
+/// executions to a commit or clear their rows.
+#[rstest::rstest]
+#[tokio::test]
+async fn bookkeeping_is_kept_only_by_committee_members(#[values(true, false)] in_committee: bool) {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let [obj_id, gas_id] = std::array::from_fn(|_| ObjectId::random());
+    let genesis_objects = [obj_id, gas_id]
+        .map(|id| Object::with_id_owner_for_testing(id, sender))
+        .to_vec();
+    let s = if in_committee {
+        setup_bookkeeping(genesis_objects, true).await
+    } else {
+        setup_bookkeeping_outside_committee(genesis_objects).await
+    };
+
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+
+    assert_eq!(
+        s.epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(
+                obj_id,
+                effects.lamport_version()
+            ))
+            .unwrap()
+            .is_some(),
+        in_committee
+    );
+}
+
+/// Genesis is the root of no consensus commit, so no commit would ever clear
+/// bookkeeping its execution wrote; the objects it creates are epoch-start
+/// state.
+#[tokio::test]
+async fn genesis_execution_leaves_no_bookkeeping() {
+    let s = setup_bookkeeping(vec![], true).await;
+
+    for id in [IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID] {
+        s.assert_no_handler_row(&id, s.latest_ref(&id).version);
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .overlay_size_for_testing(),
+        0
+    );
+}
+
+/// The change-epoch transaction is the root of no consensus commit, so no
+/// commit would ever clear bookkeeping its execution wrote; what it writes is
+/// the next epoch's epoch-start state. An execution the handler has not
+/// assigned panics in tests, so this also shows the hook skips it.
+#[tokio::test]
+async fn change_epoch_execution_leaves_no_bookkeeping() {
+    let s = setup_bookkeeping(vec![], true).await;
+
+    // The checkpoint builder executes the transaction without committing it
+    // and stores it for state sync; the checkpoint executor commits it.
+    let (_, _, built_effects) = s
+        .authority
+        .create_and_execute_advance_epoch_tx(
+            &s.epoch_store,
+            &GasCostSummary::new(0, 0, 0, 0, 0),
+            1, // checkpoint
+            0, // epoch_start_timestamp_ms
+            // One full score for the single-validator test committee.
+            vec![u16::MAX as u64 + 1],
+        )
+        .await
+        .expect("advance epoch tx must succeed");
+    let tx = s
+        .authority
+        .get_transaction_cache_reader()
+        .get_transaction_block(built_effects.transaction_digest())
+        .expect("the checkpoint builder stores the change-epoch transaction");
+    assert!(tx.data().transaction().is_end_of_epoch_tx());
+    let effects = s.execute_with_assigned_shared_versions((*tx).clone());
+
+    let written = handler_processed_upserts(&effects, 0);
+    assert!(!written.is_empty());
+    for (key, _) in written {
+        s.assert_no_handler_row(&key.0, key.1);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // P-COOL deterministic-validation reader: shared inputs whose object is gone
 // ---------------------------------------------------------------------------
 
 // Validation at commit `C` reads the object state as of commit `C - K`, the
-// horizon, where `K` is `reader::K` (2). So commit 12 reads the state as of
-// commit 10, and a row produced by commit 11 is above its horizon.
+// horizon, where `K` is the protocol config's horizon distance (2 unless a
+// test sets it). So commit 12 reads the state as of commit 10, and a row
+// produced by commit 11 is above its horizon.
 
 #[track_caller]
 fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
@@ -4109,6 +4240,38 @@ async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
     assert_keeps(s.read_owned(12, produced), produced);
     assert_owned_missing(
         s.read_owned(11, produced),
+        MissingKind::HandlerRowAboveHorizon,
+    );
+}
+
+/// The horizon is the protocol config's distance below the commit being
+/// validated.
+#[tokio::test]
+async fn owned_row_horizon_follows_the_protocol_config_distance() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
+        config
+    });
+    let s = setup_bookkeeping_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        Some(config_guard),
+    )
+    .await;
+
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+    s.execute_as_handler_known(vec![tx], 10);
+    let produced = s.latest_ref(&obj_id);
+
+    assert_keeps(s.read_owned(15, produced), produced);
+    assert_owned_missing(
+        s.read_owned(14, produced),
         MissingKind::HandlerRowAboveHorizon,
     );
 }

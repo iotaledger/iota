@@ -2117,9 +2117,17 @@ impl AuthorityState {
             epoch_store.insert_tx_key(key, *tx_digest)?;
         }
 
-        if epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
+        // Genesis and the change-epoch transaction are roots of no consensus
+        // commit, so the handler never assigns them one and recording them
+        // would stop the node. Without rows, the reader takes what they wrote
+        // as epoch-start state: genesis writes the first epoch's, the
+        // change-epoch transaction the next epoch's. The migration transactions
+        // executed at epoch 0 are genesis transactions too: node startup first
+        // re-executes each one through `execute_genesis_transaction`, which
+        // asserts its kind, to collect the genesis objects.
+        if epoch_store.pcool_bookkeeping_enabled()
+            && !transaction.transaction().is_genesis_tx()
+            && !transaction.transaction().is_end_of_epoch_tx()
         {
             epoch_store.record_executed_transaction(&key, effects);
         }

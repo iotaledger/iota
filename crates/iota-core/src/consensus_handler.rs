@@ -145,8 +145,8 @@ pub struct ConsensusHandler<C> {
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
     /// Marks commits fully executed for the P-COOL deterministic-validation
-    /// bookkeeping; `None` unless the feature is enabled. Held only so the
-    /// task is aborted with the handler.
+    /// bookkeeping; `None` unless this node keeps the bookkeeping. Held only
+    /// so the task is aborted with the handler.
     _execution_watcher: Option<ExecutionWatcher>,
 
     backpressure_subscriber: BackpressureSubscriber,
@@ -177,10 +177,8 @@ impl<C> ConsensusHandler<C> {
         let transaction_scheduler =
             AsyncTransactionScheduler::start(execution_scheduler, epoch_store.clone());
         let execution_watcher = epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-            .then(|| ExecutionWatcher::start(epoch_store.clone()))
-            .flatten();
+            .pcool_bookkeeping_enabled()
+            .then(|| ExecutionWatcher::start(epoch_store.clone()));
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -673,10 +671,19 @@ pub(crate) struct ExecutionWatcher {
 }
 
 impl ExecutionWatcher {
-    /// Starts the watcher for `epoch_store`'s epoch. Returns `None` if a
-    /// watcher already took the epoch store's assigned-commit receiver.
-    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Option<Self> {
-        let receiver = epoch_store.take_assigned_commits_receiver()?;
+    /// Starts the watcher for `epoch_store`'s epoch.
+    ///
+    /// # Panics
+    ///
+    /// If a watcher already took the epoch store's assigned-commit receiver.
+    /// Without a watcher the highest fully executed commit never advances and
+    /// post-consensus validation waits on it forever, so a second start is a
+    /// bug that must not run on.
+    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Self {
+        let receiver = epoch_store.take_assigned_commits_receiver().expect(
+            "the epoch store's assigned-commit receiver is taken once, by its epoch's \
+             consensus handler",
+        );
         let handle = spawn_monitored_task!(async move {
             match epoch_store
                 .within_alive_epoch(Self::run(receiver, &epoch_store))
@@ -690,7 +697,7 @@ impl ExecutionWatcher {
                 ),
             }
         });
-        Some(Self { handle })
+        Self { handle }
     }
 
     async fn run(
@@ -1337,7 +1344,7 @@ mod tests {
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_for_testing(true);
+            config.enable_pcool_deterministic_validation_for_testing();
             config
         });
         let network_config =
@@ -1413,7 +1420,7 @@ mod tests {
     async fn test_consensus_handler_restarted_after_the_switch_stops_after_the_same_commit() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_for_testing(true);
+            config.enable_pcool_deterministic_validation_for_testing();
             config
         });
         let network_config =
