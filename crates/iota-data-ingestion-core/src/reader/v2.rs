@@ -249,6 +249,12 @@ impl CheckpointReaderActor {
         &mut self,
         historical_reader: &HistoricalReader,
     ) -> IngestionResult<()> {
+        // Nothing can be handed over until the executor frees capacity, and
+        // refreshing the manifest to find that out downloads the whole file.
+        if self.exceeds_capacity(self.current_checkpoint_number) {
+            return Err(IngestionError::MaxCheckpointsCapacityReached);
+        }
+
         // Only sync the manifest when needed to avoid unnecessary network calls.
         // If the requested checkpoint is beyond what's currently available in our
         // cached manifest, we need to refresh it to check for newer checkpoints.
@@ -313,6 +319,12 @@ impl CheckpointReaderActor {
         batch_size: usize,
         live: &dyn ObjectStore,
     ) -> IngestionResult<()> {
+        // The stream fetches `batch_size` checkpoints ahead, all of which would
+        // be dropped if there is no room for the first one.
+        if self.exceeds_capacity(self.current_checkpoint_number) {
+            return Err(IngestionError::MaxCheckpointsCapacityReached);
+        }
+
         let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
             .map(|checkpoint_number| fetch_from_object_store(live, checkpoint_number))
             .pipe(futures::stream::iter)
