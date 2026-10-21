@@ -22,7 +22,7 @@ use tap::Pipe;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
-    time::timeout,
+    time::{Instant, timeout},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
@@ -51,6 +51,10 @@ use crate::{
 /// would otherwise never be replaced. Generous enough that a healthy slow link
 /// still completes a file.
 const HISTORICAL_FILE_TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// How long to leave the remote store alone after a full round of retries
+/// failed, so the tick loop does not immediately start another round.
+const REMOTE_RETRY_PAUSE: Duration = Duration::from_secs(60);
 
 /// Available sources for checkpoint streams supported by the ingestion
 /// framework.
@@ -215,6 +219,9 @@ struct CheckpointReaderActor {
     data_limiter: DataLimiter,
     /// Filter applied to transactions within a checkpoint.
     fullnode_transaction_filter: Option<TransactionFilter>,
+    /// Earliest instant the remote store may be contacted again, set after a
+    /// round of retries failed.
+    remote_retry_paused_until: Option<Instant>,
 }
 
 impl LocalRead for CheckpointReaderActor {
@@ -416,7 +423,7 @@ impl CheckpointReaderActor {
         backoff.max_elapsed_time = Some(Duration::from_secs(60));
         backoff.initial_interval = Duration::from_millis(100);
         backoff.current_interval = backoff.initial_interval;
-        backoff.multiplier = 1.0;
+        backoff.max_interval = Duration::from_secs(10);
 
         loop {
             match self.fetch_and_send_to_channel().await {
@@ -443,7 +450,14 @@ impl CheckpointReaderActor {
                         }
                     }
                     None => {
-                        break error!("remote reader transient error {err:?}");
+                        // Every source of checkpoints failed for the whole
+                        // round. Starting another one on the next tick would
+                        // only repeat it, so leave the store alone for a while.
+                        self.remote_retry_paused_until = Some(Instant::now() + REMOTE_RETRY_PAUSE);
+                        break error!(
+                            "giving up on the remote reader for {REMOTE_RETRY_PAUSE:?} after \
+                             repeated failures, last error: {err:?}"
+                        );
                     }
                 },
             }
@@ -491,17 +505,21 @@ impl CheckpointReaderActor {
     /// Sends a single checkpoint to the channel and advances the current
     /// checkpoint number.
     ///
-    /// Asserts that the checkpoint's sequence number matches the expected
-    /// current number. Increments the current checkpoint number after
-    /// sending.
+    /// # Errors
+    ///
+    /// Fails if the checkpoint's sequence number is not the expected one, or
+    /// if the receiving half of the channel is closed.
     async fn send_checkpoint_to_channel(
         &mut self,
         checkpoint: Arc<CheckpointData>,
     ) -> IngestionResult<()> {
-        assert_eq!(
-            checkpoint.checkpoint_summary.sequence_number,
-            self.current_checkpoint_number
-        );
+        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+        if sequence_number != self.current_checkpoint_number {
+            return Err(IngestionError::HistoryRead(format!(
+                "expected checkpoint {} from the remote store, got {sequence_number}",
+                self.current_checkpoint_number
+            )));
+        }
         self.checkpoint_tx.send(checkpoint).await.map_err(|_| {
             IngestionError::Channel(
                 "unable to send checkpoint to executor, receiver half closed".to_owned(),
@@ -519,6 +537,13 @@ impl CheckpointReaderActor {
         let should_fetch_from_remote = self.should_fetch_from_remote(&checkpoints);
 
         if should_fetch_from_remote {
+            if self
+                .remote_retry_paused_until
+                .is_some_and(|until| Instant::now() < until)
+            {
+                return Ok(());
+            }
+            self.remote_retry_paused_until = None;
             remote_source = ReadSource::Remote;
             self.fetch_and_send_to_channel_with_retry().await;
         } else {
@@ -619,6 +644,7 @@ impl CheckpointReader {
             data_limiter: DataLimiter::new(config.base.reader_options.data_limit),
             reader_options: config.base.reader_options,
             fullnode_transaction_filter: config.fullnode_transaction_filter,
+            remote_retry_paused_until: None,
         };
 
         let handle = spawn_monitored_task!(reader.run());
