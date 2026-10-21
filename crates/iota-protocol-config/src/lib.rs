@@ -253,6 +253,12 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Validate PTB indices at signing time.
 // Version 39: Allow random beacon DKG to complete after its timeout on devnet
 //             and testnet.
+//             The consensus handler's processed-transaction cache holds only
+//             messages recorded as processed, so a cache hit gives the same
+//             answer as the processed-message table on every validator. A
+//             user transaction from an authority that has sent EndOfPublish
+//             no longer makes a later transaction with the same key in the
+//             same commit be skipped as a duplicate.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -744,6 +750,27 @@ struct FeatureFlags {
     // in the epoch.
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
+
+    // If true, P-COOL deterministic validation is on. A committee validator
+    // does not execute state-synced checkpoints while its epoch is running: it
+    // waits for its own checkpoint builder and takes only randomness signatures
+    // from state sync. Once the certified last checkpoint of the epoch is
+    // known, it executes the rest of the epoch from state sync and stops
+    // processing consensus commits. Requires `enable_pcool_flow`.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_deterministic_validation: bool,
+
+    // If true, a consensus message is skipped as a duplicate of an earlier message with the same
+    // key that was recorded as processed or passed verification in the same commit:
+    // - The consensus handler adds a message to its processed-transaction cache only after the
+    //   epoch store recorded it as processed. Otherwise the cache also holds messages that were
+    //   dropped without being recorded, and since it differs between validators and after a
+    //   restart, skipping on a cache hit lets validators disagree about a later message with the
+    //   same key.
+    // - A user transaction from an authority that has sent EndOfPublish fails verification, so it
+    //   does not make a later transaction with the same key in its commit be skipped.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_dedup_only_recorded_messages: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2082,6 +2109,15 @@ impl ProtocolConfig {
         self.feature_flags.pcool_skip_immutable_object_locks
     }
 
+    pub fn pcool_deterministic_validation(&self) -> bool {
+        let res = self.feature_flags.pcool_deterministic_validation;
+        assert!(
+            !res || self.enable_pcool_flow(),
+            "pcool_deterministic_validation requires enable_pcool_flow to be enabled"
+        );
+        res
+    }
+
     /// Effective only with its prerequisite `enable_pcool_flow`: a config
     /// missing the prerequisite reads as disabled.
     pub fn pcool_verifier_limits_from_protocol_config(&self) -> bool {
@@ -2258,6 +2294,10 @@ impl ProtocolConfig {
 
     pub fn allow_dkg_completion_after_timeout(&self) -> bool {
         self.feature_flags.allow_dkg_completion_after_timeout
+    }
+
+    pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
+        self.feature_flags.consensus_dedup_only_recorded_messages
     }
 }
 
@@ -3671,6 +3711,7 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
+                    cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3958,6 +3999,10 @@ impl ProtocolConfig {
         self.feature_flags.pcool_skip_immutable_object_locks = val;
     }
 
+    pub fn set_pcool_deterministic_validation_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_deterministic_validation = val;
+    }
+
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config = val;
@@ -4035,6 +4080,10 @@ impl ProtocolConfig {
 
     pub fn set_allow_dkg_completion_after_timeout_for_testing(&mut self, val: bool) {
         self.feature_flags.allow_dkg_completion_after_timeout = val;
+    }
+
+    pub fn set_consensus_dedup_only_recorded_messages_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_dedup_only_recorded_messages = val;
     }
 }
 
