@@ -633,7 +633,13 @@ impl RegulatedCoinEnv {
 
         assert_eq!(user_tx_digests, vec![digest]);
 
-        (dropped, transactions.len() == 1)
+        (
+            dropped
+                .into_iter()
+                .map(|(digest, error, _)| (digest, error))
+                .collect(),
+            transactions.len() == 1,
+        )
     }
 }
 

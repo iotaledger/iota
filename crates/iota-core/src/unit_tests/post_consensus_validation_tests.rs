@@ -223,7 +223,7 @@ async fn drop_error_for_gas_version_below_canceled_range(
         "A dropped transaction still releases its pre-consensus lock"
     );
     assert_eq!(dropped.len(), 1);
-    let (dropped_digest, error) = dropped.pop().unwrap();
+    let (dropped_digest, error, _) = dropped.pop().unwrap();
     assert_eq!(dropped_digest, digest);
 
     error
@@ -504,8 +504,10 @@ async fn test_simple_conflict() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only one transaction should remain");
     assert_eq!(dropped_digests.len(), 1, "Exactly one should be dropped");
@@ -610,8 +612,10 @@ async fn test_stale_version_dropped_fresh_kept() {
         .await
         .unwrap();
 
-    let (dropped_digests, dropped_errors): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, dropped_errors): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only the fresh tx should remain");
     assert_eq!(
@@ -819,8 +823,10 @@ async fn test_chain_conflict() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 2, "Two transactions should remain");
     assert_eq!(dropped_digests.len(), 1, "Exactly one dropped");
@@ -943,8 +949,10 @@ async fn test_multiple_conflicts_in_batch() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 2, "Two transactions should remain");
     assert_eq!(dropped_digests.len(), 2, "Two should be dropped");
@@ -1035,8 +1043,10 @@ async fn test_gas_object_conflict() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only one should remain");
     assert_eq!(dropped_digests.len(), 1, "One should be dropped");
@@ -1151,8 +1161,10 @@ async fn test_winner_blocks_multiple_losers() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only tx1 should remain");
     assert_eq!(dropped_digests.len(), 2, "tx2 and tx3 should be dropped");
@@ -1273,8 +1285,10 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 2, "tx1 and tx4 should remain");
     assert_eq!(dropped_digests.len(), 2, "tx2 and tx3 should be dropped");
@@ -2745,7 +2759,10 @@ impl BookkeepingSetup {
                 .iter()
                 .map(|tx| tx.0.transaction.user_transaction_digest().unwrap())
                 .collect(),
-            dropped,
+            dropped: dropped
+                .into_iter()
+                .map(|(digest, error, _)| (digest, error))
+                .collect(),
             locks,
         }
     }
@@ -5379,7 +5396,13 @@ impl ImmutableInputSetup {
         )
         .await
         .unwrap();
-        (dropped, locks)
+        (
+            dropped
+                .into_iter()
+                .map(|(digest, error, _)| (digest, error))
+                .collect(),
+            locks,
+        )
     }
 }
 

@@ -170,8 +170,9 @@ impl SavedPostConsensusDecision {
 /// # Returns
 ///
 /// `Ok((dropped, locks, all_user_tx_digests))` where:
-/// - `dropped` — `(digest, error)` for every semantically-invalid or lock-conflicting transaction.
-///   Silent drops (duplicates) are **not** included.
+/// - `dropped` — `(digest, error, decision)` for every semantically-invalid or lock-conflicting
+///   transaction, where `decision` is never `Kept`. Without deterministic validation it is always
+///   `Dropped`. Silent drops (duplicates) are **not** included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the consensus quarantine
 ///   so subsequent commits can see them.
 /// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup (both kept and
@@ -183,11 +184,11 @@ pub async fn validate_and_resolve_conflicts(
     deterministic_validation: bool,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
 ) -> IotaResult<(
-    Vec<(TransactionDigest, IotaError)>,
+    Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
     HashMap<ObjectReference, LockDetails>,
     Vec<TransactionDigest>,
 )> {
-    let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
+    let mut dropped: Vec<(TransactionDigest, IotaError, PostConsensusDecision)> = Vec::new();
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
     // Locks acquired within this commit. Populated for every transaction that
     // passes all checks; used by subsequent transactions' conflict checks.
@@ -240,8 +241,6 @@ pub async fn validate_and_resolve_conflicts(
         None
     };
     let mut saved_decisions = HashMap::new();
-    // The dropped transactions whose drop is `PostConsensusDecision::DroppedInputNotVisibleYet`.
-    let mut dropped_input_not_visible_yet = HashSet::new();
 
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
@@ -291,10 +290,7 @@ pub async fn validate_and_resolve_conflicts(
         // A saved drop is replayed as is: the inputs it was decided on may
         // have changed since.
         if let Some(saved) = saved.filter(|saved| saved.decision != PostConsensusDecision::Kept) {
-            if saved.decision == PostConsensusDecision::DroppedInputNotVisibleYet {
-                dropped_input_not_visible_yet.insert(digest);
-            }
-            dropped.push((digest, saved.error()));
+            dropped.push((digest, saved.error(), saved.decision));
             keep[i] = false;
             continue;
         }
@@ -360,7 +356,7 @@ pub async fn validate_and_resolve_conflicts(
                 error = ?e,
                 "UserTransactionV1 failed validity_check post-consensus, dropping"
             );
-            dropped.push((digest, e));
+            dropped.push((digest, e, PostConsensusDecision::Dropped));
             keep[i] = false;
             continue;
         }
@@ -375,7 +371,7 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "Failed to extract owned input objects post-consensus, dropping"
                 );
-                dropped.push((digest, e));
+                dropped.push((digest, e, PostConsensusDecision::Dropped));
                 keep[i] = false;
                 continue;
             }
@@ -432,7 +428,7 @@ pub async fn validate_and_resolve_conflicts(
             }
         }
         if let Some(e) = conflict {
-            dropped.push((digest, e));
+            dropped.push((digest, e, PostConsensusDecision::Dropped));
             keep[i] = false;
             continue;
         }
@@ -532,10 +528,12 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                if input_not_visible_yet {
-                    dropped_input_not_visible_yet.insert(digest);
-                }
-                dropped.push((digest, e));
+                let decision = if input_not_visible_yet {
+                    PostConsensusDecision::DroppedInputNotVisibleYet
+                } else {
+                    PostConsensusDecision::Dropped
+                };
+                dropped.push((digest, e, decision));
                 keep[i] = false;
                 continue;
             }
@@ -565,22 +563,16 @@ pub async fn validate_and_resolve_conflicts(
     }
 
     if deterministic_validation {
-        let errors: HashMap<_, _> = dropped
+        let drops: HashMap<_, _> = dropped
             .iter()
-            .map(|(digest, error)| (*digest, error))
+            .map(|(digest, error, decision)| (*digest, (*decision, error)))
             .collect();
         let decisions: Vec<_> = all_user_tx_digests
             .iter()
             .map(|digest| {
-                let decision = match errors.get(digest) {
-                    Some(error) if dropped_input_not_visible_yet.contains(digest) => {
-                        SavedPostConsensusDecision::dropped(
-                            PostConsensusDecision::DroppedInputNotVisibleYet,
-                            error,
-                        )
-                    }
-                    Some(error) => {
-                        SavedPostConsensusDecision::dropped(PostConsensusDecision::Dropped, error)
+                let decision = match drops.get(digest) {
+                    Some((decision, error)) => {
+                        SavedPostConsensusDecision::dropped(*decision, error)
                     }
                     None => SavedPostConsensusDecision::kept(),
                 };
