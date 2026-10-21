@@ -9,11 +9,24 @@
 
 MERGE_BASE=$(git merge-base HEAD origin/develop)
 
-# print git diff between current revision and origin/main, grep for new tests
-NEW_TESTS=( $(git diff "$MERGE_BASE" \
-  | grep -A1 -F '+#[sim_test]' \
-  | grep -Eo '\bfn +[a-z_0-9]+\b' \
-  | awk '{print $2}') )
+# find the tests whose `#[sim_test]` attribute was added since the merge base.
+# The attribute may be indented (a test inside a module), take arguments, and be
+# followed by further attributes or comments before the `fn` line. Ignored tests
+# are left out: nextest does not run them, and a filter selecting no test fails.
+NEW_TESTS=( $(git diff "$MERGE_BASE" | awk '
+  /^\+[[:space:]]*#\[sim_test(\]|\()/ { pending = 1; ignored = 0; next }
+  !pending { next }
+  /^-/ { next }
+  /^[+ ][[:space:]]*#\[ignore(\]|[[:space:]]|=)/ { ignored = 1; next }
+  /^[+ ][[:space:]]*(#\[|\/\/)/ { next }
+  {
+    if (!ignored && match($0, /fn +[a-z_0-9]+/)) {
+      name = substr($0, RSTART, RLENGTH)
+      sub(/^fn +/, "", name)
+      print name
+    }
+    pending = 0
+  }') )
 
 echo "Detected new tests: ${NEW_TESTS[@]}"
 
