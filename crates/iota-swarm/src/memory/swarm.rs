@@ -68,6 +68,7 @@ pub struct SwarmBuilder<R = UnwrapErr<SysRng>> {
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
     validator_policy_config: Option<PolicyConfig>,
+    fullnode_num_epochs_to_retain_for_indexes: Option<u64>,
     fullnode_policy_config: Option<PolicyConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
@@ -107,6 +108,7 @@ impl SwarmBuilder {
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
             validator_policy_config: None,
+            fullnode_num_epochs_to_retain_for_indexes: None,
             fullnode_policy_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -148,6 +150,8 @@ impl<R> SwarmBuilder<R> {
             data_ingestion_dir: self.data_ingestion_dir,
             fullnode_run_with_range: self.fullnode_run_with_range,
             validator_policy_config: self.validator_policy_config,
+            fullnode_num_epochs_to_retain_for_indexes: self
+                .fullnode_num_epochs_to_retain_for_indexes,
             fullnode_policy_config: self.fullnode_policy_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
@@ -345,6 +349,11 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_data_ingestion_dir(mut self, path: PathBuf) -> Self {
         self.data_ingestion_dir = Some(path);
+        self
+    }
+
+    pub fn with_fullnode_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.fullnode_num_epochs_to_retain_for_indexes = epochs;
         self
     }
 
@@ -590,6 +599,7 @@ impl<R: rand::CryptoRng> SwarmBuilder<R> {
         let mut fullnode_config_builder = FullnodeConfigBuilder::new()
             .with_config_directory(dir.as_ref().into())
             .with_run_with_range(self.fullnode_run_with_range)
+            .with_num_epochs_to_retain_for_indexes(self.fullnode_num_epochs_to_retain_for_indexes)
             .with_policy_config(self.fullnode_policy_config)
             .with_data_ingestion_dir(ingest_data)
             .with_disable_pruning(self.disable_fullnode_pruning)

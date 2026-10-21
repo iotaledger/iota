@@ -670,7 +670,7 @@ impl DataReader for ReadApi {
 pub trait PagedFn<O, C, F, E>: Sized + Fn(Option<C>) -> F
 where
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
     /// Get all items from the source and collect them into a vector.
@@ -691,7 +691,7 @@ impl<O, C, F, E, Fun> PagedFn<O, C, F, E> for Fun
 where
     Fun: Fn(Option<C>) -> F,
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
 }
@@ -701,9 +701,11 @@ where
 pub struct PagedStream<O, C, F, E, Fun> {
     fun: Fun,
     fut: Pin<Box<F>>,
+    /// The cursor `fut` requested its page with.
+    cursor: Option<C>,
     next: VecDeque<O>,
     has_next_page: bool,
-    _data: PhantomData<(E, C)>,
+    _data: PhantomData<E>,
 }
 
 impl<O, C, F, E, Fun> PagedStream<O, C, F, E, Fun>
@@ -715,6 +717,7 @@ where
         Self {
             fun,
             fut: Box::pin(fut),
+            cursor: None,
             next: Default::default(),
             has_next_page: true,
             _data: PhantomData,
@@ -725,7 +728,7 @@ where
 impl<O, C, F, E, Fun> futures::Stream for PagedStream<O, C, F, E, Fun>
 where
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
     Fun: Fn(Option<C>) -> F,
 {
@@ -736,14 +739,23 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let this = unsafe { self.get_unchecked_mut() };
-        if this.next.is_empty() && this.has_next_page {
+        // A `while`, not an `if`: a page can be empty while more pages
+        // exist (e.g. every entry of it was filtered out server-side).
+        while this.next.is_empty() && this.has_next_page {
             match this.fut.as_mut().poll(cx) {
                 Poll::Ready(res) => match res {
-                    Ok(mut page) => {
+                    Ok(page) => {
+                        // An empty page that leaves the cursor where it was
+                        // would be requested again forever.
+                        let stuck = page.data.is_empty() && page.next_cursor == this.cursor;
                         this.next.extend(page.data);
-                        this.has_next_page = page.has_next_page;
+                        // Without a cursor the next request would restart
+                        // the stream from the first page.
+                        this.has_next_page =
+                            page.has_next_page && page.next_cursor.is_some() && !stuck;
                         if this.has_next_page {
-                            this.fut.set((this.fun)(page.next_cursor.take()));
+                            this.cursor = page.next_cursor.clone();
+                            this.fut.set((this.fun)(page.next_cursor));
                         }
                     }
                     Err(e) => {
@@ -810,5 +822,52 @@ mod test {
         let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)).await);
 
         assert!(bad_stream.try_next().await.is_err());
+    }
+
+    /// A page announcing a successor without a cursor ends the stream: the
+    /// same request would otherwise be re-issued forever.
+    #[tokio::test]
+    async fn test_a_page_without_a_cursor_ends_the_stream() {
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let stream = PagedFn::stream(async |_cursor: Option<usize>| {
+            anyhow::ensure!(
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0,
+                "the stream restarted from the first page"
+            );
+            Ok(Page {
+                data: vec![1, 2],
+                next_cursor: None,
+                has_next_page: true,
+            })
+        });
+
+        assert_eq!(stream.try_collect::<Vec<_>>().await.unwrap(), vec![1, 2]);
+    }
+
+    /// An empty page that announces a successor at the cursor it was
+    /// requested with ends the stream instead of being requested again.
+    #[tokio::test]
+    async fn test_an_empty_page_that_does_not_move_the_cursor_ends_the_stream() {
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let stream = PagedFn::stream(async |cursor: Option<usize>| {
+            anyhow::ensure!(
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 3,
+                "the same page was requested again"
+            );
+            Ok(match cursor {
+                None => Page {
+                    data: vec![1, 2],
+                    next_cursor: Some(2),
+                    has_next_page: true,
+                },
+                Some(cursor) => Page {
+                    data: vec![],
+                    next_cursor: Some(cursor),
+                    has_next_page: true,
+                },
+            })
+        });
+
+        assert_eq!(stream.try_collect::<Vec<_>>().await.unwrap(), vec![1, 2]);
     }
 }

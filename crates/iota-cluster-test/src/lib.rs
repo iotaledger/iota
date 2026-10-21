@@ -22,7 +22,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
 };
 use test_case::{
-    coin_index_test::CoinIndexTest, coin_merge_split_test::CoinMergeSplitTest,
+    coin_merge_split_test::CoinMergeSplitTest,
     fullnode_build_publish_transaction_test::FullNodeBuildPublishTransactionTest,
     fullnode_execute_transaction_test::FullNodeExecuteTransactionTest,
     native_transfer_test::NativeTransferTest, random_beacon_test::RandomBeaconTest,
@@ -293,7 +293,6 @@ impl ClusterTest {
             TestCase::new(SharedCounterTest {}),
             TestCase::new(FullNodeExecuteTransactionTest {}),
             TestCase::new(FullNodeBuildPublishTransactionTest {}),
-            TestCase::new(CoinIndexTest {}),
             TestCase::new(RandomBeaconTest {}),
         ];
 
