@@ -43,8 +43,8 @@ pub struct PoseidonBN254CostParams {
 /// `poseidon::poseidon_bn254_internal(data: &vector<vector<u8>>): vector<u8>
 ///   gas cost: poseidon_bn254_cost_base                           | base cost
 /// for function call and fixed opers
-///              + poseidon_bn254_data_cost_per_block * num_inputs | cost
-///                depends on number of inputs
+///              + poseidon_bn254_data_cost_per_block * num_inputs | cost depends on number of
+///                inputs
 /// ****************************************************************************
 /// *******************
 pub fn poseidon_bn254_internal(

@@ -225,14 +225,14 @@ impl TryFrom<StoredBalance> for Balance {
 /// The consistent set of objects at `checkpoint_viewed_at` is the union of two
 /// disjoint sources:
 ///
-/// * Source A — `checkpointed_objects` rows for objects that have not changed
-///   since `checkpoint_viewed_at` (no `objects_backward_history` entry with
-///   `superseded_at_checkpoint > checkpoint_viewed_at`).
-/// * Source B — `objects_backward_history` rows for the version of each object
-///   current at `checkpoint_viewed_at`: the earliest version whose
-///   `superseded_at_checkpoint > checkpoint_viewed_at`. Synthetic rows
-///   (`NotYetCreated`, `WrappedOrDeleted`) drop out automatically — they carry
-///   NULL `owner_id`/`coin_type`, so the owner+coin filter excludes them.
+/// * Source A — `checkpointed_objects` rows for objects that have not changed since
+///   `checkpoint_viewed_at` (no `objects_backward_history` entry with `superseded_at_checkpoint >
+///   checkpoint_viewed_at`).
+/// * Source B — `objects_backward_history` rows for the version of each object current at
+///   `checkpoint_viewed_at`: the earliest version whose `superseded_at_checkpoint >
+///   checkpoint_viewed_at`. Synthetic rows (`NotYetCreated`, `WrappedOrDeleted`) drop out
+///   automatically — they carry NULL `owner_id`/`coin_type`, so the owner+coin filter excludes
+///   them.
 ///
 /// Each object can match at most one source: A only returns objects that
 /// did not change after `checkpoint_viewed_at`, while B only returns objects

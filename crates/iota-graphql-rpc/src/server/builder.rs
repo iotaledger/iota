@@ -1232,6 +1232,7 @@ pub mod tests {
         );
         server_builder.build_schema();
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), reqwest::StatusCode::OK);
 

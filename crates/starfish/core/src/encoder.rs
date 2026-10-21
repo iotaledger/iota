@@ -153,7 +153,7 @@ pub(crate) fn create_encoder_for_committee(
 
 #[cfg(test)]
 mod tests {
-    use rand::{prelude::SliceRandom, thread_rng};
+    use rand::{prelude::SliceRandom, rng};
 
     use super::*;
     use crate::{Transaction, context::Context, decoder::create_decoder};
@@ -252,7 +252,7 @@ mod tests {
                     }
 
                     // randomly drop up to parity_length shards
-                    let mut rng = thread_rng();
+                    let mut rng = rng();
                     let mut shards_collection: Vec<Option<Shard>> =
                         shards.into_iter().map(Some).collect();
 

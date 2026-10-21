@@ -136,8 +136,7 @@ async fn fallback() -> impl IntoResponse {
 ///   - `method`: The HTTP method of the request.
 ///   - `route`: The matched route template (falling back to the raw URI path).
 ///   - `uri`: The concrete request path data.
-///   - `error`: Starts empty and is recorded by [`ApiError::into_response`]
-///     when the request fails.
+///   - `error`: Starts empty and is recorded by [`ApiError::into_response`] when the request fails.
 /// - Otherwise, a lighter span is created containing only `uri` and `error`.
 fn make_request_span(request: &Request) -> Span {
     if tracing::span_enabled!(Level::DEBUG) {
@@ -258,8 +257,8 @@ mod tests {
     // Returns test cases for each item type, including:
     /// - The item type itself.
     /// - A well-formed encoded key for its routes.
-    /// - The expected error message if the key's decoded bytes cannot be parsed
-    ///   as that item type's key.
+    /// - The expected error message if the key's decoded bytes cannot be parsed as that item type's
+    ///   key.
     fn item_type_cases() -> [(ItemType, String, &'static str); 7] {
         let digest_key = encode_digest(&TransactionDigest::random());
         let tagged_key = encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(1));
@@ -308,8 +307,7 @@ mod tests {
     /// route.
     ///
     /// - Keys that are not valid base64url.
-    /// - Keys whose decoded bytes cannot be parsed as the key the item type
-    ///   expects.
+    /// - Keys whose decoded bytes cannot be parsed as the key the item type expects.
     /// - `before_version` misuse.
     async fn assert_item_type_route_rejections(
         item_type: ItemType,
@@ -372,8 +370,7 @@ mod tests {
     /// - An empty key list.
     /// - More keys than the configured maximum.
     /// - Keys that are not valid base64url.
-    /// - Keys whose decoded bytes cannot be parsed as the key the item type
-    ///   expects.
+    /// - Keys whose decoded bytes cannot be parsed as the key the item type expects.
     /// - `before_version` misuse.
     async fn assert_multiget_route_rejections(
         item_type: ItemType,

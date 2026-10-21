@@ -13,6 +13,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_move_types::iota_framework::vec_map::VecMap;
 use iota_sdk_types::{
     Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag, Transaction,
     TransactionDigest, TypeTag,
@@ -20,7 +21,6 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    collection_types::VecMap,
     crypto::deterministic_random_account_private_key,
     dynamic_field::DynamicFieldName,
     id::UID,

@@ -252,10 +252,9 @@ fn create_category_file(prefix: &str) {
 
 /// Post process the generated docs so that they are in a format that can be
 /// consumed by docusaurus.
-/// * Flatten out the tree-like structure of the docs directory that we generate
-///   for a package into a flat list of packages;
-/// * Deduplicate packages (since multiple packages could share dependencies);
-///   and
+/// * Flatten out the tree-like structure of the docs directory that we generate for a package into
+///   a flat list of packages;
+/// * Deduplicate packages (since multiple packages could share dependencies); and
 /// * Replace html tags and use Docusaurus components where needed.
 fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, String>) {
     // Turn on multi-line mode so that `.` matches newlines, consume from the start

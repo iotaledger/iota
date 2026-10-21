@@ -1,41 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::bag::Bag;
 use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{balance::Balance, collection_types::Bag, error::IotaError, id::UID, object::Object};
+use crate::{balance::Balance, error::IotaError, id::UID, object::Object};
 
 pub const ALIAS_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("alias_output");
 pub const ALIAS_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("AliasOutput");
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"alias";
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
-
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct Alias {
-    /// The ID of the Alias = hash of the Output ID that created the Alias
-    /// Output in Stardust. This is the AliasID from Stardust.
-    pub id: UID,
-
-    /// The last State Controller address assigned before the migration.
-    pub legacy_state_controller: Address,
-    /// A counter increased by 1 every time the alias was state transitioned.
-    pub state_index: u32,
-    /// State metadata that can be used to store additional information.
-    pub state_metadata: Option<Vec<u8>>,
-
-    /// The sender feature.
-    pub sender: Option<Address>,
-    /// The metadata feature.
-    pub metadata: Option<Vec<u8>>,
-
-    /// The immutable issuer feature.
-    pub immutable_issuer: Option<Address>,
-    /// The immutable metadata feature.
-    pub immutable_metadata: Option<Vec<u8>>,
-}
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]

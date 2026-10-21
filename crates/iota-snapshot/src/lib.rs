@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Writing, uploading and restoring state snapshots, also called formal
+//! snapshots: the live object set as an epoch ended, published as files to an
+//! object store.
+
 #![allow(dead_code)]
 
 #[cfg(test)]
@@ -82,20 +86,17 @@ use crate::{
 /// directory.
 ///
 /// Snapshot-format V2 additions over V1:
-/// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails
-///   fast on a V1 magic and vice versa. Encoded records are BCS-serialized
-///   `SnapshotLiveObject` carrying the per-object
-///   `previous_transaction_checkpoint` inline. The writer rejects rows whose
-///   checkpoint is `None` (lifted from pre-V2 store rows) at the publish
-///   boundary, so any record present in a published `.obj` file carries a
-///   concrete checkpoint sequence number.
+/// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails fast on a V1 magic
+///   and vice versa. Encoded records are BCS-serialized `SnapshotLiveObject` carrying the
+///   per-object `previous_transaction_checkpoint` inline. The writer rejects rows whose checkpoint
+///   is `None` (lifted from pre-V2 store rows) at the publish boundary, so any record present in a
+///   published `.obj` file carries a concrete checkpoint sequence number.
 /// - REFERENCE file format is unchanged from V1.
-/// - A per-snapshot `EPOCH_INFO` file carries one [`EpochInfoV1Entry`] per
-///   epoch in `[0, snapshot_epoch]` from the CheckpointStore's `epoch_info`
-///   table. The writer refuses to publish unless that table's completeness
-///   watermark covers `snapshot_epoch`.
-/// - `MANIFEST` is now [`ManifestV2`], adding a `chain_id` field so a restore
-///   can reject a foreign-chain snapshot.
+/// - A per-snapshot `EPOCH_INFO` file carries one [`EpochInfoV1Entry`] per epoch in `[0,
+///   snapshot_epoch]` from the CheckpointStore's `epoch_info` table. The writer refuses to publish
+///   unless that table's completeness watermark covers `snapshot_epoch`.
+/// - `MANIFEST` is now [`ManifestV2`], adding a `chain_id` field so a restore can reject a
+///   foreign-chain snapshot.
 ///
 /// State Snapshot Directory Layout
 ///  - snapshot/

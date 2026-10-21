@@ -4,15 +4,24 @@
 // TransactionDenyRulesUpdate transactions apply add/remove deltas that
 // accumulate in the TransactionDenyRules object across updates.
 
+// Entries created in the same update with the same type are numbered in object
+// id order, which changes with every protocol version. Such entries must be
+// treated the same way by every later update, so the snapshot does not depend
+// on that order.
+
 //# init --simulator --deny-rule-governance true
 
 //# advance-epoch --create-deny-rules-object
 
-// First delta: two addresses, one object, two packages.
+// First delta: the entries that survive until the end.
 
-//# update-deny-rules --added-addresses 0xAA,0xBB --added-objects 0x1A --added-packages 0x2B,0x2C
+//# update-deny-rules --added-addresses 0xBB --added-packages 0x2C
 
-// Second delta: remove one address, the object and one package, add a new
+// Second delta: one address, one object and one package.
+
+//# update-deny-rules --added-addresses 0xAA --added-objects 0x1A --added-packages 0x2B
+
+// Third delta: remove everything the second delta added and add a new
 // address.
 
 //# update-deny-rules --added-addresses 0xCC --removed-addresses 0xAA --removed-objects 0x1A --removed-packages 0x2B
@@ -26,6 +35,6 @@
 
 //# view-object 2,0
 
-// The entry added by the second delta.
+// The entry added by the third delta.
 
-//# view-object 3,0
+//# view-object 4,0

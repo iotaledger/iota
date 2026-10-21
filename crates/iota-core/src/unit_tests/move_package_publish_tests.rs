@@ -528,9 +528,8 @@ async fn test_publish_non_canonical_version_header_before_the_check() {
     );
 }
 
-/// A module using one of the deprecated global storage instructions passes the
-/// Move verifier, so the transaction is signed and executed; it is the IOTA
-/// verifier that rejects it, during execution.
+/// A module using one of the deprecated global storage instructions is rejected
+/// at signing, so it is never certified or executed.
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_deprecated_bytes_modules() {
@@ -646,20 +645,18 @@ async fn test_publish_deprecated_bytes_modules() {
         rgp,
     );
     let transaction = to_sender_signed_transaction(tx, &sender_key);
-    let result = send_and_confirm_transaction(&authority, transaction)
+    let error = send_and_confirm_transaction(&authority, transaction)
         .await
-        .unwrap()
-        .1;
-    // Raised at execution by `global_storage_access_verifier::verify_module` in
-    // `iota-execution/latest/iota-verifier`, which rejects every deprecated
-    // global storage instruction.
-    assert_eq!(
-        result.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionError::IotaMoveVerificationError,
-            command: Some(0)
-        }
-    )
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::PackageVerificationTimedout { .. }
+            }
+        ),
+        "{error:?}"
+    );
 }
 
 #[tokio::test]

@@ -5,8 +5,7 @@
 //! A tool to semi automate fire drills. It still requires some manual work
 //! today. For example,
 //! 1. update iptables for new tpc/udp ports
-//! 2. restart the node in a new epoch when config file will be reloaded and
-//!    take effects
+//! 2. restart the node in a new epoch when config file will be reloaded and take effects
 //!
 //! Example usage:
 //! iota-tool fire-drill metadata-rotation \

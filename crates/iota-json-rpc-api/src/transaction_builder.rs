@@ -102,11 +102,10 @@ pub trait TransactionBuilder {
     /// Specifically, what pay_iota does are:
     /// 1. debit each input_coin to create new coin following the order of
     /// amounts and assign it to the corresponding recipient.
-    /// 2. accumulate all residual IOTA from input coins left and deposit all IOTA
-    ///    to the first
+    /// 2. accumulate all residual IOTA from input coins left and deposit all IOTA to the first
     /// input coin, then use the first input coin as the gas coin object.
-    /// 3. the balance of the first input coin after tx is sum(input_coins) -
-    ///    sum(amounts) - actual_gas_cost
+    /// 3. the balance of the first input coin after tx is sum(input_coins) - sum(amounts) -
+    ///    actual_gas_cost
     /// 4. all other input coints other than the first one are deleted.
     #[rustfmt::skip]
     #[method(name = "payIota")]
@@ -132,12 +131,10 @@ pub trait TransactionBuilder {
     /// Send all IOTA coins to one recipient.
     /// This is for IOTA coin only and does not require a separate gas coin object.
     /// Specifically, what pay_all_iota does are:
-    /// 1. accumulate all IOTA from input coins and deposit all IOTA to the first
-    ///    input coin
-    /// 2. transfer the updated first coin to the recipient and also use this first
-    ///    coin as gas coin object.
-    /// 3. the balance of the first input coin after tx is sum(input_coins) -
-    ///    actual_gas_cost.
+    /// 1. accumulate all IOTA from input coins and deposit all IOTA to the first input coin
+    /// 2. transfer the updated first coin to the recipient and also use this first coin as gas coin
+    ///    object.
+    /// 3. the balance of the first input coin after tx is sum(input_coins) - actual_gas_cost.
     /// 4. all other input coins other than the first are deleted.
     #[rustfmt::skip]
     #[method(name = "payAllIota")]

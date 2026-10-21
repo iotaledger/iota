@@ -59,10 +59,8 @@ pub trait KeyValueStoreReader {
     /// # Pagination
     /// `cursor` is **exclusive**.
     ///
-    /// - [`TransactionsOrder::NewestFirst`]: returns entries with `tx_seq <
-    ///   cursor`.
-    /// - [`TransactionsOrder::OldestFirst`]: returns entries with `tx_seq >
-    ///   cursor`.
+    /// - [`TransactionsOrder::NewestFirst`]: returns entries with `tx_seq < cursor`.
+    /// - [`TransactionsOrder::OldestFirst`]: returns entries with `tx_seq > cursor`.
     ///
     /// When `None`, the scan starts from the beginning of the requested
     /// [`TransactionsOrder`].

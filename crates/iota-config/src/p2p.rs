@@ -102,10 +102,9 @@ pub struct StateSyncConfig {
     /// sequence number.
     ///
     /// This can be used:
-    /// - in case of a fork, to prevent the node from syncing to the wrong
-    ///   chain.
-    /// - in case of a network stall, to force the node to proceed with a
-    ///   manually-injected checkpoint.
+    /// - in case of a fork, to prevent the node from syncing to the wrong chain.
+    /// - in case of a network stall, to force the node to proceed with a manually-injected
+    ///   checkpoint.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
 
@@ -293,13 +292,13 @@ impl StateSyncConfig {
     }
 
     pub fn randomized_for_testing() -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
+        use rand::RngExt;
+        let mut rng = rand::rng();
         let config = Self {
-            mailbox_capacity: Some(rng.gen_range(16..=2048)),
-            synced_checkpoint_broadcast_channel_capacity: Some(rng.gen_range(16..=2048)),
-            checkpoint_header_download_concurrency: Some(rng.gen_range(10..=500)),
-            checkpoint_content_download_concurrency: Some(rng.gen_range(10..=500)),
+            mailbox_capacity: Some(rng.random_range(16..=2048)),
+            synced_checkpoint_broadcast_channel_capacity: Some(rng.random_range(16..=2048)),
+            checkpoint_header_download_concurrency: Some(rng.random_range(10..=500)),
+            checkpoint_content_download_concurrency: Some(rng.random_range(10..=500)),
             ..Default::default()
         };
         tracing::info!(
@@ -316,8 +315,8 @@ impl StateSyncConfig {
 /// Access Type of a node.
 /// AccessType info is shared in the discovery process.
 /// * If the node marks itself as Public, other nodes may try to connect to it.
-/// * If the node marks itself as Private, only nodes that have it in their
-///   `allowlisted_peers` or `seed_peers` will try to connect to it.
+/// * If the node marks itself as Private, only nodes that have it in their `allowlisted_peers` or
+///   `seed_peers` will try to connect to it.
 /// * If not set, defaults to Public.
 ///
 /// AccessType is useful when a network of nodes want to stay private. To

@@ -97,10 +97,10 @@ pub struct Config {
     /// transactions.
     ///
     /// **Performance Trade-offs:**
-    /// - **Higher values**: Reduce database query frequency but increase
-    ///   latency and memory usage per batch
-    /// - **Lower values**: Increase responsiveness but may cause more frequent
-    ///   database queries for small checkpoints
+    /// - **Higher values**: Reduce database query frequency but increase latency and memory usage
+    ///   per batch
+    /// - **Lower values**: Increase responsiveness but may cause more frequent database queries
+    ///   for small checkpoints
     ///
     /// The value of 10 provides a good balance between throughput and latency
     /// for typical checkpoint sizes.
@@ -114,10 +114,10 @@ pub struct Config {
     /// multiple batches of this size to maintain consistent performance.
     ///
     /// **Performance Trade-offs:**
-    /// - **Too small**: May fall behind the indexer commit rate, causing the
-    ///   streaming service to lag behind real-time data ingestion
-    /// - **Too large**: May overwhelm subscribers with large batches, causing
-    ///   them to lag or drop messages due to slow processing
+    /// - **Too small**: May fall behind the indexer commit rate, causing the streaming service to
+    ///   lag behind real-time data ingestion
+    /// - **Too large**: May overwhelm subscribers with large batches, causing them to lag or drop
+    ///   messages due to slow processing
     ///
     /// The value of 50 provides good balance between indexer synchronization
     /// and subscriber responsiveness for typical workloads.
@@ -136,10 +136,8 @@ impl Default for Config {
 
 /// Where to start a recovery stream relative to a known transaction digest.
 ///
-/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then
-///   everything after it.
-/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start
-///   from the next one.
+/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then everything after it.
+/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start from the next one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum RecoveryPoint {
     /// Include the transaction identified by the digest.
@@ -170,8 +168,7 @@ impl RecoveryPoint {
 /// stream recovery after a disconnection.
 ///
 /// The streamer consists of:
-/// - A PostgreSQL connection listening for notifications after every committed
-///   checkpoint.
+/// - A PostgreSQL connection listening for notifications after every committed checkpoint.
 /// - Internal broadcasters that fan-out data to multiple subscribers using a
 ///   [`tokio::sync::broadcast`] channels.
 ///
@@ -212,8 +209,7 @@ impl InMemory {
     /// - establishes a connection to PostgreSQL.
     /// - sets up the notification listener.
     /// - spawns the background task that processes checkpoint notifications.
-    /// - handles automatically reconnecting to PostgreSQL if the connection is
-    ///   lost.
+    /// - handles automatically reconnecting to PostgreSQL if the connection is lost.
     pub async fn new(
         config: Config,
         indexer_reader: IndexerReader,
@@ -299,12 +295,10 @@ impl InMemory {
     ///
     /// The recovery point variant controls whether events of the starting
     /// transaction are included:
-    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are
-    ///   yielded.
-    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are
-    ///   skipped; streaming begins from the next transaction onward. Useful for
-    ///   reconnection, where the client already received that transaction's
-    ///   events in the previous session.
+    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are yielded.
+    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are skipped; streaming
+    ///   begins from the next transaction onward. Useful for reconnection, where the client already
+    ///   received that transaction's events in the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -440,10 +434,9 @@ impl InMemory {
     /// The recovery point variant controls whether the starting transaction
     /// itself is included:
     /// - [`RecoveryPoint::Inclusive`]: the starting transaction is yielded.
-    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction
-    ///   immediately after the one identified by the digest. Useful for
-    ///   reconnection, where the client already received that transaction in
-    ///   the previous session.
+    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction immediately after the
+    ///   one identified by the digest. Useful for reconnection, where the client already received
+    ///   that transaction in the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -564,14 +557,11 @@ impl InMemory {
 
     /// Listens for database notifications and processes them.
     ///
-    /// - resolves from received notifications the transaction sequence number
-    ///   bounds.
-    /// - splits the transaction sequence number bounds into batches if
-    ///   exceeded.
-    /// - fetches the transactions within the batch bounds and sends them to
-    ///   subscribers alongside extracted events.
-    /// - leverages exponential backoff retries for transient errors when
-    ///   processing notifications.
+    /// - resolves from received notifications the transaction sequence number bounds.
+    /// - splits the transaction sequence number bounds into batches if exceeded.
+    /// - fetches the transactions within the batch bounds and sends them to subscribers alongside
+    ///   extracted events.
+    /// - leverages exponential backoff retries for transient errors when processing notifications.
     async fn process_checkpoint_notifications(
         metrics: &InMemoryStreamMetrics,
         config: &Config,

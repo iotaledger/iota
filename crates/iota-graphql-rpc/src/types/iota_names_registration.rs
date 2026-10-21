@@ -10,8 +10,9 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
+use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, StructTag};
-use iota_types::{dynamic_field::Field, id::UID};
+use iota_types::id::UID;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -209,10 +210,10 @@ impl NameRegistration {
 
     /// The current status of the object as read from the off-chain store. The
     /// possible states are:
-    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
-    ///   contents of a genesis or system package upgrade transaction.
-    /// - INDEXED: The object is retrieved from the off-chain index and
-    ///   represents the most recent or historical state of the object.
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the contents of a genesis
+    ///   or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and represents the most recent
+    ///   or historical state of the object.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }

@@ -22,11 +22,10 @@ use lru::LruCache;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
 use rand::prelude::SliceRandom;
-use rand::{SeedableRng, prelude::StdRng};
+use rand::prelude::StdRng;
 use starfish_config::AuthorityIndex;
 use tap::TapFallible;
 use tokio::{
-    runtime::Handle,
     sync::{mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
@@ -53,6 +52,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
+    task::spawn_blocking,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -64,7 +64,7 @@ const FETCH_BLOCK_HEADERS_CONCURRENCY: usize = 5;
 const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
 
 /// The timeout for periodic synchronizer to fetch blocks from the peers.
-const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
+pub(crate) const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 
 /// The maximum number of authorities from which we will try to periodically
 /// fetch block header at the same moment. The guard will protect that we will
@@ -206,10 +206,10 @@ impl InflightBlockHeadersMap {
     /// fetched.
     ///
     /// Different limits apply based on the sync method:
-    /// - Periodic sync: Can lock if total authorities <
-    ///   MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER (3)
-    /// - Live sync: Can lock if total authorities <
-    ///   MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK_HEADER (1)
+    /// - Periodic sync: Can lock if total authorities < MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER
+    ///   (3)
+    /// - Live sync: Can lock if total authorities < MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK_HEADER
+    ///   (1)
     fn lock_headers(
         self: &Arc<Self>,
         missing_block_refs: BTreeSet<BlockRef>,
@@ -375,21 +375,19 @@ impl HeaderSynchronizerHandle {
 /// processed. `Synchronizer` aims for swift catch-up employing two
 /// mechanisms:
 ///
-/// 1. Explicitly requesting missing headers from designated authorities via the
-///    bundle streaming path. This includes attempting to fetch any missing
-///    ancestors necessary for processing a received bundle of block and
-///    headers. Such requests prioritize the block author, maximizing the chance
-///    of prompt retrieval. A locking mechanism allows concurrent requests for
-///    missing blocks from up to three authorities simultaneously, enhancing the
-///    chances of timely retrieval. Notably, if additional missing blocks arise
-///    during block processing, requests are deferred to the scheduler.
+/// 1. Explicitly requesting missing headers from designated authorities via the bundle streaming
+///    path. This includes attempting to fetch any missing ancestors necessary for processing a
+///    received bundle of block and headers. Such requests prioritize the block author, maximizing
+///    the chance of prompt retrieval. A locking mechanism allows concurrent requests for missing
+///    blocks from up to three authorities simultaneously, enhancing the chances of timely
+///    retrieval. Notably, if additional missing blocks arise during block processing, requests are
+///    deferred to the scheduler.
 ///
-/// 2. Periodically requesting missing block headers via a scheduler. This
-///    primarily serves to retrieve missing headers that were not ancestors of a
-///    received block bundle via the bundle streaming path. The scheduler
-///    operates on either a fixed periodic basis or is triggered immediately
-///    after explicit fetches described in (1), ensuring continued block
-///    retrieval if gaps persist.
+/// 2. Periodically requesting missing block headers via a scheduler. This primarily serves to
+///    retrieve missing headers that were not ancestors of a received block bundle via the bundle
+///    streaming path. The scheduler operates on either a fixed periodic basis or is triggered
+///    immediately after explicit fetches described in (1), ensuring continued block retrieval if
+///    gaps persist.
 ///
 /// Additionally to the above, the synchronizer can synchronize and fetch the
 /// last own proposed header from the network peers as best effort approach to
@@ -804,27 +802,25 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         // Verify all the fetched block headers
         let verify_start = Instant::now();
-        let block_headers = Handle::current()
-            .spawn_blocking({
-                let block_verifier = block_verifier.clone();
-                let verified_cache = verified_cache.clone();
-                let context = context.clone();
-                let sync_method = sync_method.to_string();
-                let misbehavior_store = misbehavior_store.clone();
-                move || {
-                    Self::verify_block_headers(
-                        serialized_headers,
-                        block_verifier,
-                        verified_cache,
-                        &context,
-                        peer_index,
-                        &sync_method,
-                        &misbehavior_store,
-                    )
-                }
-            })
-            .await
-            .expect("Spawn blocking should not fail");
+        let block_headers = spawn_blocking({
+            let block_verifier = block_verifier.clone();
+            let verified_cache = verified_cache.clone();
+            let context = context.clone();
+            let sync_method = sync_method.to_string();
+            let misbehavior_store = misbehavior_store.clone();
+            move || {
+                Self::verify_block_headers(
+                    serialized_headers,
+                    block_verifier,
+                    verified_cache,
+                    &context,
+                    peer_index,
+                    &sync_method,
+                    &misbehavior_store,
+                )
+            }
+        })
+        .await?;
         // Fetch and verification both count against the peer, matching the
         // commit syncer.
         let elapsed = fetched.elapsed + verify_start.elapsed();
@@ -1629,7 +1625,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are
         // aware of some missing block headers
 
-        let mut rng = StdRng::from_entropy();
+        let mut rng: StdRng = rand::make_rng();
         let rank_peers = |candidates: &mut Vec<AuthorityIndex>, rng: &mut StdRng| {
             if context.parameters.enable_peer_responsiveness_ranking {
                 context.peer_responsiveness.prioritize(
@@ -3586,8 +3582,7 @@ mod tests {
                     .await;
             }
 
-            // 4) Invoke knowledge-based fetch and random fallback selection
-            //    deterministically
+            // 4) Invoke knowledge-based fetch and random fallback selection deterministically
             let results = HeaderSynchronizer::<
                 MockNetworkClient,
                 NoopBlockVerifier,
@@ -3604,8 +3599,8 @@ mod tests {
 
             // 5) With MAX_PERIODIC_SYNC_PEERS=4 and MAX_PERIODIC_SYNC_RANDOM_PEERS=2:
             // - 2 known peers are selected first: 2 and 3
-            // - 2 random peers chosen: 1 and 4, but only peer 1 gets a chunk (all refs fit
-            //   in one chunk), so peer 4 has nothing to request
+            // - 2 random peers chosen: 1 and 4, but only peer 1 gets a chunk (all refs fit in one
+            //   chunk), so peer 4 has nothing to request
             assert_eq!(results.len(), 3);
 
             // 6) Results in order: peers 2 and 3 (known), then peer 1 (random)
@@ -3909,8 +3904,8 @@ mod tests {
         )
         .await;
 
-        // 6) Assert we got 4 fetches: peer 2 (timed out) and fallback to 5 (first of
-        //    the remaining peers), peer 3, and from 'random' 1 and 4
+        // 6) Assert we got 4 fetches: peer 2 (timed out) and fallback to 5 (first of the remaining
+        //    peers), peer 3, and from 'random' 1 and 4
         assert_eq!(results.len(), 4, "Expected 2 known + 2 random fetches");
 
         // 7) First fetch from peer 3 (knowledge-based)

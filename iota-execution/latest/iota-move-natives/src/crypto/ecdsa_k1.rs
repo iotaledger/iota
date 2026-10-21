@@ -23,7 +23,7 @@ use move_vm_types::{
     pop_arg,
     values::{self, Value, VectorRef},
 };
-use rand::{SeedableRng, rngs::StdRng};
+use rand08::{SeedableRng, rngs::StdRng};
 use smallvec::smallvec;
 
 use crate::NativesCostTable;
@@ -71,10 +71,10 @@ pub struct EcdsaK1EcrecoverCostParams {
 /// `keccak256` cost constants, otherwise we use the `sha256` cost constants.
 ///   gas cost: ecdsa_k1_ecrecover_cost_base                    | covers various
 /// fixed costs in the oper
-///              + ecdsa_k1_ecrecover_msg_cost_per_byte    * size_of(msg) |
-///                covers cost of operating on each byte of `msg`
-///              + ecdsa_k1_ecrecover_msg_cost_per_block   * num_blocks(msg) |
-///                covers cost of operating on each block in `msg`
+///              + ecdsa_k1_ecrecover_msg_cost_per_byte    * size_of(msg) | covers cost of operating
+///                on each byte of `msg`
+///              + ecdsa_k1_ecrecover_msg_cost_per_block   * num_blocks(msg) | covers cost of
+///                operating on each block in `msg`
 /// Note: each block is of size `KECCAK256_BLOCK_SIZE` bytes for `keccak256` and
 /// `SHA256_BLOCK_SIZE` for `sha256`, and we round up.       `signature` is
 /// fixed size, so the cost is included in the base cost. **********************
@@ -228,11 +228,10 @@ pub struct EcdsaK1Secp256k1VerifyCostParams {
 /// hash = 0, we use the `keccak256` cost constants, otherwise we use the
 /// `sha256` cost constants.   gas cost: ecdsa_k1_secp256k1_verify_cost_base
 /// | covers various fixed costs in the oper
-///              + ecdsa_k1_secp256k1_verify_msg_cost_per_byte    * size_of(msg)
-///                | covers cost of operating on each byte of `msg`
-///              + ecdsa_k1_secp256k1_verify_msg_cost_per_block   *
-///                num_blocks(msg)     | covers cost of operating on each block
-///                in `msg`
+///              + ecdsa_k1_secp256k1_verify_msg_cost_per_byte    * size_of(msg) | covers cost of
+///                operating on each byte of `msg`
+///              + ecdsa_k1_secp256k1_verify_msg_cost_per_block   * num_blocks(msg)     | covers
+///                cost of operating on each block in `msg`
 /// Note: each block is of size `KECCAK256_BLOCK_SIZE` bytes for `keccak256` and
 /// `SHA256_BLOCK_SIZE` for `sha256`, and we round up.       `signature` and
 /// `public_key` are fixed size, so their costs are included in the base cost.

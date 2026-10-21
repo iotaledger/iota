@@ -113,8 +113,8 @@ impl PersistedNetworkConfig {
     /// # Errors
     ///
     /// - The file is missing or unreadable.
-    /// - It was written in a format version this build does not read, which
-    ///   includes every file written before the version field existed.
+    /// - It was written in a format version this build does not read, which includes every file
+    ///   written before the version field existed.
     pub fn read(config_directory: &Path) -> Result<Self> {
         let path = config_directory.join(IOTA_NETWORK_CONFIG);
         let contents = std::fs::read_to_string(&path)

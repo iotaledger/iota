@@ -205,10 +205,9 @@ impl ValidatorService {
 
         let _metrics_guard = metrics.start_timer();
 
-        // 1) Check if the certificate is already executed. This is only needed when we
-        //    have only one certificate (not a soft bundle). When multiple certificates
-        //    are provided, we will either submit all of them or none of them to
-        //    consensus.
+        // 1) Check if the certificate is already executed. This is only needed when we have only
+        //    one certificate (not a soft bundle). When multiple certificates are provided, we will
+        //    either submit all of them or none of them to consensus.
         if certificates.len() == 1 {
             let tx_digest = *certificates[0].digest();
 
@@ -366,8 +365,7 @@ impl ValidatorService {
             return Ok((None, Weight::zero()));
         }
 
-        // 4) Execute the certificates immediately if they contain only owned object
-        //    transactions,
+        // 4) Execute the certificates immediately if they contain only owned object transactions,
         // or wait for the execution results if it contains shared objects.
         let responses = futures::future::try_join_all(verified_certificates.into_iter().map(
             |certificate| async move {

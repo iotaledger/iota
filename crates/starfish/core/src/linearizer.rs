@@ -935,8 +935,8 @@ mod tests {
                 // * 1 block on round 4, the leader block
                 // * 3 blocks on round 3, as no commit happened on round 3 since the leader was
                 //   missing
-                // * 2 blocks on round 2, again as no commit happened on round 3, we commit the
-                //   "sub dag" of leader of round 3, which will be another 2 blocks
+                // * 2 blocks on round 2, again as no commit happened on round 3, we commit the "sub
+                //   dag" of leader of round 3, which will be another 2 blocks
                 assert_eq!(subdag.headers.len(), 6);
 
                 // We commit transactions from:
