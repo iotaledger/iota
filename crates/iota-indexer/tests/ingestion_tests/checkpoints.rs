@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_indexer::{
     errors::{Context, IndexerError},
@@ -9,8 +11,9 @@ use iota_indexer::{
         self, Basic, CombinedEventFilters, FilteredQueries, ObjectsHistory,
     },
     models::checkpoints::StoredCheckpoint,
+    pruning::CommitterTables,
     schema::{checkpoints, epochs},
-    store::PgIndexerStore,
+    store::{PgIndexerStore, indexer_store::IndexerStore},
 };
 use rstest::rstest;
 
@@ -36,6 +39,16 @@ pub async fn test_epochs(
 ) -> Result<(), IndexerError> {
     Epochs(CheckpointsAtEpochBoundary)
         .run(level, "ingestion_epochs")
+        .await
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn watermarks_table(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
+    WatermarksTable
+        .run(level, "ingestion_watermarks_table")
         .await
 }
 
@@ -109,5 +122,73 @@ impl IngestionTest for Epochs {
             "epoch 0 should have a last_checkpoint_id"
         );
         Ok(())
+    }
+}
+
+struct WatermarksTable;
+
+impl IngestionTest for WatermarksTable {
+    /// The level of the indexer.
+    type ExpectedState = OperationalLevel;
+
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState) {
+        let sim = TestSim::new(level, database_name);
+        sim.execute_transfer();
+        sim.inner.create_checkpoint(); // checkpoint 1
+
+        let pg_store = sim.start_indexer(None).await;
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+        (pg_store, level)
+    }
+
+    async fn assert_ingested(
+        &self,
+        pg_store: &PgIndexerStore,
+        level: Self::ExpectedState,
+    ) -> Result<(), IndexerError> {
+        let (watermarks, _) = pg_store.get_watermarks().await?;
+        let max_committed_cps = watermarks
+            .into_iter()
+            .map(|watermark| (watermark.entity, watermark.max_committed_cp))
+            .collect::<HashMap<_, _>>();
+
+        assert_watermarks(&max_committed_cps, CommitterTables::basic(), true);
+        assert_watermarks(
+            &max_committed_cps,
+            CommitterTables::objects_history(),
+            level.includes(ObjectsHistory),
+        );
+        assert_watermarks(
+            &max_committed_cps,
+            CommitterTables::filtered_queries(),
+            level.includes(FilteredQueries),
+        );
+        assert_watermarks(
+            &max_committed_cps,
+            CommitterTables::combined_event_filters(),
+            level.includes(CombinedEventFilters),
+        );
+        Ok(())
+    }
+}
+
+/// Asserts that the `max_committed_cp` of each table is above 0 if `ingested`
+/// is `true`, or that it is absent or 0 if it is `false`.
+fn assert_watermarks(
+    max_committed_cps: &HashMap<String, i64>,
+    tables: impl IntoIterator<Item = CommitterTables>,
+    ingested: bool,
+) {
+    for table in tables {
+        let max_committed_cp = max_committed_cps.get(table.as_ref()).copied().unwrap_or(0);
+        if ingested {
+            assert!(max_committed_cp > 0, "{table} has no watermark");
+        } else {
+            assert_eq!(max_committed_cp, 0, "{table} has a watermark");
+        }
     }
 }
