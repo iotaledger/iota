@@ -7,7 +7,7 @@
 //! blocklist is, until its block expires.
 
 use std::{
-    net::IpAddr,
+    net::{IpAddr, Ipv6Addr},
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -85,9 +85,12 @@ enum Access {
     /// that `check` can binary-search it.
     Allowlist(Vec<IpAddr>),
     /// Every client on the blocklists is refused until its block expires. The
-    /// background task that drops expired blocks stops on `shutdown`.
+    /// blocklists hold each client as [`client_prefix`] gives it, cut with
+    /// `ipv6_prefix_len`. The background task that drops expired blocks stops
+    /// on `shutdown`.
     Blocklist {
         blocklists: Blocklists,
+        ipv6_prefix_len: u8,
         shutdown: CancellationToken,
     },
 }
@@ -115,7 +118,8 @@ impl ClientAccessManager {
     /// Takes the allowlist, the blocklist TTLs and the dry-run flag from
     /// `policy_config`. Without an allowlist, spawns the task that drops
     /// expired blocks, so it must then be called from within a tokio runtime,
-    /// and panics if a blocklist TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`].
+    /// and panics if a blocklist TTL exceeds [`MAX_BLOCKLIST_TTL_SEC`] or the
+    /// IPv6 prefix length is not between [`MIN_IPV6_PREFIX_LEN`] and 128.
     pub fn new(policy_config: &PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         metrics
@@ -132,6 +136,13 @@ impl ClientAccessManager {
                     Some(policy_config.proxy_blocklist_ttl_sec),
                 )
                 .unwrap_or_else(|err| fatal!("Invalid traffic control config: {err}"));
+                let ipv6_prefix_len = policy_config.ipv6_prefix_len;
+                if !(MIN_IPV6_PREFIX_LEN..=128).contains(&ipv6_prefix_len) {
+                    fatal!(
+                        "Invalid traffic control config: the IPv6 prefix length \
+                         {ipv6_prefix_len} is not between {MIN_IPV6_PREFIX_LEN} and 128"
+                    );
+                }
                 if policy_config.connection_blocklist_ttl_sec == 0 {
                     warn!(
                         "The connection blocklist TTL is 0, thus the node refuses no client \
@@ -153,6 +164,7 @@ impl ClientAccessManager {
                 ));
                 Access::Blocklist {
                     blocklists,
+                    ipv6_prefix_len,
                     shutdown,
                 }
             }
@@ -177,9 +189,16 @@ impl ClientAccessManager {
             Access::Allowlist(allowlist) => {
                 client.is_some_and(|client| allowlist.binary_search(&client).is_ok())
             }
-            Access::Blocklist { blocklists, .. } => {
-                !blocked(client, &blocklists.clients)
-                    && !blocked(proxied_client, &blocklists.proxied_clients)
+            Access::Blocklist {
+                blocklists,
+                ipv6_prefix_len,
+                ..
+            } => {
+                let prefix = |client: &Option<IpAddr>| {
+                    client.map(|client| client_prefix(client, *ipv6_prefix_len))
+                };
+                !blocked(&prefix(client), &blocklists.clients)
+                    && !blocked(&prefix(proxied_client), &blocklists.proxied_clients)
             }
         };
         match (allowed, dry_run) {
@@ -207,11 +226,17 @@ impl ClientAccessManager {
         }
     }
 
-    /// Refuses `client` for the connection blocklist TTL, and logs the block
-    /// line when this starts a block outside dry run. No-op in allowlist mode
-    /// and while the TTL is zero.
+    /// Refuses `client`, which must already be cut by [`client_prefix`], for
+    /// the connection blocklist TTL, and logs the block line when this starts
+    /// a block outside dry run. No-op in allowlist mode and while the TTL is
+    /// zero.
     pub fn block_client(&self, client: IpAddr, reason: BlockReason) {
-        if let Access::Blocklist { blocklists, .. } = &self.access {
+        if let Access::Blocklist {
+            blocklists,
+            ipv6_prefix_len,
+            ..
+        } = &self.access
+        {
             let ttl_secs = self.blocklist_ttls.connection_blocklist_ttl_sec();
             if insert_block(
                 &blocklists.clients,
@@ -221,15 +246,15 @@ impl ClientAccessManager {
                 reason,
                 || !self.dry_run(),
             ) {
-                log_block(client, reason, ttl_secs);
+                log_block(client, *ipv6_prefix_len, reason, ttl_secs);
             }
         }
     }
 
-    /// Refuses `client`, which reached this node through a fullnode, for the
-    /// proxy blocklist TTL. No-op in allowlist mode and while the TTL is zero.
-    /// Not logged: the client never connects to this node, so a host firewall
-    /// cannot act on it.
+    /// Refuses `client`, which reached this node through a fullnode and must
+    /// already be cut by [`client_prefix`], for the proxy blocklist TTL. No-op
+    /// in allowlist mode and while the TTL is zero. Not logged: the client
+    /// never connects to this node, so a host firewall cannot act on it.
     pub fn block_proxied_client(&self, client: IpAddr, reason: BlockReason) {
         if let Access::Blocklist { blocklists, .. } = &self.access {
             insert_block(
@@ -266,10 +291,17 @@ impl ClientAccessManager {
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
             let was_dry_run = self.dry_run.swap(dry_run, Ordering::Relaxed);
-            if let (true, false, Access::Blocklist { blocklists, .. }) =
-                (was_dry_run, dry_run, &self.access)
+            if let (
+                true,
+                false,
+                Access::Blocklist {
+                    blocklists,
+                    ipv6_prefix_len,
+                    ..
+                },
+            ) = (was_dry_run, dry_run, &self.access)
             {
-                log_unlogged_blocks(&blocklists.clients);
+                log_unlogged_blocks(&blocklists.clients, *ipv6_prefix_len);
             }
         }
         let ttls = [
@@ -310,6 +342,46 @@ pub(crate) fn validate_blocklist_ttls(
         }
     }
     Ok(())
+}
+
+/// The client that the policies count and the blocklists hold. An IPv4
+/// client is its full address. An IPv6 client is the first `ipv6_prefix_len`
+/// bits of its address, with the rest set to zero: the node cannot see how
+/// long a client's own network prefix is, so it assumes the same length for
+/// every IPv6 client. An IPv4 client seen as an IPv4-mapped IPv6 address
+/// counts as that IPv4 address. See [`ipv6_prefix_len_of`] for the IPv6
+/// addresses kept whole.
+pub(crate) fn client_prefix(client: IpAddr, ipv6_prefix_len: u8) -> IpAddr {
+    match client.to_canonical() {
+        IpAddr::V6(address) => {
+            let prefix_len = ipv6_prefix_len_of(address, ipv6_prefix_len);
+            let mask = u128::MAX
+                .checked_shl(128 - u32::from(prefix_len.min(128)))
+                .unwrap_or(0);
+            IpAddr::V6(Ipv6Addr::from(u128::from(address) & mask))
+        }
+        IpAddr::V4(address) => IpAddr::V4(address),
+    }
+}
+
+/// The shortest IPv6 prefix length accepted. The ranges that
+/// [`ipv6_prefix_len_of`] keeps whole are set by at most the first 32 bits, so
+/// that cutting any other address to 32 bits or more never lands it in one.
+pub(crate) const MIN_IPV6_PREFIX_LEN: u8 = 32;
+
+/// How many leading bits of `address` identify its client: `ipv6_prefix_len`,
+/// or all 128 where unrelated clients share the leading bits. These are
+/// `::/32`, with the unspecified, loopback and IPv4-compatible addresses,
+/// link-local addresses (`fe80::/10`), Teredo addresses (`2001::/32`), and
+/// the NAT64 prefixes in `64:ff9b::/32`, each of whose addresses carries one
+/// IPv4 client.
+pub(crate) fn ipv6_prefix_len_of(address: Ipv6Addr, ipv6_prefix_len: u8) -> u8 {
+    let segments = address.segments();
+    let kept_whole = segments[..2] == [0, 0]
+        || segments[0] & 0xffc0 == 0xfe80
+        || segments[..2] == [0x2001, 0]
+        || segments[..2] == [0x64, 0xff9b];
+    if kept_whole { 128 } else { ipv6_prefix_len }
 }
 
 /// Returns the allowlist sorted, so that `check` can binary-search it.
@@ -390,7 +462,7 @@ fn insert_block(
 
 /// Logs the blocks that dry run kept from being logged, now that the node
 /// refuses those clients.
-fn log_unlogged_blocks(blocklist: &Blocklist) {
+fn log_unlogged_blocks(blocklist: &Blocklist, ipv6_prefix_len: u8) {
     let now = SystemTime::now();
     // Logged once the shard locks are released, so that requests checked
     // meanwhile do not wait on the log.
@@ -408,7 +480,7 @@ fn log_unlogged_blocks(blocklist: &Blocklist) {
         unlogged.push((client, block.reason, remaining.as_secs_f64().ceil() as u64));
     }
     for (client, reason, ttl_secs) in unlogged {
-        log_block(client, reason, ttl_secs);
+        log_block(client, ipv6_prefix_len, reason, ttl_secs);
     }
 }
 
@@ -584,5 +656,130 @@ mod tests {
         });
         manager.block_client(CLIENT, BlockReason::Spam);
         assert!(manager.check(&Some(CLIENT), &None));
+    }
+
+    fn v6(segments: [u16; 8]) -> IpAddr {
+        IpAddr::V6(Ipv6Addr::from(segments))
+    }
+
+    #[test]
+    fn an_ipv6_client_is_its_address_prefix() {
+        let client = v6([0x2001, 0xdb8, 1, 2, 3, 4, 5, 6]);
+        assert_eq!(
+            client_prefix(client, 64),
+            v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 0])
+        );
+        assert_eq!(
+            client_prefix(client, 48),
+            v6([0x2001, 0xdb8, 1, 0, 0, 0, 0, 0])
+        );
+        assert_eq!(client_prefix(client, 128), client);
+    }
+
+    #[test]
+    fn an_ipv4_client_is_its_full_address() {
+        assert_eq!(client_prefix(CLIENT, 64), CLIENT);
+        let IpAddr::V4(address) = CLIENT else {
+            unreachable!()
+        };
+        let mapped = IpAddr::V6(address.to_ipv6_mapped());
+        assert_eq!(client_prefix(mapped, 64), CLIENT);
+    }
+
+    #[test]
+    fn ipv6_addresses_whose_leading_bits_are_shared_are_kept_whole() {
+        for client in [
+            v6([0, 0, 0, 0, 0, 0, 0, 1]),
+            v6([0, 0, 0, 0, 0, 0, 0x0a00, 0x0001]),
+            v6([0xfe80, 0, 0, 0, 1, 2, 3, 4]),
+            v6([0x2001, 0, 0x4136, 0xe378, 0x8000, 0x63bf, 0x3fff, 0xfdd2]),
+            v6([0x64, 0xff9b, 0, 0, 0, 0, 0x0a00, 0x0001]),
+            v6([0x64, 0xff9b, 1, 0x0a00, 0x0001, 0, 0, 0]),
+        ] {
+            assert_eq!(client_prefix(client, 64), client);
+        }
+    }
+
+    #[test]
+    fn a_cut_address_keeps_the_prefix_length_of_its_address() {
+        // The block log line works the prefix length out again from the
+        // blocklist key, so cutting must not move an address into or out of
+        // a range kept whole.
+        for client in [
+            v6([0x2001, 0xdb8, 1, 2, 3, 4, 5, 6]),
+            v6([0x2001, 1, 2, 3, 4, 5, 6, 7]),
+            v6([0xfec0, 0, 0, 0, 0, 0, 0, 1]),
+            v6([0x64, 0xff9a, 1, 2, 3, 4, 5, 6]),
+            v6([0, 1, 2, 3, 4, 5, 6, 7]),
+            v6([0, 0, 0, 0, 0xffff, 0, 0x0a00, 1]),
+            v6([0xfe80, 0, 0, 0, 1, 2, 3, 4]),
+        ] {
+            let IpAddr::V6(address) = client else {
+                unreachable!()
+            };
+            for ipv6_prefix_len in MIN_IPV6_PREFIX_LEN..=128 {
+                let IpAddr::V6(key) = client_prefix(client, ipv6_prefix_len) else {
+                    unreachable!()
+                };
+                assert_eq!(
+                    ipv6_prefix_len_of(key, ipv6_prefix_len),
+                    ipv6_prefix_len_of(address, ipv6_prefix_len),
+                    "{client} at /{ipv6_prefix_len}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_block_covers_the_ipv6_prefix_of_the_client() {
+        let manager = manager(blocklist_mode(false, 120));
+        manager.block_client(
+            client_prefix(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]), 64),
+            BlockReason::Spam,
+        );
+        assert!(!manager.check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 0xffff])), &None));
+        assert!(manager.check(&Some(v6([0x2001, 0xdb8, 1, 3, 0, 0, 0, 1])), &None));
+    }
+
+    #[tokio::test]
+    async fn a_prefix_length_of_128_blocks_only_the_address() {
+        let manager = manager(PolicyConfig {
+            ipv6_prefix_len: 128,
+            ..blocklist_mode(false, 120)
+        });
+        let client = v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]);
+        manager.block_client(client, BlockReason::Spam);
+        assert!(!manager.check(&Some(client), &None));
+        assert!(manager.check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 2])), &None));
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "the IPv6 prefix length 31 is not between 32 and 128")]
+    async fn a_prefix_length_below_32_is_rejected() {
+        manager(PolicyConfig {
+            ipv6_prefix_len: 31,
+            ..blocklist_mode(false, 120)
+        });
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "the IPv6 prefix length 129 is not between 32 and 128")]
+    async fn a_prefix_length_above_128_is_rejected() {
+        manager(PolicyConfig {
+            ipv6_prefix_len: 129,
+            ..blocklist_mode(false, 120)
+        });
+    }
+
+    #[test]
+    fn the_allowlist_holds_single_ipv6_addresses() {
+        let allowed = v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 1]);
+        let manager = manager(PolicyConfig {
+            allow_list: Some(vec![allowed.to_string()]),
+            dry_run: false,
+            ..Default::default()
+        });
+        assert!(manager.check(&Some(allowed), &None));
+        assert!(!manager.check(&Some(v6([0x2001, 0xdb8, 1, 2, 0, 0, 0, 2])), &None));
     }
 }

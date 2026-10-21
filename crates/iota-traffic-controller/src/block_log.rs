@@ -11,6 +11,8 @@ use std::{fmt, net::IpAddr};
 
 use tracing::info;
 
+use crate::client_access::ipv6_prefix_len_of;
+
 /// Tracing target of the block log line.
 pub(crate) const BLOCK_LOG_TARGET: &str = "iota_node::client_blocked";
 
@@ -30,27 +32,41 @@ impl fmt::Display for BlockReason {
     }
 }
 
-/// Logs that the node refuses `client` for the next `ttl_secs` seconds. Call
+/// Logs that the node refuses `client` for the next `ttl_secs` seconds.
+/// `client` is the blocklist key that `client_prefix` gives with
+/// `ipv6_prefix_len`, and the line names a cut IPv6 key with its prefix
+/// length, as in `2001:db8:1:2::/64`. Call
 /// it once when a block takes effect, not for every refused request, and not
 /// for a block that dry run keeps from taking effect.
 ///
 /// In the plain-text log the line carries no span, so that it reads the same
 /// whichever request caused the block. The JSON log may still add the span of
 /// that request after the `target` key.
-pub(crate) fn log_block(client: IpAddr, reason: BlockReason, ttl_secs: u64) {
+pub(crate) fn log_block(client: IpAddr, ipv6_prefix_len: u8, reason: BlockReason, ttl_secs: u64) {
     info!(
         target: BLOCK_LOG_TARGET,
         parent: None,
         "{}",
-        block_log_line(client, reason, ttl_secs)
+        block_log_line(client, ipv6_prefix_len, reason, ttl_secs)
     );
 }
 
 /// An IPv4 client that reached a dual-stack socket shows up as an
 /// IPv4-mapped IPv6 address. The line names it by its IPv4 address, which is
 /// the one a host firewall sees.
-fn block_log_line(client: IpAddr, reason: BlockReason, ttl_secs: u64) -> String {
-    let client = client.to_canonical();
+fn block_log_line(
+    client: IpAddr,
+    ipv6_prefix_len: u8,
+    reason: BlockReason,
+    ttl_secs: u64,
+) -> String {
+    let client = match client.to_canonical() {
+        IpAddr::V6(prefix) => match ipv6_prefix_len_of(prefix, ipv6_prefix_len) {
+            128 => prefix.to_string(),
+            prefix_len => format!("{prefix}/{prefix_len}"),
+        },
+        client => client.to_string(),
+    };
     format!("client_blocked client={client} reason={reason} ttl_secs={ttl_secs}")
 }
 
@@ -137,13 +153,31 @@ pub(crate) mod tests {
     fn the_line_names_the_client_the_reason_and_the_ttl() {
         let v4 = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7));
         assert_eq!(
-            block_log_line(v4, BlockReason::Spam, 300),
+            block_log_line(v4, 64, BlockReason::Spam, 300),
             "client_blocked client=203.0.113.7 reason=spam ttl_secs=300"
         );
         let v6 = IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 1));
         assert_eq!(
-            block_log_line(v6, BlockReason::Error, 300),
+            block_log_line(v6, 128, BlockReason::Error, 300),
             "client_blocked client=2001:db8:1:2::1 reason=error ttl_secs=300"
+        );
+    }
+
+    #[test]
+    fn an_ipv6_prefix_is_named_with_its_length() {
+        let prefix = IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 0));
+        assert_eq!(
+            block_log_line(prefix, 64, BlockReason::Spam, 300),
+            "client_blocked client=2001:db8:1:2::/64 reason=spam ttl_secs=300"
+        );
+    }
+
+    #[test]
+    fn an_ipv6_address_kept_whole_is_named_without_a_length() {
+        let link_local = IpAddr::V6(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1));
+        assert_eq!(
+            block_log_line(link_local, 64, BlockReason::Spam, 300),
+            "client_blocked client=fe80::1 reason=spam ttl_secs=300"
         );
     }
 
@@ -151,7 +185,7 @@ pub(crate) mod tests {
     fn an_ipv4_mapped_client_is_named_by_its_ipv4_address() {
         let mapped = IpAddr::V6(Ipv4Addr::new(203, 0, 113, 7).to_ipv6_mapped());
         assert_eq!(
-            block_log_line(mapped, BlockReason::Spam, 60),
+            block_log_line(mapped, 64, BlockReason::Spam, 60),
             "client_blocked client=203.0.113.7 reason=spam ttl_secs=60"
         );
     }
@@ -159,7 +193,7 @@ pub(crate) mod tests {
     #[test]
     fn the_plain_text_output_holds_the_line_under_its_target() {
         let client = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7));
-        let log = capture_plain(|| log_block(client, BlockReason::Spam, 300));
+        let log = capture_plain(|| log_block(client, 64, BlockReason::Spam, 300));
 
         let [line] = log.lines().try_into().unwrap();
         assert!(
@@ -176,7 +210,7 @@ pub(crate) mod tests {
         let client = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7));
         let log = capture_plain(|| {
             tracing::info_span!("request", peer = "203.0.113.7")
-                .in_scope(|| log_block(client, BlockReason::Spam, 300))
+                .in_scope(|| log_block(client, 64, BlockReason::Spam, 300))
         });
 
         let [line] = log.lines().try_into().unwrap();
@@ -192,7 +226,7 @@ pub(crate) mod tests {
     #[test]
     fn the_json_output_holds_the_line_as_its_message() {
         let client = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 7));
-        let log = capture_json(|| log_block(client, BlockReason::Error, 300));
+        let log = capture_json(|| log_block(client, 64, BlockReason::Error, 300));
 
         let [line] = log.lines().try_into().unwrap();
         let event: serde_json::Value = serde_json::from_str(&line).unwrap();
