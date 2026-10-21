@@ -5,7 +5,7 @@ use std::{
     borrow::Borrow,
     marker::PhantomData,
     ops::{Bound, Deref, RangeBounds},
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -630,6 +630,35 @@ impl<K, V> DBMap<K, V> {
             &self.db_metrics,
             &self.write_sample_interval,
         )
+    }
+
+    /// Moves the SST files at `paths`, written by
+    /// [`SstFileBuffer::write_file`](crate::rocks::SstFileBuffer::write_file)
+    /// with this column family's options, into this table. The files may
+    /// overlap each other; a key in several of them keeps its value from the
+    /// last.
+    ///
+    /// # Panics
+    ///
+    /// Panics on the in-memory backend.
+    pub fn ingest_sst_files(&self, paths: &[PathBuf]) -> Result<(), TypedStoreError> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+        match &self.db.storage {
+            // Ingestion can wait on a memtable flush; see `Database::flush_cf`
+            // for why that runs off the test thread under the simulator.
+            Storage::Rocks(rocks) => nondeterministic!({
+                let handle = rocks_cf(rocks, self.cf_name())?;
+                let mut options = rocksdb::IngestExternalFileOptions::default();
+                options.set_move_files(true);
+                rocks
+                    .underlying
+                    .ingest_external_file_cf_opts(&handle, &options, paths.to_vec())
+                    .map_err(typed_store_err_from_rocks_err)
+            }),
+            Storage::InMemory(_) => unimplemented!("method is only supported for rocksdb backend"),
+        }
     }
 
     /// Flush the memtable of this table's column family to SST files on disk.
