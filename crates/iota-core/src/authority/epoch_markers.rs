@@ -127,6 +127,9 @@ impl EpochMarkers {
                 "epoch markers",
                 MARKERS_CF_PREFIX,
                 cf_options,
+                // Markers are working data of the epochs being executed rather
+                // than history, so they stay in the database directory.
+                None,
                 earliest_retained_table,
                 buckets,
             )?,
