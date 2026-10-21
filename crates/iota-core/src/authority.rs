@@ -884,13 +884,8 @@ impl AuthorityMetrics {
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
 pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
 
-/// The gas status, the checked transaction inputs and, per Move
-/// authenticator, its checked inputs and function reference.
-type CheckedValidationInputs = (
-    IotaGasStatus,
-    CheckedInputObjects,
-    Vec<(CheckedInputObjects, AuthenticatorFunctionRef)>,
-);
+/// The checked transaction inputs and, per Move authenticator, its checked inputs.
+type CheckedValidationInputs = (CheckedInputObjects, Vec<CheckedInputObjects>);
 
 /// Execution env contains the "environment" for the transaction to be executed
 /// in, that is, all the information necessary for execution that is not
@@ -1280,10 +1275,10 @@ impl AuthorityState {
     /// post-consensus validation at the commit `reader` was built for: the
     /// inputs are read as of that commit through the commit-indexed reader.
     /// Returns `Drop` or `Missing` when an input is dropped or not visible
-    /// yet. Any other failed check returns the same `Err` as at admission,
-    /// except that a deleted Move authenticator account object is not
-    /// rejected (see [`Self::check_move_account_at_commit`]). The coin deny
-    /// list is read epoch-gated, so every validator gets the same answer.
+    /// yet. Any other failed check returns the same `Err` as at admission. The
+    /// coin deny list is read epoch-gated, so every validator gets the same
+    /// answer. The Move authenticator's account is not resolved and the
+    /// authenticators are not run here: both happen at execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1334,21 +1329,15 @@ impl AuthorityState {
 
         let move_authenticators = transaction.move_authenticators();
 
-        // A Move authenticator's account object that the reader answered as
-        // deleted is not rejected here. When a commit above the horizon
-        // deleted it, validators that have executed that commit see it
-        // deleted and the others do not, so the only result they all share is
-        // to keep the transaction and let its authenticator fail at
-        // execution. For the same reason such an authenticator is not run
-        // below: there it would fail only on the validators that see the
-        // deletion.
-        let account_object_present: Vec<bool> = per_authenticator_inputs
-            .iter()
-            .map(|(_, account_object)| {
-                matches!(account_object.object, ObjectReadResultKind::Object(_))
-            })
-            .collect();
-        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
+        // The account is not resolved and the authenticators are not run
+        // here. Both read a shared object's contents, and a shared input names
+        // no version, so this would read whatever version this validator
+        // holds, which differs between validators. Execution reads every
+        // shared input at the version consensus assigned, so both happen
+        // there, and a failure there produces failure effects. What is left
+        // here asks only what the rows can answer: whether each authenticator
+        // input exists and is what the transaction declares.
+        let (tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_at_commit(
                 protocol_config,
                 reference_gas_price,
@@ -1360,10 +1349,8 @@ impl AuthorityState {
                 verifier_limits_source,
             )?;
 
-        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
-            .iter()
-            .map(|i| &i.0)
-            .collect();
+        let per_authenticator_checked_input_objects =
+            per_authenticator_checked_inputs.iter().collect::<Vec<_>>();
 
         debug_assert!(
             per_authenticator_checked_input_objects
@@ -1383,106 +1370,6 @@ impl AuthorityState {
             &self.get_object_store(),
             Some(epoch),
         )?;
-
-        let (kind, signer, gas_data) = tx.execution_parts();
-
-        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
-            extract_auth_fun_refs(signer, gas_data.owner, |address| {
-                move_authenticators
-                    .iter()
-                    .zip(per_authenticator_checked_inputs.iter())
-                    .find(|(move_authenticator, _)| move_authenticator.address() == address)
-                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
-            });
-
-        let pre_consensus_move_authenticators =
-            pre_consensus_move_authenticators(transaction, protocol_config);
-        debug_assert_eq!(
-            move_authenticators.len(),
-            per_authenticator_checked_inputs.len(),
-            "Move authenticators amount must match the number of checked authenticator inputs"
-        );
-        let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
-            move_authenticators
-                .into_iter()
-                .zip(per_authenticator_checked_inputs)
-                .zip(account_object_present)
-                .filter(|((authenticator, _), account_object_present)| {
-                    *account_object_present
-                        && pre_consensus_move_authenticators.contains(authenticator)
-                })
-                .map(|(authenticator_and_inputs, _)| authenticator_and_inputs)
-                .unzip();
-        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
-            .iter()
-            .map(|i| &i.0)
-            .collect();
-
-        if !move_authenticators.is_empty() {
-            let aggregated_authenticator_input_objects =
-                iota_transaction_checks::aggregate_authenticator_input_objects(
-                    &per_authenticator_checked_input_objects,
-                )?;
-
-            let move_authenticators = move_authenticators
-                .into_iter()
-                .zip(per_authenticator_checked_inputs)
-                .map(
-                    |(
-                        move_authenticator,
-                        (authenticator_checked_input_objects, authenticator_function_ref),
-                    )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref,
-                            authenticator_checked_input_objects,
-                        )
-                    },
-                )
-                .collect();
-
-            let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
-
-            let (sender_auth_digest, sponsor_auth_digest) =
-                transaction.data().compute_auth_digests()?;
-
-            let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_bytes,
-                sender_auth_digest,
-                sponsor_auth_digest,
-                sender_authenticator_function_ref,
-                sponsor_authenticator_function_ref,
-            };
-
-            // Authenticators run against this validator's latest store state,
-            // not the state as of the commit, so their result can differ
-            // between validators.
-            let validation_result = epoch_store.executor().authenticate_transaction(
-                self.get_backing_store().as_ref(),
-                protocol_config,
-                self.metrics.limits_metrics.clone(),
-                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
-                epoch_store
-                    .epoch_start_config()
-                    .epoch_data()
-                    .epoch_start_timestamp(),
-                gas_data,
-                gas_status,
-                move_authenticators,
-                aggregated_authenticator_input_objects,
-                kind,
-                signer,
-                transaction.digest().to_owned(),
-                auth_context_data,
-                &mut None,
-            );
-
-            if let Err(validation_error) = validation_result {
-                return Err(IotaError::MoveAuthenticatorExecutionFailure {
-                    error: validation_error.to_string(),
-                });
-            }
-        }
 
         Ok(ValidationAtCommit::Keep(
             tx_checked_input_objects.inner().filter_owned_objects(),
@@ -6003,33 +5890,6 @@ impl AuthorityState {
         .map_err(IotaError::from)
     }
 
-    /// Resolves the account's `AuthenticatorFunctionRef` for post-consensus
-    /// validation at a commit. A deleted account object returns its version
-    /// instead of an error, as at execution: a commit above the horizon may
-    /// have deleted it, and validators that have not executed that commit
-    /// still see it, so rejecting it here would give different results on
-    /// different validators. Its authenticator then fails at execution.
-    pub(crate) fn check_move_account_at_commit(
-        &self,
-        auth_account_object_id: ObjectId,
-        auth_account_object_seq_number: Option<Version>,
-        auth_account_object_digest: Option<ObjectDigest>,
-        account_object: ObjectReadResult,
-        signer: &Address,
-        protocol_config: &ProtocolConfig,
-    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
-        self.check_move_account(
-            auth_account_object_id,
-            auth_account_object_seq_number,
-            auth_account_object_digest,
-            account_object,
-            signer,
-            true,
-            protocol_config,
-        )
-        .map_err(IotaError::from)
-    }
-
     /// Checks whether `authenticator` unlocks a valid Move account and returns
     /// the account-related `AuthenticatorFunctionRef`. Where the protocol
     /// config requires it, the account object must be shared, so that a
@@ -6038,7 +5898,7 @@ impl AuthorityState {
     /// set, a deleted or cancelled account object yields its version instead of
     /// an error, so execution can proceed to the proper effect. Prefer the
     /// `check_move_account_for_execution` / `check_move_account_for_validation`
-    /// / `check_move_account_at_commit` wrappers over calling this directly.
+    /// wrappers over calling this directly.
     ///
     /// # Errors
     ///
@@ -6336,9 +6196,10 @@ impl AuthorityState {
     }
 
     /// Like [`Self::check_transaction_inputs_for_validation`], but for
-    /// post-consensus validation at a commit. The one difference is the
-    /// account check: a deleted account object is not rejected, see
-    /// [`Self::check_move_account_at_commit`].
+    /// post-consensus validation at a commit. The difference is the Move
+    /// authenticator: the account is not resolved here, only the
+    /// authenticator's inputs are checked, so no function reference comes
+    /// back.
     fn check_transaction_inputs_at_commit(
         &self,
         protocol_config: &ProtocolConfig,
@@ -6346,7 +6207,7 @@ impl AuthorityState {
         tx: &Transaction,
         tx_input_objects: InputObjects,
         tx_receiving_objects: &ReceivingObjects,
-        move_authenticators: &Vec<&MoveAuthenticator>,
+        move_authenticators: &[&MoveAuthenticator],
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> IotaResult<CheckedValidationInputs> {
@@ -6362,45 +6223,25 @@ impl AuthorityState {
             "Move authenticators amount must match the number of authenticator inputs"
         );
 
-        let per_authenticator_checked_inputs = move_authenticators
-            .iter()
-            .zip(per_authenticator_inputs)
-            .map(
-                |(move_authenticator, (authenticator_input_objects, account_object))| {
-                    let (
-                        auth_account_object_id,
-                        auth_account_object_seq_number,
-                        auth_account_object_digest,
-                    ) = move_authenticator.object_to_authenticate_components()?;
-
-                    let signer = move_authenticator.address();
-
-                    let AuthenticatorFunctionRefForExecution {
-                        authenticator_function_ref,
-                        ..
-                    } = self.check_move_account_at_commit(
-                        auth_account_object_id,
-                        auth_account_object_seq_number,
-                        auth_account_object_digest,
-                        account_object,
-                        &signer,
-                        protocol_config,
-                    )?;
-
-                    let authenticator_checked_input_objects =
-                        iota_transaction_checks::check_move_authenticator_input_for_validation(
-                            authenticator_input_objects,
-                        )?;
-
-                    Ok((
-                        authenticator_checked_input_objects,
-                        authenticator_function_ref,
-                    ))
-                },
-            )
+        // The account object is among the authenticator's inputs. An account
+        // named as a shared object was decided by the reader from its rows,
+        // which drop the transaction when the object was not created shared.
+        // An account named as an immutable-or-owned input was read at the
+        // version the transaction names, and this check rejects one owned by
+        // an address or by another object. An immutable account is not
+        // rejected here. Looking up the account's authenticator function is
+        // left to execution.
+        let per_authenticator_checked_inputs = per_authenticator_inputs
+            .into_iter()
+            .map(|(authenticator_input_objects, _account_object)| {
+                iota_transaction_checks::check_move_authenticator_input_for_validation(
+                    authenticator_input_objects,
+                )
+            })
             .collect::<IotaResult<Vec<_>>>()?;
 
-        let (gas_status, tx_checked_input_objects) =
+        // The gas status only meters an authenticator run, which does not happen here.
+        let (_gas_status, tx_checked_input_objects) =
             iota_transaction_checks::check_transaction_input(
                 protocol_config,
                 reference_gas_price,
@@ -6412,11 +6253,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
             )?;
 
-        Ok((
-            gas_status,
-            tx_checked_input_objects,
-            per_authenticator_checked_inputs,
-        ))
+        Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
     }
 
     #[cfg(test)]
