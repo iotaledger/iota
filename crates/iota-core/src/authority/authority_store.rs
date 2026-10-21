@@ -464,12 +464,34 @@ impl AuthorityStore {
         self.historic_ledger.multi_get_events(event_digests)
     }
 
+    /// [`Self::multi_get_events`] read from `epoch`'s records alone; events
+    /// stored under another epoch are reported as absent.
+    pub fn multi_get_events_in_epoch(
+        &self,
+        epoch: EpochId,
+        tx_digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.historic_ledger
+            .multi_get_events_in_epoch(epoch, tx_digests)
+    }
+
     pub fn multi_get_effects<'a>(
         &self,
         effects_digests: impl Iterator<Item = &'a TransactionEffectsDigest>,
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
         let effects_digests: Vec<_> = effects_digests.copied().collect();
         self.historic_ledger.multi_get_effects(&effects_digests)
+    }
+
+    /// [`Self::multi_get_effects`] read from `epoch`'s records alone; effects
+    /// stored under another epoch are reported as absent.
+    pub fn multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        effects_digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.historic_ledger
+            .multi_get_effects_in_epoch(epoch, effects_digests)
     }
 
     pub fn get_executed_effects(
@@ -488,6 +510,18 @@ impl AuthorityStore {
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         self.historic_ledger
             .multi_get_executed_effects_digests(digests)
+    }
+
+    /// [`Self::multi_get_executed_effects_digests`] for transactions that can
+    /// only have been executed in `epoch`: it reads that epoch's records
+    /// alone, and reports one executed in another epoch as not executed.
+    pub fn multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.historic_ledger
+            .multi_get_executed_effects_digests_in_epoch(epoch, digests)
     }
 
     /// Given a list of transaction digests, returns a list of the corresponding
@@ -576,10 +610,8 @@ impl AuthorityStore {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-        digests
-            .iter()
-            .map(|digest| self.get_transaction_perpetual_checkpoint(digest))
-            .collect()
+        self.historic_ledger
+            .multi_get_transaction_checkpoints(digests)
     }
 
     /// Returns true if there are no objects in the database
@@ -1472,6 +1504,21 @@ impl AuthorityStore {
         Ok(self
             .historic_ledger
             .multi_get_transactions(tx_digests)?
+            .into_iter()
+            .map(|transaction| transaction.map(Into::into))
+            .collect())
+    }
+
+    /// [`Self::multi_get_transaction_blocks`] read from `epoch`'s records
+    /// alone; transactions stored under another epoch are reported as absent.
+    pub fn multi_get_transaction_blocks_in_epoch(
+        &self,
+        epoch: EpochId,
+        tx_digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<VerifiedTransaction>>> {
+        Ok(self
+            .historic_ledger
+            .multi_get_transactions_in_epoch(epoch, tx_digests)?
             .into_iter()
             .map(|transaction| transaction.map(Into::into))
             .collect())

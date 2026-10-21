@@ -106,6 +106,34 @@ pub fn remove_legacy_index_dirs(db_path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// The disk space [`remove_legacy_index_dirs`] frees in `db_path` on the file
+/// system `counted_for` is on. Space freed elsewhere does not count, nor does
+/// space on a file system that cannot be told apart.
+pub fn legacy_index_dirs_size(db_path: &Path, counted_for: &Path) -> u64 {
+    fn size(path: &Path) -> u64 {
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return 0;
+        };
+        if !metadata.is_dir() {
+            return metadata.len();
+        }
+        std::fs::read_dir(path).map_or(0, |entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| size(&entry.path()))
+                .sum()
+        })
+    }
+    LEGACY_INDEX_DIRS
+        .iter()
+        .map(|dir| db_path.join(dir))
+        .filter(|dir| {
+            dir.exists() && typed_store::rocks::on_same_file_system(dir, counted_for) == Some(true)
+        })
+        .map(|dir| size(&dir))
+        .sum()
+}
+
 /// A staged index update for one checkpoint, waiting for its in-order commit.
 struct PendingCheckpointUpdate {
     batch: DBBatch,
@@ -1082,6 +1110,21 @@ impl RpcIndexesStore {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> IotaResult<usize> {
+        self.history
+            .compact_closed(current_epoch, stop)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
     /// Builds and stages the index update of one executed checkpoint. Nothing
     /// is written until [`Self::commit_update_for_checkpoint`] is called.
     /// Checkpoints up to the index watermark the store was opened at, and
@@ -1297,6 +1340,15 @@ impl RpcIndexesStore {
             store.metrics.history_backfill_running.set(0);
         });
         *self.history_backfill_task.lock() = Some(task);
+    }
+
+    /// Whether the background history backfill is still writing history
+    /// buckets, closed epochs' included.
+    pub fn is_history_backfill_running(&self) -> bool {
+        self.history_backfill_task
+            .lock()
+            .as_ref()
+            .is_some_and(|task| !task.is_finished())
     }
 
     /// Flushes every column family's memtable to disk — for tests.
@@ -1521,37 +1573,63 @@ impl RpcIndexesStore {
         let mut batch = self.tables.watermark.batch();
 
         if self.serves(IndexGroup::JsonRpc) {
-            for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
-                let transaction = authority_store
-                    .get_transaction_block(&digests.transaction)
-                    .map_err(|e| StorageError::custom(e.to_string()))?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!(
-                            "missing transaction {}",
-                            digests.transaction
-                        ))
-                    })?
-                    .into_inner();
-                let effects = authority_store
-                    .get_effects(&digests.effects)
-                    .map_err(|e| StorageError::custom(e.to_string()))?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!("missing effects {}", digests.effects))
-                    })?;
-                let events = if effects.events_digest().is_some() {
-                    Some(
+            // A checkpoint's transactions, effects and events are stored under
+            // its epoch, so they are read from there in one batch each; what
+            // those miss is read one by one through every epoch.
+            let storage = |e: IotaError| StorageError::custom(e.to_string());
+            let tx_digests: Vec<_> = contents.iter().map(|digests| digests.transaction).collect();
+            let fx_digests: Vec<_> = contents.iter().map(|digests| digests.effects).collect();
+            let transactions = authority_store
+                .multi_get_transaction_blocks_in_epoch(summary.epoch, &tx_digests)
+                .map_err(storage)?;
+            let all_effects = authority_store
+                .multi_get_effects_in_epoch(summary.epoch, &fx_digests)
+                .map_err(storage)?;
+            let all_events = authority_store
+                .multi_get_events_in_epoch(summary.epoch, &tx_digests)
+                .map_err(storage)?;
+            for ((((sequence, digests), transaction), effects), events) in (first_sequence_number..)
+                .zip(contents.iter())
+                .zip(transactions)
+                .zip(all_effects)
+                .zip(all_events)
+            {
+                let transaction = match transaction {
+                    Some(transaction) => transaction,
+                    None => authority_store
+                        .get_transaction_block(&digests.transaction)
+                        .map_err(storage)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!(
+                                "missing transaction {}",
+                                digests.transaction
+                            ))
+                        })?,
+                }
+                .into_inner();
+                let effects = match effects {
+                    Some(effects) => effects,
+                    None => authority_store
+                        .get_effects(&digests.effects)
+                        .map_err(storage)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!("missing effects {}", digests.effects))
+                        })?,
+                };
+                let events = match (effects.events_digest(), events) {
+                    (None, _) => None,
+                    (Some(_), Some(events)) => Some(events),
+                    (Some(_), None) => Some(
                         authority_store
                             .get_events(&digests.transaction)
-                            .map_err(|e| StorageError::custom(e.to_string()))?
+                            .map_err(storage)?
                             .ok_or_else(|| {
                                 StorageError::missing(format!(
                                     "missing events {}",
                                     digests.transaction
                                 ))
                             })?,
-                    )
-                } else {
-                    None
+                    ),
                 };
 
                 let data = transaction_index_data(&transaction, &effects, events.as_ref())

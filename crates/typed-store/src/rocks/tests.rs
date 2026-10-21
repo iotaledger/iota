@@ -2214,3 +2214,36 @@ fn open_rocksdb<P: AsRef<Path>>(path: P, opt_cfs: &[&str]) -> Arc<Database> {
     )
     .expect("failed to open rocksdb")
 }
+
+/// A directory not created yet reports the free space of the file system it
+/// will be created on.
+#[test]
+fn a_directory_still_to_be_created_reports_its_file_systems_free_space() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("historic").join("ledger");
+    assert!(!missing.exists());
+
+    let free = available_disk_space(&missing).expect("the parent directory exists");
+    assert!(free > 0);
+    let parent_free = available_disk_space(dir.path()).unwrap();
+    // Other processes write meanwhile, so the two only agree roughly.
+    assert!(
+        free.abs_diff(parent_free) < 1 << 30,
+        "{free} vs {parent_free}"
+    );
+}
+
+/// A directory still to be created is on its parent's file system, and the
+/// device files are on a file system of their own.
+#[cfg(unix)]
+#[test]
+fn file_systems_are_told_apart_also_for_a_directory_still_to_be_created() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("historic").join("ledger");
+
+    assert_eq!(super::on_same_file_system(dir.path(), &missing), Some(true));
+    assert_eq!(
+        super::on_same_file_system(dir.path(), std::path::Path::new("/dev")),
+        Some(false)
+    );
+}

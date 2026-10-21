@@ -3,6 +3,8 @@ Sustainable disk usage requires IOTA full nodes to prune the information about h
 
 All three kinds of pruning below run in the background right after each epoch boundary and once when the node starts, where an expired epoch's data is dropped as a whole set of RocksDB column families; the node keeps executing transactions meanwhile. A lowered retention therefore takes effect at the next start. Most of the disk space comes back with those files. What is left is a small amount of row-by-row deletion in the live object table, which RocksDB reclaims through background compaction, so the last part of the effect on disk usage is not immediate — see `periodic-compaction-threshold-days` below.
 
+Once the node has caught up with the network and no read holds back the expiry of historic objects, the same background task also compacts the data of each epoch that has ended, once, so a lookup in it reads a single sorted run of SST files instead of many level-0 files. An epoch is skipped while its disk has less free space than its data takes. On the first start after the upgrade, once the node has caught up, this compacts every epoch the node holds, which takes disk I/O for a while on a node with a long history.
+
 :::tip
 
 Testing indicates that aggressive pruning results in more efficient full node operation.
@@ -24,6 +26,18 @@ Transaction pruning removes previous transactions, their effects and events, and
 Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by the history queries (`iotax_queryTransactionBlocks()`, `iotax_queryEvents()` and their gRPC counterparts). Balances, coins, owned objects and dynamic fields are read from tables of the live state, which index pruning does not touch. Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node serving the JSON-RPC API (`enable-jsonrpc-api: true`, the default) or the gRPC API (`enable-grpc-api: true`).
 
 On the first start after the upgrade to the per-epoch storage, a full node rebuilds its RPC index: the live state up front, the history in the background from the transactions the node still holds. Index history older than the node's checkpoint retention is not brought back, so `iotax_queryTransactionBlocks()` and `iotax_queryEvents()` reach no further back than that retention afterwards. Raising the retention before the upgrade does not help with transactions the node has already pruned; history queries older than that are for an indexer to answer.
+
+Back up the database before the first start after the upgrade. That start changes the database layout for good, and no older release must be started on the database afterwards: going back means restoring the backup or a snapshot.
+
+Before it moves or deletes any history, the first start also refuses to start when `num-epochs-to-retain-for-checkpoints` is not set and the node holds transactions older than its default of 30 epochs keeps, since that start would delete them. Set it to `18446744073709551615` to keep them all, or to the number of epochs to keep. Even a refused start has opened the database with this release and changed it, so fix the setting and start this release again rather than going back to an older one.
+
+The first start after the upgrade also needs free disk space for a second copy of what it keeps:
+- **Transactions and checkpoints:** the one-time migration copies the transactions, effects, events and checkpoints of the retained epochs into the per-epoch layout, and frees the old tables only once it is done. The node checks for this space before it starts the migration, and refuses to start with a message naming the space it needs if the disk is too small. The copy goes to `<db-path>/historic`: when that directory is a separate file system, it needs room for the whole copy, since the space freed by removing the old index databases counts only on the file system they are on.
+- **Object versions on a node that never pruned them:** a node that ran with `num-epochs-to-retain: 18446744073709551615` copies every superseded object version once.
+
+The old tables' space comes back through later compaction, not at once.
+
+If the one-time move of superseded object versions fails on a database row it cannot read, and does so on every start, `iota-tool db-tool --db-path <db-path>/live mark-object-backlog-swept`, run while the node is stopped, lets the node start without it. The versions it had not moved then stay in the live object table.
 
 The index window may be shorter than the checkpoint window, and the only thing that costs is query reach: `iotax_queryTransactionBlocks()` and other query-style endpoints stop returning entries older than the index window, while every transaction the checkpoint window still retains remains fetchable by digest on both APIs and still reports the checkpoint that confirmed it — that answer is read from the ledger, not from the index.
 
@@ -71,7 +85,9 @@ authority-store-pruning-config:
   #   N        — keeps the epoch the node is in plus the N epochs before it,
   #              so N + 1 epochs in total.
   #   u64::MAX — disables transaction pruning entirely (18446744073709551615).
-  #   unset    — 30 (default), about a month at one-day epochs.
+  #   unset    — 30 (default), about a month at one-day epochs. The first
+  #              start after the upgrade to the per-epoch storage refuses to
+  #              start while unset if the node holds older transactions.
   # num-epochs-to-retain-for-checkpoints: 30
 
   # Number of historic epochs to retain in the rpc_indexes store, on top of

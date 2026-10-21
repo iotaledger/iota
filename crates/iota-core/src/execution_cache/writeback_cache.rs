@@ -865,6 +865,184 @@ impl WritebackCache {
         &self.store
     }
 
+    /// The transactions `digests` name, from the in-memory layers, asking
+    /// `read_db` for the ones they do not have. With `cache_misses`, a
+    /// transaction `read_db` does not find is remembered as absent.
+    fn transaction_blocks_with_fallback(
+        &self,
+        digests: &[TransactionDigest],
+        read_db: impl Fn(
+            &AuthorityStore,
+            &[TransactionDigest],
+        ) -> IotaResult<Vec<Option<VerifiedTransaction>>>,
+        cache_misses: bool,
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        let digests_and_tickets: Vec<_> = digests
+            .iter()
+            .map(|d| (*d, self.cached.transactions.get_ticket_for_read(d)))
+            .collect();
+        try_do_fallback_lookup(
+            &digests_and_tickets,
+            |(digest, _)| {
+                self.metrics
+                    .record_cache_request("transaction_block", "uncommitted");
+                if let Some(tx) = self.dirty.pending_transaction_writes.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_block", "uncommitted");
+                    return Ok(CacheResult::Hit(Some(tx.transaction.clone())));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_block", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("transaction_block", "committed");
+                match self
+                    .cached
+                    .transactions
+                    .get(digest)
+                    .map(|l| l.lock().clone())
+                {
+                    Some(PointCacheItem::Some(tx)) => {
+                        self.metrics
+                            .record_cache_hit("transaction_block", "committed");
+                        Ok(CacheResult::Hit(Some(tx)))
+                    }
+                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
+                    None => {
+                        self.metrics
+                            .record_cache_miss("transaction_block", "committed");
+
+                        Ok(CacheResult::Miss)
+                    }
+                }
+            },
+            |remaining| {
+                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
+                let results: Vec<_> = read_db(
+                    self.record_db_multi_get("transaction_block", remaining.len()),
+                    &remaining_digests,
+                )
+                .map(|v| v.into_iter().map(|o| o.map(Arc::new)).collect())?;
+                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
+                    if cache_misses && result.is_none() {
+                        self.cached.transactions.insert(digest, None, *ticket).ok();
+                    }
+                }
+                Ok(results)
+            },
+        )
+    }
+
+    /// The effects `digests` name, from the in-memory layers, asking
+    /// `read_db` for the ones they do not have. With `cache_misses`, effects
+    /// `read_db` does not find are remembered as absent.
+    fn effects_with_fallback(
+        &self,
+        digests: &[TransactionEffectsDigest],
+        read_db: impl Fn(
+            &AuthorityStore,
+            &[TransactionEffectsDigest],
+        ) -> IotaResult<Vec<Option<TransactionEffects>>>,
+        cache_misses: bool,
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        let digests_and_tickets: Vec<_> = digests
+            .iter()
+            .map(|d| (*d, self.cached.transaction_effects.get_ticket_for_read(d)))
+            .collect();
+        try_do_fallback_lookup(
+            &digests_and_tickets,
+            |(digest, _)| {
+                self.metrics
+                    .record_cache_request("transaction_effects", "uncommitted");
+                if let Some(effects) = self.dirty.transaction_effects.get(digest) {
+                    self.metrics
+                        .record_cache_hit("transaction_effects", "uncommitted");
+                    return Ok(CacheResult::Hit(Some(effects.clone())));
+                }
+                self.metrics
+                    .record_cache_miss("transaction_effects", "uncommitted");
+
+                self.metrics
+                    .record_cache_request("transaction_effects", "committed");
+                match self
+                    .cached
+                    .transaction_effects
+                    .get(digest)
+                    .map(|l| l.lock().clone())
+                {
+                    Some(PointCacheItem::Some(effects)) => {
+                        self.metrics
+                            .record_cache_hit("transaction_effects", "committed");
+                        Ok(CacheResult::Hit(Some((*effects).clone())))
+                    }
+                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
+                    None => {
+                        self.metrics
+                            .record_cache_miss("transaction_effects", "committed");
+                        Ok(CacheResult::Miss)
+                    }
+                }
+            },
+            |remaining| {
+                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
+                let results = read_db(
+                    self.record_db_multi_get("transaction_effects", remaining.len()),
+                    &remaining_digests,
+                )?;
+                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
+                    if cache_misses && result.is_none() {
+                        self.cached
+                            .transaction_effects
+                            .insert(digest, None, *ticket)
+                            .ok();
+                    }
+                }
+                Ok(results)
+            },
+        )
+    }
+
+    /// The effects digest of each of `digests` from the in-memory layers,
+    /// asking `read_db` for the ones they do not have.
+    fn executed_effects_digests_with_fallback(
+        &self,
+        digests: &[TransactionDigest],
+        read_db: impl Fn(
+            &AuthorityStore,
+            &[TransactionDigest],
+        ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>,
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        let digests_and_tickets: Vec<_> = digests
+            .iter()
+            .map(|d| {
+                (
+                    *d,
+                    self.cached.executed_effects_digests.get_ticket_for_read(d),
+                )
+            })
+            .collect();
+        try_do_fallback_lookup(
+            &digests_and_tickets,
+            |(digest, _)| Ok(self.executed_effects_digest_from_memory(digest)),
+            |remaining| {
+                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
+                let results = read_db(
+                    self.record_db_multi_get("executed_effects_digests", remaining.len()),
+                    &remaining_digests,
+                )?;
+                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
+                    if result.is_none() {
+                        self.cached
+                            .executed_effects_digests
+                            .insert(digest, None, *ticket)
+                            .ok();
+                    }
+                }
+                Ok(results)
+            },
+        )
+    }
+
     /// The effects digest recorded for `digest` by the in-memory layers alone.
     /// [`CacheResult::Miss`] means the store has to be asked for it.
     fn executed_effects_digest_from_memory(
@@ -1946,58 +2124,24 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
-        let digests_and_tickets: Vec<_> = digests
-            .iter()
-            .map(|d| (*d, self.cached.transactions.get_ticket_for_read(d)))
-            .collect();
-        try_do_fallback_lookup(
-            &digests_and_tickets,
-            |(digest, _)| {
-                self.metrics
-                    .record_cache_request("transaction_block", "uncommitted");
-                if let Some(tx) = self.dirty.pending_transaction_writes.get(digest) {
-                    self.metrics
-                        .record_cache_hit("transaction_block", "uncommitted");
-                    return Ok(CacheResult::Hit(Some(tx.transaction.clone())));
-                }
-                self.metrics
-                    .record_cache_miss("transaction_block", "uncommitted");
+        self.transaction_blocks_with_fallback(
+            digests,
+            |store, digests| store.multi_get_transaction_blocks(digests),
+            true,
+        )
+    }
 
-                self.metrics
-                    .record_cache_request("transaction_block", "committed");
-                match self
-                    .cached
-                    .transactions
-                    .get(digest)
-                    .map(|l| l.lock().clone())
-                {
-                    Some(PointCacheItem::Some(tx)) => {
-                        self.metrics
-                            .record_cache_hit("transaction_block", "committed");
-                        Ok(CacheResult::Hit(Some(tx)))
-                    }
-                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
-                    None => {
-                        self.metrics
-                            .record_cache_miss("transaction_block", "committed");
-
-                        Ok(CacheResult::Miss)
-                    }
-                }
-            },
-            |remaining| {
-                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
-                let results: Vec<_> = self
-                    .record_db_multi_get("transaction_block", remaining.len())
-                    .multi_get_transaction_blocks(&remaining_digests)
-                    .map(|v| v.into_iter().map(|o| o.map(Arc::new)).collect())?;
-                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
-                        self.cached.transactions.insert(digest, None, *ticket).ok();
-                    }
-                }
-                Ok(results)
-            },
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_transaction_blocks_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        // A miss only means "not in this epoch", so it is not remembered.
+        self.transaction_blocks_with_fallback(
+            digests,
+            |store, digests| store.multi_get_transaction_blocks_in_epoch(epoch, digests),
+            false,
         )
     }
 
@@ -2006,34 +2150,20 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        let digests_and_tickets: Vec<_> = digests
-            .iter()
-            .map(|d| {
-                (
-                    *d,
-                    self.cached.executed_effects_digests.get_ticket_for_read(d),
-                )
-            })
-            .collect();
-        try_do_fallback_lookup(
-            &digests_and_tickets,
-            |(digest, _)| Ok(self.executed_effects_digest_from_memory(digest)),
-            |remaining| {
-                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
-                let results = self
-                    .record_db_multi_get("executed_effects_digests", remaining.len())
-                    .multi_get_executed_effects_digests(&remaining_digests)?;
-                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
-                        self.cached
-                            .executed_effects_digests
-                            .insert(digest, None, *ticket)
-                            .ok();
-                    }
-                }
-                Ok(results)
-            },
-        )
+        self.executed_effects_digests_with_fallback(digests, |store, digests| {
+            store.multi_get_executed_effects_digests(digests)
+        })
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.executed_effects_digests_with_fallback(digests, |store, digests| {
+            store.multi_get_executed_effects_digests_in_epoch(epoch, digests)
+        })
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -2041,60 +2171,24 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        let digests_and_tickets: Vec<_> = digests
-            .iter()
-            .map(|d| (*d, self.cached.transaction_effects.get_ticket_for_read(d)))
-            .collect();
-        try_do_fallback_lookup(
-            &digests_and_tickets,
-            |(digest, _)| {
-                self.metrics
-                    .record_cache_request("transaction_effects", "uncommitted");
-                if let Some(effects) = self.dirty.transaction_effects.get(digest) {
-                    self.metrics
-                        .record_cache_hit("transaction_effects", "uncommitted");
-                    return Ok(CacheResult::Hit(Some(effects.clone())));
-                }
-                self.metrics
-                    .record_cache_miss("transaction_effects", "uncommitted");
+        self.effects_with_fallback(
+            digests,
+            |store, digests| store.multi_get_effects(digests.iter()),
+            true,
+        )
+    }
 
-                self.metrics
-                    .record_cache_request("transaction_effects", "committed");
-                match self
-                    .cached
-                    .transaction_effects
-                    .get(digest)
-                    .map(|l| l.lock().clone())
-                {
-                    Some(PointCacheItem::Some(effects)) => {
-                        self.metrics
-                            .record_cache_hit("transaction_effects", "committed");
-                        Ok(CacheResult::Hit(Some((*effects).clone())))
-                    }
-                    Some(PointCacheItem::None) => Ok(CacheResult::NegativeHit),
-                    None => {
-                        self.metrics
-                            .record_cache_miss("transaction_effects", "committed");
-                        Ok(CacheResult::Miss)
-                    }
-                }
-            },
-            |remaining| {
-                let remaining_digests: Vec<_> = remaining.iter().map(|(d, _)| *d).collect();
-                let results = self
-                    .record_db_multi_get("transaction_effects", remaining.len())
-                    .multi_get_effects(remaining_digests.iter())
-                    .expect("db error");
-                for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
-                        self.cached
-                            .transaction_effects
-                            .insert(digest, None, *ticket)
-                            .ok();
-                    }
-                }
-                Ok(results)
-            },
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        // A miss only means "not in this epoch", so it is not remembered.
+        self.effects_with_fallback(
+            digests,
+            |store, digests| store.multi_get_effects_in_epoch(epoch, digests),
+            false,
         )
     }
 

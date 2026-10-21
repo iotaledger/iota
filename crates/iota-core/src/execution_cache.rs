@@ -734,6 +734,18 @@ pub trait TransactionCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
+    /// [`Self::try_multi_get_transaction_blocks`] for transactions that can
+    /// only be stored under `epoch`, such as those of a checkpoint of that
+    /// epoch. A store may answer from that epoch's records alone, so a
+    /// transaction stored under another epoch can be reported as absent.
+    fn try_multi_get_transaction_blocks_in_epoch(
+        &self,
+        _epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        self.try_multi_get_transaction_blocks(digests)
+    }
+
     fn try_get_transaction_block(
         &self,
         digest: &TransactionDigest,
@@ -798,6 +810,32 @@ pub trait TransactionCacheRead: Send + Sync {
         digests: &[TransactionDigest],
     ) -> Vec<Option<TransactionEffectsDigest>> {
         self.try_multi_get_executed_effects_digests(digests)
+            .expect("storage access failed")
+    }
+
+    /// [`Self::try_multi_get_executed_effects_digests`] for transactions that
+    /// can only have been executed in `epoch`, such as those of a checkpoint
+    /// of that epoch. A store may answer from that epoch's records alone, so
+    /// a transaction executed in another epoch can be reported as not
+    /// executed, and a cache may remember that answer for later reads of any
+    /// epoch: passing a transaction executed in another epoch makes it read as
+    /// not executed until the cache drops it.
+    fn try_multi_get_executed_effects_digests_in_epoch(
+        &self,
+        _epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.try_multi_get_executed_effects_digests(digests)
+    }
+
+    /// Non-fallible version of
+    /// `try_multi_get_executed_effects_digests_in_epoch`.
+    fn multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffectsDigest>> {
+        self.try_multi_get_executed_effects_digests_in_epoch(epoch, digests)
             .expect("storage access failed")
     }
 
@@ -882,6 +920,18 @@ pub trait TransactionCacheRead: Send + Sync {
     ) -> Vec<Option<TransactionEffects>> {
         self.try_multi_get_effects(digests)
             .expect("storage access failed")
+    }
+
+    /// [`Self::try_multi_get_effects`] for effects that can only be stored
+    /// under `epoch`, such as those of a checkpoint of that epoch. A store may
+    /// answer from that epoch's records alone, so effects stored under
+    /// another epoch can be reported as absent.
+    fn try_multi_get_effects_in_epoch(
+        &self,
+        _epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.try_multi_get_effects(digests)
     }
 
     fn try_get_effects(

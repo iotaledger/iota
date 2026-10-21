@@ -1039,7 +1039,10 @@ impl CheckpointExecutor {
         // skip the fork check for a transaction that executed since loading.
         let executed_fx_digests = self
             .transaction_cache_reader
-            .multi_get_executed_effects_digests(&ckpt_state.data.tx_digests);
+            .multi_get_executed_effects_digests_in_epoch(
+                ckpt_state.data.checkpoint.epoch(),
+                &ckpt_state.data.tx_digests,
+            );
 
         // Find unexecuted transactions and their expected effects digests
         let (unexecuted_tx_digests, unexecuted_expected_fx_digests, unexecuted_txns): (

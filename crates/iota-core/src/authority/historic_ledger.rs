@@ -239,6 +239,11 @@ impl HistoricLedger {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
+    /// The directory the buckets keep their files under.
+    pub(crate) fn files_dir(&self) -> std::path::PathBuf {
+        self.buckets.files_dir()
+    }
+
     /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
     /// below it, drops older ones, and returns the earliest epoch retained.
     ///
@@ -262,6 +267,21 @@ impl HistoricLedger {
                 before_drop();
                 Ok(())
             })
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> IotaResult<usize> {
+        self.buckets
+            .compact_closed(current_epoch, stop)
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
@@ -354,6 +374,74 @@ impl HistoricLedger {
             .into_iter()
             .map(|found| found.map(|(_, effects_digest)| effects_digest))
             .collect())
+    }
+
+    /// [`Self::multi_get_executed_effects_digests`] read from `epoch`'s bucket
+    /// alone, in one batched read. A transaction executed in another epoch is
+    /// reported as not executed.
+    pub fn multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.executed_effects)
+    }
+
+    /// [`Self::multi_get_transactions`] read from `epoch`'s bucket alone, in
+    /// one batched read. A transaction stored under another epoch is reported
+    /// as absent.
+    pub fn multi_get_transactions_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TrustedTransaction>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.transactions)
+    }
+
+    /// [`Self::multi_get_effects`] read from `epoch`'s bucket alone, in one
+    /// batched read. Effects stored under another epoch are reported as
+    /// absent.
+    pub fn multi_get_effects_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.effects)
+    }
+
+    /// [`Self::multi_get_events`] read from `epoch`'s bucket alone, in one
+    /// batched read. Events stored under another epoch are reported as
+    /// absent.
+    pub fn multi_get_events_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.events)
+    }
+
+    /// The values `keys` hold in `epoch`'s bucket, in the table `table`
+    /// picks; all `None` when there is no such bucket or it was dropped.
+    fn multi_get_in_epoch<K, V>(
+        &self,
+        epoch: EpochId,
+        keys: &[K],
+        table: impl Fn(&HistoricLedgerBucket) -> &TaggedDBMap<K, V>,
+    ) -> IotaResult<Vec<Option<V>>>
+    where
+        K: Serialize + DeserializeOwned,
+        V: Serialize + DeserializeOwned,
+    {
+        let Some(bucket) = self.buckets.get(epoch) else {
+            return Ok(keys.iter().map(|_| None).collect());
+        };
+        let found = absent_if_dropped(table(&bucket).multi_get(keys))
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+        // Empty for a dropped bucket.
+        if found.is_empty() {
+            return Ok(keys.iter().map(|_| None).collect());
+        }
+        Ok(found)
     }
 
     /// [`Self::get_executed_effects`] for each of `digests`, read from the
@@ -481,6 +569,44 @@ impl HistoricLedger {
         Ok(absent_if_dropped(bucket.tx_to_checkpoint.get(digest))
             .map_err(|e| IotaError::Storage(e.to_string()))?
             .map(|sequence| (epoch, sequence)))
+    }
+
+    /// [`Self::get_transaction_checkpoint`] for each of `digests`, in one
+    /// batched read per bucket, newest first, for the digests no newer bucket
+    /// held. A checkpoint is recorded in the bucket of the epoch that executed
+    /// the transaction, which is also the checkpoint's epoch.
+    pub fn multi_get_transaction_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+        #[cfg(test)]
+        self.count_walk();
+        let mut found = vec![None; digests.len()];
+        let mut pending: Vec<usize> = (0..digests.len()).collect();
+        for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
+            if pending.is_empty() {
+                break;
+            }
+            let values = absent_if_dropped(
+                bucket
+                    .tx_to_checkpoint
+                    .multi_get(pending.iter().map(|&index| &digests[index])),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+            // Empty for a dropped bucket, which leaves every digest pending.
+            if values.is_empty() {
+                continue;
+            }
+            let mut still_pending = Vec::with_capacity(pending.len());
+            for (index, sequence) in pending.into_iter().zip(values) {
+                match sequence {
+                    Some(sequence) => found[index] = Some((epoch, sequence)),
+                    None => still_pending.push(index),
+                }
+            }
+            pending = still_pending;
+        }
+        Ok(found)
     }
 
     /// The transaction stored under `digest`, `None` if no bucket holds it.

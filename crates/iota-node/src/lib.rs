@@ -71,7 +71,7 @@ use iota_core::{
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     rpc_indexes::{
-        RpcIndexesStore, remove_legacy_index_dirs,
+        RpcIndexesStore, legacy_index_dirs_size, remove_legacy_index_dirs,
         schema::{IndexGroup, RPC_INDEXES_DIR},
     },
     safe_client::SafeClientMetricsBase,
@@ -625,13 +625,6 @@ impl IotaNode {
         // Database has everything from genesis, set corrupted key to 0
         unmark_db_corruption(db_corrupted_path)?;
 
-        // Frees disk space ahead of the one-time migration passes below.
-        if is_full_node {
-            if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
-                warn!("failed to remove a legacy index database: {e}");
-            }
-        }
-
         // A database created from genesis has nothing for the one-time passes
         // below to find.
         // TODO(https://github.com/iotaledger/iota/issues/12712): remove this.
@@ -639,6 +632,61 @@ impl IotaNode {
             store.mark_pre_bucket_passes_done()?;
             checkpoint_store.mark_checkpoint_backlog_migrated()?;
         }
+
+        // Before the first start moves or deletes any history. Opening the
+        // database has already dropped the table an older release keeps its
+        // objects pruner's watermark in, so even a refused start leaves a
+        // database only this release can run on.
+        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
+        let pruning_config = &config.authority_store_pruning_config;
+        // Only space freed on the history's file system helps the migration,
+        // which copies into it.
+        let legacy_index_size = if is_full_node {
+            legacy_index_dirs_size(&config.db_path(), &historic_db_path)
+        } else {
+            0
+        };
+        ledger_backlog_migration::check_before_first_start(
+            &store,
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            pruning_config.num_epochs_to_retain_for_checkpoints,
+            pruning_config.num_epochs_to_retain_for_checkpoints(),
+            legacy_index_size,
+        )
+        .map_err(|e| anyhow!("refusing to start: {e}"))?;
+
+        // Frees disk space ahead of the one-time migration passes below. The
+        // check above counted that space as free, so a failed removal must
+        // stop the start before the migration fills the disk.
+        if is_full_node {
+            if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
+                if legacy_index_size > 0 {
+                    return Err(anyhow!(
+                        "refusing to start: failed to remove a legacy index database in {}, \
+                         whose space the ledger migration needs: {e}. Remove the `indexes`, \
+                         `jsonrpc_indexes` and `grpc_indexes` directories there by hand",
+                        config.db_path().display()
+                    ));
+                }
+                warn!("failed to remove a legacy index database: {e}");
+            }
+        }
+
+        // Before any service starts, since nothing reads the flat tables.
+        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
+        ledger_backlog_migration::migrate(
+            store.clone(),
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            pruning_config.num_epochs_to_retain_for_checkpoints(),
+        )
+        .await
+        .map_err(|e| {
+            anyhow!(
+                "failed to migrate the ledger and checkpoint history written before this build: {e}"
+            )
+        })?;
 
         // Before any service starts: a missed marker would let a receive or a
         // delete happen twice.
@@ -649,30 +697,20 @@ impl IotaNode {
                 anyhow!("failed to migrate the object markers written before this build: {e}")
             })?;
 
-        // Before any service starts, since nothing reads the flat tables.
-        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
-        ledger_backlog_migration::migrate(
-            store.clone(),
-            checkpoint_store.clone(),
-            epoch_store.epoch(),
-            config
-                .authority_store_pruning_config
-                .num_epochs_to_retain_for_checkpoints(),
-        )
-        .await
-        .map_err(|e| {
-            anyhow!(
-                "failed to migrate the ledger and checkpoint history written before this build: {e}"
-            )
-        })?;
-
         // Before any service that could expire a historic bucket starts, and
         // before the index rebuild below scans the live `objects` table.
         // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
         object_backlog_sweep::sweep(store.clone(), epoch_store.epoch())
             .await
             .map_err(|e| {
-                anyhow!("failed to sweep the object versions superseded before this build: {e}")
+                anyhow!(
+                    "failed to sweep the object versions superseded before this build: {e}. If it \
+                     fails on a row it cannot read every time, `iota-tool db-tool --db-path {} \
+                     mark-object-backlog-swept`, with the node stopped, lets it start without \
+                     the sweep; the versions it had not reached then stay in the live object \
+                     table",
+                    config.db_path().display()
+                )
             })?;
 
         info!("creating state sync store");
@@ -2297,6 +2335,10 @@ impl IotaNode {
     /// Stops consensus, the JSON-RPC index backfill and the gRPC server.
     /// Does nothing the second time it is called.
     pub async fn shutdown(&self) {
+        // First, so that a running expiry or compaction, which the runtime's
+        // shutdown waits for, ends soon.
+        self.state.stop_historic_bucket_work();
+
         if let Some(validator_components) = &*self.validator_components.lock().await {
             validator_components.consensus_manager.shutdown().await;
         }

@@ -640,6 +640,15 @@ impl CheckpointStore {
         self.historic_checkpoints.find_contents(digest)
     }
 
+    /// [`Self::get_checkpoint_contents`], with the epoch of the checkpoint
+    /// they belong to.
+    pub fn get_checkpoint_contents_with_epoch(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Result<Option<(EpochId, CheckpointContents)>, TypedStoreError> {
+        self.historic_checkpoints.find_contents_with_epoch(digest)
+    }
+
     /// Get full checkpoint contents from the in-memory contents cache.
     ///
     /// Returns `None` once the entry has been evicted; callers fall back to

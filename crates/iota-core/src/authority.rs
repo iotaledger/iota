@@ -9,7 +9,10 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{Arc, Weak, atomic::Ordering},
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     vec,
 };
@@ -391,6 +394,15 @@ pub struct AuthorityMetrics {
 /// How long the historic bucket expiry waits, once a retention guard that kept
 /// a bucket is dropped, before it tries again.
 const HELD_BACK_EXPIRY_INTERVAL: Duration = Duration::from_secs(1);
+
+/// How far behind the network a node's newest executed checkpoint may be for
+/// the node to count as caught up; until then, closed buckets are not
+/// compacted.
+const CATCH_UP_LAG: Duration = Duration::from_secs(10 * 60);
+
+/// How often the background expiry checks again whether the node has caught
+/// up, while that holds back the compaction of closed buckets.
+const COMPACTION_RECHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 // Override default Prom buckets for positive numbers in 0-10M range
 const POSITIVE_INT_BUCKETS: &[f64] = &[
@@ -985,7 +997,7 @@ impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
             .try_multi_get_objects_by_key(object_keys)?;
         self.0
             .historic_objects
-            .fill_missing(object_keys, &mut objects)
+            .fill_missing(object_keys, &mut objects, None)
             .map_err(iota_types::storage::error::Error::custom)?;
         Ok(objects)
     }
@@ -1041,6 +1053,8 @@ pub struct AuthorityState {
     /// Announces each epoch entered to the task that expires the historic
     /// buckets.
     historic_bucket_expiry: watch::Sender<EpochId>,
+    /// Set by [`Self::stop_historic_bucket_work`].
+    historic_bucket_work_stopped: Arc<AtomicBool>,
 
     pub config: NodeConfig,
 
@@ -3004,6 +3018,7 @@ impl AuthorityState {
             traffic_controller,
             epoch_end_db_snapshots,
             historic_bucket_expiry,
+            historic_bucket_work_stopped: Arc::new(AtomicBool::new(false)),
         });
         // An expiry cut short by a crash may not have recorded what it
         // dropped.
@@ -3405,12 +3420,16 @@ impl AuthorityState {
         let historic_ledger = self.historic_ledger.clone();
         let checkpoint_store = self.checkpoint_store.clone();
         let rpc_indexes_store = self.rpc_indexes_store.clone();
+        let stopped = self.historic_bucket_work_stopped.clone();
         let metrics = self.metrics.clone();
         let expired = tokio::task::spawn_blocking(move || {
             // The index first, so it never names a transaction the ledger has
             // dropped, and the checkpoints before the ledger, so a checkpoint
             // is never served without its transactions.
             let expire = |store: &str, prune: &dyn Fn() -> Result<Option<EpochId>, String>| {
+                if stopped.load(Ordering::Acquire) {
+                    return;
+                }
                 let started = Instant::now();
                 let pruned = prune();
                 metrics
@@ -3423,6 +3442,12 @@ impl AuthorityState {
                         .with_label_values(&[store])
                         .set(earliest_retained_epoch as i64),
                     Ok(None) => {}
+                    Err(err) if stopped.load(Ordering::Acquire) => {
+                        info!(
+                            store,
+                            "Stopped expiring historic buckets for a shutdown: {err}"
+                        )
+                    }
                     Err(err) => error!(store, "Failed to expire historic buckets: {err}"),
                 }
             };
@@ -3466,21 +3491,158 @@ impl AuthorityState {
         held_back
     }
 
+    /// Stops the background expiry and compaction of historic buckets, for a
+    /// shutdown: an expiry stops before its next store or its next batch of
+    /// tombstones, and a compaction before its next bucket, as the blocking
+    /// task holds up the runtime's shutdown. A bucket already being compacted
+    /// is finished first, which for a large one can take minutes. What is cut
+    /// short is finished at the next start.
+    pub fn stop_historic_bucket_work(&self) {
+        self.historic_bucket_work_stopped
+            .store(true, Ordering::Release);
+        self.historic_objects.stop();
+    }
+
+    /// How far this node's newest executed checkpoint is behind the local
+    /// clock, `None` when nothing is executed yet.
+    fn execution_lag(&self) -> Option<Duration> {
+        let Ok(Some(executed)) = self.checkpoint_store.get_highest_executed_checkpoint() else {
+            return None;
+        };
+        let executed_at = UNIX_EPOCH + Duration::from_millis(executed.timestamp_ms);
+        Some(
+            SystemTime::now()
+                .duration_since(executed_at)
+                .unwrap_or_default(),
+        )
+    }
+
+    /// Whether this node is still catching up with the network: nothing is
+    /// executed yet, or its newest executed checkpoint is more than
+    /// [`CATCH_UP_LAG`] old.
+    fn is_catching_up(&self) -> bool {
+        self.execution_lag().is_none_or(|lag| lag > CATCH_UP_LAG)
+    }
+
+    /// Compacts the buckets of every store's closed epochs that are not
+    /// compacted yet, so a lookup that walks the buckets probes each of them
+    /// once. Stops before the next bucket once `epochs` announces a new epoch
+    /// or its sender is dropped, or `stopped` is set, which leaves the rest
+    /// for the next call.
+    async fn compact_closed_buckets(
+        current_epoch: EpochId,
+        historic_objects: Arc<HistoricObjects>,
+        historic_ledger: Arc<HistoricLedger>,
+        checkpoint_store: Arc<CheckpointStore>,
+        rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
+        epochs: watch::Receiver<EpochId>,
+        stopped: Arc<AtomicBool>,
+    ) {
+        let compacted = tokio::task::spawn_blocking(move || {
+            let stop =
+                || stopped.load(Ordering::Acquire) || !matches!(epochs.has_changed(), Ok(false));
+            if let Some(indexes) = &rpc_indexes_store {
+                // The history backfill writes closed epochs' buckets until it
+                // is done; the next pass compacts them.
+                if indexes.is_history_backfill_running() {
+                    info!("Not compacting the RPC index history while its backfill runs");
+                } else if let Err(err) = indexes.compact_closed_buckets(current_epoch, &stop) {
+                    error!("Failed to compact the RPC index history: {err:?}");
+                }
+            }
+            if let Err(err) = checkpoint_store
+                .historic_checkpoints
+                .compact_closed_buckets(current_epoch, &stop)
+            {
+                error!("Failed to compact historic checkpoint buckets: {err:?}");
+            }
+            if let Err(err) = historic_ledger.compact_closed_buckets(current_epoch, &stop) {
+                error!("Failed to compact historic ledger buckets: {err:?}");
+            }
+            if let Err(err) = historic_objects.compact_closed_buckets(current_epoch, &stop) {
+                error!("Failed to compact historic object buckets: {err:?}");
+            }
+        })
+        .await;
+        if let Err(err) = compacted {
+            error!("The closed bucket compaction task failed: {err:?}");
+        }
+    }
+
     /// Expires the historic buckets for each epoch `epochs` announces,
     /// starting with the one it holds, and again once a retention guard is
-    /// dropped after one kept a bucket. Returns once `state` is dropped.
+    /// dropped after one kept a bucket; then compacts the closed buckets.
+    /// Returns once `state` is dropped.
+    ///
+    /// Compaction waits while a guard keeps a bucket, which may expire at the
+    /// next run, and while the node catches up: epochs then close one after
+    /// another, the oldest expire soon after, and nothing on the catch-up path
+    /// walks the closed buckets. It is retried every
+    /// [`COMPACTION_RECHECK_INTERVAL`] until the node has caught up.
     async fn expire_historic_buckets_in_background(
         state: Weak<AuthorityState>,
         mut epochs: watch::Receiver<EpochId>,
         released: Arc<Notify>,
     ) {
+        // Logged when it changes, so an operator can see why closed buckets
+        // are not compacted.
+        let mut compaction_held_back = None;
         loop {
             let epoch = *epochs.borrow_and_update();
             let Some(this) = state.upgrade() else {
                 return;
             };
+            if this.historic_bucket_work_stopped.load(Ordering::Acquire) {
+                return;
+            }
             let held_back = this.expire_historic_buckets(epoch).await;
+            let catching_up = this.is_catching_up();
+            let state = (held_back, catching_up);
+            if compaction_held_back != Some(state) {
+                match state {
+                    (false, false) => info!("Compacting the buckets of closed epochs"),
+                    (true, _) => info!(
+                        "Not compacting the buckets of closed epochs while a read holds back the \
+                         expiry of historic objects"
+                    ),
+                    (false, true) => info!(
+                        lag_s = this.execution_lag().map(|lag| lag.as_secs()),
+                        "Not compacting the buckets of closed epochs while the node catches up: \
+                         its newest executed checkpoint is more than {} minutes old",
+                        CATCH_UP_LAG.as_secs() / 60
+                    ),
+                }
+                compaction_held_back = Some(state);
+            }
+            let compaction = (!held_back && !catching_up).then(|| {
+                (
+                    this.historic_objects.clone(),
+                    this.historic_ledger.clone(),
+                    this.checkpoint_store.clone(),
+                    this.rpc_indexes_store.clone(),
+                    this.historic_bucket_work_stopped.clone(),
+                )
+            });
             drop(this);
+            if let Some((
+                historic_objects,
+                historic_ledger,
+                checkpoint_store,
+                rpc_indexes_store,
+                stopped,
+            )) = compaction
+            {
+                Self::compact_closed_buckets(
+                    epoch,
+                    historic_objects,
+                    historic_ledger,
+                    checkpoint_store,
+                    rpc_indexes_store,
+                    epochs.clone(),
+                    stopped,
+                )
+                .await;
+            }
             tokio::select! {
                 changed = epochs.changed() => {
                     if changed.is_err() {
@@ -3492,6 +3654,7 @@ impl AuthorityState {
                     // interval rather than one per dropped guard.
                     tokio::time::sleep(HELD_BACK_EXPIRY_INTERVAL).await;
                 }
+                () = tokio::time::sleep(COMPACTION_RECHECK_INTERVAL), if catching_up && !held_back => {}
             }
         }
     }
@@ -6346,7 +6509,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .get_object_cache_reader()
             .multi_get_objects_by_key(object_keys);
         self.historic_objects
-            .fill_missing(object_keys, &mut objects)?;
+            .fill_missing(object_keys, &mut objects, None)?;
         Ok(objects)
     }
 

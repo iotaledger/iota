@@ -217,15 +217,40 @@ impl HistoricCheckpoints {
         })
     }
 
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> Result<usize, TypedStoreError> {
+        self.buckets.compact_closed(current_epoch, stop)
+    }
+
     /// The contents stored under `digest`, newest bucket first, `None` if no
     /// bucket holds them (or their bucket has since been dropped).
     pub fn find_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>, TypedStoreError> {
-        for bucket in self.buckets.iter(true) {
+        Ok(self
+            .find_contents_with_epoch(digest)?
+            .map(|(_, contents)| contents))
+    }
+
+    /// [`Self::find_contents`], with the epoch of the bucket holding them,
+    /// which is the epoch of the checkpoint they belong to. Every bucket
+    /// holds the empty contents; for them, the newest bucket's epoch.
+    pub fn find_contents_with_epoch(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Result<Option<(EpochId, CheckpointContents)>, TypedStoreError> {
+        for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
             if let Some(contents) = absent_if_dropped(bucket.checkpoint_content.get(digest))? {
-                return Ok(Some(contents));
+                return Ok(Some((epoch, contents)));
             }
         }
         Ok(None)
