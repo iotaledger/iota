@@ -64,6 +64,7 @@ impl From<&CheckpointData> for CommitterWatermark {
     Serialize,
     Deserialize,
     Clone,
+    Copy,
 )]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -142,6 +143,18 @@ impl CommitterTables {
         Self::EventStructName,
         Self::EventStructPackage,
     ];
+
+    pub fn is_ingested(self, level: OperationalLevel) -> bool {
+        if Self::BASIC.contains(&self) {
+            level.includes(OperationalLevel::Basic)
+        } else if Self::OBJECTS_HISTORY.contains(&self) {
+            level.includes(OperationalLevel::ObjectsHistory)
+        } else if Self::FILTERED_QUERIES.contains(&self) {
+            level.includes(OperationalLevel::FilteredQueries)
+        } else {
+            level.includes(OperationalLevel::CombinedEventFilters)
+        }
+    }
 }
 
 /// Enum representing tables that are written by optimistic indexing, and not by
