@@ -205,7 +205,7 @@ impl AuthorityIndex {
     pub const MIN: Self = Self::ZERO;
     pub const MAX: Self = Self(u8::MAX);
 
-    pub fn value(&self) -> usize {
+    pub const fn value(&self) -> usize {
         self.0 as usize
     }
 }

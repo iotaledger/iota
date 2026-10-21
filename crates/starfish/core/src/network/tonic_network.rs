@@ -1902,9 +1902,14 @@ pub(crate) struct FetchCommitsResponse {
     certifier_block_headers: Vec<Bytes>,
 }
 
-/// Maximum number of certifier headers in a commit-sync response, for a
-/// committee of at most 256 authorities.
-const MAX_CERTIFIER_HEADERS_PER_FETCH: usize = 256 * MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY;
+/// Upper bound on any committee's size: the number of distinct authority
+/// indices.
+const MAX_COMMITTEE_SIZE: usize = AuthorityIndex::MAX.value() + 1;
+
+/// Maximum number of certifier headers in a commit-sync response, for any
+/// committee.
+const MAX_CERTIFIER_HEADERS_PER_FETCH: usize =
+    MAX_COMMITTEE_SIZE * MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY;
 
 impl EntryLimit for FetchCommitsResponse {
     // Regular sync returns at most the requested range of commits.
@@ -1969,9 +1974,8 @@ pub(crate) struct FetchLatestBlockHeadersResponse {
 
 impl EntryLimit for FetchLatestBlockHeadersResponse {
     // One header per requested authority, and a server refuses a request
-    // naming more authorities than its committee, which `AuthorityIndex` (a
-    // u8) caps at 256.
-    const MAX_ENTRIES: usize = 256;
+    // naming more authorities than its committee.
+    const MAX_ENTRIES: usize = MAX_COMMITTEE_SIZE;
     const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
 }
 
