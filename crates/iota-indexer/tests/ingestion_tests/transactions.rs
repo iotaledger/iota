@@ -14,7 +14,11 @@ use iota_indexer::{
     },
     insert_or_ignore_into,
     models::transactions::{StoredTransaction, TxGlobalOrder},
-    schema::{transactions, tx_global_order},
+    schema::{
+        transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects,
+        tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
+        tx_wrapped_or_deleted_objects,
+    },
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::DBInitHook,
     transactional_blocking_with_retry,
@@ -29,7 +33,8 @@ use rstest::rstest;
 
 use crate::{
     common::indexer_wait_for_checkpoint,
-    utils::{IngestionTest, TestSim, read_only_blocking},
+    objects::ObjectsVersionIngestionWrapsAndRemovals,
+    utils::{IngestionTest, TestSim, assert_row_count, read_only_blocking},
 };
 
 #[rstest]
@@ -47,9 +52,11 @@ pub async fn transaction_table(
 pub async fn tx_global_order_table(
     #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
 ) -> Result<(), IndexerError> {
-    TxGlobalOrderTable::new(false)
-        .run(level, "ingestion_tx_global_order")
-        .await
+    TxGlobalOrderTable {
+        pre_inserted: false,
+    }
+    .run(level, "ingestion_tx_global_order")
+    .await
 }
 
 #[rstest]
@@ -57,7 +64,7 @@ pub async fn tx_global_order_table(
 pub async fn tx_global_order_table_on_conflict_do_nothing(
     #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
 ) -> Result<(), IndexerError> {
-    TxGlobalOrderTable::new(true)
+    TxGlobalOrderTable { pre_inserted: true }
         .run(level, "ingestion_tx_global_order_on_conflict_do_nothing")
         .await
 }
@@ -89,6 +96,17 @@ pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
     let tx_indices = std::iter::repeat_with(TxIndex::random).take(1000).collect();
     pg_store.persist_tx_indices(tx_indices).await?;
     Ok(())
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn tx_index_tables(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
+    let (pg_store, _) = ObjectsVersionIngestionWrapsAndRemovals
+        .setup(level, "ingestion_tx_index_tables")
+        .await;
+    assert_count_tx_index(&pg_store, level.includes(FilteredQueries)).await
 }
 
 struct TransactionTable;
@@ -146,12 +164,6 @@ struct TxGlobalOrderTable {
     /// If `true`, a DB init hook inserts the `tx_global_order` row before the
     /// indexer starts, as optimistic indexing does.
     pre_inserted: bool,
-}
-
-impl TxGlobalOrderTable {
-    fn new(pre_inserted: bool) -> Self {
-        Self { pre_inserted }
-    }
 }
 
 impl IngestionTest for TxGlobalOrderTable {
@@ -229,4 +241,20 @@ fn emulate_insertion_order_set_earlier_by_optimistic_indexing(
         )
         .unwrap()
     })
+}
+
+async fn assert_count_tx_index(
+    pg_store: &PgIndexerStore,
+    ingested: bool,
+) -> Result<(), IndexerError> {
+    assert_row_count!(pg_store, tx_input_objects, ingested).await?;
+    assert_row_count!(pg_store, tx_changed_objects, ingested).await?;
+    assert_row_count!(pg_store, tx_wrapped_or_deleted_objects, ingested).await?;
+    assert_row_count!(pg_store, tx_senders, ingested).await?;
+    assert_row_count!(pg_store, tx_recipients, ingested).await?;
+    assert_row_count!(pg_store, tx_kinds, ingested).await?;
+    assert_row_count!(pg_store, tx_calls_pkg, ingested).await?;
+    assert_row_count!(pg_store, tx_calls_mod, ingested).await?;
+    assert_row_count!(pg_store, tx_calls_fun, ingested).await?;
+    Ok(())
 }
