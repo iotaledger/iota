@@ -132,6 +132,7 @@ use crate::{
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
+    post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
     post_consensus_validation,
     signature_verifier::*,
@@ -4303,6 +4304,23 @@ impl AuthorityPerEpochStore {
     > {
         let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
 
+        // Validation reads rows produced at or below the horizon, so every
+        // commit up to it must be fully executed before any input is read.
+        // Only a node that keeps the handler object state advances the highest
+        // fully executed commit. Commits after the final round make no
+        // checkpoint and are never assigned, so the highest fully executed
+        // commit cannot reach them. They admit no user transaction either, so
+        // they do not wait.
+        if self.pcool_bookkeeping_enabled
+            && self.get_reconfig_state_read_lock_guard().should_accept_tx()
+        {
+            self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
+                &self.protocol_config,
+                consensus_commit_info.index,
+            )))
+            .await?;
+        }
+
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
@@ -4543,15 +4561,13 @@ impl AuthorityPerEpochStore {
                 );
             }
 
-            // With deterministic validation, validation of commit `C` reads
-            // the rows of the commits at or below the horizon `C - K`, so its
-            // result depends only on the commit if every one of those commits
-            // is fully executed first. A commit's rows are written before the
-            // highest fully executed commit advances past it, so from then on
-            // those rows are all readable and do not change during validation.
-            // Rows of later commits can still appear, but they answer missing.
-            // Nothing here waits for those commits, so the result can
-            // still depend on how far this validator's execution has got.
+            // With deterministic validation, a commit's rows are written
+            // before the highest fully executed commit advances past it, so
+            // after the wait above every row produced at or below the horizon
+            // is readable before validation of `C` starts, and does not change
+            // during it. Rows produced above the horizon can still appear, but
+            // they answer missing. Validating before that wait would make the
+            // result depend on how far this validator's execution has got.
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
