@@ -1,66 +1,72 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-epoch object bookkeeping for P-COOL deterministic post-consensus
-//! validation: object state as of the commit height being processed by the
-//! consensus handler, independent of local execution progress.
+//! The handler object state: the object versions that the commits assigned
+//! by the consensus handler produce, kept per epoch for P-COOL deterministic
+//! post-consensus validation. Validation reads object state as of a commit
+//! from it, however far local execution has got.
 //!
-//! The bookkeeping is one epoch table of handler-processed rows plus an
-//! in-memory overlay holding the rows not yet durable: every version a commit
-//! the handler has processed produced, one row per (object, version), so
-//! writes need no ordering among themselves. Rows are read by the exact
-//! version a transaction names or, for a shared object that is gone, at the
-//! object's highest version.
+//! Terms used here:
+//! - `C` is the commit being validated, and `K` is how many commits behind `C` validation reads the
+//!   object state: the protocol config's `pcool_deterministic_validation_horizon_distance`.
+//!   Validation at `C` reads the state as of commit `C - K`, called the horizon.
+//! - A row is one entry of the handler object state. It records that a transaction in some commit
+//!   produced version `V` of object `id`: the commit, the digest, and whether the object is live,
+//!   deleted or wrapped at that version. "The row at `(id, V)`" is that entry. Rows are read at the
+//!   exact version a transaction names or, for a shared object that is gone, at the object's
+//!   highest version.
+//! - Rows are written to the epoch table `handler_processed_objects`. Until then they are held in
+//!   memory. A row held in memory is removed only after it is written to the table, and reads look
+//!   in memory first.
+//! - The roots of a commit are the keys of the transactions the handler put in the commit's pending
+//!   checkpoints, cancelled transactions included.
+//! - A commit is fully executed when every root of it has effects.
+//! - The execution watcher is the task that waits for the effects of the roots of each assigned
+//!   commit and then marks the commit fully executed (`ExecutionWatcher` in the consensus handler).
 //!
 //! On a committee validator every execution belongs to a commit the handler
-//! has processed: the checkpoint executor runs a transaction only after the
+//! has assigned: the checkpoint executor runs a transaction only after the
 //! handler has assigned its commit, until the node switches to executing
 //! synced checkpoints for the rest of the epoch, which stops the handler.
 //! The change-epoch transaction and genesis run outside any commit and write
-//! no rows; what they write is the next epoch's start state.
+//! no rows. What they write is the state the next epoch starts with.
 //!
-//! [`HandlerObjectState`] owns the overlay, the transaction-key ->
-//! commit-index map, and every invariant on them: overlay-first reads, and
-//! eviction only after the corresponding table row is durable.
+//! [`HandlerObjectState`] owns the rows held in memory and the map from
+//! transaction key to assigned commit.
 //!
-//! The in-memory state changes at these points:
-//! - the handler registers a commit's kept transaction keys before they can be scheduled
-//!   ([`HandlerObjectState::assign_commit_to_transactions`], via the epoch store);
-//! - each execution of a registered key puts its rows in the overlay before its outputs become
-//!   readable ([`HandlerObjectState::record_executed_transaction`]);
-//! - a commit is completed, by the watcher once it is fully executed
-//!   ([`HandlerObjectState::record_commit_fully_executed`]) or by its quarantine flush when that
-//!   comes first ([`HandlerObjectState::complete_commit_at_flush`]). Either way the commit's rows
-//!   go into the overlay (the watcher skips those already present or durable) and its map entries
-//!   are dropped;
+//! The rows and the map change at these points:
+//! - the handler assigns a commit to its roots before any of them can be scheduled
+//!   ([`HandlerObjectState::assign_commit_to_transactions`], through the epoch store);
+//! - each execution of a transaction whose commit is assigned puts its rows in memory before its
+//!   outputs become readable ([`HandlerObjectState::record_executed_transaction`]);
+//! - a commit is completed, either by the execution watcher once it is fully executed
+//!   ([`HandlerObjectState::record_commit_fully_executed`]) or by the quarantine flush of its
+//!   output when that comes first ([`HandlerObjectState::complete_commit_at_flush`]). Either way
+//!   the commit's rows are put in memory, skipping the rows already present, and the commit's keys
+//!   are removed from the map;
 //! - the execution watcher stops on an error
-//!   ([`HandlerObjectState::record_execution_watcher_error`]). From then on only a flush completes
-//!   a commit, and a wait for a commit that is not fully executed panics;
-//! - the two eviction methods below clear overlay entries once their rows are durable.
+//!   ([`HandlerObjectState::record_execution_watcher_error`]). After that only a flush completes a
+//!   commit, and a wait for a commit that is not fully executed panics;
+//! - rows are removed from memory once they are written to the table.
 //!
 //! Completing a commit also raises the highest fully executed commit
-//! ([`HandlerObjectState::wait_for_fully_executed_commit`]), the one value
-//! this module publishes outward: validation of a commit waits on it, so that
-//! it reads rows no execution can still add to.
+//! ([`HandlerObjectState::wait_for_fully_executed_commit`]). Validation of a
+//! commit waits on it, so that it reads rows no execution can still add to.
 //!
-//! Durable writes happen at exactly two trigger points; everything else the
-//! module does is in-memory plus point reads:
-//! - the quarantine flush of a commit's output (once its checkpoint is certified and executed):
-//!   inserts the commit's rows not yet durable atomically with `last_consensus_stats`
-//!   ([`HandlerObjectState::write_commit_rows_to_batch`]). For a commit the watcher completed these
-//!   are the rows still in the overlay ([`HandlerObjectState::take_completed_commit_rows`]);
-//!   otherwise all of the commit's rows, derived from its effects;
-//! - the checkpoint executor's batch for every executed checkpoint, durable before the checkpoint's
-//!   outputs and its watermark bump: inserts the rows its executions left in the overlay
-//!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]), so an object is never durable
+//! Rows are written to the table at two points:
+//! - the quarantine flush of a commit's output, once its checkpoint is certified and executed,
+//!   writes the commit's rows not yet in the table, in the same batch as `last_consensus_stats`
+//!   ([`HandlerObjectState::write_commit_rows_to_batch`]). For a commit the execution watcher
+//!   completed, these are its rows still held in memory
+//!   ([`HandlerObjectState::take_completed_commit_rows`]). Otherwise they are all the commit's
+//!   rows, derived from its effects;
+//! - for every executed checkpoint, the checkpoint executor writes the rows its executions put in
+//!   memory, in a separate batch written just before the checkpoint's outputs and its watermark
+//!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]). So an object is never written
 //!   without its row. Rows never change once written for a key, so this batch takes no lock.
 //!
-//! Both batches go through `DBBatch::write`, which does not fsync. Every
-//! ordering this module relies on between a durable write and what follows
-//! it - write-then-evict, the effects in the perpetual store before the rows
-//! derived from them - holds across a process crash, where the operating
-//! system keeps the written data, and not across a power loss or kernel
-//! crash, where either store may lose its tail independently of the other.
+//! Neither batch is synced to disk when written, so the order of these writes
+//! holds across a process crash but not across a power loss or kernel crash.
 
 use std::{
     collections::{BTreeMap, btree_map::Entry},
@@ -99,13 +105,13 @@ use crate::{
 /// representation.
 pub type CommitIndex = u64;
 
-/// Whether a handler-processed row describes a live object or a tombstone at a
-/// given commit index.
+/// Whether a row describes a live object, or a deleted or wrapped one, at its
+/// version.
 ///
-/// `Deleted` and `Wrapped` yield the same drop verdict; the split mirrors the
-/// store's two tombstone digests and their different futures - a wrapped
-/// object can reappear via unwrap at a higher version, a deleted one never
-/// does.
+/// A transaction that uses a deleted or a wrapped version is dropped either
+/// way. The two kinds match the store's two tombstone digests and are kept
+/// apart because a wrapped object can come back at a higher version through
+/// an unwrap, and a deleted one cannot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HandlerProcessedObjectKind {
     Live,
@@ -113,32 +119,34 @@ pub enum HandlerProcessedObjectKind {
     Wrapped,
 }
 
-/// One version an object took at a commit the consensus handler processed.
+/// A row: one version an object took in a commit the consensus handler
+/// assigned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HandlerProcessedObject {
     pub digest: ObjectDigest,
     pub kind: HandlerProcessedObjectKind,
-    /// Index of the commit whose execution produced this row; reads at a
-    /// commit treat rows above its horizon (the commit minus the protocol
-    /// config's horizon distance) as missing.
+    /// The commit whose transaction produced this version. Validation at
+    /// commit `C` treats a row produced above the horizon `C - K` as missing.
     pub produced_at: CommitIndex,
-    /// The initial shared version on a shared object's creation row and on
-    /// its `Deleted` row. `None` on every other row. The shared-input checks
-    /// read it as the created-shared flag and to verify a declared version.
+    /// The initial shared version, on the row that creates a shared object
+    /// and on its `Deleted` row. `None` on every other row. Validation reads
+    /// it to tell an object created as shared from one that is not, and to
+    /// check the initial shared version a transaction declares.
     pub initial_shared_version: Option<Version>,
     /// The version of the object this row's write replaced: the consumed
     /// input of a mutation, deletion or wrap. `None` for a creation or an
     /// unwrap.
     pub replaced_version: Option<Version>,
-    /// The transaction of a `Deleted` row, `None` on the other kinds. A kept
-    /// deleted shared input carries it as the deleting transaction, so the
-    /// reader needs no deletion marker.
+    /// The transaction that deleted the object, on a `Deleted` row. `None` on
+    /// the other kinds. The shared reader returns it as the deleting
+    /// transaction of a kept deleted shared input, so it needs no separate
+    /// deletion marker.
     pub deleted_by: Option<TransactionDigest>,
 }
 
-/// The rows a commit's executed transactions produce. Both writers of durable
-/// rows - the execution watcher and the quarantine flush - derive them here,
-/// so the two cannot drift apart.
+/// The rows a commit's executed transactions produce. The execution watcher
+/// and the quarantine flush both derive a commit's rows here, so they always
+/// agree.
 pub fn handler_rows_for_commit<'a>(
     effects: impl IntoIterator<Item = &'a TransactionEffects>,
     index: CommitIndex,
@@ -149,11 +157,11 @@ pub fn handler_rows_for_commit<'a>(
         .collect()
 }
 
-/// Derives the handler-processed upserts for one executed transaction of the
-/// commit at `produced_at`: created / mutated / unwrapped objects become
-/// `Live` rows, deletions and wraps become tombstone rows. A deleted shared
-/// object's row keeps its initial shared version, taken from the consumed
-/// input's owner, and every `Deleted` row names the transaction.
+/// The rows one executed transaction of commit `produced_at` produces: a
+/// `Live` row for each created, mutated or unwrapped object, and a `Deleted`
+/// or `Wrapped` row for each deleted or wrapped one. A deleted shared object's
+/// row keeps its initial shared version, taken from the consumed input's
+/// owner, and every `Deleted` row names the transaction.
 pub fn handler_processed_upserts(
     effects: &TransactionEffects,
     produced_at: CommitIndex,
@@ -175,8 +183,8 @@ pub fn handler_processed_upserts(
         if !needs_handler_row(write_kind, &owned_ref) {
             continue;
         }
-        // A shared object's creation row carries its initial shared version -
-        // the created-shared flag the shared-input checks read.
+        // Only the creation of a shared object gets here with a shared owner,
+        // so only its creation row holds the initial shared version.
         let initial_shared_version = match *owned_ref.owner() {
             Owner::Shared(initial) => Some(initial),
             _ => None,
@@ -254,13 +262,14 @@ pub fn handler_processed_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
     live.chain(tombstones).collect()
 }
 
-/// Whether a created, mutated or unwrapped object needs a handler-processed
-/// row; if so, the row is `Live`.
+/// Whether a created, mutated or unwrapped object needs a row. If so, the
+/// row is `Live`.
 fn needs_handler_row(write_kind: WriteKind, owned_ref: &OwnedObjectReference) -> bool {
     match (write_kind, owned_ref.owner()) {
-        // Shared-object mutations write nothing: no check consults shared
-        // state beyond existence, creation, and deletion, and hot shared
-        // objects (the Clock) would churn the row every commit.
+        // Mutations of shared objects write no row: validation only asks
+        // whether a shared object exists, was created as shared, or was
+        // deleted, and a row on every commit for a busy object such as the
+        // Clock would be wasted.
         (WriteKind::Mutate | WriteKind::Unwrap, Owner::Shared(_)) => false,
         (WriteKind::Create | WriteKind::Mutate | WriteKind::Unwrap, _) => true,
         // `WriteKind` is non-exhaustive; a kind this code does not know
@@ -272,17 +281,17 @@ fn needs_handler_row(write_kind: WriteKind, owned_ref: &OwnedObjectReference) ->
     }
 }
 
-/// A commit the handler has processed, handed to the execution watcher so it
+/// A commit the handler has assigned, handed to the execution watcher so it
 /// can mark the commit fully executed once every root has effects.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignedCommit {
     pub index: CommitIndex,
-    /// The commit's roots: the same keys written to its pending checkpoints,
-    /// cancelled transactions included.
+    /// The keys of the transactions the handler put in the commit's pending
+    /// checkpoints, cancelled transactions included.
     pub roots: Vec<TransactionKey>,
 }
 
-/// The entries of `overlay` at `keys`, skipping absent ones.
+/// The rows in `overlay` at `keys`, skipping absent ones.
 fn present_entries<K: Ord, V: Clone>(
     overlay: &RwLock<BTreeMap<K, V>>,
     keys: impl IntoIterator<Item = K>,
@@ -293,34 +302,32 @@ fn present_entries<K: Ord, V: Clone>(
         .collect()
 }
 
-/// A commit whose rows a quarantine flush staged into its batch. The flush
-/// cannot evict the matching overlay entries itself - its caller writes the
-/// batch - so it hands them back to be evicted once the write is durable.
+/// A commit whose rows a quarantine flush staged into its batch. The caller
+/// of the flush writes the batch, so the flush hands the rows back for the
+/// caller to remove from memory after that write.
 pub(super) struct FlushedCommitRows {
     pub index: CommitIndex,
     pub rows: Vec<(ObjectKey, HandlerProcessedObject)>,
 }
 
-/// In-memory side of the bookkeeping plus every operation composing it with
-/// the durable tables. Overlays hold entries of commits whose rows are not
-/// yet durable; an entry leaves only after the corresponding table row is
-/// durable, and the read paths check the overlay first, so the transient
-/// both-present state is harmless.
+/// The rows held in memory and the map from transaction key to assigned
+/// commit, with every operation that combines them with the table. A row
+/// held in memory is removed only after it is written to the table, and
+/// reads look in memory first, so a row found in both places reads the same.
 pub struct HandlerObjectState {
-    /// Transaction key -> producing commit index for every kept transaction of
-    /// commits the handler has processed but whose executions have not all
-    /// completed. The execution hook consults it: a hit upserts the
-    /// execution's rows. Never persisted: replay after
-    /// restart re-runs `assign_commit_to_transactions` before any
-    /// (re-)execution can ask, and commits below the durable resume point
-    /// never consult it again.
+    /// The assigned commit of every root of the commits that are not
+    /// completed yet. [`Self::record_executed_transaction`] looks the executed
+    /// transaction up here, and records its rows if it is found. Not written
+    /// to disk: a replay after a restart assigns each commit again before any
+    /// of its transactions can execute again, and the commits at or below the
+    /// resume point are not looked up again.
     commit_index_by_key: DashMap<TransactionKey, CommitIndex>,
 
-    /// The keys assigned per commit index, so a fully executed commit can drop
-    /// its map entries.
+    /// The keys assigned to each commit, so a completed commit can remove its
+    /// map entries.
     keys_by_commit: Mutex<BTreeMap<CommitIndex, Vec<TransactionKey>>>,
-    /// The handler-processed row keys of every commit the watcher completed and
-    /// the flush has not reached yet, so the flush finds the commit's rows
+    /// The row keys of every commit the execution watcher completed and the
+    /// flush has not reached yet, so the flush finds the commit's rows
     /// without reading its effects. Holds no entry for a commit the flush
     /// completed itself.
     row_keys_by_completed_commit: Mutex<BTreeMap<CommitIndex, Vec<ObjectKey>>>,
@@ -332,20 +339,19 @@ pub struct HandlerObjectState {
     /// starts.
     assigned_commits_receiver: Mutex<Option<UnboundedReceiver<AssignedCommit>>>,
     /// Highest commit index whose commit, and every commit below it, is fully
-    /// executed. Seeded from the durable resume point: a commit at or below it
-    /// has its rows on disk, hence executed.
+    /// executed. Seeded from the resume point: a commit at or below it has its
+    /// rows in the table, so it is executed.
     highest_fully_executed_commit: watch::Sender<CommitIndex>,
     /// The error the execution watcher stopped on. Once set, only a flush
     /// moves `highest_fully_executed_commit`.
     execution_watcher_error: OnceLock<String>,
+    /// The rows not yet written to the table.
     handler_processed_overlay: RwLock<BTreeMap<ObjectKey, HandlerProcessedObject>>,
 
-    /// Read-through cache over the durable handler-processed table, so the cold
-    /// path of the hot per-input lookup is usually served without a table
-    /// read. Holds present rows only (absence could go stale the moment a
-    /// flush lands), filled by reads alone: a row never changes once written,
-    /// so a flush has nothing to refresh or expire and a plain cache is
-    /// enough.
+    /// Read-through cache over the table, so most reads of a row not held in
+    /// memory skip the table read. Holds only rows that were found, since a
+    /// flush can add a row at any moment. Filled by reads only: a row never
+    /// changes once written, so a flush has nothing to update.
     handler_processed_cache: MokaCache<ObjectKey, HandlerProcessedObject>,
 
     metrics: Arc<EpochMetrics>,
@@ -360,12 +366,13 @@ fn new_handler_processed_cache(capacity: u64) -> MokaCache<ObjectKey, HandlerPro
 
 impl HandlerObjectState {
     /// `resume_point` is the commit index the handler resumes from, which is
-    /// also the highest commit known to be fully executed: everything at or
-    /// below it has its rows on disk.
+    /// also the highest commit known to be fully executed: every commit at or
+    /// below it has its rows in the table.
     pub fn new(resume_point: CommitIndex, metrics: Arc<EpochMetrics>) -> Self {
         let (assigned_commits, assigned_commits_receiver) =
             unbounded_channel("handler_assigned_commits");
-        // The gauges outlive the epoch; the overlays start empty.
+        // The gauges outlive the epoch, and a new state holds no rows in
+        // memory.
         metrics
             .handler_object_state_highest_fully_executed_commit
             .set(resume_point as i64);
@@ -386,10 +393,9 @@ impl HandlerObjectState {
         }
     }
 
-    /// Records the roots of commit `index`, before any of them can be
-    /// scheduled for execution, and hands the commit to the execution
-    /// watcher. The watcher marks the commit fully executed after awaiting
-    /// the roots it was handed.
+    /// Assigns commit `index` to its roots and hands the commit to the
+    /// execution watcher. Call it before any of the roots can be scheduled for
+    /// execution.
     ///
     /// # Panics
     ///
@@ -449,7 +455,7 @@ impl HandlerObjectState {
     /// panic, so this stops the node. Builds that unwind, such as tests and
     /// the simulator, stop only the caller's task, the consensus handler,
     /// unless `CRASH_ON_PANIC` is set. A restart of the process re-seeds the
-    /// highest fully executed commit from the durable resume point.
+    /// highest fully executed commit from the resume point.
     pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
         let mut highest = self.highest_fully_executed_commit.subscribe();
         while *highest.borrow_and_update() < index {
@@ -466,14 +472,13 @@ impl HandlerObjectState {
         }
     }
 
-    /// The commit index that kept this transaction, if the handler has
-    /// processed that commit and it is not fully executed yet.
+    /// The commit the handler assigned to this transaction, if that commit is
+    /// not completed yet.
     pub fn commit_index_of(&self, key: &TransactionKey) -> Option<CommitIndex> {
         self.commit_index_by_key.get(key).map(|index| *index)
     }
 
-    /// Drops the key → index entries of a fully executed commit, keeping the
-    /// map bounded.
+    /// Removes the map entries of a completed commit.
     fn drop_commit_assignments(&self, index: CommitIndex) {
         if let Some(keys) = self.keys_by_commit.lock().remove(&index) {
             for key in keys {
@@ -482,14 +487,14 @@ impl HandlerObjectState {
         }
     }
 
-    /// Puts one executed transaction's rows in the overlay when the handler
-    /// has assigned its commit, and returns whether it had. Must be called by
-    /// the execution hook before the outputs become readable, so no object is
-    /// ever readable without its row.
+    /// Puts one executed transaction's rows in memory if the handler has
+    /// assigned its commit, and returns whether it had. Call it before the
+    /// transaction's outputs become readable, so no object is ever readable
+    /// without its row.
     ///
-    /// `key` is the executed transaction's [`TransactionKey`], the identity
-    /// the handler registered for it; a digest lookup would miss a
-    /// randomness state update, registered under its randomness round.
+    /// `key` is the executed transaction's [`TransactionKey`], the key the
+    /// handler assigned. A randomness state update is assigned under its
+    /// randomness round, so its digest would not be found.
     pub fn record_executed_transaction(
         &self,
         key: &TransactionKey,
@@ -502,23 +507,23 @@ impl HandlerObjectState {
         true
     }
 
-    /// Marks commit `index` fully executed: applies the commit's
-    /// handler-processed upserts, keeps their keys for the commit's flush
-    /// ([`Self::take_completed_commit_rows`]), and drops the transaction key
-    /// -> commit index map entries.
+    /// Marks commit `index` fully executed: puts the commit's rows in memory,
+    /// keeps their keys for the commit's flush
+    /// ([`Self::take_completed_commit_rows`]), and removes the commit's map
+    /// entries.
     ///
-    /// Only `inserts` go into the overlay: pass the rows of `upserts` that
-    /// [`Self::rows_not_yet_present`] returned. A row already present is in
-    /// the overlay or durable with the same value, since one (object,
-    /// version) has one row; inserting it again would only bring back rows
-    /// the checkpoint executor's batch already wrote and evicted, to be
-    /// written a second time by the commit's flush. The keys kept for the
-    /// flush use all of `upserts`.
+    /// `upserts` are all the commit's rows, and `inserts` the ones
+    /// [`Self::rows_not_yet_present`] returned for them. Only `inserts` are
+    /// put in memory. A row already present is in memory or in the table with
+    /// the same value, and putting it in memory again would make the commit's
+    /// flush write a row a second time after the checkpoint executor already
+    /// wrote it in its own batch. The keys kept for the flush cover all of
+    /// `upserts`.
     ///
     /// Does nothing once the quarantine flush has completed the commit: its
-    /// rows are durable already, and an overlay upsert now would leave entries
-    /// no flush is left to evict. The caller holds the quarantine lock, so the
-    /// flush cannot complete the commit between the check and the upserts.
+    /// rows are in the table already, and rows put in memory now would never
+    /// be removed. The caller holds the quarantine lock, so the flush cannot
+    /// complete the commit between that check and the insert.
     pub fn record_commit_fully_executed(
         &self,
         index: CommitIndex,
@@ -538,10 +543,10 @@ impl HandlerObjectState {
         self.advance_highest_fully_executed_commit(index);
     }
 
-    /// The rows of `upserts` whose key has no handler-processed row yet, in
-    /// the overlay, the read-through cache or the durable table. Unlike
-    /// [`Self::handler_processed_object`], a table hit is not added to the
-    /// cache: these rows are bookkeeping no validation is about to read.
+    /// The rows of `upserts` with no row yet at their key, in memory, in the
+    /// read-through cache or in the table. Unlike
+    /// [`Self::handler_processed_object`], a row found in the table is not
+    /// added to the cache, since no validation is about to read it.
     pub fn rows_not_yet_present(
         &self,
         tables: &AuthorityEpochTables,
@@ -568,14 +573,14 @@ impl HandlerObjectState {
     }
 
     /// Completes commit `index` from the quarantine flush, when the flush
-    /// reaches it before the watcher does, as in a replay after a restart.
-    /// Does nothing once the watcher has completed it.
+    /// reaches it before the execution watcher does, as in a replay after a
+    /// restart. Does nothing once the watcher has completed it.
     ///
-    /// Like [`Self::record_commit_fully_executed`], this puts `rows` in the
-    /// overlay and drops the commit's map entries. The caller writes `rows`
-    /// with [`Self::write_commit_rows_to_batch`] right after, and passes the
-    /// same rows to [`Self::evict_flushed_commit_rows`] once that batch is
-    /// durable; the completion signal moves there.
+    /// Like [`Self::record_commit_fully_executed`], this puts `rows` in memory
+    /// and removes the commit's map entries. The caller writes `rows` with
+    /// [`Self::write_commit_rows_to_batch`] right after, and passes the same
+    /// rows to [`Self::evict_flushed_commit_rows`] once that batch is written.
+    /// That call, not this one, raises the highest fully executed commit.
     pub fn complete_commit_at_flush(
         &self,
         index: CommitIndex,
@@ -588,17 +593,17 @@ impl HandlerObjectState {
         self.drop_commit_assignments(index);
     }
 
-    /// The rows of commit `index` its flush must write, when the watcher
-    /// completed the commit: those still in the overlay. `None` when the
-    /// watcher has not completed it, in which case the flush derives the rows
-    /// from effects and completes the commit itself through
-    /// [`Self::complete_commit_at_flush`]. Forgets the commit's row keys, and
-    /// those of any earlier commit, so call only from the commit's flush.
+    /// Returns the rows the flush of commit `index` must write: the commit's
+    /// rows still held in memory. Returns `None` if the execution watcher has
+    /// not completed the commit. The flush then derives the rows from effects
+    /// and calls [`Self::complete_commit_at_flush`].
     ///
-    /// A row missing from the overlay is already durable: when the watcher
-    /// completed the commit every one of these rows was in the overlay or
-    /// durable, and only a durable write evicts a row - here, the batch of
-    /// the row's checkpoint, written before the commit's flush.
+    /// Also forgets the row keys of this commit and of every earlier one, so
+    /// call it only from the commit's flush.
+    ///
+    /// A row of the commit that is not held in memory is not an error: the
+    /// checkpoint executor already wrote it to the table and removed it from
+    /// memory.
     pub fn take_completed_commit_rows(
         &self,
         index: CommitIndex,
@@ -613,18 +618,16 @@ impl HandlerObjectState {
     }
 
     /// Whether commit `index` is still waiting to be completed. False once
-    /// either completion path has run for it, which is what makes the second
-    /// one a no-op.
+    /// either the execution watcher or the flush has completed it, so the
+    /// second completion does nothing.
     fn is_commit_assigned(&self, index: CommitIndex) -> bool {
         self.keys_by_commit.lock().contains_key(&index)
     }
 
-    /// The handler-processed row at `key`, from the overlay or the durable
-    /// table.
+    /// The row at `key`, from memory, the read-through cache or the table.
     ///
-    /// Returns the row unconditionally; a caller validating at a commit index
-    /// must apply the reading condition itself (`produced_at` above its
-    /// horizon answers missing).
+    /// Returns the row whatever commit produced it. A caller validating at
+    /// commit `C` must treat a row produced above `C - K` as missing.
     pub fn handler_processed_object(
         &self,
         tables: &AuthorityEpochTables,
@@ -643,13 +646,12 @@ impl HandlerObjectState {
         Ok(row)
     }
 
-    /// The handler-processed row of `id` at its highest version, from the
-    /// overlay or the durable table, whichever holds the higher version. A
-    /// key present in both carries the same row. Like
-    /// [`Self::handler_processed_object`], it returns the row
-    /// unconditionally.
+    /// The row of `id` at its highest version, from memory or the table,
+    /// whichever holds the higher version. A key present in both holds the
+    /// same row. Like [`Self::handler_processed_object`], it returns the row
+    /// whatever commit produced it.
     ///
-    /// The read-through cache is not consulted, here or in
+    /// The read-through cache is not used, here or in
     /// [`Self::lowest_handler_processed_row_above`]: it is keyed by exact
     /// version, so it cannot tell which versions of `id` have a row.
     pub fn highest_handler_processed_row(
@@ -678,12 +680,11 @@ impl HandlerObjectState {
         })
     }
 
-    /// The handler-processed row of `id` at its lowest version above
-    /// `version`, from the overlay or the durable table, whichever holds the
-    /// lower version. A key present in both carries the same row. Returns
-    /// the row unconditionally and, like
-    /// [`Self::highest_handler_processed_row`], bypasses the read-through
-    /// cache.
+    /// The row of `id` at its lowest version above `version`, from memory or
+    /// the table, whichever holds the lower version. A key present in both
+    /// holds the same row. Returns the row whatever commit produced it and,
+    /// like [`Self::highest_handler_processed_row`], does not use the
+    /// read-through cache.
     pub fn lowest_handler_processed_row_above(
         &self,
         tables: &AuthorityEpochTables,
@@ -714,15 +715,14 @@ impl HandlerObjectState {
         })
     }
 
-    /// The handler-processed row of `id` at its highest version below
-    /// `version`, from the overlay or the durable table, whichever holds the
-    /// higher version. A key present in both carries the same row. Returns
-    /// the row unconditionally and, like
-    /// [`Self::highest_handler_processed_row`], bypasses the read-through
-    /// cache.
+    /// The row of `id` at its highest version below `version`, from memory or
+    /// the table, whichever holds the higher version. A key present in both
+    /// holds the same row. Returns the row whatever commit produced it and,
+    /// like [`Self::highest_handler_processed_row`], does not use the
+    /// read-through cache.
     ///
     /// A caller walking down from the highest row to find the version live
-    /// at a horizon relies on the versions of `id` rising with
+    /// as of commit `C - K` relies on the versions of `id` rising with
     /// `produced_at`. That holds for an object that changes only through a
     /// shared parent, such as a dynamic field of the coin deny list: its
     /// versions are assigned in the order of the commits that change it.
@@ -754,13 +754,13 @@ impl HandlerObjectState {
         })
     }
 
-    /// Stages a commit's handler-processed rows into `batch`, the quarantine
-    /// flush of the commit's own output, atomic with `last_consensus_stats`.
-    /// After the batch is durably written - never before - pass the same
-    /// commit index and rows to [`Self::evict_flushed_commit_rows`].
+    /// Stages a commit's rows into `batch`, the batch of the quarantine flush
+    /// of the commit's output, which also writes `last_consensus_stats`.
+    /// After the batch is written, and not before, pass the same commit index
+    /// and rows to [`Self::evict_flushed_commit_rows`].
     ///
-    /// Rows are keyed per version, so flushes of different commits may land
-    /// in any order without one overwriting another.
+    /// Rows are keyed per version, so flushes of different commits may be
+    /// written in any order without one overwriting another.
     pub fn write_commit_rows_to_batch(
         &self,
         tables: &AuthorityEpochTables,
@@ -774,9 +774,9 @@ impl HandlerObjectState {
         Ok(())
     }
 
-    /// Evicts a commit's handler-processed overlay entries once their rows are
-    /// durable; the caller's write-then-evict order is what keeps a concurrent
-    /// reader from finding a row in neither the overlay nor the table.
+    /// Removes a commit's rows from memory. Call it only after the batch from
+    /// [`Self::write_commit_rows_to_batch`] is written, so a concurrent read
+    /// always finds each row in memory or in the table.
     ///
     /// A flushed commit's checkpoint has executed, so this also raises the
     /// highest fully executed commit.
@@ -790,9 +790,9 @@ impl HandlerObjectState {
         self.advance_highest_fully_executed_commit(commit_index);
     }
 
-    /// The handler rows the executions behind `effects` left in the overlay,
-    /// at every key the execution hook could have written. `effects` are the
-    /// transactions of one checkpoint whose outputs are not yet durable.
+    /// The rows the executions behind `effects` put in memory, at every key
+    /// [`Self::record_executed_transaction`] could have written. `effects` are
+    /// the transactions of one checkpoint whose outputs are not written yet.
     pub fn checkpoint_rows<'a>(
         &self,
         effects: impl IntoIterator<Item = &'a TransactionEffects>,
@@ -807,9 +807,10 @@ impl HandlerObjectState {
         present_entries(&self.handler_processed_overlay, keys)
     }
 
-    /// Stages a checkpoint's handler rows into `batch`, the checkpoint
-    /// executor's batch. After the batch is durably written (never before),
-    /// pass the same rows to [`Self::evict_flushed_checkpoint_rows`]. Rows
+    /// Stages a checkpoint's rows into `batch`, a separate batch the
+    /// checkpoint executor writes just before the checkpoint's outputs. After
+    /// the batch is written, and not before, pass the same rows to
+    /// [`Self::evict_flushed_checkpoint_rows`]. Rows
     /// never change once written for a key, so checkpoints may write in any
     /// order and concurrently with a commit's flush.
     pub fn write_checkpoint_rows_to_batch(
@@ -825,15 +826,11 @@ impl HandlerObjectState {
         Ok(())
     }
 
-    /// Evicts a checkpoint's handler rows from the overlay once they are
-    /// durable.
+    /// Removes a checkpoint's rows from memory. Call it only after the batch
+    /// from [`Self::write_checkpoint_rows_to_batch`] is written.
     ///
-    /// The completion of a row's commit skips the row once this eviction
-    /// made it durable; only a row that appears after completion's check is
-    /// inserted again, with the same value, and the commit's flush evicts it
-    /// then. A replay after a crash re-inserts entries whose rows are
-    /// already durable, and re-running this for the re-executed checkpoint
-    /// clears them.
+    /// After a crash, executing the checkpoint again puts the same rows in
+    /// memory again, and calling this for that execution removes them.
     pub fn evict_flushed_checkpoint_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
         self.remove_handler_overlay_rows(rows);
     }
@@ -851,8 +848,8 @@ impl HandlerObjectState {
             .set(overlay.len() as i64);
     }
 
-    /// The number of entries in the handler-processed overlay, for asserting
-    /// eviction behavior.
+    /// The number of rows held in memory, for asserting when they are
+    /// removed.
     #[cfg(test)]
     pub fn overlay_size_for_testing(&self) -> usize {
         self.handler_processed_overlay.read().len()
@@ -877,14 +874,15 @@ impl HandlerObjectState {
         }
     }
 
-    /// Inserts rows into the overlay. Rows are keyed per version, so an
-    /// insert never shadows a newer row of the same object, whatever order
-    /// the hook and the watcher arrive in. A watcher completing a commit that
-    /// already flushed must not reach here - its rows would sit in the overlay
-    /// with no flush left to evict them - which is what the caller's check of
-    /// the commit against the quarantine rules out. The flush that completes a
-    /// commit itself also inserts here, under the quarantine write lock, and
-    /// evicts the rows after its own batch write.
+    /// Puts rows in memory. Rows are keyed per version, so a row never hides a
+    /// newer row of the same object, whatever order executions and the
+    /// execution watcher arrive in.
+    ///
+    /// Do not call it for a commit the flush has already written: its rows
+    /// would stay in memory with no flush left to remove them.
+    /// [`Self::record_commit_fully_executed`] and
+    /// [`Self::complete_commit_at_flush`] check [`Self::is_commit_assigned`]
+    /// under the quarantine lock first.
     fn upsert_handler_processed_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
         if rows.is_empty() {
             return;
@@ -1108,7 +1106,7 @@ mod tests {
         assert!(rows.iter().all(|(key, _)| key.0 != shared_id));
     }
 
-    /// A state with empty overlays, built without the epoch tables.
+    /// A state with no rows in memory, built without the epoch tables.
     fn empty_state() -> HandlerObjectState {
         let (assigned_commits, assigned_commits_receiver) = unbounded_channel("test");
         HandlerObjectState {
@@ -1160,7 +1158,8 @@ mod tests {
     }
 
     /// A commit is completed once: whichever of full execution and the
-    /// quarantine flush comes second leaves the overlay untouched.
+    /// quarantine flush comes second leaves the rows held in memory
+    /// unchanged.
     #[test]
     fn second_completion_of_a_commit_does_nothing() {
         let state = empty_state();

@@ -151,8 +151,8 @@ pub struct ConsensusHandler<C> {
     /// transaction per author.
     deterministic_validation: bool,
     transaction_scheduler: AsyncTransactionScheduler,
-    /// Marks commits fully executed for the P-COOL deterministic-validation
-    /// bookkeeping; `None` unless this node keeps the bookkeeping. Held only
+    /// Marks commits fully executed in the P-COOL handler object state;
+    /// `None` unless this node keeps the handler object state. Held only
     /// so the task is aborted with the handler.
     _execution_watcher: Option<ExecutionWatcher>,
 
@@ -691,8 +691,8 @@ impl AsyncTransactionScheduler {
 const EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME: &str =
     "ExecutionWatcher::notify_read_executed_effects";
 
-/// Marks each consensus commit fully executed for the P-COOL
-/// deterministic-validation bookkeeping once all of its roots have effects.
+/// Marks each consensus commit fully executed in the P-COOL handler object
+/// state once all of its roots have effects.
 ///
 /// Receives commits from the epoch store in processing order and completes
 /// them in that order, so a completed commit implies every earlier commit is
