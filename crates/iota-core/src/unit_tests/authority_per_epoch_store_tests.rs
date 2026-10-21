@@ -195,7 +195,10 @@ async fn wait_for_checkpoint_inclusion_resolves_across_reconfiguration() {
     let state = authority_state.clone();
     let waiter = tokio::spawn(async move {
         state
-            .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+            .wait_for_checkpoint_mapping(
+                &[digest],
+                tokio::time::Instant::now() + Duration::from_secs(30),
+            )
             .await
     });
     // Let the waiter register on the current (soon-to-be-old) epoch store.
@@ -219,7 +222,7 @@ async fn wait_for_checkpoint_inclusion_resolves_across_reconfiguration() {
         .await
         .expect("wait did not resolve promptly after reconfiguration")
         .expect("waiter task panicked")
-        .expect("wait_for_checkpoint_inclusion returned error");
+        .expect("wait_for_checkpoint_mapping returned error");
     assert_eq!(results.get(&digest), Some(&(seq, ts)));
 }
 
@@ -233,7 +236,10 @@ async fn wait_for_checkpoint_inclusion_recovers_mapping_from_old_epoch_store() {
     let state = authority_state.clone();
     let waiter = tokio::spawn(async move {
         state
-            .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+            .wait_for_checkpoint_mapping(
+                &[digest],
+                tokio::time::Instant::now() + Duration::from_secs(30),
+            )
             .await
     });
     // Let the waiter register on the current (soon-to-be-old) epoch store.
@@ -261,7 +267,7 @@ async fn wait_for_checkpoint_inclusion_recovers_mapping_from_old_epoch_store() {
         .await
         .expect("wait did not resolve promptly after reconfiguration")
         .expect("waiter task panicked")
-        .expect("wait_for_checkpoint_inclusion returned error");
+        .expect("wait_for_checkpoint_mapping returned error");
     // No checkpoint summary exists in this test, so the timestamp resolves
     // to the 0 fallback.
     assert_eq!(results.get(&digest), Some(&(seq, 0)));
@@ -2338,4 +2344,27 @@ mod handler_object_state_storage {
         reopened.record_commit_fully_executed(3, &[]).unwrap();
         assert_highest(&reopened, 4);
     }
+}
+
+/// A transaction in a checkpoint the indexes have not reached by the deadline
+/// is still returned, as it is final, and is reported as not indexed.
+#[tokio::test]
+async fn wait_for_checkpoint_inclusion_keeps_a_checkpointed_transaction_not_yet_indexed() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let digest = TransactionDigest::random();
+    let seq = 5;
+    let ts = 1_700_000_000_000;
+    authority_state
+        .epoch_store_for_testing()
+        .insert_finalized_transactions(&[digest], seq, ts)
+        .expect("insert_finalized_transactions should succeed");
+
+    let results = authority_state
+        .wait_for_checkpoint_inclusion(&[digest], Duration::from_millis(100))
+        .await
+        .expect("wait_for_checkpoint_inclusion returned error");
+
+    // Read back from the table, without a summary to take the timestamp from.
+    assert_eq!(results.get(&digest).map(|&(seq, _)| seq), Some(seq));
+    assert!(!authority_state.is_checkpoint_indexed(seq).unwrap());
 }

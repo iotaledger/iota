@@ -112,6 +112,13 @@ impl ReadApi {
         }
     }
 
+    /// The checkpoint the node's indexes are complete through: a transaction
+    /// is reported in a checkpoint only up to it, so that an index-backed read
+    /// sent right after sees it. `None` before the first checkpoint executes.
+    fn indexed_through(&self) -> Option<CheckpointSequenceNumber> {
+        self.state.get_latest_checkpoint_sequence_number().ok()
+    }
+
     async fn get_checkpoint_internal(&self, id: CheckpointId) -> Result<Checkpoint, Error> {
         Ok(match id {
             CheckpointId::SequenceNumber(seq) => {
@@ -252,8 +259,10 @@ impl ReadApi {
             .await
             .tap_err(
                 |err| debug!(digests=?digests, "Failed to multi get checkpoint sequence number: {:?}", err))?;
+        let indexed_through = self.indexed_through();
         for ((_digest, cache_entry), seq) in temp_response.iter_mut().zip(checkpoint_seq_list) {
-            cache_entry.checkpoint_seq = seq;
+            cache_entry.checkpoint_seq =
+                seq.filter(|seq| indexed_through.is_some_and(|i| *seq <= i));
         }
 
         let unique_checkpoint_numbers = temp_response
@@ -723,27 +732,19 @@ impl ReadApiServer for ReadApi {
 
     #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
-        let transaction = async move {
-            let transaction_kv_store = self.transaction_kv_store.clone();
-            let mut transactions = spawn_monitored_task!(async move {
-                let ret = transaction_kv_store
-                    .multi_get_tx(&[digest])
-                    .await
-                    .map_err(|err| {
-                        debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
-                        Error::from(err)
-                    });
-                add_server_timing("tx_kv_lookup");
-                ret
-            })
-            .await??;
-            Ok(transactions
-                .pop()
-                .expect("there should be one tx lookup response"))
+        let checkpoint = async move {
+            self.transaction_kv_store
+                .get_transaction_perpetual_checkpoint(digest)
+                .await
+                .map_err(|err| {
+                    debug!(tx_digest=?digest, "Failed to get the transaction's checkpoint: {:?}", err);
+                    Error::from(err)
+                })
         }
         .trace()
         .await?;
-        Ok(transaction.map(|tx| *tx.digest()) == Some(digest))
+        let indexed_through = self.indexed_through();
+        Ok(checkpoint.is_some_and(|seq| indexed_through.is_some_and(|i| seq <= i)))
     }
 
     #[instrument(skip(self, digest), fields(digest = %digest))]
@@ -802,6 +803,7 @@ impl ReadApiServer for ReadApi {
             // of being able to execute the following call below.
             // It if gets removed or rewritten then the table and associated
             // code can be removed as well.
+            let indexed_through = self.indexed_through();
             temp_response.checkpoint_seq = self
                 .transaction_kv_store
                 .get_transaction_perpetual_checkpoint(digest)
@@ -809,7 +811,8 @@ impl ReadApiServer for ReadApi {
                 .map_err(|e| {
                     error!("failed to retrieve checkpoint sequence for transaction {digest} with error: {e:?}");
                     Error::from(e)
-                })?;
+                })?
+                .filter(|seq| indexed_through.is_some_and(|i| *seq <= i));
 
             if let Some(checkpoint_seq) = &temp_response.checkpoint_seq {
                 let kv_store = self.transaction_kv_store.clone();

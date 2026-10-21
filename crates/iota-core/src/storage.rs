@@ -653,17 +653,21 @@ impl GrpcStateReader for GrpcReadStore {
 
     /// Answered from the ledger rather than the RPC index, so a node
     /// retaining fewer index epochs than ledger epochs still reports
-    /// confirmation for every transaction it has.
+    /// confirmation for every transaction it has. Reported only once the RPC
+    /// indexes have caught up with the checkpoint, so that an index-backed
+    /// read sent right after sees the transaction.
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        let indexed_through = self.state.get_latest_checkpoint_sequence_number().ok();
         Ok(self
             .state
             .get_checkpoint_cache()
             .try_get_transaction_perpetual_checkpoint(digest)
             .map_err(iota_types::storage::error::Error::custom)?
-            .map(|(_epoch, checkpoint)| checkpoint))
+            .map(|(_epoch, checkpoint)| checkpoint)
+            .filter(|checkpoint| indexed_through.is_some_and(|i| *checkpoint <= i)))
     }
 
     fn get_struct_layout(
