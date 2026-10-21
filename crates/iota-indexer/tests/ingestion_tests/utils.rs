@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use iota_common::random_util::TempDir;
 use iota_indexer::{
-    models::obj_indices::StoredObjectVersion, store::PgIndexerStore, test_utils::DBInitHook,
+    errors::IndexerError, ingestion::OperationalLevel, models::obj_indices::StoredObjectVersion,
+    store::PgIndexerStore, test_utils::DBInitHook,
 };
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, OwnedObjectReference, Transaction, TransactionEffects,
@@ -42,21 +43,24 @@ pub(crate) use read_only_blocking;
 pub(crate) struct TestSim {
     pub(crate) inner: Arc<Simulacrum>,
     data_dir: TempDir,
+    operational_level: OperationalLevel,
     database_name: String,
 }
 
 impl TestSim {
     /// Creates a simulacrum with an indexer writer.
     ///
-    /// The indexer writes to the database `database_name`.
-    pub(crate) fn new(database_name: &str) -> Self {
+    /// The indexer ingests the tables of `operational_level` into the database
+    /// `database_name_{operational_level as u8}`.
+    pub(crate) fn new(operational_level: OperationalLevel, database_name: &str) -> Self {
         let data_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
         sim.set_data_ingestion_path(data_dir.path().to_path_buf());
         Self {
             inner: Arc::new(sim),
             data_dir,
-            database_name: database_name.to_string(),
+            operational_level,
+            database_name: format!("{database_name}_{}", operational_level as u8),
         }
     }
 
@@ -68,6 +72,7 @@ impl TestSim {
             None,
             Some(&self.database_name),
             db_init_hook,
+            self.operational_level,
         )
         .await;
         pg_store
@@ -140,6 +145,50 @@ impl TestSim {
             object_version: r.version.as_u64() as i64,
             cp_sequence_number: cp,
         })
+    }
+}
+
+pub(crate) trait IngestionTest {
+    /// The lowest level that ingests the tables of the test.
+    const MIN_LEVEL: OperationalLevel = OperationalLevel::Basic;
+
+    /// Any values produced through the setup phase to compare against the database.
+    type ExpectedState;
+
+    /// Sets up the test fixtures.
+    ///
+    /// Typically creates a [`TestSim`] on `level` with the database `database_name`, executes
+    /// transactions, starts the indexer and constructs any state to compare against the database.
+    async fn setup(
+        &self,
+        level: OperationalLevel,
+        database_name: &str,
+    ) -> (PgIndexerStore, Self::ExpectedState);
+
+    /// Verifies the database tables, using also the given expected state if any.
+    async fn assert_ingested(
+        &self,
+        pg_store: &PgIndexerStore,
+        state: Self::ExpectedState,
+    ) -> Result<(), IndexerError>;
+
+    /// Verifies that the tables of the test are empty.
+    ///
+    /// # Panics
+    ///
+    /// The default panics. A test with `MIN_LEVEL` above `Basic` must override it.
+    async fn assert_not_ingested(&self, _pg_store: &PgIndexerStore) -> Result<(), IndexerError> {
+        unimplemented!("a test with MIN_LEVEL above Basic must override assert_not_ingested")
+    }
+
+    /// Runs the test on `level`, using `database_name` as the test database.
+    async fn run(&self, level: OperationalLevel, database_name: &str) -> Result<(), IndexerError> {
+        let (pg_store, state) = self.setup(level, database_name).await;
+        if level.includes(Self::MIN_LEVEL) {
+            self.assert_ingested(&pg_store, state).await
+        } else {
+            self.assert_not_ingested(&pg_store).await
+        }
     }
 }
 
