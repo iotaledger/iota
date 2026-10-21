@@ -2553,13 +2553,11 @@ mod tests {
 
     /// A user transaction ignored at the end of the epoch is not recorded as
     /// processed, so its consensus adapter would otherwise hold its submit
-    /// slot until the epoch ends. Under deterministic validation the adapter
-    /// stops waiting when its own copy is ignored after its EndOfPublish, or
-    /// any copy is ignored once the epoch accepts no consensus transactions;
-    /// another validator's copy ignored after that validator's EndOfPublish
-    /// leaves it waiting. Without deterministic validation it keeps waiting in
-    /// every case. A client waiting for the transaction's status is never
-    /// told.
+    /// slot until the epoch ends. The adapter stops waiting when its own
+    /// copy is ignored after its EndOfPublish, or any copy is ignored once
+    /// the epoch accepts no consensus transactions; another validator's copy
+    /// ignored after that validator's EndOfPublish leaves it waiting. A client
+    /// waiting for the transaction's status is never told.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn adapter_stops_waiting_for_a_transaction_ignored_at_epoch_end() {
         for deterministic_validation in [false, true] {
@@ -2696,8 +2694,7 @@ mod tests {
         let released = tokio::time::timeout(Duration::from_secs(5), adapter_wait)
             .await
             .is_ok();
-        let expect_released = deterministic_validation
-            && !matches!(case, IgnoredAtEpochEnd::OtherCopyAfterOtherEndOfPublish);
+        let expect_released = !matches!(case, IgnoredAtEpochEnd::OtherCopyAfterOtherEndOfPublish);
         assert_eq!(
             released, expect_released,
             "{case:?}, deterministic validation {deterministic_validation}: adapter released"

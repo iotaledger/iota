@@ -4332,12 +4332,8 @@ impl AuthorityPerEpochStore {
                 // that submitted it would hold its submit permit, which checkpoint
                 // signatures also need, until the epoch ends. Only this
                 // validator's adapter is told: another author's copy can still be
-                // kept. Without deterministic validation the adapter waits until
-                // the epoch ends, as for the other copies ignored at the end of
-                // the epoch.
-                if self.protocol_config().pcool_deterministic_validation()
-                    && transaction.certificate_author == self.name
-                {
+                // kept.
+                if transaction.certificate_author == self.name {
                     self.dropped_tx_status_cache
                         .notify_dropped_copies(&[(digest, IotaError::ValidatorHaltedAtEpochEnd)]);
                 }
@@ -6186,6 +6182,12 @@ impl AuthorityPerEpochStore {
                         "Ignoring consensus certificate for transaction {:?} because of end of epoch",
                         transaction.digest()
                     );
+                    // Ends the consensus adapter's wait, as in
+                    // `verify_consensus_transaction`.
+                    self.dropped_tx_status_cache.notify_dropped_copies(&[(
+                        *transaction.digest(),
+                        IotaError::ValidatorHaltedAtEpochEnd,
+                    )]);
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
 
@@ -6411,6 +6413,15 @@ impl AuthorityPerEpochStore {
                         certificate_author.concise(),
                         transaction.digest()
                     );
+                    // Ends this validator's consensus adapter wait, as in
+                    // `verify_consensus_transaction`; another author's copy can
+                    // still be kept.
+                    if *certificate_author == self.name {
+                        self.dropped_tx_status_cache.notify_dropped_copies(&[(
+                            *transaction.digest(),
+                            IotaError::ValidatorHaltedAtEpochEnd,
+                        )]);
+                    }
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
                 // TODO: re-think the epoch-switching flow
@@ -6423,6 +6434,12 @@ impl AuthorityPerEpochStore {
                         "Ignoring P-COOL transaction {:?} because of end of epoch",
                         transaction.digest()
                     );
+                    // Ends the consensus adapter's wait, as in
+                    // `verify_consensus_transaction`.
+                    self.dropped_tx_status_cache.notify_dropped_copies(&[(
+                        *transaction.digest(),
+                        IotaError::ValidatorHaltedAtEpochEnd,
+                    )]);
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
                 // TODO: verify that all the same validation actions are performed as for a
