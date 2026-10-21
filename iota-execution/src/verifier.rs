@@ -3,8 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_types::{error::IotaResult, execution_config_utils::to_binary_config};
-use move_binary_format::CompiledModule;
+use iota_types::{
+    error::{IotaError, IotaResult},
+    execution_config_utils::to_binary_config,
+};
+use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_verifier_meter::Meter;
 use move_vm_config::verifier::MeterConfig;
 
@@ -35,17 +38,29 @@ pub trait Verifier {
         module_bytes: &[Vec<u8>],
         meter: &mut dyn Meter,
     ) -> IotaResult<()> {
-        let binary_config = to_binary_config(
+        let deserialize = |binary_config: &BinaryConfig| {
+            module_bytes
+                .iter()
+                .map(|b| CompiledModule::deserialize_with_config(b, binary_config))
+                .collect::<Result<Vec<_>, _>>()
+        };
+        let modules = match deserialize(&to_binary_config(
             protocol_config,
             self.override_deprecate_global_storage_ops_during_deserialization(),
-        );
-        let Ok(modules) = module_bytes
-            .iter()
-            .map(|b| CompiledModule::deserialize_with_config(b, &binary_config))
-            .collect::<Result<Vec<_>, _>>()
-        else {
-            // Although we failed, we don't care since it wasn't because of a timeout.
-            return Ok(());
+        )) {
+            Ok(modules) => modules,
+            Err(error) => {
+                // Execution deserializes without the override and would run the
+                // Move verifier, unmetered, on modules that only the override
+                // rejects. No such module can pass verification, so reject it here.
+                if deserialize(&to_binary_config(protocol_config, None)).is_ok() {
+                    return Err(IotaError::ModuleDeserializationFailure {
+                        error: error.to_string(),
+                    });
+                }
+                // Although we failed, we don't care since it wasn't because of a timeout.
+                return Ok(());
+            }
         };
 
         for module in &modules {
