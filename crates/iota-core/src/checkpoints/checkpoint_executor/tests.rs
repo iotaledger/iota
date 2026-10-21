@@ -967,3 +967,57 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
             .unwrap()
     );
 }
+
+/// A committee validator can restart holding a summary it built before the
+/// crash whose state hash was never saved: the builder queues a checkpoint's
+/// effects for hashing before it writes the summary. After the restart the
+/// builder rebuilds the checkpoint only once the consensus replay is done,
+/// and the replay can itself wait on the executor, so the executor must not
+/// wait for the builder's hash: once the consensus handler has executed the
+/// checkpoint's transactions, the executor holds every effect it needs to
+/// hash the checkpoint itself.
+#[tokio::test]
+pub async fn test_locally_built_checkpoint_without_its_state_hash_executes_without_the_builder() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let epoch_store = state.epoch_store_for_testing().clone();
+    assert!(epoch_store.pcool_bookkeeping_enabled());
+    // Empty contents: every transaction of checkpoint 1 has executed.
+    let checkpoints = sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    // Built before the crash; its state hash was never saved, and no builder
+    // runs to save it.
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&1, checkpoints[1].data())
+        .unwrap();
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    let executed = timeout(Duration::from_secs(10), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await;
+    executor_handle.abort();
+    executed.expect(
+        "checkpoint 1 must execute without the builder's state hash, \
+         but the executor still waits for it",
+    );
+    assert!(
+        epoch_store
+            .get_state_hash_for_checkpoint(&1)
+            .unwrap()
+            .is_some(),
+        "the executor must save the state hash it computed"
+    );
+}

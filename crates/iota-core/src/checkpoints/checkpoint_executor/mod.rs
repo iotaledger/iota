@@ -573,12 +573,16 @@ impl CheckpointExecutor {
             .expect("db error")
             .expect("checkpoint contents not found");
 
-        if self.epoch_store.pcool_bookkeeping_enabled() {
-            let digests: Vec<_> = checkpoint_contents
-                .iter()
-                .map(|digests| digests.transaction)
-                .collect();
-            if !self.wait_for_handler_execution(&checkpoint, &digests).await {
+        let (tx_digests, fx_digests): (Vec<_>, Vec<_>) = checkpoint_contents
+            .iter()
+            .map(|digests| (digests.transaction, digests.effects))
+            .unzip();
+
+        let state_hash = if self.epoch_store.pcool_bookkeeping_enabled() {
+            if !self
+                .wait_for_handler_execution(&checkpoint, &tx_digests)
+                .await
+            {
                 let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
                 return self
                     .execute_transactions_from_synced_checkpoint(
@@ -588,11 +592,39 @@ impl CheckpointExecutor {
                     )
                     .await;
             }
-        }
-
-        // Checkpoint builder triggers accumulation of the checkpoint, so this is
-        // guaranteed to finish.
-        let state_hash = {
+            // Every transaction of the checkpoint has executed here, so hash
+            // its effects now instead of waiting for the builder's hash. The
+            // builder saves a checkpoint's hash a moment after its summary, so
+            // a crash can leave the summary without it, and after the restart
+            // the builder rebuilds the checkpoint only once the consensus
+            // replay is done. The replay waits on this executor, through the
+            // handler's wait for fully executed commits, so waiting here for
+            // the builder could wait forever.
+            let effects: Vec<_> = self
+                .transaction_cache_reader
+                .multi_get_executed_effects(&tx_digests)
+                .into_iter()
+                .zip(&tx_digests)
+                .zip(&fx_digests)
+                .map(|((effects, tx_digest), expected_fx_digest)| {
+                    let effects = effects
+                        .expect("every transaction of a checkpoint this node built has executed");
+                    assert_not_forked(
+                        &checkpoint,
+                        tx_digest,
+                        expected_fx_digest,
+                        &effects.digest(),
+                        &*self.transaction_cache_reader,
+                    );
+                    effects
+                })
+                .collect();
+            self.global_state_hasher
+                .accumulate_checkpoint(&effects, sequence_number, &self.epoch_store)
+                .expect("epoch cannot have ended")
+        } else {
+            // Checkpoint builder triggers accumulation of the checkpoint, so
+            // this is guaranteed to finish.
             let _metrics_scope =
                 iota_metrics::monitored_scope("CheckpointExecutor::notify_read_state_hash");
             self.epoch_store
@@ -602,11 +634,6 @@ impl CheckpointExecutor {
                 .pop()
                 .unwrap()
         };
-
-        let (tx_digests, fx_digests): (Vec<_>, Vec<_>) = checkpoint_contents
-            .iter()
-            .map(|digests| (digests.transaction, digests.effects))
-            .unzip();
 
         pipeline_handle
             .skip_to(PipelineStage::FinalizeTransactions)

@@ -27,6 +27,7 @@ use iota_common::{
     random::get_rng,
     sync::notify_read::{CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME, NotifyRead},
 };
+use iota_macros::{fail_point, fail_point_async};
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
@@ -1180,6 +1181,7 @@ impl CheckpointStateHasher {
                 info!("GlobalStateHash was dropped, stopping checkpoint accumulation");
                 break;
             };
+            fail_point_async!("checkpoint-state-hasher-accumulate");
             hasher
                 .accumulate_checkpoint(&effects, seq, &epoch_store)
                 .expect("epoch ended while accumulating checkpoint");
@@ -1663,6 +1665,7 @@ impl CheckpointBuilder {
         mut new_checkpoints: NonEmpty<BuiltCheckpoint>,
     ) -> IotaResult {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
+        fail_point_async!("checkpoint-builder-write-summaries");
         let mut batch = self.store.tables.checkpoint_content.batch();
         let mut all_tx_digests =
             Vec::with_capacity(new_checkpoints.iter().map(|c| c.contents.len()).sum());
@@ -1716,6 +1719,7 @@ impl CheckpointBuilder {
         }
 
         batch.write()?;
+        fail_point!("checkpoint-summaries-written");
         if self
             .epoch_store
             .protocol_config()
