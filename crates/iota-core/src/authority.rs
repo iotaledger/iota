@@ -6223,11 +6223,14 @@ impl AuthorityState {
             "Move authenticators amount must match the number of authenticator inputs"
         );
 
-        // The account object is among the authenticator's inputs. Only shared
-        // accounts reach this check: a transaction names its account as a
-        // shared object, and `read_objects_for_validation_at_commit` drops the
-        // transaction if that object is not shared. Resolving the account's
-        // authenticator function is left to execution.
+        // The account object is among the authenticator's inputs. An account
+        // named as a shared object was decided by the reader from its rows,
+        // which drop the transaction when the object was not created shared.
+        // An account named as an immutable-or-owned input was read at the
+        // version the transaction names, and this check rejects one owned by
+        // an address or by another object. An immutable account is not
+        // rejected here. Looking up the account's authenticator function is
+        // left to execution.
         let per_authenticator_checked_inputs = per_authenticator_inputs
             .into_iter()
             .map(|(authenticator_input_objects, _account_object)| {
