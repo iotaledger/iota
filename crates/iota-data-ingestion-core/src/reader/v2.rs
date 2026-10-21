@@ -44,6 +44,14 @@ use crate::{
     },
 };
 
+/// How long a single historical file transfer may run before it is abandoned.
+///
+/// The store client only bounds the connect phase and the gap between chunks,
+/// so a connection that delivers bytes too slowly to ever finish the file
+/// would otherwise never be replaced. Generous enough that a healthy slow link
+/// still completes a file.
+const HISTORICAL_FILE_TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// Available sources for checkpoint streams supported by the ingestion
 /// framework.
 ///
@@ -273,11 +281,19 @@ impl CheckpointReaderActor {
                 return Err(IngestionError::MaxCheckpointsCapacityReached);
             }
 
-            let checkpoints = historical_reader
-                .iter_for_file(metadata.file_path())
-                .await?
-                .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
-                .collect::<Vec<CheckpointData>>();
+            let checkpoints = timeout(
+                HISTORICAL_FILE_TRANSFER_TIMEOUT,
+                historical_reader.iter_for_file(metadata.file_path()),
+            )
+            .await
+            .map_err(|_| {
+                IngestionError::HistoryRead(format!(
+                    "transferring {} took longer than {HISTORICAL_FILE_TRANSFER_TIMEOUT:?}",
+                    metadata.file_path()
+                ))
+            })??
+            .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
+            .collect::<Vec<CheckpointData>>();
 
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
