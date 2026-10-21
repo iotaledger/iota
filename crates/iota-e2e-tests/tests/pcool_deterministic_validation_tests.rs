@@ -245,6 +245,8 @@ async fn test_restart_after_crash_before_the_state_hash_is_saved_catches_up() {
     // and the kill.
     let armed = Arc::new(AtomicBool::new(false));
     let hold_builder = Arc::new(AtomicBool::new(false));
+    let write_paused = Arc::new(AtomicBool::new(false));
+    let hold_randomness = Arc::new(AtomicBool::new(false));
     let kill_armed = Arc::new(AtomicBool::new(false));
     let killed = Arc::new(AtomicBool::new(false));
     let on_victim = move || iota_simulator::current_simnode_id() == victim_sim_id;
@@ -264,13 +266,17 @@ async fn test_restart_after_crash_before_the_state_hash_is_saved_catches_up() {
             }
         });
     }
-    // The victim completes no more randomness rounds: a round its peers
-    // complete from now on stays in flight on the victim.
+    // Once a write is paused, the victim completes no more randomness rounds:
+    // a round its peers complete from then on stays in flight on the victim.
     let round_in_flight = Arc::new(AtomicBool::new(false));
     {
-        let (holds, round_in_flight) = (holds.clone(), round_in_flight.clone());
+        let (holds, hold_randomness, round_in_flight) = (
+            holds.clone(),
+            hold_randomness.clone(),
+            round_in_flight.clone(),
+        );
         register_fail_point_async("randomness-delay", move || {
-            let hold = holds();
+            let hold = holds() && hold_randomness.load(Ordering::SeqCst);
             if hold {
                 round_in_flight.store(true, Ordering::SeqCst);
             }
@@ -281,12 +287,16 @@ async fn test_restart_after_crash_before_the_state_hash_is_saved_catches_up() {
             }
         });
     }
-    // The victim's builder stops before its next write until a round is in
-    // flight, so the kill lands on that write.
+    // The victim's builder stops before its next write until the kill is
+    // armed, so the kill lands on that write.
     {
-        let (holds, hold_builder) = (holds.clone(), hold_builder.clone());
+        let (holds, hold_builder, write_paused) =
+            (holds.clone(), hold_builder.clone(), write_paused.clone());
         register_fail_point_async("checkpoint-builder-write-summaries", move || {
             let (holds, hold_builder) = (holds.clone(), hold_builder.clone());
+            if holds() && hold_builder.load(Ordering::SeqCst) {
+                write_paused.store(true, Ordering::SeqCst);
+            }
             async move {
                 while holds() && hold_builder.load(Ordering::SeqCst) {
                     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -320,6 +330,18 @@ async fn test_restart_after_crash_before_the_state_hash_is_saved_catches_up() {
 
     hold_builder.store(true, Ordering::SeqCst);
     armed.store(true, Ordering::SeqCst);
+    // A paused write first. The builder builds in height order, so once it has
+    // built a checkpoint, the update of every round reserved before it has
+    // executed, and a round held from now on is reserved at its last commit or
+    // later, which the restarted validator replays.
+    tokio::time::timeout(Duration::from_secs(60), async {
+        while !write_paused.load(Ordering::SeqCst) {
+            transfer(&test_cluster).await;
+        }
+    })
+    .await
+    .expect("the victim's builder must pause before writing a checkpoint");
+    hold_randomness.store(true, Ordering::SeqCst);
     // Rounds are reserved on commits at least 500 ms apart, used or not.
     tokio::time::timeout(Duration::from_secs(60), async {
         while !round_in_flight.load(Ordering::SeqCst) {
