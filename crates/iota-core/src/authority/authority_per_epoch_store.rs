@@ -134,7 +134,7 @@ use crate::{
     overload_monitor::should_reject_tx,
     post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
-    post_consensus_validation,
+    post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
 };
@@ -904,6 +904,19 @@ pub struct AuthorityEpochTables {
     /// that we won't receive another handle_consensus_transaction call for
     /// the given digest. This probably means at epoch change.
     consensus_message_processed: DBMap<SequencedConsensusTransactionKey, bool>,
+
+    /// The post-consensus validation decision of every candidate of a
+    /// consensus commit, keyed by commit and transaction digest. Written when
+    /// the handler first validates the commit and deleted when the commit's
+    /// output flushes, so a commit replayed after a restart finds them. The
+    /// rows of a commit whose output never flushes, such as one the handler
+    /// abandons at the switch to synced checkpoints, stay until the epoch ends.
+    pub(crate) post_consensus_decisions:
+        DBMap<(CommitIndex, TransactionDigest), SavedPostConsensusDecision>,
+    /// The candidates of a consensus commit in consensus order, written in
+    /// the same batch as their rows in `post_consensus_decisions`, so its
+    /// presence means every candidate of the commit has a decision.
+    pub(crate) post_consensus_decision_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
 
     /// The last commit the consensus handler processed before this node
     /// switched to executing synced checkpoints for the rest of the epoch,
@@ -1926,6 +1939,61 @@ impl AuthorityPerEpochStore {
         handler_object_state
             .wait_for_fully_executed_commit(index)
             .await
+    }
+
+    /// The saved post-consensus validation decision for `digest` at commit
+    /// `index`, if the handler validated that commit and its output has not
+    /// flushed yet.
+    pub(crate) fn post_consensus_decision(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<SavedPostConsensusDecision>> {
+        Ok(self
+            .tables()?
+            .post_consensus_decisions
+            .get(&(index, digest))?)
+    }
+
+    /// Whether a post-consensus validation decision for `digest` at commit
+    /// `index` is saved; see [`Self::post_consensus_decision`]. For cluster
+    /// tests.
+    #[cfg(msim)]
+    pub fn has_post_consensus_decision_for_testing(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<bool> {
+        Ok(self.post_consensus_decision(index, digest)?.is_some())
+    }
+
+    /// Saves the decisions of every candidate of commit `index`, in consensus
+    /// order, together with the commit's candidate list, in one batch.
+    pub(crate) fn persist_post_consensus_decisions(
+        &self,
+        index: CommitIndex,
+        decisions: &[(TransactionDigest, SavedPostConsensusDecision)],
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let mut batch = tables.post_consensus_decisions.batch();
+        batch.insert_batch(
+            &tables.post_consensus_decisions,
+            decisions
+                .iter()
+                .map(|(digest, decision)| ((index, *digest), decision)),
+        )?;
+        batch.insert_batch(
+            &tables.post_consensus_decision_candidates,
+            [(
+                index,
+                decisions
+                    .iter()
+                    .map(|(digest, _)| *digest)
+                    .collect::<Vec<_>>(),
+            )],
+        )?;
+        batch.write()?;
+        Ok(())
     }
 
     /// Records one executed transaction's object writes for the P-COOL
@@ -4582,10 +4650,24 @@ impl AuthorityPerEpochStore {
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
-                self.dropped_tx_status_cache.insert_and_notify(&dropped);
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
+                // A drop for an input not visible at the horizon yet is not
+                // final for the digest, so it is not recorded as its status.
+                let mut final_drops = Vec::new();
+                let mut not_final = Vec::new();
+                for (digest, error, decision) in dropped {
+                    match decision {
+                        PostConsensusDecision::DroppedInputNotVisibleYet => {
+                            not_final.push((digest, error))
+                        }
+                        _ => final_drops.push((digest, error)),
+                    }
+                }
+                self.dropped_tx_status_cache.insert_and_notify(&final_drops);
+                self.dropped_tx_status_cache
+                    .notify_without_recording(&not_final);
             }
 
             // Split back for downstream processing (separate reordering and

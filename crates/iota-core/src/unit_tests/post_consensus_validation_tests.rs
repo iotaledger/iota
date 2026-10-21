@@ -39,7 +39,7 @@ use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
-            ExecutionIndicesWithStats, LockDetails,
+            ExecutionIndices, ExecutionIndicesWithStats, LockDetails,
             authority_per_epoch_store_tests::reopen,
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
@@ -60,7 +60,7 @@ use crate::{
         DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
         reader::CommitIndexedReader,
     },
-    post_consensus_validation,
+    post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
     test_utils::make_transfer_object_transaction,
     transaction_input_loader::TransactionInputLoader,
 };
@@ -223,7 +223,7 @@ async fn drop_error_for_gas_version_below_canceled_range(
         "A dropped transaction still releases its pre-consensus lock"
     );
     assert_eq!(dropped.len(), 1);
-    let (dropped_digest, error) = dropped.pop().unwrap();
+    let (dropped_digest, error, _) = dropped.pop().unwrap();
     assert_eq!(dropped_digest, digest);
 
     error
@@ -504,8 +504,10 @@ async fn test_simple_conflict() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only one transaction should remain");
     assert_eq!(dropped_digests.len(), 1, "Exactly one should be dropped");
@@ -610,8 +612,10 @@ async fn test_stale_version_dropped_fresh_kept() {
         .await
         .unwrap();
 
-    let (dropped_digests, dropped_errors): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, dropped_errors): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only the fresh tx should remain");
     assert_eq!(
@@ -819,8 +823,10 @@ async fn test_chain_conflict() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 2, "Two transactions should remain");
     assert_eq!(dropped_digests.len(), 1, "Exactly one dropped");
@@ -943,8 +949,10 @@ async fn test_multiple_conflicts_in_batch() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 2, "Two transactions should remain");
     assert_eq!(dropped_digests.len(), 2, "Two should be dropped");
@@ -1035,8 +1043,10 @@ async fn test_gas_object_conflict() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only one should remain");
     assert_eq!(dropped_digests.len(), 1, "One should be dropped");
@@ -1151,8 +1161,10 @@ async fn test_winner_blocks_multiple_losers() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 1, "Only tx1 should remain");
     assert_eq!(dropped_digests.len(), 2, "tx2 and tx3 should be dropped");
@@ -1273,8 +1285,10 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         .await
         .unwrap();
 
-    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) = dropped
+        .into_iter()
+        .map(|(digest, error, _)| (digest, error))
+        .unzip();
 
     assert_eq!(transactions.len(), 2, "tx1 and tx4 should remain");
     assert_eq!(dropped_digests.len(), 2, "tx2 and tx3 should be dropped");
@@ -2188,6 +2202,15 @@ struct BookkeepingSetup {
     _config_guard: Option<OverrideGuard>,
 }
 
+/// What one call of `validate_and_resolve_conflicts` decided, for comparing
+/// two runs of the same commit.
+#[derive(Debug, PartialEq, Eq)]
+struct ValidationResult {
+    kept: Vec<TransactionDigest>,
+    dropped: Vec<(TransactionDigest, IotaError)>,
+    locks: std::collections::HashMap<ObjectReference, LockDetails>,
+}
+
 async fn setup_bookkeeping(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
@@ -2642,6 +2665,116 @@ impl BookkeepingSetup {
             .is_err(),
             "commit {index} must not be fully executed yet"
         );
+    }
+
+    /// Assigns commit `index` with no roots and marks it fully executed.
+    fn complete_empty_commit(&self, index: CommitIndex) {
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![]);
+        self.epoch_store
+            .record_commit_fully_executed(index, &[])
+            .unwrap();
+    }
+
+    /// Installs a randomness manager on a reopened epoch store, which the
+    /// handler's commit processing needs.
+    async fn initialize_randomness(&self) {
+        let randomness = crate::epoch::randomness::RandomnessManager::try_new(
+            Arc::downgrade(&self.epoch_store),
+            Box::new(crate::mock_consensus::MockConsensusClient::new(
+                Arc::downgrade(&self.authority),
+                crate::mock_consensus::ConsensusMode::Noop,
+            )),
+            iota_network::randomness::Handle::new_stub(),
+            self.authority.config.authority_key_pair(),
+        )
+        .await
+        .unwrap();
+        self.epoch_store
+            .set_randomness_manager(randomness)
+            .await
+            .unwrap();
+    }
+
+    /// Runs `transactions` through the consensus handler's processing of
+    /// commit `index`, dropping copies already marked processed as the handler
+    /// does, and returns the transactions it schedules.
+    async fn process_at(
+        &self,
+        index: CommitIndex,
+        transactions: &[VerifiedTransaction],
+    ) -> Vec<VerifiedExecutableTransaction> {
+        let verified = transactions
+            .iter()
+            .cloned()
+            .filter_map(|tx| {
+                self.epoch_store.verify_consensus_transaction(
+                    make_user_tx_v1_verified(tx).0,
+                    &self.authority.metrics.skipped_consensus_txns,
+                )
+            })
+            .collect();
+        let (scheduled, ..) = self
+            .epoch_store
+            .process_consensus_transactions_and_commit_boundary(
+                verified,
+                &ExecutionIndicesWithStats::default(),
+                &Arc::new(CheckpointServiceNoop {}),
+                self.authority.get_object_cache_reader().as_ref(),
+                &ConsensusCommitInfo::new_for_test(index, index, index * 1_000, true),
+                &self.authority.metrics,
+                &self.authority,
+            )
+            .await
+            .unwrap();
+        scheduled
+            .into_iter()
+            .map(|tx| tx.as_tx().unwrap().clone())
+            .collect()
+    }
+
+    /// Validates `transactions` at commit `index` with deterministic
+    /// validation on.
+    async fn validate_at(
+        &self,
+        index: CommitIndex,
+        transactions: &[VerifiedTransaction],
+    ) -> ValidationResult {
+        let mut sequenced: Vec<_> = transactions
+            .iter()
+            .cloned()
+            .map(make_user_tx_v1_verified)
+            .collect();
+        let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+            &self.authority,
+            &self.epoch_store,
+            index,
+            true,
+            &mut sequenced,
+        )
+        .await
+        .unwrap();
+        ValidationResult {
+            kept: sequenced
+                .iter()
+                .map(|tx| tx.0.transaction.user_transaction_digest().unwrap())
+                .collect(),
+            dropped: dropped
+                .into_iter()
+                .map(|(digest, error, _)| (digest, error))
+                .collect(),
+            locks,
+        }
+    }
+
+    /// The roots of every pending checkpoint, by height.
+    fn checkpoint_roots(&self) -> Vec<(u64, Vec<TransactionKey>)> {
+        self.epoch_store
+            .get_pending_checkpoints(None)
+            .unwrap()
+            .into_iter()
+            .map(|(height, checkpoint)| (height, checkpoint.into_v1().roots))
+            .collect()
     }
 }
 
@@ -4495,6 +4628,512 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         "{:?}",
         dropped[1].1
     );
+
+    // Every candidate's decision is saved at the commit, with the error the
+    // caller reports for a drop. The input not visible at the horizon yet is
+    // saved as `DroppedInputNotVisibleYet`, so the drop is not final for the digest.
+    let saved: Vec<_> = all_digests
+        .iter()
+        .map(|digest| s.epoch_store.post_consensus_decision(12, *digest).unwrap())
+        .collect();
+    assert_eq!(
+        saved,
+        vec![
+            Some(SavedPostConsensusDecision::kept()),
+            Some(SavedPostConsensusDecision::dropped(
+                PostConsensusDecision::Dropped,
+                &dropped[0].1
+            )),
+            Some(SavedPostConsensusDecision::dropped(
+                PostConsensusDecision::DroppedInputNotVisibleYet,
+                &dropped[1].1
+            )),
+        ]
+    );
+}
+
+/// The decisions of a commit and its candidate list read back as written,
+/// before and after a restart.
+#[tokio::test]
+async fn post_consensus_decisions_survive_a_restart() {
+    use typed_store::Map;
+
+    let mut s = setup_bookkeeping(vec![], true).await;
+    let kept = TransactionDigest::random();
+    let dropped = TransactionDigest::random();
+    let error: IotaError = UserInputError::ObjectNotFound {
+        object_id: ObjectId::random(),
+        version: None,
+    }
+    .into();
+    let decisions = vec![
+        (kept, SavedPostConsensusDecision::kept()),
+        (
+            dropped,
+            SavedPostConsensusDecision::dropped(PostConsensusDecision::Dropped, &error),
+        ),
+    ];
+    s.epoch_store
+        .persist_post_consensus_decisions(1, &decisions)
+        .unwrap();
+    for reopened in [false, true] {
+        if reopened {
+            s.epoch_store = reopen(&s.authority, &s.epoch_store);
+        }
+        for (digest, decision) in &decisions {
+            assert_eq!(
+                s.epoch_store.post_consensus_decision(1, *digest).unwrap(),
+                Some(decision.clone())
+            );
+        }
+        assert_eq!(
+            s.epoch_store
+                .tables()
+                .unwrap()
+                .post_consensus_decision_candidates
+                .get(&1)
+                .unwrap(),
+            Some(vec![kept, dropped])
+        );
+        assert_eq!(
+            s.epoch_store.post_consensus_decision(2, kept).unwrap(),
+            None
+        );
+    }
+}
+
+/// The saved form of a decision does not depend on how `IotaError` is
+/// encoded: a binary of another version within the epoch reads the same
+/// bytes.
+#[test]
+fn saved_post_consensus_decision_encoding_is_stable() {
+    assert_eq!(bcs::to_bytes(&PostConsensusDecision::Kept).unwrap(), [0]);
+    assert_eq!(bcs::to_bytes(&PostConsensusDecision::Dropped).unwrap(), [1]);
+    assert_eq!(
+        bcs::to_bytes(&PostConsensusDecision::DroppedInputNotVisibleYet).unwrap(),
+        [2]
+    );
+    assert_eq!(
+        bcs::to_bytes(&SavedPostConsensusDecision {
+            decision: PostConsensusDecision::Dropped,
+            error: vec![7, 8],
+        })
+        .unwrap(),
+        [1, 2, 7, 8]
+    );
+}
+
+/// A saved drop whose error this binary cannot decode is still repeated on
+/// replay, with `IotaError::Unknown` in place of the error.
+#[tokio::test]
+async fn saved_drop_with_an_undecodable_error_is_repeated() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    s.epoch_store
+        .persist_post_consensus_decisions(
+            1,
+            &[(
+                *tx.digest(),
+                SavedPostConsensusDecision {
+                    decision: PostConsensusDecision::Dropped,
+                    error: vec![0xff; 4],
+                },
+            )],
+        )
+        .unwrap();
+    let result = s.validate_at(1, std::slice::from_ref(&tx)).await;
+    assert!(result.kept.is_empty());
+    assert_eq!(result.dropped.len(), 1);
+    assert_eq!(result.dropped[0].0, *tx.digest());
+    assert!(
+        matches!(result.dropped[0].1, IotaError::Unknown(_)),
+        "{:?}",
+        result.dropped[0].1
+    );
+}
+
+/// A commit's saved decisions are deleted in the batch that flushes its
+/// output, together with its processed flags and the resume point, so they
+/// stay as long as the commit can be replayed.
+#[tokio::test]
+async fn decisions_retire_with_resume_progress_and_processed_state() {
+    use typed_store::Map;
+
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let mut s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let mut transactions = vec![make_user_tx_v1_verified(tx.clone())];
+    let (_, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        1,
+        true,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    let key = make_user_tx_v1_verified(tx.clone()).0.key();
+    let mut output = ConsensusCommitOutput::new(1, 1);
+    output.set_owned_object_locks(locks);
+    output.record_consensus_message_processed(key.clone());
+    output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+        index: ExecutionIndices {
+            sub_dag_index: 1,
+            last_committed_round: 1,
+            transaction_index: 1,
+        },
+        ..Default::default()
+    });
+    let mut batch = s.epoch_store.db_batch_for_test();
+    output.write_to_batch(&s.epoch_store, &mut batch).unwrap();
+    assert!(
+        s.epoch_store
+            .post_consensus_decision(1, *tx.digest())
+            .unwrap()
+            .is_some()
+    );
+    assert!(!s.epoch_store.is_consensus_message_processed(&key).unwrap());
+    batch.write().unwrap();
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    assert!(
+        reopened
+            .post_consensus_decision(1, *tx.digest())
+            .unwrap()
+            .is_none()
+    );
+    assert!(reopened.is_consensus_message_processed(&key).unwrap());
+    assert_eq!(
+        *reopened
+            .subscribe_highest_fully_executed_commit()
+            .unwrap()
+            .borrow(),
+        1
+    );
+
+    // A later copy of the same transaction is dropped as processed before
+    // validation, so it is no candidate at commit 2.
+    s.epoch_store = reopened;
+    s.initialize_randomness().await;
+    assert!(s.process_at(2, std::slice::from_ref(&tx)).await.is_empty());
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(2, *tx.digest())
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        s.epoch_store
+            .tables()
+            .unwrap()
+            .post_consensus_decision_candidates
+            .get(&2)
+            .unwrap(),
+        Some(vec![])
+    );
+}
+
+/// A transaction kept at commit 1 and deferred by congestion control is kept
+/// again when it is reloaded at commit 2. After a restart both occurrences
+/// replay from their saved decisions and schedule the same way.
+#[tokio::test]
+async fn executed_deferred_transaction_replays_both_occurrences() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        config
+    });
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids: Vec<_> = (0..4).map(|_| ObjectId::random()).collect();
+    let mut s = setup_bookkeeping_with_config_guard(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        Some(guard),
+    )
+    .await;
+    let transactions = vec![
+        s.build_transfer(&ids[0], &ids[1], sender, &key, Address::random()),
+        s.build_transfer(&ids[2], &ids[3], sender, &key, Address::random()),
+    ];
+    let first = s.process_at(1, &transactions).await;
+    assert_eq!(first.len(), 1);
+    let deferred = transactions
+        .iter()
+        .find(|tx| tx.digest() != first[0].digest())
+        .unwrap()
+        .clone();
+    assert_eq!(
+        s.epoch_store.get_all_deferred_transactions_for_test().len(),
+        1
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(1, *deferred.digest())
+            .unwrap(),
+        Some(SavedPostConsensusDecision::kept())
+    );
+    let second = s.process_at(2, std::slice::from_ref(&deferred)).await;
+    assert_eq!(second.len(), 1);
+    assert_eq!(second[0].digest(), deferred.digest());
+    assert!(
+        s.epoch_store
+            .get_all_deferred_transactions_for_test()
+            .is_empty()
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(2, *deferred.digest())
+            .unwrap(),
+        Some(SavedPostConsensusDecision::kept())
+    );
+    let roots = s.checkpoint_roots();
+    let effects: Vec<_> = transactions
+        .iter()
+        .map(|tx| s.execute(tx.clone()))
+        .collect();
+
+    s.epoch_store = reopen(&s.authority, &s.epoch_store);
+    s.epoch_store
+        .set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    s.initialize_randomness().await;
+    let replay_first = s.process_at(1, &transactions).await;
+    assert_eq!(replay_first.len(), 1);
+    assert_eq!(replay_first[0].digest(), first[0].digest());
+    assert_eq!(
+        s.epoch_store.get_all_deferred_transactions_for_test().len(),
+        1
+    );
+    let replay_second = s.process_at(2, std::slice::from_ref(&deferred)).await;
+    assert_eq!(replay_second.len(), 1);
+    assert_eq!(replay_second[0].digest(), second[0].digest());
+    assert!(
+        s.epoch_store
+            .get_all_deferred_transactions_for_test()
+            .is_empty()
+    );
+    assert_eq!(roots, s.checkpoint_roots());
+
+    // A later network copy is dropped as processed before validation, so it
+    // is no candidate.
+    let first_effects = effects
+        .iter()
+        .find(|effects| effects.transaction_digest() == first[0].digest())
+        .unwrap();
+    s.epoch_store
+        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1))
+        .unwrap();
+    assert!(
+        s.process_at(3, std::slice::from_ref(&deferred))
+            .await
+            .is_empty()
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(3, *deferred.digest())
+            .unwrap(),
+        None
+    );
+}
+
+/// Once commit 12 flushes, its saved drop is gone, and a retry of the dropped
+/// transaction at a later commit is validated afresh, the same way on a store
+/// that kept running and on one reopened after the flush.
+#[tokio::test]
+async fn retry_after_retired_drop_matches_reopened_store() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    // The consumer pays with a coin the producer does not touch, so only one
+    // of its inputs is above the horizon and the drop error names it.
+    let consumer_gas = ObjectId::random();
+    let genesis = vec![
+        Object::with_id_owner_for_testing(object, sender),
+        Object::with_id_owner_for_testing(gas, sender),
+        Object::with_id_owner_for_testing(consumer_gas, sender),
+    ];
+    let normal = setup_bookkeeping(genesis.clone(), true).await;
+    // Shares the override `normal` holds.
+    let mut restarted = setup_bookkeeping_with_config_guard(genesis, None).await;
+    let producer = normal.build_transfer(&object, &gas, sender, &key, sender);
+    for node in [&normal, &restarted] {
+        node.complete_empty_commit(10);
+        let effects = node
+            .execute_as_handler_known(vec![producer.clone()], 13)
+            .remove(0);
+        node.epoch_store
+            .persist_checkpoint_bookkeeping([&effects])
+            .unwrap();
+    }
+    let consumer = normal.build_transfer(&object, &consumer_gas, sender, &key, Address::random());
+    for node in [&normal, &restarted] {
+        assert_eq!(
+            node.validate_at(12, std::slice::from_ref(&consumer))
+                .await
+                .dropped
+                .len(),
+            1
+        );
+        let mut output = ConsensusCommitOutput::new(12, 12);
+        output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+            index: ExecutionIndices {
+                sub_dag_index: 12,
+                last_committed_round: 12,
+                transaction_index: 1,
+            },
+            ..Default::default()
+        });
+        let mut batch = node.epoch_store.db_batch_for_test();
+        output
+            .write_to_batch(&node.epoch_store, &mut batch)
+            .unwrap();
+        batch.write().unwrap();
+        assert!(
+            node.epoch_store
+                .post_consensus_decision(12, *consumer.digest())
+                .unwrap()
+                .is_none()
+        );
+    }
+    normal.complete_empty_commit(12);
+    let retry = normal
+        .validate_at(14, std::slice::from_ref(&consumer))
+        .await;
+    assert_eq!(retry.dropped.len(), 1);
+    normal
+        .epoch_store
+        .record_commit_fully_executed(13, &[])
+        .unwrap();
+    let accepted = normal
+        .validate_at(15, std::slice::from_ref(&consumer))
+        .await;
+    assert_eq!(accepted.kept, vec![*consumer.digest()]);
+    // Only one epoch DB can be open while a store reopens.
+    normal.epoch_store.release_db_handles();
+    restarted.epoch_store = reopen(&restarted.authority, &restarted.epoch_store);
+    assert_eq!(
+        retry,
+        restarted
+            .validate_at(14, std::slice::from_ref(&consumer))
+            .await
+    );
+    restarted.complete_empty_commit(13);
+    assert_eq!(
+        accepted,
+        restarted
+            .validate_at(15, std::slice::from_ref(&consumer))
+            .await
+    );
+}
+
+/// A commit whose candidate list is saved but one of whose decisions is
+/// missing is never validated again: the two are written in one batch, so
+/// the store is corrupt.
+#[tokio::test]
+async fn incomplete_saved_decisions_are_not_revalidated() {
+    use typed_store::Map;
+
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    assert_eq!(
+        s.validate_at(1, std::slice::from_ref(&tx)).await.kept,
+        vec![*tx.digest()]
+    );
+    s.epoch_store
+        .tables()
+        .unwrap()
+        .post_consensus_decisions
+        .remove(&(1, *tx.digest()))
+        .unwrap();
+    let task = tokio::spawn(async move { s.validate_at(1, &[tx]).await });
+    assert!(task.await.unwrap_err().is_panic());
+}
+
+/// A saved keep of a transaction that has not executed is validated again on
+/// replay. When the new result agrees, the replay matches the first run; when
+/// it is a drop, the node stops.
+#[tokio::test]
+async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let mut s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let result = s.validate_at(2, std::slice::from_ref(&tx)).await;
+    assert_eq!(result.kept, vec![*tx.digest()]);
+    assert!(
+        !s.authority
+            .get_transaction_cache_reader()
+            .try_is_tx_already_executed(tx.digest())
+            .unwrap()
+    );
+    s.epoch_store = reopen(&s.authority, &s.epoch_store);
+    assert_eq!(result, s.validate_at(2, std::slice::from_ref(&tx)).await);
+
+    let conflict = TransactionDigest::random();
+    let mut output = ConsensusCommitOutput::new(1, 1);
+    output.set_owned_object_locks([(s.latest_ref(&object), conflict)].into());
+    s.epoch_store.push_consensus_output_for_tests(output);
+    let authority = s.authority.clone();
+    let epoch_store = s.epoch_store.clone();
+    let digest = *tx.digest();
+    let task = tokio::spawn(async move {
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            2,
+            true,
+            &mut vec![make_user_tx_v1_verified(tx)],
+        )
+        .await
+    });
+    assert!(task.await.unwrap_err().is_panic());
+    assert_eq!(
+        s.epoch_store.post_consensus_decision(2, digest).unwrap(),
+        Some(SavedPostConsensusDecision::kept())
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -4757,7 +5396,13 @@ impl ImmutableInputSetup {
         )
         .await
         .unwrap();
-        (dropped, locks)
+        (
+            dropped
+                .into_iter()
+                .map(|(digest, error, _)| (digest, error))
+                .collect(),
+            locks,
+        )
     }
 }
 
