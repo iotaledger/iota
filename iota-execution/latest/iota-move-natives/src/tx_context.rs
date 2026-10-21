@@ -17,6 +17,10 @@ use crate::{
     NativesCostTable, object_runtime::ObjectRuntime, transaction_context::TransactionContext,
 };
 
+/// Abort code of `iota::tx_context::EBadTxHashLength`. The Move constant is
+/// `#[test_only]`, so on chain this abort surfaces as a bare code 0.
+const E_BAD_TX_HASH_LENGTH: u64 = 0;
+
 #[derive(Clone)]
 pub struct TxContextDeriveIdCostParams {
     pub tx_context_derive_id_cost_base: InternalGas,
@@ -49,9 +53,9 @@ pub fn derive_id(
     let ids_created = pop_arg!(args, u64);
     let tx_hash = pop_arg!(args, Vec<u8>);
 
-    // unwrap safe because all digests in Move are serialized from the Rust
-    // `TransactionDigest`
-    let digest = TransactionDigest::from_bytes(tx_hash.as_slice()).unwrap();
+    let Ok(digest) = TransactionDigest::from_bytes(tx_hash.as_slice()) else {
+        return Ok(NativeResult::err(context.gas_used(), E_BAD_TX_HASH_LENGTH));
+    };
     let object_id = ObjectId::derive_id(digest, ids_created);
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     obj_runtime.new_id(object_id)?;

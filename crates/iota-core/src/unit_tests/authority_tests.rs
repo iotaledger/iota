@@ -1081,6 +1081,106 @@ async fn test_dev_inspect_on_validator() {
     assert!(result.is_err())
 }
 
+/// A dev inspect may call private and `public(package)` Move functions, but not
+/// such natives: they rely on their Move callers to check the arguments.
+#[tokio::test]
+async fn test_dev_inspect_rejects_non_public_natives() {
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let sender = Address::random();
+
+    let assert_rejected = |pt: ProgrammableTransaction, target: &str| {
+        let result = dev_inspect(
+            &fullnode,
+            sender,
+            TransactionKind::new_programmable(pt),
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{target}: {e}"));
+        assert!(
+            matches!(
+                result.effects.status(),
+                ExecutionStatus::Failure {
+                    error: ExecutionError::NonEntryFunctionInvoked,
+                    ..
+                }
+            ),
+            "{target}: {:?}",
+            result.effects.status()
+        );
+    };
+
+    // An end index past the end of the string.
+    assert_rejected(
+        ProgrammableTransaction {
+            inputs: vec![
+                CallArg::pure(&b"A".to_vec()),
+                CallArg::pure(&0_u64),
+                CallArg::pure(&2_u64),
+            ],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("string"),
+                Identifier::from_static("internal_sub_string"),
+                vec![],
+                vec![Argument::Input(0), Argument::Input(1), Argument::Input(2)],
+            )],
+        },
+        "0x1::string::internal_sub_string",
+    );
+
+    // The visibility check comes before arguments are read, so no arguments are
+    // needed to reach it.
+    let mut natives = 0;
+    for package in BuiltInFramework::iter_system_packages() {
+        for module in package.modules() {
+            for fdef in module.function_defs() {
+                if !fdef.is_native()
+                    || fdef.is_entry
+                    || fdef.visibility == file_format::Visibility::Public
+                {
+                    continue;
+                }
+                let function = module.identifier_at(module.function_handle_at(fdef.function).name);
+                assert_rejected(
+                    ProgrammableTransaction {
+                        inputs: vec![],
+                        commands: vec![Command::new_move_call(
+                            package.id,
+                            Identifier::new(module.self_id().name().as_str()).unwrap(),
+                            Identifier::new(function.as_str()).unwrap(),
+                            vec![],
+                            vec![],
+                        )],
+                    },
+                    &format!("{}::{function}", module.self_id()),
+                );
+                natives += 1;
+            }
+        }
+    }
+    assert!(natives > 0, "the framework should have non-public natives");
+
+    // The rule is limited to natives: a private Move function stays callable.
+    let result = dev_inspect(
+        &fullnode,
+        sender,
+        TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![CallArg::pure(&b'a')],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("ascii"),
+                Identifier::from_static("char_to_uppercase"),
+                vec![],
+                vec![Argument::Input(0)],
+            )],
+        }),
+        None,
+    )
+    .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+}
+
 #[tokio::test]
 async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
