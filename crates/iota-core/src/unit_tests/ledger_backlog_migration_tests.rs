@@ -22,7 +22,8 @@ use prometheus_filtered::Registry;
 use typed_store::{database::wait_for_database_close, traits::Map};
 
 use super::{
-    CheckpointBacklogMigrationProgress, LedgerBacklogMigration, LedgerBacklogMigrationProgress,
+    CheckpointBacklogMigrationProgress, KEY_RANGES, LedgerBacklogMigration,
+    LedgerBacklogMigrationProgress, LedgerRanges, RangeProgress,
 };
 use crate::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
@@ -253,6 +254,27 @@ fn migration(
         LedgerBacklogMigration::new(store, checkpoint_store, RUNNING_EPOCH, epochs_to_retain);
     migration.keys_per_slice = keys_per_slice;
     migration
+}
+
+/// Writes the first slice of the key range holding the lowest seeded
+/// transaction digest, as a run stopped after that write leaves it, and
+/// returns that range.
+fn move_first_transactions_slice(migration: &LedgerBacklogMigration, seeded: &Seeded) -> usize {
+    let lowest = seeded
+        .transactions
+        .iter()
+        .map(|transaction| transaction.digest)
+        .min()
+        .expect("the seed holds transactions");
+    let range = usize::from(lowest.bytes()[0]) * KEY_RANGES / 256;
+    let slice = migration.transactions_slice(range, None).unwrap();
+    let mut ranges = LedgerRanges {
+        transactions: vec![RangeProgress::At(None); KEY_RANGES],
+        effects: vec![RangeProgress::At(None); KEY_RANGES],
+    };
+    ranges.transactions[range] = slice.next;
+    migration.write_ledger_slice(slice.batch, &ranges).unwrap();
+    range
 }
 
 fn ledger_progress(store: &AuthorityStore) -> Option<LedgerBacklogMigrationProgress> {
@@ -629,18 +651,33 @@ async fn the_migration_resumes_from_its_watermark() {
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
     let seeded = seed(&store, &checkpoint_store);
 
-    // One slice of one row stops the run inside the first table, leaving four
-    // of the five seeded bodies.
+    // One slice of one row stops the run inside the first table. The flat
+    // table keeps every row until all passes are done.
     let interrupted = migration(&store, checkpoint_store.clone(), None, 1);
-    interrupted.move_transactions(None).unwrap();
-    let watermark = match ledger_progress(&store) {
-        Some(LedgerBacklogMigrationProgress::Transactions(Some(digest))) => digest,
-        other => panic!("the interrupted run must have recorded a watermark, got {other:?}"),
-    };
+    let range = move_first_transactions_slice(&interrupted, &seeded);
+    let watermark = seeded
+        .transactions
+        .iter()
+        .map(|transaction| transaction.digest)
+        .min()
+        .unwrap();
+    match ledger_progress(&store) {
+        Some(LedgerBacklogMigrationProgress::Draining { transactions, .. }) => {
+            assert!(
+                transactions
+                    .iter()
+                    .enumerate()
+                    .all(|(other, progress)| (other == range)
+                        != (*progress == RangeProgress::At(None))),
+                "only the interrupted range may have moved, got {transactions:?}"
+            );
+        }
+        other => panic!("the interrupted run must have recorded its progress, got {other:?}"),
+    }
     assert_eq!(
         store.perpetual_tables.transactions.safe_iter().count(),
-        4,
-        "one row moved and four left, or the slice size is not being honoured"
+        5,
+        "the flat table must keep its rows until every pass is done"
     );
     // Which row the slice took depends on digest order, so the seed says
     // whether it should have been bucketed or deleted.
@@ -661,14 +698,21 @@ async fn the_migration_resumes_from_its_watermark() {
         "the row the watermark names must be in a bucket when an execution \
          record places it, and gone when none does"
     );
-    assert!(
-        store
-            .perpetual_tables
-            .transactions
-            .get(&watermark)
-            .unwrap()
-            .is_none(),
-        "the row the watermark names must have left the flat table either way"
+    let bucketed_rows = seeded
+        .transactions
+        .iter()
+        .filter(|transaction| {
+            store
+                .get_historic_ledger()
+                .get_transaction(&transaction.digest)
+                .unwrap()
+                .is_some()
+        })
+        .count();
+    assert_eq!(
+        bucketed_rows,
+        usize::from(attributable),
+        "one slice of one row moves at most that row, or the slice size is not being honoured"
     );
 
     // Release every handle on both databases before reopening the same paths,
@@ -689,9 +733,10 @@ async fn the_migration_resumes_from_its_watermark() {
     assert_migrated(&resumed_store, &resumed_checkpoints, &seeded, 0);
 }
 
-/// Once both stores' flat tables are drained, a later start does nothing.
+/// Once both stores' flat tables are drained, a later start moves nothing
+/// more into the buckets; it only clears what a flat table still holds.
 #[tokio::test]
-async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
+async fn a_finished_migration_moves_nothing_on_later_starts() {
     let store_dir = iota_common::tempdir();
     let checkpoint_dir = iota_common::tempdir();
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
@@ -720,14 +765,16 @@ async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
             .transactions
             .get(stray.digest())
             .unwrap()
-            .is_some()
+            .is_none(),
+        "a later start must clear the flat table"
     );
     assert!(
         store
             .get_historic_ledger()
             .get_transaction(stray.digest())
             .unwrap()
-            .is_none()
+            .is_none(),
+        "a later start must not move anything into a bucket"
     );
 }
 
@@ -926,11 +973,11 @@ async fn a_retained_empty_checkpoint_gets_back_the_contents_row_a_pruner_deleted
     );
 }
 
-/// A run resumed under a longer retention keeps the floor of the run that
-/// started the migration: the epoch that run had begun deleting goes
-/// entirely, and is reported as pruned.
+/// A run resumed under a longer retention, before any row of an expired epoch
+/// was deleted, restarts the drains with the new floor and keeps everything
+/// the longer retention asks for.
 #[tokio::test]
-async fn a_resumed_run_keeps_the_floor_the_migration_started_with() {
+async fn a_raised_retention_restarts_the_drains_before_expired_rows_are_deleted() {
     let store_dir = iota_common::tempdir();
     let checkpoint_dir = iota_common::tempdir();
     let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
@@ -943,7 +990,44 @@ async fn a_resumed_run_keeps_the_floor_the_migration_started_with() {
         1,
     );
     interrupted.pin_floor().unwrap();
-    interrupted.move_transactions(None).unwrap();
+    move_first_transactions_slice(&interrupted, &seeded);
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+
+    assert_migrated(&store, &checkpoint_store, &seeded, 0);
+    assert_eq!(
+        checkpoint_store
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestPruned)
+            .unwrap(),
+        None,
+        "nothing was pruned"
+    );
+}
+
+/// Once the step that deletes the rows of expired epochs has begun, a run
+/// resumed under a longer retention keeps the floor of the run that started
+/// the migration: the epoch that run had begun deleting goes entirely, and is
+/// reported as pruned.
+#[tokio::test]
+async fn a_resumed_run_keeps_the_floor_once_expired_rows_are_being_deleted() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    let mut interrupted = migration(
+        &store,
+        checkpoint_store.clone(),
+        Some(NARROWEST_RETENTION),
+        5_000,
+    );
+    interrupted.pin_floor().unwrap();
+    interrupted.drain_in_parallel().unwrap();
+    assert!(interrupted.deleting_expired_rows().unwrap());
 
     migration(&store, checkpoint_store.clone(), None, 5_000)
         .run()
@@ -958,7 +1042,7 @@ async fn a_resumed_run_keeps_the_floor_the_migration_started_with() {
             .unwrap()
             .map(|(sequence, _)| sequence),
         Some(10),
-        "the epoch the first run deleted rows of must be reported as pruned"
+        "the epoch the first run had begun deleting must be reported as pruned"
     );
 }
 
@@ -1000,4 +1084,89 @@ async fn an_unexecuted_randomness_update_is_kept() {
             .is_some(),
         "the update must be filed under the epoch it names"
     );
+}
+
+/// A transaction's other rows are filed even when the flat table holds no
+/// body for it, since the four tables keyed by transaction digest are walked
+/// together rather than from the bodies alone.
+#[tokio::test]
+async fn rows_without_a_body_are_still_filed() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let without_body = seed_transaction(&store, WATERMARK_EPOCH, 20, EpochSource::Effects);
+    store
+        .perpetual_tables
+        .transactions
+        .remove(&without_body.digest)
+        .unwrap();
+
+    migration(&store, checkpoint_store, None, 5_000)
+        .run()
+        .unwrap();
+
+    let bucket = store.get_historic_ledger().ensure(WATERMARK_EPOCH).unwrap();
+    assert_eq!(
+        bucket.executed_effects.get(&without_body.digest).unwrap(),
+        without_body.effects_digest
+    );
+    assert!(bucket.events.get(&without_body.digest).unwrap().is_some());
+}
+
+/// Writes a sequence-keyed summary for checkpoint `sequence` of `epoch` that
+/// counts `network_total_transactions` transactions through it.
+fn seed_summary(
+    checkpoint_store: &CheckpointStore,
+    epoch: EpochId,
+    sequence: CheckpointSequenceNumber,
+    network_total_transactions: u64,
+) -> VerifiedCheckpoint {
+    let template = test_checkpoint_with_contents(
+        epoch,
+        sequence,
+        &FullCheckpointContents::random_for_testing(),
+    );
+    let mut summary = template.data().clone();
+    summary.network_total_transactions = network_total_transactions;
+    let checkpoint = VerifiedCheckpoint::new_unchecked(
+        iota_types::message_envelope::Envelope::new_from_data_and_sig(
+            summary,
+            template.auth_sig().clone(),
+        ),
+    );
+    checkpoint_store
+        .tables
+        .certified_checkpoints
+        .insert(&sequence, checkpoint.serializable_ref())
+        .unwrap();
+    checkpoint
+}
+
+/// The rows the drain reads are counted from the summaries of the checkpoints
+/// the flat tables hold: a transaction and its effects per transaction, and a
+/// summary per checkpoint. The sequence-keyed summaries reach back to genesis
+/// on a pruned node, so the count starts above the pruned watermark.
+#[tokio::test]
+async fn the_rows_to_drain_are_counted_from_the_checkpoint_summaries() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed_summary(&checkpoint_store, 0, 0, 1);
+    let pruned = seed_summary(&checkpoint_store, 1, 10, 1_000);
+    seed_summary(&checkpoint_store, 2, 20, 1_500);
+    seed_summary(&checkpoint_store, RUNNING_EPOCH, 30, 1_800);
+    let migration = migration(&store, checkpoint_store.clone(), None, 1);
+
+    // Never pruned: everything since genesis is held.
+    assert_eq!(migration.rows_to_drain(true, true).unwrap(), 2 * 1_800 + 31);
+
+    // Pruned through checkpoint 10: the transactions it counts are gone.
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&pruned)
+        .unwrap();
+    assert_eq!(
+        migration.rows_to_drain(true, false).unwrap(),
+        2 * (1_800 - 1_000)
+    );
+    assert_eq!(migration.rows_to_drain(false, true).unwrap(), 30 - 11 + 1);
 }
