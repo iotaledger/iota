@@ -312,8 +312,9 @@ impl TransactionInputLoader {
     /// Reads the inputs of a transaction being validated post-consensus, as of
     /// the commit `reader` was built for. Owned and shared inputs and packages
     /// go through the commit-indexed reader. Receiving objects are not read
-    /// here: the caller reads them as at signing. `Err` is a storage failure.
-    /// A dropped or missing input is a result, never an error.
+    /// here: the caller reads them as at signing. `Err` is a storage failure,
+    /// or `UserInputError::MoveObjectAsPackage` when a package input names a
+    /// Move object. A dropped or missing input is a result, never an error.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn read_objects_at_commit(
         &self,

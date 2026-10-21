@@ -41,16 +41,20 @@
 //! # Why the store answer for an id with no row is the epoch-start state
 //!
 //! When the row they look for does not exist, the owned and shared readers
-//! ask the store. That answer is the same on every validator, for three
-//! reasons.
+//! ask the store. That answer gives the same result on every validator, for
+//! three reasons.
 //!
 //! 1. Every write this epoch leaves its row before its object, so the store is never ahead of the
 //!    rows for an id.
 //! 2. The rows are kept per epoch and start empty. An id with no row has not been written this
 //!    epoch on this validator, so the store holds the version the epoch started with, and every
 //!    validator starts the epoch with the same state.
-//! 3. The pruner removes only older versions that a newer one replaced. The latest version of a
-//!    live object and the tombstone of a deleted one stay.
+//! 3. The pruner removes only older versions that a newer one replaced, so the latest version of a
+//!    live object stays. A deleted or wrapped object is the exception: pruning the checkpoint that
+//!    deleted or wrapped it removes its tombstone too, so for an object deleted or wrapped in an
+//!    earlier epoch some validators find the tombstone and others find nothing. The owned reader
+//!    drops the input in both cases, and the shared reader, which reads only live objects, finds
+//!    nothing in both.
 //!
 //! After the store answer, the row is read once more. This covers a write
 //! that lands between the first row read and the store read. Such a write

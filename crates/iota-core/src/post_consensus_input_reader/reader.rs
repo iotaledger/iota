@@ -146,7 +146,8 @@ impl CommitIndexedReader {
     /// Reads one package input: whether it is visible at this commit. The
     /// store is read first, because a package input names no version, then
     /// the row. The package module doc explains the order. A storage error is
-    /// returned as `Err`, never as a result.
+    /// returned as `Err`, never as a result, and so is an id that names a Move
+    /// object (`UserInputError::MoveObjectAsPackage`).
     pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
         let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
             PackageLookup::Loaded(loaded) => loaded,
