@@ -977,9 +977,10 @@ fn extract_owned_input_objects(
     // Use SenderSignedTransaction::input_objects() rather than
     // Transaction::input_objects() to also include objects coming from
     // MoveAuthenticator signatures. Those can only be immutable or shared,
-    // so they widen the probe set but never the locked set.
+    // so they widen the probe set but never the locked set. Packages are left
+    // out below anyway.
     let owned_objects = transaction_data
-        .input_objects()?
+        .input_objects(false)?
         .into_iter()
         .filter_map(|input| match input {
             InputObjectKind::ImmOrOwnedMoveObject(obj_ref) => Some(obj_ref),

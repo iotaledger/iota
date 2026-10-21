@@ -8,15 +8,17 @@
 //! failure. With the P-COOL flow, they also cover who pays: nobody,
 //! when the gas owner is an account that did not authorize the transaction.
 
-use std::{cell::Cell, collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    cell::Cell, collections::HashSet, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
+};
 
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator, MoveAuthenticatorV1,
     ObjectId, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
-    Transaction, TransactionEffects, TypeTag, UnchangedSharedKind, UserSignature, Version,
-    VersionAssignment, crypto::Intent,
+    Transaction, TransactionDigest, TransactionEffects, TypeTag, UnchangedSharedKind,
+    UserSignature, Version, VersionAssignment, crypto::Intent,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -36,8 +38,12 @@ use iota_types::{
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
-use crate::authority::{
-    AuthorityState, ExecutionEnv, test_authority_builder::TestAuthorityBuilder,
+use crate::{
+    authority::{
+        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::Schedulable, test_authority_builder::TestAuthorityBuilder,
+    },
+    execution_scheduler::ExecutionSchedulerAPI,
 };
 
 /// Who pays gas for the transfer of an [`UnresolvedAccountSetup`].
@@ -1035,25 +1041,30 @@ impl TestChain {
             publisher,
             publisher_gas_id,
         };
+        chain.package_id = chain.publish("move_authenticator");
+        chain
+    }
 
+    /// Publishes the test package in `src/unit_tests/data/{name}` from the
+    /// publisher, and returns its id.
+    fn publish(&self, name: &str) -> ObjectId {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.push("src/unit_tests/data/move_authenticator");
+        path.push("src/unit_tests/data");
+        path.push(name);
         let package = BuildConfig::new_for_testing().build(&path).unwrap();
         let mut builder = ProgrammableTransactionBuilder::new();
         let upgrade_cap = builder.publish_upgradeable(
             package.get_package_bytes(false),
             package.get_dependency_storage_package_ids(),
         );
-        builder.transfer_arg(chain.publisher.0, upgrade_cap);
-        let effects =
-            chain.execute_publisher_call(builder.finish(), TEST_ONLY_GAS_UNIT_FOR_PUBLISH);
-        chain.package_id = effects
+        builder.transfer_arg(self.publisher.0, upgrade_cap);
+        let effects = self.execute_publisher_call(builder.finish(), TEST_ONLY_GAS_UNIT_FOR_PUBLISH);
+        effects
             .created()
             .into_iter()
             .map(|created| created.reference().object_id)
-            .find(|id| chain.authority.get_object(id).unwrap().is_package())
-            .expect("the publish must create the package");
-        chain
+            .find(|id| self.authority.get_object(id).unwrap().is_package())
+            .expect("the publish must create the package")
     }
 
     fn reference_gas_price(&self) -> u64 {
@@ -1148,15 +1159,72 @@ impl TestChain {
         let verified = epoch_store.verify_transaction(tx).unwrap();
         let executable =
             VerifiedExecutableTransaction::new_from_checkpoint(verified, epoch_store.epoch(), 1);
+        self.assign_next_commit(&epoch_store, &executable);
+        self.authority
+            .try_execute_immediately(&executable, env, &epoch_store)
+            .unwrap()
+            .0
+    }
+
+    /// Assigns `executable` to a commit of its own when the bookkeeping is on,
+    /// as the consensus handler would.
+    fn assign_next_commit(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        executable: &VerifiedExecutableTransaction,
+    ) {
         if epoch_store.pcool_bookkeeping_enabled() {
             let commit = self.next_commit.get();
             self.next_commit.set(commit + 1);
             epoch_store.assign_commit_to_transactions(commit, vec![executable.key()]);
         }
-        self.authority
-            .try_execute_immediately(&executable, env, &epoch_store)
+    }
+
+    /// Creates a shared `generic_account::GenericAccount` of the package
+    /// `package_id`, authenticated by its generic `authenticate`, and returns
+    /// its id and initial shared version.
+    fn create_generic_account(&self, package_id: ObjectId) -> (ObjectId, Version) {
+        let metadata_ref = self
+            .authority
+            .get_object(&move_package::derive_package_metadata_id(package_id))
             .unwrap()
-            .0
+            .object_ref();
+        let account_type =
+            TypeTag::from_str(&format!("{package_id}::generic_account::GenericAccount")).unwrap();
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let arguments = vec![
+            builder
+                .obj(CallArg::ImmutableOrOwned(metadata_ref))
+                .unwrap(),
+            builder.pure("generic_account").unwrap(),
+            builder.pure("authenticate").unwrap(),
+        ];
+        let function_ref = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::from_static("authenticator_function"),
+            Identifier::from_static("create_auth_function_ref_v1"),
+            vec![account_type],
+            arguments,
+        );
+        builder.programmable_move_call(
+            package_id,
+            Identifier::from_static("generic_account"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![function_ref],
+        );
+        let effects =
+            self.execute_publisher_call(builder.finish(), TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10);
+        effects
+            .created()
+            .into_iter()
+            .find_map(|created| match created.owner() {
+                Owner::Shared(initial_shared_version) => {
+                    Some((created.reference().object_id, *initial_shared_version))
+                }
+                _ => None,
+            })
+            .expect("the call must create a shared account")
     }
 }
 
@@ -1475,4 +1543,348 @@ async fn unresolvable_sponsor_failure_is_reported_when_both_cannot_be_resolved()
         &authenticator_function_not_found(setup.sponsor.into())
     );
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+}
+
+/// A [`TestChain`] with the `move_authenticator_generic` test package
+/// published, and a shared account that the package's generic `authenticate`
+/// authenticates. Built twice from the same inputs, it gives two validators
+/// with the same history, since every transaction is the same on both.
+struct GenericAuthenticatorValidator {
+    chain: TestChain,
+    account_id: ObjectId,
+    account_version: Version,
+}
+
+impl GenericAuthenticatorValidator {
+    async fn new(publisher: &(Address, AccountPrivateKey), publisher_gas_id: ObjectId) -> Self {
+        let chain = TestChain::new((publisher.0, publisher.1.clone()), publisher_gas_id).await;
+        let package_id = chain.publish("move_authenticator_generic");
+        let (account_id, account_version) = chain.create_generic_account(package_id);
+        Self {
+            chain,
+            account_id,
+            account_version,
+        }
+    }
+
+    /// An environment that assigns the account the version consensus would
+    /// assign it.
+    fn account_env(&self) -> ExecutionEnv {
+        ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            self.account_id,
+            self.account_version,
+        )])
+    }
+
+    /// Executes `tx`, sent by the account, with the account at the version
+    /// consensus would assign it, skipping the consensus handler.
+    fn execute_as_account(&self, tx: TransactionEnvelope) -> TransactionEffects {
+        self.chain.execute(tx, self.account_env())
+    }
+
+    /// Hands `tx`, sent by the account, to the authority's execution
+    /// scheduler with the account at the version consensus would assign it,
+    /// and returns its digest. Unlike [`Self::execute_as_account`], the
+    /// transaction runs only once the scheduler finds all its inputs.
+    fn enqueue_as_account(&self, tx: TransactionEnvelope) -> TransactionDigest {
+        let authority = &self.chain.authority;
+        let epoch_store = authority.epoch_store_for_testing();
+        let verified = epoch_store.verify_transaction(tx).unwrap();
+        let executable =
+            VerifiedExecutableTransaction::new_from_checkpoint(verified, epoch_store.epoch(), 1);
+        self.chain.assign_next_commit(&epoch_store, &executable);
+        let digest = *executable.digest();
+        authority.execution_scheduler().enqueue(
+            vec![(Schedulable::Transaction(executable), self.account_env())],
+            &epoch_store,
+        );
+        digest
+    }
+
+    /// Adds objects with the ids `ids`, owned by the account.
+    fn add_account_objects(&self, ids: &[ObjectId]) {
+        let account = self.account_id.into();
+        let objects = ids
+            .iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, account))
+            .collect::<Vec<_>>();
+        self.chain.authority.insert_genesis_objects(&objects);
+    }
+
+    /// A transfer of the object `transfer_id` to `recipient`, sent by the
+    /// account and paid from its coin `gas_id`, whose authenticator passes
+    /// `type_arg` to the account's generic `authenticate`.
+    fn account_transfer(
+        &self,
+        gas_id: ObjectId,
+        transfer_id: ObjectId,
+        recipient: Address,
+        type_arg: TypeTag,
+    ) -> TransactionEnvelope {
+        let authority = &self.chain.authority;
+        let rgp = self.chain.reference_gas_price();
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .transfer_object(
+                recipient,
+                authority.get_object(&transfer_id).unwrap().object_ref(),
+            )
+            .unwrap();
+        let tx = Transaction::new_programmable(
+            self.account_id.into(),
+            vec![authority.get_object(&gas_id).unwrap().object_ref()],
+            builder.finish(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+            rgp,
+        );
+        let authenticator = MoveAuthenticatorV1::new(
+            vec![],
+            vec![type_arg],
+            SharedObjectReference::new(self.account_id, self.account_version, false),
+        );
+        to_sender_signed_transaction_with_optional_sponsor(
+            tx,
+            UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator)),
+            None::<&AccountPrivateKey>,
+        )
+    }
+
+    /// The effects of the transaction `digest`, if the authority executes it
+    /// within `wait`.
+    async fn effects_within(
+        &self,
+        digest: TransactionDigest,
+        wait: Duration,
+    ) -> Option<TransactionEffects> {
+        let effects = tokio::time::timeout(
+            wait,
+            self.chain
+                .authority
+                .get_transaction_cache_reader()
+                .try_notify_read_executed_effects("", &[digest]),
+        )
+        .await
+        .ok()?;
+        effects.unwrap().pop()
+    }
+}
+
+/// Execution loads the packages a Move authenticator's type arguments name
+/// from the package store as it is at that moment. Two validators that execute
+/// the same transaction, with the same inputs at the same versions, must still
+/// produce the same effects, whether or not they have executed the publish of
+/// such a package yet: the package is an input of the authenticator, so a
+/// validator that has not executed the publish waits for it.
+#[tokio::test]
+async fn authenticator_type_argument_package_does_not_change_the_effects() {
+    let publisher: (Address, AccountPrivateKey) = get_key_pair();
+    let publisher_gas_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let transfer_id = ObjectId::random();
+    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+
+    // Two validators with the same history up to the account's creation.
+    let ahead = GenericAuthenticatorValidator::new(&publisher, publisher_gas_id).await;
+    let behind = GenericAuthenticatorValidator::new(&publisher, publisher_gas_id).await;
+    assert_eq!(
+        (ahead.account_id, ahead.account_version),
+        (behind.account_id, behind.account_version)
+    );
+    for validator in [&ahead, &behind] {
+        validator.add_account_objects(&[gas_id, transfer_id]);
+    }
+
+    // A package published shortly before the transaction, which only the
+    // validator ahead has executed when it runs the transaction.
+    let late_package = ahead.chain.publish("object_basics");
+    let late_type = TypeTag::from_str(&format!("{late_package}::object_basics::Object")).unwrap();
+
+    let tx = ahead.account_transfer(gas_id, transfer_id, recipient, late_type.clone());
+    assert_eq!(
+        tx.digest(),
+        behind
+            .account_transfer(gas_id, transfer_id, recipient, late_type)
+            .digest()
+    );
+
+    let effects_ahead = ahead.execute_as_account(tx.clone());
+    assert!(
+        effects_ahead.status().is_success(),
+        "{:?}",
+        effects_ahead.status()
+    );
+
+    // The validator behind gets the transaction before it has executed the
+    // publish, so it must hold the transaction instead of running it.
+    let digest = behind.enqueue_as_account(tx);
+    assert!(
+        behind
+            .effects_within(digest, Duration::from_secs(1))
+            .await
+            .is_none(),
+        "the validator behind executed the transaction before the publish of {late_package}"
+    );
+
+    // Once it executes the same publish, it runs the transaction.
+    assert_eq!(behind.chain.publish("object_basics"), late_package);
+    let effects_behind = behind
+        .effects_within(digest, Duration::from_secs(20))
+        .await
+        .expect("the validator behind must execute the transaction once it has the package");
+    assert_eq!(
+        (effects_ahead.status(), effects_ahead.digest()),
+        (effects_behind.status(), effects_behind.digest()),
+        "the same transaction at the same input versions must have the same effects on a \
+         validator that has executed the publish of {late_package} and on one that has not"
+    );
+}
+
+/// What [`run_type_arg_transfers`] observed on one validator.
+struct TypeArgTransfers {
+    /// The effects of a transfer whose authenticator names a type of a package
+    /// published just before.
+    with_package_type: TransactionEffects,
+    /// The effects of a transfer whose authenticator names only system types.
+    with_system_type: TransactionEffects,
+    /// The digest of the package's publish.
+    publish_digest: TransactionDigest,
+    /// The internal gas units charged for reading the package as an input.
+    package_read_internal_units: u64,
+    /// The gas price of both transfers.
+    gas_price: u64,
+}
+
+/// Builds a validator with `move_authenticator_type_arg_packages_as_inputs`
+/// set to `type_arg_packages_as_inputs` and computation not rounded, and runs
+/// on it two transfers by a
+/// generic account: one whose authenticator names a type of the
+/// `object_basics` package, published just before, and one whose
+/// authenticator names only system types. The same arguments give the same
+/// transactions whatever the flag.
+async fn run_type_arg_transfers(
+    type_arg_packages_as_inputs: bool,
+    publisher: &(Address, AccountPrivateKey),
+    publisher_gas_id: ObjectId,
+    [
+        package_gas_id,
+        system_gas_id,
+        package_transfer_id,
+        system_transfer_id,
+    ]: [ObjectId; 4],
+    recipient: Address,
+) -> TypeArgTransfers {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_move_authenticator_type_arg_packages_as_inputs_for_testing(
+            type_arg_packages_as_inputs,
+        );
+        config.set_gas_rounding_step_for_testing(1);
+        config
+    });
+    let validator = GenericAuthenticatorValidator::new(publisher, publisher_gas_id).await;
+    validator.add_account_objects(&[
+        package_gas_id,
+        system_gas_id,
+        package_transfer_id,
+        system_transfer_id,
+    ]);
+    let package_id = validator.chain.publish("object_basics");
+    let package = validator.chain.authority.get_object(&package_id).unwrap();
+    let protocol_config = validator
+        .chain
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .clone();
+
+    let with_package_type = validator.execute_as_account(validator.account_transfer(
+        package_gas_id,
+        package_transfer_id,
+        recipient,
+        TypeTag::from_str(&format!("{package_id}::object_basics::Object")).unwrap(),
+    ));
+    let with_system_type = validator.execute_as_account(validator.account_transfer(
+        system_gas_id,
+        system_transfer_id,
+        recipient,
+        TypeTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap(),
+    ));
+    for effects in [&with_package_type, &with_system_type] {
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+    }
+    TypeArgTransfers {
+        with_package_type,
+        with_system_type,
+        publish_digest: package.previous_transaction,
+        package_read_internal_units: package.object_size_for_gas_metering() as u64
+            * protocol_config.obj_access_cost_read_per_byte(),
+        gas_price: validator.chain.reference_gas_price(),
+    }
+}
+
+/// With `move_authenticator_type_arg_packages_as_inputs` off, the packages a
+/// Move authenticator's type arguments name are not inputs: the effects do not
+/// depend on their publish, and their bytes are not charged. This keeps the
+/// effects of transactions executed before the flag. With the flag on, the
+/// effects depend on the publish, and the package's bytes are charged as an
+/// input read, unless it is a system package.
+#[tokio::test]
+async fn authenticator_type_arg_packages_change_the_effects_only_with_the_flag_on() {
+    let publisher: (Address, AccountPrivateKey) = get_key_pair();
+    let publisher_gas_id = ObjectId::random();
+    let object_ids = std::array::from_fn(|_| ObjectId::random());
+    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+
+    let off =
+        run_type_arg_transfers(false, &publisher, publisher_gas_id, object_ids, recipient).await;
+    let on =
+        run_type_arg_transfers(true, &publisher, publisher_gas_id, object_ids, recipient).await;
+    assert_eq!(
+        (
+            off.with_package_type.transaction_digest(),
+            off.with_system_type.transaction_digest(),
+            off.publish_digest,
+        ),
+        (
+            on.with_package_type.transaction_digest(),
+            on.with_system_type.transaction_digest(),
+            on.publish_digest,
+        ),
+        "both validators must run the same transactions"
+    );
+
+    assert!(
+        !off.with_package_type
+            .dependencies()
+            .contains(&off.publish_digest)
+    );
+    assert!(
+        on.with_package_type
+            .dependencies()
+            .contains(&on.publish_digest)
+    );
+
+    // Reads are charged in internal gas units, a thousand to a gas unit, so
+    // the package's read adds its internal units divided by a thousand, give or
+    // take one for rounding down.
+    let (off_gas, on_gas) = (
+        off.with_package_type.gas_cost_summary(),
+        on.with_package_type.gas_cost_summary(),
+    );
+    assert_eq!(
+        (off_gas.storage_cost, off_gas.storage_rebate),
+        (on_gas.storage_cost, on_gas.storage_rebate)
+    );
+    let extra_units = (on_gas.computation_cost - off_gas.computation_cost) / on.gas_price;
+    let package_read_units = on.package_read_internal_units / 1000;
+    assert!(
+        package_read_units > 0 && extra_units.abs_diff(package_read_units) <= 1,
+        "the flag must add the package's read, {package_read_units} units, to the \
+         computation, which grew by {extra_units} units"
+    );
+
+    assert_eq!(
+        off.with_system_type.gas_cost_summary(),
+        on.with_system_type.gas_cost_summary(),
+        "a system package must not be charged"
+    );
 }

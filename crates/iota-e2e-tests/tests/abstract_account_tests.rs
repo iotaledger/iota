@@ -31,7 +31,7 @@ use iota_sdk_types::{
     SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind,
     crypto::{Intent, SimpleSignature},
 };
-use iota_test_transaction_builder::publish_package;
+use iota_test_transaction_builder::{publish_basics_package, publish_package};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::AuthorityName,
@@ -62,6 +62,7 @@ const AA_DELAYED_CREATE_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_AUTHENTICATE_MODULE_NAME: &str = "delayed_abstract_account_keyed";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
+const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS_GENERIC: &str = "authenticate_free_access_generic";
 const AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER: &str =
     "authenticate_with_sponsor_and_sender";
 const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST: &str =
@@ -168,6 +169,78 @@ async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error>
     // and verifies the ed25519 signature against signing_digest.
     let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
     test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// An Abstract Account whose authenticate function is generic sends a
+/// transaction whose authenticator type argument names a type from a package
+/// published just before. The transaction succeeds, and its effects record the
+/// publish as a dependency: the package is an input of the authenticator, so no
+/// node runs the transaction before it has executed the publish.
+#[sim_test]
+async fn test_authenticator_type_arg_package_is_an_authenticator_input_pre_consensus_flow()
+-> Result<(), anyhow::Error> {
+    test_authenticator_type_arg_package_is_an_authenticator_input(false).await
+}
+
+#[sim_test]
+async fn test_authenticator_type_arg_package_is_an_authenticator_input_pcool_flow()
+-> Result<(), anyhow::Error> {
+    test_authenticator_type_arg_package_is_an_authenticator_input(true).await
+}
+
+async fn test_authenticator_type_arg_package_is_an_authenticator_input(
+    pcool: bool,
+) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS_GENERIC)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    let package_id = publish_basics_package(test_env.test_cluster.wallet())
+        .await
+        .object_id;
+    let publish_digest = test_env
+        .test_cluster
+        .get_object_from_fullnode_store(&package_id)
+        .await
+        .unwrap()
+        .previous_transaction;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![TypeTag::from_str(&format!(
+            "{package_id}::object_basics::Object"
+        ))?],
+        SharedObjectReference::new(aa_ref.object_id, aa_ref.version, false),
+    );
+    let tx = TransactionEnvelope::from_user_sig_data(
+        tx_data,
+        vec![UserSignature::MoveAuthenticator(authenticator.into())],
+    );
+
+    // `execute_transaction` panics unless execution succeeded on the fullnode.
+    let effects = test_env.test_cluster.execute_transaction(tx).await;
+    assert!(
+        effects.dependencies().contains(&publish_digest),
+        "the effects must record the publish of {package_id} as a dependency"
+    );
+
+    Ok(())
 }
 
 /// Test the issuance of a sponsored transaction from an Abstract Account

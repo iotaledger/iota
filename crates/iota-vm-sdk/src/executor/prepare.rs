@@ -116,8 +116,13 @@ pub(super) fn prepare_transaction(
     // every `MoveAuthenticator`'s input objects into the transaction's; mirror
     // that merge so denied objects are also caught as authenticator inputs.
     let mut deny_check_input_kinds = raw_input_object_kinds.clone();
-    merge_authenticator_input_objects(move_authenticators, &mut deny_check_input_kinds)
-        .map_err(|e| ValidationError::new("merge authenticator inputs", e))?;
+    merge_authenticator_input_objects(
+        move_authenticators,
+        env.protocol_config
+            .move_authenticator_type_arg_packages_as_inputs(),
+        &mut deny_check_input_kinds,
+    )
+    .map_err(|e| ValidationError::new("merge authenticator inputs", e))?;
     iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
         tx_signatures,
@@ -495,8 +500,9 @@ type PreparedAuthenticator = (
 
 /// Resolve each authenticator's checked input objects and function ref from the
 /// store. The per-authenticator object restrictions a node enforces at signing
-/// time (no packages, no address-owned objects, no mutable shared objects, …)
-/// are applied to each authenticator's inputs.
+/// time (no packages other than those its type arguments name, no address-owned
+/// objects, no mutable shared objects, …) are applied to each authenticator's
+/// inputs.
 pub(super) fn prepare_authenticators(
     store: &dyn BackingStore,
     authenticators: Vec<MoveAuthenticator>,
@@ -504,7 +510,8 @@ pub(super) fn prepare_authenticators(
 ) -> Result<Vec<PreparedAuthenticator>, VmSdkError> {
     let mut prepared = Vec::with_capacity(authenticators.len());
     for authenticator in authenticators {
-        let auth_input_object_kinds = authenticator.input_objects();
+        let auth_input_object_kinds = authenticator
+            .input_objects(protocol_config.move_authenticator_type_arg_packages_as_inputs());
         let auth_input_objects = load_input_objects(store, &auth_input_object_kinds)?;
         let auth_checked = iota_transaction_checks::check_move_authenticator_input_for_validation(
             auth_input_objects,
