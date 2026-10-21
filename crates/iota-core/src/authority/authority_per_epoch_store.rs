@@ -834,6 +834,9 @@ pub struct AuthorityPerEpochStore {
     synced_checkpoint_execution: watch::Sender<bool>,
     /// Held by the consensus handler while it processes a commit.
     consensus_commit_guard: tokio::sync::Mutex<()>,
+    /// The last commit the consensus handler finished processing, seeded
+    /// from the consensus resume point.
+    last_handled_commit: std::sync::atomic::AtomicU64,
 
     /// Monitors local observations of misbehaviors and sends reports.
     pub(crate) misbehavior_monitor: MisbehaviorMonitor,
@@ -898,6 +901,12 @@ pub struct AuthorityEpochTables {
     /// that we won't receive another handle_consensus_transaction call for
     /// the given digest. This probably means at epoch change.
     consensus_message_processed: DBMap<SequencedConsensusTransactionKey, bool>,
+
+    /// The last commit the consensus handler processed before this node
+    /// switched to executing synced checkpoints for the rest of the epoch,
+    /// under the key 0. Written when the switch starts, so a restart replays
+    /// the commits up to it and processes none after it.
+    last_commit_before_synced_checkpoint_execution: DBMap<u64, CommitIndex>,
 
     /// Map stores pending transactions that this authority submitted to
     /// consensus
@@ -1411,6 +1420,9 @@ impl AuthorityPerEpochStore {
             randomness_reporter: OnceCell::new(),
             synced_checkpoint_execution: watch::channel(false).0,
             consensus_commit_guard: tokio::sync::Mutex::new(()),
+            last_handled_commit: std::sync::atomic::AtomicU64::new(
+                resume_point.unwrap_or_default(),
+            ),
             misbehavior_monitor,
             report_aggregator,
             scoreboard,
@@ -1474,12 +1486,59 @@ impl AuthorityPerEpochStore {
     /// Marks that this node executes downloaded checkpoints for the rest of
     /// the epoch. Returns once the consensus handler is between commits, so no
     /// commit is processed against state that executing those checkpoints
-    /// writes. Returns at once if this was already done.
+    /// writes, and once the last commit the handler processed is saved, so
+    /// a restart processes no later commit. Returns at once if this was
+    /// already done.
     pub async fn start_executing_synced_checkpoints(&self) {
         if self.synced_checkpoint_execution.send_replace(true) {
             return;
         }
-        drop(self.consensus_commit_guard.lock().await);
+        let _commit_guard = self.consensus_commit_guard.lock().await;
+        // The tables are gone only once the epoch has ended, when nothing
+        // replays this epoch's commits any more.
+        if let Ok(tables) = self.tables() {
+            let last_handled_commit = self
+                .last_handled_commit
+                .load(std::sync::atomic::Ordering::SeqCst);
+            if tables
+                .last_commit_before_synced_checkpoint_execution
+                .get(&0)
+                .expect("db error")
+                .is_none()
+            {
+                tables
+                    .last_commit_before_synced_checkpoint_execution
+                    .insert(&0, &last_handled_commit)
+                    .expect("db error");
+            }
+        }
+    }
+
+    /// The last commit the consensus handler processed before this node
+    /// switched to executing synced checkpoints in this epoch, if it did.
+    /// Saved by [`Self::start_executing_synced_checkpoints`].
+    pub fn last_commit_before_synced_checkpoint_execution(
+        &self,
+    ) -> IotaResult<Option<CommitIndex>> {
+        Ok(self
+            .tables()?
+            .last_commit_before_synced_checkpoint_execution
+            .get(&0)?)
+    }
+
+    /// Records that the consensus handler finished processing commit
+    /// `index`. Call with the commit guard held.
+    pub(crate) fn record_handled_commit(&self, index: CommitIndex) {
+        self.last_handled_commit
+            .fetch_max(index, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Marks this node as executing synced checkpoints for the rest of the
+    /// epoch again after a restart, from the consensus handler once it reaches
+    /// a commit after the one [`Self::last_commit_before_synced_checkpoint_execution`]
+    /// returns. The caller holds the commit guard, so no commit is in progress.
+    pub(crate) fn resume_executing_synced_checkpoints(&self) {
+        self.synced_checkpoint_execution.send_replace(true);
     }
 
     /// Completes once `start_executing_synced_checkpoints` has been called.
@@ -4203,6 +4262,10 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
+        // Read once per commit, so validation and the commit assignment below
+        // decide on the same value.
+        let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
@@ -4443,10 +4506,21 @@ impl AuthorityPerEpochStore {
                 );
             }
 
+            // With deterministic validation, validation of commit `C` reads
+            // the rows of the commits at or below the horizon `C - K`, so its
+            // result depends only on the commit if every one of those commits
+            // is fully executed first. A commit's rows are written before the
+            // highest fully executed commit advances past it, so from then on
+            // those rows are all readable and do not change during validation.
+            // Rows of later commits can still appear, but they answer missing.
+            // Nothing here waits for those commits, so the result can
+            // still depend on how far this validator's execution has got.
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
                     self,
+                    consensus_commit_info.index,
+                    deterministic_validation,
                     &mut sequenced_transactions,
                 )
                 .await?;
@@ -4656,12 +4730,23 @@ impl AuthorityPerEpochStore {
 
             // The deterministic-validation bookkeeping tracks exactly the
             // roots written to this commit's pending checkpoints.
-            if self.protocol_config.pcool_deterministic_validation() {
+            if deterministic_validation {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {
                     commit_roots.extend(randomness_roots.iter().copied());
                 }
                 self.assign_commit_to_transactions(consensus_commit_info.index, commit_roots);
+                if let Some(highest_fully_executed) = self.subscribe_highest_fully_executed_commit()
+                {
+                    authority_metrics
+                        .consensus_handler_commit_execution_lag
+                        .set(
+                            consensus_commit_info
+                                .index
+                                .saturating_sub(*highest_fully_executed.borrow())
+                                as i64,
+                        );
+                }
             }
 
             let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
