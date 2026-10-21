@@ -9371,6 +9371,63 @@ async fn reconfiguration_keeps_the_buckets_a_retention_guard_reads() {
     assert_eq!(historic.get(&relocated[2]).unwrap(), None);
 }
 
+/// The background expiry runs for each epoch announced to it, and again once
+/// a retention guard that kept a bucket is dropped, without waiting for the
+/// next epoch.
+#[tokio::test]
+async fn the_background_expiry_drops_a_kept_bucket_once_its_guard_is_dropped() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(0)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let relocated: Vec<ObjectKey> = (0..=2)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    let retained = crate::test_utils::executed_checkpoint(1, 5);
+    authority
+        .checkpoint_store
+        .insert_certified_checkpoint(&retained)
+        .unwrap();
+    authority.record_executed_for_object_retention(retained.sequence_number());
+    let guard = authority.retain_objects();
+
+    let gone = |key: ObjectKey| async move {
+        for _ in 0..200 {
+            if historic.get(&key).unwrap().is_none() {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        false
+    };
+
+    authority.historic_bucket_expiry.send_replace(2);
+    assert!(gone(relocated[0]).await, "epoch 0's bucket must expire");
+    assert!(historic.get(&relocated[1]).unwrap().is_some());
+
+    drop(guard);
+    assert!(
+        gone(relocated[1]).await,
+        "epoch 1's bucket must expire once its guard is dropped"
+    );
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+}
+
 /// A retention of `u64::MAX` turns object expiry off.
 #[tokio::test]
 async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
@@ -9604,7 +9661,7 @@ async fn the_pruned_watermark_follows_the_higher_of_the_ledger_and_checkpoint_fl
 
     // The ledger history already dropped everything below epoch 4, as an
     // expiry whose checkpoint half failed leaves it.
-    authority.get_historic_ledger().prune(4, 0).unwrap();
+    authority.get_historic_ledger().prune(4, 0, &|| {}).unwrap();
     authority.advance_historic_buckets(4).await.unwrap();
 
     assert_eq!(

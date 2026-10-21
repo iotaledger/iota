@@ -117,7 +117,10 @@ async fn a_checkpoint_of_an_expired_epoch_is_filed_without_its_bucket() {
 
     let store = CheckpointStore::new_for_tests();
     store.historic_checkpoints.ensure(RETAINED_EPOCH).unwrap();
-    store.historic_checkpoints.prune(RETAINED_EPOCH, 1).unwrap();
+    store
+        .historic_checkpoints
+        .prune(RETAINED_EPOCH, 1, &|| {})
+        .unwrap();
 
     let full_contents = FullCheckpointContents::random_for_testing();
     let checkpoint = test_checkpoint_with_contents(EXPIRED_EPOCH, 5, &full_contents);
@@ -168,7 +171,10 @@ async fn a_watermark_survives_the_expiry_of_its_own_epoch() {
     store.update_highest_synced_checkpoint(&checkpoint).unwrap();
 
     store.historic_checkpoints.ensure(CURRENT_EPOCH).unwrap();
-    store.historic_checkpoints.prune(CURRENT_EPOCH, 0).unwrap();
+    store
+        .historic_checkpoints
+        .prune(CURRENT_EPOCH, 0, &|| {})
+        .unwrap();
     assert!(
         store
             .get_checkpoint_by_digest(checkpoint.digest())
@@ -250,7 +256,7 @@ async fn empty_checkpoints_keep_their_contents_when_an_older_bucket_expires() {
 
     store
         .historic_checkpoints
-        .prune(CHECKPOINT_EPOCH + 1, 0)
+        .prune(CHECKPOINT_EPOCH + 1, 0, &|| {})
         .unwrap();
 
     assert_eq!(
@@ -258,5 +264,48 @@ async fn empty_checkpoints_keep_their_contents_when_an_older_bucket_expires() {
             .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
             .unwrap(),
         Some(empty_checkpoint_contents())
+    );
+}
+
+/// `before_drop` runs once the earliest retained epoch has moved past the
+/// expiring bucket and while the bucket is still readable, so what advertises
+/// the retained range can move before the data is gone.
+#[tokio::test]
+async fn before_drop_runs_after_the_floor_moves_and_before_the_drop() {
+    const EXPIRED_EPOCH: EpochId = 1;
+    const CURRENT_EPOCH: EpochId = 2;
+
+    let store = CheckpointStore::new_for_tests();
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let checkpoint = test_checkpoint_with_contents(EXPIRED_EPOCH, 5, &full_contents);
+    store
+        .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+        .unwrap();
+    store.historic_checkpoints.ensure(CURRENT_EPOCH).unwrap();
+
+    let calls = std::cell::Cell::new(0);
+    store
+        .historic_checkpoints
+        .prune(CURRENT_EPOCH, 0, &|| {
+            calls.set(calls.get() + 1);
+            assert_eq!(
+                store.historic_checkpoints.earliest_retained_epoch(),
+                CURRENT_EPOCH
+            );
+            assert!(
+                store
+                    .get_checkpoint_contents(&checkpoint.contents_digest)
+                    .unwrap()
+                    .is_some(),
+                "the expiring bucket is still readable",
+            );
+        })
+        .unwrap();
+    assert_eq!(calls.get(), 1);
+    assert!(
+        store
+            .get_checkpoint_contents(&checkpoint.contents_digest)
+            .unwrap()
+            .is_none()
     );
 }

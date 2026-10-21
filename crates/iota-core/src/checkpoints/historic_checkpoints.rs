@@ -201,13 +201,20 @@ impl HistoricCheckpoints {
     /// `current_epoch` must be the epoch this node is executing (see
     /// [`HistoricCheckpoints`]); buckets above it are left alone. Blocks while
     /// the drops run, so async callers must use `spawn_blocking`.
+    ///
+    /// `before_drop` runs before each bucket is dropped, once the earliest
+    /// epoch retained has moved past it, so that what advertises the retained
+    /// range can be moved first.
     pub fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
+        before_drop: &dyn Fn(),
     ) -> Result<Option<EpochId>, TypedStoreError> {
-        self.buckets
-            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
+        self.buckets.prune(current_epoch, epochs_to_retain, |_, _| {
+            before_drop();
+            Ok(())
+        })
     }
 
     /// The contents stored under `digest`, newest bucket first, `None` if no

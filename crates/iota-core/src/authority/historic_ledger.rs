@@ -238,14 +238,22 @@ impl HistoricLedger {
     /// newest bucket (see [`HistoricLedger`]); buckets above it are left
     /// alone. Blocks for as long as the drops take, so a caller on an async
     /// runtime must use `spawn_blocking`.
+    ///
+    /// `before_drop` runs before each bucket is dropped, once the earliest
+    /// epoch retained has moved past it, so that what advertises the retained
+    /// range can be moved first.
     pub fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
+        before_drop: &dyn Fn(),
     ) -> IotaResult<Option<EpochId>> {
         self.buckets
             // No live table holds rows that depend on a bucket.
-            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| {
+                before_drop();
+                Ok(())
+            })
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 

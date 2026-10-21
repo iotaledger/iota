@@ -1,7 +1,7 @@
 
 Sustainable disk usage requires IOTA full nodes to prune the information about historic object versions as well as historic transactions with the corresponding effects and events, including old checkpoint data.
 
-All three kinds of pruning below run at the epoch boundary, where an expired epoch's data is dropped as a whole set of RocksDB column families. Most of the disk space comes back with those files. What is left is a small amount of row-by-row deletion in the live object table, which RocksDB reclaims through background compaction, so the last part of the effect on disk usage is not immediate — see `periodic-compaction-threshold-days` below.
+All three kinds of pruning below run in the background right after each epoch boundary and once when the node starts, where an expired epoch's data is dropped as a whole set of RocksDB column families; the node keeps executing transactions meanwhile. A lowered retention therefore takes effect at the next start. Most of the disk space comes back with those files. What is left is a small amount of row-by-row deletion in the live object table, which RocksDB reclaims through background compaction, so the last part of the effect on disk usage is not immediate — see `periodic-compaction-threshold-days` below.
 
 :::tip
 
@@ -22,6 +22,8 @@ Transaction pruning removes previous transactions, their effects and events, and
 ### Index Pruning
 
 Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by the history queries (`iotax_queryTransactionBlocks()`, `iotax_queryEvents()` and their gRPC counterparts). Balances, coins, owned objects and dynamic fields are read from tables of the live state, which index pruning does not touch. Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node serving the JSON-RPC API (`enable-jsonrpc-api: true`, the default) or the gRPC API (`enable-grpc-api: true`).
+
+On the first start after the upgrade to the per-epoch storage, a full node rebuilds its RPC index: the live state up front, the history in the background from the transactions the node still holds. Index history older than the node's checkpoint retention is not brought back, so `iotax_queryTransactionBlocks()` and `iotax_queryEvents()` reach no further back than that retention afterwards. Raising the retention before the upgrade does not help with transactions the node has already pruned; history queries older than that are for an indexer to answer.
 
 The index window may be shorter than the checkpoint window, and the only thing that costs is query reach: `iotax_queryTransactionBlocks()` and other query-style endpoints stop returning entries older than the index window, while every transaction the checkpoint window still retains remains fetchable by digest on both APIs and still reports the checkpoint that confirmed it — that answer is read from the ledger, not from the index.
 
@@ -103,7 +105,7 @@ authority-store-pruning-config:
   periodic-compaction-threshold-days: 1
 ```
 
-All three run at the epoch boundary, where the node drops the epochs that have
+All three run right after the epoch boundary and once at the node's start, where the node drops the epochs that have
 fallen outside each retention window, and all three count that window the same
 way: `N` historic epochs on top of the epoch the node is in, keeping `N + 1`
 epochs in total. `u64::MAX` turns a pruning task off. Leaving
