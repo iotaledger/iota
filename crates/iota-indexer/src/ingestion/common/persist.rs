@@ -144,15 +144,16 @@ impl CommitterTables {
         Self::EventStructPackage,
     ];
 
-    pub fn is_ingested(self, level: OperationalLevel) -> bool {
+    /// Returns the lowest operational level that ingests this table.
+    pub fn level(self) -> OperationalLevel {
         if Self::BASIC.contains(&self) {
-            level.includes(OperationalLevel::Basic)
+            OperationalLevel::Basic
         } else if Self::OBJECTS_HISTORY.contains(&self) {
-            level.includes(OperationalLevel::ObjectsHistory)
+            OperationalLevel::ObjectsHistory
         } else if Self::FILTERED_QUERIES.contains(&self) {
-            level.includes(OperationalLevel::FilteredQueries)
+            OperationalLevel::FilteredQueries
         } else {
-            level.includes(OperationalLevel::CombinedEventFilters)
+            OperationalLevel::CombinedEventFilters
         }
     }
 }
