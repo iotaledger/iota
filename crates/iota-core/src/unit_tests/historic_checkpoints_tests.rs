@@ -188,3 +188,75 @@ async fn a_watermark_survives_the_expiry_of_its_own_epoch() {
         );
     }
 }
+
+/// A read that races the expiry of a bucket answers as if the bucket were
+/// already gone.
+#[tokio::test]
+async fn a_read_of_a_dropped_bucket_finds_nothing() {
+    let store = CheckpointStore::new_for_tests();
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let checkpoint =
+        test_checkpoint_with_contents(CHECKPOINT_EPOCH, CHECKPOINT_SEQUENCE, &full_contents);
+    store
+        .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+        .unwrap();
+    store.insert_certified_checkpoint(&checkpoint).unwrap();
+
+    store
+        .tables
+        .certified_checkpoints
+        .db
+        .drop_cf(&crate::epoch_buckets::bucket_cf_name(
+            super::HISTORIC_CHECKPOINTS_CF_PREFIX,
+            CHECKPOINT_EPOCH,
+        ))
+        .unwrap();
+
+    assert!(
+        store
+            .historic_checkpoints
+            .find_contents(&checkpoint.contents_digest)
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        store
+            .historic_checkpoints
+            .find_by_digest(checkpoint.digest())
+            .unwrap()
+            .is_none()
+    );
+}
+
+/// Every bucket holds the contents all empty checkpoints name from its
+/// creation on, so an empty checkpoint of a later epoch keeps its contents
+/// once the bucket of the epoch that stored them first expires.
+#[tokio::test]
+async fn empty_checkpoints_keep_their_contents_when_an_older_bucket_expires() {
+    use crate::checkpoints::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
+
+    let store = CheckpointStore::new_for_tests();
+    for epoch in [CHECKPOINT_EPOCH, CHECKPOINT_EPOCH + 1] {
+        let bucket = store.historic_checkpoints.ensure(epoch).unwrap();
+        assert_eq!(
+            bucket
+                .checkpoint_content
+                .get(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                .unwrap(),
+            Some(empty_checkpoint_contents()),
+            "a new bucket of epoch {epoch} must hold the empty contents"
+        );
+    }
+
+    store
+        .historic_checkpoints
+        .prune(CHECKPOINT_EPOCH + 1, 0)
+        .unwrap();
+
+    assert_eq!(
+        store
+            .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+            .unwrap(),
+        Some(empty_checkpoint_contents())
+    );
+}

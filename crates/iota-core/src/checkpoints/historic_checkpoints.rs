@@ -11,12 +11,14 @@ use iota_types::{committee::EpochId, messages_checkpoint::TrustedCheckpoint};
 use typed_store::{
     DbIterator, TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables},
+    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables, synced_write_options},
     traits::Map,
 };
 
+use super::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
 use crate::epoch_buckets::{
-    EpochBuckets, bucket_cf_epoch, bucket_cf_options, extra_column_family_options,
+    BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
+    extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
@@ -42,7 +44,7 @@ pub struct HistoricCheckpointsBucket {
     pub(crate) checkpoint_by_digest: TaggedDBMap<CheckpointDigest, TrustedCheckpoint>,
 }
 
-impl HistoricCheckpointsBucket {
+impl BucketReopen for HistoricCheckpointsBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         Ok(Self {
             checkpoint_content: TaggedDBMap::reopen(
@@ -60,6 +62,29 @@ impl HistoricCheckpointsBucket {
                 true,
             )?,
         })
+    }
+
+    /// Writes the contents every empty checkpoint names, if missing. State
+    /// sync stores a checkpoint's contents only when no bucket holds them yet,
+    /// so without its own copy a bucket's empty checkpoints would lose their
+    /// contents once the bucket holding the shared copy expired.
+    fn initialize(&self) -> Result<(), TypedStoreError> {
+        if self
+            .checkpoint_content
+            .contains_key(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)?
+        {
+            return Ok(());
+        }
+        // Synced, like the creation of the bucket it belongs with.
+        let mut batch = self.checkpoint_content.batch();
+        batch.insert_batch_tagged(
+            &self.checkpoint_content,
+            [(
+                *EMPTY_CHECKPOINT_CONTENTS_DIGEST,
+                empty_checkpoint_contents(),
+            )],
+        )?;
+        batch.write_opt(&synced_write_options())
     }
 }
 
@@ -109,10 +134,10 @@ impl HistoricCheckpoints {
         let mut buckets = BTreeMap::new();
         for cf_name in &existing_cfs {
             if let Some(epoch) = bucket_cf_epoch(HISTORIC_CHECKPOINTS_CF_PREFIX, cf_name) {
-                buckets.insert(
-                    epoch,
-                    Arc::new(HistoricCheckpointsBucket::reopen(&db, cf_name)?),
-                );
+                let bucket = HistoricCheckpointsBucket::reopen(&db, cf_name)?;
+                // A crash right after creating the bucket left it without.
+                bucket.initialize()?;
+                buckets.insert(epoch, Arc::new(bucket));
             }
         }
 
@@ -134,7 +159,6 @@ impl HistoricCheckpoints {
             cf_options,
             earliest_retained_table,
             buckets,
-            HistoricCheckpointsBucket::reopen,
         )?;
         Ok(Self { buckets })
     }
@@ -187,13 +211,13 @@ impl HistoricCheckpoints {
     }
 
     /// The contents stored under `digest`, newest bucket first, `None` if no
-    /// bucket holds them.
+    /// bucket holds them (or their bucket has since been dropped).
     pub fn find_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>, TypedStoreError> {
         for bucket in self.buckets.iter(true) {
-            if let Some(contents) = bucket.checkpoint_content.get(digest)? {
+            if let Some(contents) = absent_if_dropped(bucket.checkpoint_content.get(digest))? {
                 return Ok(Some(contents));
             }
         }
@@ -201,7 +225,7 @@ impl HistoricCheckpoints {
     }
 
     /// The certified summary stored under `digest`, newest bucket first,
-    /// `None` if no bucket holds it.
+    /// `None` if no bucket holds it (or its bucket has since been dropped).
     ///
     /// A caller that has the sequence number should read
     /// `certified_checkpoints` instead, which is never pruned.
@@ -210,7 +234,7 @@ impl HistoricCheckpoints {
         digest: &CheckpointDigest,
     ) -> Result<Option<TrustedCheckpoint>, TypedStoreError> {
         for bucket in self.buckets.iter(true) {
-            if let Some(checkpoint) = bucket.checkpoint_by_digest.get(digest)? {
+            if let Some(checkpoint) = absent_if_dropped(bucket.checkpoint_by_digest.get(digest))? {
                 return Ok(Some(checkpoint));
             }
         }
