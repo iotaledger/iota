@@ -329,3 +329,137 @@ async fn a_state_synced_transaction_lands_in_the_executing_epochs_bucket() {
     })
     .await;
 }
+
+/// The batched reads answer exactly as one read per digest does, for
+/// transactions spread over several buckets, digests no bucket holds and a
+/// bucket dropped meanwhile, and walk the buckets once per batch.
+#[tokio::test]
+async fn batched_reads_answer_like_single_reads_and_walk_once() {
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::{
+        base_types::random_object_ref,
+        crypto::{AccountPrivateKey, deterministic_random_account_private_key},
+        transaction::VerifiedTransaction,
+    };
+
+    let dir = iota_common::tempdir();
+    let (perpetual, _historic_objects, historic, _epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let (sender, keypair): (iota_sdk_types::Address, AccountPrivateKey) =
+        deterministic_random_account_private_key();
+    let mut executed = Vec::new();
+    for epoch in [1, 2, 3, 3] {
+        let transaction = VerifiedTransaction::new_unchecked(
+            TestTransactionBuilder::new(sender, random_object_ref(), 100)
+                .transfer(random_object_ref(), sender)
+                .build_and_sign(&keypair),
+        );
+        let digest = *transaction.digest();
+        let effects = TestEffectsBuilder::new(transaction.inner())
+            .with_epoch(epoch)
+            .build();
+        let effects_digest = effects.digest();
+        let bucket = historic.ensure(epoch).unwrap();
+        let mut batch = bucket.transactions.batch();
+        batch
+            .insert_batch_tagged(
+                &bucket.transactions,
+                [(digest, transaction.serializable_ref())],
+            )
+            .unwrap();
+        batch
+            .insert_batch_tagged(&bucket.effects, [(effects_digest, effects)])
+            .unwrap();
+        batch
+            .insert_batch_tagged(&bucket.executed_effects, [(digest, effects_digest)])
+            .unwrap();
+        batch
+            .insert_batch_tagged(&bucket.events, [(digest, TransactionEvents::default())])
+            .unwrap();
+        batch.write().unwrap();
+        executed.push((digest, effects_digest));
+    }
+    historic.ensure(4).unwrap();
+
+    let check = |label: &str| {
+        let mut digests: Vec<_> = executed.iter().map(|(digest, _)| *digest).collect();
+        digests.push(TransactionDigest::random());
+        let mut effects_digests: Vec<_> = executed.iter().map(|(_, effects)| *effects).collect();
+        effects_digests.push(iota_sdk_types::TransactionEffectsDigest::random());
+
+        let before = historic.bucket_walks();
+        let records = historic
+            .multi_get_executed_effects_digests(&digests)
+            .unwrap();
+        let effects = historic.multi_get_executed_effects(&digests).unwrap();
+        let events = historic.multi_get_events(&digests).unwrap();
+        let transactions = historic.multi_get_transactions(&digests).unwrap();
+        let by_effects_digest = historic.multi_get_effects(&effects_digests).unwrap();
+        assert_eq!(
+            historic.bucket_walks() - before,
+            5,
+            "{label}: each batched read must walk the buckets once"
+        );
+
+        let single = |read: &dyn Fn(&TransactionDigest) -> bool| {
+            digests.iter().map(read).collect::<Vec<_>>()
+        };
+        assert_eq!(
+            records,
+            digests
+                .iter()
+                .map(|digest| historic.get_executed_effects_digest(digest).unwrap())
+                .collect::<Vec<_>>(),
+            "{label}: execution records"
+        );
+        assert_eq!(
+            effects,
+            digests
+                .iter()
+                .map(|digest| historic.get_executed_effects(digest).unwrap())
+                .collect::<Vec<_>>(),
+            "{label}: executed effects"
+        );
+        assert_eq!(
+            events,
+            digests
+                .iter()
+                .map(|digest| historic.get_events(digest).unwrap())
+                .collect::<Vec<_>>(),
+            "{label}: events"
+        );
+        assert_eq!(
+            transactions.iter().map(Option::is_some).collect::<Vec<_>>(),
+            single(&|digest| historic.get_transaction(digest).unwrap().is_some()),
+            "{label}: transactions"
+        );
+        assert_eq!(
+            by_effects_digest,
+            effects_digests
+                .iter()
+                .map(|digest| historic.get_effects(digest).unwrap())
+                .collect::<Vec<_>>(),
+            "{label}: effects by digest"
+        );
+        records
+    };
+
+    let all = check("every bucket");
+    assert!(all[..4].iter().all(Option::is_some) && all[4].is_none());
+
+    // A dropped bucket holds nothing, and the rest still answer.
+    perpetual
+        .objects
+        .db
+        .drop_cf(&crate::epoch_buckets::bucket_cf_name(
+            super::HISTORIC_LEDGER_CF_PREFIX,
+            2,
+        ))
+        .unwrap();
+    let dropped = check("a dropped bucket");
+    assert_eq!(
+        dropped.iter().map(Option::is_some).collect::<Vec<_>>(),
+        vec![true, false, true, true, false]
+    );
+}
