@@ -42,9 +42,9 @@ pub(crate) const TOO_MANY_ENTRIES_IN_REQUEST: &str =
 pub(crate) const TOO_MANY_ENTRIES_IN_RESPONSE: &str =
     "response carries more entries than its type allows";
 
-/// `MAX_ENTRIES` of a message whose fields are all numbers. Decoding numbers
-/// takes at most a few times the message size, which the message size limit
-/// already bounds.
+/// `MAX_ENTRIES` of a request whose fields are all numbers. Decoding keeps at
+/// most one `u32` per byte of the request, so at the default 1 MiB request size
+/// limit it builds at most 4 MiB.
 pub(crate) const NO_ENTRY_LIMIT: usize = usize::MAX;
 
 /// A prost codec whose decoder refuses a message carrying more entries than
