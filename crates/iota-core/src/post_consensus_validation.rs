@@ -81,19 +81,60 @@ use crate::{
 };
 
 /// The post-consensus validation decision for one transaction at one
-/// consensus commit, saved so a replay of the commit after a restart reaches
-/// the same decision.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// consensus commit.
+///
+/// Saved in the epoch tables, so its encoding must stay readable by other
+/// binaries within the epoch: variants carry no data and new ones go at the
+/// end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PostConsensusDecision {
     /// The transaction stayed in the commit.
     Kept,
-    /// The transaction was dropped with this error.
-    Dropped(IotaError),
+    /// The transaction was dropped.
+    Dropped,
     /// The transaction was dropped because an input is not visible at the
     /// commit's [horizon](crate::post_consensus_input_reader::reader::horizon)
     /// yet. The digest can be kept when sequenced again, so the drop is not
     /// its final status.
-    DroppedInputNotVisibleYet(IotaError),
+    DroppedInputNotVisibleYet,
+}
+
+/// A post-consensus validation decision as saved, so a replay of the commit
+/// after a restart reaches the same decision.
+///
+/// The error of a drop is kept as BCS bytes and decoded on its own, so a
+/// binary that encodes `IotaError` differently still reads the decision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct SavedPostConsensusDecision {
+    pub(crate) decision: PostConsensusDecision,
+    /// The BCS bytes of the drop's error; empty for a keep.
+    pub(crate) error: Vec<u8>,
+}
+
+impl SavedPostConsensusDecision {
+    pub(crate) fn kept() -> Self {
+        Self {
+            decision: PostConsensusDecision::Kept,
+            error: Vec::new(),
+        }
+    }
+
+    pub(crate) fn dropped(decision: PostConsensusDecision, error: &IotaError) -> Self {
+        Self {
+            decision,
+            error: bcs::to_bytes(error).expect("an IotaError should encode to BCS"),
+        }
+    }
+
+    /// The error of a saved drop, or `IotaError::Unknown` if this binary
+    /// cannot decode it.
+    pub(crate) fn error(&self) -> IotaError {
+        bcs::from_bytes(&self.error).unwrap_or_else(|e| {
+            IotaError::Unknown(format!(
+                "the saved error of a post-consensus drop cannot be decoded: {e}"
+            ))
+        })
+    }
 }
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
@@ -235,7 +276,7 @@ pub async fn validate_and_resolve_conflicts(
 
         let saved = match &saved_candidates {
             Some(_) => match epoch_store.post_consensus_decision(commit_index, digest)? {
-                Some(decision) => Some(decision),
+                Some(saved) => Some(saved),
                 None => fatal!(
                     "commit {commit_index} has a saved candidate list but no saved \
                      validation decision for {digest:?}"
@@ -243,23 +284,17 @@ pub async fn validate_and_resolve_conflicts(
             },
             None => None,
         };
-        if let Some(decision) = &saved {
-            saved_decisions.insert(digest, decision.clone());
+        let saved_decision = saved.as_ref().map(|saved| saved.decision);
+        if let Some(decision) = saved_decision {
+            saved_decisions.insert(digest, decision);
         }
         // A saved drop is replayed as is: the inputs it was decided on may
         // have changed since.
-        if let Some(
-            PostConsensusDecision::Dropped(error)
-            | PostConsensusDecision::DroppedInputNotVisibleYet(error),
-        ) = &saved
-        {
-            if matches!(
-                saved,
-                Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
-            ) {
+        if let Some(saved) = saved.filter(|saved| saved.decision != PostConsensusDecision::Kept) {
+            if saved.decision == PostConsensusDecision::DroppedInputNotVisibleYet {
                 dropped_input_not_visible_yet.insert(digest);
             }
-            dropped.push((digest, error.clone()));
+            dropped.push((digest, saved.error()));
             keep[i] = false;
             continue;
         }
@@ -275,7 +310,7 @@ pub async fn validate_and_resolve_conflicts(
         // commit the transaction was kept, so only a saved keep at this commit
         // skips validation; its consumed inputs may be pruned by now. Without
         // one, the commit-indexed reader decides, as on every other validator.
-        if (!deterministic_validation || saved == Some(PostConsensusDecision::Kept))
+        if (!deterministic_validation || saved_decision == Some(PostConsensusDecision::Kept))
             && authority_state
                 .get_transaction_cache_reader()
                 .try_is_tx_already_executed(&digest)?
@@ -530,16 +565,24 @@ pub async fn validate_and_resolve_conflicts(
     }
 
     if deterministic_validation {
-        let errors: HashMap<_, _> = dropped.iter().cloned().collect();
+        let errors: HashMap<_, _> = dropped
+            .iter()
+            .map(|(digest, error)| (*digest, error))
+            .collect();
         let decisions: Vec<_> = all_user_tx_digests
             .iter()
             .map(|digest| {
                 let decision = match errors.get(digest) {
                     Some(error) if dropped_input_not_visible_yet.contains(digest) => {
-                        PostConsensusDecision::DroppedInputNotVisibleYet(error.clone())
+                        SavedPostConsensusDecision::dropped(
+                            PostConsensusDecision::DroppedInputNotVisibleYet,
+                            error,
+                        )
                     }
-                    Some(error) => PostConsensusDecision::Dropped(error.clone()),
-                    None => PostConsensusDecision::Kept,
+                    Some(error) => {
+                        SavedPostConsensusDecision::dropped(PostConsensusDecision::Dropped, error)
+                    }
+                    None => SavedPostConsensusDecision::kept(),
                 };
                 (*digest, decision)
             })
@@ -552,7 +595,7 @@ pub async fn validate_and_resolve_conflicts(
                          ones: saved {candidates:?}, now {all_user_tx_digests:?}"
                     );
                 }
-                for (digest, decision) in &decisions {
+                for (digest, SavedPostConsensusDecision { decision, .. }) in &decisions {
                     let saved = saved_decisions.get(digest);
                     if saved != Some(decision) {
                         fatal!(

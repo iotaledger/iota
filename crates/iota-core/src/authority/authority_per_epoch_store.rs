@@ -134,7 +134,7 @@ use crate::{
     overload_monitor::should_reject_tx,
     post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
-    post_consensus_validation::{self, PostConsensusDecision},
+    post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
 };
@@ -912,7 +912,7 @@ pub struct AuthorityEpochTables {
     /// rows of a commit whose output never flushes, such as one the handler
     /// abandons at the switch to synced checkpoints, stay until the epoch ends.
     pub(crate) post_consensus_decisions:
-        DBMap<(CommitIndex, TransactionDigest), PostConsensusDecision>,
+        DBMap<(CommitIndex, TransactionDigest), SavedPostConsensusDecision>,
     /// The candidates of a consensus commit in consensus order, written in
     /// the same batch as their rows in `post_consensus_decisions`, so its
     /// presence means every candidate of the commit has a decision.
@@ -1948,7 +1948,7 @@ impl AuthorityPerEpochStore {
         &self,
         index: CommitIndex,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<PostConsensusDecision>> {
+    ) -> IotaResult<Option<SavedPostConsensusDecision>> {
         Ok(self
             .tables()?
             .post_consensus_decisions
@@ -1972,7 +1972,7 @@ impl AuthorityPerEpochStore {
     pub(crate) fn persist_post_consensus_decisions(
         &self,
         index: CommitIndex,
-        decisions: &[(TransactionDigest, PostConsensusDecision)],
+        decisions: &[(TransactionDigest, SavedPostConsensusDecision)],
     ) -> IotaResult {
         let tables = self.tables()?;
         let mut batch = tables.post_consensus_decisions.batch();
@@ -4656,10 +4656,11 @@ impl AuthorityPerEpochStore {
                 let mut not_final = Vec::new();
                 for drop in &dropped {
                     let missing = deterministic_validation
-                        && matches!(
-                            self.post_consensus_decision(consensus_commit_info.index, drop.0)?,
-                            Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
-                        );
+                        && self
+                            .post_consensus_decision(consensus_commit_info.index, drop.0)?
+                            .is_some_and(|saved| {
+                                saved.decision == PostConsensusDecision::DroppedInputNotVisibleYet
+                            });
                     if missing {
                         not_final.push(drop.clone());
                     } else {

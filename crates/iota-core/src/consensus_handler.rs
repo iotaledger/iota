@@ -1777,12 +1777,15 @@ mod tests {
                 vec![],
             );
             handler.handle_consensus_output_for_test(subdag).await;
-            let decision = epoch.post_consensus_decision(index as u64, digest).unwrap();
+            let decision = epoch
+                .post_consensus_decision(index as u64, digest)
+                .unwrap()
+                .map(|saved| saved.decision);
             match index {
-                1 | 2 => assert!(matches!(
+                1 | 2 => assert_eq!(
                     decision,
-                    Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
-                )),
+                    Some(PostConsensusDecision::DroppedInputNotVisibleYet)
+                ),
                 3 => assert_eq!(decision, Some(PostConsensusDecision::Kept)),
                 // Kept at commit 3, so this copy is skipped as already processed
                 // before validation and has no saved decision.

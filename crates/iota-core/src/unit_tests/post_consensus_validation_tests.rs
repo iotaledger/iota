@@ -60,7 +60,7 @@ use crate::{
         DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
         reader::CommitIndexedReader,
     },
-    post_consensus_validation::{self, PostConsensusDecision},
+    post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
     test_utils::make_transfer_object_transaction,
     transaction_input_loader::TransactionInputLoader,
 };
@@ -4622,10 +4622,14 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
     assert_eq!(
         saved,
         vec![
-            Some(PostConsensusDecision::Kept),
-            Some(PostConsensusDecision::Dropped(dropped[0].1.clone())),
-            Some(PostConsensusDecision::DroppedInputNotVisibleYet(
-                dropped[1].1.clone()
+            Some(SavedPostConsensusDecision::kept()),
+            Some(SavedPostConsensusDecision::dropped(
+                PostConsensusDecision::Dropped,
+                &dropped[0].1
+            )),
+            Some(SavedPostConsensusDecision::dropped(
+                PostConsensusDecision::DroppedInputNotVisibleYet,
+                &dropped[1].1
             )),
         ]
     );
@@ -4646,8 +4650,11 @@ async fn post_consensus_decisions_survive_a_restart() {
     }
     .into();
     let decisions = vec![
-        (kept, PostConsensusDecision::Kept),
-        (dropped, PostConsensusDecision::Dropped(error)),
+        (kept, SavedPostConsensusDecision::kept()),
+        (
+            dropped,
+            SavedPostConsensusDecision::dropped(PostConsensusDecision::Dropped, &error),
+        ),
     ];
     s.epoch_store
         .persist_post_consensus_decisions(1, &decisions)
@@ -4676,6 +4683,66 @@ async fn post_consensus_decisions_survive_a_restart() {
             None
         );
     }
+}
+
+/// The saved form of a decision does not depend on how `IotaError` is
+/// encoded: a binary of another version within the epoch reads the same
+/// bytes.
+#[test]
+fn saved_post_consensus_decision_encoding_is_stable() {
+    assert_eq!(bcs::to_bytes(&PostConsensusDecision::Kept).unwrap(), [0]);
+    assert_eq!(bcs::to_bytes(&PostConsensusDecision::Dropped).unwrap(), [1]);
+    assert_eq!(
+        bcs::to_bytes(&PostConsensusDecision::DroppedInputNotVisibleYet).unwrap(),
+        [2]
+    );
+    assert_eq!(
+        bcs::to_bytes(&SavedPostConsensusDecision {
+            decision: PostConsensusDecision::Dropped,
+            error: vec![7, 8],
+        })
+        .unwrap(),
+        [1, 2, 7, 8]
+    );
+}
+
+/// A saved drop whose error this binary cannot decode is still repeated on
+/// replay, with `IotaError::Unknown` in place of the error.
+#[tokio::test]
+async fn saved_drop_with_an_undecodable_error_is_repeated() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    s.epoch_store
+        .persist_post_consensus_decisions(
+            1,
+            &[(
+                *tx.digest(),
+                SavedPostConsensusDecision {
+                    decision: PostConsensusDecision::Dropped,
+                    error: vec![0xff; 4],
+                },
+            )],
+        )
+        .unwrap();
+    let result = s.validate_at(1, std::slice::from_ref(&tx)).await;
+    assert!(result.kept.is_empty());
+    assert_eq!(result.dropped.len(), 1);
+    assert_eq!(result.dropped[0].0, *tx.digest());
+    assert!(
+        matches!(result.dropped[0].1, IotaError::Unknown(_)),
+        "{:?}",
+        result.dropped[0].1
+    );
 }
 
 /// A commit's saved decisions are deleted in the batch that flushes its
@@ -4812,7 +4879,7 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
         s.epoch_store
             .post_consensus_decision(1, *deferred.digest())
             .unwrap(),
-        Some(PostConsensusDecision::Kept)
+        Some(SavedPostConsensusDecision::kept())
     );
     let second = s.process_at(2, std::slice::from_ref(&deferred)).await;
     assert_eq!(second.len(), 1);
@@ -4826,7 +4893,7 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
         s.epoch_store
             .post_consensus_decision(2, *deferred.digest())
             .unwrap(),
-        Some(PostConsensusDecision::Kept)
+        Some(SavedPostConsensusDecision::kept())
     );
     let roots = s.checkpoint_roots();
     let effects: Vec<_> = transactions
@@ -5048,7 +5115,7 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
     assert!(task.await.unwrap_err().is_panic());
     assert_eq!(
         s.epoch_store.post_consensus_decision(2, digest).unwrap(),
-        Some(PostConsensusDecision::Kept)
+        Some(SavedPostConsensusDecision::kept())
     );
 }
 
