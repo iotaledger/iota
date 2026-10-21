@@ -7,7 +7,9 @@ use std::{future, sync::Arc};
 use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
-use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
+use iota_json_rpc_types::{
+    Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, OwnedObjectCursor,
+};
 use iota_sdk_types::{Address, ObjectId};
 use iota_types::balance::Supply;
 
@@ -57,7 +59,7 @@ impl CoinReadApi {
         &self,
         owner: Address,
         coin_type: impl Into<Option<String>>,
-        cursor: impl Into<Option<ObjectId>>,
+        cursor: impl Into<Option<OwnedObjectCursor>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
@@ -92,7 +94,7 @@ impl CoinReadApi {
     pub async fn get_all_coins(
         &self,
         owner: Address,
-        cursor: impl Into<Option<ObjectId>>,
+        cursor: impl Into<Option<OwnedObjectCursor>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
@@ -142,7 +144,7 @@ impl CoinReadApi {
             ),
             move |(mut data, cursor, has_next_page, coin_type)| async move {
                 if let Some(item) = data.pop() {
-                    Some((item, (data, cursor, /* has_next_page */ true, coin_type)))
+                    Some((item, (data, cursor, has_next_page, coin_type)))
                 } else if has_next_page {
                     let page = self
                         .get_coins(owner, coin_type.clone(), cursor, Some(100))
@@ -150,12 +152,11 @@ impl CoinReadApi {
                         .ok()?;
                     let mut data = page.data;
                     data.reverse();
-                    data.pop().map(|item| {
-                        (
-                            item,
-                            (data, page.next_cursor, page.has_next_page, coin_type),
-                        )
-                    })
+                    // Without a cursor the next request would restart the
+                    // stream from the first page.
+                    let has_next_page = page.has_next_page && page.next_cursor.is_some();
+                    data.pop()
+                        .map(|item| (item, (data, page.next_cursor, has_next_page, coin_type)))
                 } else {
                     None
                 }
