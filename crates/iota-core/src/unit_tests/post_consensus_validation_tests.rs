@@ -1,27 +1,30 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Unit tests for post-consensus transaction validation and owned-object
-//! conflict resolution.
+//! Unit tests for post-consensus transaction validation, owned-object
+//! conflict resolution, and the P-COOL bookkeeping written by executed
+//! transactions.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
-    Version,
+    Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    storage::ObjectKey,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionEnvelope,
         TransactionKey, VerifiedTransaction,
@@ -32,12 +35,22 @@ use iota_types::{
 use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
-        authority_per_epoch_store::{LockDetails, consensus_quarantine::ConsensusCommitOutput},
+        authority_per_epoch_store::{
+            LockDetails,
+            authority_per_epoch_store_tests::reopen,
+            consensus_quarantine::ConsensusCommitOutput,
+            handler_object_state::{
+                CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
+                handler_processed_upserts,
+            },
+        },
         authority_tests::init_state_with_objects_and_object_basics,
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
-    consensus_handler::{SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction},
+    consensus_handler::{
+        ExecutionWatcher, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
+    },
     post_consensus_validation,
     test_utils::make_transfer_object_transaction,
 };
@@ -1857,7 +1870,7 @@ fn activate_deny_rules(
     rules: iota_sdk_types::DenyRuleSet,
     generation: u64,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(
         iota_types::messages_consensus::TransactionDenyRuleProposal {
             authority: epoch_store.name,
@@ -2102,6 +2115,1192 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         "previously denied sender must be kept after withdrawal"
     );
     assert_eq!(locks.len(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation bookkeeping (execution hook)
+// ---------------------------------------------------------------------------
+
+/// Shared setup for the execution-hook bookkeeping tests: the P-COOL flags
+/// (held by `_config_guard` for the test's duration when enabled), plus
+/// helpers to execute transactions and assert the bookkeeping rows they
+/// leave. Execution provenance never matters to the hook - only whether the
+/// transaction key is registered in the transaction-key -> commit-index map
+/// (handler-known) or not (sync-ahead).
+struct BookkeepingSetup {
+    authority: Arc<crate::authority::AuthorityState>,
+    epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
+    package_id: ObjectId,
+    rgp: u64,
+    _config_guard: Option<OverrideGuard>,
+}
+
+async fn setup_bookkeeping(
+    genesis_objects: Vec<Object>,
+    validation_enabled: bool,
+) -> BookkeepingSetup {
+    let _config_guard = validation_enabled.then(|| {
+        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        })
+    });
+
+    let (authority, package) = init_state_with_objects_and_object_basics(genesis_objects).await;
+    let epoch_store = (*authority.epoch_store_for_testing()).clone();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    BookkeepingSetup {
+        authority,
+        epoch_store,
+        package_id: package.object_id,
+        rgp,
+        _config_guard,
+    }
+}
+
+/// The arguments of `object_basics::create` for an object owned by `owner`.
+fn create_object_args(owner: Address) -> Vec<CallArg> {
+    vec![
+        CallArg::Pure(bcs::to_bytes(&16u64).unwrap()),
+        CallArg::Pure(bcs::to_bytes(&owner).unwrap()),
+    ]
+}
+
+/// The initial shared version of a shared owner; panics for any other owner.
+fn initial_shared_version(owner: &Owner) -> Version {
+    match owner {
+        Owner::Shared(initial_shared_version) => *initial_shared_version,
+        other => panic!("expected a shared object, got owner {other:?}"),
+    }
+}
+
+impl BookkeepingSetup {
+    /// The latest reference of `id` in the authority's view.
+    fn latest_ref(&self, id: &ObjectId) -> ObjectReference {
+        self.authority.get_object(id).unwrap().object_ref()
+    }
+
+    /// Executes `tx` directly (`new_from_checkpoint` merely avoids needing a
+    /// certificate). With the bookkeeping on, the handler must have assigned
+    /// the transaction's commit first, as [`Self::execute_as_handler_known`]
+    /// does; otherwise the execution hook reports it.
+    fn execute(&self, tx: VerifiedTransaction) -> TransactionEffects {
+        let effects = self.execute_unchecked(tx);
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        effects
+    }
+
+    /// [`Self::execute`] without asserting execution success, for scenarios
+    /// exercising aborted transactions.
+    fn execute_unchecked(&self, tx: VerifiedTransaction) -> TransactionEffects {
+        self.execute_executable(&self.executable(tx), ExecutionEnv::new())
+    }
+
+    fn executable(&self, tx: VerifiedTransaction) -> VerifiedExecutableTransaction {
+        VerifiedExecutableTransaction::new_from_checkpoint(tx, self.epoch_store.epoch(), 1)
+    }
+
+    fn execute_executable(
+        &self,
+        executable: &VerifiedExecutableTransaction,
+        execution_env: ExecutionEnv,
+    ) -> TransactionEffects {
+        let (effects, _) = self
+            .authority
+            .try_execute_immediately(executable, execution_env, &self.epoch_store)
+            .unwrap();
+        effects
+    }
+
+    /// The handler-processed row of `id` at `version`, which the handler must
+    /// have written.
+    #[track_caller]
+    fn handler_processed_object(&self, id: &ObjectId, version: Version) -> HandlerProcessedObject {
+        self.epoch_store
+            .handler_processed_object(&ObjectKey(*id, version))
+            .unwrap()
+            .unwrap_or_else(|| {
+                panic!(
+                    "the handler must have written a handler-processed row for {id} at {version}"
+                )
+            })
+    }
+
+    /// Asserts that no handler-processed row exists for `id` at `version`.
+    #[track_caller]
+    fn assert_no_handler_row(&self, id: &ObjectId, version: Version) {
+        assert_eq!(
+            self.epoch_store
+                .handler_processed_object(&ObjectKey(*id, version))
+                .unwrap(),
+            None
+        );
+    }
+
+    /// Assigns `txs` to commit `index` as its roots, then executes them in
+    /// order, so the hook writes their handler-processed rows. A commit is
+    /// assigned once, so every transaction of a commit goes in one call.
+    fn execute_as_handler_known(
+        &self,
+        txs: Vec<VerifiedTransaction>,
+        index: CommitIndex,
+    ) -> Vec<TransactionEffects> {
+        self.epoch_store.assign_commit_to_transactions(
+            index,
+            txs.iter()
+                .map(|tx| TransactionKey::Digest(*tx.digest()))
+                .collect(),
+        );
+        txs.into_iter().map(|tx| self.execute(tx)).collect()
+    }
+
+    /// [`Self::execute_as_handler_known`] of a call into the `object_basics`
+    /// module.
+    fn handler_known_object_basics_call(
+        &self,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        self.execute_as_handler_known(vec![tx], index).remove(0)
+    }
+
+    /// A verified call into `module::function` of the published test package
+    /// at the gas coin's latest version.
+    fn build_move_call(
+        &self,
+        module: &'static str,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+    ) -> VerifiedTransaction {
+        let tx = Transaction::new_move_call(
+            sender,
+            self.package_id,
+            Identifier::from_static(module),
+            Identifier::from_static(function),
+            vec![],
+            self.latest_ref(gas_id),
+            args,
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.rgp,
+            self.rgp,
+        )
+        .unwrap();
+        let tx = to_sender_signed_transaction(tx, sender_key);
+        self.epoch_store.verify_transaction(tx).unwrap()
+    }
+
+    /// Builds a call into the `object_basics` module taking shared-object
+    /// inputs and executes it as a root of commit `index`, with the shared
+    /// versions assigned directly rather than through consensus.
+    fn handler_known_shared_object_basics_call(
+        &self,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
+        self.execute_with_assigned_shared_versions(tx)
+    }
+
+    /// Executes `tx` with its shared input versions assigned directly rather
+    /// than through consensus.
+    fn execute_with_assigned_shared_versions(&self, tx: VerifiedTransaction) -> TransactionEffects {
+        let executable = self.executable(tx);
+        let assigned_versions = self
+            .epoch_store
+            .assign_shared_object_versions_for_tests(
+                self.authority.get_object_cache_reader().as_ref(),
+                std::slice::from_ref(&executable),
+            )
+            .unwrap()
+            .into_map()
+            .remove(&executable.key())
+            .expect("version assignment must cover the transaction it was given");
+        let effects = self.execute_executable(
+            &executable,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        );
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        effects
+    }
+
+    /// The argument naming the shared object `id` as a mutable input.
+    fn shared_arg(&self, id: &ObjectId) -> CallArg {
+        let initial_shared_version =
+            initial_shared_version(&self.authority.get_object(id).unwrap().owner);
+        CallArg::Shared(SharedObjectReference::new(
+            *id,
+            initial_shared_version,
+            true,
+        ))
+    }
+
+    /// Creates a fresh `object_basics::Object` owned by `sender` at commit
+    /// `index`; returns the created reference and the effects.
+    fn create_object(
+        &self,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        index: CommitIndex,
+    ) -> (ObjectReference, TransactionEffects) {
+        let effects = self.handler_known_object_basics_call(
+            "create",
+            create_object_args(sender),
+            gas_id,
+            sender,
+            sender_key,
+            index,
+        );
+        (*effects.created()[0].reference(), effects)
+    }
+
+    /// A verified transfer of `object_id` to `recipient` at the objects'
+    /// latest versions, paid by `gas_id`.
+    fn build_transfer(
+        &self,
+        object_id: &ObjectId,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        recipient: Address,
+    ) -> VerifiedTransaction {
+        let tx = make_transfer_object_transaction(
+            self.latest_ref(object_id),
+            self.latest_ref(gas_id),
+            sender,
+            sender_key,
+            recipient,
+            self.rgp,
+        );
+        self.epoch_store.verify_transaction(tx).unwrap()
+    }
+
+    /// Builds a transfer of `object_id` to `recipient` at the objects' latest
+    /// versions, paid by `gas_id`, and executes it.
+    fn transfer(
+        &self,
+        object_id: &ObjectId,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        recipient: Address,
+    ) -> TransactionEffects {
+        self.execute(self.build_transfer(object_id, gas_id, sender, sender_key, recipient))
+    }
+
+    /// Starts the execution watcher, as the consensus handler does when the
+    /// feature is on. Keep the returned value alive: dropping it aborts the
+    /// task.
+    fn start_execution_watcher(&self) -> ExecutionWatcher {
+        ExecutionWatcher::start(self.epoch_store.clone())
+            .expect("no other watcher has taken the assigned-commit receiver")
+    }
+
+    fn highest_fully_executed_commit(&self) -> CommitIndex {
+        *self
+            .epoch_store
+            .subscribe_highest_fully_executed_commit()
+            .unwrap()
+            .borrow()
+    }
+
+    /// Waits for commit `index` to be fully executed, failing the test if it
+    /// does not happen promptly.
+    async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            self.epoch_store.wait_for_fully_executed_commit(index),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("commit {index} must become fully executed"));
+    }
+
+    /// Asserts commit `index` does not become fully executed. Meant for
+    /// `start_paused` tests: the paused clock fires the timeout only once
+    /// every task, the watcher included, is idle.
+    async fn assert_commit_not_fully_executed(&self, index: CommitIndex) {
+        assert!(
+            tokio::time::timeout(
+                Duration::from_millis(200),
+                self.epoch_store.wait_for_fully_executed_commit(index),
+            )
+            .await
+            .is_err(),
+            "commit {index} must not be fully executed yet"
+        );
+    }
+}
+
+#[tokio::test]
+async fn handler_known_transaction_writes_handler_processed_only() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let obj_genesis_ref = s.latest_ref(&obj_id);
+    let tx = make_transfer_object_transaction(
+        obj_genesis_ref,
+        s.latest_ref(&gas_id),
+        sender,
+        &sender_key,
+        Address::random(),
+        s.rgp,
+    );
+    let tx = s.epoch_store.verify_transaction(tx).unwrap();
+
+    // The handler registered the digest before execution: the hook writes
+    // handler-processed rows.
+    let gas_genesis_ref = s.latest_ref(&gas_id);
+    let effects = s.execute_as_handler_known(vec![tx], 7).remove(0);
+
+    // The gas coin is a written object like any other.
+    for consumed_ref in [obj_genesis_ref, gas_genesis_ref] {
+        let id = consumed_ref.object_id();
+        let row = s.handler_processed_object(id, effects.lamport_version());
+        assert_eq!(row.produced_at, 7);
+        assert_eq!(row.kind, HandlerProcessedObjectKind::Live);
+    }
+}
+
+#[tokio::test]
+async fn handler_known_delete_writes_a_deleted_tombstone_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let create_effects = s.handler_known_object_basics_call(
+        "create",
+        create_object_args(sender),
+        &gas_id,
+        sender,
+        &sender_key,
+        3,
+    );
+    let created_ref = *create_effects.created()[0].reference();
+    assert_eq!(
+        s.handler_processed_object(created_ref.object_id(), created_ref.version)
+            .kind,
+        HandlerProcessedObjectKind::Live
+    );
+
+    // The deletion in a later commit replaces the live row with a tombstone
+    // at the deletion version, carrying the store's deleted-object digest.
+    let delete_effects = s.handler_known_object_basics_call(
+        "delete",
+        vec![CallArg::ImmutableOrOwned(created_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+        4,
+    );
+    assert_eq!(
+        s.handler_processed_object(created_ref.object_id(), delete_effects.lamport_version()),
+        HandlerProcessedObject {
+            digest: ObjectDigest::OBJECT_DELETED,
+            kind: HandlerProcessedObjectKind::Deleted,
+            produced_at: 4,
+            initial_shared_version: None,
+            replaced_version: Some(created_ref.version),
+        }
+    );
+}
+
+#[tokio::test]
+async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let (created_ref, _) = s.create_object(&gas_id, sender, &sender_key, 4);
+    let wrap_effects = s.handler_known_object_basics_call(
+        "wrap",
+        vec![CallArg::ImmutableOrOwned(created_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+        5,
+    );
+    assert_eq!(
+        s.handler_processed_object(created_ref.object_id(), wrap_effects.lamport_version()),
+        HandlerProcessedObject {
+            digest: ObjectDigest::OBJECT_WRAPPED,
+            kind: HandlerProcessedObjectKind::Wrapped,
+            produced_at: 5,
+            initial_shared_version: None,
+            replaced_version: Some(created_ref.version),
+        }
+    );
+    let wrapper_ref = *wrap_effects.created()[0].reference();
+    assert_eq!(
+        s.handler_processed_object(wrapper_ref.object_id(), wrapper_ref.version)
+            .kind,
+        HandlerProcessedObjectKind::Live
+    );
+
+    // Unwrapping resurfaces the id at a higher version with a live row; the
+    // wrapped tombstone stays at its own version, and the wrapper gets a
+    // deleted tombstone.
+    let unwrap_effects = s.handler_known_object_basics_call(
+        "unwrap",
+        vec![CallArg::ImmutableOrOwned(wrapper_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    let unwrapped_ref = *unwrap_effects.unwrapped()[0].reference();
+    assert_eq!(unwrapped_ref.object_id(), created_ref.object_id());
+    assert_eq!(
+        s.handler_processed_object(created_ref.object_id(), unwrapped_ref.version),
+        HandlerProcessedObject {
+            digest: unwrapped_ref.digest,
+            kind: HandlerProcessedObjectKind::Live,
+            produced_at: 6,
+            initial_shared_version: None,
+            replaced_version: None,
+        }
+    );
+    assert_eq!(
+        s.handler_processed_object(created_ref.object_id(), wrap_effects.lamport_version())
+            .kind,
+        HandlerProcessedObjectKind::Wrapped
+    );
+    assert_eq!(
+        s.handler_processed_object(wrapper_ref.object_id(), unwrap_effects.lamport_version()),
+        HandlerProcessedObject {
+            digest: ObjectDigest::OBJECT_DELETED,
+            kind: HandlerProcessedObjectKind::Deleted,
+            produced_at: 6,
+            initial_shared_version: None,
+            replaced_version: Some(wrapper_ref.version),
+        }
+    );
+}
+
+#[tokio::test]
+async fn handler_known_share_records_the_initial_shared_version() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+
+    // The creation row doubles as the created-shared flag: it carries the
+    // initial shared version, which the shared-input checks read.
+    assert_eq!(
+        s.handler_processed_object(shared.reference().object_id(), shared.reference().version),
+        HandlerProcessedObject {
+            digest: shared.reference().digest,
+            kind: HandlerProcessedObjectKind::Live,
+            produced_at: 5,
+            initial_shared_version: Some(initial_shared_version(shared.owner())),
+            replaced_version: None,
+        }
+    );
+}
+
+#[tokio::test]
+async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tombstone_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference().object_id();
+    let initial = initial_shared_version(shared.owner());
+
+    // Once the object is gone, the tombstone row is the only place this
+    // validator can still read the initial shared version a transaction
+    // declares against.
+    let delete_effects = s.handler_known_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    assert_eq!(
+        s.handler_processed_object(shared_id, delete_effects.lamport_version()),
+        HandlerProcessedObject {
+            digest: ObjectDigest::OBJECT_DELETED,
+            kind: HandlerProcessedObjectKind::Deleted,
+            produced_at: 6,
+            initial_shared_version: Some(initial),
+            replaced_version: Some(shared.reference().version),
+        }
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn watcher_completes_a_commit_once_its_roots_execute() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let _watcher = s.start_execution_watcher();
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    // The handler assigns the commit before its root executes; the watcher
+    // must wait for the root's effects.
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let key = TransactionKey::Digest(*tx.digest());
+    s.epoch_store.assign_commit_to_transactions(1, vec![key]);
+    s.assert_commit_not_fully_executed(1).await;
+    assert_eq!(state.commit_index_of(&key), Some(1));
+
+    let effects = s.execute(tx);
+    s.wait_for_fully_executed_commit(1).await;
+    assert_eq!(s.highest_fully_executed_commit(), 1);
+    assert_eq!(state.commit_index_of(&key), None);
+    for id in [&obj_id, &gas_id] {
+        assert_eq!(
+            s.handler_processed_object(id, effects.lamport_version())
+                .produced_at,
+            1
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn watcher_completes_commits_in_assignment_order() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+    let _watcher = s.start_execution_watcher();
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let first = s.build_transfer(
+        &obj1_id,
+        &gas1_id,
+        address_1,
+        &address_1_key,
+        Address::random(),
+    );
+    let second = s.build_transfer(
+        &obj2_id,
+        &gas2_id,
+        address_2,
+        &address_2_key,
+        Address::random(),
+    );
+    let first_key = TransactionKey::Digest(*first.digest());
+    let second_key = TransactionKey::Digest(*second.digest());
+    s.epoch_store
+        .assign_commit_to_transactions(1, vec![first_key]);
+    s.epoch_store
+        .assign_commit_to_transactions(2, vec![second_key]);
+
+    // The later commit's root executes first. Completing commit 2 now would
+    // claim commit 1 executed too, so the watcher must hold it back.
+    s.execute(second);
+    s.assert_commit_not_fully_executed(1).await;
+    assert_eq!(state.commit_index_of(&second_key), Some(2));
+
+    s.execute(first);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(state.commit_index_of(&first_key), None);
+    assert_eq!(state.commit_index_of(&second_key), None);
+}
+
+/// The flush reaches a commit before the watcher does, as for a commit
+/// whose checkpoint executes before the watcher starts. The flush completes
+/// the commit from its own batch; the watcher reaching it afterwards must
+/// change nothing.
+#[tokio::test]
+async fn flush_first_completion_leaves_the_watcher_a_no_op() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    // The handler assigns commit 1 and its root executes; its checkpoint
+    // executes and the commit flushes before any watcher runs.
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let key = TransactionKey::Digest(*tx.digest());
+    let effects = s.execute_as_handler_known(vec![tx], 1).remove(0);
+    let version = effects.lamport_version();
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+
+    assert_eq!(written, handler_processed_upserts(&effects, 1));
+    assert_eq!(state.overlay_size_for_testing(), 0);
+    for id in [obj_id, gas_id] {
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(id, version))
+            .unwrap()
+            .expect("the flush must write the commit's rows");
+        assert_eq!(row.produced_at, 1);
+    }
+    assert_eq!(state.commit_index_of(&key), None);
+    assert_eq!(s.highest_fully_executed_commit(), 1);
+
+    // The watcher now receives commit 1, then an empty commit 2; once commit
+    // 2 is complete, commit 1 has been handled. Had the watcher completed
+    // commit 1 again, its rows would sit in the overlay with no flush left
+    // to evict them.
+    let _watcher = s.start_execution_watcher();
+    s.epoch_store.assign_commit_to_transactions(2, vec![]);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(state.overlay_size_for_testing(), 0);
+}
+
+/// A flush that derives a commit's rows from effects fails when a root has
+/// none, so the batch is never written without that root's rows and the
+/// commit stays waiting to be completed.
+#[tokio::test]
+async fn flush_fails_when_a_root_has_no_effects() {
+    let s = setup_bookkeeping(vec![], true).await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let missing = TransactionDigest::random();
+    let key = TransactionKey::Digest(missing);
+    s.epoch_store.assign_commit_to_transactions(1, vec![key]);
+    let result = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![missing]);
+
+    assert!(
+        matches!(result, Err(IotaError::TransactionEffectsNotFound { digest }) if digest == missing),
+        "{result:?}"
+    );
+    assert_eq!(state.commit_index_of(&key), Some(1));
+    assert_eq!(s.highest_fully_executed_commit(), 0);
+}
+
+/// The checkpoint batch makes a completed commit's rows durable before the
+/// commit flushes, so the flush has none of them left to write.
+#[tokio::test]
+async fn flush_skips_rows_the_checkpoint_batch_made_durable() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let _watcher = s.start_execution_watcher();
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+    assert_eq!(state.overlay_size_for_testing(), 0);
+
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, vec![]);
+    assert_eq!(state.overlay_size_for_testing(), 0);
+    for id in [obj_id, gas_id] {
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(id, effects.lamport_version()))
+            .unwrap()
+            .expect("the checkpoint batch must have written the commit's rows");
+        assert_eq!(row.produced_at, 1);
+    }
+}
+
+/// Without a checkpoint batch in between, the flush of a commit the watcher
+/// completed writes all of the commit's rows and evicts them.
+#[tokio::test]
+async fn flush_writes_completed_commit_rows_still_in_the_overlay() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let _watcher = s.start_execution_watcher();
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    assert_eq!(state.overlay_size_for_testing(), 2);
+
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, handler_processed_upserts(&effects, 1));
+    assert_eq!(state.overlay_size_for_testing(), 0);
+    for (key, row) in written {
+        assert_eq!(
+            s.epoch_store
+                .durable_handler_processed_object_for_testing(&key)
+                .unwrap(),
+            Some(row)
+        );
+    }
+}
+
+/// The checkpoint batch makes a commit's rows durable before the watcher
+/// completes the commit, so the watcher leaves them out of the overlay and
+/// the commit's flush has none of them left to write.
+#[tokio::test]
+async fn watcher_skips_rows_the_checkpoint_batch_made_durable() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+    assert_eq!(state.overlay_size_for_testing(), 0);
+
+    let _watcher = s.start_execution_watcher();
+    s.wait_for_fully_executed_commit(1).await;
+    assert_eq!(state.overlay_size_for_testing(), 0);
+
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, vec![]);
+    for id in [obj_id, gas_id] {
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(id, effects.lamport_version()))
+            .unwrap()
+            .expect("the checkpoint batch must have written the commit's rows");
+        assert_eq!(row.produced_at, 1);
+    }
+}
+
+/// The watcher completed a commit, then the node crashed before the commit
+/// flushed. After the restart the overlay is empty and the watcher has not
+/// completed the replayed commit, so its flush derives every row from
+/// effects and writes them.
+#[tokio::test]
+async fn replayed_flush_after_restart_writes_rows_from_effects() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let watcher = s.start_execution_watcher();
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    drop(watcher);
+
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    assert_eq!(
+        reopened
+            .handler_object_state_for_testing()
+            .overlay_size_for_testing(),
+        0
+    );
+
+    reopened.assign_commit_to_transactions(
+        1,
+        vec![TransactionKey::Digest(*effects.transaction_digest())],
+    );
+    let written = reopened
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, handler_processed_upserts(&effects, 1));
+    for (key, row) in written {
+        assert_eq!(
+            reopened
+                .durable_handler_processed_object_for_testing(&key)
+                .unwrap(),
+            Some(row)
+        );
+    }
+}
+
+/// A commit executed before a crash but not yet flushed loses its rows with
+/// the overlay, and the execution hook does not run again for its
+/// transactions. When the handler replays the commit, the watcher must
+/// restore the rows from the effects already on disk.
+#[tokio::test]
+async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+
+    // Commit 1 executes and flushes; commit 2 executes and completes, but its
+    // output is still in the quarantine when the node crashes.
+    let watcher = s.start_execution_watcher();
+    let first = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(
+                &obj1_id,
+                &gas1_id,
+                address_1,
+                &address_1_key,
+                Address::random(),
+            )],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*first.transaction_digest()])
+        .unwrap();
+    let second = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(
+                &obj2_id,
+                &gas2_id,
+                address_2,
+                &address_2_key,
+                Address::random(),
+            )],
+            2,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(2).await;
+    drop(watcher);
+
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    let row = |effects: &TransactionEffects, id: ObjectId| {
+        reopened
+            .handler_processed_object(&ObjectKey(id, effects.lamport_version()))
+            .unwrap()
+    };
+
+    // The value resumes from the flushed commit. Commit 1's rows are on disk;
+    // commit 2's were only in the overlay and are gone.
+    assert_eq!(
+        *reopened
+            .subscribe_highest_fully_executed_commit()
+            .unwrap()
+            .borrow(),
+        1
+    );
+    assert_eq!(
+        reopened
+            .handler_object_state_for_testing()
+            .overlay_size_for_testing(),
+        0
+    );
+    for id in [obj1_id, gas1_id] {
+        assert_eq!(row(&first, id).map(|row| row.produced_at), Some(1));
+    }
+    for id in [obj2_id, gas2_id] {
+        assert_eq!(row(&second, id), None);
+    }
+
+    // The handler replays commit 2. Its transaction is not executed again.
+    let _watcher = ExecutionWatcher::start(reopened.clone())
+        .expect("the reopened store's receiver is untaken");
+    reopened.assign_commit_to_transactions(
+        2,
+        vec![TransactionKey::Digest(*second.transaction_digest())],
+    );
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        reopened.wait_for_fully_executed_commit(2),
+    )
+    .await
+    .expect("the replayed commit must become fully executed");
+    for id in [obj2_id, gas2_id] {
+        assert_eq!(row(&second, id).map(|row| row.produced_at), Some(2));
+    }
+}
+
+/// A checkpoint's handler rows become durable with the checkpoint, before
+/// its commit flushes: a restart in between finds every row on disk,
+/// although the overlay is gone.
+#[tokio::test]
+async fn checkpoint_bookkeeping_is_durable_before_its_commit_flushes() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    // One checkpoint holding the roots of commits 1 and 2.
+    let first = s.build_transfer(
+        &obj1_id,
+        &gas1_id,
+        address_1,
+        &address_1_key,
+        Address::random(),
+    );
+    let second = s.build_transfer(
+        &obj2_id,
+        &gas2_id,
+        address_2,
+        &address_2_key,
+        Address::random(),
+    );
+    let first_key = TransactionKey::Digest(*first.digest());
+    let second_key = TransactionKey::Digest(*second.digest());
+    let first = s.execute_as_handler_known(vec![first], 1).remove(0);
+    let second = s.execute_as_handler_known(vec![second], 2).remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&first, &second])
+        .unwrap();
+
+    // The rows left the overlay once durable.
+    assert_eq!(state.overlay_size_for_testing(), 0);
+
+    // The node crashes before either commit flushes.
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    let reopened_state = reopened.handler_object_state_for_testing();
+    assert_eq!(reopened_state.overlay_size_for_testing(), 0);
+    for (effects, index, ids) in [
+        (&first, 1, [obj1_id, gas1_id]),
+        (&second, 2, [obj2_id, gas2_id]),
+    ] {
+        for id in ids {
+            let row = reopened
+                .handler_processed_object(&ObjectKey(id, effects.lamport_version()))
+                .unwrap()
+                .expect("the handler row must be durable with its checkpoint");
+            assert_eq!(row.produced_at, index);
+        }
+    }
+
+    // The handler replays both commits. Re-executing the checkpoint's
+    // transactions re-inserts the same rows, and its batch writes them
+    // again and clears them.
+    reopened.assign_commit_to_transactions(1, vec![first_key]);
+    reopened.assign_commit_to_transactions(2, vec![second_key]);
+    reopened.record_executed_transaction(&first_key, &first);
+    reopened.record_executed_transaction(&second_key, &second);
+    assert_eq!(reopened_state.overlay_size_for_testing(), 4);
+    reopened
+        .persist_checkpoint_bookkeeping([&first, &second])
+        .unwrap();
+    assert_eq!(reopened_state.overlay_size_for_testing(), 0);
+}
+
+/// A checkpoint's handler rows are written without the consensus
+/// quarantine lock, so a commit push or a quarantine flush does not hold up
+/// checkpoint execution.
+#[tokio::test]
+async fn checkpoint_bookkeeping_does_not_wait_for_the_quarantine() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+
+    let (written, wait_written) = std::sync::mpsc::channel();
+    let mut bookkeeping_write = None;
+    s.epoch_store.hold_consensus_quarantine_for_testing(|| {
+        let epoch_store = s.epoch_store.clone();
+        let effects = effects.clone();
+        bookkeeping_write = Some(std::thread::spawn(move || {
+            epoch_store
+                .persist_checkpoint_bookkeeping([&effects])
+                .unwrap();
+            written.send(()).unwrap();
+        }));
+        wait_written
+            .recv_timeout(Duration::from_secs(5))
+            .expect("checkpoint bookkeeping must not wait for the quarantine lock");
+    });
+    bookkeeping_write.unwrap().join().unwrap();
+
+    for id in [obj_id, gas_id] {
+        assert!(
+            s.epoch_store
+                .durable_handler_processed_object_for_testing(&ObjectKey(
+                    id,
+                    effects.lamport_version()
+                ))
+                .unwrap()
+                .is_some()
+        );
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .overlay_size_for_testing(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn bookkeeping_disabled_writes_nothing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        false,
+    )
+    .await;
+
+    let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+
+    s.assert_no_handler_row(&obj_id, effects.lamport_version());
 }
 
 // ---------------------------------------------------------------------------

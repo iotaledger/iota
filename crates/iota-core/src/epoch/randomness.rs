@@ -25,7 +25,7 @@ use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},
-    crypto::AuthorityKeyPair,
+    crypto::{AuthorityKeyPair, RandomnessSignature},
     error::{IotaError, IotaResult},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
@@ -130,6 +130,23 @@ impl VersionedUsedProcessedMessages {
                 .collect::<Vec<_>>(),
             rng,
         )
+    }
+}
+
+/// Error from advancing DKG. Runtime shutdown is a separate variant so that a
+/// cancelled blocking task is never handled like a failed DKG step.
+#[derive(Debug)]
+pub(crate) enum AdvanceDkgError {
+    Iota(IotaError),
+    /// The runtime is shutting down and cancelled DKG message processing. The
+    /// commit being processed must be abandoned without persisting its
+    /// output.
+    RuntimeShutdown,
+}
+
+impl From<IotaError> for AdvanceDkgError {
+    fn from(e: IotaError) -> Self {
+        Self::Iota(e)
     }
 }
 
@@ -491,7 +508,7 @@ impl RandomnessManager {
         &mut self,
         consensus_output: &mut ConsensusCommitOutput,
         round: CommitRound,
-    ) -> IotaResult {
+    ) -> Result<(), AdvanceDkgError> {
         let epoch_store = self.epoch_store()?;
 
         // Once we have enough Messages, send a Confirmation.
@@ -501,7 +518,14 @@ impl RandomnessManager {
                 .into_values()
                 .collect();
             while let Some(res) = handles.next().await {
-                if let Ok(Some(processed)) = res {
+                let processed = match res {
+                    Ok(processed) => processed,
+                    Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+                    // Only runtime shutdown cancels the task. Treating it like an invalid
+                    // message would persist DKG state that is missing this message.
+                    Err(_) => return Err(AdvanceDkgError::RuntimeShutdown),
+                };
+                if let Some(processed) = processed {
                     self.processed_messages
                         .insert(processed.sender(), processed.clone());
                     consensus_output.insert_dkg_processed_message(processed);
@@ -926,6 +950,20 @@ impl RandomnessReporter {
         }
         Ok(())
     }
+
+    /// Passes the randomness for `round` found in a certified checkpoint to
+    /// the randomness event loop, so a round this node missed completes
+    /// without peers resending it.
+    pub fn forward_randomness_from_checkpoint(&self, round: RandomnessRound, random_bytes: &[u8]) {
+        match bcs::from_bytes::<RandomnessSignature>(random_bytes) {
+            Ok(sig) => self
+                .network_handle
+                .receive_full_signature_from_checkpoint(self.epoch, round, sig),
+            Err(e) => error!(
+                "random beacon: cannot decode randomness for round {round} from a certified checkpoint: {e:?}"
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1047,8 +1085,25 @@ mod tests {
                 _ => panic!("wrong type of message sent"),
             }
         }
+
+        // A DKG message task cancelled by runtime shutdown must abandon the
+        // commit instead of being skipped like an invalid message.
+        let shutdown_runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let shutdown_handle = shutdown_runtime.handle().clone();
+        shutdown_runtime.shutdown_background();
+        randomness_managers[0]
+            .enqueued_messages
+            .insert(0, shutdown_handle.spawn_blocking(|| None));
+        let result = randomness_managers[0]
+            .advance_dkg(&mut ConsensusCommitOutput::new(0, 0), 0)
+            .await;
+        assert!(matches!(result, Err(AdvanceDkgError::RuntimeShutdown)));
+        assert!(randomness_managers[0].processed_messages.is_empty());
+
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1085,7 +1140,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 1,
@@ -1210,7 +1265,7 @@ mod tests {
         );
 
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1396,7 +1451,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -1479,7 +1534,7 @@ mod tests {
 
         // DKG completes after its timeout once the confirmations are sequenced.
         for i in 0..recovered_managers.len() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 1,
@@ -1677,7 +1732,7 @@ mod tests {
 
         // The other managers process the Messages and send their Confirmations.
         for randomness_manager in peer_managers.iter_mut() {
-            let mut output = ConsensusCommitOutput::new(0);
+            let mut output = ConsensusCommitOutput::new(0, 0);
             for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
                 randomness_manager
                     .add_message(&epoch_stores[j].name, dkg_message)
@@ -1704,7 +1759,7 @@ mod tests {
 
         // Three of four Confirmations are enough for completion to run, and
         // the empty set of used messages leaves it nothing to aggregate.
-        let mut output = ConsensusCommitOutput::new(0);
+        let mut output = ConsensusCommitOutput::new(0, 0);
         for (dkg_confirmation, epoch_store) in dkg_confirmations.into_iter().zip(&epoch_stores[1..])
         {
             faulty_manager

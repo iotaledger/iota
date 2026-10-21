@@ -23,9 +23,11 @@ if [ -z "${NEW_TESTS}" ]; then
   exit 0
 fi
 
-# iterate over NEW_TESTS and wrap each element in 'test(=$element)'
+# iterate over NEW_TESTS and wrap each element in a filter matching it as the
+# whole name or the last segment of a module path: a test binary made of
+# modules names its tests `module::path::name`, which an exact match misses
 for i in "${!NEW_TESTS[@]}"; do
-  NEW_TESTS[$i]="test(=${NEW_TESTS[$i]})"
+  NEW_TESTS[$i]="test(/(^|::)${NEW_TESTS[$i]}\$/)"
 done
 
 # join NEW_TESTS with "or"

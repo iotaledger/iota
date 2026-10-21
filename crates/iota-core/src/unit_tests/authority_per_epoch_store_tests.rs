@@ -12,7 +12,7 @@ use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
     base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
-    messages_consensus::TransactionDenyRuleProposal,
+    messages_consensus::TransactionDenyRuleProposal, transaction::TransactionKey,
 };
 use tokio::time::timeout;
 use typed_store::{Map, rocks::DBBatch};
@@ -23,6 +23,7 @@ use crate::authority::{
         AuthorityPerEpochStore, compute_deny_rule_update_chunks,
         consensus_quarantine::ConsensusCommitOutput,
     },
+    epoch_start_configuration::EpochStartConfiguration,
     test_authority_builder::TestAuthorityBuilder,
 };
 
@@ -35,7 +36,7 @@ fn flush_overload_notification(
     authority: AuthorityName,
     percentage: u8,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_overload_notification(authority, percentage);
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();
@@ -456,7 +457,30 @@ fn reopen_with_deny_rules_object(
     let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
     epoch_start_configuration
         .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    reopen_with_config(authority_state, store, epoch_start_configuration)
+}
+
+/// Reopens `store` over the same epoch DB, as a restart does.
+pub(crate) fn reopen(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+) -> Arc<AuthorityPerEpochStore> {
+    reopen_with_config(
+        authority_state,
+        store,
+        (*store.epoch_start_configuration).clone(),
+    )
+}
+
+/// [`reopen`], starting from `epoch_start_configuration` instead of the
+/// store's own.
+fn reopen_with_config(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+    epoch_start_configuration: EpochStartConfiguration,
+) -> Arc<AuthorityPerEpochStore> {
     store.release_db_handles();
+    wait_for_epoch_db_to_close();
     AuthorityPerEpochStore::new(
         store.name,
         store.committee().clone(),
@@ -474,8 +498,28 @@ fn reopen_with_deny_rules_object(
     .unwrap()
 }
 
+/// Blocks until no epoch DB is open in this process. Releasing the store's
+/// handles does not close the DB at once: each column family's metrics task
+/// holds it while a report is queued or running on a blocking thread, and
+/// opening it again before then fails on the RocksDB lock. The count is per
+/// process, which holds under nextest, one process per test.
+fn wait_for_epoch_db_to_close() {
+    let open_epoch_dbs = typed_store::DBMetrics::get()
+        .op_metrics
+        .rocksdb_num_active_db_handles
+        .with_label_values(&["epoch"]);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while open_epoch_dbs.get() > 0 {
+        assert!(
+            Instant::now() < deadline,
+            "the epoch DB should close once its metrics reports finish"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(proposal.clone());
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();
@@ -1079,7 +1123,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     let address = Address::new([1u8; 32]);
 
     // The object does not exist this epoch: nothing to update.
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
@@ -1341,7 +1385,7 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
     // The epoch is closing: no transaction is accepted any more.
     store.get_reconfig_state_write_lock_guard().close_all_tx();
 
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
@@ -1432,7 +1476,7 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
             &mut output,
             &mut transactions,
             &mut roots,
-            &ConsensusCommitInfo::new_for_test(1, 0, false),
+            &ConsensusCommitInfo::new_for_test(1, 1, 0, false),
         )
         .unwrap();
 
@@ -1985,5 +2029,313 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
             expected,
             "{name} with gated features enabled: {gated_features_enabled}",
         );
+    }
+}
+
+/// Starting to execute synced checkpoints is visible at once, and returns only
+/// once the consensus handler is between commits.
+#[tokio::test]
+async fn start_executing_synced_checkpoints_waits_for_the_commit_in_progress() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing().clone();
+    assert!(!store.is_executing_synced_checkpoints());
+
+    // The consensus handler is in the middle of a commit.
+    let commit_guard = store.lock_consensus_commit().await;
+    let start = tokio::spawn({
+        let store = store.clone();
+        async move { store.start_executing_synced_checkpoints().await }
+    });
+    timeout(
+        Duration::from_secs(5),
+        store.wait_for_synced_checkpoint_execution(),
+    )
+    .await
+    .unwrap();
+    assert!(store.is_executing_synced_checkpoints());
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!start.is_finished());
+
+    drop(commit_guard);
+    timeout(Duration::from_secs(5), start)
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+// === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
+
+mod handler_object_state_storage {
+    use futures::FutureExt;
+    use iota_sdk_types::{
+        Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
+    };
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::{
+        effects::{TestEffectsBuilder, TransactionEffectsAPI},
+        storage::ObjectKey,
+    };
+
+    use super::*;
+    use crate::authority::authority_per_epoch_store::handler_object_state::{
+        CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
+    };
+
+    fn owned_inputs_tx(gas_version: u64) -> SenderSignedTransaction {
+        let tx_data = TestTransactionBuilder::new(
+            Address::ZERO,
+            ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(gas_version),
+                ObjectDigest::random(),
+            ),
+            0,
+        )
+        .transfer_iota(None, Address::ZERO)
+        .build();
+        SenderSignedTransaction::new(tx_data, vec![])
+    }
+
+    /// The effects of a transaction consuming `(consumed, consumed_version)`
+    /// plus its gas coin.
+    fn executed_owned_tx_effects(
+        consumed: ObjectId,
+        consumed_version: u64,
+        gas_version: u64,
+    ) -> TransactionEffects {
+        let transaction = owned_inputs_tx(gas_version);
+        TestEffectsBuilder::new(&transaction)
+            .with_mutated_objects([(
+                consumed,
+                Version::from_u64(consumed_version),
+                Owner::Address(Address::ZERO),
+            )])
+            .build()
+    }
+
+    fn generate_live_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
+        HandlerProcessedObject {
+            digest: ObjectDigest::random(),
+            kind: HandlerProcessedObjectKind::Live,
+            produced_at,
+            initial_shared_version: None,
+            replaced_version: None,
+        }
+    }
+
+    /// Turns on P-COOL deterministic validation, without which the quarantine
+    /// flush derives no handler rows. Build the authority while the guard
+    /// lives.
+    fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        })
+    }
+
+    #[tokio::test]
+    async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_for_testing(true);
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
+        let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let read_processed_object =
+            |version: u64| epoch_store.handler_processed_object(&key(version)).unwrap();
+
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        let v5 = generate_live_entry(1);
+        complete_commit(1, &[(key(5), v5)]);
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
+
+        // An earlier commit's row arriving later sits beside the newer one.
+        let v3 = generate_live_entry(0);
+        complete_commit(0, &[(key(3), v3)]);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+
+        // Flushing the newer commit moves only its row out of the overlay,
+        // without a read gap.
+        epoch_store
+            .flush_commit_rows_for_testing(1, vec![(key(5), v5)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+
+        // The earlier commit flushing afterwards (out of commit order) adds
+        // its row to the table beside the newer one.
+        epoch_store
+            .flush_commit_rows_for_testing(0, vec![(key(3), v3)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        let tables = epoch_store.tables().unwrap();
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
+            Some(v5)
+        );
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
+
+        // A later commit's row is readable through the overlay while the
+        // durable ones stay readable too.
+        let v7 = generate_live_entry(2);
+        complete_commit(2, &[(key(7), v7)]);
+        assert_eq!(read_processed_object(7), Some(v7));
+        assert_eq!(read_processed_object(5), Some(v5));
+    }
+
+    #[tokio::test]
+    async fn flushed_rows_for_one_id_keep_every_version() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_for_testing(true);
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
+
+        // Two commits write the same id (a sender's gas coin used in
+        // consecutive commits); each flush writes only its own commit's row.
+        let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let v3 = generate_live_entry(1);
+        let v5 = generate_live_entry(2);
+        epoch_store.assign_commit_to_transactions(1, vec![]);
+        epoch_store
+            .record_commit_fully_executed(1, &[(key(3), v3)])
+            .unwrap();
+        epoch_store.assign_commit_to_transactions(2, vec![]);
+        epoch_store
+            .record_commit_fully_executed(2, &[(key(5), v5)])
+            .unwrap();
+
+        // Commit 2's row for the same id lands beside commit 1's rather than
+        // replacing it: both versions stay durable and readable by their key.
+        epoch_store
+            .flush_commit_rows_for_testing(1, vec![(key(3), v3)])
+            .unwrap();
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(5), v5)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        let tables = epoch_store.tables().unwrap();
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
+            Some(v5)
+        );
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(5)).unwrap(),
+            Some(v5)
+        );
+    }
+
+    #[tokio::test]
+    async fn map_hit_writes_handler_rows_at_the_assigned_commit() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_for_testing(true);
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let effects = executed_owned_tx_effects(mutated, 5, 1);
+
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(6, vec![key]);
+        epoch_store.record_executed_transaction(&key, &effects);
+
+        let row = epoch_store
+            .handler_processed_object(&ObjectKey(mutated, effects.lamport_version()))
+            .unwrap()
+            .expect("handler-processed row must exist for a handler-known commit");
+        assert_eq!(row.produced_at, 6);
+    }
+
+    /// The highest fully executed commit starts at the durable resume point,
+    /// both on a fresh epoch and when the epoch store reopens mid-epoch, and
+    /// never moves down.
+    #[tokio::test]
+    async fn highest_fully_executed_commit_resumes_from_the_flushed_commit() {
+        let _guard = enable_deterministic_validation();
+        let authority = TestAuthorityBuilder::new().build().await;
+        let store = authority.epoch_store_for_testing().clone();
+        let assert_highest = |store: &AuthorityPerEpochStore, index: CommitIndex| {
+            assert_eq!(
+                *store
+                    .subscribe_highest_fully_executed_commit()
+                    .unwrap()
+                    .borrow(),
+                index
+            );
+            assert_eq!(
+                store
+                    .metrics
+                    .handler_object_state_highest_fully_executed_commit
+                    .get(),
+                index as i64
+            );
+        };
+
+        assert_highest(&store, 0);
+        store
+            .wait_for_fully_executed_commit(0)
+            .now_or_never()
+            .expect("waiting for the resume point must return immediately");
+
+        // A waiter blocked before the flushes is released by the flush of its
+        // commit, not by an earlier one.
+        let mut waiter = std::pin::pin!(store.wait_for_fully_executed_commit(2));
+        assert!(futures::poll!(waiter.as_mut()).is_pending());
+        for index in [1, 2] {
+            store.assign_commit_to_transactions(index, vec![]);
+            store
+                .flush_commit_through_quarantine_for_testing(index, vec![])
+                .unwrap();
+            assert_highest(&store, index);
+            assert_eq!(futures::poll!(waiter.as_mut()).is_ready(), index == 2);
+        }
+
+        let reopened = reopen(&authority, &store);
+        reopened.set_effects_store(authority.get_transaction_cache_reader().clone());
+        assert_highest(&reopened, 2);
+
+        // Completing a later commit before an earlier one raises the value;
+        // the earlier completion arriving afterwards does not lower it.
+        reopened.assign_commit_to_transactions(3, vec![]);
+        reopened.assign_commit_to_transactions(4, vec![]);
+        reopened.record_commit_fully_executed(4, &[]).unwrap();
+        reopened.record_commit_fully_executed(3, &[]).unwrap();
+        assert_highest(&reopened, 4);
     }
 }

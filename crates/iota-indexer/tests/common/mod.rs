@@ -16,6 +16,7 @@ use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
+const READER_READY_TIMEOUT: Duration = Duration::from_secs(60);
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
@@ -54,6 +55,7 @@ use simulacrum::Simulacrum;
 use simulacrum_server::start_simulacrum_grpc_server;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{
+    net::TcpStream,
     runtime::Runtime,
     sync::{Mutex, OnceCell},
     task::JoinHandle,
@@ -170,7 +172,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
+    let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name).await;
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -416,15 +418,20 @@ pub async fn execute_tx_must_succeed(
     *txn.digest()
 }
 
-/// Start an Indexer instance in `Read` mode
-fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Option<&str>) -> u16 {
+/// Starts the indexer JSON-RPC reader on a free local port and returns that
+/// port once the server accepts connections.
+async fn start_indexer_reader(
+    fullnode_rpc_url: impl Into<String>,
+    database_name: Option<&str>,
+) -> u16 {
     let db_url = db_url(database_name.unwrap_or(DEFAULT_DB));
     let port = get_available_port(DEFAULT_INDEXER_IP);
+    let rpc_address = SocketAddr::new(DEFAULT_INDEXER_IP.parse().unwrap(), port);
 
     let config = JsonRpcConfig {
         iota_names_options: IotaNamesOptions::default(),
         historic_fallback_options: Default::default(),
-        rpc_address: SocketAddr::new(DEFAULT_INDEXER_IP.parse().unwrap(), port),
+        rpc_address,
         rpc_client_url: fullnode_rpc_url.into(),
     };
 
@@ -443,7 +450,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let store = create_pg_store(&db_url, false);
 
-    tokio::spawn(async move {
+    let reader = tokio::spawn(async move {
         Indexer::start_reader(
             &config,
             store,
@@ -454,6 +461,17 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
         )
         .await
     });
+
+    // Wait for the reader to start accepting connections.
+    retry_with_timeout(READER_READY_TIMEOUT, || async {
+        if reader.is_finished() {
+            panic!("indexer reader exited before accepting connections");
+        }
+        TcpStream::connect(rpc_address).await.ok()
+    })
+    .await
+    .expect("indexer reader should accept connections before the timeout");
+
     port
 }
 
@@ -541,7 +559,7 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
 
     // start indexer in read mode
     let indexer_port =
-        start_indexer_reader(format!("http://{simulacrum_server_url}"), database_name);
+        start_indexer_reader(format!("http://{simulacrum_server_url}"), database_name).await;
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
