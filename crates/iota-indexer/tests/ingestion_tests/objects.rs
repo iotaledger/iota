@@ -13,7 +13,7 @@ use iota_indexer::{
         obj_indices::StoredObjectVersion,
         objects::{StoredCheckpointedObject, StoredObject},
     },
-    schema::{checkpointed_objects, objects, objects_backward_history},
+    schema::{checkpointed_objects, display, objects, objects_backward_history, packages},
     store::{PgIndexerStore, indexer_store::IndexerStore},
     types::ObjectStatus,
 };
@@ -34,7 +34,10 @@ use crate::{
         indexer_wait_for_checkpoint,
         object_versions::find_object_versions_at_checkpoint,
     },
-    utils::{IngestionTest, TestSim, find_object_ref, read_only_blocking},
+    utils::{
+        IngestionTest, TestSim, assert_row_count, find_object_ref, read_only_blocking,
+        start_indexer_at_genesis,
+    },
 };
 
 #[tokio::test]
@@ -114,6 +117,16 @@ pub async fn objects_version_ingestion_wraps_and_removals(
     ObjectsVersionIngestionWrapsAndRemovals
         .run(level, "ingestion_objects_version_wraps_and_removals")
         .await
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn displays_and_packages(
+    #[values(Basic, ObjectsHistory, FilteredQueries, CombinedEventFilters)] level: OperationalLevel,
+) -> Result<(), IndexerError> {
+    let pg_store = start_indexer_at_genesis(level, "ingestion_displays_and_packages").await;
+    assert_row_count!(&pg_store, display, true).await?;
+    assert_row_count!(&pg_store, packages, true).await
 }
 
 struct ObjectType;
@@ -476,12 +489,7 @@ impl IngestionTest for BackwardHistoryIngestion {
     }
 
     async fn assert_not_ingested(&self, pg_store: &PgIndexerStore) -> Result<(), IndexerError> {
-        let count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            objects_backward_history::table.count().get_result(conn)
-        })
-        .context("failed reading objects_backward_history")?;
-        assert_eq!(count, 0, "objects_backward_history must be empty");
-        Ok(())
+        assert_row_count!(pg_store, objects_backward_history, false).await
     }
 }
 
@@ -554,7 +562,7 @@ impl IngestionTest for ObjectVersionsIngestion {
     }
 }
 
-struct ObjectsVersionIngestionWrapsAndRemovals;
+pub(crate) struct ObjectsVersionIngestionWrapsAndRemovals;
 
 impl IngestionTest for ObjectsVersionIngestionWrapsAndRemovals {
     /// The `objects_version` rows to find, as the checkpoint, the object, its
