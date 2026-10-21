@@ -6701,6 +6701,7 @@ dependencies = [
  "prometheus-filtered",
  "rand 0.10.3",
  "reqwest 0.13.5",
+ "rstest",
  "rustls",
  "serde",
  "serde_json",

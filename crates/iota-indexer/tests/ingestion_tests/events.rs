@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_indexer::{errors::IndexerError, store::indexer_store::IndexerStore, types::EventIndex};
+use iota_indexer::{
+    errors::IndexerError, ingestion::OperationalLevel, store::indexer_store::IndexerStore,
+    types::EventIndex,
+};
 
 use crate::utils::TestSim;
 
@@ -16,7 +19,10 @@ use crate::utils::TestSim;
 /// ```
 #[tokio::test]
 pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
-    let sim = TestSim::new("indexer_ingestion_event_indices_db");
+    let sim = TestSim::new(
+        OperationalLevel::default(),
+        "indexer_ingestion_event_indices_db",
+    );
     let pg_store = sim.start_indexer(None).await;
 
     // By creating 2000 random event indices we ensure that the

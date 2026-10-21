@@ -20,6 +20,7 @@ use crate::{
     db::{ConnectionPool, ConnectionPoolConfig, DbUrl, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
+    ingestion::common::orchestration::OperationalLevel,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
@@ -59,6 +60,7 @@ const TEST_PRUNING_DELAY_MS: u64 = 1000; // 1 second
 ///     None,
 ///     Some("indexer_ingestion_tests_db"),
 ///     Some(emulate_insertion_order_set_earlier_by_optimistic_indexing),
+///     OperationalLevel::default(),
 /// )
 /// .await;
 /// ```
@@ -117,8 +119,33 @@ pub async fn start_test_indexer(
     JoinHandle<Result<(), IndexerError>>,
     CancellationToken,
 ) {
+    start_test_indexer_on_level(
+        db_url,
+        reset_db,
+        db_init_hook,
+        rpc_url,
+        reader_writer_config,
+        data_ingestion_path,
+        Default::default(),
+    )
+    .await
+}
+
+pub async fn start_test_indexer_on_level(
+    db_url: String,
+    reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
+    rpc_url: String,
+    reader_writer_config: IndexerTypeConfig,
+    data_ingestion_path: Option<PathBuf>,
+    operational_level: OperationalLevel,
+) -> (
+    PgIndexerStore,
+    JoinHandle<Result<(), IndexerError>>,
+    CancellationToken,
+) {
     let token = CancellationToken::new();
-    let (store, handle) = start_test_indexer_impl(
+    let (store, handle) = start_test_indexer_impl_on_level(
         db_url,
         reset_db,
         db_init_hook,
@@ -126,6 +153,7 @@ pub async fn start_test_indexer(
         reader_writer_config,
         data_ingestion_path,
         token.clone(),
+        operational_level,
     )
     .await;
     (store, handle, token)
@@ -148,6 +176,29 @@ pub async fn start_test_indexer_impl(
     reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
+) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
+    start_test_indexer_impl_on_level(
+        db_url,
+        reset_db,
+        db_init_hook,
+        rpc_url,
+        reader_writer_config,
+        data_ingestion_path,
+        cancel,
+        Default::default(),
+    )
+    .await
+}
+
+pub async fn start_test_indexer_impl_on_level(
+    db_url: String,
+    reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
+    rpc_url: String,
+    reader_writer_config: IndexerTypeConfig,
+    data_ingestion_path: Option<PathBuf>,
+    cancel: CancellationToken,
+    operational_level: OperationalLevel,
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
     let store = create_pg_store(&db_url, reset_db);
     if reset_db {
@@ -202,6 +253,7 @@ pub async fn start_test_indexer_impl(
             ingestion_config.sources.remote_store_url =
                 data_ingestion_path.is_none().then_some(fullnode_rpc_url);
             ingestion_config.sources.data_ingestion_path = data_ingestion_path;
+            ingestion_config.operational_level = operational_level;
 
             tokio::spawn(async move {
                 Indexer::start_writer_with_config(

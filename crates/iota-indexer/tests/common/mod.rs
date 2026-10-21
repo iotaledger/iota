@@ -25,12 +25,16 @@ use iota_indexer::{
     db::{ConnectionPoolConfig, DbUrl, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
+    ingestion::OperationalLevel,
     metrics::IndexerMetrics,
     models::checkpoints::StoredCheckpoint,
     read_only_blocking,
     schema::{checkpoints, optimistic_transactions},
     store::{PgIndexerStore, diesel_macro::spawn_blocking_task, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
+    test_utils::{
+        DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer,
+        start_test_indexer_on_level,
+    },
 };
 use iota_json_rpc_api::{
     CoinReadApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient, TransactionBuilderClient,
@@ -490,6 +494,7 @@ pub async fn start_simulacrum_grpc_with_write_indexer(
     server_url: Option<SocketAddr>,
     database_name: Option<&str>,
     db_init_hook: Option<DBInitHook>,
+    operational_level: OperationalLevel,
 ) -> (
     GrpcServerHandle,
     PgIndexerStore,
@@ -507,13 +512,14 @@ pub async fn start_simulacrum_grpc_with_write_indexer(
         .unwrap();
 
     // Starts indexer
-    let (pg_store, pg_handle, _) = start_test_indexer(
+    let (pg_store, pg_handle, _) = start_test_indexer_on_level(
         db_url(database_name.unwrap_or(DEFAULT_DB)),
         true,
         db_init_hook,
         format!("http://{address}"),
         IndexerTypeConfig::writer_mode(None),
         Some(data_ingestion_path),
+        operational_level,
     )
     .await;
     (server_handle, pg_store, pg_handle)
@@ -536,6 +542,7 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
         Some(simulacrum_server_url),
         database_name,
         None,
+        OperationalLevel::default(),
     )
     .await;
 
