@@ -50,7 +50,7 @@ use move_core_types::annotated_value::MoveStructLayout;
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::{
     sync::RwLock,
-    time::{Duration, sleep},
+    time::{Duration, sleep, timeout},
 };
 use tracing::info;
 
@@ -1513,6 +1513,54 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     );
 
     Ok(())
+}
+
+/// Balance and object changes still resolve once the transaction's input
+/// versions have been moved out of the live objects table into the historic
+/// buckets.
+#[sim_test]
+async fn transaction_changes_resolve_after_relocation() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let (_, _, _, digest, _) = transfer_coin(&test_cluster.wallet).await.unwrap();
+
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let options = IotaTransactionBlockResponseOptions::new()
+        .with_balance_changes()
+        .with_object_changes();
+
+    // The superseded versions are relocated once the checkpoint is executed.
+    let sequence_number = timeout(Duration::from_secs(60), async {
+        loop {
+            let response: IotaTransactionBlockResponse = jsonrpc_client
+                .request(
+                    "iota_getTransactionBlock",
+                    rpc_params![digest, options.clone()],
+                )
+                .await
+                .unwrap();
+            if let Some(sequence_number) = response.checkpoint {
+                break sequence_number;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for the transaction to be checkpointed");
+    test_cluster
+        .wait_for_checkpoint(sequence_number, None)
+        .await;
+
+    let response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_getTransactionBlock", rpc_params![digest, options])
+        .await
+        .unwrap();
+    assert!(
+        response.errors.is_empty(),
+        "response errors: {:?}",
+        response.errors
+    );
+    assert!(response.balance_changes.is_some());
+    assert!(response.object_changes.is_some());
 }
 
 // This test checks that the fullnode is able to resolve events emitted from a
