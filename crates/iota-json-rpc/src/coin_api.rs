@@ -8,7 +8,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
-use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
+use iota_core::{authority::AuthorityState, rpc_indexes::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
