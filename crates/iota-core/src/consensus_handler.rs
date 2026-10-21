@@ -1726,9 +1726,11 @@ mod tests {
             kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
             tracking_id: Default::default(),
         };
-        // An input produced at commit 1: with the horizon two commits back,
-        // validation at commits 1 and 2 drops the transaction and validation
-        // at commit 3 keeps it.
+        // An input produced at commit 1. Validation at commit C reads the state
+        // as of commit C - 2, the default
+        // `pcool_deterministic_validation_horizon_distance`, so validation at
+        // commits 1 and 2 drops the transaction and validation at commit 3
+        // keeps it.
         epoch
             .flush_commit_rows_for_testing(
                 0,
@@ -1782,6 +1784,8 @@ mod tests {
                     Some(PostConsensusDecision::DroppedInputNotVisibleYet(_))
                 )),
                 3 => assert_eq!(decision, Some(PostConsensusDecision::Kept)),
+                // Kept at commit 3, so this copy is skipped as already processed
+                // before validation and has no saved decision.
                 4 => assert_eq!(decision, None),
                 _ => unreachable!(),
             }
@@ -1843,8 +1847,10 @@ mod tests {
             kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
             tracking_id: Default::default(),
         };
-        // An input produced at commit 1: with the horizon two commits back,
-        // validation at commit 1 answers that the input is not visible yet.
+        // An input produced at commit 1. Validation at commit C reads the state
+        // as of commit C - 2, the default
+        // `pcool_deterministic_validation_horizon_distance`, so at commit 1 the
+        // input is not visible yet.
         epoch
             .flush_commit_rows_for_testing(
                 0,

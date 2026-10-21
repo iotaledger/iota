@@ -908,7 +908,9 @@ pub struct AuthorityEpochTables {
     /// The post-consensus validation decision of every candidate of a
     /// consensus commit, keyed by commit and transaction digest. Written when
     /// the handler first validates the commit and deleted when the commit's
-    /// output flushes, so a commit replayed after a restart finds them.
+    /// output flushes, so a commit replayed after a restart finds them. The
+    /// rows of a commit whose output never flushes, such as one the handler
+    /// abandons at the switch to synced checkpoints, stay until the epoch ends.
     pub(crate) post_consensus_decisions:
         DBMap<(CommitIndex, TransactionDigest), PostConsensusDecision>,
     /// The candidates of a consensus commit in consensus order, written in

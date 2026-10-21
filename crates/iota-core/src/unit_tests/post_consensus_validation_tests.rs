@@ -4680,7 +4680,7 @@ async fn post_consensus_decisions_survive_a_restart() {
 
 /// A commit's saved decisions are deleted in the batch that flushes its
 /// output, together with its processed flags and the resume point, so they
-/// exist exactly as long as the commit can be replayed.
+/// stay as long as the commit can be replayed.
 #[tokio::test]
 async fn decisions_retire_with_resume_progress_and_processed_state() {
     use typed_store::Map;

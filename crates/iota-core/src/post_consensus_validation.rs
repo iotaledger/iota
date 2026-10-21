@@ -19,12 +19,15 @@
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. With deterministic validation, a commit replayed after a restart repeats the decisions saved
-//!    on its first run: a saved drop is dropped again without checks, and a saved keep that has
-//!    executed is retained as below. Otherwise, an already-executed transaction is **retained** as
-//!    a committee-agreed winner (registers the locks its own effects report, skips re-validation);
-//!    not dropped. See issue #11649. With deterministic validation, a transaction with no saved
-//!    decision goes through the checks below even if it has executed.
+//! 3. Saved decisions and already-executed transactions:
+//!    - Replayed commit (deterministic validation only): a commit replayed after a restart repeats
+//!      the decisions saved on its first run. A saved drop is repeated without checks. A saved keep
+//!      is validated again unless the transaction has executed.
+//!    - Already executed (typically by state sync): the transaction is **retained** as a
+//!      committee-agreed winner, not dropped. It registers the locks its own effects report and
+//!      skips re-validation. See issue #11649. With deterministic validation this applies only if
+//!      the first run of this commit saved a keep for it; otherwise it goes through the checks
+//!      below like any other transaction.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt.
@@ -87,8 +90,9 @@ pub enum PostConsensusDecision {
     /// The transaction was dropped with this error.
     Dropped(IotaError),
     /// The transaction was dropped because an input is not visible at the
-    /// commit's horizon yet. The digest can be kept when sequenced again, so
-    /// the drop is not its final status.
+    /// commit's [horizon](crate::post_consensus_input_reader::reader::horizon)
+    /// yet. The digest can be kept when sequenced again, so the drop is not
+    /// its final status.
     DroppedInputNotVisibleYet(IotaError),
 }
 
@@ -103,14 +107,12 @@ pub enum PostConsensusDecision {
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it registers the locks its
 ///   effects report (the raw input set without the flag) and skips re-validation. See issue #11649.
-///   With deterministic validation, this holds only for a transaction whose keep at this commit was
-///   saved; one with no saved decision is validated like any other.
 ///
 /// With deterministic validation, the decision for every candidate is saved before returning,
-/// including keeps that the caller then defers. When the commit is replayed after a restart, a
-/// saved drop is repeated without checks, and a saved keep is validated again unless it has
-/// executed. Panics if the saved decisions are incomplete, the candidates differ from the saved
-/// ones, or a saved keep is now dropped.
+/// including keeps that the caller then defers, and a commit replayed after a restart repeats the
+/// saved decisions; step 3 of the module docs says which transactions are validated again. Panics
+/// if the saved decisions are incomplete, the candidates differ from the saved ones, or a saved
+/// keep is now dropped.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
