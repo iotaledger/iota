@@ -231,7 +231,7 @@ impl PrimaryWriter {
                     .advance_epoch(last_epoch, new_epoch)
                     .await
                     .tap_err(|e| {
-                        error!("failed to advance epoch with error: {}", e.to_string());
+                        error!("failed to advance epoch with error: {e}");
                     })
                     .expect("advancing epochs in DB should not fail.");
             }
