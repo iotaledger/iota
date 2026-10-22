@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{future, sync::Arc};
+use std::{collections::HashSet, future, sync::Arc};
 
 use futures::{StreamExt, stream};
 use futures_core::Stream;
@@ -198,18 +198,12 @@ impl CoinReadApi {
         amount: u128,
         exclude: Vec<ObjectId>,
     ) -> IotaRpcResult<Vec<Coin>> {
-        let mut total = 0u128;
-        let coins = self
-            .get_coins_stream(address, coin_type.into())
-            .filter(|coin: &Coin| future::ready(!exclude.contains(&coin.coin_object_id)))
-            .take_while(|coin: &Coin| {
-                let ready = future::ready(total < amount);
-                total += coin.balance as u128;
-                ready
-            })
-            .collect::<Vec<_>>()
-            .await;
-
+        let (coins, total) = select_from(
+            self.get_coins_stream(address, coin_type.into()),
+            amount,
+            &exclude,
+        )
+        .await;
         if total < amount {
             return Err(Error::InsufficientFunds { address, amount });
         }
@@ -334,5 +328,69 @@ impl CoinReadApi {
     /// ```
     pub async fn get_circulating_supply(&self) -> IotaRpcResult<IotaCirculatingSupply> {
         Ok(self.api.http.get_circulating_supply().await?)
+    }
+}
+
+/// The coins of `coins`, in order and each once, until they add up to
+/// `amount`, leaving out `exclude`; with their total, which falls short of
+/// `amount` if `coins` runs out first.
+///
+/// Pages are ordered by balance, so a coin whose balance changes while they
+/// are read can come back on a later page; counted twice, it would be a
+/// duplicate input.
+async fn select_from(
+    coins: impl Stream<Item = Coin>,
+    amount: u128,
+    exclude: &[ObjectId],
+) -> (Vec<Coin>, u128) {
+    let mut total = 0u128;
+    let mut seen = HashSet::new();
+    let selected = coins
+        .filter(|coin: &Coin| {
+            future::ready(
+                !exclude.contains(&coin.coin_object_id) && seen.insert(coin.coin_object_id),
+            )
+        })
+        .take_while(|coin: &Coin| {
+            let ready = future::ready(total < amount);
+            total += coin.balance as u128;
+            ready
+        })
+        .collect::<Vec<_>>()
+        .await;
+    (selected, total)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn coin(id: ObjectId, balance: u64) -> Coin {
+        Coin {
+            coin_type: "0x2::iota::IOTA".to_string(),
+            coin_object_id: id,
+            version: 1.into(),
+            digest: iota_sdk_types::ObjectDigest::ZERO,
+            balance,
+            previous_transaction: iota_sdk_types::TransactionDigest::ZERO,
+        }
+    }
+
+    /// A coin that comes back on a later page is selected and counted once.
+    #[tokio::test]
+    async fn a_coin_repeated_across_pages_is_selected_once() {
+        let (a, b) = (ObjectId::random(), ObjectId::random());
+        let coins = stream::iter([
+            coin(a, 5),
+            coin(b, 3),
+            coin(a, 4),
+            coin(ObjectId::random(), 9),
+        ]);
+
+        let (selected, total) = select_from(coins, 15, &[]).await;
+
+        let ids: Vec<_> = selected.iter().map(|coin| coin.coin_object_id).collect();
+        assert_eq!(ids.iter().filter(|id| **id == a).count(), 1, "{ids:?}");
+        assert_eq!(total, 17);
     }
 }
