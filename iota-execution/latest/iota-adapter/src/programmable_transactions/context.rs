@@ -1309,10 +1309,11 @@ mod checked {
         result?;
 
         // Under P-COOL deterministic validation, post-consensus validation checks
-        // the sender against the inputs but cannot see a received coin: execution
-        // loads a receiving object only when the Move code receives it. So the
-        // sender is checked here, once the commands have run, against the
-        // received coins.
+        // the sender against its inputs and receiving objects, with the deny list
+        // as of the commit's horizon. Here the sender is checked again, once the
+        // commands have run, against the coins the Move code received, with the
+        // deny list as the epoch started, the same read as the check of the
+        // written coins above.
         if protocol_config.pcool_deterministic_validation() {
             state_view.check_received_coin_deny_list(tx_context.sender(), received_coin_types)?;
         }

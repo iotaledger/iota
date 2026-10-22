@@ -1369,11 +1369,13 @@ impl AuthorityState {
             "Move authenticator input objects must not contain owned objects"
         );
 
-        // The sender against the coin types of its inputs, as at admission,
-        // but with the deny list as of the horizon, the same on every
-        // validator. A shared input's object is not loaded, so its type is
-        // read on its own. Receiving objects are not read here: execution
-        // checks the coins Move code receives, and the coins it writes.
+        // The sender against the coin types of its inputs and receiving
+        // objects, as at admission, but with the deny list as of the horizon,
+        // the same on every validator. A kept receiving object was loaded at
+        // the version the transaction names. A shared input's object is not
+        // loaded, so its type is read on its own. Execution also checks the
+        // coins Move code receives, and the coins it writes, against the deny
+        // list as the epoch started.
         let mut shared_objects = Vec::new();
         for input in tx_checked_input_objects.inner().iter().chain(
             per_authenticator_checked_input_objects
@@ -1402,7 +1404,8 @@ impl AuthorityState {
                         .iter()
                         .flat_map(|objects| objects.inner().iter_objects()),
                 )
-                .chain(&shared_objects),
+                .chain(&shared_objects)
+                .chain(tx_receiving_objects.iter_objects()),
         );
         if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
             return Err(denial.into());
