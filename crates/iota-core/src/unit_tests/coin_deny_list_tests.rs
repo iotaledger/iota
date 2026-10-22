@@ -1313,7 +1313,6 @@ impl RegulatedCoinEnv {
             .protocol_config()
             .clone();
         epoch_one_config.set_enable_pcool_flow_for_testing(true);
-        epoch_one_config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         self.env
             .authority
             .reconfigure_for_testing_with_protocol_config(epoch_one_config)
@@ -1323,7 +1322,6 @@ impl RegulatedCoinEnv {
         assert!(epoch_store.pcool_bookkeeping_enabled());
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         })
     }

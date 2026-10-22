@@ -1382,10 +1382,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
         telemetry_subscribers::init_for_testing();
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
         let state = TestAuthorityBuilder::new()
@@ -1458,10 +1454,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints_with_validation() {
         telemetry_subscribers::init_for_testing();
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<Object> = (0..4)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
@@ -1577,10 +1569,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_restarted_after_the_switch_stops_after_the_same_commit() {
         telemetry_subscribers::init_for_testing();
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
         let state = TestAuthorityBuilder::new()
@@ -1839,10 +1827,6 @@ mod tests {
             post_consensus_validation::PostConsensusDecision,
         };
 
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
         let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
@@ -1966,10 +1950,6 @@ mod tests {
             HandlerProcessedObject, HandlerProcessedObjectKind,
         };
 
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
         let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
@@ -2086,10 +2066,6 @@ mod tests {
     async fn drop_of_a_failing_copy_does_not_answer_for_the_kept_transaction() {
         use iota_sdk_types::TransactionExpiration;
 
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
         let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
@@ -2173,10 +2149,6 @@ mod tests {
     /// from another author must still be validated and kept at that commit.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn failing_copy_first_in_a_commit_does_not_hide_the_honest_copy() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..2)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
@@ -2224,10 +2196,6 @@ mod tests {
     /// over its saved verdicts, as after a restart.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn waiting_submitter_is_not_told_about_the_drop_of_a_failing_copy() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let saved_error: IotaError =
             UserInputError::Unsupported("saved drop of a copy".to_string()).into();
         for saved in [None, Some(saved_error)] {
@@ -2457,10 +2425,6 @@ mod tests {
     /// hide another authority's copy of the same transaction in the commit.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn user_transactions_from_an_author_that_sent_end_of_publish_take_no_locks() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..5)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
@@ -2536,10 +2500,6 @@ mod tests {
     /// lock its owned inputs against a deferred transaction.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn user_transactions_after_end_of_publish_quorum_take_no_locks() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..2)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
