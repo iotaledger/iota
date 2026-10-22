@@ -122,7 +122,7 @@ used value of `2` — size disks accordingly, or lower the value by one to keep
 the previous window.
 
 Two further changes in the same release: `0` is now refused at startup, where
-it used to be silently treated as `1`, and leaving
+it used to be raised to `2` like `1`, and leaving
 `num-epochs-to-retain-for-indexes` unset now follows the transaction retention
 instead of turning index pruning off. A node that prunes transactions and left
 the index setting unset therefore starts pruning its index history, which had
