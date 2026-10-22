@@ -153,7 +153,7 @@ impl TransactionOutputs {
             metrics
                 .superseded_capture_misses
                 .inc_by(capture_misses as u64);
-            // A miss loses no data: the version just stays in the live table.
+            // The commit reads a missed pre-image from the live table instead.
             // Crash test builds so that the gap does not go unnoticed.
             debug_fatal!(
                 "{capture_misses} of the versions {tx_digest} superseded have no pre-image among \

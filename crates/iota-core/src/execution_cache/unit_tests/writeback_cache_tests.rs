@@ -935,6 +935,51 @@ async fn test_commit_relocates_superseded_versions() {
     .await;
 }
 
+/// A superseded version whose pre-image execution did not capture is read from
+/// the live table at commit and still moved into the bucket, instead of being
+/// left live where a version-bounded read would serve it.
+#[tokio::test]
+async fn test_commit_moves_a_superseded_version_execution_missed() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let mut rng = StdRng::from_seed([1; 32]);
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
+        let missed = Scenario::new_object();
+        let key = ObjectKey(missed.id(), missed.version());
+        s.store
+            .perpetual_tables
+            .objects
+            .insert(&key, &get_store_object(missed.clone(), Some(0)))
+            .unwrap();
+
+        let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
+            .transfer(missed.object_ref(), Address::random())
+            .build_and_sign(&sender_key);
+        let tx = VerifiedTransaction::new_unchecked(tx);
+        let mut outputs = Scenario::new_outputs();
+        outputs.effects = TestEffectsBuilder::new(tx.inner()).build();
+        outputs.transaction = Arc::new(tx);
+        assert!(
+            outputs
+                .effects
+                .modified_at_versions()
+                .iter()
+                .any(|modified| ObjectKey(*modified.object_id(), modified.version()) == key)
+        );
+        assert!(outputs.superseded.is_empty(), "the pre-image is missed");
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+
+        assert_eq!(s.store.perpetual_tables.objects.get(&key).unwrap(), None);
+        assert_eq!(
+            s.store.get_historic_objects().get(&key).unwrap().as_ref(),
+            Some(&missed)
+        );
+    })
+    .await;
+}
+
 /// Committing a transaction that deletes or wraps an object records a
 /// tombstone for each in the bucket of the committing epoch.
 #[tokio::test]

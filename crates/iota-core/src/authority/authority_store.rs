@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{iter, mem, sync::Arc, thread};
+use std::{collections::HashSet, iter, mem, sync::Arc, thread};
 
 use either::Either;
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -835,14 +835,15 @@ impl AuthorityStore {
         let historic_bucket = self.historic_objects.ensure(epoch_id)?;
         let ledger_bucket = self.historic_ledger.ensure(epoch_id)?;
         let mut write_batch = self.perpetual_tables.objects.batch();
-        for outputs in tx_outputs {
+        for (index, outputs) in tx_outputs.iter().enumerate() {
+            let missed = self.missed_pre_images(&tx_outputs[..index], outputs)?;
             self.write_one_transaction_outputs(
                 &mut write_batch,
                 epoch_id,
                 checkpoint_sequence_number,
-                &historic_bucket,
-                &ledger_bucket,
+                (&historic_bucket, &ledger_bucket),
                 outputs,
+                &missed,
             )?;
         }
         // test crashing before writing the batch
@@ -862,14 +863,63 @@ impl AuthorityStore {
         Ok(write_batch)
     }
 
+    /// The versions `outputs` superseded whose pre-image execution did not
+    /// capture, read from where they still are: the writes of `earlier`, the
+    /// transactions before it in the same batch, or else the live table.
+    ///
+    /// Left in the live table, such a version would be read as the newest one
+    /// at or below a bound once the backlog sweep is done, instead of a newer
+    /// version that went into a bucket.
+    fn missed_pre_images(
+        &self,
+        earlier: &[Arc<TransactionOutputs>],
+        outputs: &TransactionOutputs,
+    ) -> IotaResult<Vec<(ObjectKey, Object)>> {
+        if outputs.superseded.len() == outputs.effects.modified_at_versions().len() {
+            return Ok(Vec::new());
+        }
+        let captured: HashSet<ObjectKey> = outputs.superseded.iter().map(|(key, _)| *key).collect();
+        let mut missed = Vec::new();
+        for modified in outputs.effects.modified_at_versions() {
+            let key = ObjectKey(*modified.object_id(), modified.version());
+            if captured.contains(&key) {
+                continue;
+            }
+            let written_earlier = earlier.iter().rev().find_map(|earlier| {
+                earlier
+                    .written
+                    .get(&key.0)
+                    .filter(|object| object.version() == key.1)
+                    .cloned()
+            });
+            let pre_image = match written_earlier {
+                Some(object) => Some(object),
+                None => match self.perpetual_tables.objects.get(&key)? {
+                    Some(row) => self.perpetual_tables.object(&key, row)?,
+                    None => None,
+                },
+            };
+            match pre_image {
+                Some(object) => missed.push((key, object)),
+                None => warn!(
+                    ?key,
+                    tx_digest = ?outputs.transaction.digest(),
+                    "a superseded version has no pre-image to move into its bucket"
+                ),
+            }
+        }
+        Ok(missed)
+    }
+
+    /// `buckets` are `epoch_id`'s historic objects and ledger buckets.
     fn write_one_transaction_outputs(
         &self,
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
         checkpoint_sequence_number: CheckpointSequenceNumber,
-        historic_bucket: &HistoricObjectsBucket,
-        ledger_bucket: &HistoricLedgerBucket,
+        (historic_bucket, ledger_bucket): (&HistoricObjectsBucket, &HistoricLedgerBucket),
         tx_outputs: &TransactionOutputs,
+        missed_pre_images: &[(ObjectKey, Object)],
     ) -> IotaResult {
         let TransactionOutputs {
             transaction,
@@ -926,10 +976,11 @@ impl AuthorityStore {
         // same key. Nothing does: a transaction never supersedes a version it
         // writes, and `build_db_batch` appends transactions in checkpoint
         // order, so the writer of a superseded version is earlier in the batch.
+        let superseded = superseded.iter().chain(missed_pre_images);
         write_batch.insert_batch_tagged(
             &historic_bucket.objects,
             superseded
-                .iter()
+                .clone()
                 .map(|(key, object)| (*key, object.clone())),
         )?;
         // Lets the bucket's expiry delete the tombstones written above from the
@@ -940,7 +991,7 @@ impl AuthorityStore {
         )?;
         write_batch.delete_batch(
             &self.perpetual_tables.objects,
-            superseded.iter().map(|(key, _)| *key),
+            superseded.map(|(key, _)| *key),
         )?;
 
         // Write events into the epoch's bucket keyed off of transaction_digest
