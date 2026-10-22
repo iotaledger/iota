@@ -21,6 +21,7 @@ use iota_types::balance::Supply;
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
+    apis::common,
     errors::IndexerError::{DateTimeParsing, InvalidArgument},
     read::IndexerReader,
 };
@@ -59,7 +60,7 @@ impl CoinReadApiServer for CoinReadApi {
 
         // This store pages by object id alone. Without a cursor, start from
         // the minimal possible ObjectId.
-        let cursor = cursor.map_or(ObjectId::ZERO, |cursor| cursor.object_id());
+        let cursor = common::object_id_cursor(cursor)?.unwrap_or(ObjectId::ZERO);
         let mut results = self
             .inner
             .get_owned_coins_in_blocking_task(owner, Some(coin_type), cursor, limit + 1)
@@ -91,7 +92,7 @@ impl CoinReadApiServer for CoinReadApi {
 
         // This store pages by object id alone. Without a cursor, start from
         // the minimal possible ObjectId.
-        let cursor = cursor.map_or(ObjectId::ZERO, |cursor| cursor.object_id());
+        let cursor = common::object_id_cursor(cursor)?.unwrap_or(ObjectId::ZERO);
         let mut results = self
             .inner
             .get_owned_coins_in_blocking_task(owner, None, cursor, limit + 1)

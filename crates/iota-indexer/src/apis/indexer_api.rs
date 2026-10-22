@@ -61,8 +61,7 @@ impl IndexerApi {
             .get_owned_objects_in_blocking_task(
                 address,
                 filter,
-                // Ordered by object id here, so that is all the cursor is read for.
-                cursor.map(|cursor| cursor.object_id()),
+                common::object_id_cursor(cursor)?,
                 limit + 1,
             )
             .await?;
