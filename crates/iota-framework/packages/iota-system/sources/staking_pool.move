@@ -32,6 +32,8 @@ const EPoolNotPreactive: u64 = 15;
 const EActivationOfInactivePool: u64 = 16;
 const EDelegationOfZeroIota: u64 = 17;
 const EStakedIotaBelowThreshold: u64 = 18;
+const EPendingWithdrawExceedsPoolBalance: u64 = 19;
+const EPendingPoolTokenWithdrawExceedsBalance: u64 = 20;
 
 /// A staking pool embedded in each validator struct in the system state object.
 public struct StakingPoolV1 has key, store {
@@ -131,8 +133,7 @@ public(package) fun request_withdraw_stake(
     staked_iota: StakedIota,
     ctx: &TxContext,
 ): Balance<IOTA> {
-    // stake is inactive
-    if (staked_iota.stake_activation_epoch > ctx.epoch()) {
+    if (is_stake_pending(pool, staked_iota.stake_activation_epoch, ctx.epoch())) {
         let principal = unwrap_staked_iota(staked_iota);
         let withdraw_amount = principal.value();
 
@@ -226,8 +227,16 @@ public(package) fun process_pending_stakes_and_withdraws(
     ctx: &TxContext,
 ) {
     let new_epoch = ctx.epoch() + 1;
-    process_pending_stake_withdraw(pool);
-    process_pending_stake(pool);
+    // A withdrawal recorded against stake that was never processed into the pool
+    // leaves more to withdraw than the pool holds; adding the stake first lets the
+    // two cancel instead of aborting the epoch change.
+    if (pool.pending_total_iota_withdraw > pool.iota_balance) {
+        process_pending_stake(pool);
+        process_pending_stake_withdraw(pool);
+    } else {
+        process_pending_stake_withdraw(pool);
+        process_pending_stake(pool);
+    };
     pool
         .exchange_rates
         .add(
@@ -243,6 +252,14 @@ public(package) fun process_pending_stakes_and_withdraws(
 /// Called at epoch boundaries to process pending stake withdraws requested during the epoch.
 /// Also called immediately upon withdrawal if the pool is inactive or if the pool is preactive.
 public(package) fun process_pending_stake_withdraw(pool: &mut StakingPoolV1) {
+    assert!(
+        pool.iota_balance >= pool.pending_total_iota_withdraw,
+        EPendingWithdrawExceedsPoolBalance,
+    );
+    assert!(
+        pool.pool_token_balance >= pool.pending_pool_token_withdraw,
+        EPendingPoolTokenWithdrawExceedsBalance,
+    );
     pool.iota_balance = pool.iota_balance - pool.pending_total_iota_withdraw;
     pool.pool_token_balance = pool.pool_token_balance - pool.pending_pool_token_withdraw;
     pool.pending_total_iota_withdraw = 0;
@@ -399,18 +416,16 @@ public fun pool_token_exchange_rate_at_epoch(
         return initial_exchange_rate()
     };
     let clamped_epoch = pool.deactivation_epoch.get_with_default(epoch);
-    let mut epoch = clamped_epoch.min(epoch);
+    let epoch = clamped_epoch.min(epoch);
     let activation_epoch = *pool.activation_epoch.borrow();
 
-    // Find the latest epoch that's earlier than the given epoch with an entry in the table
-    while (epoch >= activation_epoch) {
-        if (pool.exchange_rates.contains(epoch)) {
-            return pool.exchange_rates[epoch]
-        };
-        epoch = epoch - 1;
-    };
-    // This line really should be unreachable. Do we want an assert false here?
-    initial_exchange_rate()
+    let latest_epoch = latest_exchange_rate_epoch(pool, activation_epoch, epoch);
+    if (latest_epoch.is_some()) {
+        pool.exchange_rates[latest_epoch.destroy_some()]
+    } else {
+        // This line really should be unreachable. Do we want an assert false here?
+        initial_exchange_rate()
+    }
 }
 
 /// Returns the total value of the pending staking requests for this staking pool.
@@ -439,6 +454,33 @@ public fun pool_token_amount(exchange_rate: &PoolTokenExchangeRate): u64 {
 fun is_preactive_at_epoch(pool: &StakingPoolV1, epoch: u64): bool {
     // Either the pool is currently preactive or the pool's starting epoch is later than the provided epoch.
     is_preactive(pool) || (*pool.activation_epoch.borrow() > epoch)
+}
+
+/// The latest epoch in `[lower, upper]` with an exchange rate entry, if any.
+fun latest_exchange_rate_epoch(pool: &StakingPoolV1, lower: u64, upper: u64): Option<u64> {
+    if (upper < lower) return option::none();
+    let mut epoch = upper;
+    while (epoch > lower) {
+        if (pool.exchange_rates.contains(epoch)) return option::some(epoch);
+        epoch = epoch - 1;
+    };
+    if (pool.exchange_rates.contains(lower)) option::some(lower) else option::none()
+}
+
+/// Whether the stake behind a receipt is still waiting to be processed into the
+/// pool's balances. An epoch change that ran in safe mode runs no Move code, so a
+/// stake can reach its activation epoch with its principal still in `pending_stake`.
+/// It stays there until the next normal epoch change records an exchange rate.
+fun is_stake_pending(
+    pool: &StakingPoolV1,
+    stake_activation_epoch: u64,
+    current_epoch: u64,
+): bool {
+    if (stake_activation_epoch > current_epoch) return true;
+    // Stake added to a preactive pool is processed on request, not at the epoch change.
+    if (is_preactive_at_epoch(pool, stake_activation_epoch)) return false;
+    let upper = pool.deactivation_epoch.get_with_default(current_epoch).min(current_epoch);
+    latest_exchange_rate_epoch(pool, stake_activation_epoch, upper).is_none()
 }
 
 fun get_iota_amount(exchange_rate: &PoolTokenExchangeRate, token_amount: u64): u64 {
@@ -480,6 +522,18 @@ fun check_balance_invariants(pool: &StakingPoolV1, epoch: u64) {
 }
 
 // ==== test-related functions ====
+
+/// Record a pending withdrawal directly, to reproduce pool state that the
+/// withdrawal path can no longer produce.
+#[test_only]
+public fun set_pending_withdraws_for_testing(
+    pool: &mut StakingPoolV1,
+    pending_total_iota_withdraw: u64,
+    pending_pool_token_withdraw: u64,
+) {
+    pool.pending_total_iota_withdraw = pending_total_iota_withdraw;
+    pool.pending_pool_token_withdraw = pending_pool_token_withdraw;
+}
 
 // Given the `staked_iota` receipt calculate the current rewards (in terms of IOTA) for it.
 #[test_only]

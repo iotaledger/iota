@@ -112,6 +112,12 @@ pool_token_amount
 is_preactive_at_epoch
 	fun
 	0x3::staking_pool
+latest_exchange_rate_epoch
+	fun
+	0x3::staking_pool
+is_stake_pending
+	fun
+	0x3::staking_pool
 get_iota_amount
 	fun
 	0x3::staking_pool
