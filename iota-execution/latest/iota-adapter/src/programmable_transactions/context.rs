@@ -272,6 +272,28 @@ mod checked {
                 .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))
         }
 
+        /// Copy the read-I/O, event, and package-load counters into the gas
+        /// status. Must run before the context is dropped, on the failure path
+        /// as well as in [`finish`](Self::finish), since the object runtime and
+        /// linkage view that hold them do not outlive it.
+        pub fn record_resource_profile_counters(&mut self) -> Result<(), ExecutionError> {
+            let object_runtime = self.object_runtime()?;
+            let read_stats = object_runtime.read_stats();
+            let event_count = object_runtime.total_events_count();
+            let event_bytes = object_runtime.total_events_size();
+            let (packages_loaded, package_bytes_loaded) = self.linkage_view.package_load_counters();
+
+            let move_gas_status = self.gas_charger.move_gas_status_mut();
+            move_gas_status.record_object_runtime_usage(
+                read_stats.reads,
+                read_stats.read_bytes,
+                read_stats.cached_bytes,
+            );
+            move_gas_status.record_events(event_count, event_bytes);
+            move_gas_status.record_package_loads(packages_loaded, package_bytes_loaded);
+            Ok(())
+        }
+
         /// Create a new ID and update the state
         pub fn fresh_id(&mut self) -> Result<ObjectId, ExecutionError> {
             let object_id = self.tx_context.borrow_mut().fresh_id();
@@ -753,7 +775,8 @@ mod checked {
         }
 
         /// Determine the object changes and collect all user events
-        pub fn finish<Mode: ExecutionMode>(self) -> Result<ExecutionResults, ExecutionError> {
+        pub fn finish<Mode: ExecutionMode>(mut self) -> Result<ExecutionResults, ExecutionError> {
+            self.record_resource_profile_counters()?;
             let Self {
                 protocol_config,
                 vm,

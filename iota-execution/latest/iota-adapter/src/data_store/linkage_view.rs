@@ -48,6 +48,12 @@ pub struct LinkageView<'state> {
     /// package is in this set, then we will not try to load its type origin
     /// table when setting it as a context (again).
     past_contexts: RefCell<HashSet<ObjectId>>,
+    /// Distinct non-system packages read for this transaction, through
+    /// `PackageStore::get_package` or reported by the adapter, and their total
+    /// serialized bytes, for the read-I/O component of the resource profile.
+    counted_packages: RefCell<HashSet<ObjectId>>,
+    packages_loaded: RefCell<u64>,
+    package_bytes_loaded: RefCell<u64>,
 }
 
 #[derive(Debug)]
@@ -70,6 +76,33 @@ impl<'state> LinkageView<'state> {
             linkage_info: RefCell::new(None),
             type_origin_cache: RefCell::new(HashMap::new()),
             past_contexts: RefCell::new(HashSet::new()),
+            counted_packages: RefCell::new(HashSet::new()),
+            packages_loaded: RefCell::new(0),
+            package_bytes_loaded: RefCell::new(0),
+        }
+    }
+
+    /// The distinct non-system packages read for this transaction and their
+    /// total serialized bytes, for the resource profile.
+    pub fn package_load_counters(&self) -> (u64, u64) {
+        (
+            *self.packages_loaded.borrow(),
+            *self.package_bytes_loaded.borrow(),
+        )
+    }
+
+    /// Count a package of `bytes` serialized size as read, once per package;
+    /// system packages are ignored. For packages the adapter reads outside
+    /// `PackageStore::get_package`, such as publish and upgrade dependencies.
+    pub fn record_package_load(&self, package_id: ObjectId, bytes: u64) {
+        if package_id.is_system_package() {
+            return;
+        }
+        if self.counted_packages.borrow_mut().insert(package_id) {
+            let mut count = self.packages_loaded.borrow_mut();
+            *count = count.saturating_add(1);
+            let mut total = self.package_bytes_loaded.borrow_mut();
+            *total = total.saturating_add(bytes);
         }
     }
 
@@ -358,7 +391,11 @@ impl ModuleResolver for LinkageView<'_> {
     type Error = IotaError;
 
     fn get_module(&self, id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
+        // Bypasses the package-load counters: the VM loader fetches modules
+        // only on misses of its per-epoch cache, which depends on node-local
+        // history.
         Ok(self
+            .resolver
             .get_package(&ObjectId::new(id.address().into_bytes()))?
             .and_then(|package| {
                 package
@@ -371,6 +408,97 @@ impl ModuleResolver for LinkageView<'_> {
 
 impl PackageStore for LinkageView<'_> {
     fn get_package(&self, package_id: &ObjectId) -> IotaResult<Option<Rc<MovePackage>>> {
-        self.resolver.get_package(package_id)
+        let result = self.resolver.get_package(package_id)?;
+        if let Some(package) = &result {
+            self.record_package_load(*package_id, package.size() as u64);
+        }
+        Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeMap, rc::Rc};
+
+    use iota_sdk_types::{Identifier, MovePackage, ObjectId, Version};
+    use iota_types::{SYSTEM_PACKAGE_ADDRESSES, error::IotaResult};
+    use move_core_types::{
+        account_address::AccountAddress, identifier::Identifier as CoreIdentifier,
+        language_storage::ModuleId, resolver::ModuleResolver,
+    };
+
+    use super::LinkageView;
+    use crate::data_store::PackageStore;
+
+    struct StubPackages(BTreeMap<ObjectId, Rc<MovePackage>>);
+
+    impl PackageStore for StubPackages {
+        fn get_package(&self, id: &ObjectId) -> IotaResult<Option<Rc<MovePackage>>> {
+            Ok(self.0.get(id).cloned())
+        }
+    }
+
+    fn stub_package(id: ObjectId) -> Rc<MovePackage> {
+        Rc::new(
+            MovePackage::new(
+                id,
+                Version::from_u64(1),
+                BTreeMap::from([(Identifier::new("m").unwrap(), vec![0u8; 100])]),
+                u64::MAX,
+                vec![],
+                BTreeMap::new(),
+            )
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn module_fetches_are_not_counted_as_package_loads() {
+        let user_a = ObjectId::new([0xA; 32]);
+        let user_b = ObjectId::new([0xB; 32]);
+        let system = ObjectId::new(SYSTEM_PACKAGE_ADDRESSES[0].into_bytes());
+
+        let view = LinkageView::new(Box::new(StubPackages(BTreeMap::from([
+            (user_a, stub_package(user_a)),
+            (user_b, stub_package(user_b)),
+            (system, stub_package(system)),
+        ]))));
+
+        let module_id = ModuleId::new(
+            AccountAddress::new(user_b.into_bytes()),
+            CoreIdentifier::new("m").unwrap(),
+        );
+        assert!(view.get_module(&module_id).unwrap().is_some());
+        assert_eq!(view.package_load_counters(), (0, 0));
+
+        let package_bytes = view.get_package(&user_a).unwrap().unwrap().size() as u64;
+        assert_eq!(view.package_load_counters(), (1, package_bytes));
+        view.get_package(&user_a).unwrap();
+        assert_eq!(view.package_load_counters(), (1, package_bytes));
+
+        view.get_package(&system).unwrap();
+        assert_eq!(view.package_load_counters(), (1, package_bytes));
+
+        view.get_package(&user_b).unwrap();
+        assert_eq!(view.package_load_counters(), (2, 2 * package_bytes));
+    }
+
+    #[test]
+    fn direct_package_loads_share_the_counters() {
+        let user = ObjectId::new([0xC; 32]);
+        let system = ObjectId::new(SYSTEM_PACKAGE_ADDRESSES[0].into_bytes());
+        let view = LinkageView::new(Box::new(StubPackages(BTreeMap::from([(
+            user,
+            stub_package(user),
+        )]))));
+
+        view.record_package_load(user, 100);
+        view.record_package_load(user, 100);
+        view.record_package_load(system, 100);
+        assert_eq!(view.package_load_counters(), (1, 100));
+
+        // The same package fetched through the store is not counted again.
+        view.get_package(&user).unwrap();
+        assert_eq!(view.package_load_counters(), (1, 100));
     }
 }

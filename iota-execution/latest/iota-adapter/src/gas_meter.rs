@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_move_natives::resource_profile::abstract_input_size;
 use iota_types::gas_model::{
     gas_predicates::native_function_threshold_exceeded,
     tables::{GasStatus, REFERENCE_SIZE, STRUCT_SIZE, VEC_SIZE},
 };
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
+    account_address::AccountAddress,
     gas_algebra::{AbstractMemorySize, InternalGas, NumArgs, NumBytes},
     language_storage::ModuleId,
 };
@@ -15,10 +17,139 @@ use move_vm_profiler::GasProfiler;
 use move_vm_types::{
     gas::{GasMeter, SimpleInstruction},
     loaded_data::runtime_types::Type,
-    views::{TypeView, ValueView},
+    views::{TypeView, ValueView, ValueVisitor},
 };
 
 pub struct IotaGasMeter<'g>(pub &'g mut GasStatus);
+
+/// A native whose execution cost depends on a closed-set selector argument
+/// (an enum passed as `u8`). Such a native gets one profile counter per
+/// selector value instead of one shared counter, so the fit can price each
+/// variant separately.
+struct NativeSelector {
+    first_arg: usize,
+    second_arg: Option<usize>,
+    render: fn(u8, Option<u8>) -> Option<&'static str>,
+}
+
+fn render_groth16_curve(value: u8, _: Option<u8>) -> Option<&'static str> {
+    // `0x2::groth16::Curve` ids.
+    match value {
+        0 => Some("bls12381"),
+        1 => Some("bn254"),
+        _ => None,
+    }
+}
+
+fn group_ops_group_name(value: u8) -> Option<&'static str> {
+    // `Groups::from_u8` in iota-move-natives group_ops.
+    match value {
+        0 => Some("bls12381_scalar"),
+        1 => Some("bls12381_g1"),
+        2 => Some("bls12381_g2"),
+        3 => Some("bls12381_gt"),
+        4 => Some("bls12381_uncompressed_g1"),
+        _ => None,
+    }
+}
+
+fn render_group(value: u8, _: Option<u8>) -> Option<&'static str> {
+    group_ops_group_name(value)
+}
+
+fn render_group_convert(from: u8, to: Option<u8>) -> Option<&'static str> {
+    match (from, to?) {
+        (1, 4) => Some("bls12381_g1_to_uncompressed_g1"),
+        (4, 1) => Some("bls12381_uncompressed_g1_to_g1"),
+        _ => None,
+    }
+}
+
+fn render_ecdsa_hash(value: u8, _: Option<u8>) -> Option<&'static str> {
+    match value {
+        0 => Some("keccak256"),
+        1 => Some("sha256"),
+        _ => None,
+    }
+}
+
+/// The registry of selector-refined natives. Anything not listed keeps its
+/// one-counter-per-function key.
+fn native_selector(module_id: &ModuleId, function: &str) -> Option<NativeSelector> {
+    if *module_id.address() != AccountAddress::TWO {
+        return None;
+    }
+    let single = |first_arg, render| {
+        Some(NativeSelector {
+            first_arg,
+            second_arg: None,
+            render,
+        })
+    };
+    match (module_id.name().as_str(), function) {
+        ("groth16", "prepare_verifying_key_internal" | "verify_groth16_proof_internal") => {
+            single(0, render_groth16_curve)
+        }
+        (
+            "group_ops",
+            "internal_validate"
+            | "internal_add"
+            | "internal_sub"
+            | "internal_mul"
+            | "internal_div"
+            | "internal_hash_to"
+            | "internal_multi_scalar_mul"
+            | "internal_pairing"
+            | "internal_sum",
+        ) => single(0, render_group),
+        ("group_ops", "internal_convert") => Some(NativeSelector {
+            first_arg: 0,
+            second_arg: Some(1),
+            render: render_group_convert,
+        }),
+        ("ecdsa_k1", "secp256k1_ecrecover") | ("ecdsa_r1", "secp256r1_ecrecover") => {
+            single(2, render_ecdsa_hash)
+        }
+        ("ecdsa_k1", "secp256k1_verify") | ("ecdsa_r1", "secp256r1_verify") => {
+            single(3, render_ecdsa_hash)
+        }
+        _ => None,
+    }
+}
+
+/// Captures a top-level `u8` argument's value; containers and references are
+/// not descended into, so only a genuine scalar selector is captured.
+#[derive(Default)]
+struct SelectorProbe {
+    value: Option<u8>,
+}
+
+impl ValueVisitor for SelectorProbe {
+    fn visit_u8(&mut self, depth: usize, val: u8) {
+        if depth == 0 {
+            self.value = Some(val);
+        }
+    }
+    fn visit_u16(&mut self, _depth: usize, _val: u16) {}
+    fn visit_u32(&mut self, _depth: usize, _val: u32) {}
+    fn visit_u64(&mut self, _depth: usize, _val: u64) {}
+    fn visit_u128(&mut self, _depth: usize, _val: u128) {}
+    fn visit_u256(&mut self, _depth: usize, _val: move_core_types::u256::U256) {}
+    fn visit_bool(&mut self, _depth: usize, _val: bool) {}
+    fn visit_address(&mut self, _depth: usize, _val: AccountAddress) {}
+    fn visit_struct(&mut self, _depth: usize, _len: usize) -> bool {
+        false
+    }
+    fn visit_variant(&mut self, _depth: usize, _len: usize) -> bool {
+        false
+    }
+    fn visit_vec(&mut self, _depth: usize, _len: usize) -> bool {
+        false
+    }
+    fn visit_ref(&mut self, _depth: usize, _is_global: bool) -> bool {
+        false
+    }
+}
 
 /// Returns a tuple of (<pops>, <pushes>, <stack_size_decrease>,
 /// <stack_size_increase>)
@@ -102,7 +233,10 @@ impl GasMeter for IotaGasMeter<'_> {
             })
             .unwrap_or_else(AbstractMemorySize::zero);
         self.0.record_native_call();
-        if native_function_threshold_exceeded(self.0.gas_model_version, self.0.num_native_calls) {
+        let gas_before = self.0.gas_left;
+        let threshold_exceeded =
+            native_function_threshold_exceeded(self.0.gas_model_version, self.0.num_native_calls);
+        let result = if threshold_exceeded {
             // Charge for the stack operations. We don't count this as an "instruction"
             // since we already accounted for the `Call` instruction in the
             // `charge_native_function_before_execution` call.
@@ -116,10 +250,16 @@ impl GasMeter for IotaGasMeter<'_> {
             // Charge for the stack operations. We don't count this as an "instruction"
             // since we already accounted for the `Call` instruction in the
             // `charge_native_function_before_execution` call.
-            self.0.charge(0, pushes, 0, size_increase.into(), 0)?;
-            // Now charge the gas that the native function told us to charge.
-            self.0.deduct_gas(amount)
-        }
+            self.0
+                .charge(0, pushes, 0, size_increase.into(), 0)
+                // Now charge the gas that the native function told us to charge.
+                .and_then(|()| self.0.deduct_gas(amount))
+        };
+        self.0.record_native_gas_deducted(gas_before);
+        let native_instructions = if threshold_exceeded { amount.into() } else { 0 };
+        self.0
+            .discount_native_flows(native_instructions, pushes, size_increase.into());
+        result
     }
 
     fn charge_native_function_before_execution(
@@ -130,14 +270,47 @@ impl GasMeter for IotaGasMeter<'_> {
         // Determine the number of pops that are going to be needed for this function
         // call, and charge for them.
         let pops = args.len() as u64;
+        let selector = self
+            .0
+            .pending_native_identity()
+            .and_then(|(module_id, function)| native_selector(module_id, function));
+        let mut selector_values: (Option<u8>, Option<u8>) = (None, None);
+        let mut input_bytes = AbstractMemorySize::zero();
         // Calculate the size decrease of the stack from the above pops.
-        let stack_reduction_size = args.fold(AbstractMemorySize::new(pops), |acc, elem| {
-            acc + abstract_memory_size(elem)
-        });
+        let mut stack_reduction_size = AbstractMemorySize::new(pops);
+        for (index, elem) in args.enumerate() {
+            if let Some(spec) = &selector {
+                if index == spec.first_arg || Some(index) == spec.second_arg {
+                    let mut probe = SelectorProbe::default();
+                    elem.visit(&mut probe);
+                    if index == spec.first_arg {
+                        selector_values.0 = probe.value;
+                    } else {
+                        selector_values.1 = probe.value;
+                    }
+                }
+            }
+            input_bytes += abstract_input_size(&elem);
+            stack_reduction_size += abstract_memory_size(elem);
+        }
+        if let Some(spec) = selector {
+            if let Some(value) = selector_values.0 {
+                if let Some(variant) = (spec.render)(value, selector_values.1) {
+                    self.0.refine_native_function_identity(variant);
+                }
+            }
+        }
+        self.0.discard_native_call_frame();
+        self.0.record_native_input_bytes(input_bytes.into());
         // Track that this is going to be popping from the operand stack. We also
         // increment the instruction count as we need to account for the `Call`
         // bytecode that initiated this native call.
         self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
+    }
+
+    fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
+        self.0
+            .record_native_function_identity(module_id, function_name);
     }
 
     fn charge_call(
@@ -155,6 +328,7 @@ impl GasMeter for IotaGasMeter<'_> {
         let stack_reduction_size = args.fold(AbstractMemorySize::new(0), |acc, elem| {
             acc + abstract_memory_size(elem)
         });
+        self.0.record_call_frame(stack_reduction_size.into());
         self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
     }
 
@@ -173,6 +347,7 @@ impl GasMeter for IotaGasMeter<'_> {
         let stack_reduction_size = args.fold(AbstractMemorySize::new(0), |acc, elem| {
             acc + abstract_memory_size(elem)
         });
+        self.0.record_call_frame(stack_reduction_size.into());
         // Charge for the pops, no pushes, and account for the stack size decrease. Also
         // track the `CallGeneric` instruction we must have encountered for
         // this.
@@ -199,17 +374,17 @@ impl GasMeter for IotaGasMeter<'_> {
     }
 
     fn charge_move_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the move of the local on to the stack. Note that we charge here
-        // since we aren't tracking the local size (at least not yet). If we
-        // were, this should be a net-zero operation in terms of memory usage.
-        self.0.charge(1, 1, 0, abstract_memory_size(val).into(), 0)
+        // Charge for the move of the local on to the stack.
+        let size = abstract_memory_size(val);
+        self.0.record_move_loc(size.into());
+        self.0.charge(1, 1, 0, size.into(), 0)
     }
 
     fn charge_store_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the storing of the value on the stack into a local. Note here that
-        // if we were also accounting for the size of the locals that this would
-        // be a net-zero operation in terms of memory.
-        self.0.charge(1, 0, 1, 0, abstract_memory_size(val).into())
+        // Charge for the storing of the value on the stack into a local.
+        let size = abstract_memory_size(val);
+        self.0.record_store_loc(size.into());
+        self.0.charge(1, 0, 1, 0, size.into())
     }
 
     fn charge_pack(
@@ -356,8 +531,12 @@ impl GasMeter for IotaGasMeter<'_> {
 
     fn charge_drop_frame(
         &mut self,
-        _locals: impl Iterator<Item = impl ValueView>,
+        locals: impl Iterator<Item = impl ValueView>,
     ) -> PartialVMResult<()> {
+        let dropped = locals.fold(AbstractMemorySize::zero(), |acc, val| {
+            acc + abstract_memory_size(val)
+        });
+        self.0.record_drop_frame(dropped.into());
         Ok(())
     }
 
@@ -379,4 +558,198 @@ impl GasMeter for IotaGasMeter<'_> {
 
 fn abstract_memory_size(val: impl ValueView) -> AbstractMemorySize {
     val.abstract_memory_size(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::gas_model::tables::initial_cost_schedule_v1;
+    use move_core_types::{
+        account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
+    };
+    use move_vm_types::values::Value;
+
+    use super::*;
+
+    struct NoTypeArgs;
+    impl TypeView for NoTypeArgs {
+        fn to_type_tag(&self) -> TypeTag {
+            unreachable!("the benchmarks pass no type arguments")
+        }
+    }
+
+    /// Run with: `cargo test --release -p iota-adapter-latest --lib
+    /// bench_native_call_hot_path -- --ignored --nocapture`
+    #[test]
+    #[ignore = "manual benchmark, run explicitly in release mode"]
+    fn bench_native_call_hot_path() {
+        let module_id = ModuleId::new(AccountAddress::TWO, Identifier::new("hash").unwrap());
+        let arg = Value::vector_u8(vec![7u8; 10_000]);
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        let iterations: u64 = 100_000;
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            meter.record_native_function_identity(&module_id, "blake2b256");
+            meter
+                .charge_native_function_before_execution(
+                    std::iter::empty::<NoTypeArgs>(),
+                    std::iter::once(&arg),
+                )
+                .unwrap();
+            meter
+                .charge_native_function(
+                    InternalGas::new(100),
+                    Option::<std::iter::Empty<&Value>>::None,
+                )
+                .unwrap();
+        }
+        let elapsed = start.elapsed();
+        println!(
+            "native call: {:.2} ns/call over {iterations} calls, one 10 KB vector argument \
+             (total {elapsed:?})",
+            elapsed.as_nanos() as f64 / iterations as f64,
+        );
+    }
+
+    /// Run with: `cargo test --release -p iota-adapter-latest --lib
+    /// bench_drop_frame_hot_path -- --ignored --nocapture`
+    #[test]
+    #[ignore = "manual benchmark, run explicitly in release mode"]
+    fn bench_drop_frame_hot_path() {
+        let local = Value::vector_u8(vec![7u8; 10_000]);
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        let iterations: u64 = 100_000;
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            meter.0.record_call_frame(0);
+            meter.charge_drop_frame(std::iter::once(&local)).unwrap();
+        }
+        let elapsed = start.elapsed();
+        println!(
+            "drop frame: {:.2} ns/call over {iterations} calls, one 10 KB vector local \
+             (total {elapsed:?})",
+            elapsed.as_nanos() as f64 / iterations as f64,
+        );
+    }
+
+    /// Runs one native call through the meter and returns the per-function
+    /// counter keys the profile recorded.
+    fn native_call_keys(module: &str, function: &str, args: Vec<Value>) -> Vec<String> {
+        let module_id = ModuleId::new(AccountAddress::TWO, Identifier::new(module).unwrap());
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        meter.record_native_function_identity(&module_id, function);
+        meter
+            .charge_native_function_before_execution(std::iter::empty::<NoTypeArgs>(), args.iter())
+            .unwrap();
+        meter
+            .charge_native_function(
+                InternalGas::new(100),
+                Option::<std::iter::Empty<&Value>>::None,
+            )
+            .unwrap();
+        status
+            .resource_profile()
+            .native_calls_by_function
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    #[test]
+    fn selector_refines_native_counter_key() {
+        // groth16: curve selector is the first argument.
+        let keys = native_call_keys(
+            "groth16",
+            "verify_groth16_proof_internal",
+            vec![Value::u8(1), Value::vector_u8(vec![0u8; 32])],
+        );
+        assert_eq!(
+            keys,
+            vec!["0x2::groth16::verify_groth16_proof_internal::bn254".to_string()]
+        );
+
+        // group_ops: group selector is the first argument.
+        let keys = native_call_keys(
+            "group_ops",
+            "internal_add",
+            vec![
+                Value::u8(2),
+                Value::vector_u8(vec![0u8; 96]),
+                Value::vector_u8(vec![0u8; 96]),
+            ],
+        );
+        assert_eq!(
+            keys,
+            vec!["0x2::group_ops::internal_add::bls12381_g2".to_string()]
+        );
+
+        // ecdsa: hash selector is the last argument.
+        let keys = native_call_keys(
+            "ecdsa_k1",
+            "secp256k1_verify",
+            vec![
+                Value::vector_u8(vec![0u8; 64]),
+                Value::vector_u8(vec![0u8; 33]),
+                Value::vector_u8(vec![0u8; 32]),
+                Value::u8(0),
+            ],
+        );
+        assert_eq!(
+            keys,
+            vec!["0x2::ecdsa_k1::secp256k1_verify::keccak256".to_string()]
+        );
+
+        // An out-of-range selector keeps the unrefined key.
+        let keys = native_call_keys(
+            "groth16",
+            "verify_groth16_proof_internal",
+            vec![Value::u8(9), Value::vector_u8(vec![0u8; 32])],
+        );
+        assert_eq!(
+            keys,
+            vec!["0x2::groth16::verify_groth16_proof_internal".to_string()]
+        );
+
+        // A native outside the registry keeps its plain key.
+        let keys = native_call_keys("hash", "blake2b256", vec![Value::vector_u8(vec![0u8; 32])]);
+        assert_eq!(keys, vec!["0x2::hash::blake2b256".to_string()]);
+    }
+
+    #[test]
+    fn selector_rebuilds_key_between_calls() {
+        let module_id = ModuleId::new(AccountAddress::TWO, Identifier::new("groth16").unwrap());
+        let mut status = GasStatus::new(initial_cost_schedule_v1(), u64::MAX / 2_000, 1, 1);
+        let mut meter = IotaGasMeter(&mut status);
+        for curve in [1u8, 0u8] {
+            let args = [Value::u8(curve)];
+            meter.record_native_function_identity(&module_id, "verify_groth16_proof_internal");
+            meter
+                .charge_native_function_before_execution(
+                    std::iter::empty::<NoTypeArgs>(),
+                    args.iter(),
+                )
+                .unwrap();
+            meter
+                .charge_native_function(
+                    InternalGas::new(100),
+                    Option::<std::iter::Empty<&Value>>::None,
+                )
+                .unwrap();
+        }
+        let keys: Vec<String> = status
+            .resource_profile()
+            .native_calls_by_function
+            .keys()
+            .cloned()
+            .collect();
+        assert_eq!(
+            keys,
+            vec![
+                "0x2::groth16::verify_groth16_proof_internal::bls12381".to_string(),
+                "0x2::groth16::verify_groth16_proof_internal::bn254".to_string(),
+            ]
+        );
+    }
 }

@@ -34,9 +34,9 @@ use crate::authority::{
     auth_unit_test_utils::build_test_modules_with_dep_addr,
     authority_tests::{execute_programmable_transaction, init_state_with_ids},
     move_integration_tests::{
-        UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
-        build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps,
-        created_package_ref, run_multi_txns,
+        SharedTraceBuffer, UpgradeData, build_and_publish_test_package_with_upgrade_cap,
+        build_multi_publish_txns, build_multi_upgrade_txns, build_package,
+        collect_packages_and_upgrade_caps, created_package_ref, profile_counter, run_multi_txns,
     },
     test_authority_builder::TestAuthorityBuilder,
 };
@@ -363,6 +363,50 @@ async fn test_upgrade_package_happy_path() {
         })
         .await;
     assert!(effects.status().is_success(), "{:#?}", effects.status());
+}
+
+/// The package being upgraded is read outside `PackageStore::get_package`,
+/// and the resource profile must still count it.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn resource_profile_counts_package_read_for_upgrade() {
+    let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
+    let base_package_bytes = runner
+        .authority_state
+        .get_object_cache_reader()
+        .get_package_object(&runner.package.object_id)
+        .unwrap()
+        .move_package()
+        .size() as u64;
+
+    let buffer = SharedTraceBuffer::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_env_filter("resource_profile=trace")
+        .with_writer(buffer.clone())
+        .with_ansi(false)
+        .without_time()
+        .finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+
+    let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
+    let effects = runner
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![])
+        .await;
+    drop(guard);
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
+
+    let captured = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
+    let lines: Vec<_> = captured
+        .lines()
+        .filter(|line| line.contains("Per-transaction resource profile"))
+        .collect();
+    assert_eq!(lines.len(), 1, "expected one profile, got {captured}");
+    // The base package is the only non-system package the upgrade reads.
+    assert_eq!(profile_counter(lines[0], "packages_loaded"), 1);
+    assert_eq!(
+        profile_counter(lines[0], "package_bytes_loaded"),
+        base_package_bytes
+    );
 }
 
 #[tokio::test]
