@@ -61,7 +61,7 @@ pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcIn
 /// A cursor carrying only an object id, as the indexer issues, is refused:
 /// this node's owner index is ordered by object type and balance first, so
 /// seeking by object id alone would skip or repeat rows.
-fn cursor_position(
+pub(crate) fn cursor_position(
     cursor: Option<OwnedObjectCursor>,
 ) -> Result<Option<IndexCursor>, IotaRpcInputError> {
     match cursor {

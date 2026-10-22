@@ -31,7 +31,7 @@ use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
-    iota_sdk_types_conversions::type_tag_sdk_to_core, storage::OwnedObjectCursor as IndexCursor,
+    iota_sdk_types_conversions::type_tag_sdk_to_core,
 };
 use jsonrpsee::{
     PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
@@ -45,6 +45,7 @@ use tracing::{debug, instrument};
 use crate::{
     IotaRpcModule,
     authority_state::{StateRead, StateReadResult},
+    coin_api::cursor_position,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
 };
@@ -101,26 +102,6 @@ pub fn spawn_subscription<S, T>(
     });
 }
 const DEFAULT_MAX_SUBSCRIPTIONS: usize = 100;
-
-/// The index position a cursor names.
-///
-/// A cursor carrying only an object id, as the indexer issues, is refused:
-/// this node's owner index is ordered by object type and balance first, so
-/// seeking by object id alone would skip or repeat rows.
-fn cursor_position(
-    cursor: Option<OwnedObjectCursor>,
-) -> Result<Option<IndexCursor>, IotaRpcInputError> {
-    match cursor {
-        None => Ok(None),
-        Some(cursor) => cursor.position().copied().map(Some).ok_or_else(|| {
-            IotaRpcInputError::GenericInvalid(
-                "this cursor was not issued by this node and cannot be resumed here; \
-                 request the page again without a cursor"
-                    .to_string(),
-            )
-        }),
-    }
-}
 
 pub struct IndexerApi<R> {
     state: Arc<dyn StateRead>,
