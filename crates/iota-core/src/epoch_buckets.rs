@@ -784,8 +784,8 @@ impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
     /// run of far more files than its size needs. Such a bucket is no longer
     /// written, so this compacts it once; the ones already compacted are
     /// skipped. A bucket is also skipped while its disk has less free space
-    /// than the bucket's files take, which the compaction needs again until
-    /// it finishes. Returns how many buckets it compacted.
+    /// than the bucket's files take plus 10%, which the compaction needs
+    /// again until it finishes. Returns how many buckets it compacted.
     ///
     /// `stop` is asked before each bucket; once it answers `true`, the rest
     /// are left for a later call. A bucket's compaction cannot be cut short.
