@@ -23,14 +23,13 @@ mod checked {
     use iota_types::{
         auth_context,
         base_types::{
-            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
-            TxContext, TxContextKind,
+            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution::{ExecutionTiming, ResultWithTimings},
         execution_config_utils::to_binary_config,
-        id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{

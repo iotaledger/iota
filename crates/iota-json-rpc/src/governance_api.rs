@@ -18,6 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     MoveTypeTagTrait,
@@ -25,7 +26,6 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_from_store},
     error::{IotaError, UserInputError},
     governance::StakedIota,
-    id::ID,
     iota_serde::BigInt,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
