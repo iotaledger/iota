@@ -218,15 +218,23 @@ impl PrimaryWriter {
 
         // On epoch boundary, we need to modify the existing partitions' upper bound,
         // and introduce a new partition for incoming data for the upcoming epoch.
-        if let Some(epoch_data) = epoch {
-            let new_epoch_id = epoch_data.new_epoch.epoch;
-            self.state
-                .advance_epoch(epoch_data)
-                .await
-                .tap_err(|e| {
-                    error!("failed to advance epoch with error: {}", e.to_string());
-                })
-                .expect("advancing epochs in DB should not fail.");
+        if let Some(EpochToCommit {
+            last_epoch,
+            new_epoch,
+        }) = epoch
+        {
+            let new_epoch_id = new_epoch.epoch;
+            // We don't advance the genesis epoch for which last_epoch is None.
+            // Its partitions already exist.
+            if let Some(last_epoch) = last_epoch {
+                self.state
+                    .advance_epoch(last_epoch, new_epoch)
+                    .await
+                    .tap_err(|e| {
+                        error!("failed to advance epoch with error: {}", e.to_string());
+                    })
+                    .expect("advancing epochs in DB should not fail.");
+            }
             self.metrics.last_committed_epoch.set(new_epoch_id);
 
             // Refresh participation metrics after advancing epoch
