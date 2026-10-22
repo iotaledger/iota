@@ -1882,3 +1882,33 @@ async fn test_read_effects_dropped_from_store_with_digest_still_cached() {
     })
     .await;
 }
+
+/// Asking whether a transaction ran in an epoch it did not run in does not
+/// make it read as not executed afterwards.
+#[tokio::test]
+async fn test_executed_effects_digest_miss_in_another_epoch_is_not_cached() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1]);
+        let digest = s.do_tx().await;
+        s.commit(digest).await;
+        s.reset_cache();
+
+        let (epoch, _) = s
+            .store
+            .get_historic_ledger()
+            .find_epoch(&digest)
+            .unwrap()
+            .expect("the committed transaction must be in a bucket");
+        assert!(
+            s.cache
+                .multi_get_executed_effects_digests_in_epoch(epoch + 1, &[digest])[0]
+                .is_none()
+        );
+        assert!(
+            s.cache.multi_get_executed_effects_digests(&[digest])[0].is_some(),
+            "a miss in another epoch must not hide the transaction"
+        );
+    })
+    .await;
+}

@@ -1003,7 +1003,8 @@ impl WritebackCache {
     }
 
     /// The effects digest of each of `digests` from the in-memory layers,
-    /// asking `read_db` for the ones they do not have.
+    /// asking `read_db` for the ones they do not have. With `cache_misses`, a
+    /// digest `read_db` does not find is remembered as not executed.
     fn executed_effects_digests_with_fallback(
         &self,
         digests: &[TransactionDigest],
@@ -1011,6 +1012,7 @@ impl WritebackCache {
             &AuthorityStore,
             &[TransactionDigest],
         ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>>,
+        cache_misses: bool,
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         let digests_and_tickets: Vec<_> = digests
             .iter()
@@ -1031,7 +1033,7 @@ impl WritebackCache {
                     &remaining_digests,
                 )?;
                 for ((digest, ticket), result) in remaining.iter().zip(results.iter()) {
-                    if result.is_none() {
+                    if cache_misses && result.is_none() {
                         self.cached
                             .executed_effects_digests
                             .insert(digest, None, *ticket)
@@ -2175,9 +2177,11 @@ impl TransactionCacheRead for WritebackCache {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        self.executed_effects_digests_with_fallback(digests, |store, digests| {
-            store.multi_get_executed_effects_digests(digests)
-        })
+        self.executed_effects_digests_with_fallback(
+            digests,
+            |store, digests| store.multi_get_executed_effects_digests(digests),
+            true,
+        )
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -2186,9 +2190,12 @@ impl TransactionCacheRead for WritebackCache {
         epoch: EpochId,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        self.executed_effects_digests_with_fallback(digests, |store, digests| {
-            store.multi_get_executed_effects_digests_in_epoch(epoch, digests)
-        })
+        // A miss only means "not in this epoch", so it is not remembered.
+        self.executed_effects_digests_with_fallback(
+            digests,
+            |store, digests| store.multi_get_executed_effects_digests_in_epoch(epoch, digests),
+            false,
+        )
     }
 
     #[instrument(level = "trace", skip_all)]
