@@ -789,11 +789,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         debug!(
             "Block {block_ref:?} is rejected because the last solid commit is lagging the last commit by {solid_commit_lag} rounds",
         );
-        Err(ConsensusError::BlockRejected {
+        Err(ConsensusError::SolidCommitLagging {
             block_ref,
-            reason: format!(
-                "Last solid commit is lagging the last commit by {solid_commit_lag} rounds",
-            ),
+            lag: solid_commit_lag,
         })
     }
 }
@@ -3079,8 +3077,8 @@ mod tests {
             )
             .await;
         assert!(
-            matches!(result, Err(ConsensusError::BlockRejected { .. })),
-            "expected BlockRejected while solidification lags, got {result:?}"
+            matches!(result, Err(ConsensusError::SolidCommitLagging { .. })),
+            "expected SolidCommitLagging while solidification lags, got {result:?}"
         );
         assert!(
             tx_message_receiver.try_recv().is_err(),
