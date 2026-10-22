@@ -19,11 +19,11 @@ mod checked {
     use std::collections::BTreeMap;
 
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_move_types::iota_framework::object::ID;
     use iota_sdk_types::{ObjectId, TypeTag};
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID,
         error::{ExecutionError, ExecutionErrorKind},
-        id::ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         move_package::{
             IotaAttributeV1, IotaAttributeV2, PackageMetadata, ProtocolBuildConfig,

@@ -12,7 +12,7 @@ use iota_sdk_move_types::iota_framework::{
     deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
     dynamic_object_field::Wrapper,
 };
-use iota_sdk_types::{Address, Identifier, ObjectId, Version};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, Version};
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
@@ -73,6 +73,41 @@ pub fn check_coin_deny_list_v1(
     }
 }
 
+/// Fails if `sender` is denied for one of `coin_types`, or one of them is
+/// paused for every address. `coin_types` are the coin types of the coins the
+/// Move code received. This is the check that [`check_coin_deny_list_v1`]
+/// makes before submission, with the deny list read as it stood at the start
+/// of `cur_epoch`, so every validator reaches the same result.
+///
+/// # Panics
+///
+/// Panics if `object_store` fails to read the deny list. Reading the failure
+/// as not denied, or as an execution error, would give effects that differ
+/// from those of the other validators.
+pub fn check_coin_deny_list_v1_for_sender_during_execution(
+    sender: Address,
+    coin_types: BTreeSet<String>,
+    cur_epoch: EpochId,
+    object_store: &dyn ObjectStore,
+) -> Result<(), ExecutionError> {
+    let denial = try_coin_type_denial(sender, coin_types, object_store, Some(cur_epoch))
+        .expect("the deny list must be readable during execution");
+    match denial {
+        Some(CoinTypeDenial::GlobalPause(coin_type)) => Err(ExecutionError::new(
+            ExecutionErrorKind::CoinTypeGlobalPause { coin_type },
+            None,
+        )),
+        Some(CoinTypeDenial::AddressDenied(coin_type)) => Err(ExecutionError::new(
+            ExecutionErrorKind::AddressDeniedForCoin {
+                address: sender,
+                coin_type,
+            },
+            None,
+        )),
+        None => Ok(()),
+    }
+}
+
 /// The error [`check_coin_deny_list_v1`] gives with `cur_epoch = None` when
 /// `address` may not use one of `coin_types`, or `None` if it may use them
 /// all. Types are checked in sorted order, and for each type a global pause
@@ -123,7 +158,9 @@ enum CoinTypeDenial {
 /// not use, with the reason, or `None` if it may use them all. For each type,
 /// a global pause is checked before a denial of `address`. `cur_epoch` is
 /// `None` to read the latest deny list, or `Some(epoch)` to read it as it
-/// stood at the start of `epoch`.
+/// stood at the start of `epoch`. Every error of `object_store` reads as not
+/// denied, as for [`get_per_type_coin_deny_list_v1`];
+/// [`try_coin_type_denial`] returns them.
 fn coin_type_denial(
     address: Address,
     coin_types: BTreeSet<String>,
@@ -145,6 +182,40 @@ fn coin_type_denial(
     }
 
     None
+}
+
+/// [`coin_type_denial`] that returns the errors of `object_store` other than
+/// a missing or undecodable entry.
+fn try_coin_type_denial(
+    address: Address,
+    coin_types: BTreeSet<String>,
+    object_store: &dyn ObjectStore,
+    cur_epoch: Option<EpochId>,
+) -> IotaResult<Option<CoinTypeDenial>> {
+    for coin_type in coin_types {
+        let Some(deny_list) = try_get_per_type_coin_deny_list_v1(&coin_type, object_store)? else {
+            continue;
+        };
+
+        if try_read_config_setting(
+            object_store,
+            &deny_list,
+            GlobalPauseKey::default(),
+            cur_epoch,
+        )?
+        .unwrap_or(false)
+        {
+            return Ok(Some(CoinTypeDenial::GlobalPause(coin_type)));
+        }
+
+        if try_read_config_setting(object_store, &deny_list, AddressKey(address), cur_epoch)?
+            .unwrap_or(false)
+        {
+            return Ok(Some(CoinTypeDenial::AddressDenied(coin_type)));
+        }
+    }
+
+    Ok(None)
 }
 
 /// Returns 1) whether the coin deny list check passed,
@@ -378,12 +449,72 @@ pub fn coin_types_for_denylist_check<'a>(
     objects
         .into_iter()
         .filter_map(|obj| {
-            if obj.is_gas_coin() {
-                None
-            } else {
-                obj.opt_coin_type()
-                    .map(|type_tag| type_tag.to_canonical_string(false))
-            }
+            obj.as_opt_struct()
+                .and_then(|move_object| coin_type_for_denylist_check(move_object.struct_tag()))
         })
         .collect()
+}
+
+/// Returns the coin type of `struct_tag` in canonical string form. It returns
+/// `None` for a type that is not a coin, and for the IOTA coin since it's known
+/// that it's not a regulated coin.
+pub fn coin_type_for_denylist_check(struct_tag: &StructTag) -> Option<String> {
+    if struct_tag.is_gas_coin() {
+        None
+    } else {
+        struct_tag
+            .opt_coin_type()
+            .map(|coin_type| coin_type.to_canonical_string(false))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::error::{Error as StorageError, Result as StorageResult};
+
+    /// An object store whose every read fails, as a failing database would.
+    struct FailingObjectStore;
+
+    impl ObjectStore for FailingObjectStore {
+        fn try_get_object(&self, _object_id: &ObjectId) -> StorageResult<Option<Object>> {
+            Err(StorageError::custom("read failed"))
+        }
+
+        fn try_get_object_by_key(
+            &self,
+            _object_id: &ObjectId,
+            _version: Version,
+        ) -> StorageResult<Option<Object>> {
+            Err(StorageError::custom("read failed"))
+        }
+    }
+
+    fn regulated_coin_types() -> BTreeSet<String> {
+        BTreeSet::from(["0xabc::regulated_coin::REGULATED_COIN".to_owned()])
+    }
+
+    #[test]
+    #[should_panic(expected = "the deny list must be readable during execution")]
+    fn received_coin_check_panics_when_the_deny_list_cannot_be_read() {
+        let _ = check_coin_deny_list_v1_for_sender_during_execution(
+            Address::random(),
+            regulated_coin_types(),
+            1,
+            &FailingObjectStore,
+        );
+    }
+
+    #[test]
+    fn received_coin_check_passes_without_a_deny_list() {
+        let store: BTreeMap<ObjectId, Object> = BTreeMap::new();
+
+        check_coin_deny_list_v1_for_sender_during_execution(
+            Address::random(),
+            regulated_coin_types(),
+            1,
+            &store,
+        )
+        .unwrap();
+    }
 }

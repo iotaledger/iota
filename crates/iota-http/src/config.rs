@@ -104,7 +104,7 @@ impl Config {
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
-    /// Default is 65,535
+    /// Default is 1 MiB, the default of hyper.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#InitialWindowSize
     pub fn initial_stream_window_size(self, sz: impl Into<Option<u32>>) -> Self {
@@ -116,7 +116,7 @@ impl Config {
 
     /// Sets the max connection-level flow control for HTTP2
     ///
-    /// Default is 65,535
+    /// Default is 1 MiB, the default of hyper.
     pub fn initial_connection_window_size(self, sz: impl Into<Option<u32>>) -> Self {
         Self {
             init_connection_window_size: sz.into(),
@@ -243,6 +243,20 @@ impl Config {
     pub fn accept_http1(self, accept_http1: bool) -> Self {
         Config {
             accept_http1,
+            ..self
+        }
+    }
+
+    /// Sets whether HTTP/2 connections offer the extended CONNECT protocol
+    /// ([RFC 8441]), which lets a client tunnel another protocol, such as
+    /// WebSocket, through an HTTP/2 stream.
+    ///
+    /// Default is `true`.
+    ///
+    /// [RFC 8441]: https://www.rfc-editor.org/rfc/rfc8441
+    pub fn enable_connect_protocol(self, enable_connect_protocol: bool) -> Self {
+        Config {
+            enable_connect_protocol,
             ..self
         }
     }

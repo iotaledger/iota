@@ -1434,6 +1434,10 @@ impl IotaNode {
 
         info!("Starting consensus manager asynchronously");
 
+        // Subscribe before starting consensus so that the replay waiter cannot miss the
+        // one-shot consumer monitor broadcast if consensus starts immediately.
+        let replay_waiter = consensus_manager.replay_waiter();
+
         // Spawn consensus startup asynchronously to avoid blocking other components
         tokio::spawn({
             let config = config.clone();
@@ -1455,8 +1459,6 @@ impl IotaNode {
                     .await;
             }
         });
-        let replay_waiter = consensus_manager.replay_waiter();
-
         info!("Spawning checkpoint service");
         // With deterministic validation, a checkpoint built before a restart
         // has to be rebuilt from the replayed commits before it is executed.

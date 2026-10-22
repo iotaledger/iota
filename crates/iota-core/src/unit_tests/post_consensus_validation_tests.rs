@@ -3019,6 +3019,39 @@ impl BookkeepingSetup {
         self.initialize_randomness().await;
     }
 
+    /// [`Self::execute_as_handler_known`] of one transaction that fails at
+    /// execution.
+    fn execute_failing_as_handler_known(
+        &self,
+        tx: VerifiedTransaction,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
+        let effects = self.execute_unchecked(tx);
+        assert!(effects.status().is_failure(), "{:?}", effects.status());
+        effects
+    }
+
+    /// A verified `object_basics::remove_field` call on `parent_id`, which
+    /// aborts at execution: no field was ever added to the parent.
+    fn build_aborting_call(
+        &self,
+        parent_id: &ObjectId,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+    ) -> VerifiedTransaction {
+        self.build_move_call(
+            "object_basics",
+            "remove_field",
+            vec![CallArg::ImmutableOrOwned(self.latest_ref(parent_id))],
+            gas_id,
+            sender,
+            sender_key,
+        )
+    }
+
     /// The protocol config's horizon distance: validation at commit `C`
     /// trusts what commits up to `C` minus this distance produced.
     fn horizon_distance(&self) -> CommitIndex {
@@ -3068,6 +3101,44 @@ impl BookkeepingSetup {
         .await
         .ok()
         .map(|effects| effects.unwrap().remove(0))
+    }
+
+    /// A verified `object_basics::create` call of `value` that the account
+    /// `authenticator` names sends and pays for with its gas coin `gas_id`.
+    /// Calls that differ only in `value` have different digests.
+    fn build_self_paid_account_call(
+        &self,
+        authenticator: MoveAuthenticatorV1,
+        gas_id: &ObjectId,
+        value: u64,
+    ) -> VerifiedTransaction {
+        let account = authenticator.address();
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .move_call(
+                self.package_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
+                vec![],
+                vec![
+                    CallArg::Pure(bcs::to_bytes(&value).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(&account).unwrap()),
+                ],
+            )
+            .unwrap();
+        let tx = Transaction::new_programmable(
+            account,
+            vec![self.latest_ref(gas_id)],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.rgp,
+            self.rgp,
+        );
+        let tx = to_sender_signed_transaction_with_optional_sponsor(
+            tx,
+            UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator)),
+            None::<&AccountPrivateKey>,
+        );
+        self.epoch_store.verify_transaction(tx).unwrap()
     }
 }
 
@@ -7315,10 +7386,9 @@ async fn test_immutable_object_input_locked_when_flag_disabled() {
     );
 }
 
-/// The already-executed branch registers locks from the transaction's own
-/// effects, so it locks the owned inputs it consumed and leaves the immutable
-/// input free. A later reader of the same immutable object is then kept
-/// instead of hitting the winner-out-locked `fatal!`.
+/// The already-executed branch locks the transaction's owned inputs and leaves
+/// the immutable input free. A later reader of the same immutable object is
+/// then kept instead of hitting the winner-out-locked `fatal!`.
 #[tokio::test]
 async fn test_already_executed_tx_does_not_lock_immutable_input() {
     telemetry_subscribers::init_for_testing();
@@ -7664,6 +7734,292 @@ async fn epoch_end_releases_a_pending_wait() {
         result,
         Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()
     ));
+}
+
+/// A bookkeeping setup with a transaction that failed at execution in commit
+/// `failed_at`, and a spare gas coin its sender owns that the failure did not
+/// touch.
+struct FailedHoldingTransaction {
+    s: BookkeepingSetup,
+    sender: Address,
+    sender_key: AccountPrivateKey,
+    holding_tx: TransactionDigest,
+    /// The holding transaction's gas coin at the version its failed execution
+    /// consumed.
+    consumed_gas: ObjectReference,
+    spare_gas_id: ObjectId,
+}
+
+async fn setup_failed_holding_transaction(failed_at: CommitIndex) -> FailedHoldingTransaction {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let spare_gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            Object::with_id_owner_for_testing(spare_gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let (parent_ref, _) = s.create_object(&gas_id, sender, &sender_key, failed_at - 1);
+    let consumed_gas = s.latest_ref(&gas_id);
+    let failing = s.build_aborting_call(parent_ref.object_id(), &gas_id, sender, &sender_key);
+    let holding_tx = *failing.digest();
+    s.execute_failing_as_handler_known(failing, failed_at);
+    FailedHoldingTransaction {
+        s,
+        sender,
+        sender_key,
+        holding_tx,
+        consumed_gas,
+        spare_gas_id,
+    }
+}
+
+/// A transaction naming a version a failed transaction consumed is dropped on
+/// the failed transaction's lock, also once the horizon reaches the commit of
+/// the failure.
+#[tokio::test]
+async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_on_its_lock() {
+    let failed_at = 5;
+    let f = setup_failed_holding_transaction(failed_at).await;
+    seed_quarantined_lock(&f.s.epoch_store, f.consumed_gas, f.holding_tx);
+    let contender = make_transfer_object_transaction(
+        f.consumed_gas,
+        f.s.latest_ref(&f.spare_gas_id),
+        f.sender,
+        &f.sender_key,
+        Address::random(),
+        f.s.rgp,
+    );
+    let contender = f.s.epoch_store.verify_transaction(contender).unwrap();
+    let contender_digest = *contender.digest();
+
+    let mut transactions = vec![make_user_tx_v1_verified(contender)];
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &f.s.authority,
+        &f.s.epoch_store,
+        failed_at + f.s.horizon_distance(),
+        true,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(transactions.is_empty());
+    assert!(
+        matches!(
+            dropped.as_slice(),
+            [(digest, IotaError::ObjectLockConflict { obj_ref, pending_transaction }, _)]
+                if *digest == contender_digest
+                    && *obj_ref == f.consumed_gas
+                    && *pending_transaction == f.holding_tx
+        ),
+        "{dropped:?}"
+    );
+}
+
+/// A bookkeeping setup with the flags on, a shared object that was never made
+/// an account, and a gas coin owned by that object's address. Returns the
+/// setup, the object's id and the coin's id. A transaction naming the object as
+/// its account and paying with the coin fails at execution, since the object
+/// has no authenticator function, so the account never authorized it.
+async fn setup_unauthorized_gas_owner() -> (BookkeepingSetup, ObjectId, ObjectId) {
+    let account_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            shared_object_with_id(account_id),
+            Object::with_id_owner_for_testing(gas_id, account_id.into()),
+        ],
+        true,
+    )
+    .await;
+    (s, account_id, gas_id)
+}
+
+/// The authenticator naming the shared object `account_id` as an account.
+fn account_authenticator(account_id: ObjectId) -> MoveAuthenticatorV1 {
+    MoveAuthenticatorV1::new(
+        vec![],
+        vec![],
+        SharedObjectReference::new(account_id, Version::OBJECT_START, false),
+    )
+}
+
+/// An account that pays its own gas but did not authorize the transaction is
+/// not charged, and its gas coin moves to its next version. Once the horizon
+/// reaches the commit of the failure, the account's next transaction, naming
+/// the coin at its new version, is kept, while one naming the version the
+/// failure consumed is still dropped on the failed transaction's lock.
+#[tokio::test]
+async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
+    let failed_at = 5;
+    let gas_ref = s.latest_ref(&gas_id);
+    let unauthorized =
+        s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);
+    let unauthorized_digest = *unauthorized.digest();
+    let stale = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 2);
+    let stale_digest = *stale.digest();
+
+    // Post-consensus validation keeps the transaction and locks the coin, and
+    // the handler stores that lock.
+    let mut transactions = vec![make_user_tx_v1_verified(unauthorized.clone())];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        failed_at,
+        true,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(locks.get(&gas_ref), Some(&unauthorized_digest));
+    seed_quarantined_lock(&s.epoch_store, gas_ref, unauthorized_digest);
+
+    s.epoch_store.assign_commit_to_transactions(
+        failed_at,
+        vec![TransactionKey::Digest(unauthorized_digest)],
+    );
+    let effects = s.execute_with_assigned_shared_versions_unchecked(unauthorized);
+    assert!(effects.status().is_failure(), "{:?}", effects.status());
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &GasCostSummary::default(),
+        "nobody may be charged"
+    );
+    assert_eq!(
+        s.latest_ref(&gas_id).version,
+        effects.lamport_version(),
+        "the gas coin must move to its next version"
+    );
+
+    let next = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 3);
+    let next_digest = *next.digest();
+    let mut transactions = vec![
+        make_user_tx_v1_verified(stale),
+        make_user_tx_v1_verified(next),
+    ];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        failed_at + s.horizon_distance(),
+        true,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(
+        matches!(
+            dropped.as_slice(),
+            [(digest, IotaError::ObjectLockConflict { obj_ref, pending_transaction }, _)]
+                if *digest == stale_digest
+                    && *obj_ref == gas_ref
+                    && *pending_transaction == unauthorized_digest
+        ),
+        "{dropped:?}"
+    );
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(locks.get(&s.latest_ref(&gas_id)), Some(&next_digest));
+}
+
+/// Keeps `tx` at `commit`, stores the lock it takes on the gas coin `gas_id`
+/// as the handler does, and executes it as a root of that commit. It fails
+/// without a charge and leaves the coin live at its next version.
+async fn keep_and_fail(
+    s: &BookkeepingSetup,
+    commit: CommitIndex,
+    tx: VerifiedTransaction,
+    gas_id: ObjectId,
+) {
+    let digest = *tx.digest();
+    let gas_ref = s.latest_ref(&gas_id);
+    let result = s.validate_at(commit, std::slice::from_ref(&tx)).await;
+    assert_eq!(result.kept, vec![digest], "{:?}", result.dropped);
+    seed_quarantined_lock(&s.epoch_store, gas_ref, digest);
+    s.epoch_store
+        .assign_commit_to_transactions(commit, vec![TransactionKey::Digest(digest)]);
+    let effects = s.execute_with_assigned_shared_versions_unchecked(tx);
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+    let next_gas_ref = s.latest_ref(&gas_id);
+    assert_eq!(next_gas_ref.version, effects.lamport_version());
+    s.authority
+        .get_object_cache_reader()
+        .try_check_owned_objects_are_live(&[next_gas_ref])
+        .expect("the gas coin must stay usable");
+}
+
+/// Each failure of a transaction the account did not authorize moves its gas
+/// coin to its next version, so the account's next transaction naming the coin
+/// is kept once the horizon reaches the commit of the failure.
+#[tokio::test]
+async fn consecutive_failures_each_move_the_gas_coin_on() {
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
+    let mut commit = 5;
+    for value in 1..=3 {
+        let tx = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, value);
+        keep_and_fail(&s, commit, tx, gas_id).await;
+        commit += s.horizon_distance();
+    }
+}
+
+/// A validator that executed an unauthorized transaction replays its commit,
+/// as after a restart. The replay retains the executed transaction and locks
+/// the gas coin it names, like the validators that kept the transaction without
+/// having executed it, so a contender naming the coin in the same commit stays
+/// dropped.
+#[tokio::test]
+async fn already_executed_transaction_locks_the_gas_coin_it_names() {
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner().await;
+    let gas_ref = s.latest_ref(&gas_id);
+    let unauthorized =
+        s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);
+    let unauthorized_digest = *unauthorized.digest();
+    let contender = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 2);
+    let contender_digest = *contender.digest();
+    let candidates = [unauthorized.clone(), contender];
+
+    // The handler keeps the transaction and drops the contender on its lock,
+    // and the transaction executes without a gas charge.
+    let (scheduled, assigned_versions) = s.process_at_with_versions(1, &candidates).await;
+    assert_eq!(
+        scheduled.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![unauthorized_digest]
+    );
+    let executable = s.executable(unauthorized);
+    let effects = s.execute_executable(
+        &executable,
+        ExecutionEnv::new().with_assigned_versions(
+            assigned_versions
+                .into_map()
+                .remove(&executable.key())
+                .expect("the handler assigned the transaction's shared versions"),
+        ),
+    );
+    assert!(effects.status().is_failure(), "{:?}", effects.status());
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+
+    let replayed = s.validate_at(1, &candidates).await;
+    assert_eq!(
+        replayed.kept,
+        vec![unauthorized_digest],
+        "only the executed transaction may be kept"
+    );
+    assert_eq!(replayed.locks.get(&gas_ref), Some(&unauthorized_digest));
+    assert!(
+        matches!(
+            replayed.dropped.as_slice(),
+            [(digest, IotaError::ObjectLockConflict { obj_ref, pending_transaction })]
+                if *digest == contender_digest
+                    && *obj_ref == gas_ref
+                    && *pending_transaction == unauthorized_digest
+        ),
+        "{:?}",
+        replayed.dropped
+    );
 }
 
 // ---------------------------------------------------------------------------
