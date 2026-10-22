@@ -647,7 +647,9 @@ async fn test_valid_abstract_account_tx_executes_under_deterministic_validation(
 /// its own older state, where it passes. Post-consensus validation keeps the
 /// transaction without running the authenticator, so validators at different
 /// points cannot disagree on it, and execution runs the authenticator at the
-/// version consensus assigned, where it fails.
+/// version consensus assigned, where it fails. The account pays its own gas but
+/// did not authorize the transaction, so nobody is charged, and the account can
+/// spend the gas coin afterwards at its next version.
 ///
 /// Staging: execution on one validator is paused before the owner key rotation
 /// executes there, so that validator still admits a transaction signed with
@@ -670,7 +672,7 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
 
     use iota_core::authority_client::validator_v2::ValidatorV2API;
     use iota_macros::{clear_fail_point, register_fail_point_async};
-    use iota_sdk_types::ExecutionStatus;
+    use iota_sdk_types::{ExecutionStatus, GasCostSummary};
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.enable_pcool_deterministic_validation_for_testing();
@@ -807,7 +809,7 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
     clear_fail_point("transaction_execution_delay");
 
     // Kept by every validator and failed at execution: an authentication
-    // failure charged to the account, not a drop.
+    // failure, not a drop.
     let ExecutionStatus::Failure { error, command } = effects.status() else {
         panic!(
             "expected the stale transaction to fail, got {:?}",
@@ -830,10 +832,20 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
         ),
         "expected the abort of basic_keyed_aa::authenticate_ed25519, got {error:?}"
     );
-    assert!(
-        effects.gas_cost_summary().gas_used() > 0,
-        "the failed transaction must be charged gas"
+    // The account pays its own gas but did not authorize the transaction, so
+    // nobody is charged. Its gas coin moves to its next version with its
+    // balance unchanged.
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &GasCostSummary::default(),
+        "nobody may be charged for a transaction the gas owner did not authorize"
     );
+    let next_gas = effects
+        .mutated()
+        .into_iter()
+        .find(|mutated| mutated.reference().object_id == stale_gas.object_id)
+        .map(|mutated| *mutated.reference())
+        .expect("the gas coin must move to its next version");
 
     // The paused validator kept the transaction too: the checkpoint it builds
     // from its own consensus output matches the certified one. Its effects
@@ -873,6 +885,25 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
         certified.data(),
         "the paused validator's own checkpoint must match the certified one"
     );
+
+    // The account can spend the gas coin at its next version with its new
+    // key, here by sending all of it away.
+    // Signing the stale transaction again would not do: a digest does not
+    // cover signatures, so that would be the stale transaction, which has
+    // already executed.
+    test_env.owner = Some(new_owner);
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.pay_all_iota(Address::random());
+    let tx_data = test_env
+        .craft_tx_from_pt(builder.finish(), next_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
 
     Ok(())
 }
