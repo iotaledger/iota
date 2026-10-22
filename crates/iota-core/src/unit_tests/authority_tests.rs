@@ -8738,3 +8738,57 @@ async fn simulate_rejects_a_transaction_above_the_size_limit() {
         "serialized transaction size exceeded maximum",
     );
 }
+
+/// A simulation meters the packages a transaction publishes with the node's
+/// own `VerifierSigningConfig` under both `VmChecks` modes. Execution verifies
+/// a published package with neither a limit nor a meter, trusting signing to
+/// have bounded it, so a simulation that skips the signing-time checks has to
+/// bound it itself.
+#[tokio::test]
+async fn simulate_meters_published_packages_with_the_node_signing_limits() {
+    use iota_config::verifier_signing_config::VerifierSigningConfig;
+    use iota_move_build::BuildConfig;
+    use iota_types::crypto::get_authority_key_pair;
+
+    // A one-tick meter fails the first function it meters.
+    let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
+        "max-per-fun-meter-units: 1\n",
+        "max-per-mod-meter-units: 1\n",
+        "max-per-pkg-meter-units: 1\n",
+    ))
+    .unwrap();
+    let fullnode_key_pair = get_authority_key_pair().1;
+    let fullnode = TestAuthorityBuilder::new()
+        .with_keypair(&fullnode_key_pair)
+        .with_verifier_signing_config(node_limits)
+        .build()
+        .await;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("src/unit_tests/data/object_basics");
+    let modules = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_package_bytes(false);
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.publish_immutable(modules, BuiltInFramework::all_package_ids());
+    // Gas is left unset for the simulation to fill in, the way the RPC layer
+    // leaves it.
+    let transaction =
+        Transaction::new_programmable(Address::random(), vec![], builder.finish(), 0, 0);
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject the package under the node's signing limits");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::PackageVerificationTimedout { .. }
+                }
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
