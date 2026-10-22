@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_move_types::iota_framework::clock::Clock;
 use iota_sdk_types::{Address, Identifier};
 use iota_types::{
     base_types::{TxContext, TxContextKind},
-    clock::ClockExt,
+    clock::is_mutable_clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
     move_package::{FnInfoMap, is_test_fun},
@@ -226,7 +225,7 @@ fn verify_param_type(
 ) -> Result<(), String> {
     // Only `iota::iota_system` is allowed to expose entry functions that accept a
     // mutable clock parameter.
-    if Clock::is_mutable(view, param) {
+    if is_mutable_clock(view, param) {
         return Err(format!(
             "Invalid entry point parameter type. Clock must be passed by immutable reference. got: \
              {}",

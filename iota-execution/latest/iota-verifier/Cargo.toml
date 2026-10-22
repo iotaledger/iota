@@ -12,7 +12,6 @@ description = "Move framework for IOTA platform"
 bcs.workspace = true
 
 # internal dependencies
-iota-sdk-move-types.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-abstract-stack.workspace = true
