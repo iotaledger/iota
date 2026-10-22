@@ -429,6 +429,12 @@ impl AuthorityStore {
         self.perpetual_tables.mark_ledger_backlog_migrated()
     }
 
+    /// See [`AuthorityPerpetualTables::retire_objects_pruner_watermark`].
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
+    pub fn retire_objects_pruner_watermark(&self) -> IotaResult<()> {
+        Ok(self.perpetual_tables.retire_objects_pruner_watermark()?)
+    }
+
     /// Moves the markers in the flat marker table into their epoch's bucket.
     /// See [`EpochMarkers::migrate_flat_markers`].
     // TODO(https://github.com/iotaledger/iota/issues/12712): remove after the migration.
