@@ -386,6 +386,20 @@ module move_benchmark::benchmark {
         }
     }
 
+    /// The 0 selects keccak256 as the message hash, matching how the fixture
+    /// signs.
+    public fun secp256k1_verify_keccak_loop(
+        mut calls: u64,
+        signature: vector<u8>,
+        public_key: vector<u8>,
+        msg: vector<u8>,
+    ) {
+        while (calls > 0) {
+            assert!(iota::ecdsa_k1::secp256k1_verify(&signature, &public_key, &msg, 0), 0);
+            calls = calls - 1;
+        }
+    }
+
     /// The 1 selects sha256 as the message hash, matching how the fixture
     /// signs.
     public fun secp256r1_verify_loop(
@@ -396,6 +410,20 @@ module move_benchmark::benchmark {
     ) {
         while (calls > 0) {
             assert!(iota::ecdsa_r1::secp256r1_verify(&signature, &public_key, &msg, 1), 0);
+            calls = calls - 1;
+        }
+    }
+
+    /// The 0 selects keccak256 as the message hash, matching how the fixture
+    /// signs.
+    public fun secp256r1_verify_keccak_loop(
+        mut calls: u64,
+        signature: vector<u8>,
+        public_key: vector<u8>,
+        msg: vector<u8>,
+    ) {
+        while (calls > 0) {
+            assert!(iota::ecdsa_r1::secp256r1_verify(&signature, &public_key, &msg, 0), 0);
             calls = calls - 1;
         }
     }
@@ -488,6 +516,46 @@ module move_benchmark::benchmark {
         let g2 = iota::bls12381::g2_generator();
         while (calls > 0) {
             let _ = iota::bls12381::pairing(&g1, &g2);
+            calls = calls - 1;
+        }
+    }
+
+    public fun bls12381_g2_add_loop(mut calls: u64) {
+        let g = iota::bls12381::g2_generator();
+        while (calls > 0) {
+            let _ = iota::bls12381::g2_add(&g, &g);
+            calls = calls - 1;
+        }
+    }
+
+    public fun bls12381_g2_mul_loop(mut calls: u64) {
+        let s = iota::bls12381::scalar_from_u64(12345);
+        let g = iota::bls12381::g2_generator();
+        while (calls > 0) {
+            let _ = iota::bls12381::g2_mul(&s, &g);
+            calls = calls - 1;
+        }
+    }
+
+    public fun bls12381_hash_to_g2_loop(mut calls: u64, msg: vector<u8>) {
+        while (calls > 0) {
+            let _ = iota::bls12381::hash_to_g2(&msg);
+            calls = calls - 1;
+        }
+    }
+
+    public fun bls12381_scalar_add_loop(mut calls: u64) {
+        let s = iota::bls12381::scalar_from_u64(12345);
+        while (calls > 0) {
+            let _ = iota::bls12381::scalar_add(&s, &s);
+            calls = calls - 1;
+        }
+    }
+
+    public fun bls12381_scalar_mul_loop(mut calls: u64) {
+        let s = iota::bls12381::scalar_from_u64(12345);
+        while (calls > 0) {
+            let _ = iota::bls12381::scalar_mul(&s, &s);
             calls = calls - 1;
         }
     }

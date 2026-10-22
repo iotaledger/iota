@@ -418,7 +418,7 @@ pub struct PtbParams {
     #[arg(
         long,
         default_value_t = 64,
-        help = "Message bytes hashed per hash-to-g1 group operation"
+        help = "Message bytes hashed per hash-to-g1 or hash-to-g2 group operation"
     )]
     pub group_op_input_size: u64,
     #[arg(
@@ -545,7 +545,9 @@ pub enum SigScheme {
     BlsMinSig,
     BlsMinPk,
     Secp256k1,
+    Secp256k1Keccak,
     Secp256r1,
+    Secp256r1Keccak,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum, serde::Deserialize)]
@@ -562,6 +564,11 @@ pub enum GroupOp {
     G1Mul,
     HashToG1,
     Pairing,
+    G2Add,
+    G2Mul,
+    HashToG2,
+    ScalarAdd,
+    ScalarMul,
 }
 
 impl WorkloadKind {

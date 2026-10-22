@@ -162,6 +162,23 @@ SWEEPS = {
         "x_field": "num_native_calls",
         "tx_count": 50,
     },
+    # The ecdsa verify counters are split per hash function (the selector
+    # byte), so the keccak256 variants need their own coverage; the sweeps
+    # above cover sha256.
+    "sig-secp256k1-keccak": {
+        "knob": "--num-sig-verifies",
+        "values": [0, 8, 32, 128],
+        "fixed": ["--sig-scheme", "secp256k1-keccak"],
+        "x_field": "num_native_calls",
+        "tx_count": 50,
+    },
+    "sig-secp256r1-keccak": {
+        "knob": "--num-sig-verifies",
+        "values": [0, 8, 32, 128],
+        "fixed": ["--sig-scheme", "secp256r1-keccak"],
+        "x_field": "num_native_calls",
+        "tx_count": 50,
+    },
     "ecvrf": {
         "knob": "--num-ecvrf-verifies",
         "values": [0, 8, 32, 128],
@@ -210,6 +227,8 @@ SWEEPS = {
     },
     # BLS12-381 group operations (the 0x2::group_ops native tag), spanning
     # the per-op cost range: add < scalar mul < hash-to-curve < pairing.
+    # The group_ops counters are split per group (the selector byte), so
+    # scalar, G1 and G2 each need their own coverage.
     "group-g1-add": {
         "knob": "--num-group-ops",
         "values": [0, 64, 256, 1024],
@@ -229,6 +248,38 @@ SWEEPS = {
         "fixed": ["--group-op", "hash-to-g1"],
         "x_field": "num_native_calls",
         "tx_count": 50,
+    },
+    "group-g2-add": {
+        "knob": "--num-group-ops",
+        "values": [0, 64, 256, 1024],
+        "fixed": ["--group-op", "g2-add"],
+        "x_field": "num_native_calls",
+    },
+    "group-g2-mul": {
+        "knob": "--num-group-ops",
+        "values": [0, 16, 64, 256],
+        "fixed": ["--group-op", "g2-mul"],
+        "x_field": "num_native_calls",
+        "tx_count": 50,
+    },
+    "group-hash-to-g2": {
+        "knob": "--num-group-ops",
+        "values": [0, 16, 64, 256],
+        "fixed": ["--group-op", "hash-to-g2"],
+        "x_field": "num_native_calls",
+        "tx_count": 50,
+    },
+    "group-scalar-add": {
+        "knob": "--num-group-ops",
+        "values": [0, 128, 512, 2048],
+        "fixed": ["--group-op", "scalar-add"],
+        "x_field": "num_native_calls",
+    },
+    "group-scalar-mul": {
+        "knob": "--num-group-ops",
+        "values": [0, 128, 512, 2048],
+        "fixed": ["--group-op", "scalar-mul"],
+        "x_field": "num_native_calls",
     },
     "group-pairing": {
         "knob": "--num-group-ops",

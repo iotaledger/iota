@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use fastcrypto::{
     encoding::{Encoding, Hex},
-    hash::Sha256,
+    hash::{Keccak256, Sha256},
     traits::{KeyPair, Signer},
     vrf::VRFKeyPair,
 };
@@ -68,11 +68,20 @@ impl SigFixture {
                     msg,
                 }
             }
-            // The secp schemes sign the sha256 of the message, matching the
+            // The secp schemes sign the hash of the message that matches the
             // hash selector the Move verify loops pass to the native.
             SigScheme::Secp256k1 => {
                 let kp = fastcrypto::secp256k1::Secp256k1KeyPair::generate(&mut rng);
                 let signature = kp.sign_with_hash::<Sha256>(&msg);
+                Self {
+                    signature: signature.as_ref().to_vec(),
+                    public_key: kp.public().as_ref().to_vec(),
+                    msg,
+                }
+            }
+            SigScheme::Secp256k1Keccak => {
+                let kp = fastcrypto::secp256k1::Secp256k1KeyPair::generate(&mut rng);
+                let signature = kp.sign_with_hash::<Keccak256>(&msg);
                 Self {
                     signature: signature.as_ref().to_vec(),
                     public_key: kp.public().as_ref().to_vec(),
@@ -88,6 +97,15 @@ impl SigFixture {
                     msg,
                 }
             }
+            SigScheme::Secp256r1Keccak => {
+                let kp = fastcrypto::secp256r1::Secp256r1KeyPair::generate(&mut rng);
+                let signature = kp.sign_with_hash::<Keccak256>(&msg);
+                Self {
+                    signature: signature.as_ref().to_vec(),
+                    public_key: kp.public().as_ref().to_vec(),
+                    msg,
+                }
+            }
         }
     }
 
@@ -97,7 +115,9 @@ impl SigFixture {
             SigScheme::BlsMinSig => "bls12381_min_sig_verify_loop",
             SigScheme::BlsMinPk => "bls12381_min_pk_verify_loop",
             SigScheme::Secp256k1 => "secp256k1_verify_loop",
+            SigScheme::Secp256k1Keccak => "secp256k1_verify_keccak_loop",
             SigScheme::Secp256r1 => "secp256r1_verify_loop",
+            SigScheme::Secp256r1Keccak => "secp256r1_verify_keccak_loop",
         }
     }
 }
@@ -192,6 +212,11 @@ fn group_op_move_function(op: GroupOp) -> &'static str {
         GroupOp::G1Mul => "bls12381_g1_mul_loop",
         GroupOp::HashToG1 => "bls12381_hash_to_g1_loop",
         GroupOp::Pairing => "bls12381_pairing_loop",
+        GroupOp::G2Add => "bls12381_g2_add_loop",
+        GroupOp::G2Mul => "bls12381_g2_mul_loop",
+        GroupOp::HashToG2 => "bls12381_hash_to_g2_loop",
+        GroupOp::ScalarAdd => "bls12381_scalar_add_loop",
+        GroupOp::ScalarMul => "bls12381_scalar_mul_loop",
     }
 }
 
@@ -445,7 +470,7 @@ impl TxGenerator for MoveTxGenerator {
             }
             if p.num_group_ops > 0 {
                 let mut args = vec![builder.pure(p.num_group_ops).unwrap()];
-                if matches!(p.group_op, GroupOp::HashToG1) {
+                if matches!(p.group_op, GroupOp::HashToG1 | GroupOp::HashToG2) {
                     let msg = vec![7u8; p.group_op_input_size as usize];
                     args.push(builder.pure(msg).unwrap());
                 }
