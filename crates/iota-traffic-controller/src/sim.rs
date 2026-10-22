@@ -65,7 +65,7 @@ impl TrafficSim {
         assert!(per_client_tps > 0);
         assert!(duration.as_secs() > 0);
 
-        let controller = TrafficController::init_for_test(policy, None);
+        let controller = TrafficController::init_for_test(policy);
         let tasks = (0..num_clients).map(|task_num| {
             tokio::spawn(Self::run_single_client(
                 controller.clone(),

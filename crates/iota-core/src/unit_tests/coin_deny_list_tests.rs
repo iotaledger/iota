@@ -624,6 +624,8 @@ impl RegulatedCoinEnv {
             post_consensus_validation::validate_and_resolve_conflicts(
                 &self.env.authority,
                 &epoch_store,
+                1,
+                false,
                 &mut transactions,
             )
             .await
@@ -631,7 +633,13 @@ impl RegulatedCoinEnv {
 
         assert_eq!(user_tx_digests, vec![digest]);
 
-        (dropped, transactions.len() == 1)
+        (
+            dropped
+                .into_iter()
+                .map(|(digest, error, _)| (digest, error))
+                .collect(),
+            transactions.len() == 1,
+        )
     }
 }
 

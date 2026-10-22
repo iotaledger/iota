@@ -69,7 +69,7 @@ async fn server_with_policy(
     executor: Option<Arc<dyn TransactionExecutor>>,
 ) -> GrpcServerHandle {
     let client_id_source = policy_config.client_id_source.clone();
-    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None));
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
@@ -277,15 +277,12 @@ async fn stream_errors_feed_the_error_policy() {
         objects: HashMap::from([(object_id, object)]),
         ..Default::default()
     });
-    let traffic_controller = Arc::new(TrafficController::init_for_test(
-        PolicyConfig {
-            connection_blocklist_ttl_sec: 120,
-            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
-            dry_run: false,
-            ..Default::default()
-        },
-        None,
-    ));
+    let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+        dry_run: false,
+        ..Default::default()
+    }));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         state_reader,
         traffic_controller,

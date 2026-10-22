@@ -741,7 +741,8 @@
                 }
               ],
               "nextCursor": "1008",
-              "hasNextPage": true
+              "hasNextPage": true,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -1287,20 +1288,21 @@
           "params": [
             {
               "name": "version",
-              "value": 38
+              "value": 39
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "38",
-              "protocolVersion": "38",
+              "maxSupportedProtocolVersion": "39",
+              "protocolVersion": "39",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
                 "additional_multisig_checks": true,
                 "adjust_rewards_by_score": true,
+                "allow_dkg_completion_after_timeout": true,
                 "allow_unbounded_system_objects": true,
                 "always_advance_dkg_to_resolution": true,
                 "calculate_validator_scores": true,
@@ -1312,6 +1314,7 @@
                 "consensus_batched_block_sync": true,
                 "consensus_block_restrictions": true,
                 "consensus_commit_transactions_only_for_traversed_headers": true,
+                "consensus_dedup_only_recorded_messages": true,
                 "consensus_distributed_vote_scoring_strategy": true,
                 "consensus_enable_absolute_score_leader_schedule": true,
                 "consensus_enable_sliding_window_leader_schedule": true,
@@ -1351,6 +1354,7 @@
                 "pass_calculated_validator_scores_to_advance_epoch": true,
                 "pass_validator_scores_to_advance_epoch": true,
                 "passkey_auth": true,
+                "pcool_deterministic_validation": false,
                 "pcool_skip_immutable_object_locks": true,
                 "pcool_verifier_limits_from_protocol_config": true,
                 "pre_consensus_sponsor_only_move_authentication": false,
@@ -2129,6 +2133,7 @@
                 "package_publish_cost_per_byte": {
                   "u64": "80"
                 },
+                "pcool_deterministic_validation_horizon_distance": null,
                 "poseidon_bn254_cost_base": {
                   "u64": "260"
                 },
@@ -5054,7 +5059,8 @@
                 "txDigest": "2HyYwpsD5YiiN96i7BBoAyJfTwSvK8MTh42F5777a4ZD",
                 "eventSeq": "1"
               },
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -5152,7 +5158,8 @@
                 }
               ],
               "nextCursor": "EBzDydzw7LpM9r3UFh8JTDQcXt2U4bvW8ZD1qTrPZyqo",
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -10746,6 +10753,13 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10774,6 +10788,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -10804,6 +10825,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10829,6 +10857,13 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10850,6 +10885,13 @@
             "type": "boolean"
           },
           "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10883,6 +10925,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10912,6 +10961,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10940,6 +10996,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }

@@ -1615,6 +1615,7 @@ impl AuthorityStore {
             AuthorityStorePruningMetrics::new_for_test(),
             EPOCH_DURATION_MS_FOR_TESTING,
             None,
+            None,
         )
         .await;
         let _ = AuthorityStorePruner::compact(&self.perpetual_tables);
@@ -1663,17 +1664,6 @@ impl GlobalStateHashStore for AuthorityStore {
             .root_state_hash_by_epoch
             .get(&epoch)
             .map_err(Into::into)
-    }
-
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
-        Ok(self
-            .perpetual_tables
-            .root_state_hash_by_epoch
-            .safe_range_iter_reversed(..)
-            .next()
-            .transpose()?)
     }
 
     fn insert_state_hash_for_epoch(

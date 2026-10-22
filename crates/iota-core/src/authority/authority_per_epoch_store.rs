@@ -26,7 +26,7 @@ use iota_common::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
-use iota_metrics::monitored_scope;
+use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
@@ -59,7 +59,7 @@ use iota_types::{
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TransactionDenyRuleProposal,
         VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
     },
-    storage::{BackingPackageStore, InputKey},
+    storage::{BackingPackageStore, InputKey, ObjectKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionAPI,
         TransactionEnvelope, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
@@ -73,7 +73,10 @@ use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus_filtered::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
-use tokio::{sync::OnceCell, time::Instant};
+use tokio::{
+    sync::{OnceCell, watch},
+    time::Instant,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
@@ -120,17 +123,18 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
-            VersionedProcessedMessage, VersionedUsedProcessedMessages,
+            AdvanceDkgError, CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter,
+            SINGLETON_KEY, VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{ObjectCacheRead, cache_types::CacheResult},
+    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
+    post_consensus_input_reader::reader::horizon,
     post_consensus_tx_reorder::PostConsensusTxReorder,
-    post_consensus_validation,
+    post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
 };
@@ -157,6 +161,9 @@ pub(crate) type EncG = bls12381::G2Element;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
+#[path = "handler_object_state.rs"]
+pub mod handler_object_state;
+
 #[path = "misbehavior.rs"]
 pub(crate) mod misbehavior;
 #[path = "misbehavior_monitor.rs"]
@@ -168,6 +175,10 @@ pub(crate) mod scorer;
 
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
+};
+use handler_object_state::{
+    AssignedCommit, CommitIndex, FlushedCommitRows, HandlerObjectState, HandlerProcessedObject,
+    handler_rows_for_commit,
 };
 use iota_types::crypto::AggregateAuthorityPublicKey;
 use scorer::Scoreboard;
@@ -685,6 +696,13 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
+    /// P-COOL deterministic-validation bookkeeping: the transaction-key ->
+    /// commit-index map and the overlays over the three bookkeeping tables,
+    /// holding entries not yet durable.
+    /// `None` without deterministic validation.
+    handler_object_state: Option<HandlerObjectState>,
+    /// See [`Self::pcool_bookkeeping_enabled`].
+    pcool_bookkeeping_enabled: bool,
 
     protocol_config: ProtocolConfig,
 
@@ -756,6 +774,11 @@ pub struct AuthorityPerEpochStore {
     /// in `start_epoch_specific_validator_components`. Left empty in tests.
     soft_locks: OnceCell<Arc<PreConsensusSoftLocks>>,
 
+    /// Effects of executed transactions, read by the quarantine flush to
+    /// derive a commit's handler-processed rows. Wired by `AuthorityState`
+    /// once the execution cache exists; the next epoch's store inherits it.
+    effects_store: OnceCell<Arc<dyn TransactionCacheRead>>,
+
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
 
@@ -809,6 +832,15 @@ pub struct AuthorityPerEpochStore {
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
 
+    /// Set once this node executes downloaded checkpoints for the rest of the
+    /// epoch instead of building them from consensus.
+    synced_checkpoint_execution: watch::Sender<bool>,
+    /// Held by the consensus handler while it processes a commit.
+    consensus_commit_guard: tokio::sync::Mutex<()>,
+    /// The last commit the consensus handler finished processing, seeded
+    /// from the consensus resume point.
+    last_handled_commit: std::sync::atomic::AtomicU64,
+
     /// Monitors local observations of misbehaviors and sends reports.
     pub(crate) misbehavior_monitor: MisbehaviorMonitor,
     /// Aggregates incoming misbehavior reports from peers.
@@ -830,6 +862,15 @@ pub struct AuthorityEpochTables {
     /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
+
+    /// Every object version produced by a commit the handler processed, for
+    /// P-COOL deterministic post-consensus validation (see
+    /// [`handler_object_state`]). Flushed through each commit's quarantined
+    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
+    /// access profile as the lock table: one write per written object version
+    /// per commit, one point lookup per validated input.
+    #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
+    handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
@@ -863,6 +904,25 @@ pub struct AuthorityEpochTables {
     /// that we won't receive another handle_consensus_transaction call for
     /// the given digest. This probably means at epoch change.
     consensus_message_processed: DBMap<SequencedConsensusTransactionKey, bool>,
+
+    /// The post-consensus validation decision of every candidate of a
+    /// consensus commit, keyed by commit and transaction digest. Written when
+    /// the handler first validates the commit and deleted when the commit's
+    /// output flushes, so a commit replayed after a restart finds them. The
+    /// rows of a commit whose output never flushes, such as one the handler
+    /// abandons at the switch to synced checkpoints, stay until the epoch ends.
+    pub(crate) post_consensus_decisions:
+        DBMap<(CommitIndex, TransactionDigest), SavedPostConsensusDecision>,
+    /// The candidates of a consensus commit in consensus order, written in
+    /// the same batch as their rows in `post_consensus_decisions`, so its
+    /// presence means every candidate of the commit has a decision.
+    pub(crate) post_consensus_decision_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
+
+    /// The last commit the consensus handler processed before this node
+    /// switched to executing synced checkpoints for the rest of the epoch,
+    /// under the key 0. Written when the switch starts, so a restart replays
+    /// the commits up to it and processes none after it.
+    last_commit_before_synced_checkpoint_execution: DBMap<u64, CommitIndex>,
 
     /// Map stores pending transactions that this authority submitted to
     /// consensus
@@ -973,7 +1033,9 @@ pub struct AuthorityEpochTables {
     pub(crate) dkg_output: DBMap<u64, dkg_v1::Output<PkG, EncG>>,
     /// Successor of `dkg_output`. Wraps the output in an `Option` so the
     /// terminal-failure verdict is persistable: `Some(out)` = success,
-    /// `None` = DKG failed (terminal), table-absent = still pending.
+    /// `None` = DKG failed (terminal), table-absent = still pending. `None` is
+    /// only written when `allow_dkg_completion_after_timeout` is off; with the
+    /// flag on, DKG times out per commit instead and can still complete.
     /// `RandomnessManager::try_new` loads this table first and falls back to
     /// `dkg_output` for backward compatibility with existing epoch stores.
     pub(crate) dkg_output_v2: DBMap<u64, Option<dkg_v1::Output<PkG, EncG>>>,
@@ -1273,6 +1335,17 @@ impl AuthorityPerEpochStore {
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
+        let resume_point = protocol_config.pcool_deterministic_validation().then(|| {
+            tables
+                .get_last_consensus_index()
+                .expect("AuthorityEpochTables should hold a readable consensus resume point")
+                .unwrap_or_default()
+                .sub_dag_index
+        });
+        let handler_object_state =
+            resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
+        let pcool_bookkeeping_enabled =
+            committee.authority_exists(&name) && protocol_config.pcool_deterministic_validation();
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1326,6 +1399,8 @@ impl AuthorityPerEpochStore {
             protocol_config,
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
+            handler_object_state,
+            pcool_bookkeeping_enabled,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
                 cached_overload_notifications,
@@ -1349,6 +1424,7 @@ impl AuthorityPerEpochStore {
             active_transaction_deny_rules,
             mirrored_transaction_deny_rules,
             soft_locks: OnceCell::new(),
+            effects_store: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1361,6 +1437,11 @@ impl AuthorityPerEpochStore {
             chain,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
+            synced_checkpoint_execution: watch::channel(false).0,
+            consensus_commit_guard: tokio::sync::Mutex::new(()),
+            last_handled_commit: std::sync::atomic::AtomicU64::new(
+                resume_point.unwrap_or_default(),
+            ),
             misbehavior_monitor,
             report_aggregator,
             scoreboard,
@@ -1411,6 +1492,84 @@ impl AuthorityPerEpochStore {
 
     pub fn randomness_reporter(&self) -> Option<RandomnessReporter> {
         self.randomness_reporter.get().cloned()
+    }
+
+    /// Whether this node executes downloaded checkpoints for the rest of the
+    /// epoch instead of building them from consensus. Once set, the
+    /// consensus handler processes no further commits of the epoch and the
+    /// checkpoint builder stops.
+    pub fn is_executing_synced_checkpoints(&self) -> bool {
+        *self.synced_checkpoint_execution.borrow()
+    }
+
+    /// Marks that this node executes downloaded checkpoints for the rest of
+    /// the epoch. Returns once the consensus handler is between commits, so no
+    /// commit is processed against state that executing those checkpoints
+    /// writes, and once the last commit the handler processed is saved, so
+    /// a restart processes no later commit. Returns at once if this was
+    /// already done.
+    pub async fn start_executing_synced_checkpoints(&self) {
+        if self.synced_checkpoint_execution.send_replace(true) {
+            return;
+        }
+        let _commit_guard = self.consensus_commit_guard.lock().await;
+        // The tables are gone only once the epoch has ended, when nothing
+        // replays this epoch's commits any more.
+        if let Ok(tables) = self.tables() {
+            let last_handled_commit = self
+                .last_handled_commit
+                .load(std::sync::atomic::Ordering::SeqCst);
+            if tables
+                .last_commit_before_synced_checkpoint_execution
+                .get(&0)
+                .expect("db error")
+                .is_none()
+            {
+                tables
+                    .last_commit_before_synced_checkpoint_execution
+                    .insert(&0, &last_handled_commit)
+                    .expect("db error");
+            }
+        }
+    }
+
+    /// The last commit the consensus handler processed before this node
+    /// switched to executing synced checkpoints in this epoch, if it did.
+    /// Saved by [`Self::start_executing_synced_checkpoints`].
+    pub fn last_commit_before_synced_checkpoint_execution(
+        &self,
+    ) -> IotaResult<Option<CommitIndex>> {
+        Ok(self
+            .tables()?
+            .last_commit_before_synced_checkpoint_execution
+            .get(&0)?)
+    }
+
+    /// Records that the consensus handler finished processing commit
+    /// `index`. Call with the commit guard held.
+    pub(crate) fn record_handled_commit(&self, index: CommitIndex) {
+        self.last_handled_commit
+            .fetch_max(index, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Marks this node as executing synced checkpoints for the rest of the
+    /// epoch again after a restart, from the consensus handler once it reaches
+    /// a commit after the one [`Self::last_commit_before_synced_checkpoint_execution`]
+    /// returns. The caller holds the commit guard, so no commit is in progress.
+    pub(crate) fn resume_executing_synced_checkpoints(&self) {
+        self.synced_checkpoint_execution.send_replace(true);
+    }
+
+    /// Completes once `start_executing_synced_checkpoints` has been called.
+    pub async fn wait_for_synced_checkpoint_execution(&self) {
+        let mut started = self.synced_checkpoint_execution.subscribe();
+        // The sender lives as long as `self`, so this cannot fail.
+        let _ = started.wait_for(|started| *started).await;
+    }
+
+    /// Held by the consensus handler while it processes one commit.
+    pub(crate) async fn lock_consensus_commit(&self) -> tokio::sync::MutexGuard<'_, ()> {
+        self.consensus_commit_guard.lock().await
     }
 
     pub async fn set_randomness_manager(
@@ -1471,7 +1630,7 @@ impl AuthorityPerEpochStore {
         assert_eq!(self.epoch() + 1, new_committee.epoch);
         self.record_reconfig_halt_duration_metric();
         self.record_epoch_total_duration_metric();
-        Self::new(
+        let next_epoch_store = Self::new(
             name,
             Arc::new(new_committee),
             &self.parent_path,
@@ -1484,7 +1643,13 @@ impl AuthorityPerEpochStore {
             expensive_safety_check_config,
             self.chain,
             previous_epoch_last_checkpoint,
-        )
+        )?;
+        // The execution cache outlives the epoch, so the next store reads
+        // effects through the same handle.
+        if let Some(effects_store) = self.effects_store.get() {
+            next_epoch_store.set_effects_store(effects_store.clone());
+        }
+        Ok(next_epoch_store)
     }
 
     pub fn new_at_next_epoch_for_testing(
@@ -1722,6 +1887,462 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Whether this node keeps the P-COOL deterministic-validation
+    /// bookkeeping: the flag is on and this node is in the epoch's committee.
+    /// Every bookkeeping write, the execution watcher and the commit
+    /// assignment check this rather than the flag alone. A node outside the
+    /// committee runs no consensus handler, so no transaction it executes
+    /// would have its commit assigned.
+    pub fn pcool_bookkeeping_enabled(&self) -> bool {
+        self.pcool_bookkeeping_enabled
+    }
+
+    /// Registers the roots of commit `index` in the transaction-key ->
+    /// commit-index map and hands the commit to the execution watcher. Must
+    /// be called once per commit while the handler processes it, before any
+    /// of its transactions can be scheduled:
+    /// [`Self::record_executed_transaction`] records rows only for a
+    /// transaction whose commit is assigned.
+    pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        handler_object_state.assign_commit_to_transactions(index, roots);
+    }
+
+    /// The execution watcher's end of the assigned-commit channel; `None`
+    /// once a watcher has taken it, or without deterministic validation. See
+    /// [`HandlerObjectState::take_assigned_commits_receiver`].
+    pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return None;
+        };
+        handler_object_state.take_assigned_commits_receiver()
+    }
+
+    /// Receiver of the highest fully executed commit, or `None` without
+    /// deterministic validation; see
+    /// [`HandlerObjectState::subscribe_highest_fully_executed_commit`].
+    pub fn subscribe_highest_fully_executed_commit(&self) -> Option<watch::Receiver<CommitIndex>> {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return None;
+        };
+        Some(handler_object_state.subscribe_highest_fully_executed_commit())
+    }
+
+    /// Waits until commit `index` and everything below it is fully executed;
+    /// see [`HandlerObjectState::wait_for_fully_executed_commit`].
+    pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        handler_object_state
+            .wait_for_fully_executed_commit(index)
+            .await
+    }
+
+    /// The saved post-consensus validation decision for `digest` at commit
+    /// `index`, if the handler validated that commit and its output has not
+    /// flushed yet.
+    pub(crate) fn post_consensus_decision(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<SavedPostConsensusDecision>> {
+        Ok(self
+            .tables()?
+            .post_consensus_decisions
+            .get(&(index, digest))?)
+    }
+
+    /// Whether a post-consensus validation decision for `digest` at commit
+    /// `index` is saved; see [`Self::post_consensus_decision`]. For cluster
+    /// tests.
+    #[cfg(msim)]
+    pub fn has_post_consensus_decision_for_testing(
+        &self,
+        index: CommitIndex,
+        digest: TransactionDigest,
+    ) -> IotaResult<bool> {
+        Ok(self.post_consensus_decision(index, digest)?.is_some())
+    }
+
+    /// Saves the decisions of every candidate of commit `index`, in consensus
+    /// order, together with the commit's candidate list, in one batch.
+    pub(crate) fn persist_post_consensus_decisions(
+        &self,
+        index: CommitIndex,
+        decisions: &[(TransactionDigest, SavedPostConsensusDecision)],
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let mut batch = tables.post_consensus_decisions.batch();
+        batch.insert_batch(
+            &tables.post_consensus_decisions,
+            decisions
+                .iter()
+                .map(|(digest, decision)| ((index, *digest), decision)),
+        )?;
+        batch.insert_batch(
+            &tables.post_consensus_decision_candidates,
+            [(
+                index,
+                decisions
+                    .iter()
+                    .map(|(digest, _)| *digest)
+                    .collect::<Vec<_>>(),
+            )],
+        )?;
+        batch.write()?;
+        Ok(())
+    }
+
+    /// Records one executed transaction's object writes for the P-COOL
+    /// deterministic-validation bookkeeping; see
+    /// [`HandlerObjectState::record_executed_transaction`]. The caller skips
+    /// genesis transactions, the epoch-0 migration transactions among them,
+    /// and the change-epoch transaction, which run outside any commit.
+    ///
+    /// Every other execution belongs to a commit the handler has assigned,
+    /// unless this node executes synced checkpoints for the rest of the
+    /// epoch; then the handler processes no further commit and nothing is
+    /// recorded.
+    ///
+    /// # Panics
+    ///
+    /// On any other execution the handler has not assigned. Its outputs would
+    /// become readable without rows, and validation would then read state the
+    /// rows do not describe. The panic comes before the outputs are written,
+    /// so after a restart the handler replays the commit and assigns it before
+    /// the transaction executes again.
+    pub fn record_executed_transaction(&self, key: &TransactionKey, effects: &TransactionEffects) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        if handler_object_state.record_executed_transaction(key, effects)
+            || self.is_executing_synced_checkpoints()
+        {
+            return;
+        }
+        fatal!("transaction {key:?} executed without its commit assigned by the consensus handler");
+    }
+
+    /// Marks commit `index` fully executed, or does nothing once the quarantine
+    /// flush has completed the commit; see
+    /// [`HandlerObjectState::record_commit_fully_executed`].
+    pub fn record_commit_fully_executed(
+        &self,
+        index: CommitIndex,
+        upserts: &[(ObjectKey, HandlerProcessedObject)],
+    ) -> IotaResult {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(());
+        };
+        let tables = self.tables()?;
+        // Outside the lock: a row found stays found, since rows are never
+        // deleted and are evicted only once durable. A row that appears after
+        // this check is inserted again with the same value, and the commit's
+        // flush writes and evicts it like any other row still in the overlay.
+        let inserts = handler_object_state.rows_not_yet_present(&tables, upserts)?;
+        // Held so a flush cannot complete this commit between the guard inside
+        // and the upserts: the flush runs under the write lock throughout.
+        let _quarantine = self.consensus_quarantine.read();
+        handler_object_state.record_commit_fully_executed(index, upserts, &inserts);
+        Ok(())
+    }
+
+    /// Stages the handler rows of a commit flushing out of the quarantine into
+    /// `batch`. Returns them for the caller to evict once `batch` is durable, or `None`
+    /// when the bookkeeping is off.
+    ///
+    /// A commit the watcher completed stages only its rows still in the
+    /// overlay; see [`HandlerObjectState::take_completed_commit_rows`].
+    /// Otherwise the flush completes the commit, deriving its rows from the
+    /// effects of the transactions it checkpointed: the overlay holds nothing
+    /// for a commit replayed after a restart, since its transactions executed
+    /// before the crash and the execution hook does not run for them again.
+    fn stage_flushed_commit_rows(
+        &self,
+        index: CommitIndex,
+        pending_checkpoints: &[PendingCheckpoint],
+        batch: &mut DBBatch,
+    ) -> IotaResult<Option<FlushedCommitRows>> {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(None);
+        };
+        if !self.pcool_bookkeeping_enabled {
+            return Ok(None);
+        }
+        let tables = self.tables()?;
+        let rows = match handler_object_state.take_completed_commit_rows(index) {
+            Some(rows) => rows,
+            None => {
+                let rows = self.handler_rows_from_effects(&tables, index, pending_checkpoints)?;
+                handler_object_state.complete_commit_at_flush(index, &rows);
+                rows
+            }
+        };
+        handler_object_state.write_commit_rows_to_batch(&tables, batch, &rows)?;
+        Ok(Some(FlushedCommitRows { index, rows }))
+    }
+
+    /// The handler rows of commit `index`, derived from the effects of the
+    /// transactions its pending checkpoints hold.
+    ///
+    /// Every root of a flushing commit is in a checkpoint that has been built
+    /// and executed, so it has a digest and effects. A root missing either is
+    /// an error, so the flush batch is never written without its rows.
+    fn handler_rows_from_effects(
+        &self,
+        tables: &AuthorityEpochTables,
+        index: CommitIndex,
+        pending_checkpoints: &[PendingCheckpoint],
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let mut digests = Vec::new();
+        for key in pending_checkpoints
+            .iter()
+            .flat_map(|checkpoint| checkpoint.roots())
+        {
+            let digest = match key {
+                TransactionKey::Digest(digest) => *digest,
+                key => tables.transaction_key_to_digest.get(key)?.ok_or_else(|| {
+                    IotaError::GenericAuthority {
+                        error: format!("no digest for root {key:?} of flushing commit {index}"),
+                    }
+                })?,
+            };
+            digests.push(digest);
+        }
+
+        let effects = self
+            .effects_store()
+            .multi_get_executed_effects(&digests)
+            .into_iter()
+            .zip(&digests)
+            .map(|(effects, digest)| {
+                effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
+            })
+            .collect::<IotaResult<Vec<_>>>()?;
+        Ok(handler_rows_for_commit(&effects, index))
+    }
+
+    /// Evicts the overlay entries of commits whose rows are now durable, and
+    /// raises the highest fully executed commit. Call only after the flush
+    /// batch has been written.
+    fn evict_flushed_commit_rows(&self, flushed: &[FlushedCommitRows]) {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return;
+        };
+        for commit in flushed {
+            handler_object_state.evict_flushed_commit_rows(commit.index, &commit.rows);
+        }
+    }
+
+    /// Makes the handler rows left by the executions behind `effects` - one
+    /// checkpoint's transactions - durable, then evicts them from the
+    /// overlay. The checkpoint executor calls this before this checkpoint's
+    /// outputs and its commits' quarantine flushes, so an object is never
+    /// durable without its handler row. Does nothing when the bookkeeping is
+    /// off or the epoch has ended.
+    ///
+    /// Takes no lock: rows never change once written for a key, and no flush
+    /// deletes them, so this write commutes with every other row write.
+    pub fn persist_checkpoint_bookkeeping<'a>(
+        &self,
+        effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    ) -> IotaResult {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(());
+        };
+        if !self.pcool_bookkeeping_enabled {
+            return Ok(());
+        }
+        let tables = match self.tables() {
+            Ok(tables) => tables,
+            Err(IotaError::EpochEnded(_)) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        let rows = handler_object_state.checkpoint_rows(effects);
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let mut batch = tables.handler_processed_objects.batch();
+        handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
+        batch.write()?;
+        // Lets a test crash the node with the bookkeeping durable and the
+        // checkpoint's outputs not.
+        fail_point!("crash-after-checkpoint-bookkeeping-write");
+        handler_object_state.evict_flushed_checkpoint_rows(&rows);
+        Ok(())
+    }
+
+    /// The handler-processed row at `key`, the exact version a transaction
+    /// names.
+    pub fn handler_processed_object(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<HandlerProcessedObject>> {
+        let Some(handler_object_state) = &self.handler_object_state else {
+            return Ok(None);
+        };
+        let tables = self.tables()?;
+        handler_object_state.handler_processed_object(&tables, key)
+    }
+
+    #[cfg(test)]
+    pub fn handler_object_state_for_testing(&self) -> &HandlerObjectState {
+        self.handler_object_state
+            .as_ref()
+            .expect("tests of the handler object state turn deterministic validation on")
+    }
+
+    /// Durably writes `handler_rows`, then evicts them from the overlay - the
+    /// quarantine flush's locking and write-then-evict order, without its row
+    /// derivation or its completion of the commit. Tests of the flush itself
+    /// use [`Self::flush_commit_through_quarantine_for_testing`].
+    #[cfg(test)]
+    pub fn flush_commit_rows_for_testing(
+        &self,
+        commit_index: CommitIndex,
+        handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+    ) -> IotaResult {
+        self.flush_commit_rows_interleaved_for_testing(commit_index, handler_rows, || {})
+    }
+
+    /// [`Self::flush_commit_rows_for_testing`] with `between` run once the
+    /// rows are staged and before the batch is written, still
+    /// under the quarantine write lock.
+    #[cfg(test)]
+    pub fn flush_commit_rows_interleaved_for_testing(
+        &self,
+        commit_index: CommitIndex,
+        handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+        between: impl FnOnce(),
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let _quarantine = self.consensus_quarantine.write();
+        let mut batch = tables.handler_processed_objects.batch();
+        self.handler_object_state_for_testing()
+            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+        between();
+        batch.write()?;
+        self.handler_object_state_for_testing()
+            .evict_flushed_commit_rows(commit_index, &handler_rows);
+        Ok(())
+    }
+
+    /// The handler-processed row at `key` in the durable table, skipping the
+    /// overlay and the read-through cache.
+    #[cfg(test)]
+    pub fn durable_handler_processed_object_for_testing(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<HandlerProcessedObject>> {
+        Ok(self.tables()?.handler_processed_objects.get(key)?)
+    }
+
+    /// Runs `during` while holding the consensus quarantine write lock, as a
+    /// commit push or a quarantine flush does.
+    #[cfg(test)]
+    pub fn hold_consensus_quarantine_for_testing(&self, during: impl FnOnce()) {
+        let _quarantine = self.consensus_quarantine.write();
+        during();
+    }
+
+    /// Flushes commit `index` out of the consensus quarantine through the
+    /// same path a running node takes, with one pending checkpoint of `roots`
+    /// at height `index` and checkpoint sequence number `index`. Calls must
+    /// use increasing indices. Returns the handler rows the flush wrote.
+    #[cfg(test)]
+    pub fn flush_commit_through_quarantine_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: Vec<TransactionDigest>,
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let summary = self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        Ok(self
+            .finalize_checkpoint(&summary, &roots)?
+            .into_iter()
+            .flat_map(|commit| commit.rows)
+            .collect())
+    }
+
+    /// [`Self::flush_commit_through_quarantine_for_testing`] with `between`
+    /// run once the flush has completed the commit and staged its rows, and
+    /// before the batch is written, still under the quarantine write lock.
+    /// Runs only the flush part of the finalized checkpoint's handling.
+    #[cfg(test)]
+    pub fn flush_commit_through_quarantine_interleaved_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: Vec<TransactionDigest>,
+        between: impl FnOnce(),
+    ) -> IotaResult {
+        self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        let tables = self.tables()?;
+        let mut batch = tables.signed_effects_digests.batch();
+        let mut quarantine = self.consensus_quarantine.write();
+        let flushed = quarantine.update_highest_executed_checkpoint(index, self, &mut batch)?;
+        between();
+        batch.write()?;
+        self.evict_flushed_commit_rows(&flushed);
+        Ok(())
+    }
+
+    /// Pushes commit `index` into the consensus quarantine with one pending
+    /// checkpoint of `roots`, and builds that checkpoint, so that its
+    /// execution flushes the commit.
+    #[cfg(test)]
+    fn build_checkpoint_of_commit_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: &[TransactionDigest],
+    ) -> IotaResult<CheckpointSummary> {
+        use iota_sdk_types::GasCostSummary;
+        use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
+
+        let checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
+            roots: roots.iter().copied().map(TransactionKey::Digest).collect(),
+            details: PendingCheckpointInfo {
+                timestamp_ms: 0,
+                last_of_epoch: false,
+                checkpoint_height: index,
+            },
+        });
+        let mut output = ConsensusCommitOutput::new(index, index);
+        self.write_pending_checkpoint(&mut output, &checkpoint)?;
+        // Not the default stats: the stored `sub_dag_index` is the resume
+        // point a reopened epoch store starts from.
+        output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+            index: ExecutionIndices {
+                last_committed_round: index,
+                sub_dag_index: index,
+                transaction_index: 0,
+            },
+            ..Default::default()
+        });
+        self.push_consensus_output_for_tests(output);
+
+        let contents = CheckpointContents::new_with_digests_only_for_tests(
+            roots
+                .iter()
+                .map(|digest| ExecutionDigests::new(*digest, TransactionEffectsDigest::ZERO)),
+        );
+        let summary = CheckpointSummary::new_with_protocol_config(
+            self.protocol_config(),
+            self.epoch(),
+            index,
+            0,
+            &contents,
+            None,
+            GasCostSummary::default(),
+            None,
+            0,
+            Vec::new(),
+        );
+        self.process_constructed_checkpoint(index, NonEmpty::new((summary.clone(), contents)));
+        Ok(summary)
+    }
+
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
         self.consensus_output_cache
             .remove_reverted_transaction(tx_digest);
@@ -1954,6 +2575,27 @@ impl AuthorityPerEpochStore {
             .expect("soft_locks should only be set once");
     }
 
+    /// Wires the effects reader of the quarantine flush and the execution
+    /// watcher.
+    ///
+    /// # Panics
+    /// Panics if called more than once on the same instance.
+    pub fn set_effects_store(&self, effects_store: Arc<dyn TransactionCacheRead>) {
+        assert!(
+            self.effects_store.set(effects_store).is_ok(),
+            "effects_store should only be set once"
+        );
+    }
+
+    /// The effects reader of the quarantine flush and the execution watcher,
+    /// both of which run only with the P-COOL deterministic-validation flag
+    /// on, by which point `AuthorityState` has wired it.
+    pub(crate) fn effects_store(&self) -> &Arc<dyn TransactionCacheRead> {
+        self.effects_store
+            .get()
+            .expect("effects_store should be wired before the first consensus commit flushes")
+    }
+
     pub async fn notify_read_running_root(
         &self,
         checkpoint: CheckpointSequenceNumber,
@@ -1977,11 +2619,22 @@ impl AuthorityPerEpochStore {
         checkpoint: &CheckpointSummary,
         digests: &[TransactionDigest],
     ) -> IotaResult<()> {
+        self.finalize_checkpoint(checkpoint, digests)?;
+        Ok(())
+    }
+
+    /// [`Self::handle_finalized_checkpoint`], returning the handler rows of
+    /// the commits it flushed out of the quarantine.
+    fn finalize_checkpoint(
+        &self,
+        checkpoint: &CheckpointSummary,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<FlushedCommitRows>> {
         let tables = match self.tables() {
             Ok(tables) => tables,
             // After Epoch ends, it is no longer necessary to remove pending transactions
             // because the table will not be used anymore and be deleted eventually.
-            Err(IotaError::EpochEnded(_)) => return Ok(()),
+            Err(IotaError::EpochEnded(_)) => return Ok(Vec::new()),
             Err(e) => return Err(e),
         };
         let mut batch = tables.signed_effects_digests.batch();
@@ -1993,8 +2646,13 @@ impl AuthorityPerEpochStore {
         let seq = checkpoint.sequence_number();
 
         let mut quarantine = self.consensus_quarantine.write();
-        quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
+        let flushed = quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
+        // No fsync: the write-then-evict order below, and the order against the
+        // effects the rows were derived from, hold across a process crash
+        // only; see the `handler_object_state` module docs.
         batch.write()?;
+        // Evict only after the corresponding entries are flushed to disk.
+        self.evict_flushed_commit_rows(&flushed);
 
         for digest in digests {
             self.signed_effects_digests_cache.remove(digest);
@@ -2003,7 +2661,7 @@ impl AuthorityPerEpochStore {
         self.consensus_output_cache
             .remove_executed_in_epoch(digests);
 
-        Ok(())
+        Ok(flushed)
     }
 
     pub fn get_all_pending_consensus_transactions(&self) -> Vec<ConsensusTransaction> {
@@ -2392,8 +3050,8 @@ impl AuthorityPerEpochStore {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> SchedulingResult {
         // Defer transaction if it uses randomness but we aren't generating any this
-        // round. Don't defer if DKG has permanently failed; in that case we
-        // need to ignore.
+        // round. Don't defer if DKG has failed or timed out for this commit; in
+        // that case we need to ignore.
         if !dkg_failed && !generating_randomness && transaction.uses_randomness() {
             let deferred_from_round = previously_deferred_tx_digests
                 .get(transaction.digest())
@@ -3440,12 +4098,16 @@ impl AuthorityPerEpochStore {
             .map(|_| VerifiedAuthorityCapabilitiesV1::new_from_verified(authority_capabilities))
     }
 
-    /// Verifies transaction signatures and other data
-    /// Important: This function can potentially be called in parallel and you
-    /// can not rely on order of transactions to perform verification
-    /// If this function return an error, transaction is skipped and is not
-    /// passed to handle_consensus_transaction This function returns unit
-    /// error and is responsible for emitting log messages for internal errors
+    /// Checks a sequenced consensus transaction before its commit is processed.
+    /// Returns `None` if the transaction must be skipped, so it is not passed
+    /// to `process_consensus_transactions_and_commit_boundary`, and logs the
+    /// reason.
+    ///
+    /// Must be called for the transactions of a commit in consensus order,
+    /// after all earlier commits were processed. The result may depend on the
+    /// state left by earlier commits, but not on other transactions of the
+    /// same commit. Within a commit, a transaction is skipped as a duplicate
+    /// of an earlier one with the same key that passed this check.
     pub(crate) fn verify_consensus_transaction(
         &self,
         transaction: SequencedConsensusTransaction,
@@ -3462,6 +4124,25 @@ impl AuthorityPerEpochStore {
                 "handle_consensus_transaction UserTransaction [skip]",
             );
             skipped_consensus_txns.inc();
+            return None;
+        }
+        // A user transaction from an authority that has sent EndOfPublish must not be processed.
+        // Drop it here, before its key enters the duplicate checks of this commit, so that it
+        // cannot make a later transaction with the same key be skipped.
+        if self
+            .protocol_config()
+            .consensus_dedup_only_recorded_messages()
+            && transaction.transaction.user_transaction_digest().is_some()
+            && self
+                .has_sent_end_of_publish(&transaction.certificate_author)
+                .expect("the end-of-publish set is readable")
+        {
+            warn!(
+                "[Byzantine authority] Authority {:?} sent user transaction {:?} after it sent \
+                 EndOfPublish message to consensus",
+                transaction.certificate_author.concise(),
+                transaction.transaction.user_transaction_digest(),
+            );
             return None;
         }
         // Signatures are verified as part of the consensus payload verification in
@@ -3659,6 +4340,16 @@ impl AuthorityPerEpochStore {
             .expect("test should not be write past end of epoch")
     }
 
+    /// Processes one consensus commit. Returns the transactions to schedule,
+    /// their assigned versions, and the keys of the consensus messages the
+    /// commit recorded as processed, without the keys of system transactions
+    /// it created. The keys are returned only with
+    /// `consensus_dedup_only_recorded_messages` on; otherwise the list
+    /// is empty.
+    ///
+    /// Returns `Err(AdvanceDkgError::RuntimeShutdown)` if runtime shutdown
+    /// cancelled DKG message processing. The commit's output is then not
+    /// persisted, and it is replayed after restart.
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
@@ -3671,7 +4362,33 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
-    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+    ) -> Result<
+        (
+            Vec<Schedulable>,
+            AssignedTxAndVersions,
+            Vec<SequencedConsensusTransactionKey>,
+        ),
+        AdvanceDkgError,
+    > {
+        let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+
+        // Validation reads rows produced at or below the horizon, so every
+        // commit up to it must be fully executed before any input is read.
+        // Only a node that keeps the handler object state advances the highest
+        // fully executed commit. Commits after the final round make no
+        // checkpoint and are never assigned, so the highest fully executed
+        // commit cannot reach them. They admit no user transaction either, so
+        // they do not wait.
+        if self.pcool_bookkeeping_enabled
+            && self.get_reconfig_state_read_lock_guard().should_accept_tx()
+        {
+            self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
+                &self.protocol_config,
+                consensus_commit_info.index,
+            )))
+            .await?;
+        }
+
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
@@ -3761,7 +4478,8 @@ impl AuthorityPerEpochStore {
                 .insert_and_notify(&load_shedding_dropped);
         }
 
-        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
+        let mut output =
+            ConsensusCommitOutput::new(consensus_commit_info.round, consensus_commit_info.index);
 
         // Load transactions deferred from previous commits.
         let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
@@ -3822,9 +4540,9 @@ impl AuthorityPerEpochStore {
             let randomness_manager = randomness_manager
                 .as_mut()
                 .expect("randomness manager should exist if randomness is enabled");
-            match randomness_manager.dkg_status() {
+            match randomness_manager.dkg_status_for_commit_round(consensus_commit_info.round)? {
                 DkgStatus::Pending => None,
-                DkgStatus::Failed => {
+                DkgStatus::TimedOut => {
                     dkg_failed = true;
                     None
                 }
@@ -3911,10 +4629,19 @@ impl AuthorityPerEpochStore {
                 );
             }
 
+            // With deterministic validation, a commit's rows are written
+            // before the highest fully executed commit advances past it, so
+            // after the wait above every row produced at or below the horizon
+            // is readable before validation of `C` starts, and does not change
+            // during it. Rows produced above the horizon can still appear, but
+            // they answer missing. Validating before that wait would make the
+            // result depend on how far this validator's execution has got.
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
                     self,
+                    consensus_commit_info.index,
+                    deterministic_validation,
                     &mut sequenced_transactions,
                 )
                 .await?;
@@ -3923,10 +4650,24 @@ impl AuthorityPerEpochStore {
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
-                self.dropped_tx_status_cache.insert_and_notify(&dropped);
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
+                // A drop for an input not visible at the horizon yet is not
+                // final for the digest, so it is not recorded as its status.
+                let mut final_drops = Vec::new();
+                let mut not_final = Vec::new();
+                for (digest, error, decision) in dropped {
+                    match decision {
+                        PostConsensusDecision::DroppedInputNotVisibleYet => {
+                            not_final.push((digest, error))
+                        }
+                        _ => final_drops.push((digest, error)),
+                    }
+                }
+                self.dropped_tx_status_cache.insert_and_notify(&final_drops);
+                self.dropped_tx_status_cache
+                    .notify_without_recording(&not_final);
             }
 
             // Split back for downstream processing (separate reordering and
@@ -4122,6 +4863,27 @@ impl AuthorityPerEpochStore {
             let should_write_random_checkpoint =
                 randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
 
+            // The deterministic-validation bookkeeping tracks exactly the
+            // roots written to this commit's pending checkpoints.
+            if self.pcool_bookkeeping_enabled {
+                let mut commit_roots = non_randomness_roots.clone();
+                if should_write_random_checkpoint {
+                    commit_roots.extend(randomness_roots.iter().copied());
+                }
+                self.assign_commit_to_transactions(consensus_commit_info.index, commit_roots);
+                if let Some(highest_fully_executed) = self.subscribe_highest_fully_executed_commit()
+                {
+                    authority_metrics
+                        .consensus_handler_commit_execution_lag
+                        .set(
+                            consensus_commit_info
+                                .index
+                                .saturating_sub(*highest_fully_executed.borrow())
+                                as i64,
+                        );
+                }
+            }
+
             let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
                 roots: non_randomness_roots,
                 details: PendingCheckpointInfo {
@@ -4163,6 +4925,19 @@ impl AuthorityPerEpochStore {
                 }
             }
         }
+
+        let processed_keys = if self
+            .protocol_config
+            .consensus_dedup_only_recorded_messages()
+        {
+            output
+                .consensus_messages_processed()
+                .filter(|key| matches!(key, SequencedConsensusTransactionKey::External(_)))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         // Write details of the this consensus commit to consensus output quarantine.
         self.consensus_quarantine
@@ -4231,7 +5006,7 @@ impl AuthorityPerEpochStore {
         ]
         .concat();
 
-        Ok((all_txns, assigned_versions))
+        Ok((all_txns, assigned_versions, processed_keys))
     }
 
     fn calculate_pending_checkpoint_height(&self, consensus_round: u64) -> u64 {
@@ -4464,6 +5239,9 @@ impl AuthorityPerEpochStore {
     // VerifiedSequencedConsensusTransaction.
     // Also, ConsensusStats and hash will not be updated in the db with this
     // function, unlike in process_consensus_transactions_and_commit_boundary().
+    /// # Panics
+    ///
+    /// Panics if runtime shutdown cancels DKG message processing.
     pub async fn process_consensus_transactions_for_tests<C: CheckpointServiceNotify>(
         self: &Arc<Self>,
         transactions: Vec<SequencedConsensusTransaction>,
@@ -4489,6 +5267,7 @@ impl AuthorityPerEpochStore {
             cache_reader,
             &ConsensusCommitInfo::new_for_test(
                 self.get_highest_pending_checkpoint_height() / 2 + 1,
+                self.get_highest_pending_checkpoint_height() / 2 + 1,
                 0,
                 skip_consensus_commit_prologue_in_test,
             ),
@@ -4496,6 +5275,11 @@ impl AuthorityPerEpochStore {
             authority_state,
         )
         .await
+        .map(|(schedulables, assigned_versions, _)| (schedulables, assigned_versions))
+        .map_err(|e| match e {
+            AdvanceDkgError::Iota(e) => e,
+            AdvanceDkgError::RuntimeShutdown => panic!("runtime shutdown during test commit"),
+        })
     }
 
     pub fn assign_shared_object_versions_for_tests(
@@ -4503,7 +5287,7 @@ impl AuthorityPerEpochStore {
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
     ) -> IotaResult<AssignedTxAndVersions> {
-        let mut output = ConsensusCommitOutput::new(0);
+        let mut output = ConsensusCommitOutput::new(0, 0);
         let transactions: Vec<_> = transactions
             .iter()
             .cloned()
@@ -4569,15 +5353,18 @@ impl AuthorityPerEpochStore {
         mut shared_object_using_randomness_congestion_tracker: Option<
             SharedObjectCongestionTracker,
         >,
-    ) -> IotaResult<(
-        Vec<Schedulable>,                      // non-randomness transactions to schedule
-        Vec<Schedulable>,                      // randomness transactions to schedule
-        Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
-        Option<RwLockWriteGuard<'_, ReconfigState>>,
-        bool,                   // true if final round
-        Option<TransactionKey>, // consensus commit prologue root
-        AssignedTxAndVersions,
-    )> {
+    ) -> Result<
+        (
+            Vec<Schedulable>,                      // non-randomness transactions to schedule
+            Vec<Schedulable>,                      // randomness transactions to schedule
+            Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
+            Option<RwLockWriteGuard<'_, ReconfigState>>,
+            bool,                   // true if final round
+            Option<TransactionKey>, // consensus commit prologue root
+            AssignedTxAndVersions,
+        ),
+        AdvanceDkgError,
+    > {
         if randomness_round.is_some() {
             assert!(!dkg_failed); // invariant check
         }
@@ -4735,11 +5522,12 @@ impl AuthorityPerEpochStore {
                     filter_roots = true;
                 }
                 // Note: ignored external transactions must not be recorded as processed. Otherwise
-                // they may not get reverted after restart during epoch change.
-                // TODO: once the P-COOL flow is rolled out there is no pre-consensus execution
-                // left to revert, so ignored transactions can be recorded as processed too. That
-                // keeps the consensus handler's duplicate cache and this table in agreement and
-                // lets waiters on `consensus_messages_processed_notify` learn about the drop.
+                // they may not get reverted after restart during epoch change. A later copy of
+                // an ignored transaction is then processed like a new one, so every validator
+                // must reach it: the consensus handler's processed-transaction cache must hold
+                // only recorded keys (see `consensus_dedup_only_recorded_messages`).
+                // TODO: waiters on `consensus_messages_processed_notify` do not learn about the
+                // drop.
                 ConsensusTransactionResult::Ignored => {
                     ignored = true;
                     filter_roots = true;
@@ -4862,17 +5650,25 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        // Advance the DKG state machine on every commit while it is still
-        // pending, even when no new messages or confirmations arrived this
-        // commit, so it can resolve from already-persisted state -- completing,
-        // or failing once the timeout round passes. Without this, advance_dkg
-        // only runs on commits carrying fresh DKG traffic, so a validator that
-        // sees no new inbound traffic (e.g. one that restarted) can stay Pending
-        // forever -- deferring all randomness-using transactions and blocking
-        // epoch close.
-        let dkg_pending = randomness_manager
-            .as_ref()
-            .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
+        // With `allow_dkg_completion_after_timeout` off, advance the DKG state
+        // machine on every commit while it is still pending, even when no new
+        // messages or confirmations arrived this commit, so it can resolve from
+        // already-persisted state -- completing, or failing once the timeout
+        // round passes. Without this, advance_dkg only runs on commits carrying
+        // fresh DKG traffic, so a validator that sees no new inbound traffic
+        // (e.g. one that restarted) can stay Pending forever -- deferring all
+        // randomness-using transactions and blocking epoch close.
+        //
+        // With the flag on, DKG never fails, and the timeout is checked per
+        // commit by `dkg_status_for_commit_round`, so randomness-using
+        // transactions are canceled instead of deferred and do not block epoch
+        // close. Merging and completion can then only make progress when new
+        // DKG messages or confirmations arrive, so DKG is advanced only on
+        // those commits.
+        let dkg_pending = !self.protocol_config().allow_dkg_completion_after_timeout()
+            && randomness_manager
+                .as_ref()
+                .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
         if randomness_state_updated || dkg_pending {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager
@@ -5074,6 +5870,8 @@ impl AuthorityPerEpochStore {
                     );
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
                 if self.has_sent_end_of_publish(certificate_author)?
                     && !previously_deferred_tx_digests.contains_key(certificate.digest())
                 {
@@ -5323,6 +6121,8 @@ impl AuthorityPerEpochStore {
                     warn!("UserTransactionV1 contains system transaction, ignoring");
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
                 if self.has_sent_end_of_publish(certificate_author)?
                     && !previously_deferred_tx_digests.contains_key(transaction.digest())
                 {

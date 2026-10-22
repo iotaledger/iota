@@ -555,6 +555,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 }
@@ -755,6 +756,7 @@ mod tests {
                     data: vec![gas_coin.clone()],
                     next_cursor: Some(gas_coin.coin_object_id),
                     has_next_page: false,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -792,6 +794,7 @@ mod tests {
                     data: coins[..limit].to_vec(),
                     next_cursor: Some(coins[limit - 1].coin_object_id),
                     has_next_page: true,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -830,6 +833,7 @@ mod tests {
                     data: vec![coin.clone()],
                     next_cursor: Some(coin.coin_object_id),
                     has_next_page: false,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -875,6 +879,7 @@ mod tests {
                     data: coins[..limit].to_vec(),
                     next_cursor: Some(coins[limit - 1].coin_object_id),
                     has_next_page: true,
+                    oldest_available_checkpoint: None,
                 }
             );
         }

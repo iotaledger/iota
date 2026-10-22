@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(msim)]
-use std::sync::atomic::Ordering;
 use std::{
     collections::HashMap,
     fmt,
     future::Future,
     num::NonZeroUsize,
-    sync::{Arc, Weak},
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -232,6 +233,9 @@ pub struct IotaNode {
     _discovery: discovery::Handle,
     state_sync_handle: state_sync::Handle,
     randomness_handle: randomness::Handle,
+    /// Lets state sync fetch summaries to the end of the epoch being
+    /// executed; set for each epoch from `sync_summaries_to_epoch_end`.
+    sync_summaries_to_epoch_end: Arc<AtomicBool>,
     checkpoint_store: Arc<CheckpointStore>,
     state_sync_store: RocksDbStore,
     global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
@@ -647,6 +651,9 @@ impl IotaNode {
                 .unwrap_or_default()
                 .mailbox_capacity(),
         );
+        let sync_summaries_to_epoch_end = Arc::new(AtomicBool::new(
+            Self::sync_summaries_to_epoch_end(&config, &epoch_store),
+        ));
         let (p2p_network, discovery_handle, state_sync_handle, randomness_handle) =
             Self::create_p2p_network(
                 &config,
@@ -654,6 +661,7 @@ impl IotaNode {
                 chain_identifier,
                 trusted_peer_change_rx,
                 randomness_tx,
+                sync_summaries_to_epoch_end.clone(),
                 &prometheus_registry,
             )?;
 
@@ -718,7 +726,6 @@ impl IotaNode {
             chain_identifier,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
-            config.firewall_config.clone(),
             epoch_end_db_snapshots,
         )
         .await;
@@ -919,6 +926,7 @@ impl IotaNode {
             _discovery: discovery_handle,
             state_sync_handle,
             randomness_handle,
+            sync_summaries_to_epoch_end,
             checkpoint_store,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
@@ -1033,12 +1041,29 @@ impl IotaNode {
         }
     }
 
+    /// Whether state sync should fetch summaries to the end of the epoch of
+    /// `epoch_store`: this node is in its committee and waits for its own
+    /// checkpoints there.
+    fn sync_summaries_to_epoch_end(
+        config: &NodeConfig,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> bool {
+        config.is_validator()
+            && epoch_store
+                .committee()
+                .authority_exists(&config.authority_public_key())
+            && epoch_store
+                .protocol_config()
+                .pcool_deterministic_validation()
+    }
+
     fn create_p2p_network(
         config: &NodeConfig,
         state_sync_store: RocksDbStore,
         chain_identifier: ChainIdentifier,
         trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
         randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
+        sync_summaries_to_epoch_end: Arc<AtomicBool>,
         prometheus_registry: &Registry,
     ) -> Result<(
         Network,
@@ -1050,6 +1075,7 @@ impl IotaNode {
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
             .checkpoint_archive_config(config.checkpoint_archive_config().cloned())
+            .sync_summaries_to_epoch_end(sync_summaries_to_epoch_end)
             .with_metrics(prometheus_registry)
             .build();
 
@@ -1432,10 +1458,18 @@ impl IotaNode {
         let replay_waiter = consensus_manager.replay_waiter();
 
         info!("Spawning checkpoint service");
-        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_ok() {
-            None
-        } else {
+        // With deterministic validation, a checkpoint built before a restart
+        // has to be rebuilt from the replayed commits before it is executed.
+        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_err() {
             Some(replay_waiter)
+        } else if epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+        {
+            warn!("DISABLE_REPLAY_WAITER is ignored with deterministic validation");
+            Some(replay_waiter)
+        } else {
+            None
         };
         let checkpoint_service_tasks = checkpoint_service.spawn(replay_waiter).await;
 
@@ -1938,6 +1972,10 @@ impl IotaNode {
 
             let stop_condition = checkpoint_executor.run_epoch(run_with_range).await;
 
+            if stop_condition == StopReason::RuntimeShutdown {
+                return Ok(());
+            }
+
             if stop_condition == StopReason::RunWithRangeCondition {
                 IotaNode::shutdown(&self).await;
                 self.shutdown_channel_tx
@@ -2025,6 +2063,10 @@ impl IotaNode {
                     hasher.clone(),
                 )
                 .await?;
+            self.sync_summaries_to_epoch_end.store(
+                Self::sync_summaries_to_epoch_end(&self.config, &new_epoch_store),
+                Ordering::Relaxed,
+            );
 
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_handle,

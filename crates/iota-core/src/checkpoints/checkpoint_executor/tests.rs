@@ -6,10 +6,12 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{CheckpointCommitment, EndOfEpochData, GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
+    crypto::{AuthorityKeyPair, get_key_pair},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
         ECMHLiveObjectSetDigest, VerifiedCheckpoint, VerifiedCheckpointContents,
@@ -40,7 +42,8 @@ use crate::{
 pub async fn test_fallback_load_populates_contents_cache() {
     let tmp_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(tmp_dir.path());
-    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (_state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
 
     // sync_new_checkpoints persists only the digest-form contents, like a
     // validator's checkpoint builder, so the executor takes the fallback path.
@@ -79,7 +82,8 @@ pub async fn test_fallback_load_skips_contents_cache_when_disabled() {
         tmp_dir.path(),
         FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests()),
     );
-    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (_state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
 
     let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
         .pop()
@@ -107,7 +111,8 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
         // as soon as the frontier entry below lands.
         FullCheckpointContentsCache::new(1, FullCheckpointContentsCacheMetrics::new_for_tests()),
     );
-    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (_state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
 
     // Simulate the state-sync frontier far ahead of the executor.
     let frontier_seq = 10_000;
@@ -138,10 +143,262 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     );
 }
 
+#[tokio::test]
+pub async fn test_notify_read_locally_computed_checkpoint() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (_state, _executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+
+    let store = checkpoint_store.clone();
+    let waiter =
+        tokio::spawn(async move { store.notify_read_locally_computed_checkpoint(seq).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!waiter.is_finished());
+
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&seq, checkpoint.data())
+        .unwrap();
+    checkpoint_store.notify_locally_computed_checkpoints(std::iter::once(checkpoint.data()));
+    let summary = timeout(Duration::from_secs(5), waiter)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(&summary, checkpoint.data());
+
+    // Already built: returns without waiting.
+    let summary = timeout(
+        Duration::from_secs(5),
+        checkpoint_store.notify_read_locally_computed_checkpoint(seq),
+    )
+    .await
+    .unwrap();
+    assert_eq!(&summary, checkpoint.data());
+}
+
+#[tokio::test]
+pub async fn test_notify_read_epoch_last_checkpoint() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (_state, _executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let previous = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+
+    let store = checkpoint_store.clone();
+    let waiter =
+        tokio::spawn(async move { store.notify_read_epoch_last_checkpoint_seq_number(0).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!waiter.is_finished());
+
+    let end_of_epoch =
+        make_end_of_epoch_checkpoint(previous, &committee, &next_committee(&committee));
+    checkpoint_store
+        .insert_verified_checkpoint(&end_of_epoch)
+        .unwrap();
+    let seq = timeout(Duration::from_secs(5), waiter)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(seq, end_of_epoch.sequence_number());
+}
+
+/// With `pcool_deterministic_validation`, a committee validator does not
+/// execute a synced checkpoint it has not built while its epoch is running.
+/// Once the certified last checkpoint of the epoch is known, it switches to
+/// executing synced checkpoints for the rest of the epoch.
+#[tokio::test]
+pub async fn test_validator_waits_for_local_build_until_epoch_end() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let epoch_store = state.epoch_store_for_testing().clone();
+    let checkpoints = sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    // Genesis (seq 0) is never built locally and executes from synced data.
+    // Seq 1 waits for the local build.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert_eq!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        Some(0)
+    );
+    assert!(!epoch_store.is_executing_synced_checkpoints());
+
+    // The certified end of the epoch becomes known, but is not marked synced,
+    // so the executor does not try to execute it.
+    let end_of_epoch = make_end_of_epoch_checkpoint(
+        checkpoints[1].clone(),
+        &committee,
+        &next_committee(&committee),
+    );
+    checkpoint_store
+        .insert_verified_checkpoint(&end_of_epoch)
+        .unwrap();
+
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("checkpoint 1 should execute from synced data after the epoch ended");
+    assert!(epoch_store.is_executing_synced_checkpoints());
+    executor_handle.abort();
+}
+
+/// Once a committee validator executes synced checkpoints for the rest of the
+/// epoch, it also executes the synced data of a checkpoint it built itself:
+/// after a restart its builder no longer runs, so the state hash of that
+/// checkpoint may never be computed.
+#[tokio::test]
+pub async fn test_switched_validator_executes_synced_data_of_locally_built_checkpoint() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let checkpoints = sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&1, checkpoints[1].data())
+        .unwrap();
+    state
+        .epoch_store_for_testing()
+        .start_executing_synced_checkpoints()
+        .await;
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("checkpoint 1 should execute from synced data");
+    executor_handle.abort();
+}
+
+/// With deterministic validation, a committee validator does not finish a
+/// checkpoint it built before a restart while the transactions in it have not
+/// executed again. Their outputs were only in memory, so the consensus handler
+/// has to replay their commit and execute them first.
+#[tokio::test]
+pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let epoch_store = state.epoch_store_for_testing().clone();
+    assert!(epoch_store.pcool_bookkeeping_enabled());
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(2, None);
+    for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
+        sync_checkpoint(&checkpoint_store, checkpoint, contents);
+    }
+    // Built and hashed before the restart; its transactions have not executed
+    // since.
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&1, checkpoints[1].data())
+        .unwrap();
+    epoch_store
+        .insert_state_hash_for_checkpoint(&1, &GlobalStateHash::default())
+        .unwrap();
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    assert_eq!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        Some(0),
+        "checkpoint 1 must wait until its transactions have executed"
+    );
+    executor_handle.abort();
+}
+
+/// Without `pcool_deterministic_validation`, a committee validator executes
+/// a synced checkpoint it has not built at once.
+#[tokio::test]
+pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pcool_deterministic_validation_for_testing(false);
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("checkpoint 1 should execute from synced data at once");
+    assert!(
+        !state
+            .epoch_store_for_testing()
+            .is_executing_synced_checkpoints()
+    );
+    executor_handle.abort();
+}
+
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
-/// picks up where it left off in the event of a mid-epoch node crash.
+/// picks up where it left off in the event of a mid-epoch node crash, on a
+/// committee validator without `pcool_deterministic_validation`.
 #[tokio::test]
 pub async fn test_checkpoint_executor_crash_recovery() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pcool_deterministic_validation_for_testing(false);
+        config
+    });
+    run_crash_recovery(true).await;
+}
+
+/// The same crash recovery on a node outside the committee, which executes
+/// synced checkpoints as a committee validator does once it has switched to
+/// them.
+#[tokio::test]
+pub async fn test_checkpoint_executor_crash_recovery_outside_the_committee() {
+    run_crash_recovery(false).await;
+}
+
+/// Executes synced checkpoints, restarts the executor mid-epoch, and checks
+/// that it continues from the highest executed checkpoint.
+async fn run_crash_recovery(in_committee: bool) {
     telemetry_subscribers::init_for_testing();
 
     let buffer_size = num_cpus::get() * 2;
@@ -153,7 +410,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         CheckpointExecutor,
         Arc<GlobalStateHasher>,
         CommitteeFixture,
-    ) = init_executor_test(checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone(), in_committee).await;
 
     assert!(
         checkpoint_store
@@ -247,7 +504,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         CheckpointExecutor,
         Arc<GlobalStateHasher>,
         CommitteeFixture,
-    ) = init_executor_test(checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone(), false).await;
 
     let epoch_store = authority_state.epoch_store_for_testing();
     let epoch = epoch_store.epoch();
@@ -427,7 +684,7 @@ pub async fn test_reconfig_crash_recovery() {
         CheckpointExecutor,
         Arc<GlobalStateHasher>,
         CommitteeFixture,
-    ) = init_executor_test(checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone(), false).await;
 
     assert!(
         checkpoint_store
@@ -500,8 +757,12 @@ pub async fn test_reconfig_crash_recovery() {
     );
 }
 
+/// Builds the executor for a committee validator when `in_committee`, or for a
+/// node outside the committee, which executes synced checkpoints the way a
+/// fullnode does.
 async fn init_executor_test(
     store: Arc<CheckpointStore>,
+    in_committee: bool,
 ) -> (
     Arc<AuthorityState>,
     CheckpointExecutor,
@@ -510,8 +771,14 @@ async fn init_executor_test(
 ) {
     let network_config =
         iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+    let (_, non_committee_key): (_, AuthorityKeyPair) = get_key_pair();
+    let keypair = if in_committee {
+        network_config.validator_configs()[0].authority_key_pair()
+    } else {
+        &non_committee_key
+    };
     let state = TestAuthorityBuilder::new()
-        .with_network_config(&network_config, 0)
+        .with_genesis_and_keypair(&network_config.genesis, keypair)
         .build()
         .await;
 
@@ -557,25 +824,8 @@ async fn sync_end_of_epoch_checkpoint(
     previous_checkpoint: VerifiedCheckpoint,
     committee: &CommitteeFixture,
 ) -> (VerifiedCheckpoint, CommitteeFixture) {
-    let new_committee = CommitteeFixture::generate(
-        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
-        committee.committee().epoch + 1,
-        4,
-    );
-    let (_sequence_number, _digest, checkpoint) = committee.make_end_of_epoch_checkpoint(
-        previous_checkpoint,
-        Some(EndOfEpochData {
-            next_epoch_committee: new_committee.committee().committee_members(),
-            next_epoch_protocol_version: ProtocolVersion::MIN.as_u64(),
-            epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
-                digest: ECMHLiveObjectSetDigest::default().digest,
-            }],
-            // Do not simulate supply changes in tests.
-            // We would need to build this checkpoint after the below execution of advance_epoch to
-            // obtain this number from the SystemEpochInfoEvent.
-            epoch_supply_change: 0,
-        }),
-    );
+    let new_committee = next_committee(committee);
+    let checkpoint = make_end_of_epoch_checkpoint(previous_checkpoint, committee, &new_committee);
     authority_state
         .create_and_execute_advance_epoch_tx(
             &authority_state.epoch_store_for_testing().clone(),
@@ -588,6 +838,36 @@ async fn sync_end_of_epoch_checkpoint(
         .expect("Failed to create and execute advance epoch tx");
     sync_checkpoint(checkpoint_store, &checkpoint, &empty_contents());
     (checkpoint, new_committee)
+}
+
+fn next_committee(committee: &CommitteeFixture) -> CommitteeFixture {
+    CommitteeFixture::generate(
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+        committee.committee().epoch + 1,
+        4,
+    )
+}
+
+fn make_end_of_epoch_checkpoint(
+    previous_checkpoint: VerifiedCheckpoint,
+    committee: &CommitteeFixture,
+    new_committee: &CommitteeFixture,
+) -> VerifiedCheckpoint {
+    let (_sequence_number, _digest, checkpoint) = committee.make_end_of_epoch_checkpoint(
+        previous_checkpoint,
+        Some(EndOfEpochData {
+            next_epoch_committee: new_committee.committee().committee_members(),
+            next_epoch_protocol_version: ProtocolVersion::MIN.as_u64(),
+            epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
+                digest: ECMHLiveObjectSetDigest::default().digest,
+            }],
+            // Do not simulate supply changes in tests.
+            // We would need to build this checkpoint after the execution of advance_epoch to
+            // obtain this number from the SystemEpochInfoEvent.
+            epoch_supply_change: 0,
+        }),
+    );
+    checkpoint
 }
 
 fn sync_checkpoint(
@@ -604,4 +884,140 @@ fn sync_checkpoint(
     checkpoint_store
         .update_highest_synced_checkpoint(checkpoint)
         .unwrap();
+}
+
+/// The synced watermark promises that the contents of every checkpoint up to
+/// it are stored: the checkpoint executor loads them as soon as its wait
+/// returns, and panics when they are missing. A write that would carry the
+/// watermark past a checkpoint whose contents are still being downloaded
+/// moves nothing, and the executor waiting for that checkpoint is released
+/// once the checkpoint is marked synced itself.
+#[tokio::test]
+async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+    let committee =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    // Random contents, so that no checkpoint finds its contents under the
+    // digest of another.
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(3, None);
+    for checkpoint in &checkpoints {
+        checkpoint_store
+            .insert_verified_checkpoint(checkpoint)
+            .unwrap();
+    }
+    for i in [0, 2] {
+        checkpoint_store
+            .insert_checkpoint_contents(contents[i].clone().into_checkpoint_contents())
+            .unwrap();
+    }
+    assert!(
+        checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[0])
+            .unwrap()
+    );
+
+    let downloading = checkpoints[1].sequence_number();
+    let mut waiter = tokio::spawn({
+        let checkpoint_store = checkpoint_store.clone();
+        async move {
+            checkpoint_store
+                .notify_read_synced_checkpoint(downloading)
+                .await
+        }
+    });
+
+    // Checkpoint 2 is marked synced while the contents of checkpoint 1 are
+    // still being downloaded.
+    assert!(
+        !checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[2])
+            .unwrap()
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(0)
+    );
+    assert!(
+        timeout(Duration::from_millis(200), &mut waiter)
+            .await
+            .is_err(),
+        "the waiter for checkpoint {downloading} was released before its contents were stored"
+    );
+
+    // The contents arrive, and the checkpoints are marked synced in order.
+    checkpoint_store
+        .insert_checkpoint_contents(contents[1].clone().into_checkpoint_contents())
+        .unwrap();
+    assert!(
+        checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[1])
+            .unwrap()
+    );
+    let released = timeout(Duration::from_secs(5), waiter)
+        .await
+        .expect("the waiter should be released once its checkpoint is synced")
+        .unwrap();
+    assert_eq!(released.sequence_number(), downloading);
+    assert!(
+        checkpoint_store
+            .update_highest_synced_checkpoint(&checkpoints[2])
+            .unwrap()
+    );
+}
+
+/// A committee validator can restart holding a summary it built before the
+/// crash whose state hash was never saved: the builder queues a checkpoint's
+/// effects for hashing before it writes the summary. After the restart the
+/// builder rebuilds the checkpoint only once the consensus replay is done,
+/// and the replay can itself wait on the executor, so the executor must not
+/// wait for the builder's hash: once the consensus handler has executed the
+/// checkpoint's transactions, the executor holds every effect it needs to
+/// hash the checkpoint itself.
+#[tokio::test]
+pub async fn test_locally_built_checkpoint_without_its_state_hash_executes_without_the_builder() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let epoch_store = state.epoch_store_for_testing().clone();
+    assert!(epoch_store.pcool_bookkeeping_enabled());
+    // Empty contents: every transaction of checkpoint 1 has executed.
+    let checkpoints = sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    // Built before the crash; its state hash was never saved, and no builder
+    // runs to save it.
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&1, checkpoints[1].data())
+        .unwrap();
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    let executed = timeout(Duration::from_secs(10), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await;
+    executor_handle.abort();
+    executed.expect(
+        "checkpoint 1 must execute without the builder's state hash, \
+         but the executor still waits for it",
+    );
+    assert!(
+        epoch_store
+            .get_state_hash_for_checkpoint(&1)
+            .unwrap()
+            .is_some(),
+        "the executor must save the state hash it computed"
+    );
 }
