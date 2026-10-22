@@ -125,6 +125,13 @@ pub(crate) fn absent_if_dropped<T: Default>(
 /// No real epoch reaches it.
 const NO_BUCKET: EpochId = EpochId::MAX;
 
+/// What the per-operation metrics of a bucket's maps are labelled with: the
+/// bucket's column-family name without its epoch, so that the buckets of one
+/// store share their series instead of adding a set per epoch.
+pub(crate) fn bucket_metrics_label(cf_name: &str) -> &str {
+    cf_name.trim_end_matches(|c: char| c.is_ascii_digit())
+}
+
 /// The column-family name of `epoch`'s bucket: `"{cf_prefix}{epoch}"`.
 pub(crate) fn bucket_cf_name(cf_prefix: &str, epoch: EpochId) -> String {
     format!("{cf_prefix}{epoch}")
@@ -449,6 +456,20 @@ mod tests {
         Arc, BTreeMap, BucketReopen, Database, EpochBuckets, EpochId, TypedStoreError,
         bucket_cf_epoch, bucket_cf_name, bucket_cf_options, rocksdb,
     };
+
+    /// The buckets of one store share one metrics label, so that a store
+    /// keeping many epochs does not add a set of series per epoch.
+    #[test]
+    fn the_buckets_of_a_store_share_one_metrics_label() {
+        assert_eq!(
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 7)),
+            "hist_obj_e"
+        );
+        assert_eq!(
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 702)),
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 7))
+        );
+    }
 
     /// A bucket keeps no memtable in memory once it is flushed: a node holds
     /// many buckets that are no longer written, and each would otherwise keep

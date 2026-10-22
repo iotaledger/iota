@@ -18,7 +18,7 @@ use typed_store::{
 use super::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
 use crate::epoch_buckets::{
     BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    extra_column_family_options,
+    bucket_metrics_label, extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
@@ -53,14 +53,16 @@ impl BucketReopen for HistoricCheckpointsBucket {
                 DB_PREFIX_HISTORIC_CHECKPOINT_CONTENT,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
             checkpoint_by_digest: TaggedDBMap::reopen(
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_CHECKPOINT_BY_DIGEST,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
         })
     }
 

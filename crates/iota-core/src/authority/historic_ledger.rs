@@ -26,7 +26,7 @@ use typed_store::{
 
 use crate::epoch_buckets::{
     BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    extra_column_family_options,
+    bucket_metrics_label, extra_column_family_options,
 };
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
@@ -69,35 +69,40 @@ impl BucketReopen for HistoricLedgerBucket {
                 DB_PREFIX_HISTORIC_TRANSACTIONS,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
             effects: TaggedDBMap::reopen(
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_EFFECTS,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
             executed_effects: TaggedDBMap::reopen(
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_EXECUTED_EFFECTS,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
             events: TaggedDBMap::reopen(
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_EVENTS,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
             tx_to_checkpoint: TaggedDBMap::reopen(
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
         })
     }
 }

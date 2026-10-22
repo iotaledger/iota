@@ -38,7 +38,7 @@ use typed_store::{
     rocks::{DBBatch, DBMap, ReadWriteOptions, TaggedDBMap},
 };
 
-use crate::epoch_buckets::BucketReopen;
+use crate::epoch_buckets::{BucketReopen, bucket_metrics_label};
 
 /// The API groups whose read surface the unified store can serve. The
 /// enabled set is recorded in `MetadataInfo`, so enabling a group rebuilds
@@ -515,6 +515,7 @@ impl BucketReopen for HistoryBucket {
             V: Serialize + DeserializeOwned,
         {
             TaggedDBMap::reopen(db, cf_name, tag, &ReadWriteOptions::default(), true)
+                .map(|map| map.with_metrics_label(bucket_metrics_label(cf_name)))
         }
         Ok(Self {
             tx_order: map(db, cf_name, DB_PREFIX_HISTORIC_TX_ORDER)?,

@@ -24,7 +24,9 @@ use typed_store::{
 };
 
 use crate::{
-    epoch_buckets::{BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch},
+    epoch_buckets::{
+        BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_metrics_label,
+    },
     progress_logger::ProgressLogger,
 };
 
@@ -53,7 +55,8 @@ pub struct EpochMarkersBucket {
 impl BucketReopen for EpochMarkersBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         Ok(Self {
-            markers: DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?,
+            markers: DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?
+                .with_metrics_label(bucket_metrics_label(cf_name)),
         })
     }
 }
