@@ -153,7 +153,6 @@ impl CommitSolidifier {
                 drop(dag_state_guard);
                 for (i, exists) in exists.iter().enumerate() {
                     if !exists {
-                        // Commits can list the same transaction ref more than once.
                         missing.insert(subdag.committed_transaction_refs[i]);
                     }
                 }
