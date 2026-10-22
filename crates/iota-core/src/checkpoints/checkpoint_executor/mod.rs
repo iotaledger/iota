@@ -362,11 +362,7 @@ impl CheckpointExecutor {
         // executes it from synced data like the checkpoints before, so it
         // switches first.
         if is_last_checkpoint_of_epoch
-            && !self.state.is_fullnode(&self.epoch_store)
-            && self
-                .epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
+            && self.epoch_store.pcool_bookkeeping_enabled()
             && self
                 .checkpoint_store
                 .get_locally_computed_checkpoint(sequence_number)

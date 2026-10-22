@@ -2052,19 +2052,14 @@ pub trait SenderSignedTransactionAPI {
     fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError>;
 
     /// Returns all unique input objects including those from
-    /// `MoveAuthenticator`s if any for reading.
+    /// `MoveAuthenticator`s if any for reading, in the order the transaction
+    /// and then each authenticator name them.
     ///
     /// Although some shared objects(with a different mutability flag, for
     /// example) can be duplicated in the transaction and authenticators, we
     /// load them independently to make it possible to analyze the inputs in
     /// the transaction checkers.
     fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>>;
-
-    /// Returns the inputs of [`Self::collect_all_input_object_kind_for_reading`]
-    /// in the order the transaction and then each authenticator name them.
-    fn collect_all_input_object_kind_for_reading_in_order(
-        &self,
-    ) -> IotaResult<Vec<InputObjectKind>>;
 
     /// Splits the provided input objects into groups:
     /// 1. Input objects required by the transaction itself; may contain duplicates if an IOTA coin
@@ -2190,24 +2185,6 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
-        let mut input_objects_set = self
-            .transaction()
-            .input_objects()?
-            .into_iter()
-            .collect::<HashSet<_>>();
-
-        self.move_authenticators()
-            .into_iter()
-            .for_each(|authenticator| {
-                input_objects_set.extend(authenticator.input_objects());
-            });
-
-        Ok(input_objects_set.into_iter().collect::<Vec<_>>())
-    }
-
-    fn collect_all_input_object_kind_for_reading_in_order(
-        &self,
-    ) -> IotaResult<Vec<InputObjectKind>> {
         let mut seen = HashSet::new();
         Ok(self
             .transaction()

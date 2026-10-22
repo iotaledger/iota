@@ -2226,8 +2226,8 @@ mod handler_object_state_storage {
         }
     }
 
-    /// Turns on P-COOL deterministic validation, without which the quarantine
-    /// flush derives no rows. Build the authority while the guard
+    /// Turns on P-COOL deterministic validation, without which the epoch store
+    /// keeps no handler object state. Build the authority while the guard
     /// lives.
     fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
         iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -2238,11 +2238,7 @@ mod handler_object_state_storage {
 
     #[tokio::test]
     async fn handler_processed_rows_are_read_by_exact_key_from_memory_and_the_table() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2308,11 +2304,7 @@ mod handler_object_state_storage {
 
     #[tokio::test]
     async fn flushed_rows_for_one_id_keep_every_version() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2365,11 +2357,7 @@ mod handler_object_state_storage {
     /// from a neighbouring id.
     #[tokio::test]
     async fn highest_handler_processed_row_reads_from_memory_and_the_table() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2425,11 +2413,7 @@ mod handler_object_state_storage {
     /// version, never at the version itself or from a neighbouring id.
     #[tokio::test]
     async fn lowest_handler_processed_row_above_reads_from_memory_and_the_table() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2495,11 +2479,7 @@ mod handler_object_state_storage {
     /// rows in memory, produced at that commit.
     #[tokio::test]
     async fn executing_a_transaction_of_an_assigned_commit_records_its_rows_at_that_commit() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
 
@@ -2523,11 +2503,7 @@ mod handler_object_state_storage {
     /// first call runs under `catch_unwind`.
     #[tokio::test]
     async fn execution_without_an_assigned_commit_panics_unless_executing_synced_checkpoints() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
 

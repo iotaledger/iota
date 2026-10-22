@@ -1065,13 +1065,7 @@ impl IotaNode {
         config: &NodeConfig,
         epoch_store: &AuthorityPerEpochStore,
     ) -> bool {
-        config.is_validator()
-            && epoch_store
-                .committee()
-                .authority_exists(&config.authority_public_key())
-            && epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
+        config.is_validator() && epoch_store.pcool_bookkeeping_enabled()
     }
 
     fn create_p2p_network(

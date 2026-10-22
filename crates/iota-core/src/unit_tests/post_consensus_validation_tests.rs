@@ -2853,9 +2853,7 @@ impl HandlerObjectStateSetup {
         commit_index: CommitIndex,
         tx: &VerifiedTransaction,
     ) -> InputResolution {
-        let kinds = tx
-            .collect_all_input_object_kind_for_reading_in_order()
-            .unwrap();
+        let kinds = tx.collect_all_input_object_kind_for_reading().unwrap();
         TransactionInputLoader::new(self.authority.get_object_cache_reader().clone())
             .read_objects_at_commit(&self.reader_at(commit_index), &kinds)
             .unwrap()
@@ -11187,7 +11185,7 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
     let outcomes: std::collections::BTreeSet<&str> = (0..32)
         .map(|_| {
             let kinds = consumer
-                .collect_all_input_object_kind_for_reading_in_order()
+                .collect_all_input_object_kind_for_reading()
                 .unwrap();
             match loader.read_objects_at_commit(&s.reader_at(7), &kinds) {
                 Ok(InputResolution::Drop(..)) => "drop",
