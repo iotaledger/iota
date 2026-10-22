@@ -209,6 +209,21 @@ impl ProfileCounters {
         self.pending_native_key.push_str(function_name);
     }
 
+    fn refine_native_function_identity(&mut self, variant: &str) {
+        self.pending_native_key.clear();
+        if let Some(module_id) = &self.pending_native_module {
+            self.pending_native_key
+                .push_str(&module_id.short_str_lossless());
+            self.pending_native_key.push_str("::");
+        }
+        self.pending_native_key.push_str(&self.pending_native_name);
+        self.pending_native_key.push_str("::");
+        self.pending_native_key.push_str(variant);
+        // Force the next identity recording to rebuild the key: consecutive
+        // calls to the same function may carry a different selector.
+        self.pending_native_module = None;
+    }
+
     fn record_native_input_bytes(&mut self, bytes: u64) {
         // Look up before inserting so the key is cloned only once per function.
         if let Some(counters) = self.native_by_function.get_mut(&self.pending_native_key) {
@@ -620,6 +635,23 @@ impl GasStatus {
     pub fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
         self.profile
             .record_native_function_identity(module_id, function_name);
+    }
+
+    /// The identity set by the last
+    /// [`record_native_function_identity`](Self::record_native_function_identity).
+    pub fn pending_native_identity(&self) -> Option<(&ModuleId, &str)> {
+        self.profile
+            .pending_native_module
+            .as_ref()
+            .map(|module_id| (module_id, self.profile.pending_native_name.as_str()))
+    }
+
+    /// Append a selector-argument variant to the pending native's counter key,
+    /// so functions whose cost depends on a closed set of argument values (for
+    /// example the groth16 curve or the group_ops group) get one counter per
+    /// variant instead of one shared counter.
+    pub fn refine_native_function_identity(&mut self, variant: &str) {
+        self.profile.refine_native_function_identity(variant);
     }
 
     /// Record the abstract size of the pending native's arguments.
