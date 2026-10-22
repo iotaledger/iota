@@ -76,6 +76,7 @@ impl DataReader for AuthorityStateDataReader {
             data,
             next_cursor: page.next_cursor,
             has_next_page: page.has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 

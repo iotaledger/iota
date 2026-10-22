@@ -75,6 +75,7 @@ impl CoinReadApiServer for CoinReadApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -107,6 +108,7 @@ impl CoinReadApiServer for CoinReadApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 

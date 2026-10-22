@@ -450,6 +450,7 @@ impl RpcExampleProvider {
             data: page,
             next_cursor: Some((seq + pagelen).into()),
             has_next_page: true,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
 
         Examples::new(
@@ -572,6 +573,7 @@ impl RpcExampleProvider {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
         Examples::new(
             "iotax_queryTransactionBlocks",
@@ -874,6 +876,7 @@ impl RpcExampleProvider {
             data: coins,
             next_cursor: Some(next),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -965,6 +968,7 @@ impl RpcExampleProvider {
             data: coins,
             next_cursor: Some(next_cursor),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -1174,6 +1178,7 @@ impl RpcExampleProvider {
             data: dynamic_fields,
             next_cursor: Some(next_cursor),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -1292,6 +1297,7 @@ impl RpcExampleProvider {
             data: items,
             next_cursor: Some(next_cursor.unwrap()),
             has_next_page: true,
+            oldest_available_checkpoint: None,
         };
 
         Examples::new(
@@ -1339,6 +1345,7 @@ impl RpcExampleProvider {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
         Examples::new(
             "iotax_queryEvents",

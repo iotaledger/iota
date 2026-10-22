@@ -741,7 +741,8 @@
                 }
               ],
               "nextCursor": "1008",
-              "hasNextPage": true
+              "hasNextPage": true,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -5058,7 +5059,8 @@
                 "txDigest": "2HyYwpsD5YiiN96i7BBoAyJfTwSvK8MTh42F5777a4ZD",
                 "eventSeq": "1"
               },
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -5156,7 +5158,8 @@
                 }
               ],
               "nextCursor": "EBzDydzw7LpM9r3UFh8JTDQcXt2U4bvW8ZD1qTrPZyqo",
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -10750,6 +10753,13 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10778,6 +10788,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -10808,6 +10825,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10833,6 +10857,13 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10854,6 +10885,13 @@
             "type": "boolean"
           },
           "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10887,6 +10925,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10916,6 +10961,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10944,6 +10996,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
