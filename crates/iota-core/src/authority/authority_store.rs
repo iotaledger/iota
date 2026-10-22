@@ -1616,6 +1616,7 @@ impl AuthorityStore {
             EPOCH_DURATION_MS_FOR_TESTING,
             None,
             None,
+            None,
         )
         .await;
         let _ = AuthorityStorePruner::compact(&self.perpetual_tables);

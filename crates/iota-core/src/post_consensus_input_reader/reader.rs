@@ -11,16 +11,19 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ObjectId, ObjectReference, Version};
 use iota_types::{
     error::{IotaError, IotaResult},
-    storage::{BackingPackageStore, PackageObject},
+    storage::{BackingPackageStore, ObjectKey, PackageObject},
 };
 
 use super::{
-    KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
-    owned::{NeedBytes, OwnedReader, TablesLookup, TablesRecheck},
+    DropKind, DropReason, KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
+    owned::{
+        LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
+        TablesRecheck,
+    },
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, SharedReader,
-        SharedTablesLookup, SharedTablesRecheck,
+        CreatedObjectLookup, DeletionRowLookup, ObjectAbsent, SharedReader, SharedTablesLookup,
+        SharedTablesRecheck,
     },
 };
 use crate::{
@@ -63,14 +66,16 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Reads one owned or immutable input. A storage error is returned as
-    /// `Err`, never as a result.
+    /// Reads one owned or immutable input: the row at the named version or
+    /// the store, then, for a kept version, the rows above it. A storage error
+    /// is returned as `Err`, never as a result.
     pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
-        // The row at the named version decides when it exists.
+        // The row at the named version, when it exists, decides a drop or a
+        // missing. A keep from it goes on to the rows above it.
         let no_tables_entry =
             match OwnedReader::start(input, self.horizon).read_handler_row(self)? {
-                TablesLookup::NeedBytes(need_bytes) => {
-                    return Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?));
+                TablesLookup::LiveAtVersion(live_at_version) => {
+                    return self.read_rows_above(live_at_version);
                 }
                 TablesLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
                 TablesLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
@@ -80,11 +85,36 @@ impl CommitIndexedReader {
         // No row: read the store, keep its answer, and read the row once more
         // before using that answer.
         match no_tables_entry.read_store(self)?.reread_handler_row(self)? {
-            TablesRecheck::NeedBytes(need_bytes) => {
-                Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?))
-            }
+            TablesRecheck::LiveAtVersion(live_at_version) => self.read_rows_above(live_at_version),
+            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            TablesRecheck::Superseded(superseded) => self.read_superseded(superseded),
             TablesRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
             TablesRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
+        }
+    }
+
+    /// Drops a kept owned input when a row of `id` above it, produced at or
+    /// below the horizon, shows it consumed. Otherwise loads its object.
+    fn read_rows_above(
+        &self,
+        live_at_version: OwnedReader<LiveAtVersion>,
+    ) -> IotaResult<OwnedVerdict> {
+        match live_at_version.read_rows_above(self)? {
+            RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
+        }
+    }
+
+    /// Decides a version the store has replaced: it drops unless this epoch's
+    /// consumption of exactly that version is above the horizon, where a
+    /// validator that has not executed it still keeps it.
+    fn read_superseded(
+        &self,
+        superseded: OwnedReader<SupersededInStore>,
+    ) -> IotaResult<OwnedVerdict> {
+        match superseded.read_rows_above(self)? {
+            RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
     }
 
@@ -133,20 +163,16 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Decides a shared input whose object is not in the store: reads the
-    /// store's record of a deletion in this epoch, then the row at the deleted
-    /// version. Called after either read of the creation row.
+    /// Decides a shared input whose object is not in the store, from the
+    /// highest row of `id`. Called after either read of the creation row.
     fn check_deletion(
         &self,
         object_absent: SharedReader<ObjectAbsent>,
     ) -> IotaResult<SharedVerdict> {
-        let deletion_info_found = match object_absent.read_deletion_info(self)? {
-            DeletionInfoLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            DeletionInfoLookup::Found(deletion_info_found) => deletion_info_found,
-        };
-        Ok(match deletion_info_found.read_deletion_row(self)? {
+        Ok(match object_absent.read_deletion_row(self)? {
             DeletionRowLookup::Deleted(version, digest) => SharedVerdict::Deleted(version, digest),
             DeletionRowLookup::Drop(reason) => SharedVerdict::Drop(reason),
+            DeletionRowLookup::Missing(reason) => SharedVerdict::Missing(reason),
         })
     }
 
@@ -167,13 +193,21 @@ impl CommitIndexedReader {
     }
 
     /// Loads the object of a kept input at exactly `(id, V)`. Takes the
-    /// `NeedBytes` step, which only a keep result creates. A kept version must
-    /// still be in the store, so a missing object is a storage error, which
-    /// stops commit processing, and never a result.
-    fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<KeptObject> {
-        let key = need_bytes.into_key();
+    /// `NeedBytes` step, which only a keep result creates. An object with
+    /// another digest drops the input: a keep through a row that replaced `V`
+    /// has not compared the named digest yet. A kept version must still be in
+    /// the store, so a missing object is a storage error, which stops commit
+    /// processing, and never a result.
+    fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<OwnedVerdict> {
+        let input = need_bytes.into_reference();
+        let key = ObjectKey(input.object_id, input.version);
         if let Some(object) = self.cache.try_get_object_by_key(&key.0, key.1)? {
-            return Ok(KeptObject(object));
+            if object.digest() != input.digest {
+                return Ok(OwnedVerdict::Drop(DropReason(
+                    DropKind::StoreDigestMismatch,
+                )));
+            }
+            return Ok(OwnedVerdict::Keep(KeptObject(object)));
         }
         Err(IotaError::Storage(format!(
             "kept input {key:?} has no bytes in the object store"

@@ -12,8 +12,9 @@ use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
-    MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    Transaction, TransactionDigest, TransactionEffects, UserSignature, Version,
+    MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference, Owner,
+    SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, UserSignature,
+    Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
@@ -2273,6 +2274,69 @@ async fn build_bookkeeping_setup(
     }
 }
 
+/// Like [`setup_bookkeeping`] with the flags on, but with the given test
+/// package instead of `object_basics`, inserted at genesis like it, so the
+/// package is epoch-start state. `gas_id` is created at genesis for `sender`
+/// and funds the test's transactions.
+async fn setup_bookkeeping_with_package(
+    package_name: &str,
+    sender: Address,
+    gas_id: ObjectId,
+) -> BookkeepingSetup {
+    let _config_guard = Some(ProtocolConfig::apply_overrides_for_testing(
+        |_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        },
+    ));
+
+    let authority = TestAuthorityBuilder::new().build().await;
+    authority.insert_genesis_object(Object::with_id_owner_for_testing(gas_id, sender));
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/unit_tests/data")
+        .join(package_name);
+    let modules: Vec<_> = iota_move_build::BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_modules()
+        .cloned()
+        .collect();
+    let package = Object::new_package_for_testing(
+        &modules,
+        TransactionDigest::GENESIS_MARKER,
+        iota_framework::BuiltInFramework::genesis_move_packages(),
+    )
+    .unwrap();
+    let package_id = package.id();
+    authority.insert_genesis_object(package);
+    let epoch_store = (*authority.epoch_store_for_testing()).clone();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    BookkeepingSetup {
+        authority,
+        epoch_store,
+        package_id,
+        rgp,
+        _config_guard,
+    }
+}
+
+/// From the `tto::M1::start` effects, the `(parent, child)` pair where the
+/// child is address-owned by the parent object's id - the receivable shape.
+fn parent_and_child(
+    created: Vec<OwnedObjectReference>,
+) -> (OwnedObjectReference, OwnedObjectReference) {
+    created
+        .iter()
+        .find_map(|child| match *child.owner() {
+            Owner::Address(addr) => created
+                .iter()
+                .find(|parent| parent.reference().object_id == ObjectId::from(addr))
+                .map(|parent| (*parent, *child)),
+            _ => None,
+        })
+        .expect("start() creates a child owned by another created object's id")
+}
+
 /// The arguments of `object_basics::create` for an object owned by `owner`.
 fn create_object_args(owner: Address) -> Vec<CallArg> {
     vec![
@@ -2293,6 +2357,14 @@ impl BookkeepingSetup {
     /// The latest reference of `id` in the authority's view.
     fn latest_ref(&self, id: &ObjectId) -> ObjectReference {
         self.authority.get_object(id).unwrap().object_ref()
+    }
+
+    /// A keyed read of `(id, version)` from the object store, the way
+    /// validation's content read would issue it; `None` for tombstones.
+    fn store_object(&self, id: &ObjectId, version: Version) -> Option<Object> {
+        self.authority
+            .get_object_cache_reader()
+            .get_object_by_key(id, version)
     }
 
     /// Executes `tx` directly (`new_from_checkpoint` merely avoids needing a
@@ -2380,8 +2452,60 @@ impl BookkeepingSetup {
         sender_key: &AccountPrivateKey,
         index: CommitIndex,
     ) -> TransactionEffects {
-        let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        self.handler_known_move_call(
+            "object_basics",
+            function,
+            args,
+            gas_id,
+            sender,
+            sender_key,
+            index,
+        )
+    }
+
+    /// [`Self::execute_as_handler_known`] of a call into `module::function`
+    /// of the published test package.
+    fn handler_known_move_call(
+        &self,
+        module: &'static str,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let tx = self.build_move_call(module, function, args, gas_id, sender, sender_key);
         self.execute_as_handler_known(vec![tx], index).remove(0)
+    }
+
+    /// Commits the outputs of `committed` to the database in order, then
+    /// removes every version `consumer` consumed from the object store, as
+    /// the pruner does once the consumer's checkpoint is executed.
+    /// `committed` must hold, oldest first, every uncommitted transaction
+    /// that wrote those objects, `consumer` included.
+    async fn prune_versions_consumed_by(
+        &self,
+        committed: &[TransactionDigest],
+        consumer: &TransactionEffects,
+    ) {
+        let epoch = self.epoch_store.epoch();
+        let cache_commit = self.authority.get_cache_commit();
+        let batch = cache_commit.build_db_batch(epoch, 1, committed);
+        cache_commit.commit_transaction_outputs(epoch, batch, committed);
+        self.authority
+            .database_for_testing()
+            .prune_objects_immediately_for_testing(vec![consumer.clone()])
+            .await
+            .unwrap();
+        for modified in consumer.modified_at_versions() {
+            self.authority
+                .evict_committed_object_for_testing(modified.object_id());
+            assert!(
+                self.store_object(modified.object_id(), modified.version())
+                    .is_none()
+            );
+        }
     }
 
     /// A verified call into `module::function` of the published test package
@@ -2471,6 +2595,26 @@ impl BookkeepingSetup {
         sponsor: Address,
         sponsor_key: &AccountPrivateKey,
     ) -> VerifiedTransaction {
+        self.epoch_store
+            .verify_transaction(self.account_authenticated_call(
+                authenticator,
+                gas_id,
+                sponsor,
+                sponsor_key,
+            ))
+            .unwrap()
+    }
+
+    /// [`Self::build_account_authenticated_call`] before verification, for a
+    /// transaction admission would refuse and a byzantine submitter can still
+    /// sequence.
+    fn account_authenticated_call(
+        &self,
+        authenticator: MoveAuthenticatorV1,
+        gas_id: &ObjectId,
+        sponsor: Address,
+        sponsor_key: &AccountPrivateKey,
+    ) -> TransactionEnvelope {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
@@ -2489,12 +2633,48 @@ impl BookkeepingSetup {
             self.rgp,
             sponsor,
         );
-        let tx = to_sender_signed_transaction_with_optional_sponsor(
+        to_sender_signed_transaction_with_optional_sponsor(
             tx,
             UserSignature::MoveAuthenticator(MoveAuthenticator::from(authenticator)),
             Some(sponsor_key),
+        )
+    }
+
+    /// Executes a call naming the deleted shared object `id`, created at
+    /// `initial_shared_version`, as a mutable input. The call aborts, and
+    /// execution writes a deletion marker for `id` at the call's version
+    /// with no handler row for `id`. The call is a root of commit `index`.
+    fn name_deleted_shared_object(
+        &self,
+        id: &ObjectId,
+        initial_shared_version: Version,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let tx = self.build_move_call(
+            "object_basics",
+            "delete",
+            vec![CallArg::Shared(SharedObjectReference::new(
+                *id,
+                initial_shared_version,
+                true,
+            ))],
+            gas_id,
+            sender,
+            sender_key,
         );
-        self.epoch_store.verify_transaction(tx).unwrap()
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
+        let effects = self.execute_with_assigned_shared_versions_unchecked(tx);
+        assert!(
+            effects
+                .deleted_mutably_accessed_shared_objects()
+                .contains(id),
+            "the call must name {id} as a deleted shared input"
+        );
+        effects
     }
 
     /// The commit-indexed reader as of `commit_index`.
@@ -2555,6 +2735,7 @@ impl BookkeepingSetup {
                         produced_at: index,
                         initial_shared_version: None,
                         replaced_version: None,
+                        deleted_by: None,
                     },
                 )],
             )
@@ -2861,6 +3042,7 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
             produced_at: 4,
             initial_shared_version: None,
             replaced_version: Some(created_ref.version),
+            deleted_by: Some(*delete_effects.transaction_digest()),
         }
     );
 }
@@ -2892,6 +3074,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
             produced_at: 5,
             initial_shared_version: None,
             replaced_version: Some(created_ref.version),
+            deleted_by: None,
         }
     );
     let wrapper_ref = *wrap_effects.created()[0].reference();
@@ -2922,6 +3105,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
             produced_at: 6,
             initial_shared_version: None,
             replaced_version: None,
+            deleted_by: None,
         }
     );
     assert_eq!(
@@ -2937,6 +3121,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
             produced_at: 6,
             initial_shared_version: None,
             replaced_version: Some(wrapper_ref.version),
+            deleted_by: Some(*unwrap_effects.transaction_digest()),
         }
     );
 }
@@ -2965,6 +3150,7 @@ async fn handler_known_share_records_the_initial_shared_version() {
             produced_at: 5,
             initial_shared_version: Some(initial_shared_version(shared.owner())),
             replaced_version: None,
+            deleted_by: None,
         }
     );
 }
@@ -2987,7 +3173,8 @@ async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tom
 
     // Once the object is gone, the tombstone row is the only place this
     // validator can still read the initial shared version a transaction
-    // declares against.
+    // declares against, and the deleting transaction a kept input is handed
+    // on with.
     let delete_effects = s.handler_known_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(shared_id)],
@@ -3004,6 +3191,7 @@ async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tom
             produced_at: 6,
             initial_shared_version: Some(initial),
             replaced_version: Some(shared.reference().version),
+            deleted_by: Some(*delete_effects.transaction_digest()),
         }
     );
 }
@@ -3751,11 +3939,31 @@ fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
 }
 
 #[track_caller]
+fn assert_shared_missing(verdict: SharedVerdict, kind: MissingKind) {
+    match verdict {
+        SharedVerdict::Missing(reason) => assert_eq!(reason.kind(), kind),
+        SharedVerdict::Exists(_) => panic!("expected missing, got exists"),
+        SharedVerdict::Deleted(version, digest) => {
+            panic!("expected missing, got deleted at {version} by {digest}")
+        }
+        SharedVerdict::Drop(reason) => panic!("expected missing, got drop {reason:?}"),
+    }
+}
+
+/// The verdict is `Deleted` with `delete_effects`' version and digest.
+#[track_caller]
 fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects) {
+    let digest = assert_deleted_at(verdict, delete_effects.lamport_version());
+    assert_eq!(digest, *delete_effects.transaction_digest());
+}
+
+/// The verdict is `Deleted` at `expected_version`. Returns its digest.
+#[track_caller]
+fn assert_deleted_at(verdict: SharedVerdict, expected_version: Version) -> TransactionDigest {
     match verdict {
         SharedVerdict::Deleted(version, digest) => {
-            assert_eq!(version, delete_effects.lamport_version());
-            assert_eq!(digest, *delete_effects.transaction_digest());
+            assert_eq!(version, expected_version);
+            digest
         }
         SharedVerdict::Exists(_) => panic!("expected deleted, got exists"),
         SharedVerdict::Drop(reason) => panic!("expected deleted, got drop {reason:?}"),
@@ -3766,6 +3974,13 @@ fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects
 /// Commit 15 deletes a shared object. The tombstone row is then the only
 /// place that still records the initial shared version, and a wrong declared
 /// version must drop whether the deletion is above the horizon or not.
+///
+/// Later transactions naming the deleted object write newer deletion records
+/// in the store and no row, so the latest deletion record differs between a
+/// validator that executed them and one that did not. The results must not,
+/// nor the version and transaction they carry: the reads before and after
+/// those transactions stand for those two
+/// validators.
 #[tokio::test]
 async fn reader_checks_the_declared_version_against_the_deletion_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -3811,6 +4026,131 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
         s.read_shared(18, shared_id, initial),
         DropKind::SharedDeletedAtOrBelowHorizon,
     );
+
+    // A later transaction naming the deleted object, which the handler
+    // assigned to commit 16, writes a newer marker and no row.
+    let handler_smear_effects =
+        s.name_deleted_shared_object(shared_id, initial, &gas_id, sender, &sender_key, 16);
+    s.assert_no_handler_row(shared_id, handler_smear_effects.lamport_version());
+
+    // The tombstone row decides at both commits, and gives the version and
+    // the deleting transaction.
+    assert_drops_with(
+        s.read_shared(16, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_deleted_by(s.read_shared(16, shared_id, initial), &delete_effects);
+    assert_drops_with(
+        s.read_shared(18, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_drops_with(
+        s.read_shared(18, shared_id, initial),
+        DropKind::SharedDeletedAtOrBelowHorizon,
+    );
+}
+
+/// An id the store does not have answers missing, as a shared object created
+/// above the horizon does on a validator that executed its creation: both
+/// sides of the split answer missing.
+#[tokio::test]
+async fn reader_answers_missing_for_a_shared_id_the_store_does_not_have() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    assert_shared_missing(
+        s.read_shared(12, &ObjectId::random(), Version::from_u64(1)),
+        MissingKind::SharedNotFound,
+    );
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 11);
+    let shared = share_effects.created()[0];
+    assert_shared_missing(
+        s.read_shared(
+            12,
+            shared.reference().object_id(),
+            initial_shared_version(shared.owner()),
+        ),
+        MissingKind::SharedCreationAboveHorizon,
+    );
+}
+
+/// Execution of a shared object's deletion at commit 11 writes the handler's
+/// tombstone row, then the tombstone, then the deletion marker. Validation of
+/// commit 12 runs alongside it and here reads the object between the
+/// tombstone and the marker. The tombstone row answers the deletion with its
+/// version and transaction, as it does once the marker is written, and the
+/// read never fails.
+#[tokio::test]
+async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker() {
+    use iota_types::effects::TestEffectsBuilder;
+
+    use crate::transaction_outputs::TransactionOutputs;
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let deleter_gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            Object::with_id_owner_for_testing(deleter_gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_ref = *share_effects.created()[0].reference();
+    let shared_id = shared_ref.object_id;
+    let initial = initial_shared_version(share_effects.created()[0].owner());
+
+    let deletion = s.build_move_call(
+        "object_basics",
+        "delete",
+        vec![s.shared_arg(&shared_id)],
+        &deleter_gas_id,
+        sender,
+        &sender_key,
+    );
+    let deletion_effects = TestEffectsBuilder::new(deletion.data())
+        .with_shared_input_versions([(shared_id, shared_ref.version)].into())
+        .with_deleted_objects_owned_by([(shared_id, shared_ref.version, Owner::Shared(initial))])
+        .build();
+    let key = TransactionKey::Digest(*deletion.digest());
+    s.epoch_store.assign_commit_to_transactions(11, vec![key]);
+    s.epoch_store
+        .record_executed_transaction(&key, &deletion_effects);
+    s.authority.get_cache_writer().write_transaction_outputs(
+        s.epoch_store.epoch(),
+        Arc::new(TransactionOutputs {
+            transaction: Arc::new(deletion),
+            effects: deletion_effects.clone(),
+            events: Default::default(),
+            markers: vec![],
+            wrapped: vec![],
+            deleted: vec![ObjectKey(shared_id, deletion_effects.lamport_version())],
+            live_object_markers_to_delete: vec![],
+            new_live_object_markers_to_init: vec![],
+            written: Default::default(),
+        }),
+    );
+    assert!(s.authority.get_object(&shared_id).is_none());
+    assert_eq!(
+        s.authority
+            .get_object_cache_reader()
+            .try_get_last_shared_object_deletion_info(&shared_id, s.epoch_store.epoch())
+            .unwrap(),
+        None
+    );
+
+    // Commit 12, horizon 10: the deletion at 11 is above the horizon.
+    assert_deleted_by(s.read_shared(12, &shared_id, initial), &deletion_effects);
 }
 
 // ---------------------------------------------------------------------------
@@ -4189,6 +4529,162 @@ async fn denied_packages_leave_a_package_above_the_horizon_missing() {
     }
 }
 
+/// Receiving objects go through the commit-indexed reader as owned inputs do,
+/// without the sender check, so a kept one was live at the horizon on every
+/// validator and execution can always run it. A reference nobody can execute
+/// is never kept: the scheduler would wait on it forever and the commit would
+/// never complete. Receiving an input still rejects.
+#[tokio::test]
+async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
+    use std::collections::HashSet;
+
+    use iota_types::storage::InputKey;
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    // Three parent and child pairs. The first child is received at commit 6,
+    // at or below the horizon of commit 12, the second at commit 11, above
+    // it, the third not at all.
+    let start = |index| {
+        let effects =
+            s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, index);
+        let (parent, child) = parent_and_child(effects.created());
+        (*parent.reference(), *child.reference())
+    };
+    let receive = |parent: ObjectReference, child: ObjectReference, index| {
+        s.handler_known_move_call(
+            "M1",
+            "receiver",
+            vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)],
+            &gas_id,
+            sender,
+            &sender_key,
+            index,
+        );
+    };
+    let (parent_a, child_a) = start(5);
+    receive(parent_a, child_a, 6);
+    let (parent_b, child_b) = start(7);
+    let (parent_c, child_c) = start(8);
+    // The gas coin as of commit 8: the receive at commit 11 consumes it above
+    // the horizon, which keeps it, where its newer version would be missing.
+    let gas_ref = s.latest_ref(&gas_id);
+    receive(parent_b, child_b, 11);
+
+    // `M1::receiver(parent_c, Receiving(receiving))`, with `extra_input`
+    // appended as an unused input. Validation does not pair a child with its
+    // parent, so the one untouched parent serves every case.
+    let validate = |receiving: ObjectReference, extra_input: Option<CallArg>| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .move_call(
+                s.package_id,
+                Identifier::from_static("M1"),
+                Identifier::from_static("receiver"),
+                vec![],
+                vec![
+                    CallArg::ImmutableOrOwned(parent_c),
+                    CallArg::Receiving(receiving),
+                ],
+            )
+            .unwrap();
+        let mut pt = builder.finish();
+        pt.inputs.extend(extra_input);
+        let tx = Transaction::new_programmable(
+            sender,
+            vec![gas_ref],
+            pt,
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * s.rgp,
+            s.rgp,
+        );
+        let tx = s
+            .epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
+            .unwrap();
+        s.authority.handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+    };
+
+    // Live at the horizon: kept, and not among the owned objects to lock.
+    match validate(child_c, None).unwrap() {
+        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
+        other => panic!("expected the receive of a live object to keep, got {other:?}"),
+    }
+
+    // Received at commit 6: the receive's row above the version drops it.
+    match validate(child_a, None).unwrap() {
+        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, child_a);
+            assert_eq!(reason.kind(), DropKind::HandlerRowSuperseded);
+        }
+        other => panic!("expected the receive of a consumed version to drop, got {other:?}"),
+    }
+
+    // Received at commit 11: kept, as on a validator that has not executed
+    // the receive. Execution fails it.
+    match validate(child_b, None).unwrap() {
+        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![parent_c, gas_ref]),
+        other => panic!("expected the receive above the horizon to keep, got {other:?}"),
+    }
+
+    // A wrong digest at a live version drops.
+    let wrong_digest =
+        ObjectReference::new(child_c.object_id, child_c.version, ObjectDigest::random());
+    match validate(wrong_digest, None).unwrap() {
+        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, wrong_digest);
+            assert_eq!(reason.kind(), DropKind::HandlerRowDigestMismatch);
+        }
+        other => panic!("expected a wrong digest to drop, got {other:?}"),
+    }
+
+    // Never existed: missing, so not kept. The scheduler never finds such a
+    // key available, so a kept transaction would never execute.
+    let unseen = ObjectReference::new(ObjectId::random(), child_c.version, child_c.digest);
+    match validate(unseen, None).unwrap() {
+        ValidationAtCommit::Missing(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, unseen);
+            assert_eq!(reason.kind(), MissingKind::StoreNotFound);
+        }
+        other => panic!("expected the receive of an unseen object to be missing, got {other:?}"),
+    }
+    let unseen_key = InputKey::VersionedObject {
+        id: unseen.object_id,
+        version: unseen.version,
+    };
+    assert_eq!(
+        s.authority
+            .get_object_cache_reader()
+            .multi_input_objects_available(
+                &[unseen_key],
+                &HashSet::from([unseen_key]),
+                s.epoch_store.epoch(),
+            ),
+        vec![false],
+        "the scheduler must never find the unseen receiving object available"
+    );
+
+    // Receiving an input still rejects.
+    let result = validate(child_c, Some(CallArg::Receiving(parent_c)));
+    assert!(
+        matches!(
+            result,
+            Err(IotaError::UserInput {
+                error: UserInputError::DuplicateObjectRefInput
+            })
+        ),
+        "receiving an input must reject, got {result:?}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // P-COOL deterministic-validation checks at a commit: the Move authenticator
 // ---------------------------------------------------------------------------
@@ -4498,6 +4994,100 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
         },
         "execution must fail the kept transaction because its account was deleted"
     );
+}
+
+/// A Move authenticator naming a mutable shared object as a call argument is
+/// refused at admission, and a byzantine submitter can still sequence it. At
+/// commit 16, horizon 14, `S` is deleted at commit 15 on one validator and
+/// still live on another. Both must drop the transaction on the declaration,
+/// which no object read can change.
+#[tokio::test]
+async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_validator() {
+    for deletion_executed in [false, true] {
+        let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+        let gas_id = ObjectId::random();
+        let setup_gas_id = ObjectId::random();
+        let s = setup_bookkeeping(
+            vec![
+                Object::with_id_owner_for_testing(gas_id, sponsor),
+                Object::with_id_owner_for_testing(setup_gas_id, sponsor),
+            ],
+            true,
+        )
+        .await;
+
+        let share = |index| {
+            let effects = s.handler_known_object_basics_call(
+                "share",
+                vec![],
+                &setup_gas_id,
+                sponsor,
+                &sponsor_key,
+                index,
+            );
+            let shared = effects.created()[0];
+            (
+                *shared.reference().object_id(),
+                initial_shared_version(shared.owner()),
+            )
+        };
+        let (account_id, account_start_version) = share(5);
+        let (s_id, s_start_version) = share(6);
+        if deletion_executed {
+            s.handler_known_shared_object_basics_call(
+                "delete",
+                vec![s.shared_arg(&s_id)],
+                &setup_gas_id,
+                sponsor,
+                &sponsor_key,
+                15,
+            );
+        }
+
+        let tx = VerifiedTransaction::new_unchecked(s.account_authenticated_call(
+            MoveAuthenticatorV1::new(
+                vec![CallArg::Shared(SharedObjectReference::new(
+                    s_id,
+                    s_start_version,
+                    true,
+                ))],
+                vec![],
+                SharedObjectReference::new(account_id, account_start_version, false),
+            ),
+            &gas_id,
+            sponsor,
+            &sponsor_key,
+        ));
+        let digest = *tx.digest();
+        let mut transactions = vec![make_user_tx_v1_verified(tx)];
+        let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+            &s.authority,
+            &s.epoch_store,
+            16,
+            true,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            transactions.is_empty(),
+            "kept with deletion executed: {deletion_executed}"
+        );
+        assert!(locks.is_empty(), "deletion executed: {deletion_executed}");
+        assert_eq!(dropped.len(), 1, "deletion executed: {deletion_executed}");
+        assert_eq!(dropped[0].0, digest);
+        assert!(
+            matches!(
+                &dropped[0].1,
+                IotaError::UserInput {
+                    error: UserInputError::MutableSharedIsInMoveAuthenticatorInput { object_id }
+                } if *object_id == s_id
+            ),
+            "deletion executed: {deletion_executed}, got {:?}",
+            dropped[0].1
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -5136,6 +5726,95 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
     );
 }
 
+/// With the flag on, the lock check runs before the reader. A version
+/// consumed by a locked transaction in the last K commits is kept by the
+/// reader alone, since the consumer's row is above the horizon, so the lock
+/// is what drops a contender for it, and the reader never runs. Once the
+/// consumer's commit is at or below the horizon, the reader alone drops the
+/// version as well.
+#[tokio::test]
+async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas1 = ObjectId::random();
+    let gas2 = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas1, sender),
+            Object::with_id_owner_for_testing(gas2, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let first = s.build_transfer(&obj_id, &gas1, sender, &sender_key, sender);
+    s.execute_as_handler_known(vec![first], 5);
+    let x_v1 = s.latest_ref(&obj_id);
+
+    // The winner holds its locks in the quarantine and executes at commit 10.
+    let winner = s.build_transfer(&obj_id, &gas1, sender, &sender_key, sender);
+    let winner_digest = *winner.digest();
+    seed_quarantined_lock(&s.epoch_store, x_v1, winner_digest);
+    seed_quarantined_lock(&s.epoch_store, s.latest_ref(&gas1), winner_digest);
+    s.execute_as_handler_known(vec![winner], 10);
+
+    // Commit 11, horizon 9: the winner's row is above the horizon.
+    assert_keeps(s.read_owned(11, x_v1), x_v1);
+
+    let contender = s
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            x_v1,
+            s.latest_ref(&gas2),
+            sender,
+            &sender_key,
+            Address::random(),
+            s.rgp,
+        ))
+        .unwrap();
+    let contender_digest = *contender.digest();
+    let mut transactions = vec![make_user_tx_v1_verified(contender)];
+    let (dropped, locks, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        11,
+        true,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(all_digests, vec![contender_digest]);
+    assert!(transactions.is_empty());
+    assert!(locks.is_empty());
+    assert_eq!(dropped.len(), 1);
+    assert_eq!(dropped[0].0, contender_digest);
+    assert!(
+        matches!(
+            &dropped[0].1,
+            IotaError::ObjectLockConflict { obj_ref, pending_transaction }
+                if *obj_ref == x_v1 && *pending_transaction == winner_digest
+        ),
+        "{:?}",
+        dropped[0].1
+    );
+    let verdicts = &s
+        .authority
+        .metrics
+        .consensus_handler_validation_reader_verdicts;
+    for labels in [
+        ["keep", "none"],
+        ["drop", "HandlerRowSuperseded"],
+        ["missing", "HandlerRowAboveHorizon"],
+    ] {
+        assert_eq!(verdicts.with_label_values(&labels).get(), 0, "{labels:?}");
+    }
+
+    // Commit 12, horizon 10: the winner's row decides.
+    assert_owned_drops(s.read_owned(12, x_v1), DropKind::HandlerRowSuperseded);
+}
+
 // ---------------------------------------------------------------------------
 // P-COOL deterministic-validation reader: owned inputs
 // ---------------------------------------------------------------------------
@@ -5227,9 +5906,200 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
     );
 }
 
+/// A receive takes no lock on the received version. The receive's row of
+/// the child above that version decides: at or below the horizon the version
+/// drops, whether or not this validator still holds its bytes, and the
+/// loader drops a transaction naming it. Above the horizon it is kept, as on
+/// a validator that has not executed the receive, and once its bytes are
+/// pruned here the load fails with a storage error.
+#[tokio::test]
+async fn owned_received_version_drops_from_the_receive_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping_with_package("tto", sender, gas_id).await;
+    let publish = s
+        .authority
+        .get_object(&s.package_id)
+        .unwrap()
+        .previous_transaction;
+
+    let start_effects =
+        s.handler_known_move_call("M1", "start", vec![], &gas_id, sender, &sender_key, 5);
+    let (parent, child) = parent_and_child(start_effects.created());
+    let child_ref = *child.reference();
+    let receive_effects = s.handler_known_move_call(
+        "M1",
+        "receiver",
+        vec![
+            CallArg::ImmutableOrOwned(*parent.reference()),
+            CallArg::Receiving(child_ref),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        7,
+    );
+
+    assert_keeps(s.read_owned(8, child_ref), child_ref);
+    assert_owned_drops(s.read_owned(9, child_ref), DropKind::HandlerRowSuperseded);
+
+    let tx = s
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            child_ref,
+            s.latest_ref(&gas_id),
+            sender,
+            &sender_key,
+            sender,
+            s.rgp,
+        ))
+        .unwrap();
+    match s.read_inputs_at_commit(9, &tx) {
+        InputResolution::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, child_ref);
+            assert_eq!(reason.kind(), DropKind::HandlerRowSuperseded);
+        }
+        InputResolution::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
+        InputResolution::Missing(kind, reason) => panic!("missing on {kind:?}: {reason:?}"),
+        InputResolution::Loaded(_) => panic!("loaded a version the receive consumed"),
+    }
+
+    s.prune_versions_consumed_by(
+        &[
+            publish,
+            *start_effects.transaction_digest(),
+            *receive_effects.transaction_digest(),
+        ],
+        &receive_effects,
+    )
+    .await;
+    assert_owned_drops(s.read_owned(9, child_ref), DropKind::HandlerRowSuperseded);
+    assert!(matches!(
+        s.reader_at(8).read_owned(child_ref),
+        Err(IotaError::Storage(_))
+    ));
+}
+
+/// A dynamic-field child is consumed through its parent without a lock. The
+/// tombstone row the removal writes above the child's version drops it, with
+/// or without its bytes.
+#[tokio::test]
+async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let create_args = || create_object_args(sender);
+    let parent_effects = s.handler_known_object_basics_call(
+        "create",
+        create_args(),
+        &gas_id,
+        sender,
+        &sender_key,
+        2,
+    );
+    let value_effects = s.handler_known_object_basics_call(
+        "create",
+        create_args(),
+        &gas_id,
+        sender,
+        &sender_key,
+        3,
+    );
+    let parent_id = *parent_effects.created()[0].reference().object_id();
+    let add_effects = s.handler_known_object_basics_call(
+        "add_field",
+        vec![
+            CallArg::ImmutableOrOwned(s.latest_ref(&parent_id)),
+            CallArg::ImmutableOrOwned(*value_effects.created()[0].reference()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        5,
+    );
+    let field_ref = *add_effects.created()[0].reference();
+    assert!(matches!(add_effects.created()[0].owner(), Owner::Object(_)));
+    let remove_effects = s.handler_known_object_basics_call(
+        "remove_field",
+        vec![CallArg::ImmutableOrOwned(s.latest_ref(&parent_id))],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+
+    assert_keeps(s.read_owned(7, field_ref), field_ref);
+    assert_owned_drops(s.read_owned(8, field_ref), DropKind::HandlerRowSuperseded);
+
+    s.prune_versions_consumed_by(
+        &[
+            *parent_effects.transaction_digest(),
+            *value_effects.transaction_digest(),
+            *add_effects.transaction_digest(),
+            *remove_effects.transaction_digest(),
+        ],
+        &remove_effects,
+    )
+    .await;
+    assert_owned_drops(s.read_owned(8, field_ref), DropKind::HandlerRowSuperseded);
+}
+
+/// Shared mutations write no rows, so a shared object's creation version
+/// named as owned drops from the creation row itself, before and after a
+/// mutation consumed it and the pruner removed it.
+#[tokio::test]
+async fn owned_read_of_a_shared_creation_version_drops() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_ref = *share_effects.created()[0].reference();
+    assert_owned_drops(
+        s.read_owned(7, shared_ref),
+        DropKind::HandlerRowSharedObject,
+    );
+
+    let mutate_effects = s.handler_known_shared_object_basics_call(
+        "set_value",
+        vec![
+            s.shared_arg(shared_ref.object_id()),
+            CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    s.prune_versions_consumed_by(
+        &[
+            *share_effects.transaction_digest(),
+            *mutate_effects.transaction_digest(),
+        ],
+        &mutate_effects,
+    )
+    .await;
+    assert_owned_drops(
+        s.read_owned(8, shared_ref),
+        DropKind::HandlerRowSharedObject,
+    );
+}
+
 /// With no row for an owned input, the reader falls back to the store.
 /// Objects untouched since the epoch started keep, owned or immutable. A
-/// version consumed by a commit the handler has assigned drops as superseded.
+/// version consumed by a commit the handler has assigned, at or below the
+/// horizon, drops from the consuming commit's row. An id the store does not
+/// have answers missing.
 #[tokio::test]
 async fn owned_store_fallback_keeps_untouched_and_drops_superseded_versions() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -5258,8 +6128,14 @@ async fn owned_store_fallback_keeps_untouched_and_drops_superseded_versions() {
     assert_keeps(s.read_owned(12, immutable), immutable);
     assert_owned_drops(
         s.read_owned(12, handler_consumed),
-        DropKind::StoreSuperseded,
+        DropKind::HandlerRowSuperseded,
     );
+    let unknown = ObjectReference::new(
+        ObjectId::random(),
+        Version::from_u64(1),
+        ObjectDigest::random(),
+    );
+    assert_owned_missing(s.read_owned(12, unknown), MissingKind::StoreNotFound);
 }
 
 // ---------------------------------------------------------------------------
@@ -5812,4 +6688,167 @@ async fn epoch_end_releases_a_pending_wait() {
         result,
         Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()
     ));
+}
+
+/// Commits the outputs of `executed` and executes them as one certified
+/// checkpoint, followed by an empty one, then runs the object pruner over the
+/// executed checkpoints as the node does with aggressive pruning, within the
+/// epoch store's object pruning limit.
+async fn execute_checkpoint_and_prune(
+    s: &BookkeepingSetup,
+    executed: Vec<(VerifiedTransaction, TransactionEffects)>,
+) {
+    use iota_types::{
+        base_types::ExecutionData,
+        messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
+    };
+
+    use crate::authority::authority_store_pruner::{
+        AuthorityStorePruner, AuthorityStorePruningMetrics,
+    };
+
+    let epoch = s.epoch_store.epoch();
+    let digests: Vec<_> = executed.iter().map(|(tx, _)| *tx.digest()).collect();
+    let cache_commit = s.authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 1, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    let consumed: Vec<ObjectId> = executed
+        .iter()
+        .flat_map(|(_, effects)| effects.modified_at_versions())
+        .map(|modified| *modified.object_id())
+        .collect();
+    let contents = VerifiedCheckpointContents::new_unchecked(
+        FullCheckpointContents::new_with_causally_ordered_transactions(
+            executed
+                .into_iter()
+                .map(|(tx, effects)| ExecutionData::new(tx.into_inner(), effects)),
+        ),
+    );
+    let checkpoint_store = s.authority.get_checkpoint_store();
+    checkpoint_store
+        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
+        .unwrap();
+    let fixture = iota_swarm_config::test_utils::CommitteeFixture::generate(
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+        epoch,
+        4,
+    );
+    // The fixture's first checkpoint is its own genesis; checkpoint 1 holds
+    // the transactions and checkpoint 2, executed after it, lets the pruner
+    // reach checkpoint 1.
+    let (checkpoints, ..) = fixture.make_checkpoints(3, None, || contents.clone());
+    for checkpoint in checkpoints.iter().skip(1) {
+        checkpoint_store
+            .insert_certified_checkpoint(checkpoint)
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(checkpoint)
+            .unwrap();
+    }
+
+    let config = iota_config::node::AuthorityStorePruningConfig {
+        num_epochs_to_retain: 0,
+        ..Default::default()
+    };
+    AuthorityStorePruner::prune_objects_for_eligible_epochs(
+        &s.authority.database_for_testing().perpetual_tables,
+        checkpoint_store,
+        None,
+        config,
+        AuthorityStorePruningMetrics::new_for_test(),
+        0,
+        None,
+        None,
+        s.epoch_store.object_pruning_limit(),
+    )
+    .await
+    .unwrap();
+    for id in consumed {
+        s.authority.evict_committed_object_for_testing(&id);
+    }
+}
+
+/// A version that a commit above the horizon consumed keeps its bytes after
+/// the pruner runs over the consumer's executed checkpoint. A validation at a
+/// commit less than the horizon distance above the consumer, or a replay of
+/// any commit after a restart before the consumer's output flushed, keeps the
+/// version, as on a validator that has not executed the consumer, and needs
+/// its bytes for that.
+#[tokio::test]
+async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let produce = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+    let produce_effects = s
+        .execute_as_handler_known(vec![produce.clone()], 3)
+        .remove(0);
+    let named = s.latest_ref(&obj_id);
+    let consume = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let consume_effects = s
+        .execute_as_handler_known(vec![consume.clone()], 5)
+        .remove(0);
+    // Commit 6 reads at horizon 4: the row of commit 3 keeps the version, the
+    // consumer's row at commit 5 is above the horizon.
+    assert_keeps(s.read_owned(6, named), named);
+
+    execute_checkpoint_and_prune(
+        &s,
+        vec![(produce, produce_effects), (consume, consume_effects)],
+    )
+    .await;
+    assert_keeps(s.read_owned(6, named), named);
+}
+
+/// The object pruning limit follows the flushed commits: a commit's
+/// checkpoints become prunable once it is at or below the last flushed commit
+/// plus one minus the horizon distance. Before that, none of the epoch's
+/// checkpoints is.
+#[tokio::test]
+async fn object_pruning_limit_follows_the_flushed_commits() {
+    use crate::authority::authority_store_pruner::ObjectPruningLimit;
+
+    let s = setup_bookkeeping(vec![], true).await;
+    let epoch = s.epoch_store.epoch();
+    let limit = |highest_prunable_checkpoint| {
+        Some(ObjectPruningLimit {
+            epoch,
+            highest_prunable_checkpoint,
+        })
+    };
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
+
+    // Commit `i` flushes with checkpoint `i`; the horizon distance is 2.
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![])
+        .unwrap();
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(2, vec![])
+        .unwrap();
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(1)));
+    for index in 3..=6 {
+        s.epoch_store
+            .flush_commit_through_quarantine_for_testing(index, vec![])
+            .unwrap();
+    }
+    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(5)));
+}
+
+/// A node outside the committee keeps no bookkeeping, so its object pruning
+/// has no limit.
+#[tokio::test]
+async fn object_pruning_limit_is_off_outside_the_committee() {
+    let s = setup_bookkeeping_outside_committee(vec![]).await;
+    assert_eq!(s.epoch_store.object_pruning_limit(), None);
 }

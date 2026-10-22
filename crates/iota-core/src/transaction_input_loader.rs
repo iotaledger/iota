@@ -23,7 +23,8 @@ use crate::{
     },
     execution_cache::ObjectCacheRead,
     post_consensus_input_reader::{
-        InputResolution, OwnedVerdict, PackageVerdict, SharedVerdict, reader::CommitIndexedReader,
+        InputResolution, OwnedVerdict, PackageVerdict, ReceivingObjectsResolution, SharedVerdict,
+        reader::CommitIndexedReader,
     },
 };
 
@@ -271,9 +272,7 @@ impl TransactionInputLoader {
 }
 
 impl TransactionInputLoader {
-    /// Reads receiving objects as at signing: this epoch's received marker,
-    /// then the latest object.
-    pub(crate) fn read_receiving_objects_for_signing(
+    fn read_receiving_objects_for_signing(
         &self,
         receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
@@ -311,10 +310,10 @@ impl TransactionInputLoader {
 
     /// Reads the inputs of a transaction being validated post-consensus, as of
     /// the commit `reader` was built for. Owned and shared inputs and packages
-    /// go through the commit-indexed reader. Receiving objects are not read
-    /// here: the caller reads them as at signing. `Err` is a storage failure,
-    /// or `UserInputError::MoveObjectAsPackage` when a package input names a
-    /// Move object. A dropped or missing input is a result, never an error.
+    /// go through the commit-indexed reader. Receiving objects are not read.
+    /// `Err` is a storage failure, or `UserInputError::MoveObjectAsPackage` when
+    /// a package input names a Move object. A dropped or missing input is a
+    /// result, never an error.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn read_objects_at_commit(
         &self,
@@ -366,5 +365,35 @@ impl TransactionInputLoader {
             });
         }
         Ok(InputResolution::Loaded(input_results.into()))
+    }
+
+    /// Reads the receiving objects of a transaction being validated
+    /// post-consensus, as of the commit `reader` was built for. Each goes
+    /// through the reader as an owned input does, so a kept one was live at
+    /// the declared version on every validator and execution can always run
+    /// it. No lock is taken on it and nothing checks that the sender owns it.
+    /// A drop or a missing is reported under the owned kind of the reference,
+    /// so the caller's error names its id and version.
+    #[instrument(level = "trace", skip_all)]
+    pub fn read_receiving_objects_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        receiving_objects: &[ObjectReference],
+    ) -> IotaResult<ReceivingObjectsResolution> {
+        let mut receiving_results = Vec::with_capacity(receiving_objects.len());
+        for reference in receiving_objects {
+            let kind = InputObjectKind::ImmOrOwnedMoveObject(*reference);
+            let object = match reader.read_owned(*reference)? {
+                OwnedVerdict::Keep(kept) => kept.into_object(),
+                OwnedVerdict::Drop(reason) => {
+                    return Ok(ReceivingObjectsResolution::Drop(kind, reason));
+                }
+                OwnedVerdict::Missing(reason) => {
+                    return Ok(ReceivingObjectsResolution::Missing(kind, reason));
+                }
+            };
+            receiving_results.push(ReceivingObjectReadResult::new(*reference, object.into()));
+        }
+        Ok(ReceivingObjectsResolution::Loaded(receiving_results.into()))
     }
 }

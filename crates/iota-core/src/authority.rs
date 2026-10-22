@@ -177,7 +177,8 @@ use crate::{
         overload_monitor_accept_tx,
     },
     post_consensus_input_reader::{
-        InputResolution, ValidationAtCommit, ValidationInputsAtCommit, reader::CommitIndexedReader,
+        InputResolution, ReceivingObjectsResolution, ValidationAtCommit, ValidationInputsAtCommit,
+        reader::CommitIndexedReader,
     },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
@@ -1273,12 +1274,13 @@ impl AuthorityState {
 
     /// Like [`Self::handle_transaction_validation_checks`], but for
     /// post-consensus validation at the commit `reader` was built for: the
-    /// inputs are read as of that commit through the commit-indexed reader.
-    /// Returns `Drop` or `Missing` when an input is dropped or not visible
-    /// yet. Any other failed check returns the same `Err` as at admission. The
-    /// coin deny list is read epoch-gated, so every validator gets the same
-    /// answer. The Move authenticator's account is not resolved and the
-    /// authenticators are not run here: both happen at execution.
+    /// inputs and receiving objects are read as of that commit through the
+    /// commit-indexed reader. Returns `Drop` or `Missing` when one of them is
+    /// dropped or not visible yet. Any other failed check returns the same
+    /// `Err` as at admission. The coin deny list is read epoch-gated, so every
+    /// validator gets the same answer. The Move authenticator's account is not
+    /// resolved and the authenticators are not run here: both happen at
+    /// execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1296,7 +1298,7 @@ impl AuthorityState {
         let tx = transaction.data().transaction();
 
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            match self.read_objects_for_validation_at_commit(reader, transaction, epoch)? {
+            match self.read_objects_for_validation_at_commit(reader, transaction)? {
                 ValidationInputsAtCommit::Loaded {
                     tx_input_objects,
                     tx_receiving_objects,
@@ -1361,11 +1363,14 @@ impl AuthorityState {
 
         // Epoch-gated: the result decides whether the transaction stays in
         // the committed set, so it must not depend on this validator's
-        // execution progress.
+        // execution progress. Receiving objects are not read at a commit, so
+        // received coins are left to the check at execution, which looks only
+        // at the new owners: a denied sender can receive a coin of a denied
+        // type and pass it on.
         check_coin_deny_list_v1(
             tx.sender(),
             &tx_checked_input_objects,
-            &tx_receiving_objects,
+            &ReceivingObjects::from(vec![]),
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
             Some(epoch),
@@ -3290,6 +3295,7 @@ impl AuthorityState {
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
             checkpoint_progress_tracker.clone(),
+            epoch_store.object_pruning_limit(),
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -3398,6 +3404,15 @@ impl AuthorityState {
         self.execution_cache_trait_pointers
             .testing_api
             .database_for_testing()
+    }
+
+    /// Drops the committed versions of `id` the execution cache holds in
+    /// memory, so the next read of a committed version goes to the database.
+    #[cfg(test)]
+    pub fn evict_committed_object_for_testing(&self, id: &ObjectId) {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .evict_committed_object_for_testing(id)
     }
 
     pub async fn prune_checkpoints_for_eligible_epochs_for_testing(
@@ -6068,15 +6083,13 @@ impl AuthorityState {
     }
 
     /// Like [`Self::read_objects_for_validation`], but for post-consensus
-    /// validation at the commit `reader` was built for. Owned and shared
-    /// inputs and packages come from the commit-indexed reader. Receiving
-    /// objects are read as at signing, from this validator's latest state,
-    /// not as of the commit.
-    pub(crate) fn read_objects_for_validation_at_commit(
+    /// validation at the commit `reader` was built for. Every input and every
+    /// receiving object comes from the commit-indexed reader, the inputs
+    /// first, so the first of them that decides is reported as at admission.
+    fn read_objects_for_validation_at_commit(
         &self,
         reader: &CommitIndexedReader,
         transaction: &VerifiedTransaction,
-        epoch: u64,
     ) -> IotaResult<ValidationInputsAtCommit> {
         let input_objects = match self.input_loader.read_objects_at_commit(
             reader,
@@ -6090,11 +6103,19 @@ impl AuthorityState {
                 return Ok(ValidationInputsAtCommit::Missing(kind, reason));
             }
         };
-
-        let tx_receiving_objects = self.input_loader.read_receiving_objects_for_signing(
+        let tx_receiving_objects = match self.input_loader.read_receiving_objects_at_commit(
+            reader,
             &transaction.data().transaction().receiving_objects(),
-            epoch,
-        )?;
+        )? {
+            ReceivingObjectsResolution::Loaded(receiving_objects) => receiving_objects,
+            ReceivingObjectsResolution::Drop(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Drop(kind, reason));
+            }
+            ReceivingObjectsResolution::Missing(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Missing(kind, reason));
+            }
+        };
+
         let (tx_input_objects, per_authenticator_inputs) =
             transaction.split_input_objects_into_groups_for_reading(input_objects)?;
         Ok(ValidationInputsAtCommit::Loaded {
@@ -6196,10 +6217,11 @@ impl AuthorityState {
     }
 
     /// Like [`Self::check_transaction_inputs_for_validation`], but for
-    /// post-consensus validation at a commit. The difference is the Move
-    /// authenticator: the account is not resolved here, only the
-    /// authenticator's inputs are checked, so no function reference comes
-    /// back.
+    /// post-consensus validation at a commit. One difference: the Move
+    /// account is not resolved here, only the authenticator's inputs are
+    /// checked, so no function reference comes back. The receiving objects,
+    /// read through the commit-indexed reader, get the same checks as at
+    /// admission.
     fn check_transaction_inputs_at_commit(
         &self,
         protocol_config: &ProtocolConfig,

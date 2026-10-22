@@ -19,7 +19,7 @@ mod checked {
         Address, ObjectId, ObjectReference, Owner, Transaction, TransactionKind, Version,
     };
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
+        IOTA_CLOCK_OBJECT_SHARED_VERSION,
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
@@ -345,15 +345,38 @@ mod checked {
         Ok(gas_status)
     }
 
+    fn input_object_ids(input_objects: &InputObjects) -> HashSet<ObjectId> {
+        input_objects
+            .object_kinds()
+            .map(|x| x.object_id())
+            .collect()
+    }
+
+    fn check_receiving_version_bound(object_ref: &ObjectReference) -> Result<(), IotaError> {
+        fp_ensure!(
+            object_ref.version < Version::MAX_VALID_EXCL,
+            UserInputError::InvalidSequenceNumber.into()
+        );
+        Ok(())
+    }
+
+    fn check_not_already_in_transaction(
+        objects_in_txn: &mut HashSet<ObjectId>,
+        object_ref: &ObjectReference,
+    ) -> Result<(), IotaError> {
+        fp_ensure!(
+            objects_in_txn.insert(object_ref.object_id),
+            UserInputError::DuplicateObjectRefInput.into()
+        );
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,
     ) -> Result<(), IotaError> {
-        let mut objects_in_txn: HashSet<_> = input_objects
-            .object_kinds()
-            .map(|x| x.object_id())
-            .collect();
+        let mut objects_in_txn = input_object_ids(input_objects);
 
         // Since we're at signing we check that every object reference that we are
         // receiving is the most recent version of that object. If it's been
@@ -364,10 +387,7 @@ mod checked {
         // If there are any object IDs in common (either between receiving objects and
         // input objects) we return an error.
         for ReceivingObjectReadResult { object_ref, object } in receiving_objects.iter() {
-            fp_ensure!(
-                object_ref.version < Version::MAX_VALID_EXCL,
-                UserInputError::InvalidSequenceNumber.into()
-            );
+            check_receiving_version_bound(object_ref)?;
 
             let Some(object) = object.as_object() else {
                 // object was previously received
@@ -450,12 +470,7 @@ mod checked {
                 };
             }
 
-            fp_ensure!(
-                !objects_in_txn.contains(&object_ref.object_id),
-                UserInputError::DuplicateObjectRefInput.into()
-            );
-
-            objects_in_txn.insert(object_ref.object_id);
+            check_not_already_in_transaction(&mut objects_in_txn, object_ref)?;
         }
         Ok(())
     }
@@ -748,8 +763,10 @@ mod checked {
         Ok(())
     }
 
-    /// Check all the `MoveAuthenticator` related input objects against the
-    /// database.
+    /// Check the `MoveAuthenticator` input objects that were loaded: an owned
+    /// input's digest and owner, a shared input's owner and initial version.
+    /// Rules that read only the declaration live in
+    /// `MoveAuthenticator::validity_check`, which runs before any load.
     #[instrument(level = "trace", skip_all)]
     fn check_move_authenticator_objects(
         authenticator_objects: &InputObjects,
@@ -838,11 +855,11 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                id: ObjectId::AUTHENTICATOR_STATE,
                 ..
             } => {
                 return Err(UserInputError::InaccessibleSystemObject {
-                    object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                    object_id: ObjectId::AUTHENTICATOR_STATE,
                 });
             }
             InputObjectKind::SharedMoveObject {

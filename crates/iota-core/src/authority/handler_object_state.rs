@@ -7,9 +7,10 @@
 //!
 //! The bookkeeping is one epoch table of handler-processed rows plus an
 //! in-memory overlay holding the rows not yet durable: every version a commit
-//! the handler has processed produced, one row per (object, version), read by
-//! the exact version a transaction names, so writes need no ordering among
-//! themselves.
+//! the handler has processed produced, one row per (object, version), so
+//! writes need no ordering among themselves. Rows are read by the exact
+//! version a transaction names or, for a shared object that is gone, at the
+//! object's highest version.
 //!
 //! On a committee validator every execution belongs to a commit the handler
 //! has processed: the checkpoint executor runs a transaction only after the
@@ -60,6 +61,7 @@
 
 use std::{
     collections::{BTreeMap, btree_map::Entry},
+    ops::Bound,
     sync::Arc,
 };
 
@@ -67,7 +69,8 @@ use dashmap::DashMap;
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use iota_sdk_types::{
-    ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionEffects, Version, WriteKind,
+    ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionDigest, TransactionEffects,
+    Version, WriteKind,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -124,6 +127,10 @@ pub struct HandlerProcessedObject {
     /// input of a mutation, deletion or wrap. `None` for a creation or an
     /// unwrap.
     pub replaced_version: Option<Version>,
+    /// The transaction of a `Deleted` row, `None` on the other kinds. A kept
+    /// deleted shared input carries it as the deleting transaction, so the
+    /// reader needs no deletion marker.
+    pub deleted_by: Option<TransactionDigest>,
 }
 
 /// The rows a commit's executed transactions produce. Both writers of durable
@@ -143,7 +150,7 @@ pub fn handler_rows_for_commit<'a>(
 /// commit at `produced_at`: created / mutated / unwrapped objects become
 /// `Live` rows, deletions and wraps become tombstone rows. A deleted shared
 /// object's row keeps its initial shared version, taken from the consumed
-/// input's owner.
+/// input's owner, and every `Deleted` row names the transaction.
 pub fn handler_processed_upserts(
     effects: &TransactionEffects,
     produced_at: CommitIndex,
@@ -188,6 +195,7 @@ pub fn handler_processed_upserts(
                 produced_at,
                 initial_shared_version,
                 replaced_version,
+                deleted_by: None,
             },
         ));
     }
@@ -204,6 +212,8 @@ pub fn handler_processed_upserts(
             _ => None,
         };
         let replaced_version = old_object.map(|(version, _)| *version);
+        let deleted_by =
+            (kind == HandlerProcessedObjectKind::Deleted).then(|| *effects.transaction_digest());
         rows.push((
             ObjectKey(reference.object_id, reference.version),
             HandlerProcessedObject {
@@ -212,6 +222,7 @@ pub fn handler_processed_upserts(
                 produced_at,
                 initial_shared_version,
                 replaced_version,
+                deleted_by,
             },
         ));
     }
@@ -597,6 +608,77 @@ impl HandlerObjectState {
             self.handler_processed_cache.insert(*key, row);
         }
         Ok(row)
+    }
+
+    /// The handler-processed row of `id` at its highest version, from the
+    /// overlay or the durable table, whichever holds the higher version. A
+    /// key present in both carries the same row. Like
+    /// [`Self::handler_processed_object`], it returns the row
+    /// unconditionally.
+    ///
+    /// The read-through cache is not consulted, here or in
+    /// [`Self::lowest_handler_processed_row_above`]: it is keyed by exact
+    /// version, so it cannot tell which versions of `id` have a row.
+    pub fn highest_handler_processed_row(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let overlay_row = self
+            .handler_processed_overlay
+            .read()
+            .range(ObjectKey::min_for_id(id)..=ObjectKey::max_for_id(id))
+            .next_back()
+            .map(|(key, row)| (*key, *row));
+        let durable_row = tables
+            .handler_processed_objects
+            .safe_iter_with_prefix_reversed(id)
+            .next()
+            .transpose()?;
+        Ok(match (overlay_row, durable_row) {
+            (Some(overlay), Some(durable)) => Some(if overlay.0 >= durable.0 {
+                overlay
+            } else {
+                durable
+            }),
+            (overlay, durable) => overlay.or(durable),
+        })
+    }
+
+    /// The handler-processed row of `id` at its lowest version above
+    /// `version`, from the overlay or the durable table, whichever holds the
+    /// lower version. A key present in both carries the same row. Returns
+    /// the row unconditionally and, like
+    /// [`Self::highest_handler_processed_row`], bypasses the read-through
+    /// cache.
+    pub fn lowest_handler_processed_row_above(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<(ObjectKey, HandlerProcessedObject)>> {
+        let overlay_row = self
+            .handler_processed_overlay
+            .read()
+            .range((
+                Bound::Excluded(ObjectKey(*id, version)),
+                Bound::Included(ObjectKey::max_for_id(id)),
+            ))
+            .next()
+            .map(|(key, row)| (*key, *row));
+        let durable_row = tables
+            .handler_processed_objects
+            .safe_iter_with_prefix_from(id, Bound::Excluded(&version))
+            .next()
+            .transpose()?;
+        Ok(match (overlay_row, durable_row) {
+            (Some(overlay), Some(durable)) => Some(if overlay.0 <= durable.0 {
+                overlay
+            } else {
+                durable
+            }),
+            (overlay, durable) => overlay.or(durable),
+        })
     }
 
     /// Stages a commit's handler-processed rows into `batch`, the quarantine
@@ -1012,6 +1094,7 @@ mod tests {
             produced_at,
             initial_shared_version: None,
             replaced_version: None,
+            deleted_by: None,
         };
         let key = |version| ObjectKey(ObjectId::random(), Version::from_u64(version));
 
