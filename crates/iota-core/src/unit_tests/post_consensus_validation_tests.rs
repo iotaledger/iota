@@ -10,12 +10,15 @@ use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_move_types::iota_framework::deny_list::AddressKey;
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, deny_list::AddressKey, dynamic_field::Field,
+    object::UID,
+};
 use iota_sdk_types::{
-    Address, Argument, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
-    MoveAuthenticatorV1, MoveStruct, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference,
-    Owner, ProgrammableTransaction, SharedObjectReference, StructTag, Transaction,
-    TransactionDigest, TransactionEffects, TypeTag, UserSignature, Version,
+    Address, Argument, Command, DenyRuleSet, ExecutionStatus, GasCostSummary, Identifier,
+    MoveAuthenticator, MoveAuthenticatorV1, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
+    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, StructTag,
+    Transaction, TransactionDigest, TransactionEffects, TypeTag, UserSignature, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
@@ -26,7 +29,7 @@ use iota_types::{
     },
     crypto::{AccountPrivateKey, get_key_pair},
     deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
-    dynamic_field::get_dynamic_field_object_from_store,
+    dynamic_field::{DynamicFieldInfo, get_dynamic_field_object_from_store},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -67,7 +70,7 @@ use crate::{
     },
     execution_scheduler::ExecutionSchedulerAPI,
     post_consensus_input_reader::{
-        DenyListField, DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
+        DropKind, DynamicFieldAtHorizon, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
         ValidationAtCommit, reader::CommitIndexedReader,
     },
     post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
@@ -2655,10 +2658,54 @@ impl BookkeepingSetup {
                 create_object_args(sponsor),
             )
             .unwrap();
+        self.account_authenticated_programmable(
+            authenticator,
+            builder.finish(),
+            gas_id,
+            sponsor,
+            sponsor_key,
+        )
+    }
+
+    /// A verified sponsored transfer of one nano from the gas coin `gas_id`
+    /// to `sponsor`, sent by the account `authenticator` names. It names no
+    /// package, so the only package the deny rules can meet is the one that
+    /// holds the account's authenticate function.
+    fn build_account_authenticated_transfer(
+        &self,
+        authenticator: MoveAuthenticatorV1,
+        gas_id: &ObjectId,
+        sponsor: Address,
+        sponsor_key: &AccountPrivateKey,
+    ) -> VerifiedTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(sponsor, Some(1));
+        self.epoch_store
+            .verify_transaction(self.account_authenticated_programmable(
+                authenticator,
+                builder.finish(),
+                gas_id,
+                sponsor,
+                sponsor_key,
+            ))
+            .unwrap()
+    }
+
+    /// `programmable` sent by the account `authenticator` names, with the
+    /// authenticator in place of its signature, and paid by `sponsor` from
+    /// `gas_id`.
+    fn account_authenticated_programmable(
+        &self,
+        authenticator: MoveAuthenticatorV1,
+        programmable: ProgrammableTransaction,
+        gas_id: &ObjectId,
+        sponsor: Address,
+        sponsor_key: &AccountPrivateKey,
+    ) -> TransactionEnvelope {
         let tx = Transaction::new_programmable_allow_sponsor(
             authenticator.address(),
             vec![self.latest_ref(gas_id)],
-            builder.finish(),
+            programmable,
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.rgp,
             self.rgp,
             sponsor,
@@ -2772,6 +2819,46 @@ impl BookkeepingSetup {
                 )],
             )
             .unwrap();
+    }
+
+    /// Stores `object` and records its handler row at commit `index` as the
+    /// write of a root of that commit that replaced `replaced_version`, so
+    /// the reader treats the object as written by that commit.
+    fn record_write_at(&self, object: Object, replaced_version: Version, index: CommitIndex) {
+        let row = (
+            ObjectKey::from(object.object_ref()),
+            HandlerProcessedObject {
+                digest: object.digest(),
+                kind: HandlerProcessedObjectKind::Live,
+                produced_at: index,
+                initial_shared_version: None,
+                replaced_version: Some(replaced_version),
+                deleted_by: None,
+            },
+        );
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![]);
+        self.epoch_store
+            .record_commit_fully_executed(index, &[row])
+            .unwrap();
+        self.authority.insert_genesis_object(object);
+    }
+
+    /// Validation of `tx` at commit `index` under `deny_rules`.
+    fn validate_at_commit_under(
+        &self,
+        index: CommitIndex,
+        tx: &VerifiedTransaction,
+        deny_rules: &DenyRuleSet,
+    ) -> IotaResult<ValidationAtCommit> {
+        self.authority
+            .handle_transaction_validation_checks_at_commit(
+                &self.reader_at(index),
+                tx,
+                &self.epoch_store,
+                deny_rules,
+                VerifierLimitsSource::ProtocolConfig,
+            )
     }
 
     /// The argument naming the shared object `id` as a mutable input.
@@ -5758,6 +5845,452 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
         },
         "execution must fail the kept transaction because its account was deleted"
     );
+}
+
+/// The dynamic field of the account `account_id`, at `version`, naming
+/// `object_basics::authenticate` of `package` as the account's authenticate
+/// function.
+fn authenticator_function_ref_field(
+    account_id: ObjectId,
+    package: ObjectId,
+    version: Version,
+) -> Object {
+    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id).unwrap();
+    let field = Field {
+        id: UID::from(field_id),
+        name: AuthenticatorFunctionRefV1Key::default(),
+        value: AuthenticatorFunctionRefV1 {
+            package,
+            module: "object_basics".to_string(),
+            function: "authenticate".to_string(),
+        },
+    };
+    let field_type = DynamicFieldInfo::dynamic_field_type(
+        StructTag::new_authenticator_function_ref_v1_key().into(),
+        AuthenticatorFunctionRefV1::type_(StructTag::new_gas_coin()).into(),
+    );
+    Object::new_move(
+        MoveStruct::new(field_type.into(), version, bcs::to_bytes(&field).unwrap()).unwrap(),
+        Owner::Object(account_id),
+        TransactionDigest::GENESIS_MARKER,
+    )
+}
+
+/// Deny rules that deny `package` and nothing else.
+fn deny_package(package: ObjectId) -> DenyRuleSet {
+    DenyRuleSet {
+        denied_packages: [package].into(),
+        ..Default::default()
+    }
+}
+
+/// Asserts that the deny check of the authenticator's package rejected the
+/// transaction for `package`.
+#[track_caller]
+fn assert_authenticator_package_denied(result: IotaResult<ValidationAtCommit>, package: ObjectId) {
+    match result {
+        Err(IotaError::UserInput {
+            error: UserInputError::TransactionDenied { error },
+        }) => assert_eq!(
+            error,
+            format!(
+                "Access to package {package} from a Move authenticator is temporarily disabled"
+            )
+        ),
+        other => panic!("expected a denial of package {package}, got {other:?}"),
+    }
+}
+
+/// Asserts that validation at the commit kept the transaction.
+#[track_caller]
+fn assert_kept(result: IotaResult<ValidationAtCommit>) {
+    assert!(
+        matches!(result, Ok(ValidationAtCommit::Keep(_))),
+        "expected keep, got {result:?}"
+    );
+}
+
+/// A shared account whose authenticator function field names the
+/// `object_basics` package, on a setup with deterministic validation on, and
+/// a sponsored transfer the account sends. Returns the setup and the transfer.
+async fn setup_account_with_authenticator_in_object_basics(
+    config_guard: Option<OverrideGuard>,
+) -> (BookkeepingSetup, VerifiedTransaction) {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account_id = ObjectId::random();
+    let s = setup_bookkeeping_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            shared_object_with_id(account_id),
+        ],
+        config_guard,
+    )
+    .await;
+    s.authority
+        .insert_genesis_object(authenticator_function_ref_field(
+            account_id,
+            s.package_id,
+            Version::OBJECT_START,
+        ));
+    let tx = s.build_account_authenticated_transfer(
+        account_authenticator(account_id),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+    (s, tx)
+}
+
+/// The protocol config override with deterministic validation on.
+fn enable_deterministic_validation() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    })
+}
+
+/// Post-consensus validation does not resolve the account, but it still
+/// checks the package that holds the account's authenticate function, and that
+/// package's dependencies, against the deny rules, as a validator does before
+/// submitting to consensus. It reads the account's authenticator function
+/// field as of the horizon. A denial drops the transaction with the error
+/// admission gives.
+#[tokio::test]
+async fn validation_at_commit_checks_the_authenticator_package_against_the_deny_rules() {
+    let (s, tx) =
+        setup_account_with_authenticator_in_object_basics(Some(enable_deterministic_validation()))
+            .await;
+
+    for denied in [s.package_id, ObjectId::FRAMEWORK] {
+        assert_authenticator_package_denied(
+            s.validate_at_commit_under(12, &tx, &deny_package(denied)),
+            denied,
+        );
+        let at_admission = s
+            .authority
+            .handle_transaction_validation_checks(
+                &tx,
+                &s.epoch_store,
+                &deny_package(denied),
+                false,
+                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
+            )
+            .await
+            .map(|_| ())
+            .unwrap_err();
+        assert_eq!(
+            s.validate_at_commit_under(12, &tx, &deny_package(denied))
+                .unwrap_err(),
+            at_admission,
+            "admission and the commit must deny with the same error"
+        );
+    }
+
+    assert_kept(s.validate_at_commit_under(12, &tx, &deny_package(ObjectId::random())));
+}
+
+/// A package that post-consensus validation does not see at the commit cannot
+/// be checked against the deny rules, and it is not a reason to drop the
+/// transaction either: execution reports it. Whether the package is unknown or
+/// published above the horizon, every validator then keeps the transaction.
+/// Once the horizon reaches the publish, the package is checked.
+#[tokio::test]
+async fn validation_at_commit_leaves_an_authenticator_package_it_does_not_see_to_execution() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let late_account = ObjectId::random();
+    let unknown_account = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            shared_object_with_id(late_account),
+            shared_object_with_id(unknown_account),
+        ],
+        true,
+    )
+    .await;
+    let unknown = ObjectId::random();
+    for (account_id, package) in [(late_account, s.package_id), (unknown_account, unknown)] {
+        s.authority
+            .insert_genesis_object(authenticator_function_ref_field(
+                account_id,
+                package,
+                Version::OBJECT_START,
+            ));
+    }
+    let transfer_by = |account_id| {
+        s.build_account_authenticated_transfer(
+            account_authenticator(account_id),
+            &gas_id,
+            sponsor,
+            &sponsor_key,
+        )
+    };
+
+    let by_unknown = transfer_by(unknown_account);
+    assert_kept(s.validate_at_commit_under(12, &by_unknown, &deny_package(unknown)));
+
+    // Published by commit 11, above the horizon of commit 12.
+    s.record_package_published_at(11);
+    let by_late = transfer_by(late_account);
+    assert_kept(s.validate_at_commit_under(12, &by_late, &deny_package(s.package_id)));
+    assert_authenticator_package_denied(
+        s.validate_at_commit_under(
+            11 + s.horizon_distance(),
+            &by_late,
+            &deny_package(s.package_id),
+        ),
+        s.package_id,
+    );
+}
+
+/// Commit 11 rotates the account's authenticate function from a denied
+/// package to an allowed one, recorded as the new version of the account's
+/// authenticator function field that the rotation writes. At commit 12,
+/// horizon 10, a validator that has executed commit 11 and one that has not
+/// both read the function the account named before the rotation, so both drop
+/// the transaction alike. Once the horizon reaches the rotation, the
+/// transaction is kept.
+#[tokio::test]
+async fn authenticator_function_rotated_above_the_horizon_gets_one_verdict_on_every_validator() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account_id = ObjectId::random();
+    let genesis = vec![
+        Object::with_id_owner_for_testing(gas_id, sponsor),
+        shared_object_with_id(account_id),
+    ];
+    let rotated = setup_bookkeeping(genesis.clone(), true).await;
+    // Share the override `rotated` holds.
+    let not_rotated = setup_bookkeeping_with_config_guard(genesis, None).await;
+    assert_eq!(rotated.package_id, not_rotated.package_id);
+    let denied = rotated.package_id;
+    for node in [&rotated, &not_rotated] {
+        node.authority
+            .insert_genesis_object(authenticator_function_ref_field(
+                account_id,
+                denied,
+                Version::OBJECT_START,
+            ));
+    }
+    rotated.record_write_at(
+        authenticator_function_ref_field(account_id, ObjectId::SYSTEM, Version::from_u64(2)),
+        Version::OBJECT_START,
+        11,
+    );
+    let tx = rotated.build_account_authenticated_transfer(
+        account_authenticator(account_id),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+
+    let on_rotated = rotated.validate_at_commit_under(12, &tx, &deny_package(denied));
+    let on_not_rotated = not_rotated.validate_at_commit_under(12, &tx, &deny_package(denied));
+    assert_eq!(
+        on_rotated.as_ref().map(|_| ()).unwrap_err(),
+        on_not_rotated.as_ref().map(|_| ()).unwrap_err(),
+        "a validator that executed the rotation and one that did not must reach the same verdict"
+    );
+    assert_authenticator_package_denied(on_rotated, denied);
+
+    assert_kept(rotated.validate_at_commit_under(
+        11 + rotated.horizon_distance(),
+        &tx,
+        &deny_package(denied),
+    ));
+}
+
+/// Commit 11 rotates the account's authenticate function from an allowed
+/// package to a denied one. A rotation to a denied package above the horizon
+/// is not caught at the commit: at commit 12, horizon 10, a validator that has
+/// executed commit 11 and one that has not both read the function the account
+/// named before the rotation, so both keep the transaction. Once the horizon
+/// reaches the rotation, the transaction is dropped.
+#[tokio::test]
+async fn authenticator_function_rotated_to_a_denied_package_above_the_horizon_is_not_caught() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account_id = ObjectId::random();
+    let genesis = vec![
+        Object::with_id_owner_for_testing(gas_id, sponsor),
+        shared_object_with_id(account_id),
+    ];
+    let rotated = setup_bookkeeping(genesis.clone(), true).await;
+    // Share the override `rotated` holds.
+    let not_rotated = setup_bookkeeping_with_config_guard(genesis, None).await;
+    assert_eq!(rotated.package_id, not_rotated.package_id);
+    let denied = rotated.package_id;
+    for node in [&rotated, &not_rotated] {
+        node.authority
+            .insert_genesis_object(authenticator_function_ref_field(
+                account_id,
+                ObjectId::SYSTEM,
+                Version::OBJECT_START,
+            ));
+    }
+    rotated.record_write_at(
+        authenticator_function_ref_field(account_id, denied, Version::from_u64(2)),
+        Version::OBJECT_START,
+        11,
+    );
+    let tx = rotated.build_account_authenticated_transfer(
+        account_authenticator(account_id),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+
+    assert_kept(rotated.validate_at_commit_under(12, &tx, &deny_package(denied)));
+    assert_kept(not_rotated.validate_at_commit_under(12, &tx, &deny_package(denied)));
+
+    assert_authenticator_package_denied(
+        rotated.validate_at_commit_under(
+            11 + rotated.horizon_distance(),
+            &tx,
+            &deny_package(denied),
+        ),
+        denied,
+    );
+}
+
+/// The account's authenticator function field is written above the horizon,
+/// and the store no longer holds the version that write replaced, which the
+/// read as of the horizon needs. Validation at the commit fails with a storage
+/// error instead of keeping or dropping the transaction, whether or not a
+/// package is denied, since the account check reads the same field. Once the
+/// horizon reaches the write, the transaction is kept.
+#[tokio::test]
+async fn authenticator_function_field_missing_from_the_store_is_a_storage_error() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            shared_object_with_id(account_id),
+        ],
+        true,
+    )
+    .await;
+    s.record_write_at(
+        authenticator_function_ref_field(account_id, s.package_id, Version::from_u64(2)),
+        Version::OBJECT_START,
+        11,
+    );
+    let tx = s.build_account_authenticated_transfer(
+        account_authenticator(account_id),
+        &gas_id,
+        sponsor,
+        &sponsor_key,
+    );
+    let unrelated = deny_package(ObjectId::random());
+
+    for rules in [&unrelated, &DenyRuleSet::default()] {
+        match s.validate_at_commit_under(12, &tx, rules) {
+            Err(error @ IotaError::Storage(_)) => assert!(error.is_storage_or_epoch_error()),
+            other => panic!("expected a storage error, got {other:?}"),
+        }
+    }
+
+    assert_kept(s.validate_at_commit_under(11 + s.horizon_distance(), &tx, &unrelated));
+}
+
+/// A transaction sent by one account and sponsored by another carries a Move
+/// authenticator for each, the sender's first. Post-consensus validation
+/// checks the package of each account's authenticate function, so a denial of
+/// the sponsor's package alone drops the transaction with the error admission
+/// gives for that package. With neither package denied, the transaction is
+/// kept.
+#[tokio::test]
+async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account_sponsor() {
+    let gas_id = ObjectId::random();
+    let sender_account = ObjectId::random();
+    let sponsor_account = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor_account.into()),
+            shared_object_with_id(sender_account),
+            shared_object_with_id(sponsor_account),
+        ],
+        true,
+    )
+    .await;
+    for (account_id, package) in [
+        (sender_account, ObjectId::SYSTEM),
+        (sponsor_account, s.package_id),
+    ] {
+        s.authority
+            .insert_genesis_object(authenticator_function_ref_field(
+                account_id,
+                package,
+                Version::OBJECT_START,
+            ));
+    }
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(sponsor_account.into(), Some(1));
+    let transfer = Transaction::new_programmable_allow_sponsor(
+        sender_account.into(),
+        vec![s.latest_ref(&gas_id)],
+        builder.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * s.rgp,
+        s.rgp,
+        sponsor_account.into(),
+    );
+    let signatures = [sender_account, sponsor_account]
+        .map(|account_id| {
+            UserSignature::MoveAuthenticator(MoveAuthenticator::from(account_authenticator(
+                account_id,
+            )))
+        })
+        .to_vec();
+    let tx = s
+        .epoch_store
+        .verify_transaction(TransactionEnvelope::from_user_sig_data(
+            transfer, signatures,
+        ))
+        .unwrap();
+    assert_eq!(tx.move_authenticators().len(), 2);
+
+    let denied = s.package_id;
+    let at_commit = s.validate_at_commit_under(12, &tx, &deny_package(denied));
+    let at_admission = s
+        .authority
+        .handle_transaction_validation_checks(
+            &tx,
+            &s.epoch_store,
+            &deny_package(denied),
+            false,
+            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
+        )
+        .await
+        .map(|_| ())
+        .unwrap_err();
+    assert_eq!(
+        at_commit.as_ref().map(|_| ()).unwrap_err(),
+        &at_admission,
+        "admission and the commit must deny with the same error"
+    );
+    assert_authenticator_package_denied(at_commit, denied);
+
+    assert_kept(s.validate_at_commit_under(12, &tx, &deny_package(ObjectId::random())));
+}
+
+/// With `deny_authenticator_packages` off, neither admission nor
+/// post-consensus validation checks the package of the account's authenticate
+/// function, so the commit keeps the transaction although that package is
+/// denied.
+#[tokio::test]
+async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_flag_off() {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_deny_authenticator_packages_for_testing(false);
+        config
+    });
+    let (s, tx) = setup_account_with_authenticator_in_object_basics(Some(config_guard)).await;
+
+    assert_kept(s.validate_at_commit_under(12, &tx, &deny_package(s.package_id)));
 }
 
 /// A Move authenticator naming a mutable shared object as a call argument is
@@ -9770,11 +10303,11 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
         consume_a_dynamic_field_child_without_a_lock(&s, &gas_id, sender, &sender_key);
     let read = |commit| match s
         .reader_at(commit)
-        .read_deny_list_field(field_ref.object_id)
+        .read_dynamic_field(field_ref.object_id)
         .unwrap()
     {
-        DenyListField::Live(object) => Some(object.object_ref()),
-        DenyListField::Absent => None,
+        DynamicFieldAtHorizon::Live(object) => Some(object.object_ref()),
+        DynamicFieldAtHorizon::Absent => None,
     };
     assert_eq!(read(6), None, "created above horizon 4");
     assert_eq!(read(7), Some(field_ref), "created at horizon 5");
@@ -9782,7 +10315,7 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
 
     s.prune_versions_consumed_by(&committed, &remove_effects)
         .await;
-    let result = s.reader_at(7).read_deny_list_field(field_ref.object_id);
+    let result = s.reader_at(7).read_dynamic_field(field_ref.object_id);
     assert!(
         matches!(result, Err(IotaError::Storage(_))),
         "unexpected result: {result:?}"

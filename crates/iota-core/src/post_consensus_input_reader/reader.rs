@@ -10,7 +10,10 @@ use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_types::{
-    account_abstraction::authenticator_function::derive_authenticator_function_ref_v1_dynamic_field_id,
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, authenticator_function_ref_v1_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id,
+    },
     deny_list_v1::coin_deny_list_v1_denial,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
@@ -21,9 +24,9 @@ use iota_types::{
 };
 
 use super::{
-    AccountVerdict, DenyListField, DropKind, DropReason, KeptObject, MissingKind, MissingReason,
-    OwnedVerdict, PackageVerdict, SharedVerdict,
-    deny_list::{DenyListFieldReader, HighestRowLookup, RowLookup},
+    AccountVerdict, DropKind, DropReason, DynamicFieldAtHorizon, KeptObject, MissingKind,
+    MissingReason, OwnedVerdict, PackageVerdict, SharedVerdict,
+    dynamic_field::{DynamicFieldReader, HighestRowLookup, RowLookup},
     owned::{
         LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
         TablesRecheck,
@@ -240,17 +243,18 @@ impl CommitIndexedReader {
         )))
     }
 
-    /// The deny-list field `id` as of the horizon, live or absent. Storage
-    /// errors propagate, and so does a version the read needs but the store
-    /// no longer holds.
-    pub fn read_deny_list_field(&self, id: ObjectId) -> IotaResult<DenyListField> {
-        let mut lookup =
-            match DenyListFieldReader::start(id, self.horizon).read_highest_row(self)? {
-                HighestRowLookup::Row(lookup) => lookup,
-                HighestRowLookup::NoRow(no_row) => {
-                    no_row.read_object(self)?.reread_highest_row(self)?
-                }
-            };
+    /// The dynamic field `id` as of the horizon, live or absent. The field
+    /// must change only through its shared parent object, as a field of the
+    /// coin deny list or an account's authenticator function field does.
+    /// Storage errors propagate, and so does a version the read needs but the
+    /// store no longer holds.
+    pub fn read_dynamic_field(&self, id: ObjectId) -> IotaResult<DynamicFieldAtHorizon> {
+        let mut lookup = match DynamicFieldReader::start(id, self.horizon).read_highest_row(self)? {
+            HighestRowLookup::Row(lookup) => lookup,
+            HighestRowLookup::NoRow(no_row) => {
+                no_row.read_object(self)?.reread_highest_row(self)?
+            }
+        };
         loop {
             lookup = match lookup {
                 RowLookup::NeedBytes(need_bytes) => return need_bytes.load_bytes(self),
@@ -263,17 +267,45 @@ impl CommitIndexedReader {
     /// Whether `account_id` had its authenticator function field at the
     /// horizon. An object can receive only while it is not an account, and a
     /// receive takes no lock. So every receive through an account whose
-    /// field is at the horizon is at or below it too, where the owned machine
-    /// sees what the receive consumed. The field changes only through the
-    /// account object, in the order of the commits that change it, as the
-    /// deny-list machine requires. Storage errors propagate.
+    /// field is at the horizon is at or below it too, where the owned input
+    /// read sees what the receive consumed. The field changes only through
+    /// the account object, in the order of the commits that change it, as
+    /// [`Self::read_dynamic_field`] requires. Storage errors propagate.
     pub fn read_account(&self, account_id: ObjectId) -> IotaResult<AccountVerdict> {
         let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id)?;
-        Ok(match self.read_deny_list_field(field_id)? {
-            DenyListField::Live(_) => AccountVerdict::Account,
-            DenyListField::Absent => {
+        Ok(match self.read_dynamic_field(field_id)? {
+            DynamicFieldAtHorizon::Live(field) => AccountVerdict::Account(field),
+            DynamicFieldAtHorizon::Absent => {
                 AccountVerdict::Missing(MissingReason(MissingKind::AuthenticatorFunctionNotFound))
             }
+        })
+    }
+
+    /// The authenticate function that `field`, the authenticator function
+    /// field [`Self::read_account`] read for the account `account_id`, names,
+    /// for the authenticator package deny check at the commit. `None` when
+    /// this reader does not see the function's package, so the check never
+    /// reports it not found: execution reports it. A package this reader sees
+    /// stays visible to it, so the check reads it again through this reader
+    /// as its package store.
+    ///
+    /// # Errors
+    ///
+    /// Storage errors, and a field that does not decode.
+    pub fn visible_authenticator_function_ref(
+        &self,
+        account_id: ObjectId,
+        field: &Object,
+    ) -> IotaResult<Option<AuthenticatorFunctionRef>> {
+        let function_ref =
+            authenticator_function_ref_v1_from_dynamic_field_object(account_id, field)?
+                .authenticator_function_ref;
+        let package_id = match &function_ref {
+            AuthenticatorFunctionRef::V1(v1) => v1.package,
+        };
+        Ok(match self.read_package(package_id)? {
+            PackageVerdict::Visible(_) => Some(function_ref),
+            PackageVerdict::Missing(_) => None,
         })
     }
 
@@ -330,10 +362,10 @@ impl<'a> DenyListAtCommit<'a> {
 impl ObjectStore for DenyListAtCommit<'_> {
     fn try_get_object(&self, object_id: &ObjectId) -> StorageResult<Option<Object>> {
         self.reader
-            .read_deny_list_field(*object_id)
+            .read_dynamic_field(*object_id)
             .map(|field| match field {
-                DenyListField::Live(object) => Some(object),
-                DenyListField::Absent => None,
+                DynamicFieldAtHorizon::Live(object) => Some(object),
+                DynamicFieldAtHorizon::Absent => None,
             })
             .map_err(|error| {
                 let storage_error = StorageError::custom(error.to_string());
@@ -353,10 +385,11 @@ impl ObjectStore for DenyListAtCommit<'_> {
     }
 }
 
-/// Lets the deny check load packages as of the commit. A package the reader
-/// answers missing reads as absent, which the deny check reports as not
-/// found, so validation runs the deny check only after every package input
-/// has loaded.
+/// Lets the deny checks load packages as of the commit. A package the reader
+/// answers missing reads as absent, which the deny checks report as not
+/// found. So validation runs the deny check of the commands only after every
+/// package input has loaded, and gives the authenticator package check only
+/// functions whose package this reader sees.
 impl BackingPackageStore for CommitIndexedReader {
     fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         Ok(match self.read_package(*package_id)? {
