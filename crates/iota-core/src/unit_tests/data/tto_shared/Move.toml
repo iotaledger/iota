@@ -1,0 +1,10 @@
+[package]
+name = "tto_shared"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+tto_shared = "0x0"

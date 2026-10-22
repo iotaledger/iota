@@ -21,7 +21,9 @@ use crate::{
     base_types::EpochId,
     config::Setting,
     dynamic_field::get_dynamic_field_from_store,
-    error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
+    error::{
+        ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
+    },
     object::Object,
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
@@ -42,8 +44,9 @@ pub const CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS: usize = 1000;
 /// validator-local decisions, such as pre-consensus admission. With
 /// `Some(epoch)`, the read is gated to the value settled before that epoch
 /// (entries written in epoch `E` activate in `E + 1`), making the result
-/// deterministic across validators; required where all validators must agree
-/// on the outcome, such as post-consensus validation.
+/// deterministic across validators, as post-consensus validation without
+/// deterministic validation needs. With deterministic validation,
+/// post-consensus validation uses [`coin_deny_list_v1_denial`] instead.
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1(
     address: Address,
@@ -58,18 +61,90 @@ pub fn check_coin_deny_list_v1(
         tx_receiving_objects,
         per_authenticator_input_objects,
     );
+
+    match coin_type_denial(address, coin_types, object_store, cur_epoch) {
+        Some(CoinTypeDenial::GlobalPause(coin_type)) => {
+            Err(UserInputError::CoinTypeGlobalPause { coin_type })
+        }
+        Some(CoinTypeDenial::AddressDenied(coin_type)) => {
+            Err(UserInputError::AddressDeniedForCoin { address, coin_type })
+        }
+        None => Ok(()),
+    }
+}
+
+/// The error [`check_coin_deny_list_v1`] gives with `cur_epoch = None` when
+/// `address` may not use one of `coin_types`, or `None` if it may use them
+/// all. Types are checked in sorted order, and for each type a global pause
+/// before a denial of `address`, so the same deny list always gives the same
+/// error.
+///
+/// Meant for post-consensus validation, where `object_store` answers as of a
+/// commit: a missing deny-list entry reads as not denied, and any other error
+/// of `object_store` is returned instead of being read as not denied, which
+/// would differ between validators.
+pub fn coin_deny_list_v1_denial(
+    address: Address,
+    coin_types: BTreeSet<String>,
+    object_store: &dyn ObjectStore,
+) -> IotaResult<Option<UserInputError>> {
+    for coin_type in coin_types {
+        let Some(deny_list) = try_get_per_type_coin_deny_list_v1(&coin_type, object_store)? else {
+            continue;
+        };
+
+        if try_read_config_setting(object_store, &deny_list, GlobalPauseKey::default(), None)?
+            .unwrap_or(false)
+        {
+            return Ok(Some(UserInputError::CoinTypeGlobalPause { coin_type }));
+        }
+
+        if try_read_config_setting(object_store, &deny_list, AddressKey(address), None)?
+            .unwrap_or(false)
+        {
+            return Ok(Some(UserInputError::AddressDeniedForCoin {
+                address,
+                coin_type,
+            }));
+        }
+    }
+
+    Ok(None)
+}
+
+/// A coin type an address may not use, and the reason: the type is paused
+/// for every address, or the address is denied for it.
+enum CoinTypeDenial {
+    GlobalPause(String),
+    AddressDenied(String),
+}
+
+/// Returns the first of `coin_types` (in sorted order) that `address` may
+/// not use, with the reason, or `None` if it may use them all. For each type,
+/// a global pause is checked before a denial of `address`. `cur_epoch` is
+/// `None` to read the latest deny list, or `Some(epoch)` to read it as it
+/// stood at the start of `epoch`.
+fn coin_type_denial(
+    address: Address,
+    coin_types: BTreeSet<String>,
+    object_store: &dyn ObjectStore,
+    cur_epoch: Option<EpochId>,
+) -> Option<CoinTypeDenial> {
     for coin_type in coin_types {
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
         };
+
         if check_global_pause(&deny_list, object_store, cur_epoch) {
-            return Err(UserInputError::CoinTypeGlobalPause { coin_type });
+            return Some(CoinTypeDenial::GlobalPause(coin_type));
         }
+
         if check_address_denied_by_config(&deny_list, address, object_store, cur_epoch) {
-            return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
+            return Some(CoinTypeDenial::AddressDenied(coin_type));
         }
     }
-    Ok(())
+
+    None
 }
 
 /// Returns 1) whether the coin deny list check passed,
@@ -146,11 +221,27 @@ fn check_new_regulated_coin_owners(
     Ok(())
 }
 
+/// The deny-list config of `coin_type`, or `None` if it has none. Every error
+/// of `object_store` also reads as `None`, so as not denied. That is
+/// deliberate for the callers outside post-consensus validation at a commit,
+/// whose behaviour must not change. A read that every validator must agree
+/// on goes through [`coin_deny_list_v1_denial`], which returns those errors.
 #[instrument(level = "trace", skip_all)]
 pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
     object_store: &dyn ObjectStore,
 ) -> Option<Config<ConfigWriteCap>> {
+    try_get_per_type_coin_deny_list_v1(coin_type, object_store)
+        .ok()
+        .flatten()
+}
+
+/// [`get_per_type_coin_deny_list_v1`] that returns the errors of
+/// `object_store` other than a missing or undecodable entry.
+fn try_get_per_type_coin_deny_list_v1(
+    coin_type: &String,
+    object_store: &dyn ObjectStore,
+) -> IotaResult<Option<Config<ConfigWriteCap>>> {
     let config_key = Wrapper {
         name: ConfigKey {
             per_type_index: DENY_LIST_COIN_TYPE_INDEX,
@@ -158,9 +249,22 @@ pub fn get_per_type_coin_deny_list_v1(
         },
     };
     // TODO: Consider caching the config object UID to avoid repeat deserialization.
-    let config: Config<ConfigWriteCap> =
-        get_dynamic_field_from_store(object_store, IOTA_DENY_LIST_OBJECT_ID, &config_key).ok()?;
-    Some(config)
+    absent_if_missing(get_dynamic_field_from_store(
+        object_store,
+        IOTA_DENY_LIST_OBJECT_ID,
+        &config_key,
+    ))
+}
+
+/// A dynamic-field read with a missing or undecodable field as `None`, both
+/// the same on every store holding the same objects, and every other error
+/// returned.
+fn absent_if_missing<V>(read: Result<V, IotaError>) -> IotaResult<Option<V>> {
+    match read {
+        Ok(value) => Ok(Some(value)),
+        Err(IotaError::DynamicFieldNotExists { .. } | IotaError::DynamicFieldRead(_)) => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 #[instrument(level = "trace", skip_all)]
@@ -208,6 +312,9 @@ pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) 
 /// Reads the value of the setting, giving `newer_value` if the current epoch is
 /// greater than `newer_value_epoch`, and `older_value_opt` otherwise.
 /// If `cur_epoch` is `None`, the `newer_value` is always returned.
+/// Every error of `object_store` reads as `None`, deliberately, as for
+/// [`get_per_type_coin_deny_list_v1`]; [`try_read_config_setting`] returns
+/// them.
 fn read_config_setting<K, V>(
     object_store: &dyn ObjectStore,
     config: &Config<ConfigWriteCap>,
@@ -218,13 +325,29 @@ where
     K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
     V: Clone + Serialize + DeserializeOwned + fmt::Debug,
 {
-    let setting: Setting<V> = {
-        match get_dynamic_field_from_store(object_store, *config.id.object_id(), &setting_name) {
-            Ok(setting) => setting,
-            Err(_) => return None,
-        }
-    };
-    setting.read_value(cur_epoch).cloned()
+    try_read_config_setting(object_store, config, setting_name, cur_epoch)
+        .ok()
+        .flatten()
+}
+
+/// [`read_config_setting`] that returns the errors of `object_store` other
+/// than a missing or undecodable setting.
+fn try_read_config_setting<K, V>(
+    object_store: &dyn ObjectStore,
+    config: &Config<ConfigWriteCap>,
+    setting_name: K,
+    cur_epoch: Option<EpochId>,
+) -> IotaResult<Option<V>>
+where
+    K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
+    V: Clone + Serialize + DeserializeOwned + fmt::Debug,
+{
+    let setting: Option<Setting<V>> = absent_if_missing(get_dynamic_field_from_store(
+        object_store,
+        *config.id.object_id(),
+        &setting_name,
+    ))?;
+    Ok(setting.and_then(|setting| setting.read_value(cur_epoch).cloned()))
 }
 
 /// Returns all unique coin types in canonical string form from the input
@@ -244,7 +367,16 @@ fn input_object_coin_types_for_denylist_check(
             .chain(per_authenticator_input_objects.iter().flat_map(
                 |authenticator_input_objects| authenticator_input_objects.inner().iter_objects(),
             ));
-    all_objects
+    coin_types_for_denylist_check(all_objects)
+}
+
+/// Returns all unique coin types of `objects` in canonical string form. It
+/// filters out IOTA coins since it's known that it's not a regulated coin.
+pub fn coin_types_for_denylist_check<'a>(
+    objects: impl IntoIterator<Item = &'a Object>,
+) -> BTreeSet<String> {
+    objects
+        .into_iter()
         .filter_map(|obj| {
             if obj.is_gas_coin() {
                 None

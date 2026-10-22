@@ -454,7 +454,9 @@ pub async fn validate_and_resolve_conflicts(
             // clients see a known error, and the reason goes to the log. A
             // missing input drops the transaction from this commit only: the
             // decision is saved as `DroppedInputNotVisibleYet`, which does not
-            // stop a resubmission from being kept at a later commit.
+            // stop a resubmission from being kept at a later commit. The Move
+            // authenticator is checked at execution instead. The coin deny
+            // list is read as of the horizon.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,

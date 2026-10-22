@@ -10,7 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use iota_common::{debug_fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{
     monitored_mpsc, monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task,
@@ -677,7 +677,9 @@ const EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME: &str =
 /// Receives commits from the epoch store in processing order and completes
 /// them in that order, so a completed commit implies every earlier commit is
 /// complete. Lives for one epoch: the wait ends when the epoch is terminated,
-/// and the task is aborted when the handler drops.
+/// and the task is aborted when the handler drops. An error stops the node:
+/// without the watcher, a commit waited on would complete only once its
+/// checkpoint is certified.
 pub(crate) struct ExecutionWatcher {
     handle: JoinHandle<()>,
 }
@@ -702,7 +704,10 @@ impl ExecutionWatcher {
                 .await
             {
                 Ok(Ok(())) => debug!("ExecutionWatcher finished: assigned-commit channel closed"),
-                Ok(Err(e)) => debug_fatal!("ExecutionWatcher stopping on error: {e}"),
+                Ok(Err(e)) => {
+                    epoch_store.record_execution_watcher_error(&e);
+                    fatal!("ExecutionWatcher stopping on error: {e}");
+                }
                 Err(_) => debug!(
                     epoch = epoch_store.epoch(),
                     "ExecutionWatcher stopping: epoch ended"
@@ -723,6 +728,8 @@ impl ExecutionWatcher {
                 .try_notify_read_executed_effects(EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME, &digests)
                 .await?;
             let upserts = handler_rows_for_commit(&effects, index);
+            #[cfg(test)]
+            epoch_store.injected_watcher_completion_error()?;
             // A no-op once the commit's output has flushed: the flush derives
             // the durable rows from the same effects and completes the commit
             // itself.
@@ -1181,7 +1188,9 @@ mod tests {
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
-        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
+        transaction::{
+            CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionKey,
+        },
         utils::to_sender_signed_transaction,
     };
     use prometheus_filtered::Registry;
@@ -1199,6 +1208,7 @@ mod tests {
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
         post_consensus_tx_reorder::PostConsensusTxReorder,
+        post_consensus_validation::PostConsensusDecision,
     };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1421,6 +1431,123 @@ mod tests {
             .handle_consensus_output_for_test(commit(101, 11))
             .await;
         assert_eq!(consensus_handler.last_consensus_stats, initial_stats);
+    }
+
+    /// With deterministic validation on, a commit carrying a user transaction
+    /// after the switch to executing synced checkpoints is not processed: the
+    /// transaction is not validated, assigned to the commit, put in a pending
+    /// checkpoint or executed. The commit before the switch shows each of
+    /// these for a processed commit.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_stops_when_executing_synced_checkpoints_with_validation() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<Object> = (0..4)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .with_objects(objects.clone())
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        assert!(epoch_store.pcool_bookkeeping_enabled());
+        let rgp = epoch_store.reference_gas_price();
+        let transfer = |object: &Object, gas: &Object| {
+            let transaction = to_sender_signed_transaction(
+                Transaction::new_transfer(
+                    Address::random(),
+                    state.get_object(&object.id()).unwrap().object_ref(),
+                    sender,
+                    state.get_object(&gas.id()).unwrap().object_ref(),
+                    rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                    rgp,
+                ),
+                &key,
+            );
+            let digest = *transaction.digest();
+            let consensus_tx = ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+                tracking_id: Default::default(),
+            };
+            (digest, consensus_tx)
+        };
+        let in_pending_checkpoint = |digest: TransactionDigest| {
+            epoch_store
+                .get_pending_checkpoints(None)
+                .unwrap()
+                .iter()
+                .flat_map(|(_, checkpoint)| checkpoint.roots())
+                .any(|root| *root == TransactionKey::Digest(digest))
+        };
+        let executed = |digest: TransactionDigest| {
+            let reader = state.get_transaction_cache_reader().clone();
+            tokio::time::timeout(Duration::from_secs(60), async move {
+                reader
+                    .notify_read_executed_effects_for_testing("", &[digest])
+                    .await
+            })
+        };
+        let mut consensus_handler = ConsensusHandler::new(
+            epoch_store.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch_store.epoch_start_state()),
+            state.metrics.clone(),
+            BackpressureManager::new_for_tests().subscribe(),
+        );
+
+        let (before, before_tx) = transfer(&objects[0], &objects[1]);
+        consensus_handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                1,
+                100,
+                vec![(0, before_tx)],
+            ))
+            .await;
+        assert_eq!(
+            epoch_store
+                .post_consensus_decision(1, before)
+                .unwrap()
+                .map(|saved| saved.decision),
+            Some(PostConsensusDecision::Kept)
+        );
+        assert!(in_pending_checkpoint(before));
+        executed(before)
+            .await
+            .expect("the transaction of the commit before the switch must execute");
+        let stats_before_switch = consensus_handler.last_consensus_stats.clone();
+        assert_eq!(stats_before_switch.index.sub_dag_index, 1);
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        let (after, after_tx) = transfer(&objects[2], &objects[3]);
+        consensus_handler
+            .handle_consensus_output_for_test(commit_with_transactions(2, 101, vec![(0, after_tx)]))
+            .await;
+
+        assert_eq!(consensus_handler.last_consensus_stats, stats_before_switch);
+        assert_eq!(epoch_store.last_validated_commit().unwrap(), Some(1));
+        assert_eq!(epoch_store.post_consensus_decision(2, after).unwrap(), None);
+        assert_eq!(
+            epoch_store
+                .handler_object_state_for_testing()
+                .commit_index_of(&TransactionKey::Digest(after)),
+            None
+        );
+        assert!(!in_pending_checkpoint(after));
+        assert!(
+            executed(after).await.is_err(),
+            "a transaction of a commit after the switch must not be scheduled"
+        );
     }
 
     /// A node that switched to executing synced checkpoints and restarts in
@@ -1742,6 +1869,7 @@ mod tests {
                         kind: HandlerProcessedObjectKind::Live,
                         initial_shared_version: None,
                         replaced_version: None,
+                        deleted_by: None,
                     },
                 )],
             )
@@ -1865,6 +1993,7 @@ mod tests {
                         kind: HandlerProcessedObjectKind::Live,
                         initial_shared_version: None,
                         replaced_version: None,
+                        deleted_by: None,
                     },
                 )],
             )

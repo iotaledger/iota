@@ -17,7 +17,7 @@ use iota_types::{
 };
 use tracing::{debug, info, instrument, trace};
 
-use super::{CheckpointMetrics, CheckpointStore};
+use super::{CheckpointMetrics, CheckpointServiceNotify, CheckpointStore};
 use crate::{
     authority::{StableSyncAuthoritySigner, authority_per_epoch_store::AuthorityPerEpochStore},
     consensus_adapter::SubmitToConsensus,
@@ -29,12 +29,16 @@ const MIN_CHECKPOINTS_BETWEEN_REPORTS: u64 = 1000;
 const MAX_CHECKPOINT_LAG_FOR_REPORT: u64 = 100;
 #[async_trait]
 pub trait CheckpointOutput: Sync + Send + 'static {
+    /// Handles a checkpoint this validator has just built. If the
+    /// implementation signs the checkpoint, it gives the signature to
+    /// `checkpoint_service` as well under deterministic validation.
     async fn checkpoint_created(
         &self,
         summary: &CheckpointSummary,
         contents: &CheckpointContents,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         checkpoint_store: &Arc<CheckpointStore>,
+        checkpoint_service: &(dyn CheckpointServiceNotify + Sync),
     ) -> IotaResult;
 }
 
@@ -77,9 +81,16 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         contents: &CheckpointContents,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         checkpoint_store: &Arc<CheckpointStore>,
+        checkpoint_service: &(dyn CheckpointServiceNotify + Sync),
     ) -> IotaResult {
         LogCheckpointOutput
-            .checkpoint_created(summary, contents, epoch_store, checkpoint_store)
+            .checkpoint_created(
+                summary,
+                contents,
+                epoch_store,
+                checkpoint_store,
+                checkpoint_service,
+            )
             .await?;
 
         let checkpoint_timestamp = summary.timestamp_ms;
@@ -110,9 +121,19 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             );
 
             let message = CheckpointSignatureMessage { summary };
-            let transaction = ConsensusTransaction::new_checkpoint_signature_message(message);
+            let transaction =
+                ConsensusTransaction::new_checkpoint_signature_message(message.clone());
             self.sender
                 .submit_to_consensus(&[transaction], epoch_store)?;
+            // A validator does not verify its own blocks, so otherwise its own signature
+            // reaches its aggregator only when its consensus handler gets to the commit
+            // that includes it, and a handler waiting on certification would never get there.
+            if epoch_store
+                .protocol_config()
+                .pcool_deterministic_validation()
+            {
+                checkpoint_service.notify_checkpoint_signature(epoch_store, &message)?;
+            }
             self.metrics
                 .last_sent_checkpoint_signature
                 .set(checkpoint_seq as i64);
@@ -192,6 +213,7 @@ impl CheckpointOutput for LogCheckpointOutput {
         contents: &CheckpointContents,
         _epoch_store: &Arc<AuthorityPerEpochStore>,
         _checkpoint_store: &Arc<CheckpointStore>,
+        _checkpoint_service: &(dyn CheckpointServiceNotify + Sync),
     ) -> IotaResult {
         trace!(
             "Including following transactions in checkpoint {}: {:?}",

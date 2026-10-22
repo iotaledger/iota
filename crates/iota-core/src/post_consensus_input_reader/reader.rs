@@ -5,22 +5,31 @@
 //! and the store handles, and takes each input through its read steps, from
 //! the first read to a result.
 
-use std::sync::Arc;
+use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, ObjectReference, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_types::{
-    error::{IotaError, IotaResult},
-    storage::{BackingPackageStore, PackageObject},
+    deny_list_v1::coin_deny_list_v1_denial,
+    error::{IotaError, IotaResult, UserInputError},
+    object::Object,
+    storage::{
+        BackingPackageStore, ObjectKey, ObjectStore, PackageObject,
+        error::{Error as StorageError, Result as StorageResult},
+    },
 };
 
 use super::{
-    KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
-    owned::{NeedBytes, OwnedReader, TablesLookup, TablesRecheck},
+    DenyListField, DropKind, DropReason, KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
+    deny_list::{DenyListFieldReader, HighestRowLookup, RowLookup},
+    owned::{
+        LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
+        TablesRecheck,
+    },
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, SharedReader,
-        SharedTablesLookup, SharedTablesRecheck,
+        CreatedObjectLookup, DeletionRowLookup, ObjectAbsent, SharedReader, SharedTablesLookup,
+        SharedTablesRecheck, TypeObjectLookup,
     },
 };
 use crate::{
@@ -63,14 +72,16 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Reads one owned or immutable input. A storage error is returned as
-    /// `Err`, never as a result.
+    /// Reads one owned or immutable input: the row at the named version or
+    /// the store, then, for a kept version, the rows above it. A storage error
+    /// is returned as `Err`, never as a result.
     pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
-        // The row at the named version decides when it exists.
+        // The row at the named version, when it exists, decides a drop or a
+        // missing. A keep from it goes on to the rows above it.
         let no_tables_entry =
             match OwnedReader::start(input, self.horizon).read_handler_row(self)? {
-                TablesLookup::NeedBytes(need_bytes) => {
-                    return Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?));
+                TablesLookup::LiveAtVersion(live_at_version) => {
+                    return self.read_rows_above(live_at_version);
                 }
                 TablesLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
                 TablesLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
@@ -80,11 +91,36 @@ impl CommitIndexedReader {
         // No row: read the store, keep its answer, and read the row once more
         // before using that answer.
         match no_tables_entry.read_store(self)?.reread_handler_row(self)? {
-            TablesRecheck::NeedBytes(need_bytes) => {
-                Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?))
-            }
+            TablesRecheck::LiveAtVersion(live_at_version) => self.read_rows_above(live_at_version),
+            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            TablesRecheck::Superseded(superseded) => self.read_superseded(superseded),
             TablesRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
             TablesRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
+        }
+    }
+
+    /// Drops a kept owned input when a row of `id` above it, produced at or
+    /// below the horizon, shows it consumed. Otherwise loads its object.
+    fn read_rows_above(
+        &self,
+        live_at_version: OwnedReader<LiveAtVersion>,
+    ) -> IotaResult<OwnedVerdict> {
+        match live_at_version.read_rows_above(self)? {
+            RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
+        }
+    }
+
+    /// Decides a version the store has replaced: it drops unless this epoch's
+    /// consumption of exactly that version is above the horizon, where a
+    /// validator that has not executed it still keeps it.
+    fn read_superseded(
+        &self,
+        superseded: OwnedReader<SupersededInStore>,
+    ) -> IotaResult<OwnedVerdict> {
+        match superseded.read_rows_above(self)? {
+            RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
     }
 
@@ -105,7 +141,7 @@ impl CommitIndexedReader {
         {
             SharedTablesLookup::Created(created) => {
                 return match created.read_object(self)? {
-                    CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                    CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
                     CreatedObjectLookup::Absent(object_absent) => {
                         self.check_deletion(object_absent)
                     }
@@ -123,30 +159,26 @@ impl CommitIndexedReader {
             .reread_creation_row(self)?
         {
             SharedTablesRecheck::Created(created) => match created.read_object(self)? {
-                CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
                 CreatedObjectLookup::Absent(object_absent) => self.check_deletion(object_absent),
             },
-            SharedTablesRecheck::Exists(object) => Ok(SharedVerdict::Exists(object)),
+            SharedTablesRecheck::Exists => Ok(SharedVerdict::Exists),
             SharedTablesRecheck::Missing(reason) => Ok(SharedVerdict::Missing(reason)),
             SharedTablesRecheck::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
             SharedTablesRecheck::Absent(object_absent) => self.check_deletion(object_absent),
         }
     }
 
-    /// Decides a shared input whose object is not in the store: reads the
-    /// store's record of a deletion in this epoch, then the row at the deleted
-    /// version. Called after either read of the creation row.
+    /// Decides a shared input whose object is not in the store, from the
+    /// highest row of `id`. Called after either read of the creation row.
     fn check_deletion(
         &self,
         object_absent: SharedReader<ObjectAbsent>,
     ) -> IotaResult<SharedVerdict> {
-        let deletion_info_found = match object_absent.read_deletion_info(self)? {
-            DeletionInfoLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            DeletionInfoLookup::Found(deletion_info_found) => deletion_info_found,
-        };
-        Ok(match deletion_info_found.read_deletion_row(self)? {
+        Ok(match object_absent.read_deletion_row(self)? {
             DeletionRowLookup::Deleted(version, digest) => SharedVerdict::Deleted(version, digest),
             DeletionRowLookup::Drop(reason) => SharedVerdict::Drop(reason),
+            DeletionRowLookup::Missing(reason) => SharedVerdict::Missing(reason),
         })
     }
 
@@ -167,16 +199,137 @@ impl CommitIndexedReader {
     }
 
     /// Loads the object of a kept input at exactly `(id, V)`. Takes the
-    /// `NeedBytes` step, which only a keep result creates. A kept version must
-    /// still be in the store, so a missing object is a storage error, which
-    /// stops commit processing, and never a result.
-    fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<KeptObject> {
-        let key = need_bytes.into_key();
+    /// `NeedBytes` step, which only a keep result creates. An object with
+    /// another digest drops the input: a keep through a row that replaced `V`
+    /// has not compared the named digest yet. Without the object, a row of
+    /// `id` above `V` drops the input. With neither, a kept version is missing
+    /// from the store, which is a storage error that stops commit processing,
+    /// and never a result.
+    fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<OwnedVerdict> {
+        let input = need_bytes.into_reference();
+        let key = ObjectKey(input.object_id, input.version);
         if let Some(object) = self.cache.try_get_object_by_key(&key.0, key.1)? {
-            return Ok(KeptObject(object));
+            if object.digest() != input.digest {
+                return Ok(OwnedVerdict::Drop(DropReason(
+                    DropKind::StoreDigestMismatch,
+                )));
+            }
+            return Ok(OwnedVerdict::Keep(KeptObject(object)));
+        }
+        // Only a version consumed without a lock, by a commit above the
+        // horizon, is pruned while a validation can still keep it: a
+        // dynamic-field child or a received object. A validator that
+        // still holds the bytes rejects either in the input checks, as a
+        // child is never an owned input and a received object is owned by
+        // the address of the object it was sent to. That holds unless the
+        // sender is that address, as an account object's is. The consumer's
+        // row is in place before the pruner can remove the version.
+        if self
+            .epoch_store
+            .lowest_handler_processed_row_above(&key.0, key.1)?
+            .is_some()
+        {
+            return Ok(OwnedVerdict::Drop(DropReason(
+                DropKind::HandlerRowAbovePrunedVersion,
+            )));
         }
         Err(IotaError::Storage(format!(
-            "kept input {key:?} has no bytes in the object store"
+            "kept input {key:?} has no bytes in the object store and no handler row above it"
+        )))
+    }
+
+    /// The deny-list field `id` as of the horizon, live or absent. Storage
+    /// errors propagate, and so does a version the read needs but the store
+    /// no longer holds.
+    pub fn read_deny_list_field(&self, id: ObjectId) -> IotaResult<DenyListField> {
+        let mut lookup =
+            match DenyListFieldReader::start(id, self.horizon).read_highest_row(self)? {
+                HighestRowLookup::Row(lookup) => lookup,
+                HighestRowLookup::NoRow(no_row) => {
+                    no_row.read_object(self)?.reread_highest_row(self)?
+                }
+            };
+        loop {
+            lookup = match lookup {
+                RowLookup::NeedBytes(need_bytes) => return need_bytes.load_bytes(self),
+                RowLookup::Decided(field) => return Ok(field),
+                RowLookup::AboveHorizon(above) => above.read_row_below(self)?,
+            };
+        }
+    }
+
+    /// An object of the kept shared input `id` declared at
+    /// `initial_shared_version`, for its type. Storage errors propagate, and
+    /// so does an input with neither a live object nor the version its
+    /// deletion replaced.
+    pub fn read_shared_object_for_type(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<Object> {
+        match SharedReader::start_type_read(id, initial_shared_version, self.horizon)
+            .read_object(self)?
+        {
+            TypeObjectLookup::Live(object) => Ok(object),
+            TypeObjectLookup::Deleted(deleted) => deleted.read_deletion_row(self)?.load_bytes(self),
+        }
+    }
+}
+
+/// The coin deny list as of a commit's horizon, for the deny check at the
+/// commit. It reads through the commit's one reader, so every transaction in
+/// the commit sees the same deny list. Only latest-object reads are answered:
+/// reading an exact version through it is a storage error.
+pub struct DenyListAtCommit<'a> {
+    reader: &'a CommitIndexedReader,
+    /// The reader's error behind the storage error the last failed read
+    /// returned, which keeps only its text.
+    reader_error: RefCell<Option<IotaError>>,
+}
+
+impl<'a> DenyListAtCommit<'a> {
+    pub fn new(reader: &'a CommitIndexedReader) -> Self {
+        Self {
+            reader,
+            reader_error: RefCell::new(None),
+        }
+    }
+
+    /// [`coin_deny_list_v1_denial`] as of the horizon. A failed read returns
+    /// the reader's own error, so the end of the epoch stays
+    /// `IotaError::EpochEnded`.
+    pub fn denial(
+        &self,
+        address: Address,
+        coin_types: BTreeSet<String>,
+    ) -> IotaResult<Option<UserInputError>> {
+        coin_deny_list_v1_denial(address, coin_types, self)
+            .map_err(|error| self.reader_error.take().unwrap_or(error))
+    }
+}
+
+impl ObjectStore for DenyListAtCommit<'_> {
+    fn try_get_object(&self, object_id: &ObjectId) -> StorageResult<Option<Object>> {
+        self.reader
+            .read_deny_list_field(*object_id)
+            .map(|field| match field {
+                DenyListField::Live(object) => Some(object),
+                DenyListField::Absent => None,
+            })
+            .map_err(|error| {
+                let storage_error = StorageError::custom(error.to_string());
+                *self.reader_error.borrow_mut() = Some(error);
+                storage_error
+            })
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> StorageResult<Option<Object>> {
+        Err(StorageError::custom(format!(
+            "the deny list at a commit reads no exact version, asked for {object_id} at {version}"
         )))
     }
 }

@@ -519,9 +519,10 @@ impl CheckpointExecutor {
 
         // Nudge the pruner now that this checkpoint is executed and available;
         // pruning of aged-out data runs off the propagation path.
-        self.state
-            .pruner()
-            .nudge(ckpt_state.data.checkpoint.sequence_number());
+        self.state.pruner().nudge(
+            ckpt_state.data.checkpoint.sequence_number(),
+            self.epoch_store.object_pruning_limit(),
+        );
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);
 

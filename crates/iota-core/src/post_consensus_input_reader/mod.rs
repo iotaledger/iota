@@ -3,7 +3,9 @@
 
 //! Reads the inputs of a transaction for post-consensus validation as of a
 //! consensus commit, so that every validator reaches the same result,
-//! however far its own execution has got.
+//! however far its own execution has got. It also reads the dynamic fields
+//! of the coin deny list as of the horizon, for the coin deny check at the
+//! commit. That read answers present or absent, not keep, drop or missing.
 //!
 //! Terms used here and in the submodules:
 //! - `C` is the commit being validated.
@@ -43,19 +45,22 @@
 //!
 //! When the row they look for does not exist, the owned and shared readers
 //! ask the store. That answer gives the same result on every validator, for
-//! three reasons.
+//! the three reasons below, with one exception given in point 3.
 //!
 //! 1. Every write this epoch leaves its row before its object, so the store is never ahead of the
 //!    rows for an id.
 //! 2. The rows are kept per epoch and start empty. An id with no row has not been written this
 //!    epoch on this validator, so the store holds the version the epoch started with, and every
-//!    validator starts the epoch with the same state.
+//!    validator starts the epoch with the same state. A shared object is the exception: its
+//!    mutations write no rows, so the store can hold a later version of it, with the same owner.
 //! 3. The pruner removes only older versions that a newer one replaced, so the latest version of a
 //!    live object stays. A deleted or wrapped object is the exception: pruning the checkpoint that
 //!    deleted or wrapped it removes its tombstone too, so for an object deleted or wrapped in an
 //!    earlier epoch some validators find the tombstone and others find nothing. The owned reader
-//!    drops the input in both cases, and the shared reader, which reads only live objects, finds
-//!    nothing in both.
+//!    then drops the input on a validator that still has the tombstone and answers missing on one
+//!    that pruned it. Both leave the transaction out of the commit, but the error reported differs
+//!    (final or retryable). The shared reader, which reads only live objects, finds nothing in
+//!    both.
 //!
 //! After the store answer, the row is read once more. This covers a write
 //! that lands between the first row read and the store read. Such a write
@@ -68,10 +73,41 @@
 //! horizon, because validation at `C` starts only once every commit at or
 //! below the horizon is executed. If the second read sees that write's row,
 //! the row answers missing. If it does not, the store answer is the state
-//! that every validator which has not executed that commit also sees. A
-//! version such a commit consumed is caught by the lock conflict check,
-//! which runs before the reader. So one more read is enough, and a third
-//! would only face the same window again.
+//! that every validator which has not executed that commit also sees. So one
+//! more read is enough, and a third would only face the same window again.
+//!
+//! # Loading the object of a kept version
+//!
+//! A kept owned input is loaded by exact key, and this validator may already
+//! have consumed and pruned that version. A version consumed by a commit at
+//! or below the horizon drops, from the consuming commit's row, before any
+//! load. A version consumed above the horizon is kept, as on a validator that
+//! has not executed that commit, unless the consuming transaction holds a
+//! lock that the lock conflict check finds first. That holds for a version
+//! the epoch started with too: a newer version in the store does not drop it
+//! by itself, as the owned module explains. A version that a transaction in
+//! the last `K` commits consumed without a lock (a received object or a
+//! dynamic-field child) can be pruned here while a validation still keeps
+//! it. If this validator has already pruned it, the consuming commit's row
+//! above `V` drops the input. That is also the result on a validator that
+//! still holds the object: the input checks reject a child named as an owned
+//! input, and a received object unless the sender is the address of the
+//! object it was sent to.
+//!
+//! # The coin deny list as of the horizon
+//!
+//! The deny list reader walks down from a field's highest row to the highest
+//! one at or below the horizon. That needs the field's versions to rise with
+//! the commits that change it, which holds for the fields of the deny list:
+//! they change only through the shared deny list object, so in the order of
+//! the commits that change them. A field with no row reads the store and then
+//! the rows again, as explained under "Why the store answer for an id with no
+//! row is the epoch-start state" above.
+//!
+//! The coin deny check also needs the type of a kept shared input, whose
+//! object the shared reader does not read. That read takes the latest store
+//! object even when rows exist, because an object's type never changes, and
+//! once the object is gone, the version its deletion replaced.
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
@@ -80,10 +116,15 @@ use iota_types::{
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
 };
 
+mod deny_list;
 mod owned;
 mod package;
 pub mod reader;
 mod shared;
+
+#[cfg(all(test, not(msim)))]
+#[path = "../unit_tests/post_consensus_determinism_tests.rs"]
+mod post_consensus_determinism_tests;
 
 /// The reader's result for one owned or immutable input. The module doc
 /// says what keep, drop and missing mean.
@@ -99,14 +140,13 @@ pub enum OwnedVerdict {
 /// contents.
 #[must_use]
 pub enum SharedVerdict {
-    /// Live and shared at the declared initial version. Holds the object at
-    /// this validator's latest version, for the kind and owner checks that
-    /// follow. That version can differ between validators, so no result may
-    /// depend on it.
-    Exists(Object),
+    /// Live and shared at the declared initial version. Holds no object:
+    /// execution reads it at the version consensus assigns.
+    Exists,
     /// Deleted by a commit above the horizon. The input is kept and passed
-    /// on as `DeletedSharedObject`, with the deleted version and the deleting
-    /// transaction.
+    /// on as `DeletedSharedObject`, with the version and the deleting
+    /// transaction from the tombstone row. Neither decides anything at the
+    /// commit.
     Deleted(Version, TransactionDigest),
     Drop(DropReason),
     Missing(MissingReason),
@@ -120,6 +160,17 @@ pub enum PackageVerdict {
     /// package, for the input loader and the deny check.
     Visible(PackageObject),
     Missing(MissingReason),
+}
+
+/// The reader's result for one dynamic field of the coin deny list, as of
+/// the horizon. The coin deny check decides from it.
+#[must_use]
+#[derive(Debug, PartialEq, Eq)]
+pub enum DenyListField {
+    /// The field's object at the version live at the horizon.
+    Live(Object),
+    /// The field did not exist at the horizon, or was deleted by then.
+    Absent,
 }
 
 /// The object of a kept input, loaded at exactly the version the
@@ -160,13 +211,22 @@ pub enum DropKind {
     HandlerRowTombstone,
     /// The row at `(id, V)` is live, with another digest.
     HandlerRowDigestMismatch,
-    /// No row, and the store's latest reference is a newer version or a
-    /// tombstone.
+    /// A row of `id` at a version above `V`, produced at or below the horizon:
+    /// a commit every validator has executed consumed `V`.
+    HandlerRowSuperseded,
+    /// The row at `(id, V)` is a shared object's creation row, but the
+    /// transaction names the object as owned.
+    HandlerRowSharedObject,
+    /// A row of `id` above `V` while this validator has already pruned `V`:
+    /// `V` was consumed without a lock.
+    HandlerRowAbovePrunedVersion,
+    /// No row at `(id, V)`, and `V` was replaced before this epoch: the store
+    /// holds a newer version or a tombstone, and the lowest row of `id` above
+    /// `V`, if there is one, replaced another version.
     StoreSuperseded,
-    /// No row, and the store's latest reference is `V` with another digest.
+    /// No row at `(id, V)`, and the store's object at `V` has another digest:
+    /// as the latest reference, or as the object loaded for a kept input.
     StoreDigestMismatch,
-    /// No row, and the store has nothing for `id`.
-    StoreNotFound,
     /// Named as shared, but the row or the store object is not shared at the
     /// declared initial version.
     SharedNotCreatedShared,
@@ -174,8 +234,6 @@ pub enum DropKind {
     SharedInitialVersionMismatch,
     /// A shared object deleted by a commit at or below the horizon.
     SharedDeletedAtOrBelowHorizon,
-    /// No live shared object, and no deletion this epoch.
-    SharedNotFound,
 }
 
 /// Which read decided a missing. `V` is the version the transaction names.
@@ -186,8 +244,13 @@ pub enum MissingKind {
     /// No row, and the store's latest reference is below `V`: this validator
     /// has not produced the version yet.
     StoreBelowVersion,
+    /// No row at `(id, V)`, and the store has nothing for `id`.
+    StoreNotFound,
     /// The shared object's creation row was produced above the horizon.
     SharedCreationAboveHorizon,
+    /// No creation row, the store has no live object and no handler row
+    /// shows a deletion.
+    SharedNotFound,
     /// The package is not in the store.
     PackageNotFound,
     /// The package's row was produced above the horizon.
@@ -196,12 +259,22 @@ pub enum MissingKind {
 
 /// The loader's result for one transaction's inputs at a commit. `Loaded`
 /// holds every input as the input checks expect it. Receiving objects are
-/// read by the caller. `Drop` and `Missing` name the first input that
-/// decided. A missing input is not an error, so the caller must handle it
-/// rather than turn it into one.
+/// read separately, see [`ReceivingObjectsResolution`]. `Drop` and `Missing`
+/// name the first input that decided. A missing input is not an error, so
+/// the caller must handle it rather than turn it into one.
 #[must_use]
 pub enum InputResolution {
     Loaded(InputObjects),
+    Drop(InputObjectKind, DropReason),
+    Missing(InputObjectKind, MissingReason),
+}
+
+/// The loader's answer for one transaction's receiving objects at a commit.
+/// `Loaded` holds every one as the existing receiving checks expect it. The
+/// other two name the first reference that decided, under its owned kind.
+#[must_use]
+pub enum ReceivingObjectsResolution {
+    Loaded(ReceivingObjects),
     Drop(InputObjectKind, DropReason),
     Missing(InputObjectKind, MissingReason),
 }
