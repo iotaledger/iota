@@ -220,6 +220,20 @@ pub(crate) struct TotalIotaSupplyCheck {
     pub(crate) last_check_epoch: EpochId,
 }
 
+impl AuthorityPerpetualTablesReadOnly {
+    /// Whether the first start's ledger migration has finished, after which
+    /// the history is in the buckets rather than in the flat tables.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
+    pub fn ledger_backlog_migrated(&self) -> Result<bool, TypedStoreError> {
+        self.ledger_backlog_migration_progress
+            .try_catch_up_with_primary()?;
+        Ok(matches!(
+            self.ledger_backlog_migration_progress.get(&())?,
+            Some(LedgerBacklogMigrationProgress::Done | LedgerBacklogMigrationProgress::Cleared)
+        ))
+    }
+}
+
 impl AuthorityPerpetualTables {
     pub fn path(parent_path: &Path) -> PathBuf {
         parent_path.join("perpetual")
