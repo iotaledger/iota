@@ -6,7 +6,7 @@
 //! The buckets are column families of the perpetual database (see
 //! `epoch_buckets`), as in [`crate::authority::historic_objects`].
 
-use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use iota_sdk_types::{
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
@@ -18,7 +18,7 @@ use iota_types::{
     transaction::TrustedTransaction,
 };
 use typed_store::{
-    DbIterator, TypedStoreError,
+    TypedStoreError,
     database::Database,
     rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables},
     traits::Map,
@@ -26,7 +26,7 @@ use typed_store::{
 
 use crate::epoch_buckets::{
     BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    bucket_metrics_label, extra_column_family_options,
+    bucket_metrics_label, dump_page, dump_retention_floor, dump_rows, extra_column_family_options,
 };
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
@@ -415,25 +415,6 @@ impl HistoricLedger {
         page_size: u16,
         page_number: usize,
     ) -> Result<Option<BTreeMap<String, String>>, TypedStoreError> {
-        fn format_rows<'a, K: Debug + 'a, V: Debug + 'a>(
-            prefix: &'static str,
-            rows: DbIterator<'a, (K, V)>,
-        ) -> impl Iterator<Item = Result<(String, String), TypedStoreError>> + 'a {
-            rows.map(move |row| {
-                row.map(|(key, value)| (format!("{prefix}{key:?}"), format!("{value:?}")))
-            })
-        }
-
-        fn page(
-            rows: impl Iterator<Item = Result<(String, String), TypedStoreError>>,
-            page_size: u16,
-            page_number: usize,
-        ) -> Result<BTreeMap<String, String>, TypedStoreError> {
-            rows.skip(page_number * page_size as usize)
-                .take(page_size as usize)
-                .collect()
-        }
-
         if bucket_cf_epoch(HISTORIC_LEDGER_CF_PREFIX, cf_name).is_some() {
             let bucket = HistoricLedgerBucket::reopen(db, cf_name)?;
             bucket.transactions.try_catch_up_with_primary()?;
@@ -441,29 +422,21 @@ impl HistoricLedger {
             bucket.executed_effects.try_catch_up_with_primary()?;
             bucket.events.try_catch_up_with_primary()?;
             bucket.tx_to_checkpoint.try_catch_up_with_primary()?;
-            let rows = format_rows("transaction:", bucket.transactions.safe_iter())
-                .chain(format_rows("effects:", bucket.effects.safe_iter()))
-                .chain(format_rows(
+            let rows = dump_rows("transaction:", bucket.transactions.safe_iter())
+                .chain(dump_rows("effects:", bucket.effects.safe_iter()))
+                .chain(dump_rows(
                     "executed_effects:",
                     bucket.executed_effects.safe_iter(),
                 ))
-                .chain(format_rows("events:", bucket.events.safe_iter()))
-                .chain(format_rows(
+                .chain(dump_rows("events:", bucket.events.safe_iter()))
+                .chain(dump_rows(
                     "tx_to_checkpoint:",
                     bucket.tx_to_checkpoint.safe_iter(),
                 ));
-            return page(rows, page_size, page_number).map(Some);
+            return dump_page(rows, page_size, page_number).map(Some);
         }
         if cf_name == EARLIEST_RETAINED_CF {
-            let earliest_retained_table: DBMap<(), EpochId> =
-                DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
-            earliest_retained_table.try_catch_up_with_primary()?;
-            return page(
-                format_rows("", earliest_retained_table.safe_iter()),
-                page_size,
-                page_number,
-            )
-            .map(Some);
+            return dump_retention_floor(db, cf_name, page_size, page_number).map(Some);
         }
         Ok(None)
     }
