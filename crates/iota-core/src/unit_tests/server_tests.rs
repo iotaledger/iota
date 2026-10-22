@@ -751,6 +751,7 @@ async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
         epoch_store.epoch(),
         1,
     );
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -1364,6 +1365,7 @@ async fn test_v2_get_tx_status_refuses_contradicting_previously_signed() {
         epoch_store.epoch(),
         1,
     );
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -1473,6 +1475,7 @@ async fn test_v2_get_tx_status_allows_matching_previously_signed() {
         epoch_store.epoch(),
         1,
     );
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();

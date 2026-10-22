@@ -1848,13 +1848,17 @@ impl AuthorityState {
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
     /// checking errors if the pre-conditions are not satisfied, and
-    /// executing change epoch transactions.
+    /// executing change epoch transactions. With the P-COOL flow, a committee
+    /// validator executes only transactions of commits its consensus handler
+    /// assigned, so a transaction the handler has not assigned is assigned to
+    /// a new commit first.
     pub fn try_execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
         execution_env: ExecutionEnv,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
+        epoch_store.assign_to_a_new_commit_for_testing(&[certificate.key()]);
         let (effects, execution_error_opt) = self.try_execute_immediately(
             &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
             execution_env,

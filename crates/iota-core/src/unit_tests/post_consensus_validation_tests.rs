@@ -1430,15 +1430,17 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let tx_digest = *verified_tx.digest();
 
-    // Simulate state-sync winning the race: execute the transaction locally via
-    // the checkpoint execution path (as a lagging node catching up would),
-    // *before* the consensus handler processes the commit that sequenced it.
+    // The transaction is executed before the consensus handler processes the
+    // commit that sequences it. With the P-COOL flow a committee validator no
+    // longer executes synced checkpoints within the epoch, so an earlier
+    // commit kept and executed it.
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(
         verified_tx.clone(),
         epoch_store.epoch(),
         // checkpoint
         1,
     );
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     authority
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -1447,7 +1449,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
             .get_transaction_cache_reader()
             .try_is_tx_already_executed(&tx_digest)
             .unwrap(),
-        "precondition: transaction should be marked executed after state-sync execution"
+        "precondition: transaction should be marked executed"
     );
 
     // Now the committee's consensus delivers the same transaction. Process the
@@ -1681,15 +1683,16 @@ impl LockTierSetup {
         self.epoch_store.verify_transaction(tx).unwrap()
     }
 
-    /// Marks `verified_tx` as executed via the checkpoint-executor path
-    /// (simulates state-sync winning the race against this node's consensus
-    /// handler).
-    fn execute_via_state_sync(&self, verified_tx: &VerifiedTransaction) {
+    /// Executes `verified_tx` in a commit of its own, as when an earlier
+    /// commit kept and executed the same transaction.
+    fn execute_in_an_earlier_commit(&self, verified_tx: &VerifiedTransaction) {
         let executable = VerifiedExecutableTransaction::new_from_checkpoint(
             verified_tx.clone(),
             self.epoch_store.epoch(),
             1,
         );
+        self.epoch_store
+            .assign_to_a_new_commit_for_testing(&[executable.key()]);
         self.authority
             .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
@@ -1813,7 +1816,7 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     // we mark the tx as executed (otherwise the perpetual
     // `live_owned_object_markers` for its inputs are already consumed).
     s.seed_lock(tier, &tx);
-    s.execute_via_state_sync(&tx);
+    s.execute_in_an_earlier_commit(&tx);
 
     let mut transactions = vec![make_user_tx_v1_verified(tx)];
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
@@ -1945,9 +1948,9 @@ async fn tier3_persistent_same_digest_lock_retains_already_executed() {
 async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     let s = setup_lock_tier().await;
 
-    // The tx the committee actually executed (via state-sync on this node).
+    // The tx the committee actually executed (by an earlier commit on this node).
     let tx = s.make_tx();
-    s.execute_via_state_sync(&tx);
+    s.execute_in_an_earlier_commit(&tx);
 
     // Seed the quarantine with a lock on `tx`'s inputs held by a DIFFERENT
     // digest — simulates the consistency violation the `fatal!` guards against.
@@ -8773,14 +8776,16 @@ impl ImmutableInputSetup {
             .unwrap()
     }
 
-    /// Marks `tx` as executed via the checkpoint-executor path, as state-sync
-    /// would when it wins the race against this node's consensus handler.
-    fn execute_via_state_sync(&self, tx: &VerifiedTransaction) {
+    /// Executes `tx` in a commit of its own, as when an earlier commit kept
+    /// and executed the same transaction.
+    fn execute_in_an_earlier_commit(&self, tx: &VerifiedTransaction) {
         let executable = VerifiedExecutableTransaction::new_from_checkpoint(
             tx.clone(),
             self.epoch_store.epoch(),
             1,
         );
+        self.epoch_store
+            .assign_to_a_new_commit_for_testing(&[executable.key()]);
         self.authority
             .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
@@ -8879,7 +8884,7 @@ async fn test_already_executed_tx_does_not_lock_immutable_input() {
     let s = setup_immutable_input(true).await;
 
     let executed = s.read_immutable_with_owned(s.gas1_ref);
-    s.execute_via_state_sync(&executed);
+    s.execute_in_an_earlier_commit(&executed);
 
     let later_reader = s.read_immutable(s.gas2_ref);
     let mut transactions = vec![

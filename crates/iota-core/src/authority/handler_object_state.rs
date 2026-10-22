@@ -421,6 +421,45 @@ impl HandlerObjectState {
             .ok();
     }
 
+    /// The commit index above every commit assigned so far. For tests that
+    /// process commits or execute transactions without the consensus handler.
+    pub fn next_commit_index_for_testing(&self) -> CommitIndex {
+        let highest_assigned = self
+            .keys_by_commit
+            .lock()
+            .last_key_value()
+            .map_or(0, |(index, _)| *index);
+        highest_assigned.max(*self.highest_fully_executed_commit.borrow()) + 1
+    }
+
+    /// Assigns the keys among `keys` that have no commit yet to one new
+    /// commit, above every commit assigned so far, as the consensus handler
+    /// does before it schedules a commit's transactions. For tests that
+    /// execute transactions without the handler.
+    pub fn assign_to_a_new_commit_for_testing(&self, keys: &[TransactionKey]) {
+        let unassigned: Vec<_> = keys
+            .iter()
+            .filter(|key| !self.commit_index_by_key.contains_key(key))
+            .copied()
+            .collect();
+        if unassigned.is_empty() {
+            return;
+        }
+        self.assign_commit_to_transactions(self.next_commit_index_for_testing(), unassigned);
+    }
+
+    /// Records every commit up to `index` as fully executed. For tests that
+    /// run no execution watcher, so a commit they process does not wait for
+    /// the earlier ones.
+    pub fn mark_fully_executed_for_testing(&self, index: CommitIndex) {
+        self.highest_fully_executed_commit
+            .send_if_modified(|highest| {
+                let modified = *highest < index;
+                *highest = (*highest).max(index);
+                modified
+            });
+    }
+
     /// Records that the execution watcher stopped on `error` and wakes every
     /// [`Self::wait_for_fully_executed_commit`] caller, so none of them waits
     /// on a commit only a flush could complete.

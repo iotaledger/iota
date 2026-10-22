@@ -1972,6 +1972,14 @@ impl AuthorityPerEpochStore {
         handler_object_state.assign_commit_to_transactions(index, roots);
     }
 
+    /// See [`HandlerObjectState::assign_to_a_new_commit_for_testing`]. Does
+    /// nothing on a node that keeps no handler object state.
+    pub fn assign_to_a_new_commit_for_testing(&self, keys: &[TransactionKey]) {
+        if let Some(handler_object_state) = &self.handler_object_state {
+            handler_object_state.assign_to_a_new_commit_for_testing(keys);
+        }
+    }
+
     /// The execution watcher's end of the assigned-commit channel; `None`
     /// once a watcher has taken it, or without deterministic validation. See
     /// [`HandlerObjectState::take_assigned_commits_receiver`].
@@ -5627,6 +5635,18 @@ impl AuthorityPerEpochStore {
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+        let round = self.get_highest_pending_checkpoint_height() / 2 + 1;
+        // With the handler object state, each commit takes a new index, and
+        // the earlier ones count as fully executed: no execution watcher runs
+        // here to complete them.
+        let commit_index = match &self.handler_object_state {
+            Some(handler_object_state) => {
+                let index = handler_object_state.next_commit_index_for_testing();
+                handler_object_state.mark_fully_executed_for_testing(index - 1);
+                index
+            }
+            None => round,
+        };
         let verified_transactions = transactions
             .into_iter()
             .filter_map(|transaction| {
@@ -5642,8 +5662,8 @@ impl AuthorityPerEpochStore {
             checkpoint_service,
             cache_reader,
             &ConsensusCommitInfo::new_for_test(
-                self.get_highest_pending_checkpoint_height() / 2 + 1,
-                self.get_highest_pending_checkpoint_height() / 2 + 1,
+                commit_index,
+                round,
                 0,
                 skip_consensus_commit_prologue_in_test,
             ),

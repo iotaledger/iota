@@ -5062,6 +5062,7 @@ async fn test_execute_randomness_state_update_records_key_to_digest() {
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
     assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
 
+    epoch_store.assign_to_a_new_commit_for_testing(&[key]);
     authority
         .try_execute_immediately(
             &transaction,
@@ -8540,6 +8541,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
 
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
