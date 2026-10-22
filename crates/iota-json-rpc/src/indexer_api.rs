@@ -30,7 +30,7 @@ use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
-    iota_sdk_types_conversions::type_tag_sdk_to_core, storage::OwnedObjectCursor as IndexCursor,
+    iota_sdk_types_conversions::type_tag_sdk_to_core,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::layout::TypeLayoutBuilder;
@@ -39,6 +39,7 @@ use tracing::instrument;
 use crate::{
     IotaRpcModule,
     authority_state::{StateRead, StateReadResult},
+    coin_api::cursor_position,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
 };
