@@ -743,6 +743,21 @@ pub enum IotaError {
          an honest dry-run cannot exceed what the tx can pay for"
     )]
     AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
+
+    #[error(
+        "Attestation carries a gas vector (AttestationData::V2) but the \
+         `attestation_gas_vector` feature is not enabled in this protocol version"
+    )]
+    AttestationGasVectorNotEnabled,
+
+    #[error("Attestation reports cpu_time = 0")]
+    AttestationCpuTimeZero,
+
+    #[error(
+        "Attestation declares {moved_bytes} moved bytes in {cpu_time} ns of \
+         cpu_time, a rate above the memory-bandwidth ceiling"
+    )]
+    AttestationRateAboveBandwidth { cpu_time: u64, moved_bytes: u64 },
 }
 
 #[repr(u64)]

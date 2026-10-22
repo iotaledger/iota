@@ -687,6 +687,11 @@ struct FeatureFlags {
     // attestation verification.
     #[serde(skip_serializing_if = "is_false")]
     enable_external_attestation: bool,
+
+    // If true, attestations may carry the gas vector (`AttestationData::V2`).
+    // Requires `enable_validator_attestation`.
+    #[serde(skip_serializing_if = "is_false")]
+    attestation_gas_vector: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2265,6 +2270,15 @@ impl ProtocolConfig {
         self.feature_flags.enable_external_attestation && self.enable_validator_attestation()
     }
 
+    pub fn attestation_gas_vector(&self) -> bool {
+        let res = self.feature_flags.attestation_gas_vector;
+        assert!(
+            !res || self.enable_validator_attestation(),
+            "attestation_gas_vector requires enable_validator_attestation to be set"
+        );
+        res
+    }
+
     /// The gas-vector coefficients, or `None` if this protocol version has
     /// none.
     pub fn gas_vector_coefficients(&self) -> Option<&GasVectorCoefficientsV1> {
@@ -2316,6 +2330,13 @@ impl ProtocolConfig {
                 ret
             }
         });
+
+        if let Some(override_fn) = GLOBAL_CONFIG_OVERRIDE.read().unwrap().as_ref() {
+            warn!(
+                "overriding ProtocolConfig settings with process-wide custom settings (you should not see this log outside of tests)"
+            );
+            ret = override_fn(version, ret);
+        }
 
         if std::env::var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
             warn!(
@@ -3788,6 +3809,18 @@ impl ProtocolConfig {
             OverrideGuard
         })
     }
+
+    /// Process-wide variant of [`Self::apply_overrides_for_testing`], which
+    /// also reaches node threads in in-process test clusters. Install before
+    /// anything calls `get_for_version`; only one may be active at a time.
+    pub fn apply_global_overrides_for_testing(
+        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
+    ) -> GlobalOverrideGuard {
+        let mut cur = GLOBAL_CONFIG_OVERRIDE.write().unwrap();
+        assert!(cur.is_none(), "global config override already present");
+        *cur = Some(Box::new(override_fn));
+        GlobalOverrideGuard
+    }
 }
 
 // Setters for tests.
@@ -4001,6 +4034,10 @@ impl ProtocolConfig {
         self.feature_flags.enable_validator_attestation = val;
     }
 
+    pub fn set_attestation_gas_vector_for_testing(&mut self, val: bool) {
+        self.feature_flags.attestation_gas_vector = val;
+    }
+
     pub fn set_gas_vector_coefficients_for_testing(&mut self, table: GasVectorCoefficientsV1) {
         self.gas_vector_coefficients = GasVectorCoefficients::V1(Box::new(table));
     }
@@ -4012,6 +4049,11 @@ thread_local! {
     static CONFIG_OVERRIDE: RefCell<Option<Box<OverrideFn>>> = const { RefCell::new(None) };
 }
 
+/// Process-wide counterpart of `CONFIG_OVERRIDE`; see
+/// [`ProtocolConfig::apply_global_overrides_for_testing`].
+static GLOBAL_CONFIG_OVERRIDE: std::sync::RwLock<Option<Box<OverrideFn>>> =
+    std::sync::RwLock::new(None);
+
 #[must_use]
 pub struct OverrideGuard;
 
@@ -4021,6 +4063,15 @@ impl Drop for OverrideGuard {
         CONFIG_OVERRIDE.with(|ovr| {
             *ovr.borrow_mut() = None;
         });
+    }
+}
+
+pub struct GlobalOverrideGuard;
+
+impl Drop for GlobalOverrideGuard {
+    fn drop(&mut self) {
+        info!("restoring global override fn");
+        *GLOBAL_CONFIG_OVERRIDE.write().unwrap() = None;
     }
 }
 

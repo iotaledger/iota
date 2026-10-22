@@ -83,7 +83,7 @@ use iota_types::{
     fp_ensure,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
-    gas_model::resource_profile::ResourceProfile,
+    gas_model::{gas_vector, resource_profile::ResourceProfile},
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TxCoins, WrittenObjects,
     },
@@ -290,6 +290,9 @@ pub struct AuthorityMetrics {
     pub(crate) execution_gas_latency_ratio: Histogram,
     /// Per-transaction resource-profile signals.
     pub(crate) execution_resource_profile: HistogramVec,
+    /// Outcomes of comparing the attested gas vector with the one recomputed
+    /// after execution, labeled by outcome.
+    pub(crate) attestation_gas_vector_comparisons: IntCounterVec,
 
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
@@ -678,6 +681,13 @@ impl AuthorityMetrics {
                 registry
             )
                 .unwrap(),
+            attestation_gas_vector_comparisons: register_int_counter_vec_with_registry!(
+                "attestation_gas_vector_comparisons",
+                "Outcomes of comparing the attested gas vector against the vector recomputed \
+                from the actual execution counters (match, divergent, unpriceable)",
+                &["outcome"],
+                registry,
+            ).unwrap(),
             execution_gas_latency_ratio: register_histogram_with_registry!(
                 "execution_gas_latency_ratio",
                 "The ratio of computation gas divided by certificate execution latency, include committing certificate.",
@@ -1298,9 +1308,11 @@ impl AuthorityState {
 
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
         // source of truth for the input versions the attestor observed.
-        let (inner_temp_store, effects, authentication_failed) = if move_authenticators.is_empty() {
+        let (inner_temp_store, gas_status, effects, authentication_failed) = if move_authenticators
+            .is_empty()
+        {
             // No Move authentication, execute directly.
-            let (inner_temp_store, _, effects, _, _) =
+            let (inner_temp_store, gas_status, effects, _, _) =
                 epoch_store.executor().execute_transaction_to_effects(
                     backing_store.as_ref(),
                     protocol_config,
@@ -1318,7 +1330,7 @@ impl AuthorityState {
                     &mut None,
                 );
             // This branch has no Move authentication, so it can never fail auth.
-            (inner_temp_store, effects, false)
+            (inner_temp_store, gas_status, effects, false)
         } else {
             // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
             // run auth + execution in one pass.
@@ -1381,7 +1393,7 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            let (inner_temp_store, _, effects, _, _, authentication_failed) = epoch_store
+            let (inner_temp_store, gas_status, effects, _, _, authentication_failed) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
                     backing_store.as_ref(),
@@ -1401,7 +1413,7 @@ impl AuthorityState {
                     auth_context_data,
                     &mut None,
                 );
-            (inner_temp_store, effects, authentication_failed)
+            (inner_temp_store, gas_status, effects, authentication_failed)
         };
 
         // Refuse to attest a transaction when its Move authentication did not succeed.
@@ -1416,6 +1428,7 @@ impl AuthorityState {
         }
 
         // Step 7: build AttestationData.
+        // Attest V2 when the gas vector can be priced, otherwise V1.
         // `gas_cost_summary().computation_cost` is in NANOS; convert to gas
         // units (`computation_units = computation_cost / gas_price`) so the
         // attestation is independent of the gas price the user chose.
@@ -1463,13 +1476,22 @@ impl AuthorityState {
             .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
             .collect();
 
-        Ok((
-            AttestationData::V1 {
+        let gas_vector = if protocol_config.attestation_gas_vector() {
+            gas_vector::declared_gas_vector(&gas_status.resource_profile(), protocol_config)
+        } else {
+            None
+        };
+        let payload = match gas_vector {
+            Some(gas_vector) => AttestationData::V2 {
+                gas_vector,
+                object_versions,
+            },
+            None => AttestationData::V1 {
                 computation_units,
                 object_versions,
             },
-            owned_objects,
-        ))
+        };
+        Ok((payload, owned_objects))
     }
 
     /// This is a private method and should be kept that way. It doesn't check
@@ -2475,6 +2497,35 @@ impl AuthorityState {
                 .expect("ResourceProfile contains only integers, strings, and maps"),
             "transaction execution wall-clock"
         );
+
+        // Recompute the gas vector from the actual counters and compare it with
+        // the attested one; this is observed only and never aborts the
+        // transaction. Skipped without a coefficient table, since nothing can
+        // be recomputed.
+        let attested = transaction
+            .attestation()
+            .and_then(|a| a.declared_gas_vector())
+            .filter(|_| protocol_config.gas_vector_coefficients().is_some());
+        if let Some(attested) = attested {
+            let comparison = gas_vector::compare_attested_gas_vector(
+                attested,
+                &resource_profile,
+                protocol_config,
+            );
+            self.metrics
+                .attestation_gas_vector_comparisons
+                .with_label_values(&[comparison.metric_label()])
+                .inc();
+            if comparison != gas_vector::GasVectorComparison::Match {
+                tracing::debug!(
+                    target: "gas_vector_divergence",
+                    ?tx_digest,
+                    ?attested,
+                    ?comparison,
+                    "attested gas vector diverges from the vector recomputed from actual counters"
+                );
+            }
+        }
 
         Ok((inner_temp_store, effects, execution_error_opt.err()))
     }
