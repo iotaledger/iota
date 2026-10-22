@@ -57,6 +57,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
@@ -141,6 +142,12 @@ where
             .with_chain_start_timestamp_ms(chain_start_timestamp_ms)
             .deterministic_committee_size(NonZeroUsize::new(1).unwrap())
             .with_protocol_version(protocol_version)
+            // The protocol version never changes, so validators only need the stake it
+            // requires.
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                protocol_version.as_u64(),
+                protocol_version.as_u64(),
+            ))
             .with_accounts(account_configs)
             .build();
         Self::new_with_network_config_in_mem(&config, rng)
