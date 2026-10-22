@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::clock::Clock;
 use iota_sdk_types::{Address, Identifier};
 use iota_types::{
     base_types::{TxContext, TxContextKind},
-    clock::Clock,
+    clock::ClockExt,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
     move_package::{FnInfoMap, is_test_fun},

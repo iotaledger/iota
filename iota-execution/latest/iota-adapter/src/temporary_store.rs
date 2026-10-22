@@ -28,7 +28,9 @@ use iota_types::{
     },
     execution_config_utils::to_binary_config,
     inner_temporary_store::InnerTemporaryStore,
-    iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
+    iota_system_state::{
+        AdvanceEpochParams, IotaSystemStateWrapperExt, get_iota_system_state_wrapper,
+    },
     layout_resolver::LayoutResolver,
     object::Object,
     storage::{

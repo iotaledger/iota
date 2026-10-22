@@ -5967,6 +5967,7 @@ dependencies = [
  "iota-names",
  "iota-protocol-config",
  "iota-sdk-crypto",
+ "iota-sdk-move-types",
  "iota-sdk-types",
  "iota-types",
  "move-vm-config",
@@ -8441,6 +8442,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-node-storage",
  "iota-protocol-config",
+ "iota-sdk-move-types",
  "iota-sdk-types",
  "iota-storage",
  "iota-swarm-config",
@@ -8554,6 +8556,7 @@ name = "iota-verifier-latest"
 version = "0.1.0"
 dependencies = [
  "bcs 0.2.1",
+ "iota-sdk-move-types",
  "iota-sdk-types",
  "iota-types",
  "move-abstract-stack",
@@ -13870,6 +13873,7 @@ dependencies = [
  "iota-execution",
  "iota-node-storage",
  "iota-protocol-config",
+ "iota-sdk-move-types",
  "iota-sdk-types",
  "iota-storage",
  "iota-swarm-config",
