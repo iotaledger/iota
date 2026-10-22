@@ -1207,13 +1207,13 @@ fn validity_check_rejects_authenticator_state_in_move_authenticator() {
     }
 }
 
-/// Without deterministic validation, the transaction bytes alone refuse
-/// neither the authenticator state object nor a mutable shared object as a
-/// `MoveAuthenticator` input: the checks on the loaded objects do.
+/// Without the P-COOL flow, as on Mainnet and Testnet, the transaction bytes
+/// alone refuse neither the authenticator state object nor a mutable shared
+/// object as a `MoveAuthenticator` input: the checks on the loaded objects do.
 #[test]
 fn validity_check_leaves_move_authenticator_input_kinds_to_the_loaded_objects() {
-    let config = ProtocolConfig::get_for_max_version_UNSAFE();
-    assert!(!config.enable_pcool_flow());
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_pcool_flow_for_testing(false);
     let sender = Address::random();
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
     let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
