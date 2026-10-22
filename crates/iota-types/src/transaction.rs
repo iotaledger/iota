@@ -2074,6 +2074,10 @@ pub trait SenderSignedTransactionAPI {
     /// Checks if [`SenderSignedTransaction`] contains at least one shared
     /// object. This function checks shared objects from the
     /// `MoveAuthenticator`s if any.
+    ///
+    /// Unlike [`Self::shared_input_objects`], it does not combine the shared
+    /// objects of the transaction and its authenticators, so it does not panic
+    /// when two of them name the same object with different initial versions.
     fn contains_shared_object(&self) -> bool;
 
     /// Returns an iterator over all shared input objects related to this
@@ -2270,7 +2274,11 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn contains_shared_object(&self) -> bool {
-        !self.shared_input_objects().is_empty()
+        self.transaction().kind().contains_shared_object()
+            || self
+                .move_authenticators()
+                .iter()
+                .any(|move_authenticator| !move_authenticator.shared_objects().is_empty())
     }
 
     fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
