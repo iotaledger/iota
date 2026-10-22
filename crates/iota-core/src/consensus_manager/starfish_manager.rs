@@ -166,7 +166,7 @@ impl ConsensusManagerTrait for StarfishManager {
         // needs the checkpoint executor, and node startup creates that executor only after the
         // builder has rebuilt those checkpoints. A replayed commit up to the target can still
         // wait on backpressure, which only the checkpoint executor lifts.
-        let target = protocol_config.pcool_deterministic_validation().then(|| {
+        let target = protocol_config.enable_pcool_flow().then(|| {
             let target = replay_target(
                 epoch_store
                     .last_validated_commit()

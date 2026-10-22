@@ -191,8 +191,8 @@ impl SavedPostConsensusDecision {
 /// * `epoch_store` — Current epoch store (protocol config, lock storage, governance deny rules).
 /// * `commit_index` — The consensus commit being validated. With deterministic validation on,
 ///   inputs are read as of this commit.
-/// * `deterministic_validation` — The `pcool_deterministic_validation` flag, read once per commit
-///   by the caller so every step of the commit decides on the same value.
+/// * `deterministic_validation` — The `enable_pcool_flow` flag, read once per commit by the caller
+///   so every step of the commit decides on the same value.
 /// * `previously_deferred` — The transactions deferred at earlier commits and reloaded into
 ///   `transactions`, randomness-using ones included. Read only with deterministic validation.
 /// * `transactions` — All sequenced transactions for this consensus commit; modified in-place.

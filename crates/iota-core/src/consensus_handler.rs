@@ -143,7 +143,7 @@ pub struct ConsensusHandler<C> {
     metrics: Arc<AuthorityMetrics>,
     /// Lru cache to quickly discard transactions processed by consensus
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
-    /// The `pcool_deterministic_validation` flag, fixed for the epoch. With it
+    /// The `enable_pcool_flow` flag, fixed for the epoch. With it
     /// on, the per-commit duplicate check keeps one copy of a user
     /// transaction per author.
     deterministic_validation: bool,
@@ -184,9 +184,7 @@ impl<C> ConsensusHandler<C> {
             .pcool_bookkeeping_enabled()
             .then(|| ExecutionWatcher::start(epoch_store.clone()));
 
-        let deterministic_validation = epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation();
+        let deterministic_validation = epoch_store.protocol_config().enable_pcool_flow();
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -266,10 +264,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         let epoch_store = self.epoch_store.clone();
         // Only deterministic validation switches a validator to executing
         // synced checkpoints within an epoch.
-        if !epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-        {
+        if !epoch_store.protocol_config().enable_pcool_flow() {
             return self
                 .process_consensus_output(consensus_output, block_transactions)
                 .await;
@@ -1386,7 +1381,7 @@ mod tests {
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -1463,7 +1458,7 @@ mod tests {
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints_with_validation() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -1581,7 +1576,7 @@ mod tests {
     async fn test_consensus_handler_restarted_after_the_switch_stops_after_the_same_commit() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -1843,7 +1838,7 @@ mod tests {
         };
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -1968,7 +1963,7 @@ mod tests {
         };
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -2086,7 +2081,7 @@ mod tests {
         use iota_sdk_types::TransactionExpiration;
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -2174,7 +2169,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn failing_copy_first_in_a_commit_does_not_hide_the_honest_copy() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -2226,7 +2221,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn waiting_submitter_is_not_told_about_the_drop_of_a_failing_copy() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -2460,7 +2455,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn user_transactions_from_an_author_that_sent_end_of_publish_take_no_locks() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -2540,7 +2535,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn user_transactions_after_end_of_publish_quorum_take_no_locks() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
@@ -2626,7 +2621,7 @@ mod tests {
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
             if deterministic_validation {
-                config.enable_pcool_deterministic_validation_for_testing();
+                config.set_enable_pcool_flow_for_testing(true);
                 config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             } else {
                 config.set_enable_pcool_flow_for_testing(true);
@@ -2962,7 +2957,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_drops_inconsistent_shared_input_with_validation() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });

@@ -610,7 +610,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
 async fn test_valid_abstract_account_tx_executes_under_deterministic_validation()
 -> Result<(), anyhow::Error> {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     telemetry_subscribers::init_for_testing();
@@ -640,13 +640,13 @@ async fn test_valid_abstract_account_tx_executes_under_deterministic_validation(
         .await
 }
 
-/// The protocol version the upgrade tests start at: the P-COOL flow is on and
-/// deterministic validation is off.
+/// The protocol version the upgrade tests start at, with the P-COOL flow, and
+/// with it deterministic validation, off.
 #[cfg(msim)]
 const DETERMINISTIC_VALIDATION_OFF_VERSION: u64 = DETERMINISTIC_VALIDATION_ON_VERSION - 1;
 
-/// The protocol version the upgrade tests upgrade to, where deterministic
-/// validation is on.
+/// The protocol version the upgrade tests upgrade to, where the P-COOL flow,
+/// and with it deterministic validation, is on.
 #[cfg(msim)]
 const DETERMINISTIC_VALIDATION_ON_VERSION: u64 =
     iota_protocol_config::ProtocolVersion::MAX.as_u64();
@@ -1121,16 +1121,15 @@ async fn run_with_a_crash_while_reconfiguring_into_deterministic_validation(
     check_the_next_epoch_under_deterministic_validation(&test_env).await
 }
 
-/// Turns the P-COOL flow on at every protocol version, and deterministic
-/// validation on from `DETERMINISTIC_VALIDATION_ON_VERSION`, until the guard is
+/// Turns the P-COOL flow, and with it deterministic validation, off below
+/// `DETERMINISTIC_VALIDATION_ON_VERSION` and on from it, until the guard is
 /// dropped.
 #[cfg(msim)]
 fn turn_on_deterministic_validation_at_the_upgrade() -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        if version.as_u64() >= DETERMINISTIC_VALIDATION_ON_VERSION {
-            config.enable_pcool_deterministic_validation_for_testing();
-        }
+        config.set_enable_pcool_flow_for_testing(
+            version.as_u64() >= DETERMINISTIC_VALIDATION_ON_VERSION,
+        );
         config
     })
 }
@@ -1181,7 +1180,7 @@ fn deterministic_validation_on_running_validators(test_cluster: &TestCluster) ->
                 node.state()
                     .epoch_store_for_testing()
                     .protocol_config()
-                    .pcool_deterministic_validation()
+                    .enable_pcool_flow()
             })
         })
         .collect()
@@ -1203,7 +1202,7 @@ async fn wait_for_deterministic_validation(test_cluster: &TestCluster) -> u64 {
                         let epoch_store = node.state().epoch_store_for_testing();
                         epoch_store
                             .protocol_config()
-                            .pcool_deterministic_validation()
+                            .enable_pcool_flow()
                             .then(|| epoch_store.epoch())
                     })
                 });
@@ -1471,7 +1470,7 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
     use iota_sdk_types::{ExecutionStatus, GasCostSummary};
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     telemetry_subscribers::init_for_testing();
@@ -1733,7 +1732,7 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_determ
     use iota_types::messages_grpc::TxStatusUpdate;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     telemetry_subscribers::init_for_testing();
@@ -1750,7 +1749,7 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_determ
             let epoch_store = node.state().epoch_store_for_testing();
             let protocol_config = epoch_store.protocol_config();
             assert!(
-                protocol_config.pcool_deterministic_validation()
+                protocol_config.enable_pcool_flow()
                     && protocol_config.deny_authenticator_packages(),
                 "deterministic validation and the authenticator package deny check must be on"
             );
@@ -2069,7 +2068,7 @@ async fn test_received_version_named_as_owned_input_never_executes_under_determi
     const HORIZON_DISTANCE: u64 = 50;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(HORIZON_DISTANCE);
         config
     });

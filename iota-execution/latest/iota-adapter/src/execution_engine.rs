@@ -396,7 +396,7 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        let deterministic_validation = protocol_config.pcool_deterministic_validation();
+        let deterministic_validation = protocol_config.enable_pcool_flow();
         let run_authenticator =
             |temporary_store: &mut TemporaryStore<'_>,
              gas_charger: &mut GasCharger,
@@ -598,9 +598,7 @@ mod checked {
         // the first time here, so a transaction it did not authorize can reach
         // execution. Nobody pays for it.
         let authentication_execution_result = match authentication_execution_result {
-            Err(error)
-                if !gas_owner_authorized && protocol_config.pcool_deterministic_validation() =>
-            {
+            Err(error) if !gas_owner_authorized && protocol_config.enable_pcool_flow() => {
                 return execute_without_gas_charge_to_effects::<Mode>(
                     temporary_store,
                     gas_charger,

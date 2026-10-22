@@ -1065,7 +1065,7 @@ impl AuthorityState {
     ///   admission policy can limit how many deterministically-dropped transactions reach
     ///   consensus.
     ///
-    /// With `pcool_deterministic_validation`, post-consensus validation does
+    /// With `enable_pcool_flow`, post-consensus validation does
     /// not call this function: [`Self::handle_transaction_validation_checks_at_commit`]
     /// reads the deny list as of the commit's horizon, where a change made
     /// this epoch counts from the horizon distance after the commit that
@@ -2394,7 +2394,7 @@ impl AuthorityState {
             // Under deterministic validation, a gas owner that cannot be resolved
             // did not authorize the transaction, so nobody pays; its own failure is
             // then the one reported.
-            let deterministic_validation = protocol_config.pcool_deterministic_validation();
+            let deterministic_validation = protocol_config.enable_pcool_flow();
             let mut first_resolution_error = None;
             let mut gas_owner_resolution_error = None;
             let mut resolved_authenticators = Vec::with_capacity(move_authenticators.len());

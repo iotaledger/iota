@@ -118,14 +118,14 @@ async fn test_randomness_using_transaction_reaches_finality_execution_scheduler(
     run_randomness_using_transaction_reaches_finality(true).await;
 }
 
-/// With `pcool_deterministic_validation`, a validator stopped while the
+/// With `enable_pcool_flow`, a validator stopped while the
 /// network completes randomness rounds catches up after restart. Its peers no
 /// longer send signatures for those rounds, so it relies on the signatures in
 /// certified checkpoints.
 #[sim_test]
 async fn test_validator_catches_up_across_randomness_rounds() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     let test_cluster = TestClusterBuilder::new()

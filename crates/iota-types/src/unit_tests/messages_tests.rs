@@ -1136,7 +1136,7 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
 /// Returns the max-version protocol config with deterministic validation on.
 fn config_with_deterministic_validation() -> ProtocolConfig {
     let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
-    config.enable_pcool_deterministic_validation_for_testing();
+    config.set_enable_pcool_flow_for_testing(true);
     config
 }
 
@@ -1213,7 +1213,7 @@ fn validity_check_rejects_authenticator_state_in_move_authenticator() {
 #[test]
 fn validity_check_leaves_move_authenticator_input_kinds_to_the_loaded_objects() {
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
-    assert!(!config.pcool_deterministic_validation());
+    assert!(!config.enable_pcool_flow());
     let sender = Address::random();
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
     let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);

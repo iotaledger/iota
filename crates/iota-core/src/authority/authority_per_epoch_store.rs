@@ -1342,7 +1342,7 @@ impl AuthorityPerEpochStore {
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
-        let resume_point = protocol_config.pcool_deterministic_validation().then(|| {
+        let resume_point = protocol_config.enable_pcool_flow().then(|| {
             tables
                 .get_last_consensus_index()
                 .expect("AuthorityEpochTables should hold a readable consensus resume point")
@@ -1352,7 +1352,7 @@ impl AuthorityPerEpochStore {
         let handler_object_state =
             resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
         let pcool_bookkeeping_enabled =
-            committee.authority_exists(&name) && protocol_config.pcool_deterministic_validation();
+            committee.authority_exists(&name) && protocol_config.enable_pcool_flow();
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -4449,7 +4449,7 @@ impl AuthorityPerEpochStore {
                 // kept. Without deterministic validation the adapter waits until
                 // the epoch ends, as for the other copies ignored at the end of
                 // the epoch.
-                if self.protocol_config().pcool_deterministic_validation()
+                if self.protocol_config().enable_pcool_flow()
                     && transaction.certificate_author == self.name
                 {
                     self.dropped_tx_status_cache
@@ -4485,7 +4485,7 @@ impl AuthorityPerEpochStore {
                 // author that sent EndOfPublish was already dropped above. A
                 // deferred transaction is reloaded without passing through
                 // here, so it stays eligible.
-                if self.protocol_config().pcool_deterministic_validation()
+                if self.protocol_config().enable_pcool_flow()
                     && !self
                         .get_reconfig_state_read_lock_guard()
                         .should_accept_consensus_certs()
@@ -4713,7 +4713,7 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
-        let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+        let deterministic_validation = self.protocol_config.enable_pcool_flow();
         // Only `process_consensus_transactions` below moves the reconfig
         // state to `RejectAllTx`, so this value holds until it runs. Only
         // deterministic validation reads it.

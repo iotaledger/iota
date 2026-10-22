@@ -475,13 +475,20 @@ async fn test_sender_undenied_this_epoch_is_kept_once_the_horizon_reaches_the_re
     );
 }
 
-// Without deterministic validation, execution checks the coin deny list only
-// for the owners of the coins it writes, so a sender denied in the previous
-// epoch and allowed again in this one has its transfer executed.
+// Without the P-COOL flow, as on Mainnet and Testnet, execution checks the
+// coin deny list only for the owners of the coins it writes, so a sender denied
+// in the previous epoch and allowed again in this one has its transfer
+// executed.
 #[tokio::test]
-async fn test_execution_does_not_check_sender_without_deterministic_validation() {
+async fn test_execution_does_not_check_sender_without_the_pcool_flow() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
     let env = RegulatedCoinEnv::new().await;
     env.deny_sender().await;
+    // The epoch change carries the config over and installs its own override.
+    drop(guard);
     env.reconfigure().await;
     env.undeny_sender().await;
 
@@ -490,21 +497,27 @@ async fn test_execution_does_not_check_sender_without_deterministic_validation()
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Success,
-        "execution must not check the sender without the pcool_deterministic_validation flag"
+        "execution must not check the sender without the P-COOL flow"
     );
 }
 
-// Without deterministic validation, execution checks the coin deny list for
-// the owners of the coins it writes, against the deny list as settled before
+// Without the P-COOL flow, as on Mainnet and Testnet, execution checks the coin
+// deny list for the owners of the coins it writes, against the deny list as settled before
 // this epoch, and records the deny list as read. A transfer to an address
 // denied in the previous epoch fails, charging gas. A transfer to an address
 // that is not denied succeeds and changes only the coin and the gas object.
 #[tokio::test]
-async fn test_regulated_coin_transfer_effects_without_deterministic_validation() {
+async fn test_regulated_coin_transfer_effects_without_the_pcool_flow() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
     let env = RegulatedCoinEnv::new().await;
     let denied_recipient = dbg_addr(3);
     env.call_deny_list("deny_list_v1_add", Some(denied_recipient), None)
         .await;
+    // The epoch change carries the config over and installs its own override.
+    drop(guard);
     env.reconfigure().await;
 
     let effects = env
@@ -725,10 +738,10 @@ async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
     );
 }
 
-// Without `pcool_deterministic_validation`, the transaction of
-// `test_execution_fails_denied_sender_forwarding_a_received_coin` is dropped by
-// post-consensus validation, which reads the receiving object, so the
-// epoch-gated sender check sees the coin type.
+// Post-consensus validation without deterministic validation drops the
+// transaction of `test_execution_fails_denied_sender_forwarding_a_received_coin`:
+// it reads the receiving object, so the epoch-gated sender check sees the coin
+// type.
 #[tokio::test]
 async fn test_post_consensus_drops_denied_sender_receiving_a_coin() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -972,7 +985,7 @@ impl RegulatedCoinEnv {
     /// type; `deny_list_v1_add`/`deny_list_v1_remove` take a target address,
     /// the global pause functions take none. `commit` is the consensus commit
     /// the call is assigned to, which every execution with
-    /// `pcool_deterministic_validation` on needs.
+    /// `enable_pcool_flow` on needs.
     async fn call_deny_list(
         &self,
         function: &'static str,
@@ -1203,7 +1216,7 @@ impl RegulatedCoinEnv {
     }
 
     /// Post-consensus validation of the transaction at consensus commit
-    /// `commit`, the path with `pcool_deterministic_validation` on.
+    /// `commit`, the path with `enable_pcool_flow` on.
     fn validate_at_commit(
         &self,
         transaction: &TransactionEnvelope,
@@ -1269,7 +1282,7 @@ impl RegulatedCoinEnv {
     }
 
     /// [`Self::execute`] with the transaction assigned to consensus commit
-    /// `commit` first, as every execution with `pcool_deterministic_validation`
+    /// `commit` first, as every execution with `enable_pcool_flow`
     /// on needs.
     async fn execute_at(
         &self,
@@ -1281,7 +1294,7 @@ impl RegulatedCoinEnv {
     }
 
     /// Assigns `transaction` to consensus commit `commit`. With
-    /// `pcool_deterministic_validation` on, the bookkeeping stops the node on
+    /// `enable_pcool_flow` on, the bookkeeping stops the node on
     /// an execution the consensus handler has not assigned to a commit, so
     /// that no object becomes readable without its row.
     fn assign_commit(&self, transaction: &TransactionEnvelope, commit: CommitIndex) {
@@ -1294,20 +1307,17 @@ impl RegulatedCoinEnv {
             );
     }
 
-    /// The protocol config override for epoch 0 of a test that turns
-    /// `pcool_deterministic_validation` on at the epoch change: everything
-    /// the flag needs, without the flag. The setup executes outside any
-    /// consensus commit, which the bookkeeping under the flag refuses.
+    /// The protocol config override for epoch 0 of a test that turns the
+    /// P-COOL flow on at the epoch change. The setup executes outside any
+    /// consensus commit, which the flow's bookkeeping refuses.
     fn epoch_zero_override() -> OverrideGuard {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config.set_pcool_deterministic_validation_for_testing(false);
+            config.set_enable_pcool_flow_for_testing(false);
             config
         })
     }
 
-    /// Advances to epoch 1 with `pcool_deterministic_validation` on, which
+    /// Advances to epoch 1 with `enable_pcool_flow` on, which
     /// settles the deny-list entries written in epoch 0, and returns the
     /// override that keeps the flag on for the rest of the test. The caller
     /// drops the epoch-0 override first: the epoch change installs its own
@@ -1319,7 +1329,7 @@ impl RegulatedCoinEnv {
             .epoch_store_for_testing()
             .protocol_config()
             .clone();
-        epoch_one_config.enable_pcool_deterministic_validation_for_testing();
+        epoch_one_config.set_enable_pcool_flow_for_testing(true);
         epoch_one_config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         self.env
             .authority
@@ -1329,7 +1339,7 @@ impl RegulatedCoinEnv {
         assert_eq!(epoch_store.epoch(), 1);
         assert!(epoch_store.pcool_bookkeeping_enabled());
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         })

@@ -2223,10 +2223,10 @@ async fn setup_handler_object_state(
 ) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         if validation_enabled {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         } else {
-            config.set_pcool_deterministic_validation_for_testing(false);
+            config.set_enable_pcool_flow_for_testing(false);
         }
         config
     });
@@ -2239,7 +2239,7 @@ async fn setup_handler_object_state_outside_committee(
     genesis_objects: Vec<Object>,
 ) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config
     });
@@ -2293,7 +2293,7 @@ async fn setup_handler_object_state_with_package(
     gas_id: ObjectId,
 ) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config
     });
@@ -5348,15 +5348,11 @@ async fn receive_of_a_version_deleted_last_epoch_is_dropped_on_every_node() {
     for s in [&mut pruning, &mut keeping] {
         s.advance_epoch().await;
         assert_eq!(s.epoch_store.epoch(), 1);
-        assert!(
-            s.epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
-        );
+        assert!(s.epoch_store.protocol_config().enable_pcool_flow());
     }
     pruning._config_guard = Some(ProtocolConfig::apply_overrides_for_testing(
         |_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         },
@@ -5978,7 +5974,7 @@ async fn setup_account_with_authenticator_in_object_basics(
 /// The protocol config override with deterministic validation on.
 fn enable_deterministic_validation() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config
     })
@@ -6321,7 +6317,7 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
 #[tokio::test]
 async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_flag_off() {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_deny_authenticator_packages_for_testing(false);
         config
@@ -7015,7 +7011,7 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
 #[tokio::test]
 async fn executed_deferred_transaction_replays_both_occurrences() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
@@ -7129,7 +7125,7 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
 #[tokio::test]
 async fn deferred_transaction_is_kept_without_being_validated_again() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
@@ -7232,7 +7228,7 @@ async fn deferred_transaction_is_kept_without_being_validated_again() {
 #[tokio::test]
 async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
@@ -7483,7 +7479,7 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
 /// others.
 fn enable_deterministic_validation_with_one_transaction_per_commit() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
@@ -8415,7 +8411,7 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
         config
     });
@@ -9765,11 +9761,7 @@ async fn version_consumed_last_epoch_drops_on_every_node(#[values(true, false)] 
     s.authority.reconfigure_for_testing().await;
     s.epoch_store = (*s.authority.epoch_store_for_testing()).clone();
     assert_eq!(s.epoch_store.epoch(), 1);
-    assert!(
-        s.epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-    );
+    assert!(s.epoch_store.protocol_config().enable_pcool_flow());
 
     assert_owned_drops(s.read_owned(3, consumed), DropKind::StoreSuperseded);
     assert_keeps(s.read_owned(3, produced), produced);
@@ -10078,15 +10070,13 @@ async fn setup_validators_with_a_shared_regulated_coin(
 
     let enable_validation = || {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         })
     };
     let epoch_zero_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-        config.set_pcool_deterministic_validation_for_testing(false);
+        config.set_enable_pcool_flow_for_testing(false);
         config
     });
     let mut validators = Vec::new();
@@ -10185,7 +10175,7 @@ async fn setup_validators_with_a_shared_regulated_coin(
     drop(epoch_zero_guard);
     for s in &mut validators {
         let mut epoch_one_config = s.epoch_store.protocol_config().clone();
-        epoch_one_config.enable_pcool_deterministic_validation_for_testing();
+        epoch_one_config.set_enable_pcool_flow_for_testing(true);
         epoch_one_config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         s.authority
             .reconfigure_for_testing_with_protocol_config(epoch_one_config)
