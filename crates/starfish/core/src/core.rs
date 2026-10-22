@@ -735,7 +735,7 @@ impl Core {
         );
 
         // Hold the dag_state lock for the entire flow to ensure consistency
-        let (last_commit_index, threshold_round, last_commit_leader) = {
+        let (threshold_round, last_commit_leader) = {
             let mut dag_state = self.dag_state.write();
 
             // 1. Store block headers on disk
@@ -747,30 +747,27 @@ impl Core {
             // 2. Flush everything to storage
             dag_state.flush();
 
-            // 3. Get current state before reinitializing
-            let last_commit_index = dag_state.last_commit_index();
-
-            // 4. Reinitialize DagState
+            // 3. Reinitialize DagState
             dag_state.reinitialize();
 
             let threshold_round = dag_state.threshold_clock_round();
             let last_commit_leader = dag_state.last_commit_leader();
-            (last_commit_index, threshold_round, last_commit_leader)
+            (threshold_round, last_commit_leader)
         };
 
-        // 5. Reinitialize LeaderSchedule from stored commit info
+        // 4. Reinitialize LeaderSchedule from stored commit info
         self.leader_schedule.reinitialize(&self.dag_state);
 
-        // 6. Reinitialize BlockManager
+        // 5. Reinitialize BlockManager
         self.block_manager.reinitialize();
 
-        // 7. Update last_finalized_leader to match the new DAG state
+        // 6. Update last_finalized_leader to match the new DAG state
         self.last_finalized_leader = last_commit_leader;
 
-        // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
-        self.commit_observer.reinitialize(last_commit_index).await?;
+        // 7. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
+        self.commit_observer.reinitialize().await?;
 
-        // 9. Reset signaling state
+        // 8. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
 
         info!("Components reinitialized successfully");
@@ -4615,5 +4612,110 @@ mod test {
                     .unwrap();
             assert_eq!(block.round(), round);
         }
+    }
+
+    /// After fast sync ends below the node's last commit, execution receives
+    /// every commit in order.
+    #[tokio::test]
+    async fn fast_sync_ending_below_own_commits_sends_every_commit() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a node that formed commits from block headers alone, so none of
+        // its commits is solid.
+        let (context, _) = Context::new_for_test(4);
+        let mut fixture = CoreTestFixture::new(
+            context.clone(),
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            true,
+            false,
+            None,
+        )
+        .await;
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
+        dag_builder.layers(1..=8).build();
+        fixture
+            .core
+            .add_block_headers(dag_builder.block_headers(1..=8), DataSource::Test)
+            .unwrap();
+        let own_last_commit_index = fixture.core.dag_state.read().last_commit_index();
+        assert!(own_last_commit_index > 2);
+        assert!(fixture.commit_receiver.try_recv().is_err());
+
+        // WHEN fast sync delivers the same commits up to an index below the
+        // node's last commit, and the components are reinitialized.
+        fixture.core.dag_state.write().flush();
+        let fast_sync_end = own_last_commit_index - 2;
+        let commits = fixture
+            .store
+            .scan_commits((1..=fast_sync_end).into())
+            .unwrap();
+        let transactions: BTreeMap<GenericTransactionRef, CommitmentVerifiedTransactions> =
+            dag_builder
+                .transactions(1..=8)
+                .into_iter()
+                .map(|transactions| {
+                    (
+                        GenericTransactionRef::TransactionRef(transactions.transaction_ref()),
+                        transactions,
+                    )
+                })
+                .collect();
+        let misbehavior_counts = fixture
+            .core
+            .dag_state
+            .read()
+            .misbehavior_store()
+            .snapshot_totals();
+        let committed_subdags = commits
+            .iter()
+            .map(|commit| {
+                CommittedSubDag::new(
+                    commit.leader(),
+                    vec![],
+                    commit.block_headers().to_vec(),
+                    commit
+                        .committed_transactions()
+                        .iter()
+                        .map(|tx_ref| transactions[tx_ref].clone())
+                        .collect(),
+                    commit.timestamp_ms(),
+                    commit.reference(),
+                    commit.reputation_scores().to_vec(),
+                    misbehavior_counts.clone(),
+                )
+            })
+            .collect();
+        fixture
+            .core
+            .handle_committed_sub_dags_from_fast_sync(FastSyncOutput {
+                commits,
+                committed_subdags,
+                voting_block_headers: vec![],
+            })
+            .unwrap();
+        fixture
+            .core
+            .reinitialize_components(dag_builder.block_headers(1..=8))
+            .await
+            .unwrap();
+
+        // THEN once the payloads arrive and the DAG grows, execution receives
+        // every commit index in order.
+        fixture
+            .core
+            .add_transactions(dag_builder.transactions(1..=8), DataSource::Test)
+            .unwrap();
+        dag_builder.layers(9..=12).build();
+        fixture
+            .core
+            .add_blocks(dag_builder.blocks(9..=12), DataSource::Test)
+            .unwrap();
+        let last_commit_index = fixture.core.dag_state.read().last_commit_index();
+        assert!(last_commit_index > own_last_commit_index);
+        let mut sent_indices = Vec::new();
+        while let Ok(sub_dag) = fixture.commit_receiver.try_recv() {
+            sent_indices.push(sub_dag.commit_ref.index);
+        }
+        assert_eq!(sent_indices, (1..=last_commit_index).collect::<Vec<_>>());
     }
 }
