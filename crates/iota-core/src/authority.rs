@@ -221,6 +221,10 @@ mod coin_deny_list_tests;
 mod pre_execution_failure_tests;
 
 #[cfg(test)]
+#[path = "unit_tests/cancelled_move_authenticator_tests.rs"]
+mod cancelled_move_authenticator_tests;
+
+#[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
