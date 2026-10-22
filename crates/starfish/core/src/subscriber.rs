@@ -151,6 +151,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         const INITIAL_RETRY_INTERVAL: Duration = Duration::from_millis(100);
         const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(10);
         const RETRY_INTERVAL_MULTIPLIER: f32 = 1.2;
+        // How often a subscription that had blocks rejected for solid commit lag
+        // checks whether the lag has cleared.
+        const SOLID_COMMIT_LAG_RECHECK_INTERVAL: Duration = Duration::from_millis(500);
         let peer_hostname = &context.committee.authority(peer).hostname;
         let mut retries: i64 = 0;
         let mut delay = INITIAL_RETRY_INTERVAL;
@@ -285,6 +288,11 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                 .with_label_values(&[peer_hostname])
                 .set(1);
 
+            // The peer streams each of its blocks once, so a block rejected for
+            // solid commit lag comes back only through a new subscription, which
+            // resumes after the last block accepted from this peer.
+            let mut resubscribe_when_solid = false;
+
             'stream: loop {
                 // Observe a reset only between bundles: wrapping the handler
                 // below in this select would cancel it mid-bundle.
@@ -298,6 +306,16 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         continue 'subscription;
                     }
                     block = block_bundles.next() => block,
+                    _ = sleep(SOLID_COMMIT_LAG_RECHECK_INTERVAL), if resubscribe_when_solid => {
+                        if dag_state.read().is_solidification_lagging() {
+                            continue 'stream;
+                        }
+                        debug!(
+                            "Solid commit lag cleared, resubscribing to peer {} {}",
+                            peer, peer_hostname
+                        );
+                        continue 'subscription;
+                    }
                 };
                 match next_block {
                     Some(block) => {
@@ -315,20 +333,29 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                                 &mut last_streamed_block,
                             )
                             .await;
-                        if let Err(e) = result {
-                            match e {
-                                ConsensusError::BlockRejected { block_ref, reason } => {
-                                    debug!(
-                                        "Failed to process block from peer {} {} for block {:?}: {}",
-                                        peer, peer_hostname, block_ref, reason
-                                    );
-                                }
-                                _ => {
-                                    info!(
-                                        "Invalid block received from peer {} {}: {}",
-                                        peer, peer_hostname, e
-                                    );
-                                }
+                        match result {
+                            // A block accepted after the lag cleared references the
+                            // rejected ones as ancestors, so the header synchronizer
+                            // fetches them.
+                            Ok(()) => resubscribe_when_solid = false,
+                            Err(ConsensusError::BlockRejected { block_ref, reason }) => {
+                                debug!(
+                                    "Failed to process block from peer {} {} for block {:?}: {}",
+                                    peer, peer_hostname, block_ref, reason
+                                );
+                            }
+                            Err(e @ ConsensusError::SolidCommitLagging { .. }) => {
+                                debug!(
+                                    "Failed to process block from peer {} {}: {}",
+                                    peer, peer_hostname, e
+                                );
+                                resubscribe_when_solid = true;
+                            }
+                            Err(e) => {
+                                info!(
+                                    "Invalid block received from peer {} {}: {}",
+                                    peer, peer_hostname, e
+                                );
                             }
                         }
                         // Reset retries when a block is received.
@@ -353,12 +380,13 @@ mod test {
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::stream;
+    use starfish_config::Parameters;
 
     use super::*;
     use crate::{
         Round,
         block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader, VerifiedBlockHeader},
-        commit::{CommitDigest, CommitRange, TrustedCommit},
+        commit::{CommitDigest, CommitRange, CommitRef, SubDagBase, TrustedCommit},
         dag_state::DataSource,
         error::{ConsensusError, ConsensusResult},
         network::{
@@ -380,6 +408,9 @@ mod test {
         BufferedOnce,
         /// Fails the first `n` subscribe calls, then never yields.
         FailThenPending(usize),
+        /// Ten bundles at once on the first subscription, which then stays
+        /// open without yielding; later subscriptions never yield.
+        BufferedOnceThenOpen,
     }
 
     struct SubscriberTestClient {
@@ -442,6 +473,11 @@ mod test {
                     std::iter::repeat_with(test_bundle).take(10),
                 ))),
                 StreamMode::BufferedOnce => Ok(Box::pin(stream::pending())),
+                StreamMode::BufferedOnceThenOpen if attempts == 1 => Ok(Box::pin(
+                    stream::iter(std::iter::repeat_with(test_bundle).take(10))
+                        .chain(stream::pending()),
+                )),
+                StreamMode::BufferedOnceThenOpen => Ok(Box::pin(stream::pending())),
             }
         }
 
@@ -728,6 +764,73 @@ mod test {
         wait_for_subscription_attempts(&f.network_client, 2).await;
 
         assert_eq!(f.network_client.last_received_rounds(), vec![20, 25]);
+        f.subscriber.stop();
+    }
+
+    /// Blocks rejected for solid commit lag are requested again once the lag
+    /// clears: the subscriber resubscribes from the last block accepted from
+    /// the peer.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_resubscribes_when_solid_commit_lag_clears() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context.with_parameters(Parameters {
+            solid_commit_lag_threshold: 10,
+            ..Default::default()
+        }));
+        let service = TestService {
+            reject_bundles_for_solid_commit_lag: true,
+            ..TestService::new()
+        };
+        let f = fixture(context, service, StreamMode::BufferedOnceThenOpen);
+        // Commits led at rounds 1 to 12 with nothing solid put the lag at 12
+        // rounds, over the threshold.
+        {
+            let mut dag_state = f.dag_state.write();
+            for index in 1..=12 {
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &f.context,
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                ));
+            }
+            dag_state
+                .accept_block_headers(vec![header_for(f.peer, 7)], DataSource::BlockBundleStream);
+        }
+        f.subscriber.subscribe(f.peer);
+        wait_for_subscription_attempts(&f.network_client, 1).await;
+
+        // All ten bundles are rejected and the peer sends nothing more; while
+        // the lag holds, the subscriber keeps the stream.
+        sleep(Duration::from_secs(5)).await;
+        assert_eq!(
+            f.authority_service
+                .lock()
+                .handle_subscribed_block_bundle
+                .len(),
+            10
+        );
+        assert_eq!(f.network_client.last_received_rounds(), vec![7]);
+
+        f.dag_state
+            .write()
+            .update_last_solid_subdag_base(SubDagBase {
+                leader: BlockRef::new(12, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                headers: vec![],
+                committed_header_refs: vec![],
+                timestamp_ms: 0,
+                commit_ref: CommitRef::new(12, CommitDigest::MIN),
+                reputation_scores_desc: vec![],
+            });
+        wait_for_subscription_attempts(&f.network_client, 2).await;
+        assert_eq!(f.network_client.last_received_rounds(), vec![7, 7]);
         f.subscriber.stop();
     }
 }

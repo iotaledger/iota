@@ -17,7 +17,7 @@ use crate::{
     commit::{CommitRange, TrustedCommit},
     commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
-    error::ConsensusResult,
+    error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
         StreamPosition,
@@ -56,6 +56,8 @@ pub(crate) struct TestService {
     pub(crate) fetch_latest_block_headers_response: Vec<Bytes>,
     /// Served as the commits of every regular commit-sync fetch.
     pub(crate) fetch_commits_response: Vec<TrustedCommit>,
+    /// Rejects every streamed bundle for solid commit lag.
+    pub(crate) reject_bundles_for_solid_commit_lag: bool,
 }
 
 impl TestService {
@@ -90,6 +92,7 @@ impl TestService {
             fetch_transactions_response: Vec::new(),
             fetch_latest_block_headers_response: Vec::new(),
             fetch_commits_response: Vec::new(),
+            reject_bundles_for_solid_commit_lag: false,
         }
     }
 
@@ -108,18 +111,25 @@ impl NetworkService for Mutex<TestService> {
         _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         _last_streamed_block: &mut StreamPosition,
     ) -> ConsensusResult<()> {
-        let release = {
+        let (release, reject) = {
             let mut state = self.lock();
             state
                 .handle_subscribed_block_bundle
                 .push((peer, serialized_block_bundle));
-            state.block_bundle_handler_gate.as_ref().map(|gate| {
+            let release = state.block_bundle_handler_gate.as_ref().map(|gate| {
                 gate.started.notify_one();
                 gate.release.clone()
-            })
+            });
+            (release, state.reject_bundles_for_solid_commit_lag)
         };
         if let Some(release) = release {
             release.notified().await;
+        }
+        if reject {
+            return Err(ConsensusError::SolidCommitLagging {
+                block_ref: BlockRef::MIN,
+                lag: 1,
+            });
         }
         Ok(())
     }
