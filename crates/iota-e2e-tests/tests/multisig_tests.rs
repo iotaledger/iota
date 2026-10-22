@@ -414,6 +414,35 @@ async fn test_multisig_mixed_ed25519_requires_all_signatures() {
         .build_and_sign_multisig(multisig_pk, &[&keys[0], &keys[1], &keys[2]], 0b111);
     let res = context.execute_transaction_must_succeed(tx2).await;
     assert!(res.status_ok().unwrap());
+
+    // A committee of Ed25519 keys only still executes with signatures from a
+    // subset of its members.
+    let ed25519_keys: [SimpleKeypair; 3] = [
+        Ed25519PrivateKey::random().into(),
+        Ed25519PrivateKey::random().into(),
+        Ed25519PrivateKey::random().into(),
+    ];
+    let ed25519_multisig_pk = MultisigCommittee::new(
+        ed25519_keys
+            .iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        2,
+    )
+    .unwrap();
+    let ed25519_multisig_addr = Address::from(&ed25519_multisig_pk);
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), ed25519_multisig_addr)
+        .await;
+    let tx3 = TestTransactionBuilder::new(ed25519_multisig_addr, gas, rgp)
+        .transfer_iota(None, Address::ZERO)
+        .build_and_sign_multisig(
+            ed25519_multisig_pk,
+            &[&ed25519_keys[0], &ed25519_keys[2]],
+            0b101,
+        );
+    let res = context.execute_transaction_must_succeed(tx3).await;
+    assert!(res.status_ok().unwrap());
 }
 
 #[sim_test]
