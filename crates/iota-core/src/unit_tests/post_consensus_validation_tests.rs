@@ -6773,6 +6773,131 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
     );
 }
 
+/// Saves the switch to synced checkpoints after commit `last`, then executes
+/// `deletion` as a synced checkpoint does, without a commit assigned by the
+/// handler, checks that it leaves no handler row, and restarts the epoch
+/// store.
+async fn switch_execute_synced_and_restart(
+    s: &mut BookkeepingSetup,
+    last: CommitIndex,
+    deletion: VerifiedTransaction,
+) {
+    s.epoch_store.record_handled_commit(last);
+    s.epoch_store.start_executing_synced_checkpoints().await;
+    let effects = s.execute_with_assigned_shared_versions(deletion);
+    let written = handler_processed_upserts(&effects, last);
+    assert!(!written.is_empty(), "{effects:?}");
+    for (ObjectKey(id, version), _) in written {
+        s.assert_no_handler_row(&id, version);
+    }
+    s.epoch_store = reopen(&s.authority, &s.epoch_store);
+    assert_eq!(
+        s.epoch_store
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        Some(last)
+    );
+}
+
+/// The replay keeps the same transactions without reading their inputs, so
+/// it registers no locks for them.
+#[track_caller]
+fn assert_repeats_the_saved_keep(first: &ValidationResult, replayed: ValidationResult) {
+    assert_eq!(replayed.kept, first.kept);
+    assert_eq!(replayed.dropped, first.dropped);
+    assert!(replayed.locks.is_empty(), "{:?}", replayed.locks);
+}
+
+/// Commit 7 keeps a transaction on a shared object created at commit 5, and
+/// the transaction is deferred. The node switches to synced checkpoints after
+/// commit 7, a synced checkpoint deletes the object, and the node restarts.
+/// The replay of commit 7 keeps the transaction from its saved decision,
+/// without reading the object, whose deletion has no handler row.
+#[tokio::test]
+async fn replay_up_to_the_switch_repeats_a_saved_keep_without_reading_inputs() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let deleter_gas = ObjectId::random();
+    let mut s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            Object::with_id_owner_for_testing(deleter_gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_id = *share_effects.created()[0].reference().object_id();
+    let kept = s.build_move_call(
+        "object_basics",
+        "set_value",
+        vec![
+            s.shared_arg(&shared_id),
+            CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    let result = s.validate_at(7, std::slice::from_ref(&kept)).await;
+    assert_eq!(result.kept, vec![*kept.digest()]);
+
+    let deletion = s.build_move_call(
+        "object_basics",
+        "delete",
+        vec![s.shared_arg(&shared_id)],
+        &deleter_gas,
+        sender,
+        &sender_key,
+    );
+    switch_execute_synced_and_restart(&mut s, 7, deletion).await;
+    assert!(s.authority.get_object(&shared_id).is_none());
+
+    assert_repeats_the_saved_keep(&result, s.validate_at(7, std::slice::from_ref(&kept)).await);
+}
+
+/// As [`replay_up_to_the_switch_repeats_a_saved_keep_without_reading_inputs`],
+/// with a shared object created before the epoch, which a fresh read would
+/// find missing.
+#[tokio::test]
+async fn replay_up_to_the_switch_repeats_a_saved_keep_on_an_epoch_start_object() {
+    let (mut s, _, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let kept = coin.destroy_shared_coin(&s, coin.other, &coin.other_key, &coin.other_gas);
+    let result = s.validate_at(7, std::slice::from_ref(&kept)).await;
+    assert_eq!(result.kept, vec![*kept.digest()]);
+
+    let deletion =
+        coin.destroy_shared_coin(&s, coin.publisher, &coin.publisher_key, &coin.publisher_gas);
+    switch_execute_synced_and_restart(&mut s, 7, deletion).await;
+    assert!(s.authority.get_object(&coin.coin_id).is_none());
+
+    assert_repeats_the_saved_keep(&result, s.validate_at(7, std::slice::from_ref(&kept)).await);
+}
+
+/// Once the switch after commit 7 is saved, validating a later commit stops
+/// the node: the consensus handler processes no commit after it.
+#[tokio::test]
+async fn validation_after_the_saved_switch_stops_the_node() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        true,
+    )
+    .await;
+    let tx = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    s.epoch_store.record_handled_commit(7);
+    s.epoch_store.start_executing_synced_checkpoints().await;
+    let task = tokio::spawn(async move { s.validate_at(8, &[tx]).await });
+    assert!(task.await.unwrap_err().is_panic());
+}
+
 /// With the flag on, the lock check runs before the reader. A version
 /// consumed by a locked transaction in the last K commits is kept by the
 /// reader alone, since the consumer's row is above the horizon, so the lock

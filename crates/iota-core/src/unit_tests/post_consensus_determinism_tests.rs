@@ -2553,6 +2553,14 @@ impl<'a> Validator<'a> {
             let verdict = match &saved {
                 // A saved drop is repeated without checks.
                 Some(saved) if saved.decision == PostConsensusDecision::Dropped => saved.clone(),
+                // Up to the switch, a saved keep is repeated without checks
+                // and registers no locks.
+                Some(saved)
+                    if saved.decision == PostConsensusDecision::Kept
+                        && last_before_switch.is_some() =>
+                {
+                    SavedPostConsensusDecision::kept()
+                }
                 // A saved keep with effects: no input is read.
                 Some(saved)
                     if saved.decision == PostConsensusDecision::Kept
@@ -2620,14 +2628,16 @@ impl<'a> Validator<'a> {
                 ));
             }
             if verdict.decision == PostConsensusDecision::Kept {
-                for reference in &candidate.owned_inputs {
-                    commit_locks.insert(*reference, candidate.digest);
+                if last_before_switch.is_none() {
+                    for reference in &candidate.owned_inputs {
+                        commit_locks.insert(*reference, candidate.digest);
+                    }
                 }
                 processed.push(candidate.digest);
             }
             verdicts.push((candidate.digest, verdict));
         }
-        if commit_locks != expected.locks {
+        if last_before_switch.is_none() && commit_locks != expected.locks {
             return self.fail(format!(
                 "lock set mismatch at {commit}: got {commit_locks:?}, oracle {:?}",
                 expected.locks
