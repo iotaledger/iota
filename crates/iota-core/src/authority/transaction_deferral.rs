@@ -85,6 +85,25 @@ pub enum DeferralReason {
 
     // The list of objects are congested objects.
     SharedObjectCongestion(Vec<ObjectId>),
+
+    /// No execution worker was free within the commit's budget.
+    ExecutionWorkerCongestion,
+
+    /// The declared memory rate did not fit under the memory bandwidth within
+    /// the commit's budget.
+    MemoryBandwidthCongestion,
+}
+
+impl DeferralReason {
+    /// Label for the per-reason deferral metric.
+    pub fn metric_label(&self) -> &'static str {
+        match self {
+            Self::RandomnessNotReady => "randomness_not_ready",
+            Self::SharedObjectCongestion(_) => "shared_object_congestion",
+            Self::ExecutionWorkerCongestion => "execution_worker_congestion",
+            Self::MemoryBandwidthCongestion => "memory_bandwidth_congestion",
+        }
+    }
 }
 
 pub fn transaction_deferral_within_limit(

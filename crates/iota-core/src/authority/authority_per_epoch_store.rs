@@ -103,7 +103,9 @@ use crate::{
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
+        shared_object_congestion_tracker::{
+            CongestionPerObjectDebt, CongestionResourceDebt, ResourceSlots,
+        },
         shared_object_version_manager::{
             AssignedTxAndVersions, AssignedVersions, ConsensusSharedObjVerAssignment, Schedulable,
             SharedObjVerManager,
@@ -235,6 +237,11 @@ pub(crate) struct CongestionControlParameters {
     /// execution-worker congestion control; `None` disables it.
     max_concurrent_execution_workers: Option<u16>,
 
+    /// Memory bandwidth of the reference machine, in bytes per second. In
+    /// `GasVectorV1` mode, the declared memory rates of transactions running
+    /// at the same time must sum to at most this.
+    memory_bandwidth_bytes_per_sec: Option<u64>,
+
     /// Maximum gas price that can be set in transactions. This field
     /// is only used in `SuggestedGasPriceCalculator` to prevent
     /// suggesting feedback gas price larger this value.
@@ -262,6 +269,10 @@ impl CongestionControlParameters {
             max_congestion_limit_overshoot_per_commit: protocol_config
                 .max_congestion_limit_overshoot_per_commit_as_option(),
             max_concurrent_execution_workers: protocol_config.concurrent_execution_workers(),
+            memory_bandwidth_bytes_per_sec: protocol_config
+                .gas_vector_coefficients()
+                .map(|table| table.memory_bandwidth_bytes_per_sec)
+                .filter(|bandwidth| *bandwidth != 0),
             max_gas_price: protocol_config.max_gas_price(),
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
                 .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
@@ -290,6 +301,8 @@ impl CongestionControlParameters {
             // congestion control opt in via
             // `set_max_concurrent_execution_workers_for_test`.
             max_concurrent_execution_workers: None,
+            // Tests opt in via `set_memory_bandwidth_bytes_per_sec_for_test`.
+            memory_bandwidth_bytes_per_sec: None,
             max_gas_price,
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism,
             use_separate_gas_price_feedback_mechanism_for_randomness,
@@ -300,6 +313,13 @@ impl CongestionControlParameters {
     #[cfg(test)]
     pub(crate) fn set_max_concurrent_execution_workers_for_test(&mut self, n: u16) {
         self.max_concurrent_execution_workers = Some(n);
+    }
+
+    /// Enable the GasVectorV1 bandwidth check in tests, with the given
+    /// ceiling in bytes per second.
+    #[cfg(test)]
+    pub(crate) fn set_memory_bandwidth_bytes_per_sec_for_test(&mut self, bytes_per_sec: u64) {
+        self.memory_bandwidth_bytes_per_sec = Some(bytes_per_sec);
     }
 
     /// Get per-object congestion control mode.
@@ -331,6 +351,28 @@ impl CongestionControlParameters {
                         .unwrap_or(0)
                 })
             }
+            PerObjectCongestionControlMode::GasVectorV1 => {
+                // Post-consensus validation drops transactions without a gas
+                // vector; a maximal duration keeps that case deterministic.
+                transaction
+                    .attested_cpu_time()
+                    .unwrap_or(ExecutionTime::MAX)
+            }
+        }
+    }
+
+    /// The memory bandwidth in bytes per second; `Some` only in `GasVectorV1`
+    /// mode with congestion control enabled.
+    pub(super) fn memory_bandwidth_bytes_per_sec(&self) -> Option<u64> {
+        if self.is_congestion_control_enabled()
+            && matches!(
+                self.per_object_congestion_control_mode,
+                PerObjectCongestionControlMode::GasVectorV1
+            )
+        {
+            self.memory_bandwidth_bytes_per_sec
+        } else {
+            None
         }
     }
 
@@ -467,12 +509,12 @@ pub(crate) enum SchedulingResult {
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum CancelConsensusTransactionReason {
-    /// Transaction was cancelled due to congestion: either on objects it
-    /// touches, or on the execution-worker pool.
+    /// Transaction was cancelled due to congestion: on objects it touches, on
+    /// the execution-worker pool, or on the memory-bandwidth ceiling.
     Congested {
-        /// IDs of the congested objects the transaction touches. Empty when
-        /// the execution-worker pool, rather than any object, was congested
-        /// and the transaction has no shared inputs.
+        /// IDs of the congested objects. For an execution-worker or
+        /// memory-bandwidth cancellation, every shared input; empty without
+        /// shared inputs, when the gas object carries the cancellation.
         congested_objects: Vec<ObjectId>,
 
         /// Optional suggested gas price from the gas price feedback
@@ -1012,9 +1054,11 @@ pub struct AuthorityEpochTables {
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
 
-    /// Execution-worker debt carried over from the latest commit
-    /// (singleton, keyed by `SINGLETON_KEY`); covers all transactions.
-    congestion_control_worker_debt: DBMap<u64, CongestionWorkerDebt>,
+    /// Resource debt (workers and memory rate) carried over from the latest
+    /// commit (singleton, keyed by `SINGLETON_KEY`); covers all transactions.
+    /// The column family keeps the legacy name `congestion_control_worker_debt`
+    /// for storage compatibility.
+    congestion_control_worker_debt: DBMap<u64, CongestionResourceDebt>,
 
     /// Per-validator received misbehavior reports state. Keyed by the
     /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
@@ -2457,11 +2501,8 @@ impl AuthorityPerEpochStore {
                 previously_deferred_tx_digests,
                 commit_round,
             ) {
-                SequencingResult::Defer(deferral_key, congested_objects) => {
-                    SchedulingResult::Defer(
-                        deferral_key,
-                        DeferralReason::SharedObjectCongestion(congested_objects),
-                    )
+                SequencingResult::Defer(deferral_key, deferral_reason) => {
+                    SchedulingResult::Defer(deferral_key, deferral_reason)
                 }
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
@@ -4038,15 +4079,15 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
-        // Worker debt exists only when execution-worker congestion control
+        // Resource debt exists only when execution-worker congestion control
         // is active; without it, the tracker ignores the debt, so skip the
         // quarantine scan and DB read entirely.
-        let initial_worker_debt = if use_combined_congestion_tracker {
+        let initial_resource_debt = if use_combined_congestion_tracker {
             self.consensus_quarantine
                 .read()
-                .load_initial_worker_debt(self, consensus_commit_info.round)?
+                .load_initial_resource_debt(self, consensus_commit_info.round)?
         } else {
-            Vec::new()
+            ResourceSlots::default()
         };
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
@@ -4055,7 +4096,7 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
-            initial_worker_debt,
+            initial_resource_debt,
             congestion_control_parameters.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = if use_combined_congestion_tracker {
@@ -4068,9 +4109,9 @@ impl AuthorityPerEpochStore {
                     true,
                     &sequenced_randomness_transactions,
                 )?,
-                // No worker debt: worker congestion control implies a single
+                // No resource debt: worker congestion control implies a single
                 // tracker, so the randomness tracker never carries one.
-                Vec::new(),
+                ResourceSlots::default(),
                 congestion_control_parameters,
             ))
         };
@@ -4875,13 +4916,10 @@ impl AuthorityPerEpochStore {
             .congestion_control_parameters()
             .max_execution_duration_per_commit()
         {
-            // Carry over the execution-worker debt that runs past the
-            // per-commit limit (computed before the tracker is consumed for
-            // the per-object debts below). `None` when worker control is off.
             if let Some(debt) = shared_object_congestion_tracker
-                .accumulated_worker_debt(max_execution_duration_per_commit)
+                .accumulated_resource_debt(max_execution_duration_per_commit)
             {
-                output.set_congestion_control_worker_debt(debt);
+                output.set_congestion_control_resource_debt(debt);
             }
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
@@ -5544,6 +5582,10 @@ impl AuthorityPerEpochStore {
                     "Deferring verified executable transaction {:?} until {deferral_key:?}",
                     verified_executable_tx.digest(),
                 );
+                authority_metrics
+                    .consensus_handler_deferred_transactions_by_reason
+                    .with_label_values(&[deferral_reason.metric_label()])
+                    .inc();
 
                 let deferral_result = match deferral_reason {
                     DeferralReason::RandomnessNotReady => {
@@ -5553,7 +5595,9 @@ impl AuthorityPerEpochStore {
                             suggested_gas_price: None,
                         }
                     }
-                    DeferralReason::SharedObjectCongestion(congested_objects) => {
+                    congestion_reason @ (DeferralReason::SharedObjectCongestion(_)
+                    | DeferralReason::ExecutionWorkerCongestion
+                    | DeferralReason::MemoryBandwidthCongestion) => {
                         authority_metrics
                             .consensus_handler_congested_transactions
                             .inc();
@@ -5601,31 +5645,33 @@ impl AuthorityPerEpochStore {
                             }
                         } else {
                             // Cancel the transaction that has been deferred for too long.
-                            //
-                            // A deferral caused by execution-worker congestion reports no
-                            // congested objects. Cancellation is signalled through assigned
-                            // versions on the transaction's shared inputs, so treat all of
-                            // them as congested; the suggested gas price is what matters to
-                            // the client either way. A transaction without shared inputs is
-                            // handled in version assignment via its gas object instead.
-                            let congested_objects = if congested_objects.is_empty() {
-                                verified_executable_tx
-                                    .shared_input_objects()
-                                    .iter()
-                                    .map(|obj| obj.object_id)
-                                    .collect()
-                            } else {
-                                congested_objects
-                            };
                             debug!(
                                 "Cancelling verified executable transaction {:?} with deferral \
-                                    key {deferral_key:?} due to congestion on objects \
-                                    {congested_objects:?}: actual gas price: {}, suggested gas \
+                                    key {deferral_key:?} due to {congestion_reason:?}: actual \
+                                    gas price: {}, suggested gas \
                                     price: {suggested_gas_price:?}",
                                 verified_executable_tx.digest(),
                                 verified_executable_tx.transaction().gas_price(),
                             );
 
+                            let congested_objects: Vec<ObjectId> = match congestion_reason {
+                                DeferralReason::SharedObjectCongestion(congested_objects) => {
+                                    congested_objects
+                                }
+                                // No object is congested; the cancellation is
+                                // signalled through all shared inputs.
+                                DeferralReason::ExecutionWorkerCongestion
+                                | DeferralReason::MemoryBandwidthCongestion => {
+                                    verified_executable_tx
+                                        .shared_input_objects()
+                                        .iter()
+                                        .map(|obj| obj.object_id)
+                                        .collect()
+                                }
+                                DeferralReason::RandomnessNotReady => {
+                                    unreachable!("outer match arm covers only congestion reasons")
+                                }
+                            };
                             ConsensusTransactionResult::Cancelled((
                                 verified_executable_tx,
                                 CancelConsensusTransactionReason::Congested {
@@ -5654,7 +5700,7 @@ impl AuthorityPerEpochStore {
                 }
 
                 // This transaction will be scheduled. We update the congestion
-                // tracker (execution slots / worker slots) and the suggested
+                // tracker (execution slots / resource slots) and the suggested
                 // gas price calculator when it touches a shared object, or — when
                 // execution-worker congestion control is active — for every
                 // transaction (including owned-object-only ones, which still

@@ -16,6 +16,7 @@ use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
     crypto::KeypairTraits,
+    gas_model::gas_vector::GasVector,
     messages_consensus::TransactionDenyRuleProposal,
     transaction::SenderSignedTransactionAPI,
 };
@@ -30,10 +31,11 @@ use crate::{
             consensus_quarantine::ConsensusCommitOutput,
         },
         shared_object_congestion_tracker::{
-            SequencingResult, SharedObjectCongestionTracker,
+            ResourceSlots, SequencingResult, SharedObjectCongestionTracker,
             shared_object_test_utils::{TEST_ONLY_GAS_PRICE, build_transaction},
         },
         test_authority_builder::TestAuthorityBuilder,
+        transaction_deferral::DeferralReason,
     },
     execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
 };
@@ -972,8 +974,11 @@ fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
     let shared_obj = ObjectId::random();
 
     // --- Attested commit: three transactions all schedule, end-to-end. ---
-    let mut tracker =
-        SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params.clone());
+    let mut tracker = SharedObjectCongestionTracker::new(
+        std::iter::empty(),
+        ResourceSlots::default(),
+        params.clone(),
+    );
     for i in 0..3 {
         let tx = attest(
             build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE),
@@ -997,18 +1002,198 @@ fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
     }
 
     // --- Unattested commit: the very first transaction defers. ---
-    let mut tracker = SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params);
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
     let tx = build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE);
     tracker.initialize_object_execution_slots(&tx.shared_input_objects());
     match tracker.try_schedule(&tx, &HashMap::new(), 0) {
-        SequencingResult::Defer(_, congested) => {
+        SequencingResult::Defer(_, DeferralReason::SharedObjectCongestion(congested)) => {
             assert_eq!(congested, vec![shared_obj]);
+        }
+        SequencingResult::Defer(_, reason) => {
+            panic!("unattested tx should defer on the object, got {reason:?}");
         }
         SequencingResult::Schedule(start_time) => {
             panic!("unattested tx should defer, got schedule at {start_time}");
         }
     }
 }
+
+/// Attaches a gas-vector attestation to `tx`.
+fn attest_gas_vector(
+    tx: VerifiedExecutableAttestedTransaction,
+    cpu_time: u64,
+    moved_bytes: u64,
+) -> VerifiedExecutableAttestedTransaction {
+    let (inner, _) = tx.into_parts();
+    VerifiedExecutableAttestedTransaction::new(
+        inner,
+        Some(Attestation::Validator {
+            payload: AttestationData::V2 {
+                gas_vector: GasVector {
+                    cpu_time,
+                    moved_bytes,
+                    write_bytes: 0,
+                },
+                object_versions: vec![],
+            },
+            attestor_index: 0,
+        }),
+    )
+}
+
+/// `CongestionControlParameters` for `GasVectorV1` tests.
+fn gas_vector_params(
+    max_execution_duration_per_commit: u64,
+    workers: u16,
+    memory_bandwidth_bytes_per_sec: u64,
+) -> CongestionControlParameters {
+    let mut params = CongestionControlParameters::new_for_test(
+        PerObjectCongestionControlMode::GasVectorV1,
+        false,                                   // min_free_execution_slot
+        Some(max_execution_duration_per_commit), // max_execution_duration_per_commit
+        Some(0),                                 // overshoot
+        0,                                       // max_gas_price (irrelevant)
+        false,
+        false,
+    );
+    params.set_max_concurrent_execution_workers_for_test(workers);
+    params.set_memory_bandwidth_bytes_per_sec_for_test(memory_bandwidth_bytes_per_sec);
+    params
+}
+
+#[test]
+fn test_gas_vector_mode_schedules_by_attested_cpu_time() {
+    const COMMIT_TIME_BUDGET_NS: u64 = 3_000;
+    const TX_CPU_TIME_NS: u64 = 1_000;
+
+    let params = gas_vector_params(COMMIT_TIME_BUDGET_NS, 4, 1_000_000_000);
+    let shared_obj = ObjectId::random();
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
+
+    for i in 0..3 {
+        let tx = attest_gas_vector(
+            build_transaction(&[(shared_obj, true)], 1_000_000, TEST_ONLY_GAS_PRICE),
+            TX_CPU_TIME_NS,
+            100,
+        );
+        tracker.initialize_object_execution_slots(&tx.shared_input_objects());
+        match tracker.try_schedule(&tx, &HashMap::new(), 0) {
+            SequencingResult::Schedule(start_time) => {
+                assert_eq!(start_time, i * TX_CPU_TIME_NS, "tx #{i}");
+                tracker.bump_object_execution_slots(&tx, start_time);
+            }
+            other => panic!("tx #{i} should schedule, got {other:?}"),
+        }
+    }
+
+    let tx = attest_gas_vector(
+        build_transaction(&[(shared_obj, true)], 1_000_000, TEST_ONLY_GAS_PRICE),
+        TX_CPU_TIME_NS,
+        100,
+    );
+    tracker.initialize_object_execution_slots(&tx.shared_input_objects());
+    assert!(
+        matches!(
+            tracker.try_schedule(&tx, &HashMap::new(), 0),
+            SequencingResult::Defer(_, _)
+        ),
+        "the fourth tx must defer on the exhausted time budget"
+    );
+
+    let tx = build_transaction(&[(shared_obj, true)], 1_000_000, TEST_ONLY_GAS_PRICE);
+    tracker.initialize_object_execution_slots(&tx.shared_input_objects());
+    assert!(
+        matches!(
+            tracker.try_schedule(&tx, &HashMap::new(), 0),
+            SequencingResult::Defer(_, _)
+        ),
+        "an unattested tx must defer"
+    );
+}
+
+/// A transaction whose declared memory rate does not fit alongside the
+/// overlapping ones is placed later, and deferred only when nothing in the
+/// budget fits.
+#[test]
+fn test_gas_vector_mode_keeps_overlapping_memory_rates_within_bandwidth() {
+    const ONE_SECOND_NS: u64 = 1_000_000_000;
+    // 3 s budget, 3 workers, 1000 B/s of memory bandwidth.
+    let params = gas_vector_params(3 * ONE_SECOND_NS, 3, 1_000);
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
+
+    // One second of cpu_time, so the declared memory rate equals the moved
+    // bytes.
+    let tx_with_memory_rate = |declared_memory_rate: u64| {
+        attest_gas_vector(
+            build_transaction(&[], 1_000_000, TEST_ONLY_GAS_PRICE),
+            ONE_SECOND_NS,
+            declared_memory_rate,
+        )
+    };
+    let mut schedule = |declared_memory_rate: u64, expected_start: u64, context: &str| {
+        let tx = tx_with_memory_rate(declared_memory_rate);
+        match tracker.try_schedule(&tx, &HashMap::new(), 0) {
+            SequencingResult::Schedule(start_time) => {
+                assert_eq!(start_time, expected_start, "{context}");
+                tracker.bump_object_execution_slots(&tx, start_time);
+            }
+            other => panic!("{context}: expected a schedule, got {other:?}"),
+        }
+    };
+
+    schedule(600, 0, "600 B/s on an empty timeline");
+    schedule(600, ONE_SECOND_NS, "600 B/s stacked after the first");
+    schedule(400, 0, "400 B/s overlapping the first 600");
+    schedule(500, 2 * ONE_SECOND_NS, "500 B/s in the third second");
+    schedule(500, 2 * ONE_SECOND_NS, "another 500 B/s alongside it");
+
+    let tx = tx_with_memory_rate(1_001);
+    match tracker.try_schedule(&tx, &HashMap::new(), 0) {
+        SequencingResult::Defer(_, DeferralReason::MemoryBandwidthCongestion) => {}
+        other => panic!(
+            "a declared memory rate above the memory bandwidth must defer on bandwidth, \
+             got {other:?}"
+        ),
+    }
+
+    let tx = tx_with_memory_rate(500);
+    match tracker.try_schedule(&tx, &HashMap::new(), 0) {
+        SequencingResult::Defer(_, DeferralReason::MemoryBandwidthCongestion) => {}
+        other => panic!("a tx past the time budget must defer on bandwidth, got {other:?}"),
+    }
+}
+
+/// Memory rates only add up while transactions overlap.
+#[test]
+fn test_gas_vector_mode_high_memory_rates_schedule_back_to_back() {
+    const ONE_SECOND_NS: u64 = 1_000_000_000;
+    let params = gas_vector_params(10 * ONE_SECOND_NS, 1, 1_000);
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), ResourceSlots::default(), params);
+
+    for (i, declared_memory_rate) in [600, 900, 999].into_iter().enumerate() {
+        let tx = attest_gas_vector(
+            build_transaction(&[], 1_000_000, TEST_ONLY_GAS_PRICE),
+            ONE_SECOND_NS,
+            declared_memory_rate,
+        );
+        match tracker.try_schedule(&tx, &HashMap::new(), 0) {
+            SequencingResult::Schedule(start_time) => {
+                assert_eq!(
+                    start_time,
+                    i as u64 * ONE_SECOND_NS,
+                    "{declared_memory_rate} B/s tx must run after the previous one",
+                );
+                tracker.bump_object_execution_slots(&tx, start_time);
+            }
+            other => panic!("{declared_memory_rate} B/s tx must schedule, got {other:?}"),
+        }
+    }
+}
+
 /// `compute_deny_rule_update_chunks` decision table: no diff yields no
 /// chunks; additions and switch activations apply while removals are still
 /// locked; entry removals and switch deactivations wait for the unlock.

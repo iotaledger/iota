@@ -140,6 +140,18 @@ pub fn cpu_time_covers_moved_bytes(
     (moved_bytes as u128) * NS_PER_SEC <= (cpu_time_ns as u128) * (bandwidth_bytes_per_sec as u128)
 }
 
+/// The declared memory rate `ceil(moved_bytes / cpu_time)` in bytes per
+/// second, rounded up so admission errs toward less. `None` when `cpu_time` is
+/// zero or the result exceeds `u64`.
+pub fn declared_memory_rate_bytes_per_sec(cpu_time_ns: u64, moved_bytes: u64) -> Option<u64> {
+    if cpu_time_ns == 0 {
+        return None;
+    }
+    // u64 × NS_PER_SEC cannot overflow u128.
+    let memory_rate = ((moved_bytes as u128) * NS_PER_SEC).div_ceil(cpu_time_ns as u128);
+    u64::try_from(memory_rate).ok()
+}
+
 /// The shortest `cpu_time` in nanoseconds that covers `moved_bytes` at the
 /// given bandwidth. `None` if the bandwidth is zero or the result overflows.
 pub fn min_cpu_time_ns(moved_bytes: u64, bandwidth_bytes_per_sec: u64) -> Option<u64> {
@@ -431,6 +443,17 @@ mod tests {
             declared_gas_vector(&profile, &config_with(None, Some(1_000_000_000))),
             None
         );
+    }
+
+    #[test]
+    fn declared_memory_rate_rounds_up_and_rejects_zero_cpu_time() {
+        assert_eq!(
+            declared_memory_rate_bytes_per_sec(1_000, 4_096),
+            Some(4_096_000_000)
+        );
+        assert_eq!(declared_memory_rate_bytes_per_sec(3, 1), Some(333_333_334));
+        assert_eq!(declared_memory_rate_bytes_per_sec(1_000, 0), Some(0));
+        assert_eq!(declared_memory_rate_bytes_per_sec(0, 1), None);
     }
 
     #[test]
