@@ -7,7 +7,7 @@
 //! epoch's markers are kept, and an earlier epoch's are removed with a
 //! `drop_cf` rather than a range delete the execution path would read across.
 
-use std::{collections::BTreeMap, fmt::Debug, ops::Bound, path::Path, sync::Arc};
+use std::{collections::BTreeMap, ops::Bound, path::Path, sync::Arc};
 
 use iota_sdk_types::ObjectId;
 use iota_types::{
@@ -17,7 +17,7 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey},
 };
 use typed_store::{
-    DbIterator, TypedStoreError,
+    TypedStoreError,
     database::Database,
     rocks::{DBMap, DBOptions, ReadWriteOptions, list_tables},
     traits::Map,
@@ -26,6 +26,7 @@ use typed_store::{
 use crate::{
     epoch_buckets::{
         BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_metrics_label,
+        dump_page, dump_retention_floor, dump_rows,
     },
     progress_logger::ProgressLogger,
 };
@@ -194,27 +195,18 @@ impl EpochMarkers {
         page_size: u16,
         page_number: usize,
     ) -> Result<Option<BTreeMap<String, String>>, TypedStoreError> {
-        fn page<K: Debug, V: Debug>(
-            rows: DbIterator<'_, (K, V)>,
-            page_size: u16,
-            page_number: usize,
-        ) -> Result<BTreeMap<String, String>, TypedStoreError> {
-            rows.skip(page_number * page_size as usize)
-                .take(page_size as usize)
-                .map(|row| row.map(|(key, value)| (format!("{key:?}"), format!("{value:?}"))))
-                .collect()
-        }
-
         if bucket_cf_epoch(MARKERS_CF_PREFIX, cf_name).is_some() {
             let bucket = EpochMarkersBucket::reopen(db, cf_name)?;
             bucket.markers.try_catch_up_with_primary()?;
-            return page(bucket.markers.safe_iter(), page_size, page_number).map(Some);
+            return dump_page(
+                dump_rows("", bucket.markers.safe_iter()),
+                page_size,
+                page_number,
+            )
+            .map(Some);
         }
         if cf_name == EARLIEST_RETAINED_CF {
-            let earliest_retained: DBMap<(), EpochId> =
-                DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
-            earliest_retained.try_catch_up_with_primary()?;
-            return page(earliest_retained.safe_iter(), page_size, page_number).map(Some);
+            return dump_retention_floor(db, cf_name, page_size, page_number).map(Some);
         }
         Ok(None)
     }

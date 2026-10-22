@@ -13,6 +13,7 @@
 
 use std::{
     collections::BTreeMap,
+    fmt::Debug,
     path::Path,
     sync::{
         Arc,
@@ -24,9 +25,9 @@ use iota_types::committee::EpochId;
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use tracing::{info, warn};
 use typed_store::{
-    TypedStoreError,
+    DbIterator, TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, list_tables, synced_write_options},
+    rocks::{DBMap, DBOptions, ReadWriteOptions, list_tables, synced_write_options},
     rocksdb,
     traits::Map,
 };
@@ -104,6 +105,44 @@ pub(crate) fn extra_column_family_options(
             .map(|name| (name, cf_options.clone())),
     );
     options
+}
+
+/// The rows of one table for the `iota-tool` table dump, each key prefixed
+/// by `prefix`.
+pub(crate) fn dump_rows<'a, K: Debug + 'a, V: Debug + 'a>(
+    prefix: &'static str,
+    rows: DbIterator<'a, (K, V)>,
+) -> impl Iterator<Item = Result<(String, String), TypedStoreError>> + 'a {
+    rows.map(move |row| row.map(|(key, value)| (format!("{prefix}{key:?}"), format!("{value:?}"))))
+}
+
+/// Page `page_number` of `rows`, `page_size` rows to a page.
+pub(crate) fn dump_page(
+    rows: impl Iterator<Item = Result<(String, String), TypedStoreError>>,
+    page_size: u16,
+    page_number: usize,
+) -> Result<BTreeMap<String, String>, TypedStoreError> {
+    rows.skip(page_number * page_size as usize)
+        .take(page_size as usize)
+        .collect()
+}
+
+/// One page of a store's retention floor column family `cf_name` for the
+/// table dump. `db` may be a read-only or secondary handle.
+pub(crate) fn dump_retention_floor(
+    db: &Arc<Database>,
+    cf_name: &str,
+    page_size: u16,
+    page_number: usize,
+) -> Result<BTreeMap<String, String>, TypedStoreError> {
+    let earliest_retained: DBMap<(), EpochId> =
+        DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
+    earliest_retained.try_catch_up_with_primary()?;
+    dump_page(
+        dump_rows("", earliest_retained.safe_iter()),
+        page_size,
+        page_number,
+    )
 }
 
 /// Treats a read from a bucket whose column family has been dropped as

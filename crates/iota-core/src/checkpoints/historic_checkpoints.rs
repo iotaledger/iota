@@ -4,12 +4,12 @@
 //! Checkpoint history in the checkpoint store's database, bucketed by the
 //! epoch that closed the checkpoint (see `epoch_buckets`).
 
-use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use iota_sdk_types::{CheckpointContents, CheckpointContentsDigest, CheckpointDigest};
 use iota_types::{committee::EpochId, messages_checkpoint::TrustedCheckpoint};
 use typed_store::{
-    DbIterator, TypedStoreError,
+    TypedStoreError,
     database::Database,
     rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables, synced_write_options},
     traits::Map,
@@ -18,7 +18,7 @@ use typed_store::{
 use super::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
 use crate::epoch_buckets::{
     BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    bucket_metrics_label, extra_column_family_options,
+    bucket_metrics_label, dump_page, dump_retention_floor, dump_rows, extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
@@ -252,44 +252,17 @@ impl HistoricCheckpoints {
         page_size: u16,
         page_number: usize,
     ) -> Result<Option<BTreeMap<String, String>>, TypedStoreError> {
-        fn format_rows<'a, K: Debug + 'a, V: Debug + 'a>(
-            prefix: &'static str,
-            rows: DbIterator<'a, (K, V)>,
-        ) -> impl Iterator<Item = Result<(String, String), TypedStoreError>> + 'a {
-            rows.map(move |row| {
-                row.map(|(key, value)| (format!("{prefix}{key:?}"), format!("{value:?}")))
-            })
-        }
-
-        fn page(
-            rows: impl Iterator<Item = Result<(String, String), TypedStoreError>>,
-            page_size: u16,
-            page_number: usize,
-        ) -> Result<BTreeMap<String, String>, TypedStoreError> {
-            rows.skip(page_number * page_size as usize)
-                .take(page_size as usize)
-                .collect()
-        }
-
         if bucket_cf_epoch(HISTORIC_CHECKPOINTS_CF_PREFIX, cf_name).is_some() {
             let bucket = HistoricCheckpointsBucket::reopen(db, cf_name)?;
             bucket.checkpoint_content.try_catch_up_with_primary()?;
             bucket.checkpoint_by_digest.try_catch_up_with_primary()?;
-            let rows = format_rows("content:", bucket.checkpoint_content.safe_iter()).chain(
-                format_rows("by_digest:", bucket.checkpoint_by_digest.safe_iter()),
+            let rows = dump_rows("content:", bucket.checkpoint_content.safe_iter()).chain(
+                dump_rows("by_digest:", bucket.checkpoint_by_digest.safe_iter()),
             );
-            return page(rows, page_size, page_number).map(Some);
+            return dump_page(rows, page_size, page_number).map(Some);
         }
         if cf_name == EARLIEST_RETAINED_CF {
-            let earliest_retained_table: DBMap<(), EpochId> =
-                DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
-            earliest_retained_table.try_catch_up_with_primary()?;
-            return page(
-                format_rows("", earliest_retained_table.safe_iter()),
-                page_size,
-                page_number,
-            )
-            .map(Some);
+            return dump_retention_floor(db, cf_name, page_size, page_number).map(Some);
         }
         Ok(None)
     }
