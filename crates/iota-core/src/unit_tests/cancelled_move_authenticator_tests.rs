@@ -153,10 +153,6 @@ async fn cancelled_move_account_transaction_gets_cancellation_effects() {
 /// charged.
 #[tokio::test]
 async fn cancelled_move_account_transaction_charges_nobody_with_the_pcool_flow() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let (effects, _) = execute_cancelled_move_account_transaction().await;
 
     assert!(

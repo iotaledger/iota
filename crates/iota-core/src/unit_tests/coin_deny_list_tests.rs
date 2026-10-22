@@ -359,11 +359,6 @@ async fn test_coin_deny_list_read_modes_after_denial_relaxed() {
 // the same way.)
 #[tokio::test]
 async fn test_post_consensus_keeps_tx_spending_coin_paused_this_epoch() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let env = RegulatedCoinEnv::new().await;
 
     // Globally pause the regulated coin; executes in the current epoch.
@@ -383,18 +378,8 @@ async fn test_post_consensus_keeps_tx_spending_coin_paused_this_epoch() {
 // dropped until the removal settles at the next epoch boundary.
 #[tokio::test]
 async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
-    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let env = RegulatedCoinEnv::new().await;
     env.pause().await;
-
-    // `reconfigure_for_testing` applies its own config override (carrying the
-    // current epoch store's config, including the flag set above, into the
-    // next epoch) and panics if another override is still installed.
-    drop(guard);
 
     // Settle the pause: entries written in epoch 0 activate in epoch 1.
     env.reconfigure().await;
@@ -745,17 +730,11 @@ async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
 // type.
 #[tokio::test]
 async fn test_post_consensus_drops_denied_sender_receiving_a_coin() {
-    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let env = RegulatedCoinEnv::new().await;
     let parent_id = env.create_parent().await;
     env.transfer_coin(parent_id.into()).await;
 
     env.deny_sender().await;
-    drop(guard);
     env.reconfigure().await;
     env.undeny_sender().await;
 

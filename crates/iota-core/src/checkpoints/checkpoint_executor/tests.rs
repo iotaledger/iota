@@ -214,10 +214,6 @@ pub async fn test_notify_read_epoch_last_checkpoint() {
 /// executing synced checkpoints for the rest of the epoch.
 #[tokio::test]
 pub async fn test_validator_waits_for_local_build_until_epoch_end() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -268,10 +264,6 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
 /// checkpoint may never be computed.
 #[tokio::test]
 pub async fn test_switched_validator_executes_synced_data_of_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -307,10 +299,6 @@ pub async fn test_switched_validator_executes_synced_data_of_locally_built_check
 /// has to replay their commit and execute them first.
 #[tokio::test]
 pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -353,10 +341,6 @@ pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkp
 /// again with its contents available.
 #[tokio::test]
 pub async fn test_switched_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let checkpoint_store_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
     let (state, executor, hasher, committee) =
@@ -1237,10 +1221,6 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
 /// hash the checkpoint itself.
 #[tokio::test]
 pub async fn test_locally_built_checkpoint_without_its_state_hash_executes_without_the_builder() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;

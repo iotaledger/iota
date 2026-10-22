@@ -7183,12 +7183,6 @@ fn get_object_lock(
 async fn test_post_consensus_white_flag_simple_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: Two transactions competing for the same owned object
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
@@ -7314,12 +7308,6 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // ExecutionSchedulerWrapper::new); the uses_execution_scheduler() assertion
     // below double-checks the choice took effect.
     set_scheduler_env(use_execution_scheduler);
-
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     // Setup: two transactions competing for the same owned object.
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -7782,12 +7770,6 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
 async fn test_post_consensus_white_flag_no_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: Two transactions using different objects
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -7900,12 +7882,6 @@ async fn test_post_consensus_white_flag_no_conflict() {
 #[sim_test]
 async fn test_post_consensus_white_flag_conflict_different_commits() {
     telemetry_subscribers::init_for_testing();
-
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     // Test that a transaction in a second commit is dropped if it conflicts
     // with a lock from a first commit that was persisted to DB
@@ -8074,7 +8050,6 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     // execute in, rather than being cancelled.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_pcool_flow_for_testing(true);
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalTxCount,
     );
@@ -8391,7 +8366,7 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_pcool_flow(true).await;
+    let authority = TestAuthorityBuilder::new().build().await;
     let epoch_store = authority.epoch_store_for_testing();
     // Single-validator test committee: this authority holds all stake and
     // clears both the f+1 and 2f+1 thresholds alone.
