@@ -54,6 +54,7 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
+    node_config_override::NodeConfigOverride,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -1139,6 +1140,7 @@ pub struct TestClusterBuilder {
     validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_address_verification_cooldown: bool,
     chain_override: Option<Chain>,
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl TestClusterBuilder {
@@ -1172,6 +1174,7 @@ impl TestClusterBuilder {
                 true,
             ),
             disable_address_verification_cooldown: false,
+            node_config_overrides: vec![],
         }
     }
 
@@ -1380,6 +1383,15 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Apply the given overrides to every node config the cluster starts with.
+    pub fn with_node_config_overrides(
+        mut self,
+        node_config_overrides: Vec<NodeConfigOverride>,
+    ) -> Self {
+        self.node_config_overrides = node_config_overrides;
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1526,6 +1538,9 @@ impl TestClusterBuilder {
         }
         if self.disable_address_verification_cooldown {
             builder = builder.with_disabled_address_verification_cooldown();
+        }
+        if !self.node_config_overrides.is_empty() {
+            builder = builder.with_node_config_overrides(self.node_config_overrides.clone());
         }
 
         let mut swarm = builder.build();
