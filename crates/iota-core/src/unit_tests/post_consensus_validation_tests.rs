@@ -5,22 +5,25 @@
 //! conflict resolution, and the P-COOL bookkeeping written by executed
 //! transactions.
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_move_types::iota_framework::deny_list::AddressKey;
 use iota_sdk_types::{
-    Address, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
-    MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference, Owner,
-    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionEffects, TypeTag,
-    UserSignature, Version,
+    Address, Argument, Command, ExecutionStatus, GasCostSummary, Identifier, MoveAuthenticator,
+    MoveAuthenticatorV1, MoveStruct, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference,
+    Owner, ProgrammableTransaction, SharedObjectReference, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TypeTag, UserSignature, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
+    },
     crypto::{AccountPrivateKey, get_key_pair},
     deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
     dynamic_field::get_dynamic_field_object_from_store,
@@ -28,6 +31,7 @@ use iota_types::{
     error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
+    move_package,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{BackingPackageStore, ObjectKey},
@@ -5461,14 +5465,15 @@ async fn validation_at_commit_keeps_a_clock_declared_immutable() {
 // P-COOL deterministic-validation checks at a commit: the Move authenticator
 // ---------------------------------------------------------------------------
 
-/// Post-consensus validation no longer resolves a Move authenticator's
-/// account. A transaction whose account has no authenticator function never
-/// leaves an honest validator: the checks it runs before submitting to
+/// Post-consensus validation does not resolve a Move authenticator's account,
+/// but it requires the account to have its authenticator function field at
+/// the horizon. A transaction whose account has no authenticator function
+/// never leaves an honest validator: the checks it runs before submitting to
 /// consensus reject it. A faulty validator can still propose it, and then
-/// post-consensus validation keeps it and execution fails it with
-/// `AuthenticatorFunctionNotFound`.
+/// post-consensus validation reports the account missing, so the transaction
+/// does not reach execution.
 #[tokio::test]
-async fn validation_at_commit_keeps_an_account_without_authenticator_function() {
+async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let s = setup_bookkeeping(
@@ -5494,7 +5499,6 @@ async fn validation_at_commit_keeps_an_account_without_authenticator_function() 
         sponsor,
         &sponsor_key,
     );
-    let gas_ref = s.latest_ref(&gas_id);
 
     // The checks a validator runs before submitting to consensus, called with
     // the arguments of its submission path, resolve the account and reject
@@ -5521,8 +5525,7 @@ async fn validation_at_commit_keeps_an_account_without_authenticator_function() 
     );
 
     // A faulty validator skips those checks and proposes the transaction
-    // anyway. Post-consensus validation does not resolve the account, so
-    // every validator keeps the transaction and locks its gas coin.
+    // anyway. Every validator reports the account missing.
     match s
         .authority
         .handle_transaction_validation_checks_at_commit(
@@ -5534,31 +5537,12 @@ async fn validation_at_commit_keeps_an_account_without_authenticator_function() 
         )
         .unwrap()
     {
-        ValidationAtCommit::Keep(owned) => assert_eq!(
-            owned,
-            vec![gas_ref],
-            "the gas coin must be the only object the handler locks"
-        ),
-        other => panic!("expected keep, got {other:?}"),
+        ValidationAtCommit::Missing(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(id, account_id);
+            assert_eq!(reason.kind(), MissingKind::AuthenticatorFunctionNotFound);
+        }
+        other => panic!("expected the account missing, got {other:?}"),
     }
-
-    // Execution resolves the account at its assigned version and fails the
-    // transaction with effects that name the account.
-    s.epoch_store
-        .assign_commit_to_transactions(12, vec![TransactionKey::Digest(*tx.digest())]);
-    let effects = s.execute_with_assigned_shared_versions_unchecked(tx);
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionErrorKind::MoveAuthentication {
-                error: Box::new(ExecutionErrorKind::AuthenticatorFunctionNotFound {
-                    object_id: account_id,
-                }),
-            },
-            command: None,
-        },
-        "execution must fail the kept transaction with the status that names the account"
-    );
 }
 
 /// A Move authenticator needs its account to be a shared object, but a
@@ -5681,7 +5665,9 @@ async fn validation_at_commit_drops_an_immutable_account() {
 }
 
 /// Post-consensus validation keeps a transaction whose account object was
-/// deleted by a commit that not every validator has executed yet. Those
+/// deleted by a commit that not every validator has executed yet. The
+/// account's authenticator function field outlives the object, so the account
+/// still has it at the horizon. Those
 /// validators that have not executed yet cannot see the deletion, so keeping
 /// it is the only verdict every validator can reach. The check of the Move
 /// authenticator's input objects skips a deleted shared object, and execution
@@ -5714,6 +5700,12 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
     let shared = share_effects.created()[0];
     let account_id = *shared.reference().object_id();
     let account_start_version = initial_shared_version(shared.owner());
+    // Its authenticator function field, as epoch-start state, makes it an
+    // account at every horizon. The function is never called.
+    s.authority.insert_genesis_object(authenticator_field(
+        &s.authority.get_object(&account_id).unwrap(),
+        "authenticate",
+    ));
     s.handler_known_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(&account_id)],
@@ -7945,23 +7937,52 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
     );
 }
 
-/// A bookkeeping setup with the flags on, a shared object that was never made
-/// an account, and a gas coin owned by that object's address. Returns the
-/// setup, the object's id and the coin's id. A transaction naming the object as
-/// its account and paying with the coin fails at execution, since the object
-/// has no authenticator function, so the account never authorized it.
+/// A bookkeeping setup with the flags on, an account since the epoch started
+/// whose authenticator function does not exist, and a gas coin owned by the
+/// account's address. Returns the setup, the account's id and the coin's id. A
+/// transaction naming the account and paying with the coin fails at
+/// execution, since its authenticator cannot run, so the account never
+/// authorized it.
 async fn setup_unauthorized_gas_owner() -> (BookkeepingSetup, ObjectId, ObjectId) {
     let account_id = ObjectId::random();
     let gas_id = ObjectId::random();
+    let account = shared_object_with_id(account_id);
     let s = setup_bookkeeping(
         vec![
-            shared_object_with_id(account_id),
+            authenticator_field(&account, "missing_function"),
+            account,
             Object::with_id_owner_for_testing(gas_id, account_id.into()),
         ],
         true,
     )
     .await;
     (s, account_id, gas_id)
+}
+
+/// The authenticator function field that makes the shared object `account` an
+/// account, naming `function` of a module that is not published. Inserted as
+/// epoch-start state, it is the account's field at every horizon. Execution
+/// resolves the account from it, and its authenticator fails, as the function
+/// does not exist.
+fn authenticator_field(account: &Object, function: &str) -> Object {
+    let account_id = account.id();
+    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id).unwrap();
+    let account_type = account.data.as_opt_struct().unwrap().struct_tag().clone();
+    let value = AuthenticatorFunctionRefV1 {
+        package: ObjectId::random(),
+        module: "account".to_string(),
+        function: function.to_string(),
+    };
+    let field_type = StructTag::new_dynamic_field(
+        StructTag::new_authenticator_function_ref_v1_key(),
+        AuthenticatorFunctionRefV1::type_(account_type),
+    );
+    let contents = bcs::to_bytes(&(field_id, false, value)).unwrap();
+    Object::new_move(
+        MoveStruct::new(field_type.into(), Version::OBJECT_START, contents).unwrap(),
+        Owner::Object(account_id),
+        TransactionDigest::GENESIS_MARKER,
+    )
 }
 
 /// The authenticator naming the shared object `account_id` as an account.
@@ -9985,4 +10006,405 @@ async fn object_pruning_limit_follows_the_flushed_commits() {
 async fn object_pruning_limit_is_off_outside_the_committee() {
     let s = setup_bookkeeping_outside_committee(vec![]).await;
     assert_eq!(s.epoch_store.object_pruning_limit(), None);
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation checks at a commit: an account at the
+// horizon
+// ---------------------------------------------------------------------------
+
+/// A bookkeeping setup with the flags on and the `move_authenticator` test
+/// package published at commit 1, so a test makes its accounts with
+/// transactions at the commits it picks. `sender` pays for those transactions
+/// with `setup_gas_id`, and sponsors the account's own transactions with
+/// `sponsor_gas_id`, which nothing else uses, so it is visible at every
+/// horizon.
+struct AccountSetup {
+    s: BookkeepingSetup,
+    package_id: ObjectId,
+    sender: Address,
+    sender_key: AccountPrivateKey,
+    setup_gas_id: ObjectId,
+    sponsor_gas_id: ObjectId,
+}
+
+impl AccountSetup {
+    async fn new() -> Self {
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+        let (setup_gas_id, sponsor_gas_id) = (ObjectId::random(), ObjectId::random());
+        let s = setup_bookkeeping(
+            vec![
+                Object::with_id_owner_for_testing(setup_gas_id, sender),
+                Object::with_id_owner_for_testing(sponsor_gas_id, sender),
+            ],
+            true,
+        )
+        .await;
+        let mut setup = Self {
+            s,
+            package_id: ObjectId::ZERO,
+            sender,
+            sender_key,
+            setup_gas_id,
+            sponsor_gas_id,
+        };
+
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/unit_tests/data/move_authenticator");
+        let package = iota_move_build::BuildConfig::new_for_testing()
+            .build(&path)
+            .unwrap();
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let upgrade_cap = builder.publish_upgradeable(
+            package.get_package_bytes(false),
+            package.get_dependency_storage_package_ids(),
+        );
+        builder.transfer_arg(sender, upgrade_cap);
+        let effects = setup.execute(builder.finish(), TEST_ONLY_GAS_UNIT_FOR_PUBLISH, 1);
+        setup.package_id = effects
+            .created()
+            .into_iter()
+            .map(|created| *created.reference().object_id())
+            .find(|id| setup.s.authority.get_object(id).unwrap().is_package())
+            .expect("the publish must create the package");
+        setup
+    }
+
+    /// Executes `pt`, sent and paid for by `sender` with `gas_units`, as the
+    /// only transaction of commit `index`, with its shared inputs at versions
+    /// assigned directly. It must succeed.
+    fn execute(
+        &self,
+        pt: ProgrammableTransaction,
+        gas_units: u64,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let has_shared_input = pt
+            .inputs
+            .iter()
+            .any(|input| matches!(input, CallArg::Shared(_)));
+        let tx = Transaction::new_programmable(
+            self.sender,
+            vec![self.s.latest_ref(&self.setup_gas_id)],
+            pt,
+            gas_units * self.s.rgp,
+            self.s.rgp,
+        );
+        let tx = self
+            .s
+            .epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, &self.sender_key))
+            .unwrap();
+        if has_shared_input {
+            self.s
+                .epoch_store
+                .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
+            self.s.execute_with_assigned_shared_versions(tx)
+        } else {
+            self.s.execute_as_handler_known(vec![tx], index).remove(0)
+        }
+    }
+
+    /// A call of `test_account::function` with `type_arguments` and
+    /// `arguments`, executed as [`Self::execute`] does.
+    fn call(
+        &self,
+        function: &'static str,
+        type_arguments: Vec<TypeTag>,
+        arguments: Vec<CallArg>,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .move_call(
+                self.package_id,
+                Identifier::from_static("test_account"),
+                Identifier::from_static(function),
+                type_arguments,
+                arguments,
+            )
+            .unwrap();
+        self.execute(
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * 10,
+            index,
+        )
+    }
+
+    /// Shares a `TestAccount` that is not an account yet at commit `index`,
+    /// and returns its id.
+    fn create_delayed(&self, index: CommitIndex) -> ObjectId {
+        let effects = self.call("create_delayed", vec![], vec![], index);
+        *effects
+            .created()
+            .into_iter()
+            .find(|created| matches!(created.owner(), Owner::Shared(_)))
+            .expect("the call must share the object")
+            .reference()
+            .object_id()
+    }
+
+    /// The argument naming `id` as a shared input.
+    fn shared(&self, id: &ObjectId, mutable: bool) -> CallArg {
+        let initial_shared_version =
+            initial_shared_version(&self.s.authority.get_object(id).unwrap().owner);
+        CallArg::Shared(SharedObjectReference::new(
+            *id,
+            initial_shared_version,
+            mutable,
+        ))
+    }
+
+    /// Sends a new coin to `account`'s address at commit `index`, and returns
+    /// its reference.
+    fn send_coin(&self, account: &ObjectId, index: CommitIndex) -> ObjectReference {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota((*account).into(), Some(1_000));
+        let effects = self.execute(
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+            index,
+        );
+        *effects
+            .created()
+            .into_iter()
+            .find(|created| created.owner() == &Owner::Address((*account).into()))
+            .expect("the transfer must create the coin")
+            .reference()
+    }
+
+    /// Receives `coin` through `account` at commit `index` and sends it back
+    /// to the account's address, which moves it to a new version.
+    fn send_back(&self, account: &ObjectId, coin: ObjectReference, index: CommitIndex) {
+        self.call(
+            "send_back",
+            vec![TypeTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap()],
+            vec![self.shared(account, true), CallArg::Receiving(coin)],
+            index,
+        );
+    }
+
+    /// Adds to `builder` the authenticator function reference of a
+    /// `TestAccount` whose authenticator always passes.
+    fn passing_function_ref(&self, builder: &mut ProgrammableTransactionBuilder) -> Argument {
+        let metadata_ref = self
+            .s
+            .latest_ref(&move_package::derive_package_metadata_id(self.package_id));
+        let account_type =
+            TypeTag::from_str(&format!("{}::test_account::TestAccount", self.package_id)).unwrap();
+        let arguments = vec![
+            builder
+                .obj(CallArg::ImmutableOrOwned(metadata_ref))
+                .unwrap(),
+            builder.pure("test_account").unwrap(),
+            builder.pure("authenticate_pass").unwrap(),
+        ];
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::from_static("authenticator_function"),
+            Identifier::from_static("create_auth_function_ref_v1"),
+            vec![account_type],
+            arguments,
+        )
+    }
+
+    /// Creates an account whose authenticator always passes, with its
+    /// authenticator function field in the same transaction, at commit
+    /// `index`, and returns its id.
+    fn create_account(&self, index: CommitIndex) -> ObjectId {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let function_ref = self.passing_function_ref(&mut builder);
+        builder.programmable_move_call(
+            self.package_id,
+            Identifier::from_static("test_account"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![function_ref],
+        );
+        let effects = self.execute(
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * 10,
+            index,
+        );
+        *effects
+            .created()
+            .into_iter()
+            .find(|created| matches!(created.owner(), Owner::Shared(_)))
+            .expect("the call must share the account")
+            .reference()
+            .object_id()
+    }
+
+    /// Makes `account` an account whose authenticator always passes, at
+    /// commit `index`.
+    fn make_account(&self, account: &ObjectId, index: CommitIndex) {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let function_ref = self.passing_function_ref(&mut builder);
+        let account = builder.obj(self.shared(account, true)).unwrap();
+        builder.programmable_move_call(
+            self.package_id,
+            Identifier::from_static("test_account"),
+            Identifier::from_static("make_account"),
+            vec![],
+            vec![account, function_ref],
+        );
+        self.execute(
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * 10,
+            index,
+        );
+    }
+
+    /// A transaction of `account` that names no owned input of its own: it
+    /// pays 1 nano out of the gas coin `sender` sponsors with
+    /// `sponsor_gas_id`.
+    fn account_payment(&self, account: &ObjectId) -> VerifiedTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(Address::ZERO, Some(1));
+        self.sponsored_account_call(account, builder.finish())
+    }
+
+    /// The account's transfer of `object`, authenticated by `account` and
+    /// sponsored by `sender` with `sponsor_gas_id`.
+    fn account_transfer(&self, account: &ObjectId, object: ObjectReference) -> VerifiedTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_object(Address::ZERO, object).unwrap();
+        self.sponsored_account_call(account, builder.finish())
+    }
+
+    /// `pt` sent by `account`, authenticated by its Move authenticator and
+    /// sponsored by `sender` with `sponsor_gas_id`.
+    fn sponsored_account_call(
+        &self,
+        account: &ObjectId,
+        pt: ProgrammableTransaction,
+    ) -> VerifiedTransaction {
+        let tx = Transaction::new_programmable_allow_sponsor(
+            (*account).into(),
+            vec![self.s.latest_ref(&self.sponsor_gas_id)],
+            pt,
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.s.rgp,
+            self.s.rgp,
+            self.sender,
+        );
+        let CallArg::Shared(account) = self.shared(account, false) else {
+            unreachable!()
+        };
+        let tx =
+            to_sender_signed_transaction_with_optional_sponsor(
+                tx,
+                UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+                    MoveAuthenticatorV1::new(vec![], vec![], account),
+                )),
+                Some(&self.sender_key),
+            );
+        self.s.epoch_store.verify_transaction(tx).unwrap()
+    }
+
+    /// Post-consensus validation of `tx` at commit `index`.
+    fn validate(&self, tx: &VerifiedTransaction, index: CommitIndex) -> ValidationAtCommit {
+        self.s
+            .authority
+            .handle_transaction_validation_checks_at_commit(
+                &self.s.reader_at(index),
+                tx,
+                &self.s.epoch_store,
+                &self.s.authority.config.transaction_deny_config,
+                VerifierLimitsSource::ProtocolConfig,
+            )
+            .unwrap()
+    }
+}
+
+/// An object made an account at a commit is reported missing as the account
+/// of a transaction until the horizon reaches that commit, and the
+/// transaction is kept from then on. Every validator has executed the commits
+/// up to the horizon, so all of them reach the same verdict.
+#[tokio::test]
+async fn validation_at_commit_reports_an_account_missing_until_it_is_one_at_the_horizon() {
+    let a = AccountSetup::new().await;
+    let distance = a.s.horizon_distance();
+    let account = a.create_delayed(2);
+    let coin = a.send_coin(&account, 3);
+    let made_account_at = 5;
+    a.make_account(&account, made_account_at);
+    let tx = a.account_transfer(&account, coin);
+
+    match a.validate(&tx, made_account_at + distance - 1) {
+        ValidationAtCommit::Missing(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(id, account);
+            assert_eq!(reason.kind(), MissingKind::AuthenticatorFunctionNotFound);
+        }
+        other => panic!("expected the account missing, got {other:?}"),
+    }
+    match a.validate(&tx, made_account_at + distance) {
+        ValidationAtCommit::Keep(mut owned) => {
+            owned.sort();
+            let mut expected = vec![coin, a.s.latest_ref(&a.sponsor_gas_id)];
+            expected.sort();
+            assert_eq!(owned, expected);
+        }
+        other => panic!("expected keep, got {other:?}"),
+    }
+}
+
+/// An account created with its authenticator function field in one
+/// transaction waits for nothing more than any shared object does: it is
+/// missing while its creation is above the horizon, for that reason, and
+/// kept from the commit whose horizon reaches it.
+#[tokio::test]
+async fn validation_at_commit_keeps_a_new_account_as_soon_as_its_creation_is_at_the_horizon() {
+    let a = AccountSetup::new().await;
+    let distance = a.s.horizon_distance();
+    let created_at = 3;
+    let account = a.create_account(created_at);
+    let tx = a.account_payment(&account);
+
+    match a.validate(&tx, created_at + distance - 1) {
+        ValidationAtCommit::Missing(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(id, account);
+            assert_eq!(reason.kind(), MissingKind::SharedCreationAboveHorizon);
+        }
+        other => panic!("expected the account's creation missing, got {other:?}"),
+    }
+    match a.validate(&tx, created_at + distance) {
+        ValidationAtCommit::Keep(owned) => {
+            assert_eq!(owned, vec![a.s.latest_ref(&a.sponsor_gas_id)])
+        }
+        other => panic!("expected keep, got {other:?}"),
+    }
+}
+
+/// A receive through an object moves a coin sent to it to a new version
+/// without a lock, and the object can only receive while it is not an
+/// account. Once the object is an account, its transfer naming the coin's
+/// received version is never kept: it is missing until the horizon reaches
+/// the commit that made the object an account, and from then on the
+/// receive's commit is at or below the horizon, so the received version drops
+/// on every validator. Execution never meets the stale version.
+#[tokio::test]
+async fn validation_at_commit_never_keeps_an_account_input_a_receive_moved() {
+    let a = AccountSetup::new().await;
+    let distance = a.s.horizon_distance();
+    let account = a.create_delayed(2);
+    let coin = a.send_coin(&account, 3);
+    let received_at = 4;
+    a.send_back(&account, coin, received_at);
+    let made_account_at = 6;
+    a.make_account(&account, made_account_at);
+    let tx = a.account_transfer(&account, coin);
+
+    for index in received_at..made_account_at + distance {
+        let verdict = a.validate(&tx, index);
+        assert!(
+            !matches!(verdict, ValidationAtCommit::Keep(_)),
+            "the transfer must not be kept at commit {index}"
+        );
+    }
+    match a.validate(&tx, made_account_at + distance) {
+        ValidationAtCommit::Drop(InputObjectKind::ImmOrOwnedMoveObject(dropped), _) => {
+            assert_eq!(dropped, coin)
+        }
+        other => panic!("expected the received version to drop, got {other:?}"),
+    }
 }
