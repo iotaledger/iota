@@ -23,20 +23,26 @@ use iota_types::{
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-/// Enables both governance flags and the two injection knobs. The returned
-/// guard must stay alive for the whole test.
-fn governance_overrides(
-    max_entries_per_tx: u64,
-    removal_grace_round_floor: u64,
-) -> iota_protocol_config::OverrideGuard {
+/// Enables both governance flags and the chunk limit. The returned guard must
+/// stay alive for the whole test.
+fn governance_overrides(max_entries_per_tx: u64) -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_deny_rule_governance_for_testing(true);
         config.set_deny_rule_governance_on_chain_for_testing(true);
         config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries_per_tx);
-        config.set_deny_rule_removal_grace_round_floor_for_testing(removal_grace_round_floor);
         config
     })
+}
+
+/// The node handles of the validators that are running. The swarm's own
+/// accessor unwraps every handle and panics on a stopped node.
+fn live_validator_handles(test_cluster: &TestCluster) -> Vec<iota_node::IotaNodeHandle> {
+    test_cluster
+        .swarm
+        .validator_nodes()
+        .filter_map(|node| node.get_node_handle())
+        .collect()
 }
 
 /// The deny-rule state read back by walking the on-chain object on this
@@ -48,17 +54,17 @@ fn walked_rules(handle: &iota_node::IotaNodeHandle) -> Option<DenyRuleSet> {
     })
 }
 
-/// Polls until `condition` holds on every validator, panicking after ~60s.
-/// Every poll also asserts that no validator reported a failed update
-/// execution — an invariant violation no test expects, better surfaced
-/// directly than as a timeout.
+/// Polls until `condition` holds on every running validator, panicking after
+/// ~60s. Every poll also asserts that no validator reported a failed update
+/// execution. That surfaces the invariant violation directly instead of as a
+/// timeout.
 async fn poll_all_validators(
     test_cluster: &TestCluster,
     what: &str,
     condition: impl Fn(&iota_node::IotaNodeHandle) -> bool,
 ) {
     for _ in 0..120 {
-        let handles = test_cluster.swarm.validator_node_handles();
+        let handles = live_validator_handles(test_cluster);
         for handle in &handles {
             let failures = handle.with(|node| {
                 node.state()
@@ -112,6 +118,105 @@ async fn restart_with_deny_config(
         .config()
         .transaction_deny_config = config;
     test_cluster.start_node(name).await;
+}
+
+/// Builds a cluster through `configure` whose four validators all run
+/// `deny_config`, waits for the next epoch to inject the rules, withdraws the
+/// config on the first `withdrawals` validators and crosses the next boundary
+/// with the last validator stopped. That validator is silent in the new
+/// epoch. Returns the cluster and the silent validator as soon as the epoch
+/// has started, before any announcement is awaited.
+async fn cross_the_boundary_with_a_silent_validator(
+    deny_config: iota_config::transaction_deny_config::TransactionDenyConfig,
+    injected: impl Fn(&DenyRuleSet) -> bool,
+    withdrawals: usize,
+    configure: impl FnOnce(TestClusterBuilder) -> TestClusterBuilder,
+) -> (TestCluster, iota_types::base_types::AuthorityName) {
+    let test_cluster = configure(
+        TestClusterBuilder::new()
+            .with_transaction_deny_config(deny_config)
+            .with_epoch_duration_ms(600_000),
+    )
+    .build()
+    .await;
+    test_cluster.force_new_epoch().await;
+    poll_all_validators(&test_cluster, "the injected delta", |handle| {
+        walked_rules(handle).is_some_and(|walked| injected(&walked))
+    })
+    .await;
+
+    let names = test_cluster.get_validator_pubkeys();
+    for name in names.iter().take(withdrawals) {
+        restart_with_deny_config(
+            &test_cluster,
+            name,
+            TransactionDenyConfigBuilder::new().build(),
+        )
+        .await;
+    }
+    let silent = names[3];
+    test_cluster.stop_node(&silent);
+    tokio::time::sleep(Duration::from_secs(10)).await;
+
+    // Close the epoch on the live validators only. `force_new_epoch` waits
+    // on every node and would hang on the stopped one.
+    let epoch = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
+    for name in &names[..3] {
+        test_cluster
+            .swarm
+            .node(name)
+            .unwrap()
+            .get_node_handle()
+            .unwrap()
+            .with_async(|node| async {
+                node.close_epoch_for_testing().await.unwrap();
+            })
+            .await;
+    }
+    test_cluster.wait_for_epoch(Some(epoch + 1)).await;
+    (test_cluster, silent)
+}
+
+/// Waits until every running validator has recorded the live validators'
+/// announcements for the current epoch: three quarters of the stake, with
+/// one validator stopped.
+async fn wait_for_the_live_announcements(test_cluster: &TestCluster) {
+    let epoch = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
+    poll_all_validators(test_cluster, "the live announcements", |handle| {
+        handle.with(|node| {
+            let store = node.state().epoch_store_for_testing();
+            store.epoch() == epoch
+                && store.announced_deny_rule_stake() == store.committee().total_votes() * 3 / 4
+        })
+    })
+    .await;
+}
+
+/// Starts the silent validator again with its unchanged config and waits
+/// until every running validator has recorded its announcement for the
+/// current epoch.
+async fn rejoin_the_silent_validator(
+    test_cluster: &TestCluster,
+    silent: &iota_types::base_types::AuthorityName,
+) {
+    let epoch = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
+    test_cluster.start_node(silent).await;
+    poll_all_validators(test_cluster, "the rejoined announcement", |handle| {
+        handle.with(|node| {
+            let store = node.state().epoch_store_for_testing();
+            store.epoch() == epoch && store.recorded_deny_rule_proposal(silent).is_some()
+        })
+    })
+    .await;
 }
 
 /// The digests of all `TransactionDenyRulesUpdate` transactions found in
@@ -246,7 +351,7 @@ async fn wipe_and_restart(
 async fn wiped_validator_reconverges(
     wiped_paths: impl Fn(&std::path::Path, &std::path::Path) -> Vec<std::path::PathBuf>,
 ) -> (TestCluster, iota_protocol_config::OverrideGuard) {
-    let guard = governance_overrides(1000, 0);
+    let guard = governance_overrides(1000);
 
     let denied = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -385,7 +490,7 @@ async fn deny_rule_epoch_db_wipe_replays_and_reconverges() {
 #[sim_test]
 async fn deny_rule_object_is_created_at_the_first_epoch_boundary() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(600_000)
@@ -430,7 +535,7 @@ async fn deny_rule_object_is_created_at_the_first_epoch_boundary() {
 #[sim_test]
 async fn deny_rule_activations_are_injected_into_the_object() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let denied = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -476,7 +581,7 @@ async fn deny_rule_activations_are_injected_into_the_object() {
 async fn deny_rule_chunked_delta_converges_across_multiple_transactions() {
     telemetry_subscribers::init_for_testing();
     // 7 entries at 3 per transaction: three chunks in one commit.
-    let _guard = governance_overrides(3, 0);
+    let _guard = governance_overrides(3);
 
     let denied: Vec<Address> = (0..7u8).map(|i| Address::new([i + 1; 32])).collect();
     let mut builder = TransactionDenyConfigBuilder::new();
@@ -511,54 +616,40 @@ async fn deny_rule_chunked_delta_converges_across_multiple_transactions() {
     }
 }
 
-/// While the grace round floor has not passed, a withdrawn rule stays on the
-/// object and stays enforced: removals are held, additions were immediate.
-/// The companion withdrawal test proves the same machinery does remove the
-/// entry once the grace allows it.
+/// A removal waits for 2f+1 stake to announce without the entry. A silent
+/// validator may still support it, so its silence holds the removal even
+/// though the announced proposals no longer activate the entry. Its
+/// unchanged support then re-activates the entry, which never left the
+/// object. Only its withdrawal removes it.
 #[sim_test]
-async fn deny_rule_removals_are_held_while_the_grace_lasts() {
+async fn deny_rule_removal_waits_for_a_silent_validator() {
     telemetry_subscribers::init_for_testing();
-    // A floor no in-test commit round reaches: removals stay locked.
-    let _guard = governance_overrides(1000, 100_000);
+    let _guard = governance_overrides(1000);
 
     let denied = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
         .add_denied_address(denied)
         .build();
-    let test_cluster = TestClusterBuilder::new()
-        .with_transaction_deny_config(deny_config)
-        .with_epoch_duration_ms(600_000)
-        .build()
-        .await;
-
-    test_cluster.force_new_epoch().await;
-    poll_all_validators(&test_cluster, "the injected delta", |handle| {
-        walked_rules(handle).is_some_and(|walked| walked.denied_addresses.contains(&denied))
-    })
+    // Two withdrawals and one supporter: the entry leaves the aggregate while
+    // non-support stays below 2f+1.
+    let (test_cluster, silent) = cross_the_boundary_with_a_silent_validator(
+        deny_config,
+        |walked| walked.denied_addresses.contains(&denied),
+        2,
+        |builder| builder,
+    )
     .await;
+    wait_for_the_live_announcements(&test_cluster).await;
 
-    // Withdraw the rule on three of four validators: support falls below
-    // f+1, so the aggregate drops the entry.
-    let names = test_cluster.get_validator_pubkeys();
-    for name in names.iter().take(3) {
-        restart_with_deny_config(
-            &test_cluster,
-            name,
-            TransactionDenyConfigBuilder::new().build(),
-        )
-        .await;
-    }
-
-    // Rounds keep ticking well past the withdrawal; the entry must survive
-    // on the object, in the mirror, and in enforcement.
+    // The entry must survive the rounds after the announcements.
     tokio::time::sleep(Duration::from_secs(10)).await;
-    for handle in test_cluster.swarm.validator_node_handles() {
+    for handle in live_validator_handles(&test_cluster) {
         assert!(
             walked_rules(&handle)
                 .unwrap()
                 .denied_addresses
                 .contains(&denied),
-            "a removal must not reach the object during the grace"
+            "a removal must not reach the object while a validator is silent"
         );
         handle.with(|node| {
             let store = node.state().epoch_store_for_testing();
@@ -577,15 +668,48 @@ async fn deny_rule_removals_are_held_while_the_grace_lasts() {
             );
         });
     }
+
+    // The silent validator's support brings the entry back to f+1. The
+    // object never dropped it.
+    rejoin_the_silent_validator(&test_cluster, &silent).await;
+    for handle in live_validator_handles(&test_cluster) {
+        assert!(
+            walked_rules(&handle)
+                .unwrap()
+                .denied_addresses
+                .contains(&denied)
+        );
+        handle.with(|node| {
+            assert!(
+                node.state()
+                    .epoch_store_for_testing()
+                    .get_mirrored_transaction_deny_rules()
+                    .denied_addresses
+                    .contains(&denied)
+            );
+        });
+    }
+
+    // Its withdrawal brings the explicit non-support to 2f+1: the removal
+    // reaches the object everywhere.
+    restart_with_deny_config(
+        &test_cluster,
+        &silent,
+        TransactionDenyConfigBuilder::new().build(),
+    )
+    .await;
+    poll_all_validators(&test_cluster, "the injected removal", |handle| {
+        walked_rules(handle).is_some_and(|walked| !walked.denied_addresses.contains(&denied))
+    })
+    .await;
 }
 
-/// With the grace floor at zero, a withdrawal removes the entry from the
-/// object. Re-adding the rule re-injects it, as happens when a late
-/// supporter announces after the removal.
+/// A withdrawal announced by 2f+1 stake removes the entry from the object.
+/// Re-adding the rule re-injects it.
 #[sim_test]
 async fn deny_rule_withdrawal_and_re_add_converges() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let denied = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -603,8 +727,8 @@ async fn deny_rule_withdrawal_and_re_add_converges() {
     })
     .await;
 
-    // Withdraw on three of four validators: support falls below f+1 and the
-    // unlocked removal must reach the object everywhere.
+    // Withdraw on three of four validators: 2f+1 stake has announced without
+    // the entry, so the removal must reach the object everywhere.
     let names = test_cluster.get_validator_pubkeys();
     for name in names.iter().take(3) {
         restart_with_deny_config(
@@ -630,9 +754,11 @@ async fn deny_rule_withdrawal_and_re_add_converges() {
 }
 
 /// Enforcement survives the epoch boundary through the object alone: once a
-/// rule is on chain, an epoch that starts with no local config supporting it
-/// (and removals still grace-locked) seeds enforcement from the walked object
-/// and keeps rejecting the denied sender from its first commits.
+/// rule is on chain, an epoch whose announced proposals no longer activate
+/// it seeds enforcement from the walked object and keeps rejecting the
+/// denied sender from its first commits, checked without waiting for any
+/// announcement. A silent validator then holds the removal, so the object
+/// keeps the rule once the others have announced.
 #[sim_test]
 async fn deny_rule_enforcement_survives_the_epoch_boundary() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
@@ -640,52 +766,34 @@ async fn deny_rule_enforcement_survives_the_epoch_boundary() {
     use iota_types::crypto::get_account_private_key;
 
     telemetry_subscribers::init_for_testing();
-    // A floor no in-test commit round reaches: the withdrawn rule cannot be
-    // removed from the object.
-    let _guard = governance_overrides(1000, 100_000);
+    let _guard = governance_overrides(1000);
 
     let (denied, denied_key) = get_account_private_key();
     let deny_config = TransactionDenyConfigBuilder::new()
         .add_denied_address(denied)
         .build();
-    let test_cluster = TestClusterBuilder::new()
-        .with_transaction_deny_config(deny_config)
-        .with_accounts(vec![
-            AccountConfig {
-                address: Some(denied),
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT],
-            },
-            AccountConfig {
-                address: None,
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT; 2],
-            },
-        ])
-        .with_epoch_duration_ms(600_000)
-        .build()
-        .await;
-
-    // Epoch 1 injects the rule into the object.
-    test_cluster.force_new_epoch().await;
-    poll_all_validators(&test_cluster, "the injected delta", |handle| {
-        walked_rules(handle).is_some_and(|walked| walked.denied_addresses.contains(&denied))
-    })
+    let (test_cluster, _silent) = cross_the_boundary_with_a_silent_validator(
+        deny_config,
+        |walked| walked.denied_addresses.contains(&denied),
+        2,
+        |builder| {
+            builder.with_accounts(vec![
+                AccountConfig {
+                    address: Some(denied),
+                    gas_amounts: vec![DEFAULT_GAS_AMOUNT],
+                },
+                AccountConfig {
+                    address: None,
+                    gas_amounts: vec![DEFAULT_GAS_AMOUNT; 2],
+                },
+            ])
+        },
+    )
     .await;
 
-    // Withdraw local support on three of four validators, then cross into
-    // an epoch where the aggregate no longer carries the rule.
-    let names = test_cluster.get_validator_pubkeys();
-    for name in names.iter().take(3) {
-        restart_with_deny_config(
-            &test_cluster,
-            name,
-            TransactionDenyConfigBuilder::new().build(),
-        )
-        .await;
-    }
-    test_cluster.force_new_epoch().await;
-
-    // The new epoch's enforcement comes from the walked object.
-    for handle in test_cluster.swarm.validator_node_handles() {
+    // The new epoch's enforcement comes from the walked object, sampled
+    // without waiting for any announcement.
+    for handle in live_validator_handles(&test_cluster) {
         handle.with(|node| {
             assert!(
                 node.state()
@@ -731,6 +839,18 @@ async fn deny_rule_enforcement_survives_the_epoch_boundary() {
         .transfer_iota(Some(1_000), sender)
         .build();
     test_cluster.sign_and_execute_transaction(&tx_data).await;
+
+    // The announcements leave the rule on the object: the silent validator
+    // holds the removal.
+    wait_for_the_live_announcements(&test_cluster).await;
+    for handle in live_validator_handles(&test_cluster) {
+        assert!(
+            walked_rules(&handle)
+                .unwrap()
+                .denied_addresses
+                .contains(&denied)
+        );
+    }
 }
 
 /// A fullnode follows checkpoints only: mid-epoch injections must reach its
@@ -741,7 +861,7 @@ async fn deny_rule_fullnode_converges_and_crosses_the_boundary() {
     use iota_core::authority::epoch_start_configuration::EpochStartConfigTrait;
 
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let denied = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -821,7 +941,7 @@ async fn deny_rule_event_fold_matches_the_object() {
 
     telemetry_subscribers::init_for_testing();
     // 7 entries at 3 per transaction: both directions chunk.
-    let _guard = governance_overrides(3, 0);
+    let _guard = governance_overrides(3);
 
     let denied: Vec<Address> = (0..7u8).map(|i| Address::new([i + 1; 32])).collect();
     let mut builder = TransactionDenyConfigBuilder::new();
@@ -966,7 +1086,7 @@ async fn deny_rule_event_fold_matches_the_object() {
 async fn deny_rule_chunks_are_checkpointed_on_every_validator() {
     telemetry_subscribers::init_for_testing();
     // 7 entries at 3 per transaction: three chunks.
-    let _guard = governance_overrides(3, 0);
+    let _guard = governance_overrides(3);
 
     let denied: Vec<Address> = (0..7u8).map(|i| Address::new([i + 1; 32])).collect();
     let mut builder = TransactionDenyConfigBuilder::new();
@@ -1043,7 +1163,7 @@ async fn deny_rule_chunks_are_checkpointed_on_every_validator() {
 #[sim_test]
 async fn deny_rule_mid_epoch_restart_re_derives_identically() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let denied = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -1109,7 +1229,7 @@ async fn deny_rule_mid_epoch_restart_re_derives_identically() {
 #[sim_test]
 async fn deny_rule_checkpoint_catch_up_crosses_the_boundary_quietly() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(600_000)
@@ -1235,7 +1355,7 @@ async fn deny_rule_crash_before_flush_replays_the_derivation() {
     use iota_macros::register_fail_point;
 
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let first = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -1375,7 +1495,7 @@ async fn deny_rule_committee_joiner_derives_identical_deltas() {
     use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let denied = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -1450,47 +1570,33 @@ async fn deny_rule_committee_joiner_derives_identical_deltas() {
     }
 }
 
-/// A kill switch activates immediately, and its deactivation is held through
-/// the grace exactly like an entry removal: after the supporters withdraw,
-/// the switch stays set on the object, in the mirror, and in enforcement.
+/// A kill switch activates immediately, and its deactivation waits for f+1
+/// stake to announce without it, exactly as an entry removal waits for
+/// 2f+1. With one withdrawal and two supporters announced the aggregate
+/// drops the switch while the object keeps it; the silent validator's
+/// unchanged support re-activates it, and a second withdrawal clears it.
 #[sim_test]
-async fn deny_rule_switch_holds_through_the_grace() {
+async fn deny_rule_switch_deactivation_waits_for_a_silent_validator() {
     telemetry_subscribers::init_for_testing();
-    // A floor no in-test commit round reaches: deactivations stay locked.
-    let _guard = governance_overrides(1000, 100_000);
+    let _guard = governance_overrides(1000);
 
     let deny_config = TransactionDenyConfigBuilder::new()
         .disable_package_publish()
         .build();
-    let test_cluster = TestClusterBuilder::new()
-        .with_transaction_deny_config(deny_config)
-        .with_epoch_duration_ms(600_000)
-        .build()
-        .await;
-
-    // Activation is immediate even while removals are locked.
-    test_cluster.force_new_epoch().await;
-    poll_all_validators(&test_cluster, "the switch activation", |handle| {
-        walked_rules(handle).is_some_and(|walked| walked.package_publish_disabled)
-    })
+    let (test_cluster, silent) = cross_the_boundary_with_a_silent_validator(
+        deny_config,
+        |walked| walked.package_publish_disabled,
+        1,
+        |builder| builder,
+    )
     .await;
+    wait_for_the_live_announcements(&test_cluster).await;
 
-    // Withdraw the switch on three of four validators: support falls below
-    // 2f+1, but the deactivation must wait for the grace.
-    let names = test_cluster.get_validator_pubkeys();
-    for name in names.iter().take(3) {
-        restart_with_deny_config(
-            &test_cluster,
-            name,
-            TransactionDenyConfigBuilder::new().build(),
-        )
-        .await;
-    }
     tokio::time::sleep(Duration::from_secs(10)).await;
-    for handle in test_cluster.swarm.validator_node_handles() {
+    for handle in live_validator_handles(&test_cluster) {
         assert!(
             walked_rules(&handle).unwrap().package_publish_disabled,
-            "a deactivation must not reach the object during the grace"
+            "a deactivation must not reach the object while a validator is silent"
         );
         handle.with(|node| {
             let store = node.state().epoch_store_for_testing();
@@ -1507,14 +1613,42 @@ async fn deny_rule_switch_holds_through_the_grace() {
             );
         });
     }
+
+    // The silent validator's support brings the switch back to 2f+1. The
+    // object never cleared it.
+    rejoin_the_silent_validator(&test_cluster, &silent).await;
+    for handle in live_validator_handles(&test_cluster) {
+        assert!(walked_rules(&handle).unwrap().package_publish_disabled);
+        handle.with(|node| {
+            assert!(
+                node.state()
+                    .epoch_store_for_testing()
+                    .get_mirrored_transaction_deny_rules()
+                    .package_publish_disabled
+            );
+        });
+    }
+
+    // A second withdrawal brings the explicit non-support to f+1: the
+    // deactivation reaches the object everywhere.
+    let names = test_cluster.get_validator_pubkeys();
+    restart_with_deny_config(
+        &test_cluster,
+        &names[1],
+        TransactionDenyConfigBuilder::new().build(),
+    )
+    .await;
+    poll_all_validators(&test_cluster, "the switch deactivation", |handle| {
+        walked_rules(handle).is_some_and(|walked| !walked.package_publish_disabled)
+    })
+    .await;
 }
 
-/// With the grace floor at zero, a withdrawn kill switch clears from the
-/// object deterministically at the unlock.
+/// A kill switch withdrawn by 2f+1 stake clears from the object.
 #[sim_test]
-async fn deny_rule_switch_deactivation_clears_at_unlock() {
+async fn deny_rule_switch_deactivation_clears_once_withdrawn() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let deny_config = TransactionDenyConfigBuilder::new()
         .disable_package_publish()
@@ -1552,7 +1686,7 @@ async fn deny_rule_switch_deactivation_clears_at_unlock() {
 #[sim_test]
 async fn deny_rule_shipped_chunk_limit_executes_in_the_cluster() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let denied: Vec<Address> = (0..1000u32)
         .map(|i| {
@@ -1593,7 +1727,7 @@ async fn deny_rule_injection_metrics_and_rpc_rendering() {
 
     telemetry_subscribers::init_for_testing();
     // 7 entries at 3 per transaction: one commit, three chunks.
-    let _guard = governance_overrides(3, 0);
+    let _guard = governance_overrides(3);
 
     let denied: Vec<Address> = (0..7u8).map(|i| Address::new([i + 1; 32])).collect();
     let mut builder = TransactionDenyConfigBuilder::new();
@@ -1670,7 +1804,7 @@ async fn deny_rule_injection_metrics_and_rpc_rendering() {
 #[sim_test]
 async fn deny_rule_churn_with_restarts_converges() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let first = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()
@@ -1736,7 +1870,7 @@ async fn deny_rule_churn_with_restarts_converges() {
 #[sim_test]
 async fn deny_rule_delta_racing_the_epoch_close_is_never_lost() {
     telemetry_subscribers::init_for_testing();
-    let _guard = governance_overrides(1000, 0);
+    let _guard = governance_overrides(1000);
 
     let first = Address::new([42u8; 32]);
     let deny_config = TransactionDenyConfigBuilder::new()

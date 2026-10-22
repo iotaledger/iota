@@ -1621,12 +1621,6 @@ pub struct ProtocolConfig {
     /// the `deny_rule_governance` feature flags.
     deny_rule_update_max_entries_per_tx: Option<u64>,
 
-    /// Consensus round before which removals are never injected into the
-    /// `TransactionDenyRules` object, so validators can re-announce their
-    /// rules after an epoch change before unsupported entries are dropped.
-    /// Set together with the `deny_rule_governance` feature flags.
-    deny_rule_removal_grace_round_floor: Option<u64>,
-
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
@@ -2423,13 +2417,11 @@ impl ProtocolConfig {
             "pcool_deterministic_validation requires a positive \
                 pcool_deterministic_validation_horizon_distance"
         );
-        // The injection cannot chunk updates or gate removals without its
-        // knobs.
+        // The injection cannot chunk updates without its limit.
         assert!(
             !ret.feature_flags.deny_rule_governance_on_chain
-                || (ret.deny_rule_update_max_entries_per_tx.is_some()
-                    && ret.deny_rule_removal_grace_round_floor.is_some()),
-            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx and deny_rule_removal_grace_round_floor"
+                || ret.deny_rule_update_max_entries_per_tx.is_some(),
+            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx"
         );
         // A deny-rule update chunk must always execute, or the object falls
         // permanently behind the mirrored state on every validator at once.
@@ -2977,7 +2969,6 @@ impl ProtocolConfig {
 
             max_committee_members_count: None,
             deny_rule_update_max_entries_per_tx: None,
-            deny_rule_removal_grace_round_floor: None,
 
             consensus_gc_depth: None,
 
@@ -4455,7 +4446,6 @@ mod test {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_deny_rule_governance_for_testing(true);
             config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(2048 + 1);
             config
         });
@@ -4470,7 +4460,6 @@ mod test {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_deny_rule_governance_for_testing(true);
             config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(0);
             config
         });
@@ -4483,7 +4472,6 @@ mod test {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_deny_rule_governance_for_testing(true);
             config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
             config
         });

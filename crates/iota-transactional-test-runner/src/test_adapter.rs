@@ -250,7 +250,6 @@ impl AdapterInitConfig {
             protocol_config.set_deny_rule_governance_on_chain_for_testing(enable);
             if enable {
                 protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
             }
         }
         if custom_validator_account && !simulator {
@@ -2859,12 +2858,10 @@ async fn init_sim_executor(
     // config over to later epochs.
     let config_override = protocol_config.deny_rule_governance().then(|| {
         let max_entries = protocol_config.deny_rule_update_max_entries_per_tx();
-        let grace_floor = protocol_config.deny_rule_removal_grace_round_floor();
         ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
             config.set_deny_rule_governance_for_testing(true);
             config.set_deny_rule_governance_on_chain_for_testing(true);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(grace_floor);
             config
         })
     });
