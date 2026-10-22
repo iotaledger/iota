@@ -793,6 +793,10 @@ struct FeatureFlags {
     // with EInvalidVerifyingKey if it does not.
     #[serde(skip_serializing_if = "is_false")]
     check_groth16_pvk_length: bool,
+
+    // If true, deprecate global storage ops everywhere.
+    #[serde(skip_serializing_if = "is_false")]
+    deprecate_global_storage_ops: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2308,6 +2312,10 @@ impl ProtocolConfig {
     pub fn check_groth16_pvk_length(&self) -> bool {
         self.feature_flags.check_groth16_pvk_length
     }
+
+    pub fn deprecate_global_storage_ops(&self) -> bool {
+        self.feature_flags.deprecate_global_storage_ops
+    }
 }
 
 #[cfg(not(msim))]
@@ -3769,6 +3777,11 @@ impl ProtocolConfig {
                     // number of public inputs before deserializing them.
                     cfg.feature_flags.limit_groth16_pvk_inputs = true;
                     cfg.feature_flags.check_groth16_pvk_length = true;
+
+                    // Reject the deprecated global storage instructions when a
+                    // module is deserialized or verified at execution too, not
+                    // only at signing.
+                    cfg.feature_flags.deprecate_global_storage_ops = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3818,6 +3831,13 @@ impl ProtocolConfig {
         } else {
             self.additional_borrow_checks()
         };
+        let deprecate_global_storage_ops = if signing_limits.is_some() {
+            // Always reject the deprecated global storage instructions during
+            // signing, regardless of protocol version.
+            true
+        } else {
+            self.deprecate_global_storage_ops()
+        };
 
         // Far above the largest instantiation-loop graph in the system packages
         // and examples.
@@ -3863,6 +3883,7 @@ impl ProtocolConfig {
             check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
             meter_instantiation_loops,
             max_instantiation_loop_graph_edges,
+            deprecate_global_storage_ops,
         }
     }
 
@@ -3938,6 +3959,10 @@ impl ProtocolConfig {
 
     pub fn set_check_canonical_module_version_header_for_testing(&mut self, val: bool) {
         self.feature_flags.check_canonical_module_version_header = val;
+    }
+
+    pub fn set_deprecate_global_storage_ops_for_testing(&mut self, val: bool) {
+        self.feature_flags.deprecate_global_storage_ops = val;
     }
 
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {

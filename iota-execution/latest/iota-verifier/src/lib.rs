@@ -41,6 +41,8 @@ pub fn check_for_verifier_timeout(major_status_code: &StatusCode) -> bool {
         StatusCode::BORROWLOC_EXISTS_BORROW_ERROR,
         StatusCode::COPYLOC_EXISTS_BORROW_ERROR,
         StatusCode::DEPRECATED_BYTECODE_FORMAT,
+        StatusCode::VEC_BORROW_ELEMENT_EXISTS_MUTABLE_BORROW_ERROR,
+        StatusCode::CALL_BORROWED_MUTABLE_REFERENCE_ERROR,
     ]
     .contains(major_status_code)
 }

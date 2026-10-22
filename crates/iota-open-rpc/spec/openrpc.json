@@ -1330,6 +1330,7 @@
                 "convert_type_argument_error": true,
                 "deny_authenticator_packages": true,
                 "dependency_linkage_error": true,
+                "deprecate_global_storage_ops": true,
                 "deprecate_global_storage_ops_during_deserialization": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
