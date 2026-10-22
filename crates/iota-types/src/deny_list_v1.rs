@@ -75,9 +75,10 @@ pub fn check_coin_deny_list_v1(
 
 /// Fails if `sender` is denied for one of `coin_types`, or one of them is
 /// paused for every address. `coin_types` are the coin types of the coins the
-/// Move code received. This is the check that [`check_coin_deny_list_v1`]
-/// makes before submission, with the deny list read as it stood at the start
-/// of `cur_epoch`, so every validator reaches the same result.
+/// Move code loaded, by receiving them or as dynamic object fields. This is
+/// the check that [`check_coin_deny_list_v1`] makes before submission, with
+/// the deny list read as it stood at the start of `cur_epoch`, so every
+/// validator reaches the same result.
 ///
 /// # Panics
 ///
@@ -496,7 +497,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "the deny list must be readable during execution")]
-    fn received_coin_check_panics_when_the_deny_list_cannot_be_read() {
+    fn loaded_coin_check_panics_when_the_deny_list_cannot_be_read() {
         let _ = check_coin_deny_list_v1_for_sender_during_execution(
             Address::random(),
             regulated_coin_types(),
@@ -506,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn received_coin_check_passes_without_a_deny_list() {
+    fn loaded_coin_check_passes_without_a_deny_list() {
         let store: BTreeMap<ObjectId, Object> = BTreeMap::new();
 
         check_coin_deny_list_v1_for_sender_during_execution(

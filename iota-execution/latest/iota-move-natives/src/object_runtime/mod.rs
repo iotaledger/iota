@@ -82,8 +82,9 @@ pub struct RuntimeResults {
     pub loaded_child_objects: BTreeMap<ObjectId, LoadedRuntimeObject>,
     pub created_object_ids: Set<ObjectId>,
     pub deleted_object_ids: Set<ObjectId>,
-    // Types of the coins received, other than IOTA coins.
-    pub received_coin_types: BTreeSet<String>,
+    /// Types of the coins the Move code loaded, by receiving them or as
+    /// dynamic object fields, other than IOTA coins.
+    pub loaded_coin_types: BTreeSet<String>,
 }
 
 #[derive(Default)]
@@ -100,8 +101,8 @@ pub(crate) struct ObjectRuntimeState {
     // total size of events emitted so far
     total_events_size: u64,
     received: IndexMap<ObjectId, DynamicallyLoadedObjectMetadata>,
-    // types of the coins received, other than IOTA coins
-    received_coin_types: BTreeSet<String>,
+    // types of the coins the Move code loaded, other than IOTA coins
+    loaded_coin_types: BTreeSet<String>,
 }
 
 #[derive(Tid)]
@@ -185,7 +186,7 @@ impl<'a> ObjectRuntime<'a> {
                 events: vec![],
                 total_events_size: 0,
                 received: IndexMap::new(),
-                received_coin_types: BTreeSet::new(),
+                loaded_coin_types: BTreeSet::new(),
             },
             is_metered,
             protocol_config,
@@ -360,11 +361,7 @@ impl<'a> ObjectRuntime<'a> {
         child_fully_annotated_layout: &MoveTypeLayout,
         child_struct_tag: StructTag,
     ) -> PartialVMResult<Option<ObjectResult<Value>>> {
-        let coin_type = if self.protocol_config.pcool_deterministic_validation() {
-            coin_type_for_denylist_check(&child_struct_tag)
-        } else {
-            None
-        };
+        let coin_type = self.loaded_coin_type(&child_struct_tag);
         let Some((value, obj_meta)) = self.child_object_store.receive_object(
             parent,
             child,
@@ -391,7 +388,7 @@ impl<'a> ObjectRuntime<'a> {
             );
         }
         if let ObjectResult::Loaded(_) = &value {
-            self.state.received_coin_types.extend(coin_type);
+            self.state.loaded_coin_types.extend(coin_type);
         }
         Ok(Some(value))
     }
@@ -405,6 +402,7 @@ impl<'a> ObjectRuntime<'a> {
         child_fully_annotated_layout: &MoveTypeLayout,
         child_struct_tag: StructTag,
     ) -> PartialVMResult<ObjectResult<&mut GlobalValue>> {
+        let coin_type = self.loaded_coin_type(&child_struct_tag);
         let res = self.child_object_store.get_or_fetch_object(
             parent,
             child,
@@ -415,8 +413,23 @@ impl<'a> ObjectRuntime<'a> {
         )?;
         Ok(match res {
             ObjectResult::MismatchedType => ObjectResult::MismatchedType,
-            ObjectResult::Loaded(child_object) => ObjectResult::Loaded(&mut child_object.value),
+            ObjectResult::Loaded(child_object) => {
+                self.state.loaded_coin_types.extend(coin_type);
+                ObjectResult::Loaded(&mut child_object.value)
+            }
         })
+    }
+
+    /// The coin type to record for a child object the Move code loads, for
+    /// the check of the sender against the coin deny list once the commands
+    /// have run: `None` for an IOTA coin, for an object that is not a coin,
+    /// and when the check is off.
+    fn loaded_coin_type(&self, child_struct_tag: &StructTag) -> Option<String> {
+        if self.protocol_config.pcool_deterministic_validation() {
+            coin_type_for_denylist_check(child_struct_tag)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn add_child_object(
@@ -579,7 +592,7 @@ impl ObjectRuntimeState {
             events: user_events,
             total_events_size: _,
             received,
-            received_coin_types,
+            loaded_coin_types,
         } = self;
 
         // Check new owners from transfers, reports an error on cycles.
@@ -629,7 +642,7 @@ impl ObjectRuntimeState {
             loaded_child_objects,
             created_object_ids: new_ids,
             deleted_object_ids: deleted_ids,
-            received_coin_types,
+            loaded_coin_types,
         })
     }
 
