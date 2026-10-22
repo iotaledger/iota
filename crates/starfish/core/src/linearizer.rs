@@ -9,7 +9,7 @@ use std::{
 
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, Stake};
-use tracing::{error, instrument, warn};
+use tracing::{error, instrument};
 
 use crate::{
     Round,
@@ -178,25 +178,17 @@ impl Linearizer {
                 dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
 
             // Zip block_refs with their corresponding transaction commitments
-            let mut converted = BTreeSet::new();
             committed_transactions
                 .into_iter()
                 .zip(transactions_commitments)
                 .map(|(block_ref, transactions_commitment_opt)| {
                     let transactions_commitment = transactions_commitment_opt
                         .expect("Block header must exist for committed transaction");
-                    let transaction_ref = TransactionRef {
+                    GenericTransactionRef::TransactionRef(TransactionRef {
                         round: block_ref.round,
                         author: block_ref.author,
                         transactions_commitment,
-                    };
-                    if !converted.insert(transaction_ref) {
-                        warn!(
-                            "Commit {} lists transaction ref {transaction_ref} again, for block {block_ref}",
-                            last_commit_index + 1
-                        );
-                    }
-                    GenericTransactionRef::TransactionRef(transaction_ref)
+                    })
                 })
                 .collect()
         };
