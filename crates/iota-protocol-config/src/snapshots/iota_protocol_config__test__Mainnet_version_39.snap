@@ -358,8 +358,8 @@ auth_context_replace_cost_per_byte: 2
 auth_context_authenticator_function_info_v1_cost_base: 270
 min_validator_count: 4
 max_validator_count: 150
-min_validator_joining_stake: 2000000000000000
-validator_low_stake_threshold: 1500000000000000
-validator_very_low_stake_threshold: 1000000000000000
+min_validator_joining_stake: 6000000000000000
+validator_low_stake_threshold: 5500000000000000
+validator_very_low_stake_threshold: 5000000000000000
 validator_low_stake_grace_period: 7
 max_move_system_package_size: 204800
