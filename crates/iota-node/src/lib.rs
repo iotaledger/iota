@@ -3041,6 +3041,21 @@ mod listener_metrics_tests {
         assert!(response.starts_with("HTTP/1.1 200"), "{response}");
     }
 
+    /// Starts an HTTP listener with `metrics` and sends it one request.
+    async fn serve_health(
+        metrics: iota_http::metrics::ListenerMetrics,
+    ) -> iota_http::ServerHandle<std::net::SocketAddr> {
+        let handle = iota_http::Builder::new()
+            .config(iota_http::Config::default().metrics(Some(metrics)))
+            .serve(
+                "127.0.0.1:0",
+                axum::Router::new().route("/health", axum::routing::get(|| async { "up" })),
+            )
+            .unwrap();
+        get_health(&handle).await;
+        handle
+    }
+
     fn registry_with_groups(groups: &MetricGroups) -> Registry {
         let (filter, errors) = groups.startup_filter(None);
         assert!(errors.is_empty());
@@ -3048,8 +3063,8 @@ mod listener_metrics_tests {
     }
 
     /// The registry of a node with the listener metrics registered the way the
-    /// node registers them, after one request to the JSON-RPC listener and one
-    /// TLS connection to the validator listener.
+    /// node registers them, after one TLS connection to the validator listener
+    /// and one request to each of the JSON-RPC and gRPC API listeners.
     async fn node_registry(groups: &MetricGroups) -> Registry {
         let registry = registry_with_groups(groups);
 
@@ -3081,20 +3096,13 @@ mod listener_metrics_tests {
             .await
             .unwrap();
 
-        let json_rpc = iota_http::Builder::new()
-            .config(
-                iota_http::Config::default().metrics(Some(json_rpc_listener_metrics(&registry))),
-            )
-            .serve(
-                "127.0.0.1:0",
-                axum::Router::new().route("/health", axum::routing::get(|| async { "up" })),
-            )
-            .unwrap();
-        get_health(&json_rpc).await;
-        let _grpc_api = iota_grpc_server::GrpcServerMetrics::new(&registry);
+        let json_rpc = serve_health(json_rpc_listener_metrics(&registry)).await;
+        let grpc_api = iota_grpc_server::GrpcServerMetrics::new(&registry);
+        let grpc_api_listener = serve_health(grpc_api.listener_metrics()).await;
 
         validator.trigger_shutdown();
         json_rpc.trigger_shutdown();
+        grpc_api_listener.trigger_shutdown();
         registry
     }
 
@@ -3114,11 +3122,23 @@ mod listener_metrics_tests {
     /// method, so it shows only once the gRPC API has sent a response.
     const GRPC_API_FAMILIES: &[&str] = &["response_item_bytes_peak", "requested_max_message_bytes"];
 
+    /// Every family the listener of `prefix` registers, but not its TLS
+    /// families.
+    fn listener_families(prefix: &str) -> BTreeSet<String> {
+        prefix_names(prefix, CONNECTION_FAMILIES).collect()
+    }
+
     /// Every family the validator listener registers.
     fn validator_families() -> BTreeSet<String> {
-        prefix_names("authority_grpc", CONNECTION_FAMILIES)
+        listener_families("authority_grpc")
+            .into_iter()
             .chain(prefix_names("authority_grpc", TLS_FAMILIES))
             .collect()
+    }
+
+    /// The families of the response sizes of the gRPC API.
+    fn grpc_api_families() -> BTreeSet<String> {
+        prefix_names("node_grpc", GRPC_API_FAMILIES).collect()
     }
 
     fn overrides(patterns: &[&str]) -> MetricGroups {
@@ -3138,15 +3158,36 @@ mod listener_metrics_tests {
         assert_eq!(shown, validator_families());
     }
 
+    async fn shown_with_overrides(patterns: &[&str]) -> BTreeSet<String> {
+        MetricsReader::new(&node_registry(&overrides(patterns)).await).family_names()
+    }
+
     #[tokio::test]
-    async fn overrides_show_every_family() {
-        let groups = overrides(&["iota_http", "iota_grpc_server"]);
-        let shown = MetricsReader::new(&node_registry(&groups).await).family_names();
-        let all: BTreeSet<String> = validator_families()
+    async fn the_iota_http_override_shows_the_families_of_all_listeners() {
+        let expected: BTreeSet<String> = validator_families()
             .into_iter()
-            .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
-            .chain(prefix_names("node_grpc", GRPC_API_FAMILIES))
+            .chain(listener_families("json_rpc"))
+            .chain(listener_families("node_grpc"))
             .collect();
-        assert_eq!(shown, all);
+        assert_eq!(shown_with_overrides(&["iota_http"]).await, expected);
+    }
+
+    #[tokio::test]
+    async fn the_iota_grpc_server_override_shows_the_response_sizes_of_the_grpc_api() {
+        let expected: BTreeSet<String> = validator_families()
+            .into_iter()
+            .chain(grpc_api_families())
+            .collect();
+        assert_eq!(shown_with_overrides(&["iota_grpc_server"]).await, expected);
+    }
+
+    #[tokio::test]
+    async fn the_node_grpc_override_shows_the_families_of_the_grpc_api() {
+        let expected: BTreeSet<String> = validator_families()
+            .into_iter()
+            .chain(listener_families("node_grpc"))
+            .chain(grpc_api_families())
+            .collect();
+        assert_eq!(shown_with_overrides(&["node_grpc"]).await, expected);
     }
 }
