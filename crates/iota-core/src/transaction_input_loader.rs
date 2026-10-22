@@ -309,11 +309,13 @@ impl TransactionInputLoader {
     }
 
     /// Reads the inputs of a transaction being validated post-consensus, as of
-    /// the commit `reader` was built for. Owned and shared inputs and packages
-    /// go through the commit-indexed reader. Receiving objects are not read.
-    /// `Err` is a storage failure, or `UserInputError::MoveObjectAsPackage` when
-    /// a package input names a Move object. A dropped or missing input is a
-    /// result, never an error.
+    /// the commit `reader` was built for. Owned inputs and packages are read
+    /// through the commit-indexed reader. A shared input is decided by the
+    /// reader, but its object is not returned: a live one is listed as an
+    /// `UnreadSharedObject`. Receiving objects are not read. `Err` is a
+    /// storage failure, or `UserInputError::MoveObjectAsPackage` when a package
+    /// input names a Move object. A dropped or missing input is a result, never
+    /// an error.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn read_objects_at_commit(
         &self,
@@ -336,7 +338,7 @@ impl TransactionInputLoader {
                     initial_shared_version,
                     ..
                 } => match reader.read_shared(*id, *initial_shared_version)? {
-                    SharedVerdict::Exists(object) => ObjectReadResultKind::Object(object),
+                    SharedVerdict::Exists => ObjectReadResultKind::UnreadSharedObject,
                     SharedVerdict::Deleted(version, digest) => {
                         ObjectReadResultKind::DeletedSharedObject(version, digest)
                     }

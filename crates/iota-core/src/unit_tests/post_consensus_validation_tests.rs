@@ -22,9 +22,7 @@ use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     crypto::{AccountPrivateKey, get_key_pair},
-    deny_list_v1::{
-        check_address_denied_by_config, check_global_pause, get_per_type_coin_deny_list_v1,
-    },
+    deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
     dynamic_field::get_dynamic_field_object_from_store,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
@@ -65,8 +63,8 @@ use crate::{
     },
     execution_scheduler::ExecutionSchedulerAPI,
     post_consensus_input_reader::{
-        DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
-        reader::CommitIndexedReader,
+        DenyListField, DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
+        ValidationAtCommit, reader::CommitIndexedReader,
     },
     post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
     test_utils::make_transfer_object_transaction,
@@ -4044,7 +4042,7 @@ async fn change_epoch_execution_leaves_no_bookkeeping() {
 fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
     match verdict {
         SharedVerdict::Drop(reason) => assert_eq!(reason.kind(), kind),
-        SharedVerdict::Exists(_) => panic!("expected a drop, got exists"),
+        SharedVerdict::Exists => panic!("expected a drop, got exists"),
         SharedVerdict::Deleted(version, digest) => {
             panic!("expected a drop, got deleted at {version} by {digest}")
         }
@@ -4056,7 +4054,7 @@ fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
 fn assert_shared_missing(verdict: SharedVerdict, kind: MissingKind) {
     match verdict {
         SharedVerdict::Missing(reason) => assert_eq!(reason.kind(), kind),
-        SharedVerdict::Exists(_) => panic!("expected missing, got exists"),
+        SharedVerdict::Exists => panic!("expected missing, got exists"),
         SharedVerdict::Deleted(version, digest) => {
             panic!("expected missing, got deleted at {version} by {digest}")
         }
@@ -4079,7 +4077,7 @@ fn assert_deleted_at(verdict: SharedVerdict, expected_version: Version) -> Trans
             assert_eq!(version, expected_version);
             digest
         }
-        SharedVerdict::Exists(_) => panic!("expected deleted, got exists"),
+        SharedVerdict::Exists => panic!("expected deleted, got exists"),
         SharedVerdict::Drop(reason) => panic!("expected deleted, got drop {reason:?}"),
         SharedVerdict::Missing(reason) => panic!("expected deleted, got missing {reason:?}"),
     }
@@ -4339,8 +4337,9 @@ async fn loader_stops_at_a_package_published_above_the_horizon() {
 }
 
 /// Every input kind resolves to the read result the input checks expect:
-/// the package from epoch-start state, the shared object at this
-/// validator's latest version, the gas coin at the named reference.
+/// the package from epoch-start state, the gas coin at the named reference,
+/// and the shared object as an unread shared object, since its contents are
+/// not read.
 #[tokio::test]
 async fn loader_resolves_every_input_kind_at_a_commit() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -4382,11 +4381,15 @@ async fn loader_resolves_every_input_kind_at_a_commit() {
                 assert_eq!(object.id(), s.package_id);
             }
             (
-                InputObjectKind::SharedMoveObject { id, .. },
-                ObjectReadResultKind::Object(object),
+                InputObjectKind::SharedMoveObject {
+                    id,
+                    initial_shared_version,
+                    ..
+                },
+                ObjectReadResultKind::UnreadSharedObject,
             ) => {
                 assert_eq!(&id, shared_id);
-                assert_eq!(object.owner, Owner::Shared(initial));
+                assert_eq!(initial_shared_version, initial);
             }
             (
                 InputObjectKind::ImmOrOwnedMoveObject(reference),
@@ -5213,6 +5216,177 @@ async fn receive_of_a_version_deleted_last_epoch_is_dropped_on_every_node() {
 }
 
 // ---------------------------------------------------------------------------
+// P-COOL deterministic-validation checks at a commit: shared inputs
+// ---------------------------------------------------------------------------
+
+/// A live shared object with the given id, in place of a system object the
+/// test authority does not create. Its contents are never read before the
+/// rules under test reject it.
+fn shared_object_with_id(id: ObjectId) -> Object {
+    Object::with_id_owner_version_for_testing(
+        id,
+        Version::OBJECT_START,
+        Owner::Shared(Version::OBJECT_START),
+    )
+}
+
+/// Post-consensus validation does not read a live shared input, but the rules
+/// that limit a user transaction's use of system objects still apply, with the
+/// same error a validator gives before submission. The clock and the
+/// randomness state can be inputs only as immutable. The authenticator state
+/// and the deny rules object cannot be inputs at all, mutable or not.
+#[tokio::test]
+async fn validation_at_commit_drops_a_forbidden_system_object_input() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            shared_object_with_id(ObjectId::AUTHENTICATOR_STATE),
+            shared_object_with_id(ObjectId::TRANSACTION_DENY_RULES),
+        ],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let randomness_version = initial_shared_version(
+        &s.authority
+            .get_object(&ObjectId::RANDOMNESS_STATE)
+            .unwrap()
+            .owner,
+    );
+    let declared = |object_id, version, mutable| {
+        CallArg::Shared(SharedObjectReference::new(object_id, version, mutable))
+    };
+    let immutable_parameter_expected =
+        |object_id| UserInputError::ImmutableParameterExpected { object_id };
+    let inaccessible_system_object =
+        |object_id| UserInputError::InaccessibleSystemObject { object_id };
+    let cases = [
+        (
+            CallArg::CLOCK_MUTABLE,
+            immutable_parameter_expected(ObjectId::CLOCK),
+        ),
+        (
+            declared(ObjectId::RANDOMNESS_STATE, randomness_version, true),
+            immutable_parameter_expected(ObjectId::RANDOMNESS_STATE),
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, Version::OBJECT_START, false),
+            inaccessible_system_object(ObjectId::AUTHENTICATOR_STATE),
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, Version::OBJECT_START, true),
+            inaccessible_system_object(ObjectId::AUTHENTICATOR_STATE),
+        ),
+        (
+            declared(
+                ObjectId::TRANSACTION_DENY_RULES,
+                Version::OBJECT_START,
+                false,
+            ),
+            inaccessible_system_object(ObjectId::TRANSACTION_DENY_RULES),
+        ),
+        (
+            declared(
+                ObjectId::TRANSACTION_DENY_RULES,
+                Version::OBJECT_START,
+                true,
+            ),
+            inaccessible_system_object(ObjectId::TRANSACTION_DENY_RULES),
+        ),
+    ];
+
+    for (input, expected) in cases {
+        let tx = s.build_move_call(
+            "object_basics",
+            "use_clock",
+            vec![input.clone()],
+            &gas_id,
+            sender,
+            &sender_key,
+        );
+
+        let error = s
+            .authority
+            .handle_transaction_validation_checks(
+                &tx,
+                &s.epoch_store,
+                deny_config,
+                false,
+                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
+            )
+            .await
+            .expect_err("a validator must reject the input before submission");
+        assert_eq!(
+            UserInputError::try_from(error).unwrap(),
+            expected,
+            "{input:?}"
+        );
+
+        let error = s
+            .authority
+            .handle_transaction_validation_checks_at_commit(
+                &s.reader_at(12),
+                &tx,
+                &s.epoch_store,
+                deny_config,
+                VerifierLimitsSource::ProtocolConfig,
+            )
+            .expect_err("post-consensus validation must drop the input");
+        assert_eq!(
+            UserInputError::try_from(error).unwrap(),
+            expected,
+            "{input:?}"
+        );
+    }
+}
+
+/// Only a mutable clock is rejected. A user transaction that declares the
+/// clock immutable is kept.
+#[tokio::test]
+async fn validation_at_commit_keeps_a_clock_declared_immutable() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let tx = s.build_move_call(
+        "object_basics",
+        "use_clock",
+        vec![CallArg::CLOCK_IMMUTABLE],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    let gas_ref = s.latest_ref(&gas_id);
+
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Keep(owned) => assert_eq!(
+            owned,
+            vec![gas_ref],
+            "the gas coin must be the only object the handler locks"
+        ),
+        other => panic!("expected keep, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // P-COOL deterministic-validation checks at a commit: the Move authenticator
 // ---------------------------------------------------------------------------
 
@@ -5613,6 +5787,92 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
             ),
             "deletion executed: {deletion_executed}, got {:?}",
             dropped[0].1
+        );
+    }
+}
+
+/// The rules that limit a Move authenticator's shared inputs stay in
+/// post-consensus validation, although the input is not read there. None of
+/// them can be mutable, the clock included, and the authenticator state cannot
+/// be an input at all, mutable or not.
+#[tokio::test]
+async fn validation_at_commit_drops_a_forbidden_shared_authenticator_input() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            shared_object_with_id(ObjectId::AUTHENTICATOR_STATE),
+        ],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    // The account's authenticator function is not looked up here, so a shared
+    // object that was never made an account will do.
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sponsor, &sponsor_key, 5);
+    let account_id = *share_effects.created()[0].reference().object_id();
+    let account_start_version =
+        initial_shared_version(&s.authority.get_object(&account_id).unwrap().owner);
+
+    let declared = |object_id, mutable| {
+        CallArg::Shared(SharedObjectReference::new(
+            object_id,
+            Version::OBJECT_START,
+            mutable,
+        ))
+    };
+    let cases = [
+        (
+            declared(ObjectId::CLOCK, true),
+            UserInputError::MutableSharedIsInMoveAuthenticatorInput {
+                object_id: ObjectId::CLOCK,
+            },
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, false),
+            UserInputError::InaccessibleSystemObject {
+                object_id: ObjectId::AUTHENTICATOR_STATE,
+            },
+        ),
+        (
+            declared(ObjectId::AUTHENTICATOR_STATE, true),
+            UserInputError::InaccessibleSystemObject {
+                object_id: ObjectId::AUTHENTICATOR_STATE,
+            },
+        ),
+    ];
+
+    for (input, expected) in cases {
+        // Admission refuses these declarations in `validity_check`, so the
+        // transaction is built unverified to reach the checks under test.
+        let tx = VerifiedTransaction::new_unchecked(s.account_authenticated_call(
+            MoveAuthenticatorV1::new(
+                vec![input.clone()],
+                vec![],
+                SharedObjectReference::new(account_id, account_start_version, false),
+            ),
+            &gas_id,
+            sponsor,
+            &sponsor_key,
+        ));
+
+        let error = s
+            .authority
+            .handle_transaction_validation_checks_at_commit(
+                &s.reader_at(12),
+                &tx,
+                &s.epoch_store,
+                deny_config,
+                VerifierLimitsSource::ProtocolConfig,
+            )
+            .expect_err("post-consensus validation must drop the input");
+        assert_eq!(
+            UserInputError::try_from(error).unwrap(),
+            expected,
+            "{input:?}"
         );
     }
 }
@@ -7750,8 +8010,6 @@ struct SharedRegulatedCoin {
 /// state.
 #[derive(Clone, Copy, Default)]
 struct RegulatedCoinOptions {
-    /// Pauses the coin type for every address instead of denying one.
-    global_pause: bool,
     /// Shares the coin handler-known at this commit of epoch 1 instead of
     /// before the epoch.
     share_at: Option<CommitIndex>,
@@ -7795,15 +8053,16 @@ impl SharedRegulatedCoin {
     }
 
     /// Executes `0x2::coin::<function>` of the deny list for the coin type
-    /// on `s` with the publisher's deny cap, assigned to commit `index`.
-    /// `address` is the argument of the add and remove functions.
+    /// on `s` with the publisher's deny cap, assigned to commit `index`, and
+    /// returns its effects. `address` is the argument of the add and remove
+    /// functions.
     fn call_deny_list(
         &self,
         s: &BookkeepingSetup,
         function: &str,
         address: Option<Address>,
         index: CommitIndex,
-    ) {
+    ) -> TransactionEffects {
         let mut args = vec![
             s.shared_arg(&ObjectId::DENY_LIST),
             CallArg::ImmutableOrOwned(s.latest_ref(&self.deny_cap_id)),
@@ -7820,7 +8079,23 @@ impl SharedRegulatedCoin {
             .unwrap();
         s.epoch_store
             .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
-        s.execute_with_assigned_shared_versions(tx);
+        s.execute_with_assigned_shared_versions(tx)
+    }
+
+    /// The drop of `transaction` for a denial of `address` for the coin type.
+    fn address_denied(
+        &self,
+        transaction: &VerifiedTransaction,
+        address: Address,
+    ) -> Vec<(TransactionDigest, IotaError)> {
+        vec![(
+            *transaction.digest(),
+            UserInputError::AddressDeniedForCoin {
+                address,
+                coin_type: self.coin_type.to_canonical_string(false),
+            }
+            .into(),
+        )]
     }
 
     /// A transfer of the owned regulated coin `coin` by its owner `sender`,
@@ -7889,11 +8164,11 @@ fn share_zero_regulated_coin(
 
 /// Two validators of one chain at epoch 1, with deterministic validation on
 /// and the state of [`SharedRegulatedCoin`], built as `options` asks. Epoch 0
-/// publishes the coin, hands out the owned coins and denies the address (or
-/// pauses the type) with deterministic validation off, as its executions run
-/// outside any consensus commit; the epoch change turns it on and makes the
-/// denial active for the epoch-gated read. The first setup holds the
-/// protocol config override for both.
+/// publishes the coin, hands out the owned coins and denies the address with
+/// deterministic validation off, as its executions run outside any consensus
+/// commit; the epoch change turns it on and makes the denial active for the
+/// epoch-gated read. The first setup holds the protocol config override for
+/// both.
 async fn setup_validators_with_a_shared_regulated_coin(
     options: RegulatedCoinOptions,
 ) -> (BookkeepingSetup, BookkeepingSetup, SharedRegulatedCoin) {
@@ -7987,18 +8262,13 @@ async fn setup_validators_with_a_shared_regulated_coin(
         };
         let owned_coins = (coin_of(denied), coin_of(other));
 
-        let mut deny_args = vec![
+        let deny_args = vec![
             s.shared_arg(&ObjectId::DENY_LIST),
             CallArg::ImmutableOrOwned(deny_cap),
+            CallArg::Pure(bcs::to_bytes(&denied).unwrap()),
         ];
-        let deny_function = if options.global_pause {
-            "deny_list_v1_enable_global_pause"
-        } else {
-            deny_args.push(CallArg::Pure(bcs::to_bytes(&denied).unwrap()));
-            "deny_list_v1_add"
-        };
         let deny = TestTransactionBuilder::new(publisher, s.latest_ref(&publisher_gas), s.rgp)
-            .move_call(ObjectId::FRAMEWORK, "coin", deny_function, deny_args)
+            .move_call(ObjectId::FRAMEWORK, "coin", "deny_list_v1_add", deny_args)
             .with_type_args(vec![coin_type.clone()])
             .build();
         s.execute_with_assigned_shared_versions(
@@ -8053,11 +8323,7 @@ async fn setup_validators_with_a_shared_regulated_coin(
         let epoch = Some(s.epoch_store.epoch());
         let store = s.authority.get_object_store();
         assert!(
-            if options.global_pause {
-                check_global_pause(&config, &store, epoch)
-            } else {
-                check_address_denied_by_config(&config, denied, &store, epoch)
-            },
+            check_address_denied_by_config(&config, denied, &store, epoch),
             "the denial must be active for the epoch-gated read"
         );
     }
@@ -8116,6 +8382,11 @@ async fn run_shared_coin_deletion_verdict_comparison(
         .validate_at(12, std::slice::from_ref(&transaction))
         .await;
     assert_eq!(
+        on_not_deleted.dropped,
+        coin.address_denied(&transaction, coin.denied),
+        "the deny check at the commit must see the shared coin's type"
+    );
+    assert_eq!(
         on_deleted, on_not_deleted,
         "a validator that executed the deletion of the shared coin and one that did not must \
          reach the same verdict"
@@ -8126,13 +8397,7 @@ async fn run_shared_coin_deletion_verdict_comparison(
 /// the horizon of commit 12. Commit 12 holds a transaction naming the coin,
 /// sent by an address the coin type's deny list denies. Every validator must
 /// keep or drop it alike, whether or not it has executed the deletion.
-///
-/// Currently fails: the reader answers `Deleted` where the deletion executed
-/// and `Exists` where it did not, and the coin deny check takes the coin type
-/// only from an existing object, so it drops the transaction only on the
-/// validator that has not executed the deletion.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator() {
     run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11).await;
 }
@@ -8143,12 +8408,7 @@ async fn shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validat
 /// commit 11 are durable. On replay the deletion is not executed, as on the
 /// second validator here, and the commit must replay without stopping the
 /// node, with the saved decision.
-///
-/// Currently fails: the replay reads the coin as existing, the coin deny
-/// check drops the transaction the first run kept, and validation stops the
-/// node on the disagreement with the saved decision.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn replay_after_losing_a_shared_coin_deletion_repeats_the_saved_verdict() {
     run_shared_coin_deletion_replay(RegulatedCoinOptions::default()).await;
 }
@@ -8670,64 +8930,26 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
 /// As [`shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator`],
 /// with the coin shared at commit 5 of the current epoch, so the reader finds
 /// it through its creation row.
-///
-/// Currently fails: the creation row leads to `Deleted` where the deletion
-/// executed and to `Exists` where it did not, and the coin deny check drops
-/// the transaction only on the validator that has not executed it.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn shared_coin_created_this_epoch_and_deleted_above_the_horizon_gets_one_verdict() {
-    run_shared_coin_deletion_verdict_comparison(
-        RegulatedCoinOptions {
-            share_at: Some(5),
-            ..Default::default()
-        },
-        11,
-    )
-    .await;
+    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions { share_at: Some(5) }, 11)
+        .await;
 }
 
 /// As [`replay_after_losing_a_shared_coin_deletion_repeats_the_saved_verdict`],
 /// with the coin shared at commit 5 of the current epoch.
-///
-/// Currently fails: the replay reads the coin as existing, the coin deny
-/// check drops the transaction the first run kept, and validation stops the
-/// node on the disagreement with the saved decision.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
 async fn replay_after_losing_the_deletion_of_a_coin_shared_this_epoch_repeats_the_saved_verdict() {
-    run_shared_coin_deletion_replay(RegulatedCoinOptions {
-        share_at: Some(5),
-        ..Default::default()
-    })
-    .await;
+    run_shared_coin_deletion_replay(RegulatedCoinOptions { share_at: Some(5) }).await;
 }
 
-/// As [`shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator`],
-/// with the coin type paused for every address instead of one address denied.
-///
-/// Currently fails: the coin deny check sees the paused coin type only where
-/// the shared coin still exists, so it drops the transaction only on the
-/// validator that has not executed the deletion.
+/// The denied address's entry is removed at commit 11, on one validator only.
+/// The deny list is read at the commit as of its horizon, so the removal
+/// counts from commit 13 on. At commit 12 (horizon 10) a transfer of the
+/// address's own regulated coin is dropped on both validators, whether or
+/// not they executed the removal. At commit 13 (horizon 11) it is kept.
 #[tokio::test]
-#[ignore = "fails until the coin deny check on shared inputs moves to pre-execution"]
-async fn paused_shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator() {
-    run_shared_coin_deletion_verdict_comparison(
-        RegulatedCoinOptions {
-            global_pause: true,
-            ..Default::default()
-        },
-        11,
-    )
-    .await;
-}
-
-/// The denied address's entry is removed at commit 11, above the horizon of
-/// commit 12, on one validator only. The removal takes effect next epoch, so
-/// a transfer of the address's own regulated coin at commit 12 drops on both
-/// validators, whether or not they executed the removal.
-#[tokio::test]
-async fn deny_entry_removed_above_the_horizon_gets_one_verdict_on_every_validator() {
+async fn deny_entry_removed_at_a_commit_counts_from_the_horizon_distance_after_it() {
     let (removed, not_removed, coin) =
         setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
     let transfer = coin.transfer_owned_coin(
@@ -8745,24 +8967,100 @@ async fn deny_entry_removed_above_the_horizon_gets_one_verdict_on_every_validato
     let on_not_removed = not_removed
         .validate_at(12, std::slice::from_ref(&transfer))
         .await;
-    assert!(
-        matches!(
-            on_not_removed.dropped.as_slice(),
-            [(_, IotaError::UserInput {
-                error: UserInputError::AddressDeniedForCoin { address, .. }
-            })] if *address == coin.denied
-        ),
-        "{on_not_removed:?}"
+    assert_eq!(
+        on_not_removed.dropped,
+        coin.address_denied(&transfer, coin.denied)
     );
     assert_eq!(on_removed, on_not_removed);
+
+    coin.call_deny_list(&not_removed, "deny_list_v1_remove", Some(coin.denied), 11);
+    for s in [&removed, &not_removed] {
+        let at_13 = s.validate_at(13, std::slice::from_ref(&transfer)).await;
+        assert_eq!(at_13.kept, vec![*transfer.digest()]);
+    }
 }
 
-/// An address is denied and its entry removed again, at commits 10 and 11, on
-/// one validator only, which deletes the entry's dynamic field. Neither
-/// change takes effect this epoch, so a transfer of the address's own
-/// regulated coin at commit 12 is kept on both validators.
+/// An address is denied at commit 11, on one validator only. A transfer of
+/// its regulated coin is kept at commit 12 (horizon 10) on both validators,
+/// and dropped at commit 13 (horizon 11) once both have executed the denial.
 #[tokio::test]
-async fn deny_entry_added_and_removed_this_epoch_gets_one_verdict_on_every_validator() {
+async fn deny_entry_added_at_a_commit_counts_from_the_horizon_distance_after_it() {
+    let (denied_first, denied_later, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let transfer = coin.transfer_owned_coin(
+        &denied_first,
+        coin.other,
+        &coin.other_key,
+        &coin.other_gas,
+        &coin.other_coin,
+    );
+    coin.call_deny_list(&denied_first, "deny_list_v1_add", Some(coin.other), 11);
+
+    let on_denied = denied_first
+        .validate_at(12, std::slice::from_ref(&transfer))
+        .await;
+    let on_not_denied = denied_later
+        .validate_at(12, std::slice::from_ref(&transfer))
+        .await;
+    assert_eq!(on_not_denied.kept, vec![*transfer.digest()]);
+    assert_eq!(on_denied, on_not_denied);
+
+    coin.call_deny_list(&denied_later, "deny_list_v1_add", Some(coin.other), 11);
+    for s in [&denied_first, &denied_later] {
+        let at_13 = s.validate_at(13, std::slice::from_ref(&transfer)).await;
+        assert_eq!(at_13.dropped, coin.address_denied(&transfer, coin.other));
+    }
+}
+
+/// The coin type is paused for every address at commit 11, on one validator
+/// only. A transfer of a regulated coin by an address that is not denied is
+/// kept at commit 12 (horizon 10) on both validators, and dropped for the
+/// pause at commit 13 (horizon 11) once both have executed it.
+#[tokio::test]
+async fn global_pause_at_a_commit_counts_from_the_horizon_distance_after_it() {
+    let (paused_first, paused_later, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let transfer = coin.transfer_owned_coin(
+        &paused_first,
+        coin.other,
+        &coin.other_key,
+        &coin.other_gas,
+        &coin.other_coin,
+    );
+    coin.call_deny_list(&paused_first, "deny_list_v1_enable_global_pause", None, 11);
+
+    let on_paused = paused_first
+        .validate_at(12, std::slice::from_ref(&transfer))
+        .await;
+    let on_not_paused = paused_later
+        .validate_at(12, std::slice::from_ref(&transfer))
+        .await;
+    assert_eq!(on_not_paused.kept, vec![*transfer.digest()]);
+    assert_eq!(on_paused, on_not_paused);
+
+    coin.call_deny_list(&paused_later, "deny_list_v1_enable_global_pause", None, 11);
+    let paused: Vec<(TransactionDigest, IotaError)> = vec![(
+        *transfer.digest(),
+        UserInputError::CoinTypeGlobalPause {
+            coin_type: coin.coin_type.to_canonical_string(false),
+        }
+        .into(),
+    )];
+    for s in [&paused_first, &paused_later] {
+        let at_13 = s.validate_at(13, std::slice::from_ref(&transfer)).await;
+        assert_eq!(at_13.dropped, paused);
+    }
+}
+
+/// An address is denied at commit 11 and its entry removed at commit 12 on
+/// one validator, which creates the entry's dynamic field and deletes it
+/// again. Rows above the horizon from several commits, as a replay after a
+/// restart can find them, must not change the verdict: a transfer of the
+/// address's regulated coin is kept at commit 12 (horizon 10) on both
+/// validators. At commit 13 (horizon 11) the denial counts, and at commit 14
+/// (horizon 12) the deleted entry reads as not denied again.
+#[tokio::test]
+async fn deny_entry_added_and_removed_above_the_horizon_gets_one_verdict_on_every_validator() {
     let (changed, unchanged, coin) =
         setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
     let transfer = coin.transfer_owned_coin(
@@ -8772,8 +9070,8 @@ async fn deny_entry_added_and_removed_this_epoch_gets_one_verdict_on_every_valid
         &coin.other_gas,
         &coin.other_coin,
     );
-    coin.call_deny_list(&changed, "deny_list_v1_add", Some(coin.other), 10);
-    coin.call_deny_list(&changed, "deny_list_v1_remove", Some(coin.other), 11);
+    coin.call_deny_list(&changed, "deny_list_v1_add", Some(coin.other), 11);
+    coin.call_deny_list(&changed, "deny_list_v1_remove", Some(coin.other), 12);
     let config = get_per_type_coin_deny_list_v1(
         &coin.coin_type.to_canonical_string(false),
         &changed.authority.get_object_store(),
@@ -8799,6 +9097,194 @@ async fn deny_entry_added_and_removed_this_epoch_gets_one_verdict_on_every_valid
         .await;
     assert_eq!(on_unchanged.kept, vec![*transfer.digest()]);
     assert_eq!(on_changed, on_unchanged);
+
+    let at_13 = changed
+        .validate_at(13, std::slice::from_ref(&transfer))
+        .await;
+    assert_eq!(at_13.dropped, coin.address_denied(&transfer, coin.other));
+    let at_14 = changed
+        .validate_at(14, std::slice::from_ref(&transfer))
+        .await;
+    assert_eq!(at_14.kept, vec![*transfer.digest()]);
+}
+
+/// An address is denied at commit 9 on both validators. On one of them its
+/// entry is then removed at commit 11, which deletes the entry's dynamic
+/// field, and added again at commit 12, which creates it anew under the same
+/// id. At commit 12 (horizon 10) the read must walk past the new field and
+/// the deletion to the entry of commit 9, so a transfer of the address's
+/// regulated coin is dropped on both validators. At commit 13 (horizon 11)
+/// the deleted entry reads as not denied, and at commit 14 (horizon 12) the
+/// new one denies again.
+#[tokio::test]
+async fn deny_entry_deleted_and_created_again_above_the_horizon_gets_one_verdict() {
+    run_deny_entry_deleted_and_created_again(false).await;
+}
+
+/// As [`deny_entry_deleted_and_created_again_above_the_horizon_gets_one_verdict`],
+/// with every row durable and none left in the overlay, so the walk reads
+/// the durable table.
+#[tokio::test]
+async fn deny_entry_deleted_and_created_again_gets_one_verdict_from_durable_rows() {
+    run_deny_entry_deleted_and_created_again(true).await;
+}
+
+/// The scenario of
+/// [`deny_entry_deleted_and_created_again_above_the_horizon_gets_one_verdict`].
+/// With `durable`, the rows of the deny-list changes are made durable and
+/// leave the overlay before any validation.
+async fn run_deny_entry_deleted_and_created_again(durable: bool) {
+    let (changed, unchanged, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let transfer = coin.transfer_owned_coin(
+        &changed,
+        coin.other,
+        &coin.other_key,
+        &coin.other_gas,
+        &coin.other_coin,
+    );
+    let mut changes = Vec::new();
+    for s in [&changed, &unchanged] {
+        changes.push(vec![coin.call_deny_list(
+            s,
+            "deny_list_v1_add",
+            Some(coin.other),
+            9,
+        )]);
+    }
+    changes[0].push(coin.call_deny_list(&changed, "deny_list_v1_remove", Some(coin.other), 11));
+    changes[0].push(coin.call_deny_list(&changed, "deny_list_v1_add", Some(coin.other), 12));
+    if durable {
+        for (s, effects) in [&changed, &unchanged].into_iter().zip(&changes) {
+            s.epoch_store
+                .persist_checkpoint_bookkeeping(effects)
+                .unwrap();
+            assert_eq!(
+                s.epoch_store
+                    .handler_object_state_for_testing()
+                    .overlay_size_for_testing(),
+                0
+            );
+        }
+    }
+
+    let on_changed = changed
+        .validate_at(12, std::slice::from_ref(&transfer))
+        .await;
+    let on_unchanged = unchanged
+        .validate_at(12, std::slice::from_ref(&transfer))
+        .await;
+    assert_eq!(
+        on_unchanged.dropped,
+        coin.address_denied(&transfer, coin.other)
+    );
+    assert_eq!(on_changed, on_unchanged);
+
+    let at_13 = changed
+        .validate_at(13, std::slice::from_ref(&transfer))
+        .await;
+    assert_eq!(at_13.kept, vec![*transfer.digest()]);
+    let at_14 = changed
+        .validate_at(14, std::slice::from_ref(&transfer))
+        .await;
+    assert_eq!(at_14.dropped, coin.address_denied(&transfer, coin.other));
+}
+
+/// A regulated coin frozen at commit 5 is an immutable input of a call that
+/// reads its value. At commit 12 the deny check at the commit sees its type
+/// from the bytes the owned reader loads: the denied address's call is
+/// dropped, and the same call by an address that is not denied is kept.
+#[tokio::test]
+async fn frozen_regulated_coin_input_is_checked_at_the_commit() {
+    let (s, _, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let coin_object_type = TypeTag::Struct(Box::new(StructTag::new(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("coin"),
+        Identifier::from_static("Coin"),
+        vec![coin.coin_type.clone()],
+    )));
+    let freeze = TestTransactionBuilder::new(coin.other, s.latest_ref(&coin.other_gas), s.rgp)
+        .move_call(
+            ObjectId::FRAMEWORK,
+            "transfer",
+            "public_freeze_object",
+            vec![CallArg::ImmutableOrOwned(s.latest_ref(&coin.other_coin))],
+        )
+        .with_type_args(vec![coin_object_type])
+        .build();
+    let freeze = s
+        .epoch_store
+        .verify_transaction(to_sender_signed_transaction(freeze, &coin.other_key))
+        .unwrap();
+    let freeze_effects = s.execute_as_handler_known(vec![freeze], 5).remove(0);
+    assert!(
+        freeze_effects.status().is_success(),
+        "{:?}",
+        freeze_effects.status()
+    );
+    let frozen = s.latest_ref(&coin.other_coin);
+
+    let read_value = |sender: Address, sender_key: &AccountPrivateKey, gas_id: &ObjectId| {
+        let tx = TestTransactionBuilder::new(sender, s.latest_ref(gas_id), s.rgp)
+            .move_call(
+                ObjectId::FRAMEWORK,
+                "coin",
+                "value",
+                vec![CallArg::ImmutableOrOwned(frozen)],
+            )
+            .with_type_args(vec![coin.coin_type.clone()])
+            .build();
+        s.epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, sender_key))
+            .unwrap()
+    };
+    let by_denied = read_value(coin.denied, &coin.denied_key, &coin.denied_gas);
+    let by_other = read_value(coin.other, &coin.other_key, &coin.other_gas);
+
+    let result = s
+        .validate_at(12, &[by_denied.clone(), by_other.clone()])
+        .await;
+    assert_eq!(result.dropped, coin.address_denied(&by_denied, coin.denied));
+    assert_eq!(result.kept, vec![*by_other.digest()]);
+}
+
+/// The read of an object as of the horizon, which the deny check at a commit
+/// uses for the deny list's dynamic fields, on a dynamic-field child created
+/// at commit 5 and deleted at commit 6. Below the horizon of the creation it
+/// is absent, at it the created version, and from the deletion on absent
+/// again. Once the pruner removes the created version, the read that needs
+/// it is a storage error, never an answer.
+#[tokio::test]
+async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let (field_ref, committed, remove_effects) =
+        consume_a_dynamic_field_child_without_a_lock(&s, &gas_id, sender, &sender_key);
+    let read = |commit| match s
+        .reader_at(commit)
+        .read_deny_list_field(field_ref.object_id)
+        .unwrap()
+    {
+        DenyListField::Live(object) => Some(object.object_ref()),
+        DenyListField::Absent => None,
+    };
+    assert_eq!(read(6), None, "created above horizon 4");
+    assert_eq!(read(7), Some(field_ref), "created at horizon 5");
+    assert_eq!(read(8), None, "deleted at horizon 6");
+
+    s.prune_versions_consumed_by(&committed, &remove_effects)
+        .await;
+    let result = s.reader_at(7).read_deny_list_field(field_ref.object_id);
+    assert!(
+        matches!(result, Err(IotaError::Storage(_))),
+        "unexpected result: {result:?}"
+    );
 }
 
 /// On a validator that pruned a dynamic-field child consumed without a lock
