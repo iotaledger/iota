@@ -72,6 +72,7 @@ use tokio::{
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
+    database::drop_tolerant_write_options,
     rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
 };
 
@@ -780,7 +781,8 @@ impl CheckpointStore {
                 [(checkpoint.digest(), checkpoint.serializable_ref())],
             )?;
         }
-        batch.write()?;
+        // An epoch can expire between the staging above and the write.
+        batch.write_opt(&drop_tolerant_write_options())?;
 
         for checkpoint in checkpoints
             .iter()
@@ -1344,7 +1346,8 @@ impl CheckpointStore {
             batch
                 .insert_batch_tagged(&bucket.checkpoint_content, [(contents.digest(), contents)])?;
         }
-        batch.write()?;
+        // An epoch can expire between the staging above and the write.
+        batch.write_opt(&drop_tolerant_write_options())?;
 
         for (checkpoint, full_contents) in checkpoints {
             self.cache_full_checkpoint_contents(
