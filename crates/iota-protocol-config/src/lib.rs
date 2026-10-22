@@ -5,6 +5,7 @@
 use std::{
     cell::RefCell,
     cmp::min,
+    collections::BTreeMap,
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -770,6 +771,79 @@ pub enum ConsensusNetwork {
 impl ConsensusNetwork {
     pub fn is_tonic(&self) -> bool {
         matches!(self, ConsensusNetwork::Tonic)
+    }
+}
+
+/// The calibrated cost of one native function, per call and per abstract
+/// input byte.
+#[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[serde(default, deny_unknown_fields)]
+pub struct NativeFunctionCostV1 {
+    /// Femtoseconds of execution time per call.
+    pub cpu_time_call_fs: u64,
+    /// Femtoseconds of execution time per abstract input byte.
+    pub cpu_time_input_byte_fs: u64,
+    /// Moved-bytes equivalent per abstract input byte, in basis points
+    /// (10_000 = 1 byte per byte).
+    pub moved_bytes_per_input_byte_bps: u64,
+}
+
+/// The calibrated cost of each resource-profile counter, in femtoseconds of
+/// execution time on the reference machine, plus the moved-bytes weights.
+///
+/// Predicted execution time is
+/// `(fixed_overhead_fs + Σ counter × coefficient) × safety_multiplier_bps`,
+/// converted to nanoseconds with each division rounded up. Scalar fields are
+/// named after the counter they price.
+#[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[serde(default, deny_unknown_fields)]
+pub struct GasVectorCoefficientsV1 {
+    pub interp_instruction_count_fs: u64,
+    pub interp_stack_size_flow_fs: u64,
+    pub interp_stack_height_flow_fs: u64,
+    pub stack_size_high_water_mark_fs: u64,
+    pub locals_size_high_water_mark_fs: u64,
+    pub object_runtime_cached_bytes_fs: u64,
+    pub input_object_count_fs: u64,
+    pub input_object_bytes_fs: u64,
+    pub child_object_reads_fs: u64,
+    pub child_object_read_bytes_fs: u64,
+    pub packages_loaded_fs: u64,
+    pub package_bytes_loaded_fs: u64,
+    pub written_object_count_fs: u64,
+    pub written_bytes_fs: u64,
+    pub deleted_object_count_fs: u64,
+    pub event_count_fs: u64,
+    pub event_bytes_fs: u64,
+    /// Keyed by module id plus function name (e.g.
+    /// `0x2::ed25519::ed25519_verify`). A profile calling a function missing
+    /// from the map cannot be priced; a zero-cost function is listed with
+    /// zero coefficients.
+    pub native_functions: BTreeMap<String, NativeFunctionCostV1>,
+    /// Moved-bytes equivalent added per input-object or child-object load,
+    /// on top of its payload bytes.
+    pub moved_bytes_per_read_op: u64,
+    /// Sustained memory bandwidth of the reference machine, in bytes per
+    /// second; the bound in `cpu_time ≥ moved_bytes / bandwidth`.
+    pub memory_bandwidth_bytes_per_sec: u64,
+    /// Per-transaction fixed overhead.
+    pub fixed_overhead_fs: u64,
+    /// Multiplier on the whole cpu_time prediction, in basis points
+    /// (10_000 = ×1.0).
+    pub safety_multiplier_bps: u64,
+}
+
+/// `None` in protocol versions that carry no table.
+#[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum GasVectorCoefficients {
+    #[default]
+    None,
+    V1(Box<GasVectorCoefficientsV1>),
+}
+
+impl GasVectorCoefficients {
+    pub fn is_none(&self) -> bool {
+        matches!(self, GasVectorCoefficients::None)
     }
 }
 
@@ -1658,6 +1732,11 @@ pub struct ProtocolConfig {
     /// Cost of the `attestor_registry::validate_attestor_pubkey` native: one
     /// key parse plus one signature verification.
     attestor_validate_pubkey_cost_base: Option<u64>,
+
+    // ==== Gas vector constants (multidimensional gas metering) ====
+    /// Calibrated resource-profile costs of the reference machine.
+    #[serde(skip_serializing_if = "GasVectorCoefficients::is_none")]
+    gas_vector_coefficients: GasVectorCoefficients,
 }
 
 // feature flags
@@ -2184,6 +2263,15 @@ impl ProtocolConfig {
     /// Effective only with its prerequisite `enable_validator_attestation`.
     pub fn enable_external_attestation(&self) -> bool {
         self.feature_flags.enable_external_attestation && self.enable_validator_attestation()
+    }
+
+    /// The gas-vector coefficients, or `None` if this protocol version has
+    /// none.
+    pub fn gas_vector_coefficients(&self) -> Option<&GasVectorCoefficientsV1> {
+        match &self.gas_vector_coefficients {
+            GasVectorCoefficients::None => None,
+            GasVectorCoefficients::V1(table) => Some(table),
+        }
     }
 }
 
@@ -2866,6 +2954,7 @@ impl ProtocolConfig {
             attestor_max_inactivity_epochs: None,
             attestor_inactivity_penalty: None,
             attestor_validate_pubkey_cost_base: None,
+            gas_vector_coefficients: GasVectorCoefficients::None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3910,6 +3999,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
+    }
+
+    pub fn set_gas_vector_coefficients_for_testing(&mut self, table: GasVectorCoefficientsV1) {
+        self.gas_vector_coefficients = GasVectorCoefficients::V1(Box::new(table));
     }
 }
 
