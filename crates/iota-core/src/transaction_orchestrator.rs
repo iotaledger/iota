@@ -457,7 +457,11 @@ where
                     )?);
                 }
             }
-            true
+            // The checkpoint is final, but a read right after the response
+            // sees the transaction only once the indexes include it.
+            self.validator_state
+                .is_checkpoint_indexed(seq)
+                .unwrap_or(false)
         } else {
             // The response is already 2f+1 certified — from the QuorumDriver,
             // or inherited by a duplicate submission from an in-flight
