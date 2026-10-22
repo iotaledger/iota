@@ -7,6 +7,7 @@
 #[path = "../common/mod.rs"]
 mod common;
 mod harness;
+mod listener;
 mod requested_max;
 mod response_item_sizes;
 mod response_message_sizes;

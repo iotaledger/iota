@@ -3085,6 +3085,14 @@ mod listener_metrics_tests {
     /// method, so it shows only once the gRPC API has sent a response.
     const GRPC_API_FAMILIES: &[&str] = &["response_item_bytes_peak", "requested_max_message_bytes"];
 
+    /// `node_grpc_inbound_connections_accepted` is not listed: it has a series
+    /// per scope, so it shows only once the gRPC API has accepted a connection.
+    const GRPC_API_LISTENER_FAMILIES: &[&str] = &[
+        "inbound_connections",
+        "inbound_connections_peak",
+        "connection_lifetime_seconds",
+    ];
+
     /// Every family the validator listener registers.
     fn validator_families() -> BTreeSet<String> {
         prefix_names("authority_grpc", CONNECTION_FAMILIES)
@@ -3117,7 +3125,32 @@ mod listener_metrics_tests {
             .into_iter()
             .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
             .chain(prefix_names("node_grpc", GRPC_API_FAMILIES))
+            .chain(prefix_names("node_grpc", GRPC_API_LISTENER_FAMILIES))
             .collect();
         assert_eq!(shown, all);
+    }
+
+    #[tokio::test]
+    async fn the_iota_http_override_shows_the_families_of_all_listeners() {
+        let shown =
+            MetricsReader::new(&node_registry(&overrides(&["iota_http"])).await).family_names();
+        let listeners: BTreeSet<String> = validator_families()
+            .into_iter()
+            .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
+            .chain(prefix_names("node_grpc", GRPC_API_LISTENER_FAMILIES))
+            .collect();
+        assert_eq!(shown, listeners);
+    }
+
+    #[tokio::test]
+    async fn the_node_grpc_override_shows_the_families_of_the_grpc_api() {
+        let shown =
+            MetricsReader::new(&node_registry(&overrides(&["node_grpc"])).await).family_names();
+        let grpc_api: BTreeSet<String> = validator_families()
+            .into_iter()
+            .chain(prefix_names("node_grpc", GRPC_API_FAMILIES))
+            .chain(prefix_names("node_grpc", GRPC_API_LISTENER_FAMILIES))
+            .collect();
+        assert_eq!(shown, grpc_api);
     }
 }

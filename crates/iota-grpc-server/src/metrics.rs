@@ -10,6 +10,7 @@ use std::{
     time::Instant,
 };
 
+use iota_http::metrics::ListenerMetrics;
 use iota_metrics::peak::{PeakGauge, PeakGaugeVec};
 use pin_project_lite::pin_project;
 use prometheus_filtered::{
@@ -67,8 +68,9 @@ const RESPONSE_MESSAGE_SIZE_BUCKETS: &[f64] = &[
 /// Metrics for the public-facing gRPC server.
 ///
 /// Tracks in-flight requests, total request counts (by method and gRPC status),
-/// request latency per RPC method, the sizes of response messages and items,
-/// and the max message size that requests ask for.
+/// request latency per RPC method, checkpoint stream subscribers, the sizes of
+/// response messages and items, the max message size that requests ask for,
+/// and the connections of the listener.
 #[derive(Clone)]
 pub struct GrpcServerMetrics {
     inflight_requests: IntGaugeVec,
@@ -79,6 +81,7 @@ pub struct GrpcServerMetrics {
     response_item_bytes_peaks: Vec<PeakGauge>,
     requested_max_message_bytes: Histogram,
     response_message_bytes: HistogramVec,
+    listener_metrics: ListenerMetrics,
 }
 
 impl GrpcServerMetrics {
@@ -149,6 +152,7 @@ impl GrpcServerMetrics {
                 MetricLevel::Info
             )
             .expect("the gRPC server metrics register without collision"),
+            listener_metrics: ListenerMetrics::new("node_grpc", registry, MetricLevel::Info),
         }
     }
 
@@ -156,6 +160,11 @@ impl GrpcServerMetrics {
     /// data broadcast. Cheap to clone (wraps an `Arc` internally).
     pub fn inflight_checkpoint_stream_subscribers(&self) -> IntGauge {
         self.inflight_checkpoint_stream_subscribers.clone()
+    }
+
+    /// The metrics of the listener that serves the gRPC API.
+    pub(crate) fn listener_metrics(&self) -> ListenerMetrics {
+        self.listener_metrics.clone()
     }
 }
 
