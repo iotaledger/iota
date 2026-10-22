@@ -5314,11 +5314,11 @@ impl AuthorityPerEpochStore {
 
     /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
     /// on-chain object to the current proposal aggregate, chunked and gated
-    /// by `compute_deny_rule_update_chunks`. Advances the mirrored state to
-    /// the injected target in the same commit output that persists it. Each
-    /// scheduled update becomes a checkpoint root: nothing else in the commit
-    /// can depend on the object, so an unrooted update would never be
-    /// checkpointed.
+    /// by `compute_deny_rule_update_chunks`. Runs only for commits that record
+    /// a proposal. Advances the mirrored state to the injected target in the
+    /// same commit output that persists it. Each scheduled update becomes a
+    /// checkpoint root: nothing else in the commit can depend on the object,
+    /// so an unrooted update would never be checkpointed.
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -5337,6 +5337,10 @@ impl AuthorityPerEpochStore {
         else {
             return Ok(());
         };
+        // A commit that records no proposal would find nothing new.
+        if output.deny_rule_proposals().is_empty() {
+            return Ok(());
+        }
 
         // The aggregate from every recorded proposal, this commit's included.
         let mut proposals = self
@@ -5349,11 +5353,6 @@ impl AuthorityPerEpochStore {
                 .iter()
                 .map(|(authority, proposal)| (*authority, proposal.clone())),
         );
-        // No proposals means an empty aggregate and zero announced stake.
-        // The diff can produce no chunk from that.
-        if proposals.is_empty() {
-            return Ok(());
-        }
         let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
         let mirror = self.mirrored_transaction_deny_rules.load_full();
         // A validator that has not announced this epoch may still support
@@ -5401,8 +5400,12 @@ impl AuthorityPerEpochStore {
                 *transaction.digest(),
             ));
         }
-        // Holding the mirror back when a chunk was skipped (epoch closing) makes
-        // the next commit re-derive the same delta; re-application is a no-op.
+        // Scheduling is all-or-nothing today: proposals are recorded only
+        // while transactions are still accepted, and the epoch closes after
+        // this runs. A partial schedule would leave the object ahead of the
+        // held-back mirror until the next proposal-recording commit re-sends
+        // the delta or the boundary re-seeds the mirror from the object, so a
+        // removal the object applied would stay enforced until then.
         if all_scheduled {
             self.metrics.deny_rule_updates_injected.inc();
             self.metrics
@@ -5410,10 +5413,6 @@ impl AuthorityPerEpochStore {
                 .inc_by(chunk_count as u64);
             output.record_deny_rule_mirror(target.clone());
             self.mirrored_transaction_deny_rules.store(Arc::new(target));
-            // The active set is the union of the aggregate and the mirror, so
-            // it follows the mirror here: `push_consensus_output` recomputes
-            // it only for commits that record proposals.
-            self.store_active_transaction_deny_rules(&proposals);
         }
 
         Ok(())

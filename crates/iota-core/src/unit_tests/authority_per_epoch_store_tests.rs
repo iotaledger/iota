@@ -1482,9 +1482,9 @@ async fn restart_recovers_the_deny_rule_mirror() {
 }
 
 /// Injection at the commit boundary: with the flag on and the object present,
-/// a recorded proposal makes the next commit inject a
-/// `TransactionDenyRulesUpdate`, advance the mirror in lockstep, and go quiet
-/// once the object is up to date. Without the object nothing is injected.
+/// the commit that records a proposal injects a `TransactionDenyRulesUpdate`
+/// and advances the mirror in lockstep, and later commits stay quiet while
+/// the object is up to date. Without the object nothing is injected.
 #[tokio::test]
 async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     use std::collections::VecDeque;
@@ -1514,6 +1514,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     // The object does not exist this epoch: nothing to update.
     let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(deny_proposal(me, 1, rules_denying_address(address)));
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1544,11 +1545,11 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         0,
     )
     .unwrap();
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
-
-    // The single validator holds all stake, so the first commit injects the
-    // full aggregate.
+    // The single validator holds all stake, so the commit recording its
+    // proposal injects the full aggregate.
+    let proposal = deny_proposal(me, 1, rules_denying_address(address));
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(proposal.clone());
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1577,33 +1578,50 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         "the injected update must be registered as a checkpoint root"
     );
 
-    // The advanced mirror is persisted with the same commit output.
+    // The advanced mirror is persisted with the same commit output as the
+    // proposal.
     output.set_default_commit_stats_for_testing();
     let mut batch = store.db_batch_for_test();
     output.write_to_batch(&store, &mut batch).unwrap();
     batch.write().unwrap();
+    store.apply_deny_rule_proposal_to_cache_for_test(proposal);
+    // The recompute that follows the commit enforces the injected entry.
+    assert!(store.update_active_transaction_deny_rules().unwrap());
 
-    // The next commit finds the object up to date and injects nothing.
+    // A commit without a proposal derives nothing, and one re-announcing the
+    // same rules finds the object up to date: neither injects.
+    let re_announced = deny_proposal(me, 2, rules_denying_address(address));
+    for recorded in [None, Some(re_announced)] {
+        let mut output = ConsensusCommitOutput::default();
+        if let Some(proposal) = recorded {
+            output.record_deny_rule_proposal(proposal);
+        }
+        let mut transactions = VecDeque::new();
+        let mut roots = std::collections::BTreeSet::new();
+        store
+            .add_deny_rule_update_transactions(
+                &mut output,
+                &mut transactions,
+                &mut roots,
+                &commit_info,
+            )
+            .unwrap();
+        assert!(transactions.is_empty());
+        assert!(roots.is_empty());
+    }
+
+    // The commit recording the withdrawal injects the removal and drops the
+    // entry from the mirror. The recompute that follows the commit then
+    // drops it from the enforced active set.
     let mut output = ConsensusCommitOutput::default();
-    let mut transactions = VecDeque::new();
-    let mut roots = std::collections::BTreeSet::new();
-    store
-        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
-        .unwrap();
-    assert!(transactions.is_empty());
-    assert!(roots.is_empty());
-
-    // Withdrawing the proposal makes a later, proposal-free commit inject
-    // the removal; the mirror and the enforced active set must drop the
-    // entry in that same commit, not at the next proposal-driven recompute.
-    flush_deny_rule_proposal(&store, deny_proposal(me, 2, DenyRuleSet::default()));
+    let withdrawal = deny_proposal(me, 3, DenyRuleSet::default());
+    output.record_deny_rule_proposal(withdrawal.clone());
     assert!(
         store
             .get_active_transaction_deny_rules()
             .denied_addresses
             .contains(&address)
     );
-    let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1620,11 +1638,13 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         *store.get_mirrored_transaction_deny_rules(),
         DenyRuleSet::default()
     );
+    assert_eq!(roots, [transactions[0].key()].into_iter().collect());
+    store.apply_deny_rule_proposal_to_cache_for_test(withdrawal);
+    assert!(store.update_active_transaction_deny_rules().unwrap());
     assert_eq!(
         *store.get_active_transaction_deny_rules(),
         DenyRuleSet::default()
     );
-    assert_eq!(roots, [transactions[0].key()].into_iter().collect());
 }
 
 /// The quarantine push carries a commit through: it records the proposal,
@@ -1727,10 +1747,11 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::TransactionKind;
     use iota_swarm_config::network_config_builder::ConfigBuilder;
-    use iota_types::transaction::TransactionAPI;
+    use iota_types::{messages_consensus::ConsensusTransaction, transaction::TransactionAPI};
 
     use crate::{
         checkpoints::CheckpointServiceNoop,
+        consensus_handler::{SequencedConsensusTransaction, SequencedConsensusTransactionKind},
         epoch::randomness::RandomnessManager,
         mock_consensus::{ConsensusMode, MockConsensusClient},
     };
@@ -1772,14 +1793,23 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
         .set_randomness_manager(randomness_manager)
         .await
         .unwrap();
-    flush_deny_rule_proposal(
-        &store,
-        deny_proposal(me, 1, rules_denying_address(Address::new([1u8; 32]))),
-    );
+    // The proposal arrives in this commit, authored by this validator.
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me,
+        consensus_index: Default::default(),
+        transaction: SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(deny_proposal(
+                me,
+                1,
+                rules_denying_address(Address::new([1u8; 32])),
+            )),
+        ),
+    };
 
     let (scheduled, _assigned_versions) = store
         .process_consensus_transactions_for_tests(
-            vec![],
+            vec![sequenced],
             &Arc::new(CheckpointServiceNoop {}),
             authority_state.get_object_cache_reader().as_ref(),
             &authority_state.metrics,
@@ -1856,13 +1886,14 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
         0,
     )
     .unwrap();
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
-
-    // The epoch is closing: no transaction is accepted any more.
+    // Close the epoch before `add_deny_rule_update_transactions` runs.
+    // Production closes it only after that call, so no chunk is ignored
+    // there; this test forces that case.
     store.get_reconfig_state_write_lock_guard().close_all_tx();
 
     let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(deny_proposal(me, 1, rules_denying_address(address)));
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1876,7 +1907,7 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
         "an ignored chunk must hold the mirror back"
     );
 
-    // The held-back mirror re-derives the identical delta.
+    // The held-back mirror would derive the identical delta again.
     let mirror = store.get_mirrored_transaction_deny_rules();
     let (chunks, target) = compute_deny_rule_update_chunks(
         &rules_denying_address(address),
@@ -1941,9 +1972,8 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
         0,
     )
     .unwrap();
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules));
-
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(deny_proposal(me, 1, rules));
     let mut transactions = VecDeque::new();
     let mut roots = BTreeSet::new();
     store
