@@ -217,8 +217,9 @@ pub trait Storage {
 
     /// Fails if `sender` is denied for one of `coin_types`, or one of them is
     /// paused for every address, reading the deny list as settled before this
-    /// epoch. `coin_types` are the types of the coins the Move code received.
-    fn check_received_coin_deny_list(
+    /// epoch. `coin_types` are the types of the coins the Move code loaded, by
+    /// receiving them or as dynamic object fields.
+    fn check_loaded_coin_deny_list(
         &self,
         sender: Address,
         coin_types: BTreeSet<String>,

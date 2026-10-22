@@ -826,6 +826,83 @@ async fn test_execution_does_not_check_sender_for_a_received_iota_coin() {
     );
 }
 
+// Under P-COOL with deterministic validation, a sender denied for a coin type
+// before this epoch, and undenied in it, holds a coin of that type as a
+// dynamic object field of an object it owns. The transaction that takes the
+// coin out and sends it on has no coin among its inputs, so admission and
+// post-consensus validation accept it, and execution fails it, charging gas.
+#[tokio::test]
+async fn test_execution_fails_denied_sender_forwarding_a_dynamic_object_field_coin() {
+    let epoch_zero = RegulatedCoinEnv::epoch_zero_override();
+    let env = RegulatedCoinEnv::new().await;
+
+    // The regulated coin is stored in an object the sender owns, to be taken
+    // out of it later.
+    let parent_id = env.create_parent().await;
+    env.add_coin(parent_id).await;
+    let coin_owner = env.env.authority.get_object(&env.coin_id).unwrap().owner;
+    assert!(matches!(coin_owner, Owner::Object(_)), "{coin_owner:?}");
+
+    env.deny_sender().await;
+    drop(epoch_zero);
+    let _guard = env.reconfigure_with_deterministic_validation().await;
+    env.undeny_sender_at(1).await;
+
+    let take_tx = env.build_take_and_send(parent_id, dbg_addr(2)).await;
+    env.validation_check(&take_tx, false)
+        .await
+        .expect("admission must accept a transaction without a coin among its inputs");
+    env.assert_kept_at_commit(&take_tx, 2);
+
+    let effects = env.execute_at(take_tx, 2).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::AddressDeniedForCoin {
+                address: env.env.sender,
+                coin_type: env.coin_type(),
+            },
+            command: None,
+        },
+        "execution must fail the kept transaction for the denial settled before this epoch"
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
+    );
+    assert_eq!(
+        env.env.authority.get_object(&env.coin_id).unwrap().owner,
+        coin_owner,
+        "the regulated coin must stay in the dynamic object field"
+    );
+}
+
+// Under P-COOL with deterministic validation, a sender that is not denied for
+// a coin type takes a coin of that type out of a dynamic object field of an
+// object it owns and sends it on, and execution does not fail the transaction.
+#[tokio::test]
+async fn test_execution_lets_sender_forward_a_dynamic_object_field_coin() {
+    let epoch_zero = RegulatedCoinEnv::epoch_zero_override();
+    let env = RegulatedCoinEnv::new().await;
+    let parent_id = env.create_parent().await;
+    env.add_coin(parent_id).await;
+    drop(epoch_zero);
+    let _guard = env.reconfigure_with_deterministic_validation().await;
+
+    let take_tx = env.build_take_and_send(parent_id, dbg_addr(2)).await;
+    let effects = env.execute_at(take_tx, 1).await;
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Success,
+        "execution must not fail a sender that is not denied"
+    );
+    assert_eq!(
+        env.env.authority.get_object(&env.coin_id).unwrap().owner,
+        Owner::Address(dbg_addr(2)),
+        "the sender forwarded the regulated coin"
+    );
+}
+
 /// A published `coin_deny_list_v1_mintable` package - the regulated coin
 /// type, its deny cap, and one minted coin - with helpers for the deny-list
 /// operations the tests exercise.
@@ -1048,6 +1125,41 @@ impl RegulatedCoinEnv {
                 vec![
                     CallArg::ImmutableOrOwned(self.env.get_latest_object_ref(&parent_id).await),
                     CallArg::Receiving(self.env.get_latest_object_ref(&self.coin_id).await),
+                    CallArg::pure(&to),
+                ],
+            )
+            .with_type_args(vec![self.regulated_coin_type.clone()])
+            .build_and_sign(&self.env.private_key)
+    }
+
+    /// Stores the regulated coin as a dynamic object field of `parent_id`.
+    async fn add_coin(&self, parent_id: ObjectId) {
+        let tx = TestTransactionBuilder::new(self.env.sender, self.fresh_gas_ref(), self.rgp())
+            .move_call(
+                self.package_id,
+                "receiver",
+                "add_coin",
+                vec![
+                    CallArg::ImmutableOrOwned(self.env.get_latest_object_ref(&parent_id).await),
+                    CallArg::ImmutableOrOwned(self.env.get_latest_object_ref(&self.coin_id).await),
+                ],
+            )
+            .with_type_args(vec![self.regulated_coin_type.clone()])
+            .build_and_sign(&self.env.private_key);
+        let effects = self.execute(tx).await;
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+    }
+
+    /// A `receiver::take_and_send` call: the sender takes the regulated coin
+    /// out of the dynamic object field of `parent_id` and sends it on to `to`.
+    async fn build_take_and_send(&self, parent_id: ObjectId, to: Address) -> TransactionEnvelope {
+        TestTransactionBuilder::new(self.env.sender, self.fresh_gas_ref(), self.rgp())
+            .move_call(
+                self.package_id,
+                "receiver",
+                "take_and_send",
+                vec![
+                    CallArg::ImmutableOrOwned(self.env.get_latest_object_ref(&parent_id).await),
                     CallArg::pure(&to),
                 ],
             )

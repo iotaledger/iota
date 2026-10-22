@@ -1150,7 +1150,7 @@ impl Storage for TemporaryStore<'_> {
         result
     }
 
-    fn check_received_coin_deny_list(
+    fn check_loaded_coin_deny_list(
         &self,
         sender: Address,
         coin_types: BTreeSet<String>,

@@ -875,7 +875,7 @@ mod checked {
                 loaded_child_objects,
                 mut created_object_ids,
                 deleted_object_ids,
-                received_coin_types,
+                loaded_coin_types,
             } = object_runtime.finish()?;
             assert_invariant!(
                 remaining_events.is_empty(),
@@ -950,7 +950,7 @@ mod checked {
                 created_object_ids,
                 deleted_object_ids,
                 user_events,
-                received_coin_types,
+                loaded_coin_types,
             );
             results
         }
@@ -1259,7 +1259,7 @@ mod checked {
         created_object_ids: IndexSet<ObjectId>,
         deleted_object_ids: IndexSet<ObjectId>,
         user_events: Vec<(ModuleId, StructTag, Vec<u8>)>,
-        received_coin_types: BTreeSet<String>,
+        loaded_coin_types: BTreeSet<String>,
     ) -> Result<ExecutionResults, ExecutionError> {
         // Before finishing, ensure that any shared object taken by value by the
         // transaction is either:
@@ -1309,12 +1309,12 @@ mod checked {
         result?;
 
         // Under P-COOL deterministic validation, post-consensus validation checks
-        // the sender against the inputs but cannot see a received coin: execution
-        // loads a receiving object only when the Move code receives it. So the
-        // sender is checked here, once the commands have run, against the
-        // received coins.
+        // the sender against the inputs but cannot see a coin the Move code
+        // loads: execution loads a receiving object, or a dynamic object field,
+        // only when the Move code asks for it. So the sender is checked here,
+        // once the commands have run, against the loaded coins.
         if protocol_config.pcool_deterministic_validation() {
-            state_view.check_received_coin_deny_list(tx_context.sender(), received_coin_types)?;
+            state_view.check_loaded_coin_deny_list(tx_context.sender(), loaded_coin_types)?;
         }
 
         let user_events = user_events
