@@ -210,8 +210,8 @@ fn assert_watermarks(
 struct EpochPartitionedTables;
 
 impl IngestionTest for EpochPartitionedTables {
-    /// The level of the indexer and the number of epochs advanced.
-    type ExpectedState = (OperationalLevel, u64);
+    /// The number of epochs advanced.
+    type ExpectedState = u64;
 
     async fn setup(
         &self,
@@ -227,13 +227,13 @@ impl IngestionTest for EpochPartitionedTables {
         sim.inner.create_checkpoint(); // checkpoint at epoch 4
         let pg_store = sim.start_indexer(None).await;
         indexer_wait_for_epoch(&pg_store, num_epochs).await;
-        (pg_store, (level, num_epochs))
+        (pg_store, num_epochs)
     }
 
     async fn assert_ingested(
         &self,
         pg_store: &PgIndexerStore,
-        (indexer_level, num_epochs): Self::ExpectedState,
+        num_epochs: Self::ExpectedState,
     ) -> Result<(), IndexerError> {
         let connection_pool = pg_store.blocking_cp();
         let table_partitions = diesel_macro::spawn_blocking_task(|| {
@@ -251,7 +251,6 @@ impl IngestionTest for EpochPartitionedTables {
                 continue;
             }
             let new_partitions = last - first;
-            let committer_table: CommitterTables = table.parse().unwrap();
             assert_eq!(
                 new_partitions, num_epochs,
                 "incorrect partitions for ingested {table}",
