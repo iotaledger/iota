@@ -640,10 +640,8 @@ impl IotaNode {
             checkpoint_store.mark_checkpoint_backlog_migrated()?;
         }
 
-        // Before the first start moves or deletes any history. Opening the
-        // database has already dropped the table an older release keeps its
-        // objects pruner's watermark in, so even a refused start leaves a
-        // database only this release can run on.
+        // Before the first start changes anything an older release reads, so
+        // that a refused start leaves the database usable by that release.
         // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
         let pruning_config = &config.authority_store_pruning_config;
         // Only space freed on the history's file system helps the migration,
@@ -662,6 +660,10 @@ impl IotaNode {
             legacy_index_size,
         )
         .map_err(|e| anyhow!("refusing to start: {e}"))?;
+
+        // The first one-way step: an older release reads the column family
+        // this drops.
+        store.retire_objects_pruner_watermark()?;
 
         // Frees disk space ahead of the one-time migration passes below. The
         // check above counted that space as free, so a failed removal must

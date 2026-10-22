@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 pub use typed_store::DbSnapshot;
 use typed_store::{
     DBMapUtils, DbIterator,
-    database::Database,
     metrics::SamplingInterval,
     rocks::{
         DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
@@ -48,35 +47,11 @@ pub(crate) const ENV_VAR_LOCKS_BLOCK_CACHE_SIZE: &str = "LOCKS_BLOCK_CACHE_MB";
 const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB";
 const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 
-/// Copies the objects pruner's progress watermark out of `pruned_checkpoint`
-/// into `object_backlog_sweep_bound`, so that it can still be read after the
-/// deprecated column family has been dropped. Writes nothing when there is no
-/// watermark.
+/// The column family an older release keeps its objects pruner's progress
+/// watermark in. Read in place until the first start retires it, see
+/// [`AuthorityPerpetualTables::retire_objects_pruner_watermark`].
 // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
-fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreError> {
-    let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
-        db,
-        Some("pruned_checkpoint"),
-        &ReadWriteOptions::default(),
-        true,
-    )?;
-    let Some(watermark) = pruned.get(&())? else {
-        return Ok(());
-    };
-    let bound: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
-        db,
-        Some("object_backlog_sweep_bound"),
-        &ReadWriteOptions::default(),
-        false,
-    )?;
-    // Synced: the column family it is copied from is dropped next, and a drop
-    // is durable at once, so a lost copy would lose the watermark for good.
-    let mut batch = bound.batch();
-    batch.insert_batch(&bound, [((), watermark)])?;
-    batch.write_opt(&synced_write_options())?;
-    info!(watermark, "carried the objects pruner's watermark over");
-    Ok(())
-}
+const OBJECTS_PRUNER_WATERMARK_CF: &str = "pruned_checkpoint";
 
 /// Options to apply to every column family of the `perpetual` DB.
 #[derive(Default)]
@@ -188,12 +163,6 @@ pub struct AuthorityPerpetualTables {
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
 
-    /// The objects pruner's progress watermark, copied into
-    /// `object_backlog_sweep_bound` before the column family is dropped.
-    #[allow(dead_code)]
-    #[deprecated_db_map(migration = "rescue_objects_pruner_watermark")]
-    pruned_checkpoint: Option<DBMap<(), CheckpointSequenceNumber>>,
-
     /// The total IOTA supply and the epoch at which it was stored.
     /// We check and update it at the end of each epoch if expensive checks are
     /// enabled.
@@ -216,8 +185,9 @@ pub struct AuthorityPerpetualTables {
     // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 
-    /// The last checkpoint the objects pruner pruned, copied out of
-    /// `pruned_checkpoint`; absent if the pruner never ran. Every version
+    /// The last checkpoint the objects pruner pruned, copied out of an older
+    /// release's `pruned_checkpoint`; absent if the pruner never ran, and
+    /// until the first start retires that column family. Every version
     /// superseded at or below it is already deleted, so the object history
     /// is complete only above it.
     // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
@@ -277,7 +247,7 @@ impl AuthorityPerpetualTables {
             tables.objects.clone(),
             &historic_root,
         )?;
-        historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
+        historic_objects.objects_pruned_through = tables.objects_pruner_watermark()?;
         if let Some(epoch) = tables.object_backlog_sweep_epoch.get(&())? {
             historic_objects.record_backlog_sweep_epoch(epoch);
         }
@@ -713,6 +683,58 @@ impl AuthorityPerpetualTables {
         self.root_state_hash_by_epoch
             .insert(&epoch, &(last_checkpoint_of_epoch, hash))?;
         Ok(())
+    }
+
+    /// The objects pruner's progress watermark: the copy in
+    /// `object_backlog_sweep_bound`, or, before the first start has retired
+    /// it, the older release's own.
+    fn objects_pruner_watermark(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        if let Some(watermark) = self.object_backlog_sweep_bound.get(&())? {
+            return Ok(Some(watermark));
+        }
+        let db = &self.objects.db;
+        if db.cf_handle(OBJECTS_PRUNER_WATERMARK_CF).is_none() {
+            return Ok(None);
+        }
+        DBMap::<(), CheckpointSequenceNumber>::reopen(
+            db,
+            Some(OBJECTS_PRUNER_WATERMARK_CF),
+            &ReadWriteOptions::default(),
+            true,
+        )?
+        .get(&())
+    }
+
+    /// Copies the objects pruner's progress watermark out of the older
+    /// release's column family into `object_backlog_sweep_bound`, then drops
+    /// that column family. Does nothing on a database without it.
+    ///
+    /// One-way: the older release reads that column family, so call this only
+    /// once nothing can refuse the first start any more.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
+    pub fn retire_objects_pruner_watermark(&self) -> Result<(), TypedStoreError> {
+        let db = &self.objects.db;
+        if db.cf_handle(OBJECTS_PRUNER_WATERMARK_CF).is_none() {
+            return Ok(());
+        }
+        let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
+            db,
+            Some(OBJECTS_PRUNER_WATERMARK_CF),
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        if let Some(watermark) = pruned.get(&())? {
+            // Synced: the drop below is durable at once, so a lost copy would
+            // lose the watermark for good.
+            let mut batch = self.object_backlog_sweep_bound.batch();
+            batch.insert_batch(&self.object_backlog_sweep_bound, [((), watermark)])?;
+            batch.write_opt(&synced_write_options())?;
+            info!(watermark, "carried the objects pruner's watermark over");
+        }
+        drop(pruned);
+        db.drop_cf(OBJECTS_PRUNER_WATERMARK_CF)
     }
 
     /// Marks the one-time object-backlog sweep as done, so that a later node
@@ -1245,51 +1267,83 @@ mod tests {
         assert_eq!(reconstructed.object_ref(), object_ref);
     }
 
-    /// The objects pruner's watermark is copied into
-    /// `object_backlog_sweep_bound`.
-    #[tokio::test]
-    async fn the_objects_pruner_watermark_is_carried_over() {
-        let tmp_dir = iota_common::tempdir();
-        let db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
-
+    /// An older release's database with the objects pruner's watermark.
+    fn open_with_pruner_watermark(
+        dir: &Path,
+        watermark: Option<CheckpointSequenceNumber>,
+    ) -> AuthorityPerpetualTables {
+        let db = AuthorityPerpetualTables::open(dir, None);
         db.objects
             .db
             .create_cf(
-                "pruned_checkpoint",
+                OBJECTS_PRUNER_WATERMARK_CF,
                 &typed_store::rocksdb::Options::default(),
             )
             .unwrap();
-        let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
-            &db.objects.db,
-            Some("pruned_checkpoint"),
-            &ReadWriteOptions::default(),
-            true,
-        )
-        .unwrap();
-        pruned.insert(&(), &4_242).unwrap();
-        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), None);
-
-        rescue_objects_pruner_watermark(&db.objects.db).unwrap();
-
-        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), Some(4_242));
+        if let Some(watermark) = watermark {
+            DBMap::<(), CheckpointSequenceNumber>::reopen(
+                &db.objects.db,
+                Some(OBJECTS_PRUNER_WATERMARK_CF),
+                &ReadWriteOptions::default(),
+                true,
+            )
+            .unwrap()
+            .insert(&(), &watermark)
+            .unwrap();
+        }
+        db
     }
 
-    /// Without a watermark, no bound is written.
+    /// Opening the database reads the older release's watermark in place and
+    /// leaves its column family alone, so that a start refused afterwards
+    /// leaves a database that release still reads; retiring it copies the
+    /// watermark over and drops the column family.
+    #[tokio::test]
+    async fn the_objects_pruner_watermark_is_read_in_place_until_retired() {
+        let tmp_dir = iota_common::tempdir();
+        let db = open_with_pruner_watermark(tmp_dir.path(), Some(4_242));
+        drop(db);
+        let db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        assert!(
+            db.objects
+                .db
+                .cf_handle(OBJECTS_PRUNER_WATERMARK_CF)
+                .is_some()
+        );
+        assert_eq!(db.objects_pruner_watermark().unwrap(), Some(4_242));
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), None);
+
+        db.retire_objects_pruner_watermark().unwrap();
+
+        assert!(
+            db.objects
+                .db
+                .cf_handle(OBJECTS_PRUNER_WATERMARK_CF)
+                .is_none()
+        );
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), Some(4_242));
+        assert_eq!(db.objects_pruner_watermark().unwrap(), Some(4_242));
+        db.retire_objects_pruner_watermark()
+            .expect("retiring again does nothing");
+    }
+
+    /// Without a watermark, retiring writes no bound and still drops the
+    /// older release's column family.
     #[tokio::test]
     async fn no_watermark_is_carried_over_when_the_pruner_never_ran() {
         let tmp_dir = iota_common::tempdir();
-        let db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
-        db.objects
-            .db
-            .create_cf(
-                "pruned_checkpoint",
-                &typed_store::rocksdb::Options::default(),
-            )
-            .unwrap();
+        let db = open_with_pruner_watermark(tmp_dir.path(), None);
 
-        rescue_objects_pruner_watermark(&db.objects.db).unwrap();
+        db.retire_objects_pruner_watermark().unwrap();
 
         assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), None);
+        assert!(
+            db.objects
+                .db
+                .cf_handle(OBJECTS_PRUNER_WATERMARK_CF)
+                .is_none()
+        );
     }
 
     #[tokio::test]
