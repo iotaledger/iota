@@ -4,10 +4,11 @@
 //! Unit tests for executing a transaction authenticated by a Move account when
 //! consensus has cancelled the transaction.
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1, MoveStruct, ObjectId, Owner,
-    SharedObjectReference, StructTag, Transaction, TransactionDigest, UserSignature, Version,
-    VersionAssignment,
+    Address, ExecutionStatus, GasCostSummary, MoveAuthenticator, MoveAuthenticatorV1, MoveStruct,
+    ObjectId, Owner, SharedObjectReference, StructTag, Transaction, TransactionDigest,
+    TransactionEffects, UserSignature, Version, VersionAssignment,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -16,6 +17,7 @@ use iota_types::{
     },
     crypto::AccountPrivateKey,
     effects::TransactionEffectsAPI,
+    error::ExecutionError,
     executable_transaction::VerifiedExecutableTransaction,
     object::{OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -51,11 +53,11 @@ fn authenticator_function_ref_field(account: &Object) -> Object {
     )
 }
 
-/// A transaction that uses `Random` and is sent by a Move account gets the
-/// usual cancellation effects when consensus cancels it because randomness is
-/// unavailable.
-#[tokio::test]
-async fn cancelled_move_account_transaction_gets_cancellation_effects() {
+/// Executes a transaction that uses `Random` and is sent by a Move account,
+/// which also pays for gas, with the versions consensus assigns when it
+/// cancels the transaction because randomness is unavailable.
+async fn execute_cancelled_move_account_transaction() -> (TransactionEffects, Option<ExecutionError>)
+{
     let account = Object::shared_for_testing();
     let account_id = account.id();
     let sender: Address = account_id.into();
@@ -115,10 +117,20 @@ async fn cancelled_move_account_transaction_gets_cancellation_effects() {
         VersionAssignment::new(ObjectId::RANDOMNESS_STATE, Version::RANDOMNESS_UNAVAILABLE),
         VersionAssignment::new(account_id, Version::CANCELED_READ),
     ]);
-    let (effects, execution_error) = authority
+    // With deterministic validation, a committee validator executes only
+    // transactions of commits its consensus handler assigned.
+    epoch_store.assign_commit_to_transactions(1, vec![executable.key()]);
+    authority
         .try_execute_immediately(&executable, env, &epoch_store)
-        .unwrap();
+        .unwrap()
+}
 
+/// A transaction that uses `Random` and is sent by a Move account gets the
+/// usual cancellation effects when consensus cancels it because randomness is
+/// unavailable.
+#[tokio::test]
+async fn cancelled_move_account_transaction_gets_cancellation_effects() {
+    let (effects, execution_error) = execute_cancelled_move_account_transaction().await;
     assert!(
         matches!(
             effects.status(),
@@ -129,4 +141,28 @@ async fn cancelled_move_account_transaction_gets_cancellation_effects() {
         effects.status()
     );
     assert!(execution_error.is_some());
+}
+
+/// With deterministic validation, the account's authenticator does not run for
+/// a cancelled transaction either, so the account, which pays for gas, did not
+/// authorize it: the transaction gets the cancellation effects and nobody is
+/// charged.
+#[tokio::test]
+async fn cancelled_move_account_transaction_charges_nobody_under_deterministic_validation() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config
+    });
+    let (effects, _) = execute_cancelled_move_account_transaction().await;
+
+    assert!(
+        matches!(
+            effects.status(),
+            ExecutionStatus::Failure { error, .. }
+                if error.is_execution_canceled_due_to_randomness_unavailable()
+        ),
+        "expected cancellation effects, got {:?}",
+        effects.status()
+    );
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
 }
