@@ -528,6 +528,9 @@ pub struct DBMap<K, V> {
     write_sample_interval: SamplingInterval,
     iter_sample_interval: SamplingInterval,
     _metrics_task_cancel_handle: Arc<oneshot::Sender<()>>,
+    /// What the per-operation metrics are labelled with; the column family
+    /// name unless [`Self::with_metrics_label`] set another.
+    metrics_label: Arc<str>,
 }
 
 impl<K, V> DBMap<K, V> {
@@ -568,11 +571,13 @@ impl<K, V> DBMap<K, V> {
                 debug!("Returning the cf metric logging task for DBMap: {}", &cf);
             });
         }
+        let metrics_label = Arc::from(column_family.name());
         DBMap {
             db: db.clone(),
             opts: opts.clone(),
             _phantom: PhantomData,
             column_family,
+            metrics_label,
             db_metrics: db_metrics_cloned,
             _metrics_task_cancel_handle: Arc::new(sender),
             get_sample_interval: db.get_sampling_interval(),
@@ -613,6 +618,19 @@ impl<K, V> DBMap<K, V> {
             column_family,
             skip_metrics_reporting,
         ))
+    }
+
+    /// Labels the per-operation metrics with `label` instead of the column
+    /// family name, so that the column families of one store, such as one per
+    /// epoch, share their series.
+    pub fn with_metrics_label(mut self, label: &str) -> Self {
+        self.metrics_label = Arc::from(label);
+        self
+    }
+
+    /// What the per-operation metrics are labelled with.
+    pub fn metrics_label(&self) -> &str {
+        &self.metrics_label
     }
 
     pub fn cf_name(&self) -> &str {
@@ -672,7 +690,7 @@ impl<K, V> DBMap<K, V> {
             .db_metrics
             .op_metrics
             .rocksdb_multiget_latency_seconds
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .start_timer();
         let perf_ctx = if self.multiget_sample_interval.sample() {
             Some(RocksDBPerfContext)
@@ -693,12 +711,12 @@ impl<K, V> DBMap<K, V> {
         self.db_metrics
             .op_metrics
             .rocksdb_multiget_bytes
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .observe(entry_size as f64);
         if perf_ctx.is_some() {
             self.db_metrics
                 .read_perf_ctx_metrics
-                .report_metrics(self.cf_name());
+                .report_metrics(self.metrics_label());
         }
         Ok(entries)
     }
@@ -745,18 +763,18 @@ impl<K, V> DBMap<K, V> {
             .db_metrics
             .op_metrics
             .rocksdb_iter_latency_seconds
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .start_timer();
         let bytes_scanned = self
             .db_metrics
             .op_metrics
             .rocksdb_iter_bytes
-            .with_label_values(&[self.cf_name()]);
+            .with_label_values(&[self.metrics_label()]);
         let keys_scanned = self
             .db_metrics
             .op_metrics
             .rocksdb_iter_keys
-            .with_label_values(&[self.cf_name()]);
+            .with_label_values(&[self.metrics_label()]);
         let perf_ctx = if self.iter_sample_interval.sample() {
             Some(RocksDBPerfContext)
         } else {
@@ -786,7 +804,7 @@ impl<K, V> DBMap<K, V> {
             .raw_iterator_cf_opt(&rocks_cf(db, self.column_family.name())?, readopts);
         let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
         Ok(SafeIter::new(
-            self.cf_name().to_string(),
+            self.metrics_label().to_string(),
             db_iter,
             _timer,
             _perf_ctx,
@@ -1258,7 +1276,7 @@ impl DBBatch {
         self.db_metrics
             .op_metrics
             .rocksdb_batch_put_bytes
-            .with_label_values(&[db.cf_name()])
+            .with_label_values(&[db.metrics_label()])
             .observe(total as f64);
         Ok(self)
     }
@@ -1323,7 +1341,7 @@ impl<K, V> DBMap<K, V> {
             .db_metrics
             .op_metrics
             .rocksdb_get_latency_seconds
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .start_timer();
         let perf_ctx = if self.get_sample_interval.sample() {
             Some(RocksDBPerfContext)
@@ -1336,12 +1354,12 @@ impl<K, V> DBMap<K, V> {
         self.db_metrics
             .op_metrics
             .rocksdb_get_bytes
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .observe(res.as_ref().map_or(0.0, |v| v.len() as f64));
         if perf_ctx.is_some() {
             self.db_metrics
                 .read_perf_ctx_metrics
-                .report_metrics(self.cf_name());
+                .report_metrics(self.metrics_label());
         }
         match res {
             Some(data) => {
@@ -1372,7 +1390,7 @@ impl<K, V> DBMap<K, V> {
             .db_metrics
             .op_metrics
             .rocksdb_put_latency_seconds
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .start_timer();
         let perf_ctx = if self.write_sample_interval.sample() {
             Some(RocksDBPerfContext)
@@ -1383,12 +1401,12 @@ impl<K, V> DBMap<K, V> {
         self.db_metrics
             .op_metrics
             .rocksdb_put_bytes
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .observe((key_buf.len() + value_buf.len()) as f64);
         if perf_ctx.is_some() {
             self.db_metrics
                 .write_perf_ctx_metrics
-                .report_metrics(self.cf_name());
+                .report_metrics(self.metrics_label());
         }
         self.db.put_cf(&self.column_family, key_buf, value_buf)?;
 
@@ -1398,12 +1416,12 @@ impl<K, V> DBMap<K, V> {
             self.db_metrics
                 .op_metrics
                 .rocksdb_very_slow_puts_count
-                .with_label_values(&[self.cf_name()])
+                .with_label_values(&[self.metrics_label()])
                 .inc();
             self.db_metrics
                 .op_metrics
                 .rocksdb_very_slow_puts_duration_ms
-                .with_label_values(&[self.cf_name()])
+                .with_label_values(&[self.metrics_label()])
                 .inc_by((elapsed_secs * 1000.0) as u64);
         }
 
@@ -1416,7 +1434,7 @@ impl<K, V> DBMap<K, V> {
             .db_metrics
             .op_metrics
             .rocksdb_delete_latency_seconds
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .start_timer();
         let perf_ctx = if self.write_sample_interval.sample() {
             Some(RocksDBPerfContext)
@@ -1427,12 +1445,12 @@ impl<K, V> DBMap<K, V> {
         self.db_metrics
             .op_metrics
             .rocksdb_deletes
-            .with_label_values(&[self.cf_name()])
+            .with_label_values(&[self.metrics_label()])
             .inc();
         if perf_ctx.is_some() {
             self.db_metrics
                 .write_perf_ctx_metrics
-                .report_metrics(self.cf_name());
+                .report_metrics(self.metrics_label());
         }
         Ok(())
     }
@@ -1682,6 +1700,12 @@ impl<K, V> TaggedDBMap<K, V> {
     /// Create a batch associated with the map's database.
     pub fn batch(&self) -> DBBatch {
         self.map.batch()
+    }
+
+    /// See [`DBMap::with_metrics_label`].
+    pub fn with_metrics_label(mut self, label: &str) -> Self {
+        self.map = self.map.with_metrics_label(label);
+        self
     }
 }
 

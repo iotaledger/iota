@@ -38,7 +38,7 @@ use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     epoch_buckets::{
         BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_name,
-        bucket_cf_options, extra_column_family_options,
+        bucket_cf_options, bucket_metrics_label, extra_column_family_options,
     },
 };
 
@@ -105,7 +105,8 @@ impl BucketReopen for HistoricObjectsBucket {
             DB_PREFIX_HISTORIC_EXPIRING,
             &ReadWriteOptions::default(),
             true,
-        )?;
+        )?
+        .with_metrics_label(bucket_metrics_label(cf_name));
         let expiring_marked = AtomicBool::new(expiring.get(&())?.is_some());
         Ok(Self {
             objects: TaggedDBMap::reopen(
@@ -114,14 +115,16 @@ impl BucketReopen for HistoricObjectsBucket {
                 DB_PREFIX_HISTORIC_OBJECTS,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
             tombstones: TaggedDBMap::reopen(
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_TOMBSTONES,
                 &ReadWriteOptions::default(),
                 true,
-            )?,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
             expiring,
             expiring_marked,
         })
