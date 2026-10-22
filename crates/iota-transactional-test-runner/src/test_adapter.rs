@@ -243,6 +243,10 @@ impl AdapterInitConfig {
             protocol_config.set_enable_move_authentication_for_testing(enable);
             protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
             protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
+            if enable {
+                // Sponsor-only pre-consensus authentication excludes the P-COOL flow.
+                protocol_config.set_enable_pcool_flow_for_testing(false);
+            }
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");

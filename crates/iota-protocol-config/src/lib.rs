@@ -650,7 +650,8 @@ struct FeatureFlags {
     // From protocol version 39 requires `pcool_verifier_limits_from_protocol_config`,
     // `consensus_dedup_only_recorded_messages`, a positive
     // `pcool_deterministic_validation_horizon_distance` and
-    // `deny_rule_update_max_entries_per_tx`.
+    // `deny_rule_update_max_entries_per_tx`, and excludes
+    // `pre_consensus_sponsor_only_move_authentication`.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
 
@@ -2403,6 +2404,16 @@ impl ProtocolConfig {
                     .is_some_and(|distance| distance > 0),
             "enable_pcool_flow requires a positive pcool_deterministic_validation_horizon_distance"
         );
+        // Without the sender's authenticator run before consensus, a sponsor
+        // alone could get a transaction sequenced that locks a Move account's
+        // owned objects.
+        assert!(
+            !pcool_requirements_apply
+                || !ret
+                    .feature_flags
+                    .pre_consensus_sponsor_only_move_authentication,
+            "enable_pcool_flow excludes pre_consensus_sponsor_only_move_authentication"
+        );
         // The injection cannot chunk updates without its limit.
         assert!(
             !pcool_requirements_apply || ret.deny_rule_update_max_entries_per_tx.is_some(),
@@ -4053,11 +4064,14 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
-    /// Turning the flow on also turns on the flags it requires and fills in
-    /// the settings it requires when unset, whatever the version.
+    /// Turning the flow on also turns on the flags it requires, turns off
+    /// `pre_consensus_sponsor_only_move_authentication`, which it excludes, and
+    /// fills in the settings it requires when unset, whatever the version.
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
         if val {
+            self.feature_flags
+                .pre_consensus_sponsor_only_move_authentication = false;
             self.feature_flags
                 .pcool_verifier_limits_from_protocol_config = true;
             // The limits flag requires this budget; versions before it leave
@@ -4599,6 +4613,34 @@ mod test {
             config
         });
         let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// With sponsor-only pre-consensus authentication, a sponsor alone could get
+    /// a transaction sequenced that locks a Move account's owned objects, so
+    /// the P-COOL flow excludes it.
+    #[test]
+    #[should_panic(
+        expected = "enable_pcool_flow excludes pre_consensus_sponsor_only_move_authentication"
+    )]
+    fn pcool_flow_with_sponsor_only_pre_consensus_authentication_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+                .feature_flags
+                .pre_consensus_sponsor_only_move_authentication = true;
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Turning the P-COOL flow on for testing turns sponsor-only pre-consensus
+    /// authentication off, which Testnet's version 34 has on.
+    #[test]
+    fn turning_the_pcool_flow_on_turns_sponsor_only_authentication_off() {
+        let mut config = ProtocolConfig::get_for_version(ProtocolVersion::new(34), Chain::Testnet);
+        assert!(config.pre_consensus_sponsor_only_move_authentication());
+        config.set_enable_pcool_flow_for_testing(true);
+        assert!(!config.pre_consensus_sponsor_only_move_authentication());
     }
 
     /// A test that turns a requirement off keeps a valid config instead of
