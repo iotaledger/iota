@@ -19,8 +19,7 @@ use move_core_types::{account_address::AccountAddress, language_storage::ModuleI
 use object::OBJECT_START_VERSION;
 
 use crate::{
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    id::RESOLVED_IOTA_ID,
+    base_types::{RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 
@@ -55,7 +54,6 @@ pub mod gas_coin;
 pub mod gas_model;
 pub mod global_state_hash;
 pub mod governance;
-pub mod id;
 pub mod in_memory_storage;
 pub mod inner_temporary_store;
 pub mod iota_sdk_types_conversions;

@@ -14,11 +14,10 @@ use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::{
-        RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
-        is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
+        RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext,
+        TxContextKind, is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
     error::IotaError,
-    id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     move_layout::MoveLayout,
     move_package::{
