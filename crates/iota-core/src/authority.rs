@@ -1294,12 +1294,11 @@ impl AuthorityState {
     /// authenticators are not run here: both happen at execution. Instead,
     /// each account must have had its authenticator function field at the
     /// horizon, or the transaction is reported missing. The package that
-    /// field names is checked against the deny rules, read as of the same
-    /// horizon, and a denial is returned as
+    /// field names, and its dependencies, read as of the horizon, are checked
+    /// against the deny rules of the commit, and a denial is returned as
     /// [`ValidationAtCommit::AuthenticatorPackageDenied`], since it holds for
     /// every copy of the transaction. So an account whose function is changed
-    /// to a denied package above the horizon is not caught here, and a package
-    /// the reader does not see is left to execution.
+    /// to a denied package above the horizon is not caught here.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,

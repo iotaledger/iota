@@ -312,11 +312,15 @@ impl CommitIndexedReader {
 
     /// The authenticate function that `field`, the authenticator function
     /// field [`Self::read_account`] read for the account `account_id`, names,
-    /// for the authenticator package deny check at the commit. `None` when
-    /// this reader does not see the function's package, so the check never
-    /// reports it not found: execution reports it. A package this reader sees
-    /// stays visible to it, so the check reads it again through this reader
-    /// as its package store.
+    /// for the authenticator package deny check at the commit. A package this
+    /// reader sees stays visible to it, so the check reads it again through
+    /// this reader as its package store.
+    ///
+    /// On chain, the field can only be created from the package's metadata
+    /// object, which exists only once the package is published, so a field
+    /// live at the horizon names a package this reader sees. `None` when it
+    /// does not, which only a field written directly to the store can cause;
+    /// the deny check then skips the function.
     ///
     /// # Errors
     ///
