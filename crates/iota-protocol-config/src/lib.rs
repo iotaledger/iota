@@ -259,6 +259,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             user transaction from an authority that has sent EndOfPublish
 //             no longer makes a later transaction with the same key in the
 //             same commit be skipped as a duplicate.
+//             Reject a multisig whose committee mixes Ed25519 with other key
+//             schemes unless every committee member has signed.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
