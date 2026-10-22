@@ -454,6 +454,11 @@ pub(crate) enum ConsensusError {
 
     #[error("Peer {peer} sent a commit-sync response message with more than {limit} entries")]
     TooManyCommitSyncEntries { peer: AuthorityIndex, limit: usize },
+
+    #[error(
+        "Block {block_ref:?} rejected: the last solid commit is lagging the last commit by {lag} rounds"
+    )]
+    SolidCommitLagging { block_ref: BlockRef, lag: Round },
 }
 
 impl ConsensusError {
