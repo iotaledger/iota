@@ -4645,7 +4645,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
                 ..
             }) => {
-                if !self.protocol_config().deny_rule_governance() {
+                if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring TransactionDenyRuleProposal from {:?}: deny rule governance is disabled",
                         proposal.authority.concise()
@@ -5409,7 +5409,7 @@ impl AuthorityPerEpochStore {
         roots: &mut BTreeSet<TransactionKey>,
         consensus_commit_info: &ConsensusCommitInfo,
     ) -> IotaResult<()> {
-        if !self.protocol_config().deny_rule_governance_on_chain() {
+        if !self.protocol_config().enable_pcool_flow() {
             return Ok(());
         }
         // Mirroring starts the epoch after the object is created: without the
@@ -6585,7 +6585,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
                 ..
             }) => {
-                // The `deny_rule_governance` feature gate is enforced in
+                // The `enable_pcool_flow` feature gate is enforced in
                 // `verify_consensus_transaction`, which filters every
                 // sequenced transaction before it reaches this point.
                 if !self

@@ -268,7 +268,7 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                 }
             }
             Self::TransactionDenyRulesCreate => {
-                if !config.deny_rule_governance_on_chain() {
+                if !config.enable_pcool_flow() {
                     return Err(UserInputError::Unsupported(
                         "on-chain deny rule governance not supported at current protocol version"
                             .to_string(),
@@ -1024,7 +1024,7 @@ impl TransactionKindExt for TransactionKind {
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
             TransactionKind::TransactionDenyRulesUpdate(_) => {
-                if !config.deny_rule_governance_on_chain() {
+                if !config.enable_pcool_flow() {
                     return Err(UserInputError::Unsupported(
                         "on-chain deny rule governance not supported at current protocol version"
                             .to_string(),

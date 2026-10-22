@@ -8288,11 +8288,12 @@ async fn test_consensus_queue_graduated_load_shedding() {
     );
 }
 
-/// Builds an authority with the deny-rule-governance protocol flag toggled.
-async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
+/// Builds an authority with the P-COOL flow, and with it deny rule
+/// governance, toggled.
+async fn authority_with_pcool_flow(enabled: bool) -> Arc<AuthorityState> {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(enabled);
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8300,7 +8301,7 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 }
 
 /// The end-of-epoch transaction creates the `TransactionDenyRules` object
-/// exactly when on-chain deny rule governance is enabled and the object does
+/// exactly when the P-COOL flow is enabled and the object does
 /// not exist at epoch start.
 #[rstest::rstest]
 #[tokio::test]
@@ -8314,11 +8315,7 @@ async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-        protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
-        protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8361,7 +8358,7 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(true).await;
+    let authority = authority_with_pcool_flow(true).await;
     let epoch_store = authority.epoch_store_for_testing();
     // Single-validator test committee: this authority holds all stake and
     // clears both the f+1 and 2f+1 thresholds alone.
@@ -8446,7 +8443,7 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(false).await;
+    let authority = authority_with_pcool_flow(false).await;
     let epoch_store = authority.epoch_store_for_testing();
     let me = epoch_store.name;
 

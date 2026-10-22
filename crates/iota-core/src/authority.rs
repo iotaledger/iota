@@ -1042,8 +1042,7 @@ impl AuthorityState {
     /// `deny_config` is the deny rule source to enforce, chosen per caller:
     /// the local config alone, the local config combined with the governance
     /// rules (admission), or the governance-derived active set alone
-    /// (post-consensus) — the latter two when `deny_rule_governance` is
-    /// enabled.
+    /// (post-consensus) — the latter two with `enable_pcool_flow`.
     ///
     /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
     /// `false` reads the latest value, so denials apply immediately - for
@@ -5593,9 +5592,7 @@ impl AuthorityState {
         // committee injects (or skips) the kind together. If this epoch
         // change falls into safe mode the creation is dropped with it, the
         // object stays absent, and the next epoch end injects it again.
-        if epoch_store
-            .protocol_config()
-            .deny_rule_governance_on_chain()
+        if epoch_store.protocol_config().enable_pcool_flow()
             && epoch_store
                 .epoch_start_config()
                 .transaction_deny_rules_obj_initial_shared_version()

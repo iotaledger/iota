@@ -1505,10 +1505,10 @@ fn test_transaction_deny_rules_update_transaction() {
 /// it on they are system transactions that users cannot submit.
 #[test]
 fn test_transaction_deny_rules_kinds_rejected_from_users() {
-    let flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
+    let mut flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
+    flag_off.set_enable_pcool_flow_for_testing(false);
     let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
-    flag_on.set_deny_rule_governance_for_testing(true);
-    flag_on.set_deny_rule_governance_on_chain_for_testing(true);
+    flag_on.set_enable_pcool_flow_for_testing(true);
 
     let create =
         TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);

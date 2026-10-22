@@ -242,7 +242,7 @@ pub async fn validate_and_resolve_conflicts(
     // consensus-derived set — local config can differ between validators and
     // would fork the post-consensus decisions.
     let governance_deny_rules;
-    let deny_config: &dyn DenyRuleConfig = if epoch_store.protocol_config().deny_rule_governance() {
+    let deny_config: &dyn DenyRuleConfig = if epoch_store.protocol_config().enable_pcool_flow() {
         governance_deny_rules = epoch_store.get_active_transaction_deny_rules();
         governance_deny_rules.as_ref()
     } else {

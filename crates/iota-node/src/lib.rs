@@ -1945,7 +1945,7 @@ impl IotaNode {
                 // The empty set is announced too: every committee member
                 // attests its configuration each epoch, so silence means
                 // offline rather than "no rules".
-                if config.deny_rule_governance() {
+                if config.enable_pcool_flow() {
                     let proposed_rules = self.config.transaction_deny_config.to_deny_rule_set();
                     let recorded = cur_epoch_store.recorded_deny_rule_proposal(&self.state.name);
                     let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(

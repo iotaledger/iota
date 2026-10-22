@@ -213,7 +213,6 @@ impl AdapterInitConfig {
             reference_gas_price,
             default_gas_price,
             move_auth,
-            deny_rule_governance,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -244,13 +243,6 @@ impl AdapterInitConfig {
             protocol_config.set_enable_move_authentication_for_testing(enable);
             protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
             protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
-        }
-        if let Some(enable) = deny_rule_governance {
-            protocol_config.set_deny_rule_governance_for_testing(enable);
-            protocol_config.set_deny_rule_governance_on_chain_for_testing(enable);
-            if enable {
-                protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-            }
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");
@@ -2851,20 +2843,6 @@ async fn init_sim_executor(
     // Create the simulator with the specific account configs, which also crates
     // objects
 
-    // The simulator resolves its `ProtocolConfig` from the protocol version alone,
-    // so feature flags toggled on `protocol_config` would not reach it. Scope a
-    // thread-local override around the (synchronous) construction so the genesis
-    // epoch picks the flags up; `Simulacrum::advance_epoch` then carries the
-    // config over to later epochs.
-    let config_override = protocol_config.deny_rule_governance().then(|| {
-        let max_entries = protocol_config.deny_rule_update_max_entries_per_tx();
-        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-            config.set_deny_rule_governance_for_testing(true);
-            config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries);
-            config
-        })
-    });
     let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
         rng,
         DEFAULT_CHAIN_START_TIMESTAMP,
@@ -2874,7 +2852,6 @@ async fn init_sim_executor(
         reference_gas_price,
         None,
     );
-    drop(config_override);
 
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 

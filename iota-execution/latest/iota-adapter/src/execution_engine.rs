@@ -1616,7 +1616,7 @@ mod checked {
                         }
                         EndOfEpochTransactionKind::TransactionDenyRulesCreate => {
                             assert!(
-                                protocol_config.deny_rule_governance_on_chain(),
+                                protocol_config.enable_pcool_flow(),
                                 "unexpected TransactionDenyRulesCreate: on-chain deny rule governance is not enabled"
                             );
                             builder = setup_transaction_deny_rules_create(builder)
@@ -1660,7 +1660,7 @@ mod checked {
             }
             TransactionKind::TransactionDenyRulesUpdate(update) => {
                 assert!(
-                    protocol_config.deny_rule_governance_on_chain(),
+                    protocol_config.enable_pcool_flow(),
                     "unexpected TransactionDenyRulesUpdate: on-chain deny rule governance is not enabled"
                 );
                 setup_transaction_deny_rules_update(

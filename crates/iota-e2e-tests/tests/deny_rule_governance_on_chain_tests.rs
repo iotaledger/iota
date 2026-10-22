@@ -23,13 +23,11 @@ use iota_types::{
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-/// Enables both governance flags and the chunk limit. The returned guard must
-/// stay alive for the whole test.
+/// Enables the P-COOL flow, which governs the deny rules, with the chunk
+/// limit. The returned guard must stay alive for the whole test.
 fn governance_overrides(max_entries_per_tx: u64) -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_deny_rule_governance_for_testing(true);
-        config.set_deny_rule_governance_on_chain_for_testing(true);
         config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries_per_tx);
         config
     })

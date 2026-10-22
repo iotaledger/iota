@@ -24,7 +24,6 @@ mod simtests {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(true);
-            config.set_deny_rule_governance_for_testing(true);
             config
         });
 
