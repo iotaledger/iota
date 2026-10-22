@@ -1332,7 +1332,6 @@ mod tests {
     }
 
     mod get_coin_metadata_tests {
-        use iota_sdk_move_types::iota_framework::object::UID;
         use iota_types::coin::CoinMetadata;
         use mockall::predicate;
 
