@@ -3451,11 +3451,11 @@ mod test {
                     dag.get_verified_block_headers(&[block_ref])[0].is_some()
                 }
                 GenericTransactionRef::TransactionRef(ref t) => {
-                    // resolve_block_ref returns None iff the block header is absent from
+                    // resolve_block_refs is empty iff the block header is absent from
                     // dag_state, which is exactly the condition we want to check.
-                    dag.resolve_block_ref(t).is_some_and(|block_ref| {
-                        dag.get_verified_block_headers(&[block_ref])[0].is_some()
-                    })
+                    dag.resolve_block_refs(t)
+                        .iter()
+                        .any(|block_ref| dag.get_verified_block_headers(&[*block_ref])[0].is_some())
                 }
             }
         };
