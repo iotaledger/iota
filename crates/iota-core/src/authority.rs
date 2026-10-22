@@ -2431,16 +2431,20 @@ impl AuthorityState {
 
             // With a resolution failure, the executor gets the failure in place of
             // the list, with the accounts the authenticators would have
-            // authenticated and the gas owner's authenticator if its account
-            // resolved, so it can decide who pays.
+            // authenticated and, under deterministic validation, the gas owner's
+            // authenticator if its account resolved, so it can decide who pays.
             let authenticators = match gas_owner_resolution_error.or(first_resolution_error) {
                 Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
                     error,
                     accounts,
-                    gas_owner: resolved_authenticators
-                        .into_iter()
-                        .find(|resolved| resolved.authenticator.address() == gas_data.owner)
-                        .map(Box::new),
+                    gas_owner: if deterministic_validation {
+                        resolved_authenticators
+                            .into_iter()
+                            .find(|resolved| resolved.authenticator.address() == gas_data.owner)
+                            .map(Box::new)
+                    } else {
+                        None
+                    },
                 },
                 None => MoveAuthenticatorsForExecution::Resolved(resolved_authenticators),
             };
