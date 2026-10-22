@@ -7807,8 +7807,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "610b062ef17bad0f06da044b7b9de903e06ad142625458dbb73e56b761575c2a"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad#1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad"
 dependencies = [
  "base64ct",
  "bech32 0.12.0",
@@ -7949,8 +7948,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22f3c4059fc01eeeb3803f160a5a20073385d033b8d7b70fbe1a3bc69adb457c"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad#1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",

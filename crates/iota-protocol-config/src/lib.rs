@@ -776,6 +776,13 @@ struct FeatureFlags {
     //   does not make a later transaction with the same key in its commit be skipped.
     #[serde(skip_serializing_if = "is_false")]
     consensus_dedup_only_recorded_messages: bool,
+
+    // If true, a multisig whose committee mixes Ed25519 with other key schemes
+    // is only accepted when every committee member has signed. Ed25519 members
+    // carry no flag byte in the multisig address preimage, so two different
+    // mixed committees can derive the same address.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_partially_signed_mixed_ed25519_multisig: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2312,6 +2319,11 @@ impl ProtocolConfig {
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
         self.feature_flags.consensus_dedup_only_recorded_messages
     }
+
+    pub fn reject_partially_signed_mixed_ed25519_multisig(&self) -> bool {
+        self.feature_flags
+            .reject_partially_signed_mixed_ed25519_multisig
+    }
 }
 
 #[cfg(not(msim))]
@@ -3759,6 +3771,8 @@ impl ProtocolConfig {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
                     cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
+                    cfg.feature_flags
+                        .reject_partially_signed_mixed_ed25519_multisig = true;
                 }
                 // Use this template when making changes:
                 //

@@ -15,13 +15,19 @@ use crate::error::{IotaError, IotaResult};
 pub struct VerifyParams {
     pub accept_passkey_in_multisig: bool,
     pub additional_multisig_checks: bool,
+    pub reject_partially_signed_mixed_ed25519_multisig: bool,
 }
 
 impl VerifyParams {
-    pub fn new(accept_passkey_in_multisig: bool, additional_multisig_checks: bool) -> Self {
+    pub fn new(
+        accept_passkey_in_multisig: bool,
+        additional_multisig_checks: bool,
+        reject_partially_signed_mixed_ed25519_multisig: bool,
+    ) -> Self {
         Self {
             accept_passkey_in_multisig,
             additional_multisig_checks,
+            reject_partially_signed_mixed_ed25519_multisig,
         }
     }
 }

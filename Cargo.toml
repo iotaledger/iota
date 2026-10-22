@@ -518,3 +518,9 @@ typed-store-error = { path = "crates/typed-store-error" }
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
 fastcrypto = "=0.1.11"
+
+# The SDK commit adding `MultisigVerifier::with_reject_partially_signed_mixed_ed25519`.
+# Drop once a release containing it is published.
+[patch.crates-io]
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad" }
