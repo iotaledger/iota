@@ -2133,7 +2133,9 @@
                 "package_publish_cost_per_byte": {
                   "u64": "80"
                 },
-                "pcool_deterministic_validation_horizon_distance": null,
+                "pcool_deterministic_validation_horizon_distance": {
+                  "u64": "4"
+                },
                 "poseidon_bn254_cost_base": {
                   "u64": "260"
                 },

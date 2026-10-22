@@ -602,6 +602,10 @@ mod tests {
     use super::*;
 
     const HORIZON: CommitIndex = 10;
+    /// The horizon distance these tests set, so validation at
+    /// `VALIDATED_COMMIT` reads the state as of `HORIZON`.
+    const HORIZON_DISTANCE: CommitIndex = 4;
+    const VALIDATED_COMMIT: CommitIndex = HORIZON + HORIZON_DISTANCE;
     const DECLARED: u64 = 5;
 
     fn declared() -> Version {
@@ -638,7 +642,7 @@ mod tests {
     }
 
     /// A transaction in commit 11 creates a shared object with initial shared
-    /// version 8. Commit 12 is validated with horizon 10, so the object must
+    /// version 8. Commit 14 is validated with horizon 10, so the object must
     /// not be visible yet. The first read finds no creation row. Commit 11
     /// then executes, and writes its row before the object reaches the store.
     /// The store now returns the object, so the store answer alone would
@@ -663,6 +667,9 @@ mod tests {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
                 config
             });
 
@@ -697,7 +704,7 @@ mod tests {
         let ctx = CommitIndexedReader::new(
             authority.get_object_cache_reader().clone(),
             epoch_store.clone(),
-            PRODUCING_COMMIT + 1,
+            VALIDATED_COMMIT,
         );
 
         let no_tables_entry = match SharedReader::start(s_id, initial, HORIZON)
@@ -740,7 +747,7 @@ mod tests {
         ));
     }
 
-    /// A transaction in commit 11, above the horizon of commit 12, creates a
+    /// A transaction in commit 11, above the horizon of commit 14, creates a
     /// shared object with initial shared version 8. A transaction declares
     /// the object at version 5. A validator that has not executed commit 11
     /// has no object and no row for it, and answers missing. One that has
@@ -766,6 +773,9 @@ mod tests {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
                 config
             });
 
@@ -797,7 +807,7 @@ mod tests {
             )
         };
 
-        assert_missing(read_at(PRODUCING_COMMIT + 1), MissingKind::SharedNotFound);
+        assert_missing(read_at(VALIDATED_COMMIT), MissingKind::SharedNotFound);
 
         let transaction = SenderSignedTransaction::new(
             TestTransactionBuilder::new(sender, gas.object_ref(), 0)
@@ -822,9 +832,9 @@ mod tests {
             Owner::Shared(initial),
         ));
 
-        assert_missing(read_at(PRODUCING_COMMIT + 1), MissingKind::SharedNotFound);
+        assert_missing(read_at(VALIDATED_COMMIT), MissingKind::SharedNotFound);
         assert!(matches!(
-            read_at(PRODUCING_COMMIT + 2),
+            read_at(PRODUCING_COMMIT + HORIZON_DISTANCE),
             SharedVerdict::Drop(reason) if reason.kind() == DropKind::SharedInitialVersionMismatch
         ));
     }
@@ -849,6 +859,9 @@ mod tests {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.enable_pcool_deterministic_validation_for_testing();
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
                 config
             });
 

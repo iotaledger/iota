@@ -49,9 +49,7 @@ use crate::{
 /// horizon distance. The reader treats rows produced above it as missing, and
 /// the handler waits until it is fully executed before validating.
 pub fn horizon(protocol_config: &ProtocolConfig, commit_index: CommitIndex) -> CommitIndex {
-    commit_index.saturating_sub(
-        protocol_config.pcool_deterministic_validation_horizon_distance_or_default(),
-    )
+    commit_index.saturating_sub(protocol_config.pcool_deterministic_validation_horizon_distance())
 }
 
 /// Reads inputs as of one consensus commit. Built once per commit and passed

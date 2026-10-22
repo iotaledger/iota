@@ -1387,6 +1387,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let network_config =
@@ -1463,6 +1464,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
@@ -1580,6 +1582,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let network_config =
@@ -1841,6 +1844,7 @@ mod tests {
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
@@ -1874,9 +1878,8 @@ mod tests {
             tracking_id: Default::default(),
         };
         // An input produced at commit 1. Validation at commit C reads the state
-        // as of commit C - 2, the default
-        // `pcool_deterministic_validation_horizon_distance`, so validation at
-        // commits 1 and 2 drops the transaction and validation at commit 3
+        // as of commit C - 4, the horizon distance set above, so validation at
+        // commits 1 to 4 drops the transaction and validation at commit 5
         // keeps it.
         epoch
             .flush_commit_rows_for_testing(
@@ -1908,7 +1911,7 @@ mod tests {
         );
         let bytes = bcs::to_bytes(&consensus_tx).unwrap();
         let cache_key = SequencedConsensusTransactionKey::External(consensus_tx.key());
-        for index in 1..=4 {
+        for index in 1..=6 {
             let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(index, 0).build());
             let batch = CommitmentVerifiedTransactions::new_for_test(
                 &header,
@@ -1930,17 +1933,17 @@ mod tests {
                 .unwrap()
                 .map(|saved| saved.decision);
             match index {
-                1 | 2 => assert_eq!(
+                1..=4 => assert_eq!(
                     decision,
                     Some(PostConsensusDecision::DroppedInputNotVisibleYet)
                 ),
-                3 => assert_eq!(decision, Some(PostConsensusDecision::Kept)),
-                // Kept at commit 3, so this copy is skipped as already processed
+                5 => assert_eq!(decision, Some(PostConsensusDecision::Kept)),
+                // Kept at commit 5, so this copy is skipped as already processed
                 // before validation and has no saved decision.
-                4 => assert_eq!(decision, None),
+                6 => assert_eq!(decision, None),
                 _ => unreachable!(),
             }
-            assert_eq!(handler.processed_cache.contains(&cache_key), index >= 3);
+            assert_eq!(handler.processed_cache.contains(&cache_key), index >= 5);
         }
         let roots = epoch.get_pending_checkpoints(None).unwrap();
         assert_eq!(
@@ -1966,6 +1969,7 @@ mod tests {
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
@@ -1999,9 +2003,8 @@ mod tests {
             tracking_id: Default::default(),
         };
         // An input produced at commit 1. Validation at commit C reads the state
-        // as of commit C - 2, the default
-        // `pcool_deterministic_validation_horizon_distance`, so at commit 1 the
-        // input is not visible yet.
+        // as of commit C - 4, the horizon distance set above, so at commit 1
+        // the input is not visible yet.
         epoch
             .flush_commit_rows_for_testing(
                 0,
@@ -2084,6 +2087,7 @@ mod tests {
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
@@ -2171,6 +2175,7 @@ mod tests {
     async fn failing_copy_first_in_a_commit_does_not_hide_the_honest_copy() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
@@ -2222,6 +2227,7 @@ mod tests {
     async fn waiting_submitter_is_not_told_about_the_drop_of_a_failing_copy() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let saved_error: IotaError =
@@ -2455,6 +2461,7 @@ mod tests {
     async fn user_transactions_from_an_author_that_sent_end_of_publish_take_no_locks() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
@@ -2534,6 +2541,7 @@ mod tests {
     async fn user_transactions_after_end_of_publish_quorum_take_no_locks() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
@@ -2619,6 +2627,7 @@ mod tests {
         let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
             if deterministic_validation {
                 config.enable_pcool_deterministic_validation_for_testing();
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             } else {
                 config.set_enable_pcool_flow_for_testing(true);
             }
@@ -2954,6 +2963,7 @@ mod tests {
     async fn test_consensus_handler_drops_inconsistent_shared_input_with_validation() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         });
         assert_user_transaction_with_inconsistent_shared_input_is_dropped(true).await;

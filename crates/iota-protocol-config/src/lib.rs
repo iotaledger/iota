@@ -1663,9 +1663,8 @@ pub struct ProtocolConfig {
     /// How many consensus commits back post-consensus validation reads object
     /// state. Validating a transaction in commit C reads object state as of
     /// commit C - K, where K is this distance; that commit is the horizon of
-    /// C, and it must be fully executed before C is validated. Unset until the
-    /// version that enables `pcool_deterministic_validation`; reads as 2 until
-    /// then.
+    /// C, and it must be fully executed before C is validated. Set on Devnet
+    /// from protocol version 39. Required by `pcool_deterministic_validation`.
     pcool_deterministic_validation_horizon_distance: Option<u64>,
 
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
@@ -2141,13 +2140,6 @@ impl ProtocolConfig {
             .pcool_verifier_limits_from_protocol_config
     }
 
-    /// `pcool_deterministic_validation_horizon_distance`, or 2 for a version
-    /// that leaves it unset.
-    pub fn pcool_deterministic_validation_horizon_distance_or_default(&self) -> u64 {
-        self.pcool_deterministic_validation_horizon_distance
-            .unwrap_or(2)
-    }
-
     pub fn validator_metadata_verify_v2(&self) -> bool {
         self.feature_flags.validator_metadata_verify_v2
     }
@@ -2434,7 +2426,9 @@ impl ProtocolConfig {
         // before the handler finishes processing C.
         assert!(
             !ret.feature_flags.pcool_deterministic_validation
-                || ret.pcool_deterministic_validation_horizon_distance != Some(0),
+                || ret
+                    .pcool_deterministic_validation_horizon_distance
+                    .is_some_and(|distance| distance > 0),
             "pcool_deterministic_validation requires a positive \
                 pcool_deterministic_validation_horizon_distance"
         );
@@ -3783,6 +3777,12 @@ impl ProtocolConfig {
                     // schemes unless every committee member has signed.
                     cfg.feature_flags
                         .reject_partially_signed_mixed_ed25519_multisig = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Post-consensus validation reads object state as of
+                        // 4 commits below the one it validates.
+                        cfg.pcool_deterministic_validation_horizon_distance = Some(4);
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -4135,6 +4135,9 @@ impl ProtocolConfig {
         self.max_meter_ticks_regex_reference_safety
             .get_or_insert(2_200_000);
         self.feature_flags.consensus_dedup_only_recorded_messages = true;
+        // Versions before 39 and Mainnet and Testnet leave the distance unset.
+        self.pcool_deterministic_validation_horizon_distance
+            .get_or_insert(4);
         self.feature_flags.pcool_deterministic_validation = true;
     }
 
@@ -4512,29 +4515,43 @@ mod test {
         assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
     }
 
-    /// No version sets the horizon distance yet, so the reader gets the
-    /// default; an override still wins.
+    /// Devnet sets the horizon distance from version 39 on; Mainnet, Testnet
+    /// and earlier versions leave it unset. An override still wins.
     #[test]
-    fn horizon_distance_defaults_until_a_version_sets_it() {
-        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-        assert_eq!(
-            config.pcool_deterministic_validation_horizon_distance_as_option(),
-            None
-        );
-        assert_eq!(
-            config.pcool_deterministic_validation_horizon_distance_or_default(),
-            2
-        );
+    fn horizon_distance_is_set_on_devnet_from_version_39() {
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::new(39), Chain::Unknown);
+        assert_eq!(config.pcool_deterministic_validation_horizon_distance(), 4);
+        for (version, chain) in [
+            (38, Chain::Unknown),
+            (39, Chain::Mainnet),
+            (39, Chain::Testnet),
+        ] {
+            let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+            assert_eq!(
+                config.pcool_deterministic_validation_horizon_distance_as_option(),
+                None,
+                "version {version} on {chain:?}"
+            );
+        }
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
             config
         });
         let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-        assert_eq!(
-            config.pcool_deterministic_validation_horizon_distance_or_default(),
-            5
-        );
+        assert_eq!(config.pcool_deterministic_validation_horizon_distance(), 5);
+    }
+
+    /// Deterministic validation has no horizon distance to fall back on.
+    #[test]
+    #[should_panic(expected = "pcool_deterministic_validation_horizon_distance")]
+    fn deterministic_validation_without_a_horizon_distance_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config.disable_pcool_deterministic_validation_horizon_distance_for_testing();
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     }
 
     /// With a horizon distance of 0, the consensus handler processing commit C

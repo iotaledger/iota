@@ -1928,7 +1928,7 @@ async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizo
             protocol_config.pcool_deterministic_validation(),
             "the protocol-config override must reach the validators"
         );
-        protocol_config.pcool_deterministic_validation_horizon_distance_or_default()
+        protocol_config.pcool_deterministic_validation_horizon_distance()
     });
 
     let regulated = RegulatedCoin::publish(&test_cluster).await;

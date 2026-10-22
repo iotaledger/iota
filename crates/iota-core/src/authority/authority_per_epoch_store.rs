@@ -1926,7 +1926,7 @@ impl AuthorityPerEpochStore {
         }
         let horizon_distance = self
             .protocol_config()
-            .pcool_deterministic_validation_horizon_distance_or_default();
+            .pcool_deterministic_validation_horizon_distance();
         Some(ObjectPruningLimit {
             epoch: self.epoch(),
             highest_prunable_checkpoint: self

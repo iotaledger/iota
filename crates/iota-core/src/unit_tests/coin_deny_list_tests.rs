@@ -427,15 +427,15 @@ async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
 
 // Post-consensus validation at commit C reads state as of commit C - K,
 // called the horizon of C. K is the protocol config's
-// `pcool_deterministic_validation_horizon_distance`, 2 in these tests, so
-// commit 2 has horizon 0 and commit 3 has horizon 1.
+// `pcool_deterministic_validation_horizon_distance`, 4 in these tests, so
+// commit 4 has horizon 0 and commit 5 has horizon 1.
 //
 // Under P-COOL with deterministic validation, post-consensus validation checks
 // the sender against the coin types of its inputs, reading the deny list as of
 // the commit's horizon. A sender denied in the previous epoch and allowed again
 // at commit 1 of this one is admitted, since admission reads the latest deny
-// list. The removal counts from commit 3 (horizon 1) on: commit 2 drops the
-// transaction, commit 3 keeps it, and execution, which no longer checks the
+// list. The removal counts from commit 5 (horizon 1) on: commit 4 drops the
+// transaction, commit 5 keeps it, and execution, which no longer checks the
 // inputs, runs it.
 #[tokio::test]
 async fn test_sender_undenied_this_epoch_is_kept_once_the_horizon_reaches_the_removal() {
@@ -453,15 +453,15 @@ async fn test_sender_undenied_this_epoch_is_kept_once_the_horizon_reaches_the_re
         .expect("admission must accept a sender the latest deny list allows");
     env.assert_dropped_at_commit(
         &transfer_tx,
-        2,
+        4,
         UserInputError::AddressDeniedForCoin {
             address: env.env.sender,
             coin_type: env.coin_type(),
         },
     );
-    env.assert_kept_at_commit(&transfer_tx, 3);
+    env.assert_kept_at_commit(&transfer_tx, 5);
 
-    let effects = env.execute_at(transfer_tx, 3).await;
+    let effects = env.execute_at(transfer_tx, 5).await;
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Success,
@@ -546,8 +546,8 @@ async fn test_regulated_coin_transfer_effects_without_deterministic_validation()
 
 // Under P-COOL with deterministic validation, a transaction spending a coin
 // whose global pause was settled at the epoch boundary and lifted at commit 1
-// of this epoch is admitted, dropped at commit 2 (horizon 0), and kept at
-// commit 3 (horizon 1). Execution still fails it, charging gas: the check of
+// of this epoch is admitted, dropped at commit 4 (horizon 0), and kept at
+// commit 5 (horizon 1). Execution still fails it, charging gas: the check of
 // the coins it writes reads the pause as settled before this epoch.
 #[tokio::test]
 async fn test_tx_spending_coin_unpaused_this_epoch_is_kept_once_the_horizon_reaches_it() {
@@ -564,14 +564,14 @@ async fn test_tx_spending_coin_unpaused_this_epoch_is_kept_once_the_horizon_reac
         .expect("admission must accept a coin the latest deny list does not pause");
     env.assert_dropped_at_commit(
         &transfer_tx,
-        2,
+        4,
         UserInputError::CoinTypeGlobalPause {
             coin_type: env.coin_type(),
         },
     );
-    env.assert_kept_at_commit(&transfer_tx, 3);
+    env.assert_kept_at_commit(&transfer_tx, 5);
 
-    let effects = env.execute_at(transfer_tx, 3).await;
+    let effects = env.execute_at(transfer_tx, 5).await;
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
@@ -591,9 +591,9 @@ async fn test_tx_spending_coin_unpaused_this_epoch_is_kept_once_the_horizon_reac
 
 // Under P-COOL with deterministic validation, the first denial of a coin type
 // creates its deny-list config. A sender denied at commit 1 is checked against
-// the deny list as of the horizon: at commit 2 (horizon 0) the config does not
+// the deny list as of the horizon: at commit 4 (horizon 0) the config does not
 // exist yet, before or after this validator executed the denial, so the
-// transfer is kept; at commit 3 (horizon 1) it is dropped.
+// transfer is kept; at commit 5 (horizon 1) it is dropped.
 #[tokio::test]
 async fn test_sender_denied_with_a_new_config_is_dropped_once_the_horizon_reaches_it() {
     let epoch_zero = RegulatedCoinEnv::epoch_zero_override();
@@ -602,7 +602,7 @@ async fn test_sender_denied_with_a_new_config_is_dropped_once_the_horizon_reache
     let _guard = env.reconfigure_with_deterministic_validation().await;
 
     let transfer_tx = env.build_transfer().await;
-    env.assert_kept_at_commit(&transfer_tx, 2);
+    env.assert_kept_at_commit(&transfer_tx, 4);
 
     env.deny_sender_at(1).await;
     assert!(
@@ -610,10 +610,10 @@ async fn test_sender_denied_with_a_new_config_is_dropped_once_the_horizon_reache
             .is_some(),
         "the denial must create the coin type's config"
     );
-    env.assert_kept_at_commit(&transfer_tx, 2);
+    env.assert_kept_at_commit(&transfer_tx, 4);
     env.assert_dropped_at_commit(
         &transfer_tx,
-        3,
+        5,
         UserInputError::AddressDeniedForCoin {
             address: env.env.sender,
             coin_type: env.coin_type(),
@@ -627,8 +627,8 @@ async fn test_sender_denied_with_a_new_config_is_dropped_once_the_horizon_reache
 // refused at admission, which reads the latest deny list. A transaction that
 // receives a coin of that type from an object the sender owns and sends it on
 // can still be sequenced, by a faulty validator or one that admitted it before
-// executing the denial: at commit 2 (horizon 0) the denial is not visible yet,
-// so it is kept; at commit 3 (horizon 1) it is dropped.
+// executing the denial: at commit 4 (horizon 0) the denial is not visible yet,
+// so it is kept; at commit 5 (horizon 1) it is dropped.
 #[tokio::test]
 async fn test_sender_denied_this_epoch_receiving_a_coin_is_dropped_once_the_horizon_reaches_it() {
     let epoch_zero = RegulatedCoinEnv::epoch_zero_override();
@@ -654,10 +654,10 @@ async fn test_sender_denied_this_epoch_receiving_a_coin_is_dropped_once_the_hori
         "unexpected error: {err:?}"
     );
 
-    env.assert_kept_at_commit(&receive_tx, 2);
+    env.assert_kept_at_commit(&receive_tx, 4);
     env.assert_dropped_at_commit(
         &receive_tx,
-        3,
+        5,
         UserInputError::AddressDeniedForCoin {
             address: env.env.sender,
             coin_type: env.coin_type(),
@@ -671,7 +671,7 @@ async fn test_sender_denied_this_epoch_receiving_a_coin_is_dropped_once_the_hori
 // list as the epoch started. A sender denied before this epoch and allowed
 // again at commit 1 is admitted, since admission reads the latest deny list.
 // A transaction receiving a coin of that type and sending it on is dropped at
-// commit 2 (horizon 0) and kept from commit 3 (horizon 1) on, and execution
+// commit 4 (horizon 0) and kept from commit 5 (horizon 1) on, and execution
 // still fails it, as the denial holds there until the epoch ends.
 #[tokio::test]
 async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
@@ -694,15 +694,15 @@ async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
         .expect("admission must accept a sender the latest deny list allows");
     env.assert_dropped_at_commit(
         &receive_tx,
-        2,
+        4,
         UserInputError::AddressDeniedForCoin {
             address: env.env.sender,
             coin_type: env.coin_type(),
         },
     );
-    env.assert_kept_at_commit(&receive_tx, 3);
+    env.assert_kept_at_commit(&receive_tx, 5);
 
-    let effects = env.execute_at(receive_tx, 3).await;
+    let effects = env.execute_at(receive_tx, 5).await;
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
@@ -766,7 +766,7 @@ async fn test_post_consensus_drops_denied_sender_receiving_a_coin() {
 
 // Under P-COOL with deterministic validation, a transaction receiving a coin
 // whose global pause was settled at the epoch boundary and lifted at commit 1
-// is admitted. It is dropped at commit 2 (horizon 0) and kept from commit 3
+// is admitted. It is dropped at commit 4 (horizon 0) and kept from commit 5
 // (horizon 1) on. Execution still fails it, charging gas: the coin it sends on
 // is checked against the pause as it stood at the start of the epoch.
 #[tokio::test]
@@ -787,14 +787,14 @@ async fn test_execution_fails_tx_receiving_coin_unpaused_this_epoch() {
         .expect("admission must accept a coin the latest deny list does not pause");
     env.assert_dropped_at_commit(
         &receive_tx,
-        2,
+        4,
         UserInputError::CoinTypeGlobalPause {
             coin_type: env.coin_type(),
         },
     );
-    env.assert_kept_at_commit(&receive_tx, 3);
+    env.assert_kept_at_commit(&receive_tx, 5);
 
-    let effects = env.execute_at(receive_tx, 3).await;
+    let effects = env.execute_at(receive_tx, 5).await;
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
@@ -1301,6 +1301,7 @@ impl RegulatedCoinEnv {
     fn epoch_zero_override() -> OverrideGuard {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config.set_pcool_deterministic_validation_for_testing(false);
             config
         })
@@ -1319,6 +1320,7 @@ impl RegulatedCoinEnv {
             .protocol_config()
             .clone();
         epoch_one_config.enable_pcool_deterministic_validation_for_testing();
+        epoch_one_config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         self.env
             .authority
             .reconfigure_for_testing_with_protocol_config(epoch_one_config)
@@ -1328,6 +1330,7 @@ impl RegulatedCoinEnv {
         assert!(epoch_store.pcool_bookkeeping_enabled());
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         })
     }

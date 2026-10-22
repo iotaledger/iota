@@ -1795,7 +1795,7 @@ impl Env {
         assert_eq!(
             reopened
                 .protocol_config()
-                .pcool_deterministic_validation_horizon_distance_or_default(),
+                .pcool_deterministic_validation_horizon_distance(),
             k,
             "the reopened epoch store must use the history's horizon distance"
         );

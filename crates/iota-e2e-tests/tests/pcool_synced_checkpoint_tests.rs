@@ -1046,7 +1046,7 @@ async fn test_restart_with_a_stalled_replay_and_unexecuted_locally_built_checkpo
             node.state()
                 .epoch_store_for_testing()
                 .protocol_config()
-                .pcool_deterministic_validation_horizon_distance_or_default()
+                .pcool_deterministic_validation_horizon_distance()
         });
     let (at_risk, commits_at_risk) = timeout(Duration::from_secs(60), async {
         loop {
