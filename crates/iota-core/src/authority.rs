@@ -2304,8 +2304,8 @@ impl AuthorityState {
             );
 
             // The first account that cannot be resolved fails the transaction. The
-            // remaining inputs are still collected, since for the failure effects,
-            // we have to charge gas for those inputs.
+            // remaining inputs are still collected, since the failure effects need
+            // them whether or not anyone is charged gas.
             let mut per_authenticator_input_objects = Vec::with_capacity(move_authenticators.len());
             let mut resolutions = Vec::with_capacity(move_authenticators.len());
             for (move_authenticator, (authenticator_input_objects, account_object)) in

@@ -378,7 +378,10 @@ impl CheckpointExecutor {
 
         // The last checkpoint is executed from synced data even when this node
         // built it, which schedules every transaction in it not executed yet.
-        // Leave those to the consensus handler unless this node has switched.
+        // The epoch's last checkpoint is already known here, so the call below
+        // does not wait for the consensus handler: unless the handler has
+        // executed every transaction in it, the call switches this node to
+        // executing synced checkpoints.
         if let Some((_, tx_data)) = loaded
             .as_ref()
             .filter(|_| is_last_checkpoint_of_epoch && self.epoch_store.pcool_bookkeeping_enabled())

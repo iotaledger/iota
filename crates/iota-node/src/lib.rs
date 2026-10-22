@@ -2333,7 +2333,9 @@ impl IotaNode {
         // Every checkpoint of the ending epoch has executed, so the saved
         // synced watermark is safe to go on from while readers' value is held
         // in memory. Nodes outside the committee build no checkpoints, so
-        // their saved watermark never falls behind and is not held.
+        // their saved watermark never falls behind and the hold is not turned
+        // on for them. A hold turned on in an earlier epoch stays on, which is
+        // harmless (see `CheckpointStore::hold_synced_watermark_in_memory`).
         if new_epoch_store
             .protocol_config()
             .pcool_deterministic_validation()

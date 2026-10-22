@@ -289,14 +289,18 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Whether `account_id` had its authenticator function field at the
-    /// horizon. An object can receive only while it is not an account, and a
-    /// receive takes no lock. So every receive through an account whose
-    /// field is at the horizon is at or below it too, where the owned input
-    /// read sees what the receive consumed. The field changes only through
-    /// the account object, in the order of the commits that change it, as
-    /// [`Self::read_dynamic_field`] requires. Storage errors propagate.
+    /// Reads the authenticator function field of the account `account_id` as
+    /// of the horizon: [`AccountVerdict::Account`] with the field's object
+    /// when the field was live at the horizon, [`AccountVerdict::Missing`]
+    /// otherwise. Storage errors propagate.
     pub fn read_account(&self, account_id: ObjectId) -> IotaResult<AccountVerdict> {
+        // Checking the field at the horizon is enough for receives. An object
+        // can receive only while it is not an account, and a receive takes no
+        // lock. So for an account whose field is live at the horizon, every
+        // receive through it is at or below the horizon too, where the owned
+        // input read sees what the receive consumed. The field changes only
+        // through the account object, in the order of the commits that change
+        // it, as `read_dynamic_field` requires.
         let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id)?;
         Ok(match self.read_dynamic_field(field_id)? {
             DynamicFieldAtHorizon::Live(field) => AccountVerdict::Account(field),

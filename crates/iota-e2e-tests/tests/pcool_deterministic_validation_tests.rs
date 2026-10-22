@@ -3,6 +3,10 @@
 
 //! Cluster tests for P-COOL deterministic validation.
 //!
+//! Post-consensus validation of commit C reads object state as of commit
+//! C - K, called the horizon of C. K, the horizon distance, is the protocol
+//! config's `pcool_deterministic_validation_horizon_distance`.
+//!
 //! Gated to the simulator for the reason given in
 //! `pcool_transaction_flow_tests.rs`: the protocol-config override that turns
 //! the feature on is thread-local, and only the simulator runs every node on
@@ -1946,9 +1950,9 @@ async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizo
     // Admission reads the latest deny list on the validator that takes the
     // submission, so every validator must have executed the removal first.
     effects_on_validators(&test_cluster, &removal).await;
-    // Each transaction is submitted once the one before it has executed, so
-    // it is sequenced in a later commit: after these, the spend's commit is
-    // more than the horizon distance above the removal's.
+    // Each transfer is submitted once the one before it has executed, so it
+    // is sequenced in a later commit. Each transaction below is then in a
+    // commit more than the horizon distance after the removal's commit.
     for _ in 0..horizon_distance {
         transfer(&test_cluster).await;
     }

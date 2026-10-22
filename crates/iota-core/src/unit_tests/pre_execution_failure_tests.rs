@@ -301,14 +301,15 @@ async fn unresolved_authenticator_account_fails_with_effects() {
         Owner::Address(setup.sender),
         "the transfer must not have run"
     );
-    // Without deterministic validation, every owned input of a failed
-    // transaction is rewritten, as before.
+    // With deterministic validation off, a failed transaction charges gas as
+    // usual: the gas coin is charged and the other owned inputs move to their
+    // next versions.
     assert!(
         effects
             .old_object_metadata()
             .iter()
             .any(|old| old.reference().object_id == setup.transfer_id),
-        "the account's owned input must be rewritten with the flag off"
+        "the account's owned input must move to its next version with the flag off"
     );
 }
 

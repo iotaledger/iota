@@ -1905,17 +1905,20 @@ impl AuthorityPerEpochStore {
         self.pcool_bookkeeping_enabled
     }
 
-    /// How far the object pruner may go in this epoch's checkpoints, or `None`
-    /// for no limit, when this node does not keep the handler object state.
+    /// How far the object pruner may go in this epoch's checkpoints. `None`
+    /// means no limit, and is returned when this node does not keep the
+    /// handler object state.
     ///
-    /// A version that commit `c` consumed can still be kept, as on a validator
-    /// that has not executed `c`, by the validation of a commit below
-    /// `c + K` (K the horizon distance), and by the replay after a restart of
-    /// any commit above the resume point. Keeping it needs its bytes. Every
-    /// commit not flushed yet is above the resume point, so the versions of
-    /// commits up to `resume point + 1 - K` are the ones no validation can
-    /// keep any more. Checkpoints of earlier epochs are not limited: rows are
-    /// per epoch, so no validation keeps a version consumed in one.
+    /// Validation of commit `C` reads object state as of commit `C - K`, where
+    /// `K` is the protocol config's horizon distance. A version consumed by a
+    /// commit above `C - K` is still live in that state, so validation of `C`
+    /// can keep a transaction that uses it, which needs the version's bytes.
+    /// The commits still to be validated are those after the last flushed
+    /// commit, including the ones a restart replays. So only the versions
+    /// consumed by commits at or below `last flushed commit + 1 - K` may be
+    /// pruned, and the limit is the last checkpoint holding only such commits.
+    /// Checkpoints of earlier epochs are not limited: rows are per epoch, so
+    /// no validation keeps a version consumed in one.
     pub fn object_pruning_limit(&self) -> Option<ObjectPruningLimit> {
         if !self.pcool_bookkeeping_enabled {
             return None;
@@ -2452,8 +2455,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Pushes commit `index` into the consensus quarantine with one pending
-    /// checkpoint of `roots` at height `index`.
+    /// Pushes commit `index`, in consensus round `index`, into the consensus
+    /// quarantine with one pending checkpoint of `roots` at height `index`.
     #[cfg(test)]
     fn push_commit_with_one_pending_checkpoint_for_testing(
         &self,
@@ -4615,6 +4618,11 @@ impl AuthorityPerEpochStore {
         // checkpoint and are never assigned, so the highest fully executed
         // commit cannot reach them. They admit no user transaction either, so
         // they do not wait.
+        //
+        // A commit that reserves a randomness round is fully executed only once
+        // that round's randomness state update executes, which needs the
+        // validators to exchange the round's partial signatures. So this wait
+        // can last that long even on a validator whose execution keeps up.
         if self.pcool_bookkeeping_enabled && accepts_tx {
             self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
                 &self.protocol_config,

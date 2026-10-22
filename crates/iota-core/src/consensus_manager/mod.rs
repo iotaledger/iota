@@ -188,29 +188,20 @@ impl ConsensusClient for UpdatableConsensusClient {
 /// waits for, as [`replay_target`] computes it.
 pub(crate) type StartedConsumer = (Arc<CommitConsumerMonitor>, Option<CommitIndex>);
 
-/// The commit the checkpoint builder waits for the consensus handler to
-/// handle before it starts building, after a start at `resume_point` with
-/// deterministic validation. Without it, the builder waits for every commit
-/// consensus had stored at startup.
-///
-/// This is `last_validated_commit`, the last
-/// commit the handler validated before the restart, or the resume point when
-/// it validated none above it. Every checkpoint built before the restart comes
-/// from these commits. A later commit is validated for the first time, which
-/// can wait for execution that needs the checkpoint executor, and node startup
-/// creates that executor only once the rebuild is done. When the node switched
-/// to executing synced checkpoints before the restart, the target is at most
-/// `last_commit_before_switch`, the last commit the handler processes again.
+/// Returns the commit the checkpoint builder waits for the consensus handler to handle before it
+/// starts building, with deterministic validation. This is `last_validated_commit`, or
+/// `resume_point` when that is `None`, capped at `last_commit_before_synced_checkpoint_execution`
+/// when that is set.
 pub(crate) fn replay_target(
     last_validated_commit: Option<u64>,
     resume_point: CommitIndex,
-    last_commit_before_switch: Option<u64>,
+    last_commit_before_synced_checkpoint_execution: Option<u64>,
 ) -> CommitIndex {
     let target = match last_validated_commit {
         Some(index) => CommitIndex::try_from(index).unwrap_or(CommitIndex::MAX),
         None => resume_point,
     };
-    match last_commit_before_switch {
+    match last_commit_before_synced_checkpoint_execution {
         Some(last) => target.min(CommitIndex::try_from(last).unwrap_or(CommitIndex::MAX)),
         None => target,
     }

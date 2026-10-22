@@ -323,7 +323,7 @@ async fn replay_wait_ends_at_the_last_validated_commit() {
 }
 
 /// Without deterministic validation the wait covers every commit consensus
-/// had stored at startup, as before.
+/// had stored at startup.
 #[tokio::test(flavor = "current_thread")]
 async fn replay_wait_without_a_target_covers_every_stored_commit() {
     let (monitor, wait) = start_replay_wait(13, 18, None).await;

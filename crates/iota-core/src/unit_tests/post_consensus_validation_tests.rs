@@ -9,8 +9,8 @@
 //! - `C` is the commit being validated, and `K` is how many commits behind `C` the object state is
 //!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`, 2 unless a test
 //!   sets it. Validation at `C` reads the state as of commit `C - K`, called the horizon. So
-//!   "commit 12, horizon 10" is validation at commit 12 with `K = 2`, and a row produced by commit
-//!   11 is above that horizon.
+//!   "commit 12, horizon 10" is validation at commit 12 with `K = 2`. The reader treats a row
+//!   produced above the horizon, such as one produced by commit 11, as missing.
 //! - A row is one entry of the handler object state (`handler_object_state`). It records that a
 //!   transaction in some commit produced version `V` of object `id`: the commit, the digest, and
 //!   whether the object is live, deleted or wrapped at that version. "The row at `(id, V)`" is that
@@ -4272,11 +4272,6 @@ async fn change_epoch_execution_leaves_no_bookkeeping() {
 // P-COOL deterministic-validation reader: shared inputs whose object is gone
 // ---------------------------------------------------------------------------
 
-// Validation at commit `C` reads the object state as of commit `C - K`, the
-// horizon, where `K` is the protocol config's horizon distance (2 unless a
-// test sets it). So commit 12 reads the state as of commit 10, and a row
-// produced by commit 11 is above its horizon.
-
 #[track_caller]
 fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
     match verdict {
@@ -6387,8 +6382,7 @@ async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_
 /// refused at admission, and a byzantine submitter can still sequence it. At
 /// commit 16, horizon 14, the object is already deleted at commit 15 on one
 /// validator and still live on another. Both must drop the transaction on the
-/// declaration,
-/// which no object read can change.
+/// declaration, which no object read can change.
 #[tokio::test]
 async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_validator() {
     for deletion_executed in [false, true] {

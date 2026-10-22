@@ -8,6 +8,8 @@
 //! - `C` is the commit being validated, and `K` is how many commits behind `C` the object state is
 //!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`. Validation at
 //!   `C` reads the state as of commit `C - K`, called the horizon.
+//! - For each commit `c`, `S_c` is the object state after every transaction that executes at `c`,
+//!   as in the oracle. Validation at `C` reads `S_{C-K}`.
 //! - A row is one entry of the handler object state ([`HandlerObjectState`]). It records that a
 //!   transaction in some commit produced version `V` of object `id`: the commit, the digest, and
 //!   whether the object is live, deleted or wrapped at that version.
@@ -32,7 +34,8 @@
 //! - the handler object state ([`HandlerObjectState`] through the epoch store) and its table;
 //! - the reader ([`CommitIndexedReader`]) and the step types it reads each input kind with;
 //! - the horizon distance from the protocol config;
-//! - the saved validation decisions and their removal at the flush;
+//! - the saved validation decisions ([`SavedPostConsensusDecision`]) and their removal at the
+//!   flush;
 //! - the owned-object lock table, the processed-message table and the resume point.
 //!
 //! What is modeled:
@@ -223,10 +226,12 @@ enum CandidateSpec {
     Retry(u8),
     /// A copy of an earlier candidate of the same commit.
     SameCommitDuplicate(u8),
-    /// At commit `C`, a candidate making `change` to an object picked by
-    /// `object`, and at commit `C + K - 1` a deferred candidate naming that
-    /// object as it is in `S_{C-1}`: the change is above the deferred
-    /// candidate's horizon and at its reload's.
+    /// Two candidates, where `C` is the commit of the first. At `C` the first
+    /// makes `change` to an object picked by `object`. At `C + K - 1` the
+    /// second names that object as it is in `S_{C-1}`, before the change, and
+    /// is deferred. Its horizon is `C - 1`, so it is checked without the
+    /// change. Its reload, at the next commit, has horizon `C`, which
+    /// includes the change.
     ChangeUnderDeferral {
         change: DeferredInputChange,
         object: u8,
@@ -256,7 +261,8 @@ struct DeferredUse {
 }
 
 impl DeferredUse {
-    /// The candidate making the change, at `S_{C-1}` versions.
+    /// The candidate that makes the change at commit `C`, naming the object as
+    /// it is in `S_{C-1}`.
     fn change_spec(
         &self,
         gas: u8,
@@ -1074,7 +1080,7 @@ struct StoredEntry {
     dirty: bool,
     /// Produced by an execution of a commit the handler assigned, so a row
     /// must be readable whenever the entry is.
-    bookkept: bool,
+    needs_row: bool,
 }
 
 #[derive(Default)]
@@ -1149,7 +1155,7 @@ impl FakeStore {
                 pruned: false,
             },
             dirty: false,
-            bookkept: false,
+            needs_row: false,
         };
         for (id, slot) in &history.epoch_start.slots {
             let entry = match slot {
@@ -1157,12 +1163,12 @@ impl FakeStore {
                 Slot::Deleted(_) => StoredEntry {
                     version: StoredVersion::Tombstone(ObjectDigest::OBJECT_DELETED),
                     dirty: false,
-                    bookkept: false,
+                    needs_row: false,
                 },
                 Slot::Wrapped(_) => StoredEntry {
                     version: StoredVersion::Tombstone(ObjectDigest::OBJECT_WRAPPED),
                     dirty: false,
-                    bookkept: false,
+                    needs_row: false,
                 },
             };
             state
@@ -1193,7 +1199,7 @@ impl FakeStore {
     fn apply(&self, execution: &Execution, commit_assigned: bool) {
         let mut state = self.lock();
         for change in &execution.changes {
-            let bookkept = commit_assigned
+            let needs_row = commit_assigned
                 && !(change.kind == ChangeKind::Mutate
                     && matches!(change.after, Slot::Live(ref object) if object.owner.is_shared()));
             let version = change.after.version();
@@ -1210,7 +1216,7 @@ impl FakeStore {
                 StoredEntry {
                     version: stored,
                     dirty: true,
-                    bookkept,
+                    needs_row,
                 },
             );
         }
@@ -1274,7 +1280,7 @@ impl FakeStore {
     }
 
     /// Every readable version that must have a row.
-    fn bookkept_keys(&self) -> Vec<ObjectKey> {
+    fn keys_needing_rows(&self) -> Vec<ObjectKey> {
         let state = self.lock();
         state
             .objects
@@ -1282,7 +1288,7 @@ impl FakeStore {
             .flat_map(|(id, versions)| {
                 versions
                     .iter()
-                    .filter(|(_, entry)| entry.bookkept)
+                    .filter(|(_, entry)| entry.needs_row)
                     .map(move |(version, _)| ObjectKey(*id, *version))
             })
             .collect()
@@ -1535,12 +1541,12 @@ enum WriterStep {
     /// rows written and the outputs not. Before the switch, only a
     /// checkpoint of commits the handler has assigned, which is the one the
     /// node builds itself.
-    Checkpoint { crash_after_bookkeeping: bool },
+    Checkpoint { crash_after_row_write: bool },
     /// `Checkpoint` over the next `commits` commits as one checkpoint, with
     /// one batch of rows for all of them.
     CheckpointCommits {
         commits: u8,
-        crash_after_bookkeeping: bool,
+        crash_after_row_write: bool,
     },
     /// Flushes the next validated commit whose checkpoint has executed:
     /// `FlushStage` then `FlushWrite`, or the write of a staged flush.
@@ -1642,11 +1648,11 @@ fn writer_step() -> impl Strategy<Value = WriterStep> {
         2 => any::<u8>().prop_map(|pick| WriterStep::ExecuteAny { pick }),
         3 => Just(WriterStep::Watcher),
         2 => proptest::bool::weighted(0.15)
-            .prop_map(|crash_after_bookkeeping| WriterStep::Checkpoint { crash_after_bookkeeping }),
+            .prop_map(|crash_after_row_write| WriterStep::Checkpoint { crash_after_row_write }),
         1 => (2..=3u8, proptest::bool::weighted(0.15)).prop_map(
-            |(commits, crash_after_bookkeeping)| WriterStep::CheckpointCommits {
+            |(commits, crash_after_row_write)| WriterStep::CheckpointCommits {
                 commits,
-                crash_after_bookkeeping,
+                crash_after_row_write,
             }
         ),
         2 => Just(WriterStep::Flush),
@@ -1767,7 +1773,7 @@ impl Env {
         let epoch_store = reopen_when_closed(&authority, &initial);
         assert!(
             epoch_store.pcool_bookkeeping_enabled(),
-            "the P-COOL flags must be on for the epoch store to keep the bookkeeping"
+            "the P-COOL flags must be on for the epoch store to keep the handler object state"
         );
         Self {
             authority,
@@ -1992,12 +1998,12 @@ impl<'a> Validator<'a> {
                 Ok(Ok(()))
             }
             WriterStep::Checkpoint {
-                crash_after_bookkeeping,
-            } => self.checkpoint(crash_after_bookkeeping),
+                crash_after_row_write,
+            } => self.checkpoint(crash_after_row_write),
             WriterStep::CheckpointCommits {
                 commits,
-                crash_after_bookkeeping,
-            } => self.checkpoint_commits(commits.into(), crash_after_bookkeeping),
+                crash_after_row_write,
+            } => self.checkpoint_commits(commits.into(), crash_after_row_write),
             WriterStep::Flush => {
                 self.flush()?;
                 Ok(Ok(()))
@@ -2281,8 +2287,8 @@ impl<'a> Validator<'a> {
 
     /// The checkpoint executor on the next checkpoint, which holds the next
     /// commit's roots.
-    fn checkpoint(&mut self, crash_after_bookkeeping: bool) -> Outcome<Result<(), Crashed>> {
-        self.checkpoint_commits(1, crash_after_bookkeeping)
+    fn checkpoint(&mut self, crash_after_row_write: bool) -> Outcome<Result<(), Crashed>> {
+        self.checkpoint_commits(1, crash_after_row_write)
     }
 
     /// The checkpoint executor on one checkpoint holding the roots of the
@@ -2293,7 +2299,7 @@ impl<'a> Validator<'a> {
     fn checkpoint_commits(
         &mut self,
         commits: CommitIndex,
-        crash_after_bookkeeping: bool,
+        crash_after_row_write: bool,
     ) -> Outcome<Result<(), Crashed>> {
         let history = self.history;
         let first = self.checkpointed_through + 1;
@@ -2315,9 +2321,9 @@ impl<'a> Validator<'a> {
         let result =
             self.against_staged_flush(move |store| store.persist_checkpoint_bookkeeping(&effects))?;
         self.storage(result)?;
-        if crash_after_bookkeeping {
+        if crash_after_row_write {
             self.trace.push(format!(
-                "checkpoint of commits {first}..={last} bookkeeping written, crash"
+                "checkpoint of commits {first}..={last} rows written, crash"
             ));
             self.crash()?;
             return Ok(Err(Crashed));
@@ -3344,10 +3350,10 @@ impl<'a> Validator<'a> {
     /// commit produced has its row. The removal of saved decisions is
     /// checked at every flush and the keep-path bytes where the reader keeps.
     fn check_invariants(&self) -> Outcome<()> {
-        for key in self.store.bookkept_keys() {
+        for key in self.store.keys_needing_rows() {
             let row = self.storage(self.epoch_store.handler_processed_object(&key))?;
             if row.is_none() {
-                return self.fail(format!("{key:?} is readable without a handler row"));
+                return self.fail(format!("{key:?} is readable without its row"));
             }
         }
         Ok(())
@@ -3654,7 +3660,7 @@ fn writer(step: WriterStep) -> Step {
 fn checkpoints(n: usize) -> Vec<Step> {
     std::iter::repeat_n(
         writer(WriterStep::Checkpoint {
-            crash_after_bookkeeping: false,
+            crash_after_row_write: false,
         }),
         n,
     )

@@ -23,6 +23,8 @@
 //! - A commit is fully executed when every root of it has effects.
 //! - The execution watcher is the task that waits for the effects of the roots of each assigned
 //!   commit and then marks the commit fully executed (`ExecutionWatcher` in the consensus handler).
+//! - The resume point is the last commit whose output the quarantine flush wrote. After a restart
+//!   the handler replays the commits above it.
 //!
 //! On a committee validator every execution belongs to a commit the handler
 //! has assigned: the checkpoint executor runs a transaction only after the
@@ -810,9 +812,9 @@ impl HandlerObjectState {
     /// Stages a checkpoint's rows into `batch`, a separate batch the
     /// checkpoint executor writes just before the checkpoint's outputs. After
     /// the batch is written, and not before, pass the same rows to
-    /// [`Self::evict_flushed_checkpoint_rows`]. Rows
-    /// never change once written for a key, so checkpoints may write in any
-    /// order and concurrently with a commit's flush.
+    /// [`Self::evict_flushed_checkpoint_rows`]. Rows never change once written
+    /// for a key, so checkpoints may write in any order and concurrently with
+    /// a commit's flush.
     pub fn write_checkpoint_rows_to_batch(
         &self,
         tables: &AuthorityEpochTables,
