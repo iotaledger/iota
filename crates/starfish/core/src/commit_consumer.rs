@@ -116,20 +116,29 @@ impl CommitConsumerMonitor {
     }
 
     pub async fn replay_complete(&self) {
-        let highest_observed_commit_at_startup = self.highest_observed_commit_at_startup();
+        self.wait_until_handled(self.highest_observed_commit_at_startup())
+            .await
+    }
+
+    /// Waits until the consumer has handled commit `index`.
+    pub async fn wait_until_handled(&self, index: CommitIndex) {
         let mut rx = self.highest_handled_commit.subscribe();
         loop {
             let highest_handled = *rx.borrow_and_update();
-            if highest_handled >= highest_observed_commit_at_startup {
+            if highest_handled >= index {
                 return;
             }
-            rx.changed().await.unwrap();
+            rx.changed()
+                .await
+                .expect("the watch sender lives in this monitor, so it outlives this wait");
         }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use crate::CommitConsumerMonitor;
 
     #[test]
@@ -139,5 +148,23 @@ mod test {
 
         monitor.set_highest_handled_commit(100);
         assert_eq!(monitor.highest_handled_commit(), 100);
+    }
+
+    #[tokio::test]
+    async fn wait_until_handled_returns_once_the_commit_is_handled() {
+        let monitor = Arc::new(CommitConsumerMonitor::new(10));
+        monitor.wait_until_handled(10).await;
+
+        let waiter = tokio::spawn({
+            let monitor = monitor.clone();
+            async move { monitor.wait_until_handled(12).await }
+        });
+        tokio::task::yield_now().await;
+        monitor.set_highest_handled_commit(11);
+        tokio::task::yield_now().await;
+        assert!(!waiter.is_finished(), "commit 12 is not handled yet");
+
+        monitor.set_highest_handled_commit(12);
+        waiter.await.unwrap();
     }
 }

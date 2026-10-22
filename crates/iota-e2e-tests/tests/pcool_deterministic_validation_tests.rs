@@ -13,23 +13,40 @@
 #![cfg(msim)]
 
 use std::{
+    collections::{BTreeSet, HashMap},
     sync::{
-        Arc,
+        Arc, Mutex, Weak,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
-use iota_macros::{register_fail_point, register_fail_point_async, sim_test};
+use futures::future::join_all;
+use iota_core::authority::AuthorityState;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_macros::{
+    clear_fail_point, register_fail_point, register_fail_point_async, register_fail_point_if,
+    sim_test,
+};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::TransactionEffects;
-use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionEffects};
+use iota_test_transaction_builder::{
+    TestTransactionBuilder, emit_new_random_u128, publish_basics_package,
+};
 use iota_types::{
-    base_types::dbg_addr,
+    base_types::{AuthorityName, ConciseableName, EpochId, dbg_addr},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+    messages_checkpoint::CheckpointSequenceNumber,
     storage::ObjectKey,
 };
+use prometheus_filtered::core::Collector;
+use rand::distr::{Distribution, Uniform};
 use test_cluster::{TestCluster, TestClusterBuilder};
+use tokio::{
+    task::JoinHandle,
+    time::{Instant, sleep, timeout},
+};
 
 /// Enables the P-COOL flow and the deterministic-validation bookkeeping. The
 /// guard must be held for the whole test.
@@ -62,6 +79,293 @@ fn written_keys(effects: &TransactionEffects) -> Vec<ObjectKey> {
             )
         })
         .collect()
+}
+
+/// Sends transfers from every gas coin of `senders` until `stop` is set.
+/// Every second coin is spent by two transfers at once, so commits carry
+/// conflicting pairs that post-consensus validation must resolve the same way
+/// on every validator. Coin versions are read from the fullnode, so a
+/// transfer may also name a version that is already consumed. Returns how many
+/// transfers succeeded.
+fn spawn_transfer_traffic_with_double_spends(
+    test_cluster: Arc<TestCluster>,
+    senders: Vec<Address>,
+    stop: Arc<AtomicBool>,
+) -> JoinHandle<usize> {
+    tokio::spawn(async move {
+        let gas_price = test_cluster.get_reference_gas_price().await;
+        let mut succeeded = 0;
+        while !stop.load(Ordering::SeqCst) {
+            let Ok(accounts) = test_cluster.wallet.get_all_accounts_and_gas_objects().await else {
+                sleep(Duration::from_millis(500)).await;
+                continue;
+            };
+            let mut transactions = Vec::new();
+            for (sender, coins) in accounts {
+                if !senders.contains(&sender) {
+                    continue;
+                }
+                for (index, coin) in coins.into_iter().enumerate() {
+                    let spends = if index % 2 == 0 { 2 } else { 1 };
+                    for recipient in 0..spends {
+                        let tx = TestTransactionBuilder::new(sender, coin, gas_price)
+                            .transfer_iota(Some(1), dbg_addr(recipient + 2))
+                            .build();
+                        transactions.push(test_cluster.wallet.sign_transaction(&tx));
+                    }
+                }
+            }
+            let responses = join_all(transactions.into_iter().map(|tx| {
+                timeout(
+                    Duration::from_secs(30),
+                    test_cluster.wallet.execute_transaction_may_fail(tx),
+                )
+            }))
+            .await;
+            succeeded += responses
+                .iter()
+                .filter(|response| {
+                    matches!(response, Ok(Ok(response)) if response.status_ok() == Some(true))
+                })
+                .count();
+            sleep(Duration::from_millis(100)).await;
+        }
+        succeeded
+    })
+}
+
+/// Stops the traffic and asserts that some of it succeeded, so a test cannot
+/// pass on a cluster that executed nothing.
+async fn stop_traffic(traffic: JoinHandle<usize>, stop: &AtomicBool) {
+    stop.store(true, Ordering::SeqCst);
+    let succeeded = traffic.await.unwrap();
+    assert!(succeeded > 0, "no transfer of the traffic succeeded");
+}
+
+fn highest_executed_checkpoint(
+    test_cluster: &TestCluster,
+    name: &AuthorityName,
+) -> CheckpointSequenceNumber {
+    test_cluster
+        .swarm
+        .node(name)
+        .unwrap()
+        .get_node_handle()
+        .map(|handle| {
+            handle.with(|node| {
+                node.state()
+                    .get_checkpoint_store()
+                    .get_highest_executed_checkpoint_seq_number()
+                    .unwrap()
+                    .unwrap_or_default()
+            })
+        })
+        .unwrap_or_default()
+}
+
+/// The highest checkpoint the validator built in its current epoch.
+fn last_built_checkpoint(
+    test_cluster: &TestCluster,
+    name: &AuthorityName,
+) -> CheckpointSequenceNumber {
+    test_cluster
+        .swarm
+        .node(name)
+        .unwrap()
+        .get_node_handle()
+        .map(|handle| {
+            handle.with(|node| {
+                node.state()
+                    .epoch_store_for_testing()
+                    .last_built_checkpoint_builder_summary()
+                    .unwrap()
+                    .map(|summary| summary.summary.sequence_number)
+                    .unwrap_or_default()
+            })
+        })
+        .unwrap_or_default()
+}
+
+fn fullnode_highest_executed_checkpoint(test_cluster: &TestCluster) -> CheckpointSequenceNumber {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
+        node.state()
+            .get_checkpoint_store()
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .unwrap_or_default()
+    })
+}
+
+/// Waits until every validator has executed and built a checkpoint a few past
+/// the one the fullnode has executed, then compares each checkpoint up to that
+/// one for which the validator holds both its own summary and the certified
+/// one. A validator prunes its own summaries of earlier epochs when it executes
+/// an epoch's last checkpoint, so in practice only checkpoints of its current
+/// epoch are compared here. Earlier epochs are covered by the in-node fork
+/// check: a validator whose validation decided differently builds a
+/// checkpoint that differs from the certified one, which that check turns
+/// into a panic, and stops executing.
+async fn assert_validators_reach_the_same_checkpoints(test_cluster: &TestCluster) {
+    let target = fullnode_highest_executed_checkpoint(test_cluster) + 5;
+    for name in test_cluster.get_validator_pubkeys() {
+        timeout(Duration::from_secs(180), async {
+            while highest_executed_checkpoint(test_cluster, &name) < target
+                || last_built_checkpoint(test_cluster, &name) < target
+            {
+                sleep(Duration::from_millis(500)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "validator {} must execute and build checkpoint {target}: executed {}, built {}",
+                name.concise(),
+                highest_executed_checkpoint(test_cluster, &name),
+                last_built_checkpoint(test_cluster, &name),
+            )
+        });
+        let handle = test_cluster
+            .swarm
+            .node(&name)
+            .unwrap()
+            .get_node_handle()
+            .unwrap();
+        handle.with(|node| {
+            let store = node.state().get_checkpoint_store().clone();
+            for sequence_number in 1..=target {
+                let local = store
+                    .get_locally_computed_checkpoint(sequence_number)
+                    .unwrap();
+                let certified = store
+                    .get_checkpoint_by_sequence_number(sequence_number)
+                    .unwrap();
+                if let (Some(local), Some(certified)) = (local, certified) {
+                    assert_eq!(
+                        local.digest(),
+                        *certified.digest(),
+                        "validator {}'s checkpoint {sequence_number} must match the certified one",
+                        name.concise(),
+                    );
+                }
+            }
+        });
+    }
+}
+
+/// Waits until each of `names` runs epoch `epoch` or a later one.
+async fn wait_for_validators_to_reach_epoch(
+    test_cluster: &TestCluster,
+    names: &[AuthorityName],
+    epoch: EpochId,
+) {
+    let current_epoch = |name| {
+        test_cluster
+            .swarm
+            .node(name)
+            .unwrap()
+            .get_node_handle()
+            .map(|handle| handle.with(|node| node.state().epoch_store_for_testing().epoch()))
+            .unwrap_or_default()
+    };
+    timeout(Duration::from_secs(180), async {
+        while names.iter().any(|name| current_epoch(name) < epoch) {
+            sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("every validator must reach epoch {epoch}"));
+}
+
+/// Builds a four-validator cluster with deterministic validation on and checks
+/// that the override reached the validators.
+async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_epoch_duration_ms(epoch_duration_ms)
+        .build()
+        .await;
+    for handle in test_cluster.all_validator_handles() {
+        handle.with(|node| {
+            assert!(
+                node.state()
+                    .epoch_store_for_testing()
+                    .protocol_config()
+                    .pcool_deterministic_validation(),
+                "the protocol-config override must reach the validators"
+            );
+        });
+    }
+    Arc::new(test_cluster)
+}
+
+/// The simulator node id of a validator, read without keeping its handle: a
+/// held handle pins a killed node's store, and the restarted node could not
+/// open it.
+fn sim_node_id(test_cluster: &TestCluster, name: &AuthorityName) -> iota_simulator::task::NodeId {
+    test_cluster
+        .swarm
+        .node(name)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|_| iota_simulator::current_simnode_id())
+}
+
+/// Runs double-spend traffic while one validator is killed `kills` times at
+/// `fail_point`, at the first hit after a pause, and restarts on its own each
+/// time. The cluster must then reach the same checkpoints on every validator.
+async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills: usize) {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(600_000).await;
+    let victim = test_cluster.get_validator_pubkeys()[0];
+    let victim_sim_id = sim_node_id(&test_cluster, &victim);
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        stop.clone(),
+    );
+
+    let killed = Arc::new(AtomicUsize::new(0));
+    let next_kill = Arc::new(Mutex::new(Instant::now() + Duration::from_secs(5)));
+    {
+        let killed = killed.clone();
+        register_fail_point(fail_point, move || {
+            if iota_simulator::current_simnode_id() != victim_sim_id
+                || killed.load(Ordering::SeqCst) >= kills
+            {
+                return;
+            }
+            {
+                let mut next_kill = next_kill.lock().unwrap();
+                if Instant::now() < *next_kill {
+                    return;
+                }
+                *next_kill = Instant::now() + Duration::from_secs(15);
+            }
+            killed.fetch_add(1, Ordering::SeqCst);
+            iota_simulator::task::kill_current_node(None);
+        });
+    }
+
+    timeout(Duration::from_secs(30 * kills as u64), async {
+        while killed.load(Ordering::SeqCst) < kills {
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "the victim must be killed {kills} times at {fail_point}, was killed {}",
+            killed.load(Ordering::SeqCst)
+        )
+    });
+    sleep(Duration::from_secs(10)).await;
+    stop_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    clear_fail_point(fail_point);
 }
 
 /// A validator killed after a checkpoint's bookkeeping batch is durable, but
@@ -192,6 +496,7 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
             )
         });
     }
+    clear_fail_point("crash-after-checkpoint-bookkeeping-write");
 }
 
 /// A validator killed between the builder writing a checkpoint's summary and
@@ -502,7 +807,9 @@ async fn test_crash_after_post_consensus_decisions_recovers() {
         }
     }
 
-    // No saved decision of a transfer outlives the flush of its commit.
+    // No saved decision of a transfer outlives the flush of its commit. The
+    // last flushed commit is read from the tables, as the validator keeps
+    // running.
     let resume_point = node_handle(victim).with(|node| {
         node.state()
             .epoch_store_for_testing()
@@ -528,6 +835,7 @@ async fn test_crash_after_post_consensus_decisions_recovers() {
             );
         }
     }
+    clear_fail_point("crash-after-post-consensus-decisions");
 }
 
 /// A faulty validator can sequence a transaction admission would refuse. One
@@ -668,4 +976,623 @@ async fn test_receiving_an_object_nobody_created_does_not_halt_the_cluster() {
             "validator {validator:?} executed a receive of an object nobody created"
         );
     }
+}
+
+/// A validator stopped while the network keeps processing transfers replays
+/// the commits it missed on restart, faster than it re-executes them. Its
+/// validation must still decide every transaction as its peers did, so it
+/// builds the certified checkpoints. Without deterministic validation, such a
+/// validator drops transfers whose gas version it has not executed yet.
+#[sim_test]
+async fn test_stopped_validator_catches_up_without_fork() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(600_000).await;
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        stop.clone(),
+    );
+
+    let lagging = test_cluster.get_validator_pubkeys()[1];
+    sleep(Duration::from_secs(5)).await;
+    test_cluster.stop_node(&lagging);
+    sleep(Duration::from_secs(10)).await;
+    test_cluster.start_node(&lagging).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+
+    stop_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+}
+
+/// One validator executes every transaction with a delay of up to one second
+/// while the traffic carries double spends, so its consensus handler runs
+/// ahead of its execution and validation waits for execution to catch
+/// up. The same validator is then restarted mid-epoch with the delay still in
+/// place. Every validator must reach the same checkpoints.
+#[sim_test]
+async fn test_execution_stall_and_restart_on_one_validator_does_not_fork() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(600_000).await;
+    let stalled = test_cluster.get_validator_pubkeys()[2];
+    let stalled_sim_id = sim_node_id(&test_cluster, &stalled);
+    let stall = Arc::new(AtomicBool::new(true));
+    {
+        let stall = stall.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let stall = iota_simulator::current_simnode_id() == stalled_sim_id
+                && stall.load(Ordering::SeqCst);
+            async move {
+                if stall {
+                    let delay = Uniform::new(0, 1_000).unwrap().sample(&mut rand::rng());
+                    sleep(Duration::from_millis(delay)).await;
+                }
+            }
+        });
+    }
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        stop.clone(),
+    );
+    sleep(Duration::from_secs(10)).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+
+    test_cluster.stop_node(&stalled);
+    sleep(Duration::from_secs(5)).await;
+    test_cluster.start_node(&stalled).await;
+    sleep(Duration::from_secs(5)).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+
+    stall.store(false, Ordering::SeqCst);
+    stop_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    clear_fail_point("transaction_execution_delay");
+}
+
+/// A validator killed right after it saved a commit's validation decisions,
+/// several times while double spends are in flight, replays each commit from
+/// the saved decisions and builds the certified checkpoints.
+#[sim_test]
+async fn test_crashes_after_post_consensus_decisions_under_double_spends() {
+    run_crashes_at_fail_point_under_traffic("crash-after-post-consensus-decisions", 3).await;
+}
+
+/// A validator killed right after a checkpoint's bookkeeping batch is durable
+/// and before the checkpoint's outputs are, several times while double spends
+/// are in flight, re-executes the checkpoint and builds the certified
+/// checkpoints.
+#[sim_test]
+async fn test_crashes_after_checkpoint_bookkeeping_write_under_double_spends() {
+    run_crashes_at_fail_point_under_traffic("crash-after-checkpoint-bookkeeping-write", 3).await;
+}
+
+/// A validator killed after a checkpoint's bookkeeping and outputs are durable
+/// but before the executed-checkpoint watermark moves re-executes a checkpoint
+/// whose outputs it already has, so the checkpoint writes no new bookkeeping.
+/// It must still build the certified checkpoints.
+#[sim_test]
+async fn test_crashes_before_executed_checkpoint_watermark_under_double_spends() {
+    run_crashes_at_fail_point_under_traffic("highest-executed-checkpoint", 2).await;
+}
+
+/// A validator killed at the shared `crash` fail points: before a
+/// transaction's outputs are written to the cache, while a checkpoint's output
+/// batch is built (before its bookkeeping batch), after a checkpoint's outputs
+/// before the watermark, and after a commit's validation before its
+/// transactions are scheduled. Every validator must reach the same
+/// checkpoints.
+#[sim_test]
+async fn test_crashes_at_shared_crash_points_under_double_spends() {
+    run_crashes_at_fail_point_under_traffic("crash", 3).await;
+}
+
+/// A validator stopped while the network runs transactions that use
+/// randomness misses those randomness rounds. After restart it catches up from
+/// the certified checkpoints, which carry the randomness state updates of
+/// those rounds, and one more such transaction runs. It must build the
+/// certified checkpoints.
+#[sim_test]
+async fn test_validator_catches_up_across_randomness_rounds_without_fork() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(600_000).await;
+    let package_ref = publish_basics_package(&test_cluster.wallet).await;
+    let lagging = test_cluster.get_validator_pubkeys()[0];
+
+    test_cluster.stop_node(&lagging);
+    for _ in 0..3 {
+        emit_new_random_u128(&test_cluster.wallet, package_ref.object_id).await;
+    }
+    sleep(Duration::from_secs(10)).await;
+    test_cluster.start_node(&lagging).await;
+    emit_new_random_u128(&test_cluster.wallet, package_ref.object_id).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+}
+
+/// Validators prune every consumed object version as soon as its checkpoint is
+/// executed, which is the test-cluster default. Under double-spend traffic
+/// across several epoch changes, and with one validator stopped across an
+/// epoch change, every validator must reach the same checkpoints.
+#[sim_test]
+async fn test_aggressive_pruning_across_epoch_changes_does_not_fork() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(15_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+    for name in &names {
+        assert_eq!(
+            test_cluster
+                .swarm
+                .node(name)
+                .unwrap()
+                .config()
+                .authority_store_pruning_config
+                .num_epochs_to_retain,
+            0,
+            "validators must prune consumed object versions right away"
+        );
+    }
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        stop.clone(),
+    );
+
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, 1).await;
+    let lagging = names[3];
+    test_cluster.stop_node(&lagging);
+    wait_for_validators_to_reach_epoch(&test_cluster, &names[..3], 2).await;
+    test_cluster.start_node(&lagging).await;
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, 4).await;
+
+    stop_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+}
+
+/// With one validator stopped and another executing every transaction up to
+/// 0.7 s late, the three running validators must keep certifying and executing
+/// checkpoints.
+///
+/// The late validator's handler waits, before validating commit C, until commit
+/// C − 2 is fully executed, so it falls behind the other two. Their handlers
+/// then wait for randomness rounds that no validator starts while the maximum
+/// number of rounds is in flight, until a checkpoint holding a later round is
+/// executed. With three of four validators running, certifying that checkpoint
+/// needs each running validator's own signature, so each must give its own
+/// signature to its aggregator without waiting for its handler. Randomness
+/// rounds are made every 50 ms, so the running validators reach this point
+/// within about 30 s and well below checkpoint 100; a validator that only got
+/// its own signature through its handler would stop there for good.
+#[sim_test]
+async fn test_stopped_and_late_validator_do_not_halt_the_cluster() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_random_beacon_min_round_interval_ms_for_testing(50);
+        config
+    });
+    let test_cluster = build_cluster(600_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+    let (late, stopped) = (names[1], names[3]);
+    let late_sim_id = sim_node_id(&test_cluster, &late);
+    register_fail_point_async("transaction_execution_delay", move || {
+        let late = iota_simulator::current_simnode_id() == late_sim_id;
+        async move {
+            if late {
+                let delay = Uniform::new(0, 700).unwrap().sample(&mut rand::rng());
+                sleep(Duration::from_millis(delay)).await;
+            }
+        }
+    });
+
+    test_cluster.stop_node(&stopped);
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        Arc::new(AtomicBool::new(false)),
+    );
+    let target = 100;
+    let running = &names[..3];
+    timeout(Duration::from_secs(90), async {
+        while running
+            .iter()
+            .any(|name| highest_executed_checkpoint(&test_cluster, name) < target)
+        {
+            sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "every running validator must execute checkpoint {target}: executed {:?}",
+            running
+                .iter()
+                .map(|name| highest_executed_checkpoint(&test_cluster, name))
+                .collect::<Vec<_>>(),
+        )
+    });
+    // Awaiting the traffic would also wait out the timeouts of double spends
+    // still in flight.
+    traffic.abort();
+    clear_fail_point("transaction_execution_delay");
+}
+
+/// Creates a shared counter from `sender` with `gas`, and returns its
+/// reference, or `None` if the transaction did not go through.
+async fn create_counter(
+    test_cluster: &TestCluster,
+    sender: Address,
+    gas: ObjectReference,
+    gas_price: u64,
+    package_id: ObjectId,
+) -> Option<ObjectReference> {
+    let wallet = &test_cluster.wallet;
+    let create = TestTransactionBuilder::new(sender, gas, gas_price)
+        .call_counter_create(package_id)
+        .build();
+    let response = timeout(
+        Duration::from_secs(30),
+        wallet.execute_transaction_may_fail(wallet.sign_transaction(&create)),
+    )
+    .await
+    .ok()?
+    .ok()?;
+    response.effects.as_ref().and_then(|effects| {
+        effects
+            .created()
+            .iter()
+            .find(|created| matches!(created.owner, Owner::Shared(_)))
+            .map(|created| created.reference)
+    })
+}
+
+/// In every epoch until `stop` is set, each of `senders` creates two shared
+/// counters, then submits for each of them a transaction that deletes it and,
+/// a quarter second later and without waiting for the deletion, one that
+/// increments it. The deletions of all senders are spread 240 ms apart from
+/// 600 ms before the epoch is due to close, which `observer` reports, to
+/// 600 ms after it. Some deletion is then sequenced shortly before the epoch's
+/// final round, and its increment after it. Returns how many deletions
+/// succeeded.
+fn spawn_shared_object_deletions_around_epoch_close(
+    test_cluster: Arc<TestCluster>,
+    observer: AuthorityName,
+    epoch_duration_ms: u64,
+    senders: Vec<Address>,
+    package_id: ObjectId,
+    stop: Arc<AtomicBool>,
+) -> JoinHandle<usize> {
+    const PAIRS_PER_SENDER: usize = 2;
+    tokio::spawn(async move {
+        let loops = senders.into_iter().enumerate().map(|(index, sender)| {
+            let test_cluster = test_cluster.clone();
+            let stop = stop.clone();
+            async move {
+                let gas_price = test_cluster.get_reference_gas_price().await;
+                let wallet = &test_cluster.wallet;
+                let now_ms = || {
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u64
+                };
+                let mut deleted = 0;
+                let mut last_epoch = None;
+                while !stop.load(Ordering::SeqCst) {
+                    let Some((epoch, close_ms)) = test_cluster
+                        .swarm
+                        .node(&observer)
+                        .unwrap()
+                        .get_node_handle()
+                        .map(|handle| {
+                            handle.with(|node| {
+                                let epoch_store = node.state().epoch_store_for_testing();
+                                (
+                                    epoch_store.epoch(),
+                                    epoch_store.epoch_start_state().epoch_start_timestamp_ms()
+                                        + epoch_duration_ms,
+                                )
+                            })
+                        })
+                    else {
+                        sleep(Duration::from_millis(200)).await;
+                        continue;
+                    };
+                    if last_epoch == Some(epoch) {
+                        sleep(Duration::from_millis(200)).await;
+                        continue;
+                    }
+                    last_epoch = Some(epoch);
+
+                    let mut counters = Vec::with_capacity(PAIRS_PER_SENDER);
+                    for _ in 0..PAIRS_PER_SENDER {
+                        let Ok(Some(gas)) =
+                            wallet.get_one_gas_object_owned_by_address(sender).await
+                        else {
+                            break;
+                        };
+                        let Some(counter) =
+                            create_counter(&test_cluster, sender, gas, gas_price, package_id).await
+                        else {
+                            break;
+                        };
+                        counters.push(counter);
+                    }
+                    let coins = wallet
+                        .get_gas_objects_owned_by_address(sender, None)
+                        .await
+                        .unwrap_or_default();
+                    if counters.len() < PAIRS_PER_SENDER || coins.len() < 2 * PAIRS_PER_SENDER {
+                        continue;
+                    }
+                    let pairs = counters.iter().zip(coins.chunks(2)).enumerate().map(
+                        |(pair, (counter, gas))| {
+                            let slot = (index * PAIRS_PER_SENDER + pair) as u64;
+                            let delete_at_ms = (close_ms + slot * 240).saturating_sub(600);
+                            let delete = wallet.sign_transaction(
+                                &TestTransactionBuilder::new(sender, gas[0], gas_price)
+                                    .call_counter_delete(
+                                        package_id,
+                                        counter.object_id,
+                                        counter.version,
+                                    )
+                                    .build(),
+                            );
+                            let increment = wallet.sign_transaction(
+                                &TestTransactionBuilder::new(sender, gas[1], gas_price)
+                                    .call_counter_increment(
+                                        package_id,
+                                        counter.object_id,
+                                        counter.version,
+                                    )
+                                    .build(),
+                            );
+                            async move {
+                                sleep(Duration::from_millis(delete_at_ms.saturating_sub(now_ms())))
+                                    .await;
+                                let (deletion, _) = tokio::join!(
+                                    timeout(
+                                        Duration::from_secs(30),
+                                        wallet.execute_transaction_may_fail(delete),
+                                    ),
+                                    async {
+                                        sleep(Duration::from_millis(250)).await;
+                                        timeout(
+                                            Duration::from_secs(30),
+                                            wallet.execute_transaction_may_fail(increment),
+                                        )
+                                        .await
+                                    },
+                                );
+                                matches!(
+                                    deletion,
+                                    Ok(Ok(ref response)) if response.status_ok() == Some(true)
+                                )
+                            }
+                        },
+                    );
+                    deleted += join_all(pairs)
+                        .await
+                        .into_iter()
+                        .filter(|deleted| *deleted)
+                        .count();
+                }
+                deleted
+            }
+        });
+        join_all(loops).await.into_iter().sum()
+    })
+}
+
+/// The number of user transactions the validator's consensus handler has seen
+/// sequenced in the current epoch, summed over the authorities that proposed
+/// them.
+fn sequenced_user_transactions(state: &AuthorityState) -> i64 {
+    state
+        .metrics
+        .consensus_committed_user_transactions
+        .collect()
+        .iter()
+        .flat_map(|family| family.get_metric())
+        .map(|metric| metric.get_gauge().value() as i64)
+        .sum()
+}
+
+/// One validator keeps admitting user transactions and submitting them to
+/// consensus after its epoch starts closing, so commits after the epoch's
+/// final round carry user transactions. The traffic carries double spends and
+/// transactions on a shared object whose deletion was sequenced shortly
+/// before. Once that validator stops accepting user transactions for the
+/// epoch, it executes every transaction up to 200 ms late, so its consensus
+/// handler processes the commits after the final round while the transactions
+/// of the last commits before it are still being executed. A longer lag, or
+/// one that starts earlier, makes it switch to executing synced checkpoints
+/// and skip the commits after the final round.
+///
+/// In each of two epochs whose commits after the final round carry a user
+/// transaction, that validator is killed once it has executed the epoch's last
+/// checkpoint, before it reconfigures. On restart it replays those commits
+/// against a store that has executed every transaction of the epoch. It must
+/// not panic, every validator must reach the next epochs, and all of them
+/// must reach the same checkpoints. The test does not check how validation
+/// treats user transactions after the final round; the unit tests of
+/// post-consensus validation cover that.
+#[sim_test]
+async fn test_restart_replays_user_transactions_sequenced_after_the_final_round() {
+    const KILLS: usize = 2;
+    const EPOCH_DURATION_MS: u64 = 15_000;
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_deterministic_validation_for_testing();
+    let test_cluster = build_cluster(EPOCH_DURATION_MS).await;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
+    let names = test_cluster.get_validator_pubkeys();
+    let victim = names[0];
+    let victim_sim_id = sim_node_id(&test_cluster, &victim);
+    // A weak reference, so it does not pin a killed node's store. It is
+    // refreshed below once the victim restarts with a new state.
+    let victim_state = Arc::new(Mutex::new(Weak::<AuthorityState>::new()));
+    let refresh_victim_state = || {
+        if let Some(handle) = test_cluster.swarm.node(&victim).unwrap().get_node_handle() {
+            *victim_state.lock().unwrap() = handle.with(|node| Arc::downgrade(&node.state()));
+        }
+    };
+    refresh_victim_state();
+
+    register_fail_point_if("admit-user-transactions-after-epoch-close", move || {
+        iota_simulator::current_simnode_id() == victim_sim_id
+    });
+    let lagging = Arc::new(AtomicBool::new(true));
+    {
+        let lagging = lagging.clone();
+        let victim_state = victim_state.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let lag = iota_simulator::current_simnode_id() == victim_sim_id
+                && lagging.load(Ordering::SeqCst)
+                && victim_state.lock().unwrap().upgrade().is_some_and(|state| {
+                    !state
+                        .epoch_store_for_testing()
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_tx()
+                });
+            async move {
+                if lag {
+                    let delay = Uniform::new(0, 200).unwrap().sample(&mut rand::rng());
+                    sleep(Duration::from_millis(delay)).await;
+                }
+            }
+        });
+    }
+
+    // For each epoch, the victim's count of sequenced user transactions at
+    // its first commit after the final round, and whether a later commit of
+    // that epoch raised it. That first commit holds the final round, so a
+    // raise means a user transaction was sequenced after the final round.
+    let after_final_round: Arc<Mutex<HashMap<EpochId, (i64, bool)>>> = Default::default();
+    {
+        let victim_state = victim_state.clone();
+        let after_final_round = after_final_round.clone();
+        register_fail_point_if(
+            "correlated-crash-after-consensus-commit-boundary",
+            move || {
+                if iota_simulator::current_simnode_id() != victim_sim_id {
+                    return false;
+                }
+                let Some(state) = victim_state.lock().unwrap().upgrade() else {
+                    return false;
+                };
+                let epoch_store = state.epoch_store_for_testing();
+                if epoch_store
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_tx()
+                {
+                    return false;
+                }
+                let sequenced = sequenced_user_transactions(&state);
+                let mut after_final_round = after_final_round.lock().unwrap();
+                let (at_final_round, raised) = after_final_round
+                    .entry(epoch_store.epoch())
+                    .or_insert((sequenced, false));
+                *raised |= sequenced > *at_final_round;
+                false
+            },
+        );
+    }
+
+    // The victim is killed just before it reconfigures, after it executed the
+    // epoch's last checkpoint. After the restart it waits before reconfiguring
+    // so its consensus handler replays the commits after the final round.
+    let killed_in_epochs = Arc::new(Mutex::new(Vec::new()));
+    let replaying = Arc::new(AtomicBool::new(false));
+    {
+        let victim_state = victim_state.clone();
+        let after_final_round = after_final_round.clone();
+        let killed_in_epochs = killed_in_epochs.clone();
+        register_fail_point_async("reconfig_delay", move || {
+            let mut wait_for_replay = false;
+            if iota_simulator::current_simnode_id() == victim_sim_id {
+                let state = victim_state.lock().unwrap().upgrade();
+                if replaying.swap(false, Ordering::SeqCst) {
+                    wait_for_replay = true;
+                } else if let Some(state) = state {
+                    let epoch = state.epoch_store_for_testing().epoch();
+                    drop(state);
+                    let raised = after_final_round
+                        .lock()
+                        .unwrap()
+                        .get(&epoch)
+                        .is_some_and(|(_, raised)| *raised);
+                    let mut killed_in_epochs = killed_in_epochs.lock().unwrap();
+                    if raised && killed_in_epochs.len() < KILLS {
+                        killed_in_epochs.push(epoch);
+                        drop(killed_in_epochs);
+                        replaying.store(true, Ordering::SeqCst);
+                        iota_simulator::task::kill_current_node(None);
+                    }
+                }
+            }
+            async move {
+                if wait_for_replay {
+                    sleep(Duration::from_secs(5)).await;
+                }
+            }
+        });
+    }
+
+    let addresses = test_cluster.get_addresses();
+    let stop = Arc::new(AtomicBool::new(false));
+    let deletions = spawn_shared_object_deletions_around_epoch_close(
+        test_cluster.clone(),
+        names[1],
+        EPOCH_DURATION_MS,
+        addresses[..3].to_vec(),
+        package_id,
+        stop.clone(),
+    );
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        addresses[3..].to_vec(),
+        stop.clone(),
+    );
+
+    // Epochs in which the victim switched to executing synced checkpoints, so
+    // its consensus handler skipped the rest of the epoch's commits.
+    let mut switched_in_epochs = BTreeSet::new();
+    timeout(Duration::from_secs(600), async {
+        while killed_in_epochs.lock().unwrap().len() < KILLS {
+            refresh_victim_state();
+            if let Some(state) = victim_state.lock().unwrap().upgrade() {
+                let epoch_store = state.epoch_store_for_testing();
+                if epoch_store.is_executing_synced_checkpoints() {
+                    switched_in_epochs.insert(epoch_store.epoch());
+                }
+            }
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "the victim must be killed in {KILLS} epochs whose commits after the final round \
+             carry a user transaction, was killed in epochs {:?}; it executed synced \
+             checkpoints in epochs {switched_in_epochs:?}",
+            killed_in_epochs.lock().unwrap()
+        )
+    });
+    lagging.store(false, Ordering::SeqCst);
+    let last_killed_epoch = *killed_in_epochs.lock().unwrap().last().unwrap();
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, last_killed_epoch + 2).await;
+
+    stop_traffic(traffic, &stop).await;
+    deletions.await.unwrap();
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    clear_fail_point("admit-user-transactions-after-epoch-close");
+    clear_fail_point("transaction_execution_delay");
+    clear_fail_point("correlated-crash-after-consensus-commit-boundary");
+    clear_fail_point("reconfig_delay");
 }

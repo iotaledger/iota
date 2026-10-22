@@ -33,6 +33,9 @@
 //!   comes first ([`HandlerObjectState::complete_commit_at_flush`]). Either way the commit's rows
 //!   go into the overlay (the watcher skips those already present or durable) and its map entries
 //!   are dropped;
+//! - the execution watcher stops on an error
+//!   ([`HandlerObjectState::record_execution_watcher_error`]). From then on only a flush completes
+//!   a commit, and a wait for a commit that is not fully executed panics;
 //! - the two eviction methods below clear overlay entries once their rows are durable.
 //!
 //! Completing a commit also raises the highest fully executed commit
@@ -62,7 +65,7 @@
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     ops::Bound,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use dashmap::DashMap;
@@ -74,7 +77,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     storage::ObjectKey,
     transaction::TransactionKey,
 };
@@ -332,6 +335,9 @@ pub struct HandlerObjectState {
     /// executed. Seeded from the durable resume point: a commit at or below it
     /// has its rows on disk, hence executed.
     highest_fully_executed_commit: watch::Sender<CommitIndex>,
+    /// The error the execution watcher stopped on. Once set, only a flush
+    /// moves `highest_fully_executed_commit`.
+    execution_watcher_error: OnceLock<String>,
     handler_processed_overlay: RwLock<BTreeMap<ObjectKey, HandlerProcessedObject>>,
 
     /// Read-through cache over the durable handler-processed table, so the cold
@@ -373,6 +379,7 @@ impl HandlerObjectState {
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
             highest_fully_executed_commit: watch::Sender::new(resume_point),
+            execution_watcher_error: OnceLock::new(),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100_000),
             metrics,
@@ -406,6 +413,15 @@ impl HandlerObjectState {
             .ok();
     }
 
+    /// Records that the execution watcher stopped on `error` and wakes every
+    /// [`Self::wait_for_fully_executed_commit`] caller, so none of them waits
+    /// on a commit only a flush could complete.
+    pub fn record_execution_watcher_error(&self, error: &IotaError) {
+        // Only the first error is kept: the watcher stops on it.
+        let _ = self.execution_watcher_error.set(error.to_string());
+        self.highest_fully_executed_commit.send_modify(|_| {});
+    }
+
     /// The watcher's end of the assigned-commit channel; `None` once a
     /// watcher has taken it.
     pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
@@ -423,9 +439,26 @@ impl HandlerObjectState {
     /// returning immediately when that already holds. The caller bounds the
     /// wait with `within_alive_epoch`: at epoch end the last commits may never
     /// complete.
+    ///
+    /// # Panics
+    ///
+    /// If the commit is not fully executed and the execution watcher has
+    /// stopped on an error. The commit would then complete only through a
+    /// flush, which needs its checkpoint certified with signatures carried by
+    /// commits the caller has not processed. Release builds abort on any
+    /// panic, so this stops the node. Builds that unwind, such as tests and
+    /// the simulator, stop only the caller's task, the consensus handler,
+    /// unless `CRASH_ON_PANIC` is set. A restart of the process re-seeds the
+    /// highest fully executed commit from the durable resume point.
     pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
         let mut highest = self.highest_fully_executed_commit.subscribe();
         while *highest.borrow_and_update() < index {
+            if let Some(error) = self.execution_watcher_error.get() {
+                fatal!(
+                    "commit {index} is not fully executed and the execution watcher stopped \
+                     on error: {error}"
+                );
+            }
             highest
                 .changed()
                 .await
@@ -809,7 +842,9 @@ impl HandlerObjectState {
     /// the hook and the watcher arrive in. A watcher completing a commit that
     /// already flushed must not reach here - its rows would sit in the overlay
     /// with no flush left to evict them - which is what the caller's check of
-    /// the commit against the quarantine rules out.
+    /// the commit against the quarantine rules out. The flush that completes a
+    /// commit itself also inserts here, under the quarantine write lock, and
+    /// evicts the rows after its own batch write.
     fn upsert_handler_processed_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
         if rows.is_empty() {
             return;
@@ -1043,6 +1078,7 @@ mod tests {
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
             highest_fully_executed_commit: watch::Sender::new(0),
+            execution_watcher_error: OnceLock::new(),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100),
             metrics: EpochMetrics::new(&Registry::new()),
