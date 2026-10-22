@@ -1453,6 +1453,13 @@ pub struct ProtocolConfig {
     /// it.
     attestor_reward_accuracy_tolerance_percentage: Option<u64>,
 
+    /// Score cut, in percent of the maximum validator score, for a refuted
+    /// attestation that wasted one `max_auth_gas` authentication run, and by
+    /// the square of its fraction of that for a smaller one. Taken from the
+    /// attestor's entry in the change-epoch scores. Unset disables the
+    /// penalty.
+    attestation_fault_penalty_percentage: Option<u64>,
+
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
@@ -2161,6 +2168,12 @@ impl ProtocolConfig {
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
         }
+        if ret.attestation_fault_penalty_percentage.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_fault_penalty_percentage requires enable_validator_attestation"
+            );
+        }
 
         // The on-chain mirror has no state to mirror without governance itself.
         assert!(
@@ -2713,6 +2726,7 @@ impl ProtocolConfig {
 
             checkpoint_summary_version_specific_data: Some(1),
             attestor_reward_accuracy_tolerance_percentage: None,
+            attestation_fault_penalty_percentage: None,
 
             max_soft_bundle_size: Some(5),
 

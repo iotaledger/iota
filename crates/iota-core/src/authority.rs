@@ -238,7 +238,7 @@ mod attestation_verdict_tests;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
 
-mod attestation;
+pub(crate) mod attestation;
 mod attestation_verdict;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
@@ -1130,7 +1130,7 @@ impl AuthorityState {
             };
 
             // Execute the Move authenticators.
-            let validation_result = epoch_store.executor().authenticate_transaction(
+            let (_gas_status, validation_result) = epoch_store.executor().authenticate_transaction(
                 self.get_backing_store().as_ref(),
                 protocol_config,
                 self.metrics.limits_metrics.clone(),
@@ -1950,7 +1950,7 @@ impl AuthorityState {
                 );
             // Without Move authentication there is nothing to refute.
             let outcome = attestation_verdict::ExecutionOutcome {
-                refuted: false,
+                refuted: None,
                 body_ran: attestation_verdict::body_ran(false, execution_error_opt.as_ref().err()),
             };
             (
@@ -2170,8 +2170,8 @@ impl AuthorityState {
             // checks may have replaced it in the effects.
             let outcome = attestation_verdict::ExecutionOutcome {
                 refuted: match (&authentication_error, &attestation_verdict_context) {
-                    (Some(kind), Some(context)) => context.is_refuted(kind),
-                    _ => false,
+                    (Some(kind), Some(context)) => context.refuted(kind),
+                    _ => None,
                 },
                 body_ran: attestation_verdict::body_ran(
                     authentication_error.is_some(),

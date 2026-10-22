@@ -38,7 +38,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     attestation::{AttestationTotals, AttestationVerdict},
     effects::TransactionEffectsAPI,
-    messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSummaryExt, VerifiedCheckpoint},
     messages_grpc::TxStatusUpdate,
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -252,7 +252,7 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
 /// the checkpoint from state sync without the attestation, so its effects must
 /// match without it, and it stores the record the summary certifies.
 #[sim_test]
-async fn attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), anyhow::Error> {
+async fn valid_attestation_is_recorded_locally_but_not_certified() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let _env = enable_attestation_env();
 
@@ -278,73 +278,70 @@ async fn attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), 
     test_env.submit_tx_v2(aa_tx).await?;
 
     let checkpoint = test_env.wait_for_transaction_checkpoint(&digest).await;
-    let (digests, records, is_system, committee_size, stored_record) = test_env
+    // The quorum that certified the checkpoint judged the attestation at
+    // execution; a validator still catching up may have no record yet.
+    let validator_records: Vec<_> = test_env
         .test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| {
-            let state = node.state();
-            let epoch_store = state.epoch_store_for_testing();
-            let stored_record = state
-                .get_transaction_cache_reader()
-                .multi_get_attestation_records(&[digest])
-                .pop()
-                .expect("one result per digest");
-            let contents = state
-                .get_checkpoint_store()
-                .get_checkpoint_contents(&checkpoint.contents_digest)
-                .unwrap()
-                .expect("contents are stored with the checkpoint");
-            let digests: Vec<_> = contents.iter().map(|d| d.transaction).collect();
-            let data = checkpoint
-                .parse_version_specific_data(epoch_store.protocol_config())
-                .unwrap()
-                .expect("summaries carry version specific data");
-            let records = data.attestations().to_vec();
-            assert_eq!(
-                data.attestation_totals(),
-                Some(&AttestationTotals::default()),
-                "an honest attestor leaves the totals empty"
-            );
-            let is_system: Vec<bool> = digests
-                .iter()
-                .map(|digest| {
-                    state
-                        .get_transaction_cache_reader()
-                        .get_transaction_block(digest)
-                        .expect("synced transactions are stored")
-                        .data()
-                        .transaction()
-                        .is_system_tx()
-                })
-                .collect();
-            (
-                digests,
-                records,
-                is_system,
-                epoch_store.committee().num_members(),
-                stored_record,
-            )
-        });
-    assert_eq!(records.len(), digests.len(), "one slot per transaction");
-
-    let slot = digests
-        .iter()
-        .position(|d| *d == digest)
-        .expect("the checkpoint contains the transaction");
-    let record = records[slot].expect("an attested transaction has a record");
-    assert_eq!(record.verdict, AttestationVerdict::Valid);
-    assert!(usize::from(record.attestor) < committee_size);
-    assert_eq!(
-        stored_record,
-        Some(record),
-        "the fullnode stores the certified record although it executed without the attestation"
+        .swarm
+        .validator_node_handles()
+        .into_iter()
+        .map(|handle| {
+            handle.with(|node| {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .multi_get_attestation_records(&[digest])
+                    .pop()
+                    .expect("one result per digest")
+            })
+        })
+        .collect();
+    assert!(
+        validator_records.iter().any(Option::is_some),
+        "the validators that certified the checkpoint recorded a verdict"
     );
-    for (is_system, record) in is_system.iter().zip(&records) {
-        if *is_system {
-            assert!(record.is_none(), "system transactions are never attested");
-        }
-    }
+    assert!(
+        validator_records
+            .iter()
+            .flatten()
+            .all(|record| record.verdict == AttestationVerdict::Valid),
+        "the validators judged the attestation valid: {validator_records:?}"
+    );
+
+    let (faults, totals, fullnode_record) =
+        test_env
+            .test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| {
+                let state = node.state();
+                let data = checkpoint
+                    .parse_version_specific_data(state.epoch_store_for_testing().protocol_config())
+                    .unwrap()
+                    .expect("summaries carry version specific data");
+                let fullnode_record = state
+                    .get_transaction_cache_reader()
+                    .multi_get_attestation_records(&[digest])
+                    .pop()
+                    .expect("one result per digest");
+                (
+                    data.attestation_faults().to_vec(),
+                    data.attestation_totals().cloned(),
+                    fullnode_record,
+                )
+            });
+    assert!(
+        faults.is_empty(),
+        "a valid attestation is not certified: {faults:?}"
+    );
+    assert_eq!(
+        totals,
+        Some(AttestationTotals::default()),
+        "an honest attestor leaves the totals empty"
+    );
+    assert_eq!(
+        fullnode_record, None,
+        "the fullnode stores no record for a valid attestation"
+    );
 
     Ok(())
 }

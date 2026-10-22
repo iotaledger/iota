@@ -108,8 +108,8 @@ pub struct AuthorityPerpetualTables {
 
     /// Verdict on the attestation of an executed attested transaction, written
     /// with the effects: judged locally when executed from consensus, taken
-    /// from the certified checkpoint summary when executed from a checkpoint.
-    /// Pruned with `executed_effects`.
+    /// from the certified checkpoint summary when executed from a checkpoint,
+    /// which certifies only the faults. Pruned with `executed_effects`.
     pub(crate) attestation_records: DBMap<TransactionDigest, AttestationRecord>,
 
     // Events keyed by the digest of the transaction that produced them.

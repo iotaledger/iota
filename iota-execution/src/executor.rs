@@ -147,7 +147,11 @@ pub trait Executor {
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError>;
+    ) -> (
+        // The gas status the authentication was metered on.
+        IotaGasStatus,
+        Result<(), ExecutionError>,
+    );
 
     fn update_genesis_state(
         &self,

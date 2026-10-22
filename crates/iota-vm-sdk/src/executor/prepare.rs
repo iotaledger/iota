@@ -572,7 +572,7 @@ pub(super) fn authenticate_only(
         iota_transaction_checks::aggregate_authenticator_input_objects(&checked_refs)
             .map_err(|e| ValidationError::new("aggregate authenticator inputs", e))?;
     let (kind, signer, gas_data) = transaction.execution_parts();
-    Ok(env.executor.authenticate_transaction(
+    let (_gas_status, result) = env.executor.authenticate_transaction(
         store,
         &env.protocol_config,
         env.limits_metrics.clone(),
@@ -587,7 +587,8 @@ pub(super) fn authenticate_only(
         transaction.digest(),
         auth_context_data,
         &mut None,
-    ))
+    );
+    Ok(result)
 }
 
 /// Run the regulated-coin deny-list check over the given inputs, mapping a

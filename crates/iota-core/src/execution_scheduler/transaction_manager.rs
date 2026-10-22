@@ -73,8 +73,8 @@ pub enum AttestationSource {
     Unattested,
     /// The attestation from consensus, judged at execution.
     Attestation(Attestation),
-    /// The verdict a certified checkpoint carries, when executing from it;
-    /// `None` when the transaction was not attested.
+    /// The fault a certified checkpoint carries, when executing from it;
+    /// `None` when the attestation was valid or there was none.
     Certified(Option<AttestationRecord>),
 }
 
@@ -101,7 +101,7 @@ impl VerifiedExecutableAttestedTransaction {
     }
 
     /// For transactions executed from a certified checkpoint, which carry no
-    /// attestation but whose verdict is already certified.
+    /// attestation but whose fault, if any, is already certified.
     pub fn new_certified(
         tx: VerifiedExecutableTransaction,
         certified_record: Option<AttestationRecord>,

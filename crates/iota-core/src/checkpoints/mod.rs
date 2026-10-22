@@ -35,7 +35,7 @@ use iota_sdk_types::{
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use iota_types::{
-    attestation::{AttestationRecord, AttestationTotals},
+    attestation::{AttestationFault, AttestationRecord, AttestationTotals},
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
@@ -85,6 +85,7 @@ pub use crate::checkpoints::{
 use crate::{
     authority::{
         AuthorityState,
+        attestation::{apply_fault_penalties, max_auth_units},
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
     authority_client::{
@@ -584,10 +585,10 @@ impl CheckpointStore {
                 ?local_checkpoint,
                 ?local_contents,
                 // Two summaries over identical contents can still differ in
-                // their attestation verdicts, which the dump above would not
+                // their attestation faults, which the dump above would not
                 // show.
-                attestation_verdict_differences =
-                    ?attestation_verdict_differences(local_checkpoint, verified_checkpoint),
+                attestation_fault_differences =
+                    ?attestation_fault_differences(local_checkpoint, verified_checkpoint),
                 attestation_totals_difference =
                     ?attestation_totals_difference(local_checkpoint, verified_checkpoint),
                 "Local checkpoint fork detected!",
@@ -1938,7 +1939,7 @@ impl CheckpointBuilder {
             );
 
             let end_of_epoch_data = if last_checkpoint_of_epoch {
-                let scores: Vec<u64> = if self
+                let mut scores: Vec<u64> = if self
                     .epoch_store
                     .protocol_config()
                     .pass_calculated_validator_scores_to_advance_epoch()
@@ -1948,6 +1949,30 @@ impl CheckpointBuilder {
                     // Give everyone in the committee the max score
                     vec![MAX_SCORE; self.epoch_store.committee().num_members()]
                 };
+                if let Some(penalty_percentage) = self
+                    .epoch_store
+                    .protocol_config()
+                    .attestation_fault_penalty_percentage_as_option()
+                {
+                    let committee_members: Vec<_> = self
+                        .epoch_store
+                        .epoch_start_state()
+                        .committee_validators()
+                        .iter()
+                        .map(|validator| validator.authority_name())
+                        .collect();
+                    apply_fault_penalties(
+                        &mut scores,
+                        &attestation_totals,
+                        max_auth_units(
+                            self.epoch_store.protocol_config(),
+                            self.epoch_store.reference_gas_price(),
+                        ),
+                        self.epoch_store.committee(),
+                        &committee_members,
+                        penalty_percentage,
+                    );
+                }
 
                 let (system_state_obj, system_epoch_info_event) = self
                     .augment_epoch_last_checkpoint(
@@ -2052,7 +2077,7 @@ impl CheckpointBuilder {
                 end_of_epoch_data,
                 timestamp_ms,
                 matching_randomness_rounds,
-                attestations,
+                AttestationFault::from_records(&attestations),
                 attestation_totals,
             );
             summary.report_checkpoint_age(&self.metrics.last_created_checkpoint_age);
@@ -2097,9 +2122,9 @@ impl CheckpointBuilder {
         Ok(NonEmpty::from_vec(checkpoints).expect("at least one checkpoint"))
     }
 
-    /// The epoch's fault counts through this checkpoint: the previous
+    /// The epoch's attestation totals through this checkpoint: the previous
     /// summary's totals when it belongs to this epoch, plus this checkpoint's
-    /// `Refuted` records. Empty without validator attestation.
+    /// `Refuted` records. Empty without attestation.
     ///
     /// # Panics
     ///
@@ -2123,7 +2148,10 @@ impl CheckpointBuilder {
             })
             .and_then(|data| data.attestation_totals().cloned())
             .unwrap_or_default()
-            .with_records(attestations)
+            .with_records(
+                attestations,
+                max_auth_units(protocol_config, self.epoch_store.reference_gas_price()),
+            )
     }
 
     fn get_epoch_total_gas_cost(
@@ -2604,25 +2632,18 @@ impl CheckpointSignatureAggregator {
     }
 }
 
-/// The attestation slots on which two summaries disagree, by position in the
-/// contents. Empty when either summary carries no decodable attestations.
-fn attestation_verdict_differences(
+/// The attestation faults of two summaries when they disagree.
+fn attestation_fault_differences(
     local: &CheckpointSummary,
     verified: &CheckpointSummary,
-) -> Vec<(usize, Option<AttestationRecord>, Option<AttestationRecord>)> {
+) -> Option<(Vec<AttestationFault>, Vec<AttestationFault>)> {
     let decode = |summary: &CheckpointSummary| {
         decode_version_specific_data(summary)
-            .map(|data| data.attestations().to_vec())
+            .map(|data| data.attestation_faults().to_vec())
             .unwrap_or_default()
     };
     let (local, verified) = (decode(local), decode(verified));
-    (0..local.len().max(verified.len()))
-        .filter_map(|slot| {
-            let local = local.get(slot).copied().flatten();
-            let verified = verified.get(slot).copied().flatten();
-            (local != verified).then_some((slot, local, verified))
-        })
-        .collect()
+    (local != verified).then_some((local, verified))
 }
 
 /// The attestation totals of two summaries when they disagree.
@@ -3407,10 +3428,10 @@ mod tests {
         );
     }
 
-    /// The summary's attestation records are positional: one slot per
-    /// transaction in contents order, `None` where nothing was recorded.
+    /// The summary certifies only the records other than `Valid`, each at
+    /// its transaction's position in contents order.
     #[tokio::test]
-    async fn summary_attestation_records_are_positional() {
+    async fn summary_certifies_only_faults_at_their_positions() {
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         protocol_config.set_enable_pcool_flow_for_testing(true);
@@ -3428,17 +3449,25 @@ mod tests {
         for tx in &txs {
             store_executed_tx(&state, &mut effects_map, tx);
         }
-        // Only the second transaction carries a verdict.
-        let record = AttestationRecord {
-            attestor: 0,
-            verdict: AttestationVerdict::Valid,
-        };
-        state
+        // A valid record for the first transaction, a fault for the second.
+        let records = &state
             .database_for_testing()
             .perpetual_tables
-            .attestation_records
-            .insert(&digests[1], &record)
+            .attestation_records;
+        records
+            .insert(
+                &digests[0],
+                &AttestationRecord {
+                    attestor: 0,
+                    verdict: AttestationVerdict::Valid,
+                },
+            )
             .unwrap();
+        let fault = AttestationRecord {
+            attestor: 2,
+            verdict: AttestationVerdict::Refuted { units: 7 },
+        };
+        records.insert(&digests[1], &fault).unwrap();
         let effects: Vec<_> = digests.iter().map(|d| effects_map[d].clone()).collect();
 
         let tmp_dir = iota_common::tempdir();
@@ -3464,18 +3493,25 @@ mod tests {
             .unwrap();
         let built = new_checkpoints.first();
 
-        let attestations = built
+        let faults = built
             .summary
             .parse_version_specific_data(epoch_store.protocol_config())
             .unwrap()
             .expect("version 2 summaries carry version specific data")
-            .attestations()
+            .attestation_faults()
             .to_vec();
-        let contents: Vec<_> = built.contents.iter().map(|d| d.transaction).collect();
-        assert_eq!(attestations.len(), contents.len());
-        let slot = |digest| contents.iter().position(|d| *d == digest).unwrap();
-        assert_eq!(attestations[slot(digests[1])], Some(record));
-        assert_eq!(attestations[slot(digests[0])], None);
+        let position = built
+            .contents
+            .iter()
+            .position(|d| d.transaction == digests[1])
+            .unwrap();
+        assert_eq!(
+            faults,
+            vec![AttestationFault {
+                position: position as u32,
+                record: fault,
+            }]
+        );
     }
 
     /// The summary carries the epoch's refuted totals so far: the previous
@@ -3512,8 +3548,8 @@ mod tests {
                 .unwrap();
         };
         record(&digests[0], 1, AttestationVerdict::Valid);
-        record(&digests[1], 2, AttestationVerdict::Refuted);
-        record(&digests[2], 2, AttestationVerdict::Refuted);
+        record(&digests[1], 2, AttestationVerdict::Refuted { units: 7 });
+        record(&digests[2], 2, AttestationVerdict::Refuted { units: 7 });
 
         let tmp_dir = iota_common::tempdir();
         let service = manual_checkpoint_service(
@@ -3553,17 +3589,18 @@ mod tests {
                 .expect("version 2 summaries carry totals")
         };
 
+        // Each refuted record wasted 7 units, below one max-gas run.
         let checkpoints = build(0, digests[..2].to_vec()).await;
         assert_eq!(
-            totals_of(checkpoints.first()).refuted,
-            BTreeMap::from([(2, 1)])
+            totals_of(checkpoints.first()).refuted_units_squared,
+            BTreeMap::from([(2, 49)])
         );
         builder.write_checkpoints(0, checkpoints).await.unwrap();
 
         let checkpoints = build(1, digests[2..].to_vec()).await;
         assert_eq!(
-            totals_of(checkpoints.first()).refuted,
-            BTreeMap::from([(2, 2)]),
+            totals_of(checkpoints.first()).refuted_units_squared,
+            BTreeMap::from([(2, 98)]),
             "the second checkpoint adds to the first one's totals"
         );
     }

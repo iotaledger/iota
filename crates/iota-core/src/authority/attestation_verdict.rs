@@ -22,11 +22,11 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::Attestation,
+    attestation::{self, Attestation},
     auth_context::AuthContextData,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
-    gas::IotaGasStatus,
+    gas::{IotaGasStatus, IotaGasStatusAPI},
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticatorExt,
     storage::BackingStore,
@@ -132,10 +132,12 @@ pub(crate) fn executed_versions(
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Whether the failure refutes the attestation: it stands at the versions
-    /// the attestor recorded, so the attestor vouched for a transaction it
-    /// should have rejected. A failure the dry run could not have foreseen
-    /// never refutes; otherwise the recorded versions decide.
+    /// `Some` when the failure refutes the attestation: it stands at the
+    /// versions the attestor recorded, so the attestor vouched for a
+    /// transaction it should have rejected. Carries the units the re-run at
+    /// the recorded versions consumed, zero when nothing had to be re-run. A
+    /// failure the dry run could not have foreseen never refutes; otherwise
+    /// the recorded versions decide.
     ///
     /// # Panics
     ///
@@ -143,10 +145,10 @@ impl AttestationVerdictContext<'_> {
     /// versions superseded this epoch, which the pruner retains, so a missing
     /// or unreadable one is a fault of this node and must not become a verdict
     /// the other validators do not share.
-    pub(crate) fn is_refuted(&self, kind: &ExecutionErrorKind) -> bool {
+    pub(crate) fn refuted(&self, kind: &ExecutionErrorKind) -> Option<u64> {
         let kind = authentication_error_kind(kind);
         if is_cancellation(kind) || is_invariant_violation(kind) {
-            return false;
+            return None;
         }
         // Nothing to re-run: the failure already reproduces at the recorded
         // state, or a recorded version refutes on its own.
@@ -158,9 +160,9 @@ impl AttestationVerdictContext<'_> {
                     .superseded_in_current_epoch(object_id, version)
             },
         ) {
-            return true;
+            return Some(0);
         }
-        !self.reauthenticate_at_attested_versions()
+        self.reauthenticate_at_attested_versions()
     }
 }
 
@@ -194,9 +196,11 @@ fn should_reauthenticate(
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Re-runs Move authentication at the recorded versions. Returns whether
-    /// the attestation is not refuted: the re-run passes, or cannot judge it.
-    fn reauthenticate_at_attested_versions(&self) -> bool {
+    /// Re-runs Move authentication at the recorded versions. `Some` when the
+    /// attestation is refuted, carrying the units the re-run consumed, or zero
+    /// when the recorded state refutes it before any run; `None` when the
+    /// re-run passes or cannot judge it.
+    fn reauthenticate_at_attested_versions(&self) -> Option<u64> {
         let attested_versions: BTreeMap<ObjectId, &ObjectReference> = self
             .attestation
             .object_versions()
@@ -218,7 +222,7 @@ impl AttestationVerdictContext<'_> {
             self.reference_gas_price,
             self.protocol_config,
         ) else {
-            return false;
+            return Some(0);
         };
 
         // Resolve every authenticator at the recorded versions first, so the
@@ -232,7 +236,7 @@ impl AttestationVerdictContext<'_> {
             let Ok((account_id, pinned_version, pinned_digest)) =
                 authenticator.object_to_authenticate_components()
             else {
-                return false;
+                return Some(0);
             };
 
             // The function ref is resolved from the recorded state, anchored
@@ -244,7 +248,7 @@ impl AttestationVerdictContext<'_> {
                 .find(|object| object.id() == account_id)
                 .and_then(|object| object.as_object())
             else {
-                return false;
+                return Some(0);
             };
             let Ok(account_version) = validate_account_object(
                 account_id,
@@ -253,12 +257,12 @@ impl AttestationVerdictContext<'_> {
                 &authenticator.address(),
                 account_object,
             ) else {
-                return false;
+                return Some(0);
             };
             let Ok(field_object_id) =
                 derive_authenticator_function_ref_v1_dynamic_field_id(account_id)
             else {
-                return false;
+                return Some(0);
             };
             let field_object = match self.store.read_child_object(
                 &account_id,
@@ -268,7 +272,7 @@ impl AttestationVerdictContext<'_> {
                 Ok(Some(field_object)) => field_object,
                 // The structural failure reproduces at the recorded state:
                 // no field, or one that is not the account's child.
-                Ok(None) | Err(IotaError::InvalidChildObjectAccess { .. }) => return false,
+                Ok(None) | Err(IotaError::InvalidChildObjectAccess { .. }) => return Some(0),
                 Err(error) => fatal!(
                     "cannot read the authenticator field of {account_id}@{account_version}: {error}"
                 ),
@@ -276,7 +280,7 @@ impl AttestationVerdictContext<'_> {
             let Ok(function_ref) =
                 authenticator_function_ref_v1_from_dynamic_field_object(account_id, &field_object)
             else {
-                return false;
+                return Some(0);
             };
 
             resolved.push((
@@ -295,7 +299,7 @@ impl AttestationVerdictContext<'_> {
                 &per_authenticator_input_objects,
             )
         else {
-            return true;
+            return None;
         };
 
         // Rebuild the auth context with the function refs resolved at the
@@ -322,7 +326,7 @@ impl AttestationVerdictContext<'_> {
             objects: Vec::new(),
             ..self.gas_data.clone()
         };
-        let result = self.executor.authenticate_transaction(
+        let (gas_status, result) = self.executor.authenticate_transaction(
             self.store,
             self.protocol_config,
             self.metrics.clone(),
@@ -340,10 +344,11 @@ impl AttestationVerdictContext<'_> {
         );
 
         match result {
-            Ok(()) => true,
+            Ok(()) => None,
             Err(error) => {
                 let kind = authentication_error_kind(error.kind());
-                is_cancellation(kind) || is_invariant_violation(kind)
+                (!is_cancellation(kind) && !is_invariant_violation(kind))
+                    .then(|| consumed_units(gas_status))
             }
         }
     }
@@ -382,6 +387,14 @@ impl AttestationVerdictContext<'_> {
     }
 }
 
+/// The computation units a metered run consumed, bucketized like a charged
+/// run; the whole budget when it ran out of gas.
+fn consumed_units(mut gas_status: IotaGasStatus) -> u64 {
+    // Out of gas pins the computation cost at the budget.
+    let _ = gas_status.bucketize_computation();
+    attestation::computation_units(&gas_status.summary(), gas_status.gas_price())
+}
+
 /// The authenticator's own error, unwrapped from the status it is reported as.
 fn authentication_error_kind(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
     match kind {
@@ -392,8 +405,10 @@ fn authentication_error_kind(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
 
 /// What execution established for the verdict on an attested transaction.
 pub(crate) struct ExecutionOutcome {
-    /// Authentication failed and the failure refutes the attestation.
-    pub refuted: bool,
+    /// Authentication failed and the failure refutes the attestation: the
+    /// units the re-run at the recorded versions consumed, zero when nothing
+    /// had to be re-run.
+    pub refuted: Option<u64>,
     /// The body ran, so its computation cost is measurable against the claim.
     pub body_ran: bool,
 }

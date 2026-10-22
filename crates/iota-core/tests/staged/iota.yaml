@@ -24,6 +24,11 @@ Argument:
         TUPLE:
           - U16
           - U16
+AttestationFault:
+  STRUCT:
+    - position: U32
+    - record:
+        TYPENAME: AttestationRecord
 AttestationRecord:
   STRUCT:
     - attestor: U8
@@ -31,10 +36,10 @@ AttestationRecord:
         TYPENAME: AttestationVerdict
 AttestationTotals:
   STRUCT:
-    - refuted:
+    - refuted_units_squared:
         MAP:
           KEY: U8
-          VALUE: U16
+          VALUE: U64
 AttestationVerdict:
   ENUM:
     0:
@@ -42,7 +47,9 @@ AttestationVerdict:
     1:
       Inaccurate: UNIT
     2:
-      Refuted: UNIT
+      Refuted:
+        STRUCT:
+          - units: U64
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
 AuthorityQuorumSignInfo:
@@ -222,10 +229,9 @@ CheckpointVersionSpecificDataV2:
   STRUCT:
     - randomness_rounds:
         SEQ: U64
-    - attestations:
+    - attestation_faults:
         SEQ:
-          OPTION:
-            TYPENAME: AttestationRecord
+          TYPENAME: AttestationFault
     - attestation_totals:
         TYPENAME: AttestationTotals
 Command:

@@ -62,6 +62,21 @@ fn assert_record(
     );
 }
 
+/// A refuted record carries the units of both failed runs: the one execution
+/// charged and the judge's re-run.
+fn assert_refuted(env: &AbstractAccountTestEnv, effects: &TransactionEffects) {
+    let record = env
+        .attestation_record(effects.transaction_digest())
+        .expect("an attested transaction has a record");
+    let charged_units = effects.gas_cost_summary().computation_cost / env.rgp();
+    assert_eq!(record.attestor, 0);
+    assert!(
+        matches!(record.verdict, AttestationVerdict::Refuted { units } if units > charged_units),
+        "expected the re-run counted on top of the {charged_units} charged units, got {:?}",
+        record.verdict
+    );
+}
+
 /// An attestor that vouched for a transaction which authenticated at the time
 /// is not accountable for a later key rotation: re-running authentication at
 /// the recorded versions proves the attestation honest.
@@ -112,7 +127,7 @@ async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted() {
     let effects = env.submit(tx, Some(attestation)).await;
 
     assert_move_authentication_error(&effects);
-    assert_record(&env, &effects, AttestationVerdict::Refuted);
+    assert_refuted(&env, &effects);
 }
 
 /// The account can rotate to a different authenticator, not just a new key. An
