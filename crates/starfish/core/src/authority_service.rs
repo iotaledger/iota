@@ -1354,7 +1354,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 10. Add additional headers from bundle to dag, receive missing ancestors for
-        // them. Normally, there should be no missing ancestors, as the headers are
+        // them. Normally, there should be no missing ancestors: an ancestor inside
+        // the batch resolves in the block manager, and the headers are otherwise
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
