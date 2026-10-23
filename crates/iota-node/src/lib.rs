@@ -3103,7 +3103,35 @@ mod listener_metrics_tests {
         validator.trigger_shutdown();
         json_rpc.trigger_shutdown();
         grpc_api_listener.trigger_shutdown();
+        wait_for_all_families(&registry).await;
         registry
+    }
+
+    /// Waits until the listeners have observed their requests and closes, so
+    /// that every family has a series. The wait looks at all metrics, whatever
+    /// the groups hide.
+    async fn wait_for_all_families(registry: &Registry) {
+        let filter = registry.filter();
+        filter
+            .set_runtime_filter(prometheus_filtered::FilterSource::with_display(
+                "trace", "trace",
+            ))
+            .unwrap();
+        let expected = all_families();
+        for _ in 0..200 {
+            let present = MetricsReader::new(registry).family_names();
+            if expected.is_subset(&present) {
+                filter.reset_runtime_filter();
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!(
+            "metrics are not observed: {:?}",
+            expected
+                .difference(&MetricsReader::new(registry).family_names())
+                .collect::<Vec<_>>()
+        );
     }
 
     fn prefix_names<'a>(prefix: &'a str, names: &'a [&str]) -> impl Iterator<Item = String> + 'a {
@@ -3117,6 +3145,14 @@ mod listener_metrics_tests {
         "connection_lifetime_seconds",
     ];
     const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
+    const REQUEST_FAMILIES: &[&str] = &[
+        "connection_first_request_seconds",
+        "connection_idle_seconds",
+        "connection_inflight_requests",
+        "connection_inflight_requests_peak",
+        "request_completion_latency",
+        "response_delivery_latency",
+    ];
 
     /// `node_grpc_response_message_bytes` is not listed: it has a series per
     /// method, so it shows only once the gRPC API has sent a response.
@@ -3125,7 +3161,9 @@ mod listener_metrics_tests {
     /// Every family the listener of `prefix` registers, but not its TLS
     /// families.
     fn listener_families(prefix: &str) -> BTreeSet<String> {
-        prefix_names(prefix, CONNECTION_FAMILIES).collect()
+        prefix_names(prefix, CONNECTION_FAMILIES)
+            .chain(prefix_names(prefix, REQUEST_FAMILIES))
+            .collect()
     }
 
     /// Every family the validator listener registers.
@@ -3139,6 +3177,16 @@ mod listener_metrics_tests {
     /// The families of the response sizes of the gRPC API.
     fn grpc_api_families() -> BTreeSet<String> {
         prefix_names("node_grpc", GRPC_API_FAMILIES).collect()
+    }
+
+    /// Every family the listeners and the gRPC API register.
+    fn all_families() -> BTreeSet<String> {
+        validator_families()
+            .into_iter()
+            .chain(listener_families("json_rpc"))
+            .chain(listener_families("node_grpc"))
+            .chain(grpc_api_families())
+            .collect()
     }
 
     fn overrides(patterns: &[&str]) -> MetricGroups {

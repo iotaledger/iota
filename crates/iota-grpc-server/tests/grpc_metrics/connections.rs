@@ -4,24 +4,14 @@
 //! The connection metrics of the listener of the gRPC API, with a real tonic
 //! client.
 
-use std::{future::Future, time::Duration};
+use std::future::Future;
 
 use tonic::transport::Channel;
 
 use crate::{
     common::{MockGrpcStateReader, TestCertificate},
-    harness::{MetricsReader, connect, start, start_with},
+    harness::{MetricsReader, connect, start, start_with, wait_until},
 };
-
-async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
-    for _ in 0..1000 {
-        if condition() {
-            return;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-    panic!("timed out waiting for {what}");
-}
 
 /// Opens three connections, then closes them, and checks what the metrics say
 /// at each point.

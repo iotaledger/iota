@@ -70,7 +70,7 @@ const RESPONSE_MESSAGE_SIZE_BUCKETS: &[f64] = &[
 /// Tracks in-flight requests, total request counts (by method and gRPC status),
 /// request latency per RPC method, checkpoint stream subscribers, the sizes of
 /// response messages and items, the max message size that requests ask for, and
-/// the connections of the listener.
+/// the connections and requests of the listener.
 #[derive(Clone)]
 pub struct GrpcServerMetrics {
     inflight_requests: IntGaugeVec,
@@ -156,7 +156,8 @@ impl GrpcServerMetrics {
         }
     }
 
-    /// The metrics of the connections of the listener of the gRPC API.
+    /// The metrics of the connections and requests of the listener of the gRPC
+    /// API.
     pub fn listener_metrics(&self) -> ListenerMetrics {
         self.listener.clone()
     }

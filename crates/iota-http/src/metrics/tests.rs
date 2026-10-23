@@ -6,7 +6,7 @@ use prometheus_filtered::{MetricLevel, Registry};
 
 use crate::metrics::{HandshakeResult, ListenerMetrics};
 
-fn setup() -> (ListenerMetrics, MetricsReader) {
+pub(super) fn setup() -> (ListenerMetrics, MetricsReader) {
     let registry = Registry::new();
     let metrics = ListenerMetrics::new("t", &registry, MetricLevel::Info);
     (metrics, MetricsReader::new(&registry).with_prefix("t"))
