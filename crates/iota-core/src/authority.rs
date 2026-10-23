@@ -181,7 +181,6 @@ use crate::{
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
-    verify_indexes::verify_indexes,
 };
 
 #[cfg(test)]
@@ -3239,13 +3238,6 @@ impl AuthorityState {
                 cur_epoch_store.epoch()
             );
             self.expensive_check_is_consistent_state(state_hasher, cur_epoch_store);
-        }
-
-        if expensive_safety_check_config.enable_secondary_index_checks() {
-            if let Some(indexes) = self.rpc_indexes_store.clone() {
-                verify_indexes(self.get_global_state_hash_store().as_ref(), indexes)
-                    .expect("secondary indexes are inconsistent");
-            }
         }
 
         Ok(())

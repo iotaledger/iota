@@ -795,8 +795,8 @@ impl RpcIndexesStore {
         self.max_type_length
     }
 
-    /// The live-state and marker tables, for crate-internal callers that read
-    /// or seed them directly.
+    /// The live-state and marker tables, for tests that seed them directly.
+    #[cfg(test)]
     pub(crate) fn tables(&self) -> &IndexStoreTables {
         &self.tables
     }

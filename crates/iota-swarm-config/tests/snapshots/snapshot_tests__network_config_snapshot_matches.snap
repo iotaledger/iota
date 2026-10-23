@@ -47,7 +47,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -143,7 +142,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -239,7 +237,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -335,7 +332,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -431,7 +427,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -527,7 +522,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -623,7 +617,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false

@@ -1030,10 +1030,6 @@ pub struct ExpensiveSafetyCheckConfig {
     /// Disable state consistency check even when we are running in debug mode.
     #[serde(default)]
     force_disable_state_consistency_check: bool,
-
-    #[serde(default)]
-    enable_secondary_index_checks: bool,
-    // TODO: Add more expensive checks here
 }
 
 impl ExpensiveSafetyCheckConfig {
@@ -1044,7 +1040,6 @@ impl ExpensiveSafetyCheckConfig {
             force_disable_epoch_iota_conservation_check: false,
             enable_state_consistency_check: true,
             force_disable_state_consistency_check: false,
-            enable_secondary_index_checks: false, // Disable by default for now
         }
     }
 
@@ -1055,7 +1050,6 @@ impl ExpensiveSafetyCheckConfig {
             force_disable_epoch_iota_conservation_check: true,
             enable_state_consistency_check: false,
             force_disable_state_consistency_check: true,
-            enable_secondary_index_checks: false,
         }
     }
 
@@ -1079,10 +1073,6 @@ impl ExpensiveSafetyCheckConfig {
 
     pub fn enable_deep_per_tx_iota_conservation_check(&self) -> bool {
         self.enable_deep_per_tx_iota_conservation_check || cfg!(debug_assertions)
-    }
-
-    pub fn enable_secondary_index_checks(&self) -> bool {
-        self.enable_secondary_index_checks
     }
 }
 
