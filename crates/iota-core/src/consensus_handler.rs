@@ -868,8 +868,8 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
                 "owned_certificate"
             }
         }
-        ConsensusTransactionKind::UserTransactionV1(transaction) => {
-            if transaction.data().contains_shared_object() {
+        ConsensusTransactionKind::UserTransactionV1(attested_tx) => {
+            if attested_tx.transaction.data().contains_shared_object() {
                 "shared_user_transaction"
             } else {
                 "owned_user_transaction"
@@ -1191,6 +1191,7 @@ mod tests {
     use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_swarm_config::network_config::NetworkConfig;
     use iota_types::{
+        attestation::AttestedTransaction,
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
         crypto::{
@@ -1493,7 +1494,9 @@ mod tests {
             );
             let digest = *transaction.digest();
             let consensus_tx = ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(transaction, None),
+                )),
                 tracking_id: Default::default(),
             };
             (digest, consensus_tx)
@@ -1870,7 +1873,10 @@ mod tests {
         );
         let digest = *transaction.digest();
         let consensus_tx = ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                transaction,
+                None,
+            ))),
             tracking_id: Default::default(),
         };
         // An input produced at commit 1. Validation at commit C reads the state
@@ -1995,7 +2001,10 @@ mod tests {
         );
         let digest = *transaction.digest();
         let consensus_tx = ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                transaction,
+                None,
+            ))),
             tracking_id: Default::default(),
         };
         // An input produced at commit 1. Validation at commit C reads the state
@@ -2816,7 +2825,9 @@ mod tests {
             let verified_tx = epoch_store.verify_transaction(tx).unwrap();
 
             let consensus_tx = ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx.into())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(verified_tx.into(), None),
+                )),
                 tracking_id: Default::default(),
             };
 
@@ -3414,7 +3425,10 @@ mod tests {
         let verified_tx = epoch_store_a.verify_transaction(tx).unwrap();
         let tx_digest = *verified_tx.digest();
         let user_tx_bytes = bcs::to_bytes(&ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx.into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                verified_tx.into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
         .unwrap();

@@ -2384,6 +2384,7 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
     use iota_types::{
+        attestation::AttestedTransaction,
         base_types::random_object_ref,
         crypto::{
             AccountPrivateKey, AuthoritySignature, IotaAuthoritySignature as _,
@@ -2475,7 +2476,9 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
     let kinds = vec![
         (
             "UserTransactionV1",
-            ConsensusTransactionKind::UserTransactionV1(Box::new(user_tx)),
+            ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                user_tx, None,
+            ))),
         ),
         ("EndOfPublish", ConsensusTransactionKind::EndOfPublish(me)),
         (

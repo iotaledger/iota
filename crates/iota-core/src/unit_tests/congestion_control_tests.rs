@@ -15,6 +15,7 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -1069,7 +1070,10 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     };
     let seq = |tx: &VerifiedTransaction| {
         VerifiedSequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.clone().into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -1306,7 +1310,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone().into(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1496,7 +1502,9 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1651,7 +1659,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })

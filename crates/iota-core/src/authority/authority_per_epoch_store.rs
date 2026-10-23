@@ -6490,9 +6490,10 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                kind: ConsensusTransactionKind::UserTransactionV1(attested_tx),
                 ..
             }) => {
+                let transaction = &attested_tx.transaction;
                 if transaction.is_system_tx() {
                     warn!("UserTransactionV1 contains system transaction, ignoring");
                     return Ok(ConsensusTransactionResult::Ignored);

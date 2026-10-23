@@ -48,6 +48,7 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
     },
+    attestation::AttestedTransaction,
     crypto::{AccountPrivateKey, get_key_pair},
     deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_object_from_store},
@@ -109,7 +110,9 @@ fn make_user_tx_v1(
     tx: iota_types::transaction::TransactionEnvelope,
 ) -> VerifiedSequencedConsensusTransaction {
     let consensus_tx = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx)),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            tx, None,
+        ))),
         tracking_id: Default::default(),
     };
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
@@ -119,7 +122,10 @@ fn make_user_tx_v1(
 /// transaction.
 fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsensusTransaction {
     let consensus_tx = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            tx.into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
@@ -1453,7 +1459,10 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
     // commit exactly as the consensus handler would, which builds the pending
     // checkpoint for this commit.
     let seq_tx = SequencedConsensusTransaction::new_test(ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx.into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx.into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     });
     authority
@@ -1554,9 +1563,10 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
     // The first occurrence in the commit wins the lock; the second conflicts.
     let seq = |tx: iota_types::transaction::TransactionEnvelope| {
         SequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
                 epoch_store.verify_transaction(tx).unwrap().into(),
-            )),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
