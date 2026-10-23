@@ -187,14 +187,15 @@ impl WalletContext {
             .object_ref())
     }
 
-    /// Get all the gas objects (and conveniently, gas amounts) for the address.
+    /// Get all the gas objects (and conveniently, gas amounts) for the address,
+    /// each once.
     pub async fn gas_objects(
         &self,
         address: Address,
     ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
         let client = self.get_client().await?;
 
-        let values_objects = PagedFn::stream(async |cursor| {
+        let mut values_objects = PagedFn::stream(async |cursor| {
             client
                 .read_api()
                 .get_owned_objects(
@@ -225,6 +226,10 @@ impl WalletContext {
         })
         .try_collect::<Vec<_>>()
         .await?;
+        // Pages are ordered by balance, so a coin whose balance changes while
+        // they are read can come back on a later page.
+        let mut seen = BTreeSet::new();
+        values_objects.retain(|(_, object)| seen.insert(object.object_id));
 
         Ok(values_objects)
     }
