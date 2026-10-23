@@ -1338,6 +1338,7 @@ impl AuthorityPerEpochStore {
             signature_verifier_metrics,
             protocol_config.accept_passkey_in_multisig(),
             protocol_config.additional_multisig_checks(),
+            protocol_config.reject_partially_signed_mixed_ed25519_multisig(),
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);

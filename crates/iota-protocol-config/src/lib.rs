@@ -262,6 +262,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Raise the minimum validator joining stake to 6M IOTA, the low
 //             stake threshold to 5.5M IOTA and the very low stake threshold to
 //             5M IOTA on all chains.
+//             Reject a multisig whose committee mixes Ed25519 with other key
+//             schemes unless every committee member has signed.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -781,6 +783,13 @@ struct FeatureFlags {
     //   does not make a later transaction with the same key in its commit be skipped.
     #[serde(skip_serializing_if = "is_false")]
     consensus_dedup_only_recorded_messages: bool,
+
+    // If true, a multisig whose committee mixes Ed25519 with other key schemes
+    // is only accepted when every committee member has signed. Ed25519 members
+    // carry no flag byte in the multisig address preimage, so two different
+    // mixed committees can derive the same address.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_partially_signed_mixed_ed25519_multisig: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2313,6 +2322,11 @@ impl ProtocolConfig {
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
         self.feature_flags.consensus_dedup_only_recorded_messages
     }
+
+    pub fn reject_partially_signed_mixed_ed25519_multisig(&self) -> bool {
+        self.feature_flags
+            .reject_partially_signed_mixed_ed25519_multisig
+    }
 }
 
 #[cfg(not(msim))]
@@ -3764,6 +3778,11 @@ impl ProtocolConfig {
                     cfg.min_validator_joining_stake = Some(6_000_000_000_000_000);
                     cfg.validator_low_stake_threshold = Some(5_500_000_000_000_000);
                     cfg.validator_very_low_stake_threshold = Some(5_000_000_000_000_000);
+
+                    // Reject a multisig whose committee mixes Ed25519 with other key
+                    // schemes unless every committee member has signed.
+                    cfg.feature_flags
+                        .reject_partially_signed_mixed_ed25519_multisig = true;
                 }
                 // Use this template when making changes:
                 //
