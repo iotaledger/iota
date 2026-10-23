@@ -92,7 +92,7 @@ The following methods consult the fallback when the indexer database has no matc
 - `iotax_queryTransactionBlocks` with filter `Checkpoint` or `FromOrToAddress`
 - `iotax_queryEvents` with filter `Transaction`
 
-The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache.
+The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache. `--fallback-kv-max-response-size-bytes` caps the size of a single response body accepted from the KV store, larger responses are rejected.
 
 ### Analytics
 
@@ -144,6 +144,7 @@ These settings are only used by the IOTA Names methods: `iotax_iotaNamesLookup`,
 | `--fallback-kv-multi-fetch-batch-size`  | `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE`   | `100`          | Experimental. Maximum number of keys per batch request to the fallback KV store.             |
 | `--fallback-kv-concurrent-fetches`      | `FALLBACK_KV_CONCURRENT_FETCHES`       | `10`           | Experimental. Maximum number of concurrent batch requests to the fallback KV store.          |
 | `--fallback-kv-cache-size`              | `FALLBACK_KV_CACHE_SIZE`               | `100000`       | Experimental. In-memory cache size for historic fallback.                                    |
+| `--fallback-kv-max-response-size-bytes` | `FALLBACK_KV_MAX_RESPONSE_SIZE_BYTES`  | `~134 MB`    | Experimental. Maximum size in bytes of a single response body accepted from the fallback KV store. |
 | `--iota-names-package-address`          | —                                      | mainnet ID     | Address of the `iota_names` package.                                                         |
 | `--iota-names-object-id`                | —                                      | mainnet ID     | ID of the `IotaNames` object.                                                                |
 | `--iota-names-payments-package-address` | —                                      | mainnet ID     | Address of the `payments` package.                                                           |
