@@ -647,7 +647,7 @@ struct FeatureFlags {
     // checkpoint of the epoch is known, it executes the rest of the epoch from
     // state sync and stops processing consensus commits.
     //
-    // From protocol version 39 requires `pcool_verifier_limits_from_protocol_config`,
+    // From protocol version 39 requires `max_meter_ticks_regex_reference_safety`,
     // `consensus_dedup_only_recorded_messages`, a positive
     // `pcool_deterministic_validation_horizon_distance` and
     // `deny_rule_update_max_entries_per_tx`, and excludes
@@ -655,17 +655,14 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
 
-    // If true, immutable transaction inputs do not acquire owned-object locks
-    // in post-consensus conflict resolution — such a lock is never released
-    // and blocks every later reader until the epoch ends. Has no effect
-    // unless `enable_pcool_flow` is set.
+    // No longer read: post-consensus validation never locks immutable inputs.
+    // Kept because shipped protocol versions set it.
     #[serde(skip_serializing_if = "is_false")]
     pcool_skip_immutable_object_locks: bool,
 
-    // If true, post-consensus validation meters the packages a transaction
-    // publishes with the verifier limits from this config instead of each
-    // validator's own `VerifierSigningConfig`, so every validator reaches
-    // the same result. Has no effect unless `enable_pcool_flow` is set.
+    // No longer read: post-consensus validation always meters published
+    // packages with the verifier limits from this config. Kept because
+    // shipped protocol versions set it.
     #[serde(skip_serializing_if = "is_false")]
     pcool_verifier_limits_from_protocol_config: bool,
 
@@ -1115,7 +1112,7 @@ pub struct ProtocolConfig {
 
     // === Metered bytecode verifier limits ===
     // Enforced on the packages a transaction publishes when post-consensus
-    // validation checks them (via `pcool_verifier_limits_from_protocol_config`).
+    // validation checks them.
     // Signing, admission and simulation are validator-local decisions and use
     // each validator's own `VerifierSigningConfig` instead.
 
@@ -2120,17 +2117,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_pcool_flow
     }
 
-    pub fn pcool_skip_immutable_object_locks(&self) -> bool {
-        self.feature_flags.pcool_skip_immutable_object_locks
-    }
-
-    /// Effective only with its prerequisite `enable_pcool_flow`: a config
-    /// missing the prerequisite reads as disabled.
-    pub fn pcool_verifier_limits_from_protocol_config(&self) -> bool {
-        self.feature_flags
-            .pcool_verifier_limits_from_protocol_config
-    }
-
     pub fn validator_metadata_verify_v2(&self) -> bool {
         self.feature_flags.validator_metadata_verify_v2
     }
@@ -2369,23 +2355,12 @@ impl ProtocolConfig {
         // requires exist; only versions from 39 on are checked for them.
         let pcool_requirements_apply =
             ret.feature_flags.enable_pcool_flow && version >= ProtocolVersion::new(39);
-        // Post-consensus validation reads the regex check budget through the
-        // panicking accessor once the flag is set, so the constant must exist
-        // wherever the flag does, including when an override sets the flag on
-        // an earlier version.
+        // Post-consensus validation meters published packages with the
+        // verifier limits from this config, and reads the regex check budget
+        // through the panicking accessor.
         assert!(
-            !ret.feature_flags.pcool_verifier_limits_from_protocol_config
-                || ret.max_meter_ticks_regex_reference_safety.is_some(),
-            "pcool_verifier_limits_from_protocol_config requires \
-                max_meter_ticks_regex_reference_safety"
-        );
-        // Post-consensus validation must decide the same on every validator,
-        // so the validation result of a publish must not depend on each
-        // validator's own verifier signing limits.
-        assert!(
-            !pcool_requirements_apply
-                || ret.feature_flags.pcool_verifier_limits_from_protocol_config,
-            "enable_pcool_flow requires pcool_verifier_limits_from_protocol_config"
+            !pcool_requirements_apply || ret.max_meter_ticks_regex_reference_safety.is_some(),
+            "enable_pcool_flow requires max_meter_ticks_regex_reference_safety"
         );
         // For the same reason, the consensus handler must not skip a message
         // as a duplicate of one that was dropped without being recorded, as
@@ -3868,8 +3843,8 @@ impl ProtocolConfig {
     /// `verifier_config` takes: back edges per function, back edges per module,
     /// and the meter limit of the regex-based reference safety check.
     /// `VerifierSigningConfig::limits_for_signing` is the validator-local
-    /// counterpart. Defined from the protocol version that sets
-    /// `pcool_verifier_limits_from_protocol_config`.
+    /// counterpart. Defined from protocol version 35, which sets
+    /// `max_meter_ticks_regex_reference_safety`.
     pub fn verifier_signing_limits(&self) -> (usize, usize, usize) {
         (
             self.max_back_edges_per_function() as usize,
@@ -4072,30 +4047,14 @@ impl ProtocolConfig {
         if val {
             self.feature_flags
                 .pre_consensus_sponsor_only_move_authentication = false;
-            self.feature_flags
-                .pcool_verifier_limits_from_protocol_config = true;
-            // The limits flag requires this budget; versions before it leave
-            // it unset.
+            // Post-consensus validation reads this budget; versions before 35
+            // leave it unset.
             self.max_meter_ticks_regex_reference_safety
                 .get_or_insert(2_200_000);
             self.feature_flags.consensus_dedup_only_recorded_messages = true;
             self.pcool_deterministic_validation_horizon_distance
                 .get_or_insert(4);
             self.deny_rule_update_max_entries_per_tx.get_or_insert(1000);
-        }
-    }
-
-    pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
-        self.feature_flags.pcool_skip_immutable_object_locks = val;
-    }
-
-    /// Turning the limits off also turns off `enable_pcool_flow`, which
-    /// requires them.
-    pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
-        self.feature_flags
-            .pcool_verifier_limits_from_protocol_config = val;
-        if !val {
-            self.feature_flags.enable_pcool_flow = false;
         }
     }
 
@@ -4557,9 +4516,8 @@ mod test {
     }
 
     /// Every version from 39 and chain that turns the P-COOL flow on sets a
-    /// positive horizon distance and takes the verifier limits from the
-    /// protocol config, so the validation result of a publish does not depend
-    /// on node-local signing limits.
+    /// positive horizon distance and the verifier limits post-consensus
+    /// validation meters published packages with.
     #[test]
     fn every_version_with_the_pcool_flow_sets_its_requirements() {
         for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
@@ -4574,9 +4532,11 @@ mod test {
                          horizon distance"
                     );
                     assert!(
-                        config.pcool_verifier_limits_from_protocol_config(),
-                        "version {version} on {chain:?} runs the P-COOL flow with node-local \
-                         verifier limits"
+                        config
+                            .max_meter_ticks_regex_reference_safety_as_option()
+                            .is_some(),
+                        "version {version} on {chain:?} runs the P-COOL flow without the \
+                         regex reference safety budget"
                     );
                 }
             }
@@ -4592,10 +4552,14 @@ mod test {
             ProtocolVersion::new(MIN_PROTOCOL_VERSION),
             Chain::Unknown,
         );
-        assert!(!config.pcool_verifier_limits_from_protocol_config());
+        assert!(
+            config
+                .max_meter_ticks_regex_reference_safety_as_option()
+                .is_none()
+        );
         config.set_enable_pcool_flow_for_testing(true);
         assert!(config.enable_pcool_flow());
-        assert!(config.pcool_verifier_limits_from_protocol_config());
+        assert_eq!(config.max_meter_ticks_regex_reference_safety(), 2_200_000);
         assert!(config.consensus_dedup_only_recorded_messages());
         assert_eq!(config.pcool_deterministic_validation_horizon_distance(), 4);
         assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
@@ -4647,19 +4611,13 @@ mod test {
     /// tripping the startup check.
     #[test]
     fn disabling_a_requirement_for_testing_disables_the_pcool_flow() {
-        let disablers: [fn(&mut ProtocolConfig); 2] = [
-            |config| config.set_pcool_verifier_limits_from_protocol_config_for_testing(false),
-            |config| config.set_consensus_dedup_only_recorded_messages_for_testing(false),
-        ];
-        for disable in disablers {
-            let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-                config.set_enable_pcool_flow_for_testing(true);
-                disable(&mut config);
-                config
-            });
-            let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-            assert!(!config.enable_pcool_flow());
-        }
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_consensus_dedup_only_recorded_messages_for_testing(false);
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(!config.enable_pcool_flow());
     }
 
     #[test]

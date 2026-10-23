@@ -8687,12 +8687,10 @@ struct ImmutableInputSetup {
     _config_guard: OverrideGuard,
 }
 
-/// Builds the state above with the P-COOL flow on and the immutable-lock skip
-/// set to `skip_immutable_locks`.
-async fn setup_immutable_input(skip_immutable_locks: bool) -> ImmutableInputSetup {
-    let _config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+/// Builds the state above with the P-COOL flow on.
+async fn setup_immutable_input() -> ImmutableInputSetup {
+    let _config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_pcool_skip_immutable_object_locks_for_testing(skip_immutable_locks);
         config
     });
 
@@ -8820,7 +8818,7 @@ impl ImmutableInputSetup {
 #[tokio::test]
 async fn test_immutable_object_input_not_locked() {
     telemetry_subscribers::init_for_testing();
-    let s = setup_immutable_input(true).await;
+    let s = setup_immutable_input().await;
 
     let tx1 = s.read_immutable(s.gas1_ref);
     let tx2 = s.read_immutable(s.gas2_ref);
@@ -8844,40 +8842,13 @@ async fn test_immutable_object_input_not_locked() {
     );
 }
 
-/// The gate itself: with the flag off, the first reader locks the immutable
-/// object and the second is dropped against it.
-#[tokio::test]
-async fn test_immutable_object_input_locked_when_flag_disabled() {
-    telemetry_subscribers::init_for_testing();
-    let s = setup_immutable_input(false).await;
-
-    let tx1 = s.read_immutable(s.gas1_ref);
-    let tx2 = s.read_immutable(s.gas2_ref);
-    let tx2_digest = *tx2.digest();
-    let mut transactions = vec![
-        make_user_tx_v1_verified(tx1.clone()),
-        make_user_tx_v1_verified(tx2),
-    ];
-
-    let (dropped, locks) = s.resolve(&mut transactions).await;
-
-    assert_eq!(dropped.len(), 1, "the second reader must be dropped");
-    assert_eq!(dropped[0].0, tx2_digest);
-    assert!(matches!(dropped[0].1, IotaError::ObjectLockConflict { .. }));
-    assert_eq!(
-        locks.get(&s.immutable_ref),
-        Some(tx1.digest()),
-        "the immutable object is locked while the flag is off"
-    );
-}
-
 /// The already-executed branch locks the transaction's owned inputs and leaves
 /// the immutable input free. A later reader of the same immutable object is
 /// then kept instead of hitting the winner-out-locked `fatal!`.
 #[tokio::test]
 async fn test_already_executed_tx_does_not_lock_immutable_input() {
     telemetry_subscribers::init_for_testing();
-    let s = setup_immutable_input(true).await;
+    let s = setup_immutable_input().await;
 
     let executed = s.read_immutable_with_owned(s.gas1_ref);
     s.execute_in_an_earlier_commit(&executed);
@@ -8987,15 +8958,14 @@ async fn assert_node_limits_reject(setup: &PublishSetup) {
     );
 }
 
-/// With `pcool_verifier_limits_from_protocol_config` set, post-consensus
-/// validation meters a published package with the protocol config's limits.
+/// Post-consensus validation meters a published package with the protocol
+/// config's limits.
 /// A validator whose own `VerifierSigningConfig` would reject the package
 /// keeps it, as every validator on default settings does.
 #[tokio::test]
 async fn post_consensus_validation_meters_packages_with_protocol_limits() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_pcool_verifier_limits_from_protocol_config_for_testing(true);
         config
     });
     let setup = setup_publish_with_one_tick_node_limits().await;
@@ -9021,45 +8991,6 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
     );
     assert_eq!(transactions.len(), 1);
     assert_eq!(locks.len(), 1, "only the gas coin is locked");
-}
-
-/// Without the flag, post-consensus validation still meters with this
-/// validator's own `VerifierSigningConfig`: the package is dropped here
-/// while validators on default settings keep it.
-#[tokio::test]
-async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_disabled() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config.set_pcool_verifier_limits_from_protocol_config_for_testing(false);
-        config
-    });
-    let setup = setup_publish_with_one_tick_node_limits().await;
-    assert_node_limits_reject(&setup).await;
-
-    let epoch_store = setup.authority.epoch_store_for_testing();
-    let digest = *setup.tx.digest();
-    let mut transactions = vec![make_user_tx_v1(setup.tx.clone())];
-    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
-        &setup.authority,
-        &epoch_store,
-        1,
-        false,
-        &Default::default(),
-        &mut transactions,
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(dropped.len(), 1);
-    assert_eq!(dropped[0].0, digest);
-    assert!(matches!(
-        &dropped[0].1,
-        IotaError::UserInput {
-            error: UserInputError::PackageVerificationTimedout { .. }
-        }
-    ));
-    assert!(transactions.is_empty());
-    assert!(locks.is_empty(), "dropped transaction must not take locks");
 }
 
 // ---------------------------------------------------------------------------
