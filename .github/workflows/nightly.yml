@@ -35,6 +35,11 @@ on:
         type: boolean
         required: false
         default: false
+      stressNewSimtestsOnly:
+        description: "Only stress-test the simulation tests added since the last scheduled run"
+        type: boolean
+        required: false
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -65,13 +70,13 @@ env:
 
 jobs:
   examples:
-    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly && !inputs.stressNewSimtestsOnly }}
     uses: ./.github/workflows/_rust_examples.yml
     with:
       isNightly: true
 
   tests:
-    if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
+    if: ${{ (inputs.rustTestsOnly || !inputs.simTestsOnly) && !inputs.stressNewSimtestsOnly }}
     uses: ./.github/workflows/_rust_tests.yml
     with:
       isRust: true
@@ -84,35 +89,35 @@ jobs:
       isNightly: true
 
   deny:
-    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly && !inputs.stressNewSimtestsOnly }}
     uses: ./.github/workflows/_cargo_deny.yml
 
   deny-external:
-    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly && !inputs.stressNewSimtestsOnly }}
     uses: ./.github/workflows/_cargo_deny.yml
     with:
       manifest-path: external-crates/move/Cargo.toml
 
   execution-cut:
-    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly && !inputs.stressNewSimtestsOnly }}
     uses: ./.github/workflows/_execution_cut.yml
     with:
       isNightly: true
 
   split-cluster:
-    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly && !inputs.stressNewSimtestsOnly }}
     uses: ./.github/workflows/_split_cluster.yml
     with:
       isNightly: true
 
   split-cluster-sync-check:
-    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly && !inputs.stressNewSimtestsOnly }}
     uses: ./.github/workflows/_split_cluster_sync_check.yml
     with:
       isNightly: true
 
   simtest:
-    if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
+    if: ${{ (inputs.simTestsOnly || !inputs.rustTestsOnly) && !inputs.stressNewSimtestsOnly }}
     timeout-minutes: 600
     runs-on: [self-hosted-x64]
 
@@ -128,3 +133,50 @@ jobs:
 
       - name: Run simtest
         run: scripts/simtest/simtest-run.sh
+
+  stress-new-simtests:
+    if: ${{ github.event_name == 'schedule' || inputs.stressNewSimtestsOnly }}
+    timeout-minutes: 600
+    runs-on: [self-hosted-x64]
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.IOTA_REF }}
+
+      - name: Get latest stress script from commit that triggered this workflow
+        run: |
+          git fetch origin ${{ github.sha }}
+          git checkout ${{ github.sha }} -- scripts/simtest/stress-new-tests.sh
+
+      - name: Find the commit the last scheduled run tested
+        id: last-scheduled-run
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'nightly.yml',
+              event: 'schedule',
+              per_page: 10,
+            });
+            const run = data.workflow_runs.find((run) => run.id !== context.runId);
+            if (!run) {
+              core.setFailed('Cannot find an earlier scheduled run of this workflow');
+              return;
+            }
+            core.info(`Last scheduled run: ${run.html_url} at ${run.head_sha}`);
+            core.setOutput('sha', run.head_sha);
+
+      - name: Fetch the commit the last scheduled run tested
+        run: git fetch --no-tags --depth=1 origin ${{ steps.last-scheduled-run.outputs.sha }}
+
+      - name: Stress-test simtests added since the last scheduled run
+        env:
+          BASE_COMMIT: ${{ steps.last-scheduled-run.outputs.sha }}
+          MSIM_WATCHDOG_TIMEOUT_MS: 180000
+        run: scripts/simtest/stress-new-tests.sh
