@@ -161,6 +161,11 @@ impl ConsensusManagerTrait for StarfishManager {
         let starting_commit = last_processed_commit.saturating_sub(num_prior_commits);
         let consumer = CommitConsumer::new(commit_sender, starting_commit);
         let monitor = consumer.monitor();
+        // Every checkpoint built before the restart comes from commits up to the last validated
+        // one. A later commit is validated for the first time, which can wait for execution that
+        // needs the checkpoint executor, and node startup creates that executor only after the
+        // builder has rebuilt those checkpoints. A replayed commit up to the target can still
+        // wait on backpressure, which only the checkpoint executor lifts.
         let target = protocol_config.pcool_deterministic_validation().then(|| {
             let target = replay_target(
                 epoch_store

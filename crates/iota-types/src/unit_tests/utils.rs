@@ -261,7 +261,7 @@ mod move_authenticator {
     /// Make a transaction that passes a shared object to a Move call and is
     /// signed with a [`MoveAuthenticator`] that names the same object with a
     /// different initial shared version, for use in tests. The transaction
-    /// expires in `epoch`, as a Move-authenticated transaction must.
+    /// expires in `epoch`.
     ///
     /// Returns the transaction and the shared object as the transaction itself
     /// names it.

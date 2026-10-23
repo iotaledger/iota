@@ -1,15 +1,24 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The oracle for P-COOL deterministic validation: the verdict a validator
+//! The oracle for P-COOL deterministic validation: the result a validator
 //! with perfect knowledge gives at commit `C`, as a pure function of the
 //! consensus history and the epoch-start state. It knows nothing about
 //! execution progress, state sync, crashes, caches or pruning, which is what
 //! makes it the specification the real code is checked against.
 //!
-//! The model keeps, per commit `c`, the object state `S_c` after every
-//! transaction that executes at `c`, the lock table `L_c` and the processed
-//! set `P_c`. A candidate at commit `C` is judged in the commit's order:
+//! Terms used here:
+//! - `C` is the commit being validated, and `K` is how many commits behind `C` the object state is
+//!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`. Commit `C - K`
+//!   is the horizon.
+//! - For each commit `c`, `S_c` is the object state after every transaction that executes at `c`,
+//!   `L_c` is the lock table and `P_c` the set of processed digests. Validation at `C` reads
+//!   `S_{C-K}`.
+//! - A result ([`Verdict`]) is kept, dropped with a reason, or duplicate.
+//! - A deferral reload is a kept candidate that congestion control deferred, sequenced again at the
+//!   next commit.
+//!
+//! A candidate at commit `C` is judged in the commit's order:
 //!
 //! 1. a same-commit duplicate of an earlier candidate is silently dropped;
 //! 2. a deferral reload is kept without checks and takes no lock: the locks it took at the commit
@@ -19,14 +28,16 @@
 //!    saved decision;
 //! 4. an owned input locked by another digest, counting locks taken earlier in this commit, drops
 //!    the candidate (lock conflict);
-//! 5. every input is checked against `S_{C-K}`: an owned input is visible only if the state has
-//!    exactly the named version and digest live, stale if the state has a newer version or a
-//!    tombstone at or above it, and missing if the version is not produced yet or the id is
-//!    unknown; a shared input is visible if the object is live with the declared initial shared
-//!    version, stale if it is live otherwise or deleted, and missing if it is absent; a package is
-//!    visible if present and missing otherwise. A shared object deleted above the horizon is
-//!    therefore visible, and its transaction executes against the deletion. A receiving object is
-//!    checked as an owned input is, after every input;
+//! 5. every input is checked against `S_{C-K}`:
+//!    - an owned input is visible only if the state has exactly the named version and digest live,
+//!      stale if the state has a newer version or a tombstone at or above it, and missing if the
+//!      version is not produced yet or the id is unknown;
+//!    - a shared input is visible if the object is live with the declared initial shared version,
+//!      stale if it is live otherwise or deleted, and missing if it is absent. A shared object
+//!      deleted above the horizon is therefore visible, and its transaction executes against the
+//!      deletion;
+//!    - a package is visible if present and missing otherwise;
+//!    - a receiving object is checked as an owned input is, after every input;
 //! 6. a candidate with every input visible is kept: its owned inputs are locked, its digest is
 //!    processed, and unless deferred it executes at `C`. Receiving references take no lock.
 //!
@@ -164,7 +175,8 @@ impl Candidate {
     }
 }
 
-/// Rule 5 for one input.
+/// The class of one input checked against the state at the horizon (item 5
+/// of the module doc).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputClass {
     Visible,
@@ -238,7 +250,7 @@ impl Execution {
 /// What the oracle decided for one commit.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CommitOutcome {
-    /// One verdict per candidate that survived same-commit deduplication, in
+    /// One result per candidate that survived same-commit deduplication, in
     /// order.
     pub verdicts: Vec<(TransactionDigest, Verdict)>,
     /// The locks this commit's kept candidates took.
@@ -250,7 +262,7 @@ pub struct CommitOutcome {
 
 impl CommitOutcome {
     /// The digests that execute at this commit, which is what the handler
-    /// registers as the commit's roots.
+    /// assigns as the commit's roots.
     pub fn roots(&self) -> Vec<TransactionDigest> {
         self.executions
             .iter()
@@ -269,7 +281,7 @@ impl CommitOutcome {
 /// The consensus history as the oracle has judged it so far.
 #[derive(Clone, Debug)]
 pub struct Oracle {
-    /// Horizon distance: a verdict at `C` reads `S_{C-K}`.
+    /// `K`, the horizon distance: validation at `C` reads `S_{C-K}`.
     pub k: CommitIndex,
     /// `states[c]` is `S_c`; `states[0]` is the epoch start.
     states: Vec<State>,
@@ -300,7 +312,7 @@ impl Oracle {
         &self.states[commit as usize]
     }
 
-    /// The state a verdict at `commit` reads: `S_{C-K}`.
+    /// The state validation at `commit` reads: `S_{C-K}`.
     pub fn horizon_state(&self, commit: CommitIndex) -> &State {
         self.state(commit.saturating_sub(self.k))
     }
@@ -309,7 +321,8 @@ impl Oracle {
         &self.outcomes[commit as usize - 1]
     }
 
-    /// Rule 5 for every input of `candidate` at `commit`, in input order.
+    /// The class of every input of `candidate` at `commit`, in input order
+    /// (item 5 of the module doc).
     pub fn input_classes(&self, commit: CommitIndex, candidate: &Candidate) -> Vec<InputClass> {
         let state = self.horizon_state(commit);
         candidate
@@ -379,7 +392,8 @@ impl Oracle {
     }
 }
 
-/// Rule 5 for one input against the state at the horizon.
+/// Checks one input against the state at the horizon (item 5 of the module
+/// doc).
 pub fn input_class(state: &State, input: &Input) -> InputClass {
     match input {
         Input::Owned(reference) | Input::Receiving(reference) => {

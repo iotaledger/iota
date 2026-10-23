@@ -259,6 +259,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             user transaction from an authority that has sent EndOfPublish
 //             no longer makes a later transaction with the same key in the
 //             same commit be skipped as a duplicate.
+//             Raise the minimum validator joining stake to 6M IOTA, the low
+//             stake threshold to 5.5M IOTA and the very low stake threshold to
+//             5M IOTA on all chains.
 //             Reject a multisig whose committee mixes Ed25519 with other key
 //             schemes unless every committee member has signed.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -639,7 +642,7 @@ struct FeatureFlags {
     // If true, post-consensus validation meters the packages a transaction
     // publishes with the verifier limits from this config instead of each
     // validator's own `VerifierSigningConfig`, so every validator reaches
-    // the same verdict. Has no effect unless `enable_pcool_flow` is set.
+    // the same result. Has no effect unless `enable_pcool_flow` is set.
     #[serde(skip_serializing_if = "is_false")]
     pcool_verifier_limits_from_protocol_config: bool,
 
@@ -754,7 +757,8 @@ struct FeatureFlags {
     allow_dkg_completion_after_timeout: bool,
 
     // If true, P-COOL deterministic validation is on. Post-consensus
-    // validation reads object state as of the commit height being processed,
+    // validation reads object state as of the horizon of the commit being
+    // processed (see `pcool_deterministic_validation_horizon_distance`),
     // and checks the sender against the coin deny list for the coin types of
     // its inputs there, with changes made this epoch counting; execution no
     // longer checks inputs against it. A committee validator does not execute
@@ -762,7 +766,8 @@ struct FeatureFlags {
     // checkpoint builder and takes only randomness signatures from state sync.
     // Once the certified last checkpoint of the epoch is known, it executes the
     // rest of the epoch from state sync and stops processing consensus commits.
-    // Requires `enable_pcool_flow`, `deny_rule_governance` and
+    // Requires `enable_pcool_flow`, `deny_rule_governance`,
+    // `pcool_verifier_limits_from_protocol_config` and
     // `consensus_dedup_only_recorded_messages`.
     #[serde(skip_serializing_if = "is_false")]
     pcool_deterministic_validation: bool,
@@ -1630,12 +1635,6 @@ pub struct ProtocolConfig {
     /// the `deny_rule_governance` feature flags.
     deny_rule_update_max_entries_per_tx: Option<u64>,
 
-    /// Consensus round before which removals are never injected into the
-    /// `TransactionDenyRules` object, so validators can re-announce their
-    /// rules after an epoch change before unsupported entries are dropped.
-    /// Set together with the `deny_rule_governance` feature flags.
-    deny_rule_removal_grace_round_floor: Option<u64>,
-
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
@@ -1661,10 +1660,12 @@ pub struct ProtocolConfig {
     /// set. Requires `enable_pcool_flow`.
     max_concurrent_execution_workers: Option<u16>,
 
-    /// Number of commits between the consensus commit that post-consensus
-    /// validation decides for and the horizon: the highest commit whose
-    /// recorded object state a verdict may rely on. Unset until the version
-    /// that enables `pcool_deterministic_validation`; reads as 2 until then.
+    /// How many consensus commits back post-consensus validation reads object
+    /// state. Validating a transaction in commit C reads object state as of
+    /// commit C - K, where K is this distance; that commit is the horizon of
+    /// C, and it must be fully executed before C is validated. Unset until the
+    /// version that enables `pcool_deterministic_validation`; reads as 2 until
+    /// then.
     pcool_deterministic_validation_horizon_distance: Option<u64>,
 
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
@@ -2413,8 +2414,8 @@ impl ProtocolConfig {
                 || (ret.feature_flags.enable_pcool_flow && ret.feature_flags.deny_rule_governance),
             "pcool_deterministic_validation requires enable_pcool_flow and deny_rule_governance"
         );
-        // For the same reason, publish verdicts must not depend on each
-        // validator's own verifier signing limits.
+        // For the same reason, the validation result of a publish must not
+        // depend on each validator's own verifier signing limits.
         assert!(
             !ret.feature_flags.pcool_deterministic_validation
                 || ret.feature_flags.pcool_verifier_limits_from_protocol_config,
@@ -2428,22 +2429,20 @@ impl ProtocolConfig {
                 || ret.feature_flags.consensus_dedup_only_recorded_messages,
             "pcool_deterministic_validation requires consensus_dedup_only_recorded_messages"
         );
-        // With a distance of 0 the handler at a commit waits for that same
-        // commit to be fully executed, which cannot happen before the handler
-        // finishes it.
+        // With a distance of 0, the consensus handler processing commit C
+        // would wait for C itself to be fully executed, which cannot happen
+        // before the handler finishes processing C.
         assert!(
             !ret.feature_flags.pcool_deterministic_validation
                 || ret.pcool_deterministic_validation_horizon_distance != Some(0),
             "pcool_deterministic_validation requires a positive \
                 pcool_deterministic_validation_horizon_distance"
         );
-        // The injection cannot chunk updates or gate removals without its
-        // knobs.
+        // The injection cannot chunk updates without its limit.
         assert!(
             !ret.feature_flags.deny_rule_governance_on_chain
-                || (ret.deny_rule_update_max_entries_per_tx.is_some()
-                    && ret.deny_rule_removal_grace_round_floor.is_some()),
-            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx and deny_rule_removal_grace_round_floor"
+                || ret.deny_rule_update_max_entries_per_tx.is_some(),
+            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx"
         );
         // A deny-rule update chunk must always execute, or the object falls
         // permanently behind the mirrored state on every validator at once.
@@ -2991,7 +2990,6 @@ impl ProtocolConfig {
 
             max_committee_members_count: None,
             deny_rule_update_max_entries_per_tx: None,
-            deny_rule_removal_grace_round_floor: None,
 
             consensus_gc_depth: None,
 
@@ -3698,7 +3696,7 @@ impl ProtocolConfig {
                     // the limits below instead of each validator's own
                     // `VerifierSigningConfig`. The values are that config's
                     // defaults, so a validator that leaves it alone reaches
-                    // the same verdict at admission and post-consensus. Set on
+                    // the same result at admission and post-consensus. Set on
                     // all chains; inert where the P-COOL flow is off.
                     cfg.max_verifier_meter_ticks_per_function = Some(2_200_000);
                     cfg.max_meter_ticks_per_module = Some(2_200_000);
@@ -3773,6 +3771,16 @@ impl ProtocolConfig {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
                     cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
+
+                    // Raise the minimum validator joining stake to 6M IOTA, the low
+                    // stake threshold to 5.5M IOTA and the very low stake threshold to
+                    // 5M IOTA on all chains.
+                    cfg.min_validator_joining_stake = Some(6_000_000_000_000_000);
+                    cfg.validator_low_stake_threshold = Some(5_500_000_000_000_000);
+                    cfg.validator_very_low_stake_threshold = Some(5_000_000_000_000_000);
+
+                    // Reject a multisig whose committee mixes Ed25519 with other key
+                    // schemes unless every committee member has signed.
                     cfg.feature_flags
                         .reject_partially_signed_mixed_ed25519_multisig = true;
                 }
@@ -4471,7 +4479,6 @@ mod test {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_deny_rule_governance_for_testing(true);
             config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(2048 + 1);
             config
         });
@@ -4486,7 +4493,6 @@ mod test {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_deny_rule_governance_for_testing(true);
             config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(0);
             config
         });
@@ -4499,7 +4505,6 @@ mod test {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_deny_rule_governance_for_testing(true);
             config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
             config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
             config
         });
@@ -4532,10 +4537,10 @@ mod test {
         );
     }
 
-    /// With a horizon distance of 0, the handler at a commit waits for that
-    /// same commit to be fully executed, which cannot happen before the
-    /// handler finishes it, so the network halts. The configuration is
-    /// rejected at startup.
+    /// With a horizon distance of 0, the consensus handler processing commit C
+    /// would wait for C itself to be fully executed, which cannot happen before
+    /// the handler finishes processing C, so the network would halt. The
+    /// configuration is rejected at startup.
     #[test]
     #[should_panic(expected = "pcool_deterministic_validation_horizon_distance")]
     fn horizon_distance_of_zero_with_deterministic_validation_is_rejected() {
@@ -4568,8 +4573,8 @@ mod test {
     }
 
     /// Every version and chain that turns deterministic validation on also
-    /// takes the verifier limits from the protocol config, so publish
-    /// verdicts do not depend on node-local signing limits.
+    /// takes the verifier limits from the protocol config, so the validation
+    /// result of a publish does not depend on node-local signing limits.
     #[test]
     fn every_version_with_deterministic_validation_takes_verifier_limits_from_the_config() {
         for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {

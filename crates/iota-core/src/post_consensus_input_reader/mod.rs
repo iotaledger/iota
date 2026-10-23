@@ -45,8 +45,9 @@
 //! # Why the store answer for an id with no row is the epoch-start state
 //!
 //! When the row they look for does not exist, the owned and shared readers
-//! ask the store. That answer gives the same result on every validator, for
-//! the three reasons below, with one exception given in point 3.
+//! ask the store. For an id with no row at all, that answer gives the same
+//! result on every validator, for the three reasons below, with one exception
+//! given in point 3.
 //!
 //! 1. Every write this epoch leaves its row before its object, so the store is never ahead of the
 //!    rows for an id.
@@ -62,6 +63,18 @@
 //!    that pruned it. Both leave the transaction out of the commit, but the error reported differs
 //!    (final or retryable). The shared reader, which reads only live objects, finds nothing in
 //!    both.
+//!
+//! An id can have rows at other versions than the one a reader looks for.
+//! Rows at or below the horizon are on every validator, but a row above the
+//! horizon is only on the validators that executed its commit, and their
+//! store already shows that write. So a reader decides from such a store
+//! answer only after reading the other rows of the id, and answers as a
+//! validator that has not executed any commit above the horizon would: the
+//! owned reader from the lowest row of the id above the named version, the
+//! shared reader by checking a drop against the lowest row of the id. The
+//! owned and shared modules explain the rules. Mutations of a shared object
+//! write no rows, so a shared object named as owned is decided from its
+//! creation row, not from its version.
 //!
 //! After the store answer, the row is read once more. This covers a write
 //! that lands between the first row read and the store read. Such a write
@@ -80,20 +93,19 @@
 //! # Loading the object of a kept version
 //!
 //! A kept owned input is loaded by exact key, and this validator may already
-//! have consumed and pruned that version. A version consumed by a commit at
-//! or below the horizon drops, from the consuming commit's row, before any
-//! load. A version consumed above the horizon is kept, as on a validator that
-//! has not executed that commit, unless the consuming transaction holds a
-//! lock that the lock conflict check finds first. That holds for a version
-//! the epoch started with too: a newer version in the store does not drop it
-//! by itself, as the owned module explains. A version that a transaction in
-//! the last `K` commits consumed without a lock (a received object or a
-//! dynamic-field child) can be pruned here while a validation still keeps
-//! it. If this validator has already pruned it, the consuming commit's row
-//! above `V` drops the input. That is also the result on a validator that
-//! still holds the object: the input checks reject a child named as an owned
-//! input, and a received object unless the sender is the address of the
-//! object it was sent to.
+//! have consumed that version. A version consumed by a commit at or below the
+//! horizon drops, from the consuming commit's row, before any load. A version
+//! consumed above the horizon is kept, as on a validator that has not
+//! executed that commit, unless the consuming transaction holds a lock that
+//! the lock conflict check finds first. That holds for a version the epoch
+//! started with too: a newer version in the store does not drop it by
+//! itself, as the owned module explains. The object of such a version,
+//! including one consumed without a lock as a received object or a
+//! dynamic-field child, stays in the store, because the objects pruner does
+//! not pass the pruning limit, which covers every commit that a validation,
+//! or a replay after a restart, can still read (see
+//! `AuthorityPerEpochStore::object_pruning_limit`). A kept version missing
+//! from the store is therefore a storage error.
 //!
 //! # Dynamic fields as of the horizon
 //!
@@ -114,6 +126,7 @@
 
 use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
+    error::IotaError,
     object::Object,
     storage::PackageObject,
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
@@ -229,9 +242,6 @@ pub enum DropKind {
     /// The row at `(id, V)` is a shared object's creation row, but the
     /// transaction names the object as owned.
     HandlerRowSharedObject,
-    /// A row of `id` above `V` while this validator has already pruned `V`:
-    /// `V` was consumed without a lock.
-    HandlerRowAbovePrunedVersion,
     /// No row at `(id, V)`, and `V` was replaced before this epoch: the store
     /// holds a newer version or a tombstone, and the lowest row of `id` above
     /// `V`, if there is one, replaced another version.
@@ -239,6 +249,9 @@ pub enum DropKind {
     /// No row at `(id, V)`, and the store's object at `V` has another digest:
     /// as the latest reference, or as the object loaded for a kept input.
     StoreDigestMismatch,
+    /// Named as owned, but the id is a shared object created at or below the
+    /// horizon or before the epoch.
+    SharedObjectNamedAsOwned,
     /// Named as shared, but the row or the store object is not shared at the
     /// declared initial version.
     SharedNotCreatedShared,
@@ -258,10 +271,16 @@ pub enum MissingKind {
     StoreBelowVersion,
     /// No row at `(id, V)`, and the store has nothing for `id`.
     StoreNotFound,
+    /// No row at `(id, V)`, and the store's latest entry for `id` is a
+    /// tombstone left by wrapping.
+    StoreWrapped,
+    /// No row at `(id, V)`, and a row of `id` above the horizon shows that at
+    /// the horizon `id` was live at a version below `V`, or not live.
+    VersionNotLiveAtHorizon,
     /// The shared object's creation row was produced above the horizon.
     SharedCreationAboveHorizon,
-    /// No creation row, the store has no live object and no handler row
-    /// shows a deletion.
+    /// No creation row, the store has no live object and no row shows a
+    /// deletion.
     SharedNotFound,
     /// The package is not in the store.
     PackageNotFound,
@@ -309,7 +328,8 @@ pub enum ValidationInputsAtCommit {
 
 /// The result of validating one transaction at a commit. A check after
 /// loading that rejects the transaction returns the same `Err` as at
-/// admission, not a result.
+/// admission, not a result, except the denial of an authenticator package,
+/// which the caller needs to tell apart from the other errors.
 #[must_use]
 #[derive(Debug)]
 pub enum ValidationAtCommit {
@@ -317,4 +337,9 @@ pub enum ValidationAtCommit {
     Keep(Vec<ObjectReference>),
     Drop(InputObjectKind, DropReason),
     Missing(InputObjectKind, MissingReason),
+    /// The deny rules deny the package holding an account's authenticate
+    /// function, named by the account's authenticator function field as of
+    /// the horizon. The accounts are the transaction's signers, so every copy
+    /// of the transaction is denied alike.
+    AuthenticatorPackageDenied(IotaError),
 }

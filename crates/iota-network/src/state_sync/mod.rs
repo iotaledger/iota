@@ -802,11 +802,19 @@ where
     /// checkpoints after the highest one stored, so it does not send that
     /// checkpoint again, and when it is the last checkpoint of an epoch no
     /// later checkpoint moves the watermark past it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store cannot be read or written, or if a stored
+    /// checkpoint's `previous_digest` is not the digest of the checkpoint
+    /// below it. Every stored checkpoint is certified, and certified
+    /// checkpoints form a single chain, so a mismatch means the local store
+    /// is corrupt and the node must not go on from it.
     fn verify_stored_checkpoints_above_watermark(&self) {
         let mut highest_verified = self
             .store
             .try_get_highest_verified_checkpoint()
-            .expect("store operation should not fail");
+            .expect("reading the verified watermark from the store should succeed");
         let previously_verified = highest_verified.sequence_number();
         while let Some(checkpoint) = self.store.get_checkpoint_by_sequence_number(
             highest_verified
@@ -825,7 +833,7 @@ where
             self.insert_next_epoch_committee(&checkpoint);
             self.store
                 .try_update_highest_verified_checkpoint(&checkpoint)
-                .expect("store operation should not fail");
+                .expect("updating the verified watermark in the store should succeed");
             highest_verified = checkpoint;
         }
         if highest_verified.sequence_number() > previously_verified {

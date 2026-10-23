@@ -1544,7 +1544,6 @@
                 "debug_print_stack_trace_base_cost": {
                   "u64": "52"
                 },
-                "deny_rule_removal_grace_round_floor": null,
                 "deny_rule_update_max_entries_per_tx": null,
                 "dynamic_field_add_child_object_cost_base": {
                   "u64": "100"
@@ -2084,7 +2083,7 @@
                   "u64": "4"
                 },
                 "min_validator_joining_stake": {
-                  "u64": "2000000000000000"
+                  "u64": "6000000000000000"
                 },
                 "move_binary_format_version": {
                   "u32": "7"
@@ -2259,7 +2258,7 @@
                   "u64": "7"
                 },
                 "validator_low_stake_threshold": {
-                  "u64": "1500000000000000"
+                  "u64": "5500000000000000"
                 },
                 "validator_target_reward": {
                   "u64": "767000000000000"
@@ -2271,7 +2270,7 @@
                   "u64": "2"
                 },
                 "validator_very_low_stake_threshold": {
-                  "u64": "1000000000000000"
+                  "u64": "5000000000000000"
                 },
                 "vdf_hash_to_input_cost": {
                   "u64": "100"

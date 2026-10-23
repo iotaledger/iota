@@ -8,7 +8,7 @@
 use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, Version};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, authenticator_function_ref_v1_from_dynamic_field_object,
@@ -28,13 +28,13 @@ use super::{
     MissingReason, OwnedVerdict, PackageVerdict, SharedVerdict,
     dynamic_field::{DynamicFieldReader, HighestRowLookup, RowLookup},
     owned::{
-        LiveAtVersion, NeedBytes, OwnedReader, RowsAboveLookup, SupersededInStore, TablesLookup,
-        TablesRecheck,
+        LiveAtVersion, NeedBytes, NotAtVersion, OwnedReader, RowsAboveLookup, SharedNamedAsOwned,
+        TablesLookup, TablesRecheck, classify_shared_named_as_owned,
     },
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, DeletionRowLookup, ObjectAbsent, SharedReader, SharedTablesLookup,
-        SharedTablesRecheck, TypeObjectLookup,
+        CreatedObjectLookup, DeletionRowLookup, DropCheck, ObjectAbsent, SharedReader,
+        SharedTablesLookup, SharedTablesRecheck, TypeObjectLookup,
     },
 };
 use crate::{
@@ -77,9 +77,11 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Reads one owned or immutable input: the row at the named version or
-    /// the store, then, for a kept version, the rows above it. A storage error
-    /// is returned as `Err`, never as a result.
+    /// Reads one owned or immutable input: the row at the named version, or
+    /// without one the store and then, unless the store holds the named
+    /// reference, the other rows of `id`. A keep from the row first reads the
+    /// rows above it, and every keep loads the object. A storage error is
+    /// returned as `Err`, never as a result.
     pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
         // The row at the named version, when it exists, decides a drop or a
         // missing. A keep from it goes on to the rows above it.
@@ -98,7 +100,7 @@ impl CommitIndexedReader {
         match no_tables_entry.read_store(self)?.reread_handler_row(self)? {
             TablesRecheck::LiveAtVersion(live_at_version) => self.read_rows_above(live_at_version),
             TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
-            TablesRecheck::Superseded(superseded) => self.read_superseded(superseded),
+            TablesRecheck::NotAtVersion(not_at_version) => self.read_other_rows(not_at_version),
             TablesRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
             TablesRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
@@ -110,29 +112,57 @@ impl CommitIndexedReader {
         &self,
         live_at_version: OwnedReader<LiveAtVersion>,
     ) -> IotaResult<OwnedVerdict> {
-        match live_at_version.read_rows_above(self)? {
-            RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
-            RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
-        }
+        self.decide_rows_above(live_at_version.read_rows_above(self)?)
     }
 
-    /// Decides a version the store has replaced: it drops unless this epoch's
-    /// consumption of exactly that version is above the horizon, where a
-    /// validator that has not executed it still keeps it.
-    fn read_superseded(
+    /// With no row at the named version and another store answer, the other
+    /// rows of `id` decide, so that a validator ahead of the horizon answers
+    /// as one that is not.
+    fn read_other_rows(
         &self,
-        superseded: OwnedReader<SupersededInStore>,
+        not_at_version: OwnedReader<NotAtVersion>,
     ) -> IotaResult<OwnedVerdict> {
-        match superseded.read_rows_above(self)? {
+        self.decide_rows_above(not_at_version.read_other_rows(self)?)
+    }
+
+    fn decide_rows_above(&self, lookup: RowsAboveLookup) -> IotaResult<OwnedVerdict> {
+        match lookup {
             RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes),
+            RowsAboveLookup::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
             RowsAboveLookup::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
     }
 
     /// Reads one shared input declared at `initial_shared_version`: whether
     /// the object exists and is shared at that version. Its contents are not
-    /// read. A storage error is returned as `Err`, never as a result.
+    /// read. A drop is checked against the lowest row of `id`, so that a
+    /// validator that executed the creation of `id` above the horizon answers
+    /// as one that did not. A storage error is returned as `Err`, never as a
+    /// result.
     pub fn read_shared(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<SharedVerdict> {
+        match self.read_shared_rows_and_store(id, initial_shared_version)? {
+            SharedVerdict::Drop(reason) => Ok(
+                match SharedReader::start_drop_check(
+                    id,
+                    initial_shared_version,
+                    self.horizon,
+                    reason,
+                )
+                .read_lowest_row(self)?
+                {
+                    DropCheck::Drop(reason) => SharedVerdict::Drop(reason),
+                    DropCheck::Missing(reason) => SharedVerdict::Missing(reason),
+                },
+            ),
+            verdict => Ok(verdict),
+        }
+    }
+
+    fn read_shared_rows_and_store(
         &self,
         id: ObjectId,
         initial_shared_version: Version,
@@ -206,9 +236,10 @@ impl CommitIndexedReader {
     /// Loads the object of a kept input at exactly `(id, V)`. Takes the
     /// `NeedBytes` step, which only a keep result creates. An object with
     /// another digest drops the input: a keep through a row that replaced `V`
-    /// has not compared the named digest yet. Without the object, a row of
-    /// `id` above `V` drops the input. With neither, a kept version is missing
-    /// from the store, which is a storage error that stops commit processing,
+    /// has not compared the named digest yet. A shared object named as owned
+    /// is decided from its creation row, see the owned module doc. The pruning
+    /// limit keeps the object of every version a validation can still keep,
+    /// so a missing object is a storage error, which stops commit processing,
     /// and never a result.
     fn load_bytes(&self, need_bytes: OwnedReader<NeedBytes>) -> IotaResult<OwnedVerdict> {
         let input = need_bytes.into_reference();
@@ -219,27 +250,21 @@ impl CommitIndexedReader {
                     DropKind::StoreDigestMismatch,
                 )));
             }
+            if let Owner::Shared(initial) = object.owner {
+                let creation_row = self
+                    .epoch_store
+                    .handler_processed_object(&ObjectKey(input.object_id, initial))?;
+                return Ok(
+                    match classify_shared_named_as_owned(creation_row.as_ref(), self.horizon) {
+                        SharedNamedAsOwned::Missing(reason) => OwnedVerdict::Missing(reason),
+                        SharedNamedAsOwned::Drop(reason) => OwnedVerdict::Drop(reason),
+                    },
+                );
+            }
             return Ok(OwnedVerdict::Keep(KeptObject(object)));
         }
-        // Only a version consumed without a lock, by a commit above the
-        // horizon, is pruned while a validation can still keep it: a
-        // dynamic-field child or a received object. A validator that
-        // still holds the bytes rejects either in the input checks, as a
-        // child is never an owned input and a received object is owned by
-        // the address of the object it was sent to. That holds unless the
-        // sender is that address, as an account object's is. The consumer's
-        // row is in place before the pruner can remove the version.
-        if self
-            .epoch_store
-            .lowest_handler_processed_row_above(&key.0, key.1)?
-            .is_some()
-        {
-            return Ok(OwnedVerdict::Drop(DropReason(
-                DropKind::HandlerRowAbovePrunedVersion,
-            )));
-        }
         Err(IotaError::Storage(format!(
-            "kept input {key:?} has no bytes in the object store and no handler row above it"
+            "kept input {key:?} has no bytes in the object store"
         )))
     }
 
@@ -264,14 +289,18 @@ impl CommitIndexedReader {
         }
     }
 
-    /// Whether `account_id` had its authenticator function field at the
-    /// horizon. An object can receive only while it is not an account, and a
-    /// receive takes no lock. So every receive through an account whose
-    /// field is at the horizon is at or below it too, where the owned input
-    /// read sees what the receive consumed. The field changes only through
-    /// the account object, in the order of the commits that change it, as
-    /// [`Self::read_dynamic_field`] requires. Storage errors propagate.
+    /// Reads the authenticator function field of the account `account_id` as
+    /// of the horizon: [`AccountVerdict::Account`] with the field's object
+    /// when the field was live at the horizon, [`AccountVerdict::Missing`]
+    /// otherwise. Storage errors propagate.
     pub fn read_account(&self, account_id: ObjectId) -> IotaResult<AccountVerdict> {
+        // Checking the field at the horizon is enough for receives. An object
+        // can receive only while it is not an account, and a receive takes no
+        // lock. So for an account whose field is live at the horizon, every
+        // receive through it is at or below the horizon too, where the owned
+        // input read sees what the receive consumed. The field changes only
+        // through the account object, in the order of the commits that change
+        // it, as `read_dynamic_field` requires.
         let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_id)?;
         Ok(match self.read_dynamic_field(field_id)? {
             DynamicFieldAtHorizon::Live(field) => AccountVerdict::Account(field),
@@ -283,11 +312,15 @@ impl CommitIndexedReader {
 
     /// The authenticate function that `field`, the authenticator function
     /// field [`Self::read_account`] read for the account `account_id`, names,
-    /// for the authenticator package deny check at the commit. `None` when
-    /// this reader does not see the function's package, so the check never
-    /// reports it not found: execution reports it. A package this reader sees
-    /// stays visible to it, so the check reads it again through this reader
-    /// as its package store.
+    /// for the authenticator package deny check at the commit. A package this
+    /// reader sees stays visible to it, so the check reads it again through
+    /// this reader as its package store.
+    ///
+    /// On chain, the field can only be created from the package's metadata
+    /// object, which exists only once the package is published, so a field
+    /// live at the horizon names a package this reader sees. `None` when it
+    /// does not, which only a field written directly to the store can cause;
+    /// the deny check then skips the function.
     ///
     /// # Errors
     ///

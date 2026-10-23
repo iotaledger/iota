@@ -4,39 +4,62 @@
 //! Property-based check of P-COOL deterministic validation against the
 //! oracle in `post_consensus_determinism_oracle.rs`.
 //!
-//! A random consensus history (objects, commits, candidates) is judged by
-//! the oracle once. Then one validator with a random local schedule -
-//! execution order among the commits its handler assigned, watcher
-//! completion, the wait on the execution frontier, checkpoint bookkeeping,
-//! commit flushes, pruning, the switch to executing synced checkpoints at the
-//! end of the epoch, crashes at every durable write - runs the real bookkeeping
-//! ([`HandlerObjectState`] through the epoch store), the real reader
-//! ([`CommitIndexedReader`] and its input machines) and the real saved
-//! validation decisions over a RocksDB epoch store, with a fake object store
-//! standing in for the writeback cache. Every verdict, every input read, the
-//! lock set of every commit and the bookkeeping invariant are compared with
-//! the oracle after every step.
+//! Terms used here:
+//! - `C` is the commit being validated, and `K` is how many commits behind `C` the object state is
+//!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`. Validation at
+//!   `C` reads the state as of commit `C - K`, called the horizon.
+//! - For each commit `c`, `S_c` is the object state after every transaction that executes at `c`,
+//!   as in the oracle. Validation at `C` reads `S_{C-K}`.
+//! - A row is one entry of the handler object state ([`HandlerObjectState`]). It records that a
+//!   transaction in some commit produced version `V` of object `id`: the commit, the digest, and
+//!   whether the object is live, deleted or wrapped at that version.
+//! - A transaction's commit is assigned once the consensus handler has recorded which commit the
+//!   transaction belongs to. Only executing such a transaction writes rows.
+//! - The roots of a commit are the transactions the handler put in the commit's pending
+//!   checkpoints. The highest fully executed commit is the highest commit whose roots, and the
+//!   roots of every commit below it, all have effects.
 //!
-//! The executor runs a transaction only once the handler assigned its commit,
-//! until the switch; from then on it runs every commit, with no handler rows,
-//! and the handler validates no further commit. As on the node, pruning
-//! deletes no consumed version a validation above the resume point can still
-//! keep, and a node that crashes after the switch replays the commits up to
-//! the switch on restart and switches again at the next one; the scenario
-//! `restart_after_the_switch_replays_only_up_to_the_switch` covers the
-//! restart.
+//! The oracle decides the result of a random consensus history (objects,
+//! commits, candidates) once. Then one validator runs that history under a
+//! random local schedule of:
+//! - the execution order among the commits its handler assigned;
+//! - commit completions by the execution watcher;
+//! - the wait for the highest fully executed commit to reach the horizon;
+//! - the writes of each checkpoint's rows to the table;
+//! - commit flushes and pruning;
+//! - the switch to executing synced checkpoints at the end of the epoch;
+//! - crashes at every write to disk.
 //!
-//! What is real: the bookkeeping state and its durable tables, the reader
-//! machines, the horizon distance from the protocol config, the saved
-//! decisions and their retirement, the owned-object lock table, the
-//! processed-message table and the resume point. What is modeled: the object
-//! store (in memory, with dirty and durable tiers, tombstones, deletion
-//! markers and pruning), the consensus quarantine (locks and processed keys
-//! of unflushed commits, and its lock against the checkpoint bookkeeping and
-//! the watcher), the consensus handler's duplicate filter and the
-//! transaction loop of `validate_and_resolve_conflicts`, whose per candidate
-//! rules are transcribed here over the real storage tiers, and execution
-//! itself, whose effects come from the oracle's transitions.
+//! What is real, over a RocksDB epoch store:
+//! - the handler object state ([`HandlerObjectState`] through the epoch store) and its table;
+//! - the reader ([`CommitIndexedReader`]) and the step types it reads each input kind with;
+//! - the horizon distance from the protocol config;
+//! - the saved validation decisions ([`SavedPostConsensusDecision`]) and their removal at the
+//!   flush;
+//! - the owned-object lock table, the processed-message table and the resume point.
+//!
+//! What is modeled:
+//! - the object store, standing in for the writeback cache: in memory, with dirty and durable
+//!   tiers, tombstones, deletion markers and pruning;
+//! - the consensus quarantine: the locks and processed keys of unflushed commits, and its lock
+//!   against the checkpoint's row writes and the execution watcher;
+//! - the consensus handler's duplicate filter;
+//! - the transaction loop of `validate_and_resolve_conflicts`, whose per-candidate checks are
+//!   copied here over the real storage tiers;
+//! - execution itself, whose effects come from the oracle's transitions.
+//!
+//! What is compared with the oracle after every step: every result, every
+//! input read, the lock set of every commit, and that every readable object
+//! version written by a transaction whose commit is assigned has its row.
+//!
+//! The executor runs a transaction only once the handler assigned its
+//! commit, until the switch. From then on it runs every commit, writing no
+//! rows, and the handler validates no further commit. As on the node,
+//! pruning deletes no consumed version that a validation above the resume
+//! point can still keep. A node that crashes after the switch replays the
+//! commits up to the switch on restart and switches again at the next one.
+//! The scenario `restart_after_the_switch_replays_only_up_to_the_switch`
+//! covers the restart.
 //!
 //! The random property runs `PROPTEST_CASES` cases (64 when unset) from the
 //! seed in `PROPTEST_RNG_SEED` (1 when unset), and prints both. Running it
@@ -203,10 +226,12 @@ enum CandidateSpec {
     Retry(u8),
     /// A copy of an earlier candidate of the same commit.
     SameCommitDuplicate(u8),
-    /// At commit `C`, a candidate making `change` to an object picked by
-    /// `object`, and at commit `C + K - 1` a deferred candidate naming that
-    /// object as it is in `S_{C-1}`: the change is above the deferred
-    /// candidate's horizon and at its reload's.
+    /// Two candidates, where `C` is the commit of the first. At `C` the first
+    /// makes `change` to an object picked by `object`. At `C + K - 1` the
+    /// second names that object as it is in `S_{C-1}`, before the change, and
+    /// is deferred. Its horizon is `C - 1`, so it is checked without the
+    /// change. Its reload, at the next commit, has horizon `C`, which
+    /// includes the change.
     ChangeUnderDeferral {
         change: DeferredInputChange,
         object: u8,
@@ -236,7 +261,8 @@ struct DeferredUse {
 }
 
 impl DeferredUse {
-    /// The candidate making the change, at `S_{C-1}` versions.
+    /// The candidate that makes the change at commit `C`, naming the object as
+    /// it is in `S_{C-1}`.
     fn change_spec(
         &self,
         gas: u8,
@@ -1052,10 +1078,9 @@ struct StoredEntry {
     /// Written by an execution whose outputs are not durable yet; lost on a
     /// crash.
     dirty: bool,
-    /// Produced by an execution of a commit the handler assigned, and covered
-    /// by the bookkeeping: a handler row must be readable whenever the entry
-    /// is.
-    bookkept: bool,
+    /// Produced by an execution of a commit the handler assigned, so a row
+    /// must be readable whenever the entry is.
+    needs_row: bool,
 }
 
 #[derive(Default)]
@@ -1130,7 +1155,7 @@ impl FakeStore {
                 pruned: false,
             },
             dirty: false,
-            bookkept: false,
+            needs_row: false,
         };
         for (id, slot) in &history.epoch_start.slots {
             let entry = match slot {
@@ -1138,12 +1163,12 @@ impl FakeStore {
                 Slot::Deleted(_) => StoredEntry {
                     version: StoredVersion::Tombstone(ObjectDigest::OBJECT_DELETED),
                     dirty: false,
-                    bookkept: false,
+                    needs_row: false,
                 },
                 Slot::Wrapped(_) => StoredEntry {
                     version: StoredVersion::Tombstone(ObjectDigest::OBJECT_WRAPPED),
                     dirty: false,
-                    bookkept: false,
+                    needs_row: false,
                 },
             };
             state
@@ -1169,12 +1194,12 @@ impl FakeStore {
     }
 
     /// Makes an execution's outputs and deletion markers readable, in the
-    /// dirty tier. `handler_known` says whether the handler assigned the
-    /// execution's commit; only then do handler rows cover its outputs.
-    fn apply(&self, execution: &Execution, handler_known: bool) {
+    /// dirty tier. `commit_assigned` says whether the handler assigned the
+    /// execution's commit. Only then do rows cover its outputs.
+    fn apply(&self, execution: &Execution, commit_assigned: bool) {
         let mut state = self.lock();
         for change in &execution.changes {
-            let bookkept = handler_known
+            let needs_row = commit_assigned
                 && !(change.kind == ChangeKind::Mutate
                     && matches!(change.after, Slot::Live(ref object) if object.owner.is_shared()));
             let version = change.after.version();
@@ -1191,7 +1216,7 @@ impl FakeStore {
                 StoredEntry {
                     version: stored,
                     dirty: true,
-                    bookkept,
+                    needs_row,
                 },
             );
         }
@@ -1254,8 +1279,8 @@ impl FakeStore {
         state.markers.retain(|_, markers| !markers.is_empty());
     }
 
-    /// Every readable version the bookkeeping must cover.
-    fn bookkept_keys(&self) -> Vec<ObjectKey> {
+    /// Every readable version that must have a row.
+    fn keys_needing_rows(&self) -> Vec<ObjectKey> {
         let state = self.lock();
         state
             .objects
@@ -1263,7 +1288,7 @@ impl FakeStore {
             .flat_map(|(id, versions)| {
                 versions
                     .iter()
-                    .filter(|(_, entry)| entry.bookkept)
+                    .filter(|(_, entry)| entry.needs_row)
                     .map(move |(version, _)| ObjectKey(*id, *version))
             })
             .collect()
@@ -1511,17 +1536,17 @@ enum WriterStep {
     ExecuteAny { pick: u8 },
     /// Completes the oldest assigned commit whose roots have all executed.
     Watcher,
-    /// Executes the next checkpoint: runs its transactions, persists their
-    /// bookkeeping, commits their outputs. Crashing in between leaves the
-    /// bookkeeping durable and the outputs not. Before the switch, only a
+    /// Executes the next checkpoint: runs its transactions, writes their rows
+    /// to the table, commits their outputs. Crashing in between leaves the
+    /// rows written and the outputs not. Before the switch, only a
     /// checkpoint of commits the handler has assigned, which is the one the
     /// node builds itself.
-    Checkpoint { crash_after_bookkeeping: bool },
+    Checkpoint { crash_after_row_write: bool },
     /// `Checkpoint` over the next `commits` commits as one checkpoint, with
-    /// one bookkeeping batch for all of them.
+    /// one batch of rows for all of them.
     CheckpointCommits {
         commits: u8,
-        crash_after_bookkeeping: bool,
+        crash_after_row_write: bool,
     },
     /// Flushes the next validated commit whose checkpoint has executed:
     /// `FlushStage` then `FlushWrite`, or the write of a staged flush.
@@ -1529,13 +1554,14 @@ enum WriterStep {
     /// `Flush` of up to `commits` commits in one batch.
     FlushCommits { commits: u8 },
     /// Stages the next flushable commit's rows, locks, processed keys,
-    /// resume point and verdict retirement into a batch
+    /// resume point and the removal of saved decisions into a batch
     /// without writing it, as a flush does before its write; the batch stays
     /// pending while other steps run.
     FlushStage,
     /// `FlushStage` of up to `commits` commits in one batch.
     FlushStageCommits { commits: u8 },
-    /// Writes the staged batch and evicts the flushed commits' entries.
+    /// Writes the staged batch and removes the flushed commits' rows from
+    /// memory.
     FlushWrite,
     /// Deletes every version a checkpointed transaction consumed at a commit
     /// no validation can keep it at any more, and with `pre_epoch_too` the
@@ -1563,8 +1589,8 @@ struct Interleave {
     writers: Vec<(ReaderPoint, WriterStep)>,
 }
 
-/// How the wait before validation brings the execution frontier to the
-/// horizon when it is behind.
+/// How the wait before validation brings the highest fully executed commit
+/// to the horizon when it is behind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WaitPath {
     /// The execution watcher completes each commit once its roots executed.
@@ -1577,9 +1603,9 @@ enum WaitPath {
 /// Where a crash lands while a commit is validated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ValidationCrash {
-    /// The verdicts are computed and not saved.
+    /// The results are computed and not saved.
     BeforePersist,
-    /// The verdicts are saved and the commit's roots are not assigned yet.
+    /// The results are saved and the commit's roots are not assigned yet.
     AfterPersist,
 }
 
@@ -1622,11 +1648,11 @@ fn writer_step() -> impl Strategy<Value = WriterStep> {
         2 => any::<u8>().prop_map(|pick| WriterStep::ExecuteAny { pick }),
         3 => Just(WriterStep::Watcher),
         2 => proptest::bool::weighted(0.15)
-            .prop_map(|crash_after_bookkeeping| WriterStep::Checkpoint { crash_after_bookkeeping }),
+            .prop_map(|crash_after_row_write| WriterStep::Checkpoint { crash_after_row_write }),
         1 => (2..=3u8, proptest::bool::weighted(0.15)).prop_map(
-            |(commits, crash_after_bookkeeping)| WriterStep::CheckpointCommits {
+            |(commits, crash_after_row_write)| WriterStep::CheckpointCommits {
                 commits,
-                crash_after_bookkeeping,
+                crash_after_row_write,
             }
         ),
         2 => Just(WriterStep::Flush),
@@ -1747,7 +1773,7 @@ impl Env {
         let epoch_store = reopen_when_closed(&authority, &initial);
         assert!(
             epoch_store.pcool_bookkeeping_enabled(),
-            "the P-COOL flags must be on for the epoch store to keep the bookkeeping"
+            "the P-COOL flags must be on for the epoch store to keep the handler object state"
         );
         Self {
             authority,
@@ -1795,7 +1821,7 @@ struct Validator<'a> {
     staged_flush: Option<StagedFlush>,
     trace: Vec<String>,
     /// Inputs where the reader's drop-versus-missing class differed from the
-    /// oracle's while the verdict agreed.
+    /// oracle's while the result agreed.
     drop_or_missing_differences: Vec<String>,
 }
 
@@ -1803,7 +1829,7 @@ fn consensus_key(digest: TransactionDigest) -> SequencedConsensusTransactionKey 
     SequencedConsensusTransactionKey::External(ConsensusTransactionKey::UserTransaction(digest))
 }
 
-/// The verdict classes compared with the oracle: the implementation reports
+/// The result classes compared with the oracle: the implementation reports
 /// stale and missing inputs with one error, so the two are one class here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum VerdictClass {
@@ -1812,7 +1838,7 @@ enum VerdictClass {
     InvisibleInput,
 }
 
-/// The oracle's verdict as a class; `None` for a duplicate, which never
+/// The oracle's result as a class; `None` for a duplicate, which never
 /// reaches validation.
 fn oracle_class(verdict: Verdict) -> Option<VerdictClass> {
     match verdict {
@@ -1833,9 +1859,9 @@ fn real_class(verdict: &SavedPostConsensusDecision) -> VerdictClass {
         {
             VerdictClass::LockConflict
         }
-        PostConsensusDecision::Dropped | PostConsensusDecision::DroppedInputNotVisibleYet => {
-            VerdictClass::InvisibleInput
-        }
+        PostConsensusDecision::Dropped
+        | PostConsensusDecision::DroppedInputNotVisibleYet
+        | PostConsensusDecision::DroppedCopy => VerdictClass::InvisibleInput,
     }
 }
 
@@ -1884,7 +1910,7 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn frontier(&self) -> CommitIndex {
+    fn highest_fully_executed_commit(&self) -> CommitIndex {
         *self
             .epoch_store
             .subscribe_highest_fully_executed_commit()
@@ -1972,12 +1998,12 @@ impl<'a> Validator<'a> {
                 Ok(Ok(()))
             }
             WriterStep::Checkpoint {
-                crash_after_bookkeeping,
-            } => self.checkpoint(crash_after_bookkeeping),
+                crash_after_row_write,
+            } => self.checkpoint(crash_after_row_write),
             WriterStep::CheckpointCommits {
                 commits,
-                crash_after_bookkeeping,
-            } => self.checkpoint_commits(commits.into(), crash_after_bookkeeping),
+                crash_after_row_write,
+            } => self.checkpoint_commits(commits.into(), crash_after_row_write),
             WriterStep::Flush => {
                 self.flush()?;
                 Ok(Ok(()))
@@ -2111,8 +2137,8 @@ impl<'a> Validator<'a> {
         self.execute(ready[pick as usize % ready.len()])
     }
 
-    /// Runs the execution hook for `execution`, then makes its outputs
-    /// readable, as `commit_transaction` does.
+    /// Records the rows of `execution` (`record_executed_transaction`), then
+    /// makes its outputs readable, as `commit_transaction` does.
     fn execute(&mut self, execution: &Execution) -> Outcome<()> {
         let inputs: Vec<Object> = execution.consumed().cloned().collect();
         for input in &inputs {
@@ -2132,7 +2158,7 @@ impl<'a> Validator<'a> {
             .handler_object_state_for_testing()
             .commit_index_of(&key);
         let classification = match assigned_at {
-            Some(index) => format!("handler-known at {index}"),
+            Some(index) => format!("assigned at {index}"),
             None if self.switched() => "synced, no rows".to_string(),
             None => {
                 return self.fail(format!(
@@ -2216,13 +2242,13 @@ impl<'a> Validator<'a> {
     }
 
     /// The handler's wait before validating: every commit at or below the
-    /// horizon fully executed. Their roots execute handler-known, since the
-    /// handler assigned them; `path` decides which completion reaches each
-    /// commit first. Once the frontier is there, the real wait must return at
-    /// once.
+    /// horizon fully executed. The handler has assigned their roots' commits,
+    /// so the roots write rows when they execute. `path` decides which
+    /// completion reaches each commit first. Once the highest fully executed
+    /// commit is there, the real wait must return at once.
     fn wait_for_horizon(&mut self, target: CommitIndex, path: WaitPath) -> Outcome<()> {
-        while self.frontier() < target {
-            let commit = self.frontier() + 1;
+        while self.highest_fully_executed_commit() < target {
+            let commit = self.highest_fully_executed_commit() + 1;
             self.execute_roots(commit)?;
             match path {
                 WaitPath::Watcher => self.complete_by_watcher(commit)?,
@@ -2237,7 +2263,7 @@ impl<'a> Validator<'a> {
                     }
                 }
             }
-            if self.frontier() < commit {
+            if self.highest_fully_executed_commit() < commit {
                 return self.fail(format!(
                     "commit {commit} did not complete although its roots executed"
                 ));
@@ -2252,8 +2278,8 @@ impl<'a> Validator<'a> {
             .is_none()
         {
             return self.fail(format!(
-                "the wait for commit {target} blocks although the frontier is {}",
-                self.frontier()
+                "the wait for commit {target} blocks although the highest fully executed commit is {}",
+                self.highest_fully_executed_commit()
             ));
         }
         Ok(())
@@ -2261,19 +2287,19 @@ impl<'a> Validator<'a> {
 
     /// The checkpoint executor on the next checkpoint, which holds the next
     /// commit's roots.
-    fn checkpoint(&mut self, crash_after_bookkeeping: bool) -> Outcome<Result<(), Crashed>> {
-        self.checkpoint_commits(1, crash_after_bookkeeping)
+    fn checkpoint(&mut self, crash_after_row_write: bool) -> Outcome<Result<(), Crashed>> {
+        self.checkpoint_commits(1, crash_after_row_write)
     }
 
     /// The checkpoint executor on one checkpoint holding the roots of the
-    /// next `commits` commits: executes them, persists the bookkeeping,
+    /// next `commits` commits: executes them, writes their rows to the table,
     /// commits the outputs, then prunes. Before the switch it waits for the
     /// handler: only commits the handler assigned are in a checkpoint the
     /// node built.
     fn checkpoint_commits(
         &mut self,
         commits: CommitIndex,
-        crash_after_bookkeeping: bool,
+        crash_after_row_write: bool,
     ) -> Outcome<Result<(), Crashed>> {
         let history = self.history;
         let first = self.checkpointed_through + 1;
@@ -2295,9 +2321,9 @@ impl<'a> Validator<'a> {
         let result =
             self.against_staged_flush(move |store| store.persist_checkpoint_bookkeeping(&effects))?;
         self.storage(result)?;
-        if crash_after_bookkeeping {
+        if crash_after_row_write {
             self.trace.push(format!(
-                "checkpoint of commits {first}..={last} bookkeeping written, crash"
+                "checkpoint of commits {first}..={last} rows written, crash"
             ));
             self.crash()?;
             return Ok(Err(Crashed));
@@ -2322,7 +2348,7 @@ impl<'a> Validator<'a> {
 
     /// The quarantine flush of the next commit: writes its rows, locks,
     /// processed keys and resume point in one batch,
-    /// retires its saved decisions, then evicts the overlay entries.
+    /// removes its saved decisions, then removes its rows from memory.
     fn flush(&mut self) -> Outcome<()> {
         if self.staged_flush.is_none() {
             self.flush_stage()?;
@@ -2336,7 +2362,7 @@ impl<'a> Validator<'a> {
 
     /// The flush up to its batch write, as `commit_with_batch` stages it, for
     /// up to `commits` commits that are validated and checkpointed: for
-    /// each, the rows a watcher completion left in the overlay, or else the
+    /// each, the rows a watcher completion left in memory, or else the
     /// rows from effects with the commit completed at the flush.
     fn flush_stage_commits(&mut self, commits: CommitIndex) -> Outcome<()> {
         if self.staged_flush.is_some() {
@@ -2394,10 +2420,11 @@ impl<'a> Validator<'a> {
     }
 
     /// Runs `step` on another thread while this one holds the consensus
-    /// quarantine write lock, as a staged flush holds it until its write and
-    /// eviction. A step that finishes meanwhile takes no quarantine lock and
-    /// lands between the flush's staging and its write. Otherwise the flush
-    /// writes and evicts first, and `step` finishes once the lock is
+    /// quarantine write lock, as a staged flush holds it until it has written
+    /// its batch and removed the rows from memory. A step that finishes
+    /// meanwhile takes no quarantine lock and lands between the flush's
+    /// staging and its write. Otherwise the flush writes and removes the rows
+    /// first, and `step` finishes once the lock is
     /// released. With no staged flush, `step` just runs.
     fn against_staged_flush<T: Send>(
         &mut self,
@@ -2457,8 +2484,9 @@ impl<'a> Validator<'a> {
     }
 
     /// Finishes a staged flush before a step that holds the quarantine read
-    /// lock throughout, which a flush holding the write lock from staging to
-    /// eviction makes wait: the processed and lock checks.
+    /// lock throughout, which a flush holding the write lock from staging
+    /// until the rows are removed from memory makes wait: the processed and
+    /// lock checks.
     fn settle_staged_flush(&mut self) -> Outcome<()> {
         if self.staged_flush.is_some() {
             self.flush_write()?;
@@ -2466,7 +2494,8 @@ impl<'a> Validator<'a> {
         Ok(())
     }
 
-    /// The staged flush's batch write and eviction.
+    /// The staged flush's batch write and the removal of its rows from
+    /// memory.
     fn flush_write(&mut self) -> Outcome<()> {
         let Some(StagedFlush { commits, batch }) = self.staged_flush.take() else {
             return Ok(());
@@ -2573,10 +2602,10 @@ impl<'a> Validator<'a> {
             "crash; resume after {}, checkpoint watermark {}",
             self.flushed_through, self.checkpointed_through
         ));
-        if self.frontier() != self.flushed_through {
+        if self.highest_fully_executed_commit() != self.flushed_through {
             return self.fail(format!(
                 "the reopened store resumes at {} instead of the flushed commit {}",
-                self.frontier(),
+                self.highest_fully_executed_commit(),
                 self.flushed_through
             ));
         }
@@ -2656,7 +2685,7 @@ impl<'a> Validator<'a> {
     }
 
     /// Validates the next commit as `validate_and_resolve_conflicts` does,
-    /// with the reader answering every input, and compares each verdict,
+    /// with the reader answering every input, and compares each result,
     /// each input read and the lock set with the oracle.
     fn validate_next(
         &mut self,
@@ -2683,8 +2712,8 @@ impl<'a> Validator<'a> {
         }
         self.wait_for_horizon(self.horizon(commit), wait)?;
         self.trace.push(format!(
-            "validate {commit} (frontier {}, flushed {}, checkpointed {})",
-            self.frontier(),
+            "validate {commit} (highest fully executed {}, flushed {}, checkpointed {})",
+            self.highest_fully_executed_commit(),
             self.flushed_through,
             self.checkpointed_through
         ));
@@ -2863,7 +2892,7 @@ impl<'a> Validator<'a> {
     }
 
     /// Reads every input of `candidate` at `commit` and compares each answer
-    /// with the oracle. The verdict is the first input the reader did not
+    /// with the oracle. The result is the first input the reader did not
     /// keep, as the input loader reports it.
     fn read_inputs(
         &mut self,
@@ -2884,7 +2913,7 @@ impl<'a> Validator<'a> {
             let ctx = self.reader(commit);
             let horizon = self.horizon(commit);
             let read = match input {
-                // A receiving object goes through the owned machine, as in
+                // A receiving object goes through the owned reader, as in
                 // the input loader, with no lock and no sender check after.
                 Input::Owned(reference) | Input::Receiving(reference) => {
                     self.read_owned(&ctx, horizon, *reference, writers)?
@@ -2914,6 +2943,16 @@ impl<'a> Validator<'a> {
                 ));
             }
             if read.class != expected[index] {
+                if !self.deletion_every_validator_has_seen(commit, input, read.class) {
+                    return self.fail(format!(
+                        "drop-versus-missing mismatch at {commit} for {}: {input:?} read as {:?} \
+                         ({}), oracle {:?}",
+                        describe_candidate(candidate),
+                        read.class,
+                        read.reason,
+                        expected[index]
+                    ));
+                }
                 self.drop_or_missing_differences.push(format!(
                     "commit {commit} {input:?}: reader {:?} ({}), oracle {:?}",
                     read.class, read.reason, expected[index]
@@ -2961,10 +3000,11 @@ impl<'a> Validator<'a> {
     }
 
     /// The bytes at exactly the kept reference, as the reader loads them: a
-    /// stored version with another digest drops, and with no bytes, a handler
-    /// row of the id above the version drops.
+    /// stored version with another digest drops, and no bytes are a storage
+    /// error.
     fn load_bytes(
         &self,
+        horizon: CommitIndex,
         need_bytes: owned::OwnedReader<owned::NeedBytes>,
     ) -> Outcome<OwnedVerdict> {
         let reference = need_bytes.into_reference();
@@ -2975,26 +3015,26 @@ impl<'a> Validator<'a> {
                     DropKind::StoreDigestMismatch,
                 )));
             }
+            if let Owner::Shared(initial) = object.owner {
+                let creation_row = self.storage(
+                    self.epoch_store
+                        .handler_processed_object(&ObjectKey(reference.object_id, initial)),
+                )?;
+                return Ok(
+                    match owned::classify_shared_named_as_owned(creation_row.as_ref(), horizon) {
+                        owned::SharedNamedAsOwned::Missing(reason) => OwnedVerdict::Missing(reason),
+                        owned::SharedNamedAsOwned::Drop(reason) => OwnedVerdict::Drop(reason),
+                    },
+                );
+            }
             return Ok(OwnedVerdict::Keep(KeptObject(object)));
         }
-        if self
-            .storage(
-                self.epoch_store
-                    .lowest_handler_processed_row_above(&key.0, key.1),
-            )?
-            .is_some()
-        {
-            return Ok(OwnedVerdict::Drop(DropReason(
-                DropKind::HandlerRowAbovePrunedVersion,
-            )));
-        }
         self.fail(format!(
-            "storage error: kept input {key:?} has no bytes in the object store and no handler \
-             row above it"
+            "storage error: kept input {key:?} has no bytes in the object store"
         ))
     }
 
-    /// The owned machine, step by step, with writer steps between the reads;
+    /// The owned reader, step by step, with writer steps between the reads;
     /// the same dispatch as `CommitIndexedReader::read_owned`.
     fn read_owned(
         &mut self,
@@ -3015,7 +3055,7 @@ impl<'a> Validator<'a> {
         }
         let no_entry = match lookup {
             TablesLookup::LiveAtVersion(live_at_version) => {
-                return self.owned_rows_above(ctx, live_at_version, reference, writers);
+                return self.owned_rows_above(ctx, horizon, live_at_version, reference, writers);
             }
             TablesLookup::Missing(reason) => {
                 return Ok(Ok(
@@ -3033,29 +3073,53 @@ impl<'a> Validator<'a> {
         }
         let verdict = match self.storage(store_answered.reread_handler_row(ctx))? {
             TablesRecheck::LiveAtVersion(live_at_version) => {
-                return self.owned_rows_above(ctx, live_at_version, reference, writers);
+                return self.owned_rows_above(ctx, horizon, live_at_version, reference, writers);
             }
-            TablesRecheck::Superseded(superseded) => {
-                let lookup = self.storage(superseded.read_rows_above(ctx))?;
+            TablesRecheck::NotAtVersion(not_at_version) => {
+                let lookup = self.storage(not_at_version.read_other_rows(ctx))?;
                 if let Err(Crashed) = self.inject(&[ReaderPoint::LastTableRead], writers)? {
                     return Ok(Err(Crashed));
                 }
-                match lookup {
-                    owned::RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes)?,
-                    owned::RowsAboveLookup::Drop(reason) => OwnedVerdict::Drop(reason),
-                }
+                self.decide_rows_above(horizon, lookup)?
             }
-            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(need_bytes)?,
+            TablesRecheck::NeedBytes(need_bytes) => self.load_bytes(horizon, need_bytes)?,
             TablesRecheck::Missing(reason) => OwnedVerdict::Missing(reason),
             TablesRecheck::Drop(reason) => OwnedVerdict::Drop(reason),
         };
         Ok(Ok(self.owned_read(verdict, reference)?))
     }
 
+    /// The one known difference from the oracle between a drop and a
+    /// missing input: an owned version above a deletion at or below the
+    /// horizon, or before the epoch, drops, where the oracle answers missing.
+    /// Every validator has seen that deletion, so the drop is the same on all
+    /// of them. Any other difference depends on what this validator executed
+    /// above the horizon.
+    fn deletion_every_validator_has_seen(
+        &self,
+        commit: CommitIndex,
+        input: &Input,
+        class: InputClass,
+    ) -> bool {
+        let (Input::Owned(reference) | Input::Receiving(reference)) = input else {
+            return false;
+        };
+        class == InputClass::Stale
+            && matches!(
+                self.history
+                    .oracle
+                    .horizon_state(commit)
+                    .slots
+                    .get(&reference.object_id),
+                Some(Slot::Deleted(version)) if *version < reference.version
+            )
+    }
+
     /// The rows above a kept owned version, then its bytes.
     fn owned_rows_above(
         &mut self,
         ctx: &CommitIndexedReader,
+        horizon: CommitIndex,
         live_at_version: owned::OwnedReader<owned::LiveAtVersion>,
         reference: ObjectReference,
         writers: &[(ReaderPoint, WriterStep)],
@@ -3064,14 +3128,25 @@ impl<'a> Validator<'a> {
         if let Err(Crashed) = self.inject(&[ReaderPoint::LastTableRead], writers)? {
             return Ok(Err(Crashed));
         }
-        let verdict = match lookup {
-            owned::RowsAboveLookup::NeedBytes(need_bytes) => self.load_bytes(need_bytes)?,
-            owned::RowsAboveLookup::Drop(reason) => OwnedVerdict::Drop(reason),
-        };
+        let verdict = self.decide_rows_above(horizon, lookup)?;
         Ok(Ok(self.owned_read(verdict, reference)?))
     }
 
-    /// Reduces an owned verdict to its class, checking on keep that the
+    fn decide_rows_above(
+        &self,
+        horizon: CommitIndex,
+        lookup: owned::RowsAboveLookup,
+    ) -> Outcome<OwnedVerdict> {
+        Ok(match lookup {
+            owned::RowsAboveLookup::NeedBytes(need_bytes) => {
+                self.load_bytes(horizon, need_bytes)?
+            }
+            owned::RowsAboveLookup::Missing(reason) => OwnedVerdict::Missing(reason),
+            owned::RowsAboveLookup::Drop(reason) => OwnedVerdict::Drop(reason),
+        })
+    }
+
+    /// Reduces an owned result to its class, checking on keep that the
     /// loaded bytes are the named version.
     fn owned_read(&self, verdict: OwnedVerdict, reference: ObjectReference) -> Outcome<InputRead> {
         Ok(match verdict {
@@ -3107,7 +3182,7 @@ impl<'a> Validator<'a> {
         })
     }
 
-    /// The shared machine, step by step; the same dispatch as
+    /// The shared reader, step by step; the same dispatch as
     /// `CommitIndexedReader::read_shared`.
     fn read_shared(
         &mut self,
@@ -3139,7 +3214,13 @@ impl<'a> Validator<'a> {
                 return Ok(Ok(shared_read(SharedVerdict::Missing(reason))));
             }
             SharedTablesLookup::Drop(reason) => {
-                return Ok(Ok(shared_read(SharedVerdict::Drop(reason))));
+                return Ok(Ok(shared_read(self.check_shared_drop(
+                    ctx,
+                    horizon,
+                    id,
+                    initial,
+                    SharedVerdict::Drop(reason),
+                )?)));
             }
             SharedTablesLookup::NoEntry(no_entry) => {
                 let object_answered = self.storage(no_entry.read_object(ctx))?;
@@ -3162,7 +3243,13 @@ impl<'a> Validator<'a> {
                         return Ok(Ok(shared_read(SharedVerdict::Missing(reason))));
                     }
                     SharedTablesRecheck::Drop(reason) => {
-                        return Ok(Ok(shared_read(SharedVerdict::Drop(reason))));
+                        return Ok(Ok(shared_read(self.check_shared_drop(
+                            ctx,
+                            horizon,
+                            id,
+                            initial,
+                            SharedVerdict::Drop(reason),
+                        )?)));
                     }
                     SharedTablesRecheck::Absent(absent) => absent,
                 }
@@ -3172,11 +3259,35 @@ impl<'a> Validator<'a> {
             Ok(verdict) => verdict,
             Err(Crashed) => return Ok(Err(Crashed)),
         };
-        Ok(Ok(shared_read(verdict)))
+        Ok(Ok(shared_read(
+            self.check_shared_drop(ctx, horizon, id, initial, verdict)?,
+        )))
     }
 
-    /// The deletion read of a shared object that is gone: its highest
-    /// handler row.
+    /// The drop check of `CommitIndexedReader::read_shared`.
+    fn check_shared_drop(
+        &self,
+        ctx: &CommitIndexedReader,
+        horizon: CommitIndex,
+        id: ObjectId,
+        initial: Version,
+        verdict: SharedVerdict,
+    ) -> Outcome<SharedVerdict> {
+        let SharedVerdict::Drop(reason) = verdict else {
+            return Ok(verdict);
+        };
+        Ok(
+            match self.storage(
+                shared::SharedReader::start_drop_check(id, initial, horizon, reason)
+                    .read_lowest_row(ctx),
+            )? {
+                shared::DropCheck::Drop(reason) => SharedVerdict::Drop(reason),
+                shared::DropCheck::Missing(reason) => SharedVerdict::Missing(reason),
+            },
+        )
+    }
+
+    /// The deletion read of a shared object that is gone: its highest row.
     fn check_deletion(
         &mut self,
         ctx: &CommitIndexedReader,
@@ -3196,8 +3307,8 @@ impl<'a> Validator<'a> {
         }))
     }
 
-    /// The package machine, step by step; the same dispatch as
-    /// `CommitIndexedReader::read_package`. The machine has one store read
+    /// The package reader, step by step; the same dispatch as
+    /// `CommitIndexedReader::read_package`. The reader has one store read
     /// and one row read, so every point folds onto the gap between them.
     fn read_package(
         &mut self,
@@ -3235,14 +3346,14 @@ impl<'a> Validator<'a> {
 
     // -- invariants ------------------------------------------------------------
 
-    /// The bookkeeping invariant: no readable object version an execution of
-    /// an assigned commit produced without its row. Verdict retirement is
+    /// Checks that every readable object version an execution of an assigned
+    /// commit produced has its row. The removal of saved decisions is
     /// checked at every flush and the keep-path bytes where the reader keeps.
     fn check_invariants(&self) -> Outcome<()> {
-        for key in self.store.bookkept_keys() {
+        for key in self.store.keys_needing_rows() {
             let row = self.storage(self.epoch_store.handler_processed_object(&key))?;
             if row.is_none() {
-                return self.fail(format!("{key:?} is readable without a handler row"));
+                return self.fail(format!("{key:?} is readable without its row"));
             }
         }
         Ok(())
@@ -3391,9 +3502,10 @@ fn rng_seed() -> u64 {
         .unwrap_or(1)
 }
 
-/// Random histories under random local schedules: every verdict, input
-/// read, lock set and the bookkeeping invariant match the oracle; replays
-/// reproduce the saved verdicts; verdicts retire with their commit's flush.
+/// Random histories under random local schedules: every result, input read
+/// and lock set matches the oracle, and every readable version written by a
+/// transaction whose commit is assigned has its row. Replays reproduce the
+/// saved results, and the saved results are removed at their commit's flush.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn random_histories_and_schedules_match_the_oracle() {
     let horizon_distance = Arc::new(AtomicU64::new(2));
@@ -3548,7 +3660,7 @@ fn writer(step: WriterStep) -> Step {
 fn checkpoints(n: usize) -> Vec<Step> {
     std::iter::repeat_n(
         writer(WriterStep::Checkpoint {
-            crash_after_bookkeeping: false,
+            crash_after_row_write: false,
         }),
         n,
     )
@@ -3580,9 +3692,8 @@ async fn run_scenario(name: &str, history: &History, steps: Vec<Step>) {
     });
 }
 
-/// The history behind review problems R1 to R3: producer `P` at commit 11
-/// creates `X`; consumer `T` names `X` at commit 12, where the horizon is
-/// 10, and again at commit 13, where it is 11.
+/// Producer `P` at commit 11 creates `X`; consumer `T` names `X` at commit 12,
+/// where the horizon is 10, and again at commit 13, where it is 11.
 fn producer_consumer_history() -> History {
     let epoch_start = epoch_start_with_owned(2);
     let gas = owned_object(0);
@@ -3614,9 +3725,9 @@ fn producer_consumer_history() -> History {
     History::judge(2, epoch_start, Vec::new(), commits)
 }
 
-/// Review problem R1, with the producer of `X` executed while the
-/// consumer's read of `X` at commit 12 is in flight, after `executed_at`, and
-/// its commit completed after the store read, before the row re-read.
+/// The producer of `X` executes while the consumer's read of `X` at commit 12
+/// is in flight, after `executed_at`, and its commit completes after the store
+/// read, before the row re-read.
 async fn completion_between_the_final_reads(executed_at: ReaderPoint) {
     let history = producer_consumer_history();
     let mut steps = validates(11);
@@ -3628,33 +3739,33 @@ async fn completion_between_the_final_reads(executed_at: ReaderPoint) {
         ],
     ));
     run_scenario(
-        &format!("R1, executed after {executed_at:?}"),
+        &format!("producer executed during the consumer's read, after {executed_at:?}"),
         &history,
         steps,
     )
     .await;
 }
 
-/// R1 with the first row read missed before the producer executes: the read
-/// must answer missing.
+/// The consumer's first row read misses before the producer executes: the
+/// read must answer missing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn review_1_completion_between_the_final_reads() {
+async fn consumer_read_answers_missing_when_the_producer_executes_after_the_row_read() {
     completion_between_the_final_reads(ReaderPoint::Row).await;
 }
 
-/// R1 with the store answer taken before the producer executes: the read
+/// The consumer's store read answers before the producer executes: the read
 /// must answer missing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn review_1_completion_after_the_store_answer() {
+async fn consumer_read_answers_missing_when_the_producer_executes_after_the_store_read() {
     completion_between_the_final_reads(ReaderPoint::Store).await;
 }
 
-/// Review problem R3: the producer's checkpoint commits its outputs before
-/// commit 11 flushes; a crash then replays. Commit 12, validated for the
-/// first time after the restart, must find the producer's durable row and
-/// answer missing, not take the object for epoch-start state.
+/// The producer's checkpoint commits its outputs before commit 11 flushes; a
+/// crash then replays. Commit 12, validated for the first time after the
+/// restart, must find the producer's durable row and answer missing, not take
+/// the object for epoch-start state.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn review_3_bookkeeping_durable_before_outputs() {
+async fn restart_after_the_producer_checkpoint_finds_its_row() {
     let history = producer_consumer_history();
     let mut steps = validates(11);
     steps.push(writer(WriterStep::Execute));
@@ -3662,12 +3773,17 @@ async fn review_3_bookkeeping_durable_before_outputs() {
     steps.push(Step::Crash);
     steps.push(validate());
     steps.push(validate());
-    run_scenario("R3", &history, steps).await;
+    run_scenario(
+        "producer checkpointed before its commit flushes, then a crash",
+        &history,
+        steps,
+    )
+    .await;
 }
 
-/// The history behind review problems R4 and R5: handler-known `T` at commit
-/// 12 consumes the epoch-start version of `G`, and a contender `Q` names the
-/// same version at the same commit.
+/// `T`, whose commit the handler has assigned, at commit 12 consumes the
+/// epoch-start version of `G`, and a contender `Q` names the same version at
+/// the same commit.
 fn consumed_epoch_start_history() -> History {
     let epoch_start = epoch_start_with_owned(3);
     let gas = owned_object(0);
@@ -3697,25 +3813,24 @@ fn consumed_epoch_start_history() -> History {
     History::judge(2, epoch_start, Vec::new(), commits)
 }
 
-/// Review problem R4: commit 12 executes and checkpoints but does not flush
-/// before a crash; its replay must keep `T` and drop `Q` from the saved
-/// decisions, although the store's latest version of `G` is now above the
-/// one both name.
+/// Commit 12 executes and checkpoints but does not flush before a crash; its
+/// replay must keep `T` and drop `Q` from the saved decisions, although the
+/// store's latest version of `G` is now above the one both name.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn review_4_replay_of_a_consumed_epoch_start_input() {
+async fn replay_of_a_consumed_epoch_start_input() {
     let history = consumed_epoch_start_history();
     let mut steps = validates(12);
     steps.push(writer(WriterStep::Execute));
     steps.extend(checkpoints(12));
     steps.push(Step::Crash);
     steps.push(validate());
-    run_scenario("R4", &history, steps).await;
+    run_scenario("replay of a consumed epoch-start input", &history, steps).await;
 }
 
-/// Review problem R5: like R4 with the consumed version pruned before the
-/// crash; the replay must need no bytes of it.
+/// As [`replay_of_a_consumed_epoch_start_input`], with the consumed version
+/// pruned before the crash; the replay must need no bytes of it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn review_5_replay_after_pruning_the_consumed_input() {
+async fn replay_after_pruning_the_consumed_input() {
     let history = consumed_epoch_start_history();
     let mut steps = validates(12);
     steps.push(writer(WriterStep::Execute));
@@ -3725,7 +3840,7 @@ async fn review_5_replay_after_pruning_the_consumed_input() {
     }));
     steps.push(Step::Crash);
     steps.push(validate());
-    run_scenario("R5", &history, steps).await;
+    run_scenario("replay after pruning the consumed input", &history, steps).await;
 }
 
 /// A pre-epoch shared object deleted at commit 3, and a candidate naming it
@@ -3769,12 +3884,12 @@ fn shared_deletion_history() -> History {
     History::judge(2, epoch_start, Vec::new(), commits)
 }
 
-/// The deletion executes handler-known and its commit is completed by the
+/// The deletion executes with its commit assigned, and the commit is completed by the
 /// wait before commit 5: the contender reads the deletion row and drops.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn shared_deletion_by_the_handler_drops_a_later_candidate() {
     let history = shared_deletion_history();
-    run_scenario("shared deletion, handler-known", &history, validates(5)).await;
+    run_scenario("shared deletion, commit assigned", &history, validates(5)).await;
 }
 
 /// A receivable object `R` at the epoch start version, with its previous
@@ -3862,7 +3977,7 @@ fn switch_history() -> History {
 }
 
 /// The node validates commit 1, switches to executing synced checkpoints,
-/// executes and commits both checkpoints, `T2` without a handler row, and
+/// executes and commits both checkpoints, `T2` without a row, and
 /// crashes.
 fn switch_then_crash_steps() -> Vec<Step> {
     let mut steps = vec![validate(), Step::Switch];
@@ -3874,7 +3989,7 @@ fn switch_then_crash_steps() -> Vec<Step> {
 
 /// After the restart the node replays commit 1, the last one it processed
 /// before the switch, and switches again at commit 2 instead of validating it
-/// against the store synced execution advanced without handler rows, where
+/// against the store that synced execution advanced without rows, where
 /// `T2`'s own output supersedes the epoch start version of `G1` it names.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn restart_after_the_switch_replays_only_up_to_the_switch() {
