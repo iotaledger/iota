@@ -438,6 +438,9 @@ where
     // protect them from a malicious server. Commits and certifier headers
     // carry the same count caps `verify_commits` applies (twice the requested
     // range and two headers per authority).
+    // Commits are bounded by their total bytes, `max_commit_bytes` for every
+    // commit the count cap admits, since `max_commit_bytes` holds for a single
+    // commit only when no validator is Byzantine.
     // Transactions carry no configured count cap on the fast path, since the
     // server returns every transaction the committed range references. The
     // commits already received bound them instead: a commit holds at most one
@@ -449,18 +452,19 @@ where
     let max_commits = CommitSyncType::Fast.max_commits_per_response(commit_range);
     let max_certifier_headers =
         committee_size.saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
-    let max_commit_size = max_commit_bytes(committee_size, gc_depth);
+    let max_commits_bytes = max_commits.saturating_mul(max_commit_bytes(committee_size, gc_depth));
     let max_header_size = max_signed_block_header_bytes(committee_size);
     let max_transaction_size = max_serialized_transactions_entry_bytes(context);
 
     let mut commits = Vec::new();
+    let mut commits_bytes = 0usize;
     let mut certifier_block_headers = Vec::new();
     let mut max_transactions = 0usize;
 
     let first_transactions = loop {
         match stream.try_next().await {
             Ok(Some(response)) => {
-                // Commits (typically in the first chunk): count cap + per-element size.
+                // Commits (typically in the first chunk): count cap + total size.
                 if commits.len() + response.commits.len() > max_commits {
                     return Err(ConsensusError::TooManyCommitsFromPeer {
                         peer,
@@ -469,15 +473,16 @@ where
                     });
                 }
                 for c in &response.commits {
-                    if c.len() > max_commit_size {
-                        return Err(ConsensusError::SerializedCommitTooLarge {
-                            peer,
-                            size: c.len(),
-                            limit: max_commit_size,
-                        });
-                    }
+                    commits_bytes = commits_bytes.saturating_add(c.len());
                     max_transactions =
                         max_transactions.saturating_add(c.len() / SERIALIZED_TRANSACTION_REF_BYTES);
+                }
+                if commits_bytes > max_commits_bytes {
+                    return Err(ConsensusError::TooManyCommitBytes {
+                        peer,
+                        size: commits_bytes,
+                        limit: max_commits_bytes,
+                    });
                 }
                 commits.extend(response.commits);
 
@@ -2006,7 +2011,8 @@ mod tests {
     use crate::{
         block_header::max_signed_block_header_bytes,
         block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
-        commit::CommitRange,
+        commit::{CommitRange, max_commit_bytes},
+        commit_syncer::CommitSyncType,
         context::Context,
         error::ConsensusError,
         network::test_network::TestService,
@@ -3612,5 +3618,48 @@ mod tests {
             .expect("the retrying caller must connect before its timeout")
             .unwrap()
             .expect("the retrying caller must connect once the peer listens");
+    }
+
+    /// A commit above `max_commit_bytes` is kept while the response's commits
+    /// stay within their total.
+    #[tokio::test]
+    async fn a_commit_above_max_commit_bytes_within_the_total_is_kept() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let commit_size = max_commit_bytes(
+            context.committee.size(),
+            context.protocol_config.gc_depth() as usize,
+        ) + 1;
+        let response = stream::iter([Ok(commit_chunk(commit_size))]);
+
+        let response =
+            collect_commits_and_transactions(&context, peer, &requested_range(), response)
+                .await
+                .expect("the commit is within the total");
+
+        assert_eq!(response.commits.len(), 1);
+    }
+
+    /// The commits of a response may take `max_commit_bytes` for every commit
+    /// the count cap admits, and the response is rejected past that.
+    #[tokio::test]
+    async fn commits_past_the_total_bytes_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let max_commits_bytes = CommitSyncType::Fast.max_commits_per_response(&requested_range())
+            * max_commit_bytes(
+                context.committee.size(),
+                context.protocol_config.gc_depth() as usize,
+            );
+        let flood = stream::iter([Ok(commit_chunk(max_commits_bytes)), Ok(commit_chunk(1))]);
+
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), flood).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitBytes { size, limit, .. })
+                if size == max_commits_bytes + 1 && limit == max_commits_bytes
+        ));
     }
 }

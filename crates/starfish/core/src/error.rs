@@ -264,8 +264,8 @@ pub(crate) enum ConsensusError {
         limit: usize,
     },
 
-    #[error("Peer {peer} sent a commit that is too large: {size} > {limit}")]
-    SerializedCommitTooLarge {
+    #[error("Peer {peer} sent too many commit bytes: {size} > {limit}")]
+    TooManyCommitBytes {
         peer: AuthorityIndex,
         size: usize,
         limit: usize,
