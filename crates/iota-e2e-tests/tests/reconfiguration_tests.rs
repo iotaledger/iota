@@ -665,21 +665,19 @@ async fn test_inactive_validator_pool_read() {
     })
 }
 
+/// A validator joins the committee, catches up and leaves it, without the
+/// P-COOL flow, as on Mainnet and Testnet.
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic() {
+    let _pcool_guard = override_pcool_flow(false);
     run_reconfig_with_committee_change_basic().await;
 }
 
 /// The committee change of `test_reconfig_with_committee_change_basic` with
-/// `enable_pcool_flow`: the joining
-/// validator waits for its own checkpoints once in the committee, and executes
-/// synced checkpoints again after leaving it.
+/// the P-COOL flow: the joining validator waits for its own checkpoints once in
+/// the committee, and executes synced checkpoints again after leaving it.
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic_skipping_synced_checkpoint_execution() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     run_reconfig_with_committee_change_basic().await;
 }
 
@@ -1507,10 +1505,6 @@ async fn execute_add_validator_transactions(
 /// to fall back to executing synced checkpoints.
 #[sim_test]
 async fn validator_far_behind_catches_up_across_epoch_end() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
         .with_epoch_duration_ms(15_000)
@@ -1555,10 +1549,6 @@ async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
 
     use iota_macros::register_fail_point;
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
         .with_epoch_duration_ms(10_000)

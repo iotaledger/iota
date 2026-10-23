@@ -3712,10 +3712,6 @@ mod tests {
     // must be the same bytes and be ignored.
     #[tokio::test]
     async fn own_checkpoint_signature_reaches_aggregator_without_consensus() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .committee_size(std::num::NonZeroUsize::new(4).unwrap())

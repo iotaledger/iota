@@ -577,7 +577,6 @@ mod tests {
         };
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_enable_pcool_flow_for_testing(true);
                 config.set_pcool_deterministic_validation_horizon_distance_for_testing(
                     HORIZON_DISTANCE,
                 );
@@ -687,7 +686,6 @@ mod tests {
         };
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_enable_pcool_flow_for_testing(true);
                 config.set_pcool_deterministic_validation_horizon_distance_for_testing(
                     HORIZON_DISTANCE,
                 );
@@ -822,7 +820,6 @@ mod tests {
         };
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_enable_pcool_flow_for_testing(true);
                 config.set_pcool_deterministic_validation_horizon_distance_for_testing(
                     HORIZON_DISTANCE,
                 );

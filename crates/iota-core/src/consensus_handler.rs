@@ -1382,11 +1382,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
         telemetry_subscribers::init_for_testing();
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
         let state = TestAuthorityBuilder::new()
@@ -1451,19 +1446,14 @@ mod tests {
         assert_eq!(consensus_handler.last_consensus_stats, initial_stats);
     }
 
-    /// With deterministic validation on, a commit carrying a user transaction
-    /// after the switch to executing synced checkpoints is not processed: the
-    /// transaction is not validated, assigned to the commit, put in a pending
-    /// checkpoint or executed. The commit before the switch shows each of
-    /// these for a processed commit.
+    /// With the P-COOL flow on, a commit carrying a user transaction after the
+    /// switch to executing synced checkpoints is not processed: the transaction
+    /// is not validated, assigned to the commit, put in a pending checkpoint or
+    /// executed. The commit before the switch shows each of these for a
+    /// processed commit.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints_with_validation() {
         telemetry_subscribers::init_for_testing();
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<Object> = (0..4)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
@@ -1579,11 +1569,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_restarted_after_the_switch_stops_after_the_same_commit() {
         telemetry_subscribers::init_for_testing();
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
         let state = TestAuthorityBuilder::new()
@@ -1827,10 +1812,10 @@ mod tests {
         );
     }
 
-    /// With deterministic validation on, a dropped user transaction does not
-    /// enter the processed-transaction cache, so a retry is validated at every
-    /// commit it appears in. Once kept, the transaction is cached and a later
-    /// copy is skipped before validation.
+    /// With the P-COOL flow on, a dropped user transaction does not enter the
+    /// processed-transaction cache, so a retry is validated at every commit it
+    /// appears in. Once kept, the transaction is cached and a later copy is
+    /// skipped before validation.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn retries_of_a_dropped_transaction_reach_validation_until_it_is_kept() {
         use iota_types::transaction::TransactionKey;
@@ -1842,11 +1827,6 @@ mod tests {
             post_consensus_validation::PostConsensusDecision,
         };
 
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
         let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
@@ -1970,11 +1950,6 @@ mod tests {
             HandlerProcessedObject, HandlerProcessedObjectKind,
         };
 
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
         let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
@@ -2091,11 +2066,6 @@ mod tests {
     async fn drop_of_a_failing_copy_does_not_answer_for_the_kept_transaction() {
         use iota_sdk_types::TransactionExpiration;
 
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
         let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
@@ -2179,17 +2149,12 @@ mod tests {
     /// from another author must still be validated and kept at that commit.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn failing_copy_first_in_a_commit_does_not_hide_the_honest_copy() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..2)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
         let digest = *honest.digest();
@@ -2231,11 +2196,6 @@ mod tests {
     /// over its saved verdicts, as after a restart.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn waiting_submitter_is_not_told_about_the_drop_of_a_failing_copy() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let saved_error: IotaError =
             UserInputError::Unsupported("saved drop of a copy".to_string()).into();
         for saved in [None, Some(saved_error)] {
@@ -2264,7 +2224,7 @@ mod tests {
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
         let digest = *honest.digest();
@@ -2399,9 +2359,9 @@ mod tests {
         ))
     }
 
-    /// A handler with deterministic validation on, over an authority of a
-    /// four-member committee whose genesis gives `sender` the `objects`.
-    async fn deterministic_validation_handler(
+    /// A handler over an authority of a four-member committee whose genesis
+    /// gives `sender` the `objects`.
+    async fn four_member_committee_handler(
         objects: Vec<Object>,
     ) -> (
         Arc<AuthorityState>,
@@ -2465,17 +2425,12 @@ mod tests {
     /// hide another authority's copy of the same transaction in the commit.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn user_transactions_from_an_author_that_sent_end_of_publish_take_no_locks() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..5)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let author = *epoch.committee().authority_by_index(1).unwrap();
         let transfer =
             |object, gas| transfer_in_current_epoch(&state, &epoch, sender, &key, object, gas);
@@ -2545,17 +2500,12 @@ mod tests {
     /// lock its owned inputs against a deferred transaction.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn user_transactions_after_end_of_publish_quorum_take_no_locks() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..2)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let transaction = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         // The state an EndOfPublish quorum leaves while deferred transactions
         // keep the epoch from rejecting all transactions.
@@ -2619,16 +2569,12 @@ mod tests {
             mock_consensus::{ConsensusMode, MockConsensusClient},
         };
 
-        let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
         let (sender, key): (_, AccountPrivateKey) = get_key_pair();
         let objects: Vec<_> = (0..2)
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let transaction = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let digest = *transaction.digest();
         let own_index = u8::try_from(epoch.committee().authority_index(&state.name).unwrap())
@@ -2738,12 +2684,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_user_transaction_v1() {
         // GIVEN
-        // Enable the P-COOL flow so UserTransactionV1 transactions are accepted
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
-
         let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let num_txns: usize = 3;
 
@@ -2886,11 +2826,6 @@ mod tests {
     /// as such and not recorded as the digest's status.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_drops_inconsistent_shared_input() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
-
         // GIVEN
         let (state, mut consensus_handler, _) = handler_with_impersonated_authority().await;
         let epoch_store = state.epoch_store_for_testing().clone();
@@ -3195,7 +3130,6 @@ mod tests {
     async fn test_user_transaction_dropped_after_end_of_publish_does_not_shadow_later_copy() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
             config.set_consensus_dedup_only_recorded_messages_for_testing(true);
             config
         });
@@ -3311,7 +3245,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_load_shedding_dropped_transaction_retry_is_processed_after_restart() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
             config.set_consensus_dedup_only_recorded_messages_for_testing(true);
             config
         });

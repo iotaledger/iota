@@ -1,15 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Cluster tests for P-COOL deterministic validation on committee validators
-//! that execute only what their own consensus handler assigned, which
-//! `enable_pcool_flow` makes them do. Such a validator executes synced checkpoints
-//! only once it switches to doing so for the rest of an epoch, after the network has certified the
-//! epoch's last checkpoint.
+//! Cluster tests for committee validators under the P-COOL flow, which execute
+//! only what their own consensus handler assigned. Such a validator executes
+//! synced checkpoints only once it switches to doing so for the rest of an
+//! epoch, after the network has certified the epoch's last checkpoint.
 //!
-//! Gated to the simulator for the reason given in
-//! `pcool_transaction_flow_tests.rs`: the protocol-config override is
-//! thread-local, and only the simulator runs every node on the test's thread.
+//! The tests run at the latest protocol version, where the P-COOL flow is on.
+//! They are gated to the simulator because they stop nodes at fail points and
+//! pick the node to stop by its simulator node id.
 //!
 //! Run with: `cargo simtest -p iota-e2e-tests --test pcool_synced_checkpoint_tests`.
 
@@ -47,18 +46,8 @@ use tokio::{
 };
 use tracing::info;
 
-/// Enables deterministic validation, which also makes committee validators
-/// skip synced checkpoint execution. The guard must be held for the whole
-/// test.
-fn enable_deterministic_validation_for_testing() -> iota_protocol_config::OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    })
-}
-
-/// Builds a four-validator cluster and checks that the flag reached the
-/// validators.
+/// Builds a four-validator cluster and checks that every validator runs the
+/// P-COOL flow.
 async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
@@ -71,7 +60,7 @@ async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
             let config = epoch_store.protocol_config();
             assert!(
                 config.enable_pcool_flow(),
-                "the protocol-config override must reach the validators"
+                "every validator must run the P-COOL flow"
             );
         });
     }
@@ -412,7 +401,6 @@ async fn stop_until_the_epoch_ends_then_wait_for_the_switch(
 #[sim_test]
 async fn test_mid_epoch_restart_catches_up_without_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let stop = Arc::new(AtomicBool::new(false));
@@ -447,7 +435,6 @@ async fn test_mid_epoch_restart_catches_up_without_fork() {
 #[sim_test]
 async fn test_validator_missing_the_epochs_last_commits_switches_and_reaches_the_next_epoch() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(20_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let victim = names[0];
@@ -492,7 +479,6 @@ async fn test_restart_after_switching_to_synced_checkpoints_does_not_fork() {
     const KILLS: usize = 6;
     const KILLS_PER_EPOCH: usize = 2;
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(15_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let victim = names[0];
@@ -840,15 +826,14 @@ fn hold_execution_on_nodes(
 #[sim_test]
 async fn test_restart_after_switching_with_unexecuted_locally_built_checkpoints() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     restart_after_switching_with_unexecuted_locally_built_checkpoints(test_cluster).await;
 }
 
 /// `test_restart_after_switching_with_unexecuted_locally_built_checkpoints` in
-/// the first epoch after a protocol upgrade turns the P-COOL flow, and with it
-/// deterministic validation, on. The validators started with it off, so they
-/// hold the synced watermark in memory only from that epoch change on.
+/// the first epoch after a protocol upgrade turns the P-COOL flow on. The
+/// validators started with it off, so they hold the synced watermark in memory
+/// only from that epoch change on.
 #[sim_test]
 async fn test_restart_after_switching_with_unexecuted_checkpoints_after_an_upgrade() {
     const UPGRADE_VERSION: u64 = ProtocolVersion::MAX.as_u64();
@@ -867,7 +852,7 @@ async fn test_restart_after_switching_with_unexecuted_checkpoints_after_an_upgra
         .with_epoch_duration_ms(60_000)
         .build()
         .await;
-    let deterministic_validation = |test_cluster: &TestCluster| {
+    let pcool_flow = |test_cluster: &TestCluster| {
         test_cluster
             .all_validator_handles()
             .iter()
@@ -881,18 +866,18 @@ async fn test_restart_after_switching_with_unexecuted_checkpoints_after_an_upgra
             })
             .collect::<Vec<_>>()
     };
-    assert_eq!(deterministic_validation(&test_cluster), [false; 4]);
+    assert_eq!(pcool_flow(&test_cluster), [false; 4]);
     test_cluster
         .wait_for_all_nodes_upgrade_to(UPGRADE_VERSION)
         .await;
-    assert_eq!(deterministic_validation(&test_cluster), [true; 4]);
+    assert_eq!(pcool_flow(&test_cluster), [true; 4]);
     restart_after_switching_with_unexecuted_locally_built_checkpoints(Arc::new(test_cluster)).await;
 }
 
 /// Switches one validator of `test_cluster` to executing synced checkpoints
 /// while it holds certified checkpoints it built itself whose transactions are
 /// only in memory, restarts it, and checks that the cluster reaches later
-/// epochs on the same checkpoints. Deterministic validation must be on.
+/// epochs on the same checkpoints. The P-COOL flow must be on.
 async fn restart_after_switching_with_unexecuted_locally_built_checkpoints(
     test_cluster: Arc<TestCluster>,
 ) {
@@ -1005,7 +990,6 @@ async fn restart_after_switching_with_unexecuted_locally_built_checkpoints(
 async fn test_restart_with_a_stalled_replay_and_unexecuted_locally_built_checkpoints() {
     const AT_RISK_BEFORE_THE_RESTART: usize = 4;
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     register_debug_fatal_handler!("Timed out waiting for checkpoints to be rebuilt", || {});
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
@@ -1150,7 +1134,6 @@ async fn test_restart_with_a_stalled_replay_and_unexecuted_locally_built_checkpo
 async fn test_restart_of_every_validator_with_unexecuted_locally_built_checkpoints() {
     const AT_RISK_BEFORE_THE_RESTART: usize = 2;
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
 
@@ -1236,7 +1219,6 @@ async fn test_restart_of_every_validator_with_unexecuted_locally_built_checkpoin
 async fn test_crash_of_every_validator_while_executing_the_last_checkpoint_of_an_epoch() {
     const RESTART_AFTER: Duration = Duration::from_secs(10);
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(20_000).await;
     let names = test_cluster.get_validator_pubkeys();
     for fullnode in test_cluster.swarm.fullnodes() {
@@ -1323,7 +1305,6 @@ async fn test_crash_of_every_validator_between_certifying_and_verifying_the_last
  {
     const RESTART_AFTER: Duration = Duration::from_secs(10);
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(20_000).await;
     let names = test_cluster.get_validator_pubkeys();
     for fullnode in test_cluster.swarm.fullnodes() {
@@ -1382,7 +1363,6 @@ async fn test_crash_of_every_validator_between_certifying_and_verifying_the_last
 /// and a later epoch.
 async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills: usize) {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let victim = names[0];
@@ -1461,7 +1441,6 @@ async fn test_crashes_after_post_consensus_decisions_do_not_fork() {
 #[sim_test]
 async fn test_executor_waiting_for_a_slow_handler_does_not_deadlock_or_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let slow = names[2];

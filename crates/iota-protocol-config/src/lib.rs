@@ -4642,7 +4642,6 @@ mod test {
     #[should_panic(expected = "enable_pcool_flow requires consensus_dedup_only_recorded_messages")]
     fn pcool_flow_without_dedup_of_recorded_messages_is_rejected() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
             config.feature_flags.consensus_dedup_only_recorded_messages = false;
             config
         });
@@ -4658,7 +4657,6 @@ mod test {
     )]
     fn pcool_flow_with_sponsor_only_pre_consensus_authentication_is_rejected() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
             config
                 .feature_flags
                 .pre_consensus_sponsor_only_move_authentication = true;
@@ -4682,7 +4680,6 @@ mod test {
     #[test]
     fn disabling_a_requirement_for_testing_disables_the_pcool_flow() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
             config.set_consensus_dedup_only_recorded_messages_for_testing(false);
             config
         });
