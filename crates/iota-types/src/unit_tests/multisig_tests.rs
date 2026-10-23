@@ -30,7 +30,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
     let multisig_address: Address = (&multisig_pk).into();
 
     let intent_msg = IntentMessage::new(
-        Intent::iota_transaction(),
+        Intent::personal_message(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
 
@@ -97,7 +97,7 @@ fn verify_rejects_partially_signed_mixed_ed25519_multisig() {
     let multisig_address: Address = (&multisig_pk).into();
 
     let intent_msg = IntentMessage::new(
-        Intent::iota_transaction(),
+        Intent::personal_message(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
     let ed25519_sig: Ed25519Signature = ed25519_key.sign(&intent_msg.signing_digest());
