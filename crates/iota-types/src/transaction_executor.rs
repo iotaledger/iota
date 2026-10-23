@@ -143,7 +143,7 @@ impl VmChecks {
 ///
 /// Every field defaults to `false`, so a check added to the shared path applies
 /// to a simulation too until someone names it here and says why.
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct InputCheckRules {
     /// Skip the bounds on the gas budget, so a caller whose gas is not settled
     /// runs out of gas rather than being rejected.
