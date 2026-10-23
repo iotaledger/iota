@@ -395,9 +395,7 @@ impl IotaNode {
         }
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
 
-        let run_with_range = config.run_with_range;
-        let is_validator = config.is_validator();
-        let is_full_node = !is_validator;
+        let is_full_node = !config.is_validator();
         // Validators do not expose gRPC APIs. This must agree with the gRPC
         // rule in `NodeConfig::validate`, which is what makes the `expect` on
         // the gRPC API config below unreachable.
@@ -427,7 +425,7 @@ impl IotaNode {
         // Register uptime metric
         prometheus_registry
             .register(iota_metrics::uptime_metric(
-                if is_validator {
+                if config.is_validator() {
                     "validator"
                 } else {
                     "fullnode"
@@ -482,7 +480,9 @@ impl IotaNode {
         ));
 
         // By default, only enable write stall on validators for perpetual db.
-        let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
+        let enable_write_stall = config
+            .enable_db_write_stall
+            .unwrap_or(config.is_validator());
         let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
@@ -503,11 +503,8 @@ impl IotaNode {
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
-        let perpetual_tables_for_progress = perpetual_tables.clone();
-        let perpetual_tables_for_snapshots = perpetual_tables.clone();
-        let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
         let store = AuthorityStore::open(
-            perpetual_tables,
+            perpetual_tables.clone(),
             &genesis,
             &config,
             &prometheus_registry,
@@ -539,10 +536,10 @@ impl IotaNode {
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
             config.authority_public_key(),
-            committee.clone(),
+            committee,
             &config.db_path().join("store"),
             Some(epoch_options.options),
-            EpochMetrics::new(&registry_service.default_registry()),
+            EpochMetrics::new(&prometheus_registry),
             epoch_start_configuration,
             cache_traits.backing_package_store.clone(),
             cache_metrics,
@@ -563,8 +560,7 @@ impl IotaNode {
                 .committee()
                 .authority_exists(&config.authority_public_key())
         {
-            checkpoint_store
-                .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
+            checkpoint_store.hold_synced_watermark_in_memory(perpetual_tables.clone())?;
         }
 
         // the database is empty at genesis time
@@ -709,7 +705,7 @@ impl IotaNode {
                         remote_store_config,
                         &prometheus_registry,
                         checkpoint_store.clone(),
-                        perpetual_tables_for_snapshots,
+                        perpetual_tables.clone(),
                         receiver,
                     )?;
                     (Some(handle), Some(EpochEndDbSnapshotHandle::new(requests)))
@@ -743,7 +739,7 @@ impl IotaNode {
             cache_traits.clone(),
             epoch_store.clone(),
             committee_store.clone(),
-            index_store.clone(),
+            index_store,
             grpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
@@ -815,7 +811,7 @@ impl IotaNode {
             .get_authority_names_to_peer_ids();
 
         let network_connection_metrics =
-            NetworkConnectionMetrics::new("iota", &registry_service.default_registry());
+            NetworkConnectionMetrics::new("iota", &prometheus_registry);
 
         let authority_names_to_peer_ids = ArcSwap::from_pointee(authority_names_to_peer_ids);
 
@@ -826,14 +822,11 @@ impl IotaNode {
             None,
         );
 
-        let connection_monitor_status = ConnectionMonitorStatus {
+        let connection_monitor_status = Arc::new(ConnectionMonitorStatus {
             connection_statuses,
             authority_names_to_peer_ids,
-        };
-
-        let connection_monitor_status = Arc::new(connection_monitor_status);
-        let iota_node_metrics =
-            Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
+        });
+        let iota_node_metrics = Arc::new(IotaNodeMetrics::new(&prometheus_registry));
 
         iota_node_metrics
             .binary_max_protocol_version
@@ -842,7 +835,7 @@ impl IotaNode {
             .configured_max_protocol_version
             .set(config.supported_protocol_versions.unwrap().max.as_u64() as i64);
 
-        let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
+        let transaction_orchestrator = if is_full_node && config.run_with_range.is_none() {
             Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
                 auth_agg.load_full(),
                 state.clone(),
@@ -932,7 +925,7 @@ impl IotaNode {
                 Self::construct_validator_components(
                     config.clone(),
                     state.clone(),
-                    committee,
+                    epoch_store.committee().clone(),
                     epoch_store.clone(),
                     checkpoint_store.clone(),
                     state_sync_handle.clone(),
@@ -974,7 +967,7 @@ impl IotaNode {
             randomness_handle,
             sync_summaries_to_epoch_end,
             checkpoint_store,
-            perpetual_tables: perpetual_tables_for_synced_watermark,
+            perpetual_tables,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
@@ -1007,7 +1000,7 @@ impl IotaNode {
         });
 
         node.checkpoint_progress_tracker
-            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
+            .spawn_logging_task(node.checkpoint_store.clone(), node.perpetual_tables.clone());
 
         Ok(node)
     }
