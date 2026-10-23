@@ -153,12 +153,12 @@ pub async fn start_grpc_server(
         );
     }
 
-    // Order matters: `GrpcTimeout` outermost, so the deadline covers every layer;
-    // the address copy before traffic control, which reads it; metrics before
-    // traffic control, to count blocked requests; server-timing innermost, to time
-    // only the requests that traffic control lets through.
+    // Order matters: the address copy before traffic control, which reads it;
+    // metrics before traffic control, to count blocked requests; `GrpcTimeout`
+    // inside both, so they see the status of a call that ends at its deadline;
+    // server-timing innermost, to time only the requests that traffic control
+    // lets through.
     let service = tower::ServiceBuilder::new()
-        .layer_fn(|service| GrpcTimeout::new(service, None))
         .map_request(insert_tonic_connect_info)
         .option_layer(
             metrics.map(|m| GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)),
@@ -167,6 +167,7 @@ pub async fn start_grpc_server(
             traffic_controller
                 .map(|tc| TrafficControlLayer::new(tc, client_id_source.unwrap_or_default())),
         )
+        .layer_fn(|service| GrpcTimeout::new(service, None))
         .layer(ServerTimingLayer)
         .service(routes.prepare());
 

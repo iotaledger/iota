@@ -7,18 +7,25 @@
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    net::SocketAddr,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
+use bytes::Bytes;
+use http_body_util::Full;
 use iota_config::{
     local_ip_utils,
     node::{GrpcApiConfig, TlsConfig},
 };
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_grpc_types::v1::{
+    bcs::BcsData,
     move_package_service::move_package_service_client::MovePackageServiceClient,
+    signatures::UserSignatures,
     state_service::state_service_client::StateServiceClient,
+    transaction::Transaction as ProtoTransaction,
+    transaction_execution_service::{ExecuteTransactionItem, ExecuteTransactionsRequest},
     types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
 };
 use iota_node_storage::GrpcStateReader;
@@ -289,6 +296,64 @@ impl TransactionExecutor for PendingExecutor {
     ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
         unreachable!("test executions never finish")
     }
+}
+
+pub const EXECUTE_TRANSACTIONS_PATH: &str =
+    "/iota.grpc.v1.transaction_execution_service.TransactionExecutionService/ExecuteTransactions";
+
+/// An `ExecuteTransactions` request with one transaction that passes the
+/// checks of the handler and reaches the executor.
+pub fn execute_transactions_request() -> ExecuteTransactionsRequest {
+    let (_digest, transaction, _effects) = create_test_transaction();
+    let transaction_bcs =
+        bcs::to_bytes(&transaction.data().signed_transaction().transaction).unwrap();
+    ExecuteTransactionsRequest::default().with_transactions(vec![
+        ExecuteTransactionItem::default()
+            .with_transaction(
+                ProtoTransaction::default().with_bcs(BcsData::default().with_data(transaction_bcs)),
+            )
+            .with_signatures(UserSignatures::default()),
+    ])
+}
+
+/// Sends [`execute_transactions_request`] with a `grpc-timeout` of `timeout`
+/// and returns the gRPC status code in the response headers (`Ok` if there is
+/// none). The client does not end the call itself, so the response comes from
+/// the server. Panics if no response comes within 10 s.
+pub async fn call_execute_transactions_with_grpc_timeout(
+    address: SocketAddr,
+    timeout: Duration,
+) -> tonic::Code {
+    let io = hyper_util::rt::TokioIo::new(tokio::net::TcpStream::connect(address).await.unwrap());
+    let (mut sender, connection) =
+        hyper::client::conn::http2::handshake(hyper_util::rt::TokioExecutor::new(), io)
+            .await
+            .unwrap();
+    tokio::spawn(connection);
+    let call = sender.send_request(
+        http::Request::post(format!("http://{address}{EXECUTE_TRANSACTIONS_PATH}"))
+            .header(http::header::CONTENT_TYPE, "application/grpc")
+            .header(http::header::TE, "trailers")
+            .header("grpc-timeout", format!("{}m", timeout.as_millis()))
+            .body(Full::new(grpc_message(&execute_transactions_request())))
+            .unwrap(),
+    );
+    let response = tokio::time::timeout(Duration::from_secs(10), call)
+        .await
+        .expect("the server must end the call when its deadline passes")
+        .unwrap();
+    tonic::Status::from_header_map(response.headers())
+        .map_or(tonic::Code::Ok, |status| status.code())
+}
+
+/// Encodes `message` as one uncompressed gRPC message.
+fn grpc_message(message: &impl prost::Message) -> Bytes {
+    let encoded = message.encode_to_vec();
+    let mut framed = Vec::with_capacity(5 + encoded.len());
+    framed.push(0);
+    framed.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
+    framed.extend_from_slice(&encoded);
+    framed.into()
 }
 
 // ---------------------------------------------------------------------------

@@ -7,21 +7,11 @@ mod common;
 
 use std::{collections::BTreeMap, net::SocketAddr, sync::Arc, time::Duration};
 
-use bytes::Bytes;
 use common::{
-    MockGrpcStateReader, PendingExecutor, create_test_transaction, start_test_server,
-    start_test_server_with,
+    MockGrpcStateReader, PendingExecutor, call_execute_transactions_with_grpc_timeout,
+    execute_transactions_request, start_test_server, start_test_server_with,
 };
-use http_body_util::Full;
-use iota_grpc_types::v1::{
-    bcs::BcsData,
-    signatures::UserSignatures,
-    transaction::Transaction as ProtoTransaction,
-    transaction_execution_service::{
-        ExecuteTransactionItem, ExecuteTransactionsRequest,
-        transaction_execution_service_client::TransactionExecutionServiceClient,
-    },
-};
+use iota_grpc_types::v1::transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
     net::TcpStream,
@@ -110,8 +100,6 @@ async fn the_server_announces_no_stream_limit_and_no_extended_connect() {
 /// `DEADLINE_EXCEEDED`.
 #[tokio::test]
 async fn a_call_past_its_grpc_timeout_ends_with_deadline_exceeded() {
-    const EXECUTE_TRANSACTIONS_PATH: &str = "/iota.grpc.v1.transaction_execution_service.TransactionExecutionService/ExecuteTransactions";
-
     let (handle, _reader) = start_test_server_with(
         Arc::new(MockGrpcStateReader::default()),
         Some(Arc::new(PendingExecutor::default())),
@@ -122,41 +110,15 @@ async fn a_call_past_its_grpc_timeout_ends_with_deadline_exceeded() {
     )
     .await;
 
-    // Unlike tonic's client, hyper's client does not end a call itself when
-    // its `grpc-timeout` passes, so the status comes from the server.
-    let io = hyper_util::rt::TokioIo::new(TcpStream::connect(handle.address()).await.unwrap());
-    let (mut sender, connection) =
-        hyper::client::conn::http2::handshake(hyper_util::rt::TokioExecutor::new(), io)
-            .await
-            .unwrap();
-    tokio::spawn(connection);
     let started = tokio::time::Instant::now();
-    let call = sender.send_request(
-        http::Request::post(format!(
-            "http://{}{EXECUTE_TRANSACTIONS_PATH}",
-            handle.address()
-        ))
-        .header(http::header::CONTENT_TYPE, "application/grpc")
-        .header(http::header::TE, "trailers")
-        .header("grpc-timeout", "200m")
-        .body(Full::new(grpc_message(&execute_transactions_request())))
-        .unwrap(),
-    );
-    let response = tokio::time::timeout(Duration::from_secs(10), call)
-        .await
-        .expect("the server must end the call when its deadline passes")
-        .unwrap();
+    let code =
+        call_execute_transactions_with_grpc_timeout(handle.address(), Duration::from_millis(200))
+            .await;
     assert!(
         started.elapsed() >= Duration::from_millis(200),
         "the server must give the call its whole deadline"
     );
-
-    let status = tonic::Status::from_header_map(response.headers());
-    assert_eq!(
-        status.as_ref().map(tonic::Status::code),
-        Some(tonic::Code::DeadlineExceeded),
-        "{status:?}"
-    );
+    assert_eq!(code, tonic::Code::DeadlineExceeded);
 }
 
 /// On shutdown, a running call and a connection that has sent nothing are
@@ -212,21 +174,6 @@ async fn shutdown_closes_a_running_call_after_one_second() {
     );
 }
 
-/// An `ExecuteTransactions` request with one transaction that passes the
-/// checks of the handler and reaches the executor.
-fn execute_transactions_request() -> ExecuteTransactionsRequest {
-    let (_digest, transaction, _effects) = create_test_transaction();
-    let transaction_bcs =
-        bcs::to_bytes(&transaction.data().signed_transaction().transaction).unwrap();
-    ExecuteTransactionsRequest::default().with_transactions(vec![
-        ExecuteTransactionItem::default()
-            .with_transaction(
-                ProtoTransaction::default().with_bcs(BcsData::default().with_data(transaction_bcs)),
-            )
-            .with_signatures(UserSignatures::default()),
-    ])
-}
-
 /// Reads the SETTINGS the server sends first on a new HTTP/2 connection.
 async fn server_settings(address: SocketAddr) -> BTreeMap<u16, u32> {
     // The client connection preface: the fixed string and an empty SETTINGS
@@ -264,14 +211,4 @@ async fn server_settings(address: SocketAddr) -> BTreeMap<u16, u32> {
             )
         })
         .collect()
-}
-
-/// Encodes `message` as one uncompressed gRPC message.
-fn grpc_message(message: &impl prost::Message) -> Bytes {
-    let encoded = message.encode_to_vec();
-    let mut framed = Vec::with_capacity(5 + encoded.len());
-    framed.push(0);
-    framed.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
-    framed.extend_from_slice(&encoded);
-    framed.into()
 }
