@@ -808,7 +808,8 @@ impl AuthorityStore {
     /// In the same batch, the versions these transactions superseded move from
     /// the live `objects` table into `epoch_id`'s historic bucket, and each
     /// transaction's body, effects, execution record and events go into
-    /// `epoch_id`'s ledger bucket.
+    /// `epoch_id`'s ledger bucket. `cached` answers for the object versions
+    /// not committed yet, which the live table does not hold.
     ///
     /// **Invariant** Every `TransactionOutputs` in `tx_outputs` must belong to
     /// the checkpoint identified by `checkpoint_sequence_number`.
@@ -818,6 +819,7 @@ impl AuthorityStore {
         epoch_id: EpochId,
         checkpoint_sequence_number: CheckpointSequenceNumber,
         tx_outputs: &[Arc<TransactionOutputs>],
+        cached: &dyn Fn(&ObjectKey) -> Option<Object>,
     ) -> IotaResult<DBBatch> {
         let mut written = Vec::with_capacity(tx_outputs.len());
         for outputs in tx_outputs {
@@ -827,8 +829,8 @@ impl AuthorityStore {
         let historic_bucket = self.historic_objects.ensure(epoch_id)?;
         let ledger_bucket = self.historic_ledger.ensure(epoch_id)?;
         let mut write_batch = self.perpetual_tables.objects.batch();
-        for (index, outputs) in tx_outputs.iter().enumerate() {
-            let missed = self.missed_pre_images(&tx_outputs[..index], outputs)?;
+        for outputs in tx_outputs {
+            let missed = self.missed_pre_images(outputs, cached)?;
             self.write_one_transaction_outputs(
                 &mut write_batch,
                 epoch_id,
@@ -856,16 +858,16 @@ impl AuthorityStore {
     }
 
     /// The versions `outputs` superseded whose pre-image execution did not
-    /// capture, read from where they still are: the writes of `earlier`, the
-    /// transactions before it in the same batch, or else the live table.
+    /// capture, read from where they still are: `cached` while the transaction
+    /// that wrote them is not committed, or else the live table.
     ///
     /// Left in the live table, such a version would be read as the newest one
     /// at or below a bound once the backlog sweep is done, instead of a newer
     /// version that went into a bucket.
     fn missed_pre_images(
         &self,
-        earlier: &[Arc<TransactionOutputs>],
         outputs: &TransactionOutputs,
+        cached: &dyn Fn(&ObjectKey) -> Option<Object>,
     ) -> IotaResult<Vec<(ObjectKey, Object)>> {
         if outputs.superseded.len() == outputs.effects.modified_at_versions().len() {
             return Ok(Vec::new());
@@ -877,14 +879,9 @@ impl AuthorityStore {
             if captured.contains(&key) {
                 continue;
             }
-            let written_earlier = earlier.iter().rev().find_map(|earlier| {
-                earlier
-                    .written
-                    .get(&key.0)
-                    .filter(|object| object.version() == key.1)
-                    .cloned()
-            });
-            let pre_image = match written_earlier {
+            // The commit writes to the live table before it drops a version
+            // from the cache, so asking the cache first misses no version.
+            let pre_image = match cached(&key) {
                 Some(object) => Some(object),
                 None => match self.perpetual_tables.objects.get(&key)? {
                     Some(row) => self.perpetual_tables.object(&key, row)?,

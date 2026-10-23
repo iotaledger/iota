@@ -1040,7 +1040,15 @@ impl WritebackCache {
 
         let batch = self
             .store
-            .build_db_batch(epoch, checkpoint_sequence_number, &all_outputs)
+            .build_db_batch(
+                epoch,
+                checkpoint_sequence_number,
+                &all_outputs,
+                &|key| match self.get_object_by_key_cache_only(&key.0, key.1) {
+                    CacheResult::Hit(object) => Some(object),
+                    CacheResult::Miss | CacheResult::NegativeHit => None,
+                },
+            )
             .expect("db error");
         (all_outputs, batch)
     }
