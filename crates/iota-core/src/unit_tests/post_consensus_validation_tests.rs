@@ -9780,8 +9780,8 @@ impl SharedRegulatedCoin {
 }
 
 /// Shares a zero coin of `coin_type` on `s`, paid by the publisher's
-/// `share_gas`, assigned to commit `share_at` when given. Returns the shared
-/// coin's reference.
+/// `share_gas`, assigned to commit `share_at` when given and to a new commit
+/// otherwise. Returns the shared coin's reference.
 fn share_zero_regulated_coin(
     s: &HandlerObjectStateSetup,
     coin_type: &TypeTag,
@@ -9819,7 +9819,11 @@ fn share_zero_regulated_coin(
         .unwrap();
     let share_effects = match share_at {
         Some(index) => s.execute_with_assigned_commit(vec![share], index).remove(0),
-        None => s.execute(share),
+        None => {
+            s.epoch_store
+                .assign_to_a_new_commit_for_testing(&[TransactionKey::Digest(*share.digest())]);
+            s.execute(share)
+        }
     };
     share_effects
         .created()
@@ -9831,9 +9835,8 @@ fn share_zero_regulated_coin(
 
 /// Two validators of one chain at epoch 1, with deterministic validation on
 /// and the state of [`SharedRegulatedCoin`], built as `options` asks. Epoch 0
-/// publishes the coin, hands out the owned coins and denies the address with
-/// deterministic validation off, as its executions run outside any consensus
-/// commit; the epoch change turns it on and makes the denial active for the
+/// publishes the coin, hands out the owned coins and denies the address, each
+/// in a commit of its own; the epoch change makes the denial active for the
 /// epoch-gated read.
 async fn setup_validators_with_a_shared_regulated_coin(
     options: RegulatedCoinOptions,
@@ -9856,10 +9859,6 @@ async fn setup_validators_with_a_shared_regulated_coin(
         Object::with_id_owner_for_testing(other_gas, other),
     ];
 
-    let epoch_zero_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(false);
-        config
-    });
     let mut validators = Vec::new();
     let mut coins = Vec::new();
     for _ in 0..2 {
@@ -9910,11 +9909,13 @@ async fn setup_validators_with_a_shared_regulated_coin(
         let pay = TestTransactionBuilder::new(publisher, s.latest_ref(&publisher_gas), s.rgp)
             .programmable(builder.finish())
             .build();
-        let pay_effects = s.execute(
-            s.epoch_store
-                .verify_transaction(to_sender_signed_transaction(pay, &publisher_key))
-                .unwrap(),
-        );
+        let pay = s
+            .epoch_store
+            .verify_transaction(to_sender_signed_transaction(pay, &publisher_key))
+            .unwrap();
+        s.epoch_store
+            .assign_to_a_new_commit_for_testing(&[TransactionKey::Digest(*pay.digest())]);
+        let pay_effects = s.execute(pay);
         let coin_of = |owner: Address| {
             pay_effects
                 .created()
@@ -9934,11 +9935,13 @@ async fn setup_validators_with_a_shared_regulated_coin(
             .move_call(ObjectId::FRAMEWORK, "coin", "deny_list_v1_add", deny_args)
             .with_type_args(vec![coin_type.clone()])
             .build();
-        s.execute_with_assigned_shared_versions(
-            s.epoch_store
-                .verify_transaction(to_sender_signed_transaction(deny, &publisher_key))
-                .unwrap(),
-        );
+        let deny = s
+            .epoch_store
+            .verify_transaction(to_sender_signed_transaction(deny, &publisher_key))
+            .unwrap();
+        s.epoch_store
+            .assign_to_a_new_commit_for_testing(&[TransactionKey::Digest(*deny.digest())]);
+        s.execute_with_assigned_shared_versions(deny);
         let shared_before_the_epoch = options.share_at.is_none().then(|| {
             share_zero_regulated_coin(&s, &coin_type, publisher, &publisher_key, &share_gas, None)
         });
@@ -9951,15 +9954,8 @@ async fn setup_validators_with_a_shared_regulated_coin(
         ));
     }
 
-    // The epoch change installs its own override and refuses to run while
-    // another one is installed.
-    drop(epoch_zero_guard);
     for s in &mut validators {
-        let mut epoch_one_config = s.epoch_store.protocol_config().clone();
-        epoch_one_config.set_enable_pcool_flow_for_testing(true);
-        s.authority
-            .reconfigure_for_testing_with_protocol_config(epoch_one_config)
-            .await;
+        s.authority.reconfigure_for_testing().await;
         s.epoch_store = s.authority.epoch_store_for_testing().clone();
         assert_eq!(s.epoch_store.epoch(), 1);
         assert!(s.epoch_store.pcool_bookkeeping_enabled());
