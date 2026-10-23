@@ -3302,9 +3302,21 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
 /// MoveAuthenticator must succeed(enable_move_authentication_for_sponsor =
 /// true).
 #[sim_test]
-async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor()
+async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor_pre_consensus_flow()
 -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
+    test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor(false).await
+}
+
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor_pcool_flow()
+-> Result<(), anyhow::Error> {
+    test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor(true).await
+}
+
+async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor(
+    pcool: bool,
+) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -3407,9 +3419,21 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
 /// MoveAuthenticator and use the same shared object must
 /// succeed(enable_move_authentication_for_sponsor = true).
 #[sim_test]
-async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor()
+async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor_pre_consensus_flow()
 -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
+    test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor(false).await
+}
+
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor_pcool_flow()
+-> Result<(), anyhow::Error> {
+    test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor(true).await
+}
+
+async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor(
+    pcool: bool,
+) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
