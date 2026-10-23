@@ -37,7 +37,10 @@ impl PgManager {
     /// other data providers. If `historic_fallback` carries a URL, an archival
     /// fallback reader is attached so reads can be served from the REST KV
     /// store if Postgres data is pruned.
-    pub(crate) fn reader_with_config(
+    ///
+    /// Fills the reader's watermark cache before returning, so that no request
+    /// is served from an empty cache.
+    pub(crate) async fn reader_with_config(
         db_url: &DbUrl,
         pool_size: u32,
         timeout_ms: u64,
@@ -58,8 +61,11 @@ impl PgManager {
         let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics);
         let watermark_cache = WatermarkCache::new();
 
-        // Start watermark task with cancellation token
         let watermark_task = WatermarkTask::new(store, watermark_cache.clone());
+        watermark_task
+            .update_watermarks()
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to fill the watermark cache: {e}")))?;
         watermark_task.start(cancellation_token);
 
         // Create reader with watermark cache
