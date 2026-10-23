@@ -67,7 +67,7 @@ use iota_core::{
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
         reconfiguration::ReconfigurationInitiator,
     },
-    epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, EpochEndDbSnapshotRequest},
+    epoch_end_db_snapshot::EpochEndDbSnapshotHandle,
     execution_cache::{ExecutionCacheTraitPointers, build_execution_cache},
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
@@ -321,12 +321,30 @@ impl NodeStores {
     }
 }
 
-/// The p2p network of a node and the handles of the services that run on it.
+/// The p2p network of a node, the handles of the services that run on it, the
+/// ends of the channels between the node and these services, and the flag that
+/// the node sets for state sync.
 struct P2pComponents {
     p2p_network: Network,
     discovery_handle: discovery::Handle,
     state_sync_handle: state_sync::Handle,
     randomness_handle: randomness::Handle,
+    /// Sends the trusted peers of each epoch to discovery.
+    trusted_peer_change_tx: watch::Sender<TrustedPeerChangeEvent>,
+    /// Receives the randomness that the randomness service generates.
+    randomness_rx: mpsc::Receiver<(EpochId, RandomnessRound, Vec<u8>)>,
+    /// Lets state sync fetch summaries to the end of the epoch being
+    /// executed.
+    sync_summaries_to_epoch_end: Arc<AtomicBool>,
+}
+
+/// The services a fullnode runs for clients. Each is `None` on a node that
+/// does not start it, so a node that is not a fullnode has the default value.
+#[derive(Default)]
+struct FullnodeServices {
+    transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
+    http_server: Option<iota_http::ServerHandle>,
+    grpc_server_handle: Option<GrpcServerHandle>,
 }
 
 #[cfg(msim)]
@@ -544,9 +562,14 @@ impl IotaNode {
 
         let is_full_node = !config.is_validator();
         // Validators do not expose gRPC APIs. This must agree with the gRPC
-        // rule in `NodeConfig::validate`, which is what makes the `expect` on
-        // the gRPC API config below unreachable.
-        let serves_grpc_api = is_full_node && config.enable_grpc_api;
+        // rule in `NodeConfig::validate`, which is what makes the `expect`
+        // unreachable.
+        let grpc_api_config = (is_full_node && config.enable_grpc_api).then(|| {
+            config
+                .grpc_api_config
+                .clone()
+                .expect("`NodeConfig::validate` rejects an enabled gRPC API without a config")
+        });
         let prometheus_registry = registry_service.default_registry();
 
         info!(node =? config.authority_public_key(),
@@ -660,7 +683,7 @@ impl IotaNode {
             None
         };
 
-        let grpc_indexes_store = if serves_grpc_api {
+        let grpc_indexes_store = if grpc_api_config.is_some() {
             Some(Self::open_grpc_indexes_store(&config, &stores).await)
         } else {
             None
@@ -677,63 +700,37 @@ impl IotaNode {
         // TODO only configure validators as seed/preferred peers for validators and not
         // for fullnodes once we've had a chance to re-work fullnode
         // configuration generation.
-        let (trusted_peer_change_tx, trusted_peer_change_rx) = watch::channel(Default::default());
-        let (randomness_tx, randomness_rx) = mpsc::channel(
-            config
-                .p2p_config
-                .randomness
-                .clone()
-                .unwrap_or_default()
-                .mailbox_capacity(),
-        );
-        let sync_summaries_to_epoch_end = Arc::new(AtomicBool::new(
-            Self::sync_summaries_to_epoch_end(&config, &epoch_store),
-        ));
         let P2pComponents {
             p2p_network,
             discovery_handle,
             state_sync_handle,
             randomness_handle,
+            trusted_peer_change_tx,
+            randomness_rx,
+            sync_summaries_to_epoch_end,
         } = Self::create_p2p_network(
             &config,
+            &epoch_store,
             state_sync_store.clone(),
             chain_identifier,
-            trusted_peer_change_rx,
-            randomness_tx,
-            sync_summaries_to_epoch_end.clone(),
             &prometheus_registry,
         )?;
 
-        // We must explicitly send this instead of relying on the initial value to
-        // trigger watch value change, so that state-sync is able to process it.
-        send_trusted_peer_change(
-            &config,
-            &trusted_peer_change_tx,
-            epoch_store.epoch_start_state(),
-        );
-
         info!("start snapshot upload");
-        let (state_snapshot_handle, epoch_end_db_snapshots) =
-            match &config.state_snapshot_write_config.object_store_config {
-                Some(remote_store_config) => {
-                    // The state snapshot writer is the consumer of the epoch end
-                    // database snapshot: the boundary hands each epoch to it on
-                    // this channel. A depth of one is enough, because an epoch
-                    // arriving while the writer is still busy is skipped rather
-                    // than queued.
-                    let (requests, receiver) = mpsc::channel(1);
-                    let handle = Self::start_state_snapshot(
-                        &config,
-                        remote_store_config,
-                        &prometheus_registry,
-                        stores.checkpoint_store.clone(),
-                        stores.perpetual_tables.clone(),
-                        receiver,
-                    )?;
-                    (Some(handle), Some(EpochEndDbSnapshotHandle::new(requests)))
-                }
-                None => (None, None),
-            };
+        let (state_snapshot_handle, epoch_end_db_snapshots) = config
+            .state_snapshot_write_config
+            .object_store_config
+            .as_ref()
+            .map(|remote_store_config| {
+                Self::start_state_snapshot(
+                    &config,
+                    remote_store_config,
+                    &prometheus_registry,
+                    &stores,
+                )
+            })
+            .transpose()?
+            .unzip();
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
@@ -809,55 +806,57 @@ impl IotaNode {
             &prometheus_registry,
         );
 
-        let transaction_orchestrator = if is_full_node && config.run_with_range.is_none() {
-            Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
-                auth_agg.load_full(),
+        let FullnodeServices {
+            transaction_orchestrator,
+            http_server,
+            grpc_server_handle,
+        } = if is_full_node {
+            let transaction_orchestrator = if config.run_with_range.is_none() {
+                Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
+                    auth_agg.load_full(),
+                    state.clone(),
+                    end_of_epoch_receiver,
+                    &config.db_path(),
+                    &prometheus_registry,
+                    Some(&config),
+                )))
+            } else {
+                None
+            };
+
+            let http_server = Self::start_http_server(
+                &serving_rt_handle,
                 state.clone(),
-                end_of_epoch_receiver,
-                &config.db_path(),
+                transaction_orchestrator.clone(),
+                &config,
                 &prometheus_registry,
-                Some(&config),
-            )))
-        } else {
-            None
-        };
-
-        // Validators do not expose the JSON-RPC API.
-        let http_server = if is_full_node {
-            Some(
-                Self::start_http_server(
-                    &serving_rt_handle,
-                    state.clone(),
-                    transaction_orchestrator.clone(),
-                    &config,
-                    &prometheus_registry,
-                )
-                .await?,
             )
-        } else {
-            None
-        };
+            .await?;
 
-        let grpc_server_handle = if serves_grpc_api {
-            let grpc_api_config = config
-                .grpc_api_config
-                .clone()
-                .expect("`NodeConfig::validate` rejects an enabled gRPC API without a config");
-            Some(
-                Self::start_grpc_api_server(
-                    &serving_rt_handle,
-                    grpc_api_config,
-                    &config,
-                    state.clone(),
-                    state_sync_store.clone(),
-                    transaction_orchestrator.clone(),
-                    &prometheus_registry,
-                    server_version,
-                )
-                .await?,
-            )
+            let grpc_server_handle = match grpc_api_config {
+                Some(grpc_api_config) => Some(
+                    Self::start_grpc_api_server(
+                        &serving_rt_handle,
+                        grpc_api_config,
+                        &config,
+                        state.clone(),
+                        state_sync_store.clone(),
+                        transaction_orchestrator.clone(),
+                        &prometheus_registry,
+                        server_version,
+                    )
+                    .await?,
+                ),
+                None => None,
+            };
+
+            FullnodeServices {
+                transaction_orchestrator,
+                http_server: Some(http_server),
+                grpc_server_handle,
+            }
         } else {
-            None
+            FullnodeServices::default()
         };
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
@@ -1289,29 +1288,37 @@ impl IotaNode {
     }
 
     /// Creates a StateSnapshotUploader that publishes to `remote_store_config`
-    /// and starts it. Snapshot publication is a fullnode-only role.
+    /// and starts it. Snapshot publication is a fullnode-only role. Returns the
+    /// sender that stops the uploader when it is dropped, and the handle that
+    /// the epoch boundary uses to hand each ending epoch to the uploader.
     fn start_state_snapshot(
         config: &NodeConfig,
         remote_store_config: &ObjectStoreConfig,
         prometheus_registry: &Registry,
-        checkpoint_store: Arc<CheckpointStore>,
-        perpetual_tables: Arc<AuthorityPerpetualTables>,
-        requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
-    ) -> Result<tokio::sync::broadcast::Sender<()>> {
+        stores: &NodeStores,
+    ) -> Result<(broadcast::Sender<()>, EpochEndDbSnapshotHandle)> {
         debug_assert!(
             !config.is_validator(),
             "`NodeConfig::validate` rejects snapshot upload on a validator"
         );
+        // The state snapshot writer is the consumer of the epoch end database
+        // snapshot: the boundary hands each epoch to it on this channel. A depth
+        // of one is enough, because an epoch arriving while the writer is still
+        // busy is skipped rather than queued.
+        let (requests, receiver) = mpsc::channel(1);
         let snapshot_uploader = StateSnapshotUploader::new(
             &config.snapshot_path(),
             remote_store_config.clone(),
             config.state_snapshot_write_config.concurrency,
             60,
             prometheus_registry,
-            checkpoint_store,
-            perpetual_tables,
+            stores.checkpoint_store.clone(),
+            stores.perpetual_tables.clone(),
         )?;
-        Ok(snapshot_uploader.start(requests))
+        Ok((
+            snapshot_uploader.start(receiver),
+            EpochEndDbSnapshotHandle::new(requests),
+        ))
     }
 
     /// Whether state sync should fetch summaries to the end of the epoch of
@@ -1324,20 +1331,34 @@ impl IotaNode {
         config.is_validator() && epoch_store.pcool_bookkeeping_enabled()
     }
 
+    /// Starts the p2p network and the discovery, state sync and randomness
+    /// services on it, and sends the trusted peers of the epoch of
+    /// `epoch_store` to discovery.
     fn create_p2p_network(
         config: &NodeConfig,
+        epoch_store: &AuthorityPerEpochStore,
         state_sync_store: RocksDbStore,
         chain_identifier: ChainIdentifier,
-        trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
-        randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
-        sync_summaries_to_epoch_end: Arc<AtomicBool>,
         prometheus_registry: &Registry,
     ) -> Result<P2pComponents> {
+        let (trusted_peer_change_tx, trusted_peer_change_rx) = watch::channel(Default::default());
+        let (randomness_tx, randomness_rx) = mpsc::channel(
+            config
+                .p2p_config
+                .randomness
+                .clone()
+                .unwrap_or_default()
+                .mailbox_capacity(),
+        );
+        let sync_summaries_to_epoch_end = Arc::new(AtomicBool::new(
+            Self::sync_summaries_to_epoch_end(config, epoch_store),
+        ));
+
         let (state_sync, state_sync_server) = state_sync::Builder::new()
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
             .checkpoint_archive_config(config.checkpoint_archive_config().cloned())
-            .sync_summaries_to_epoch_end(sync_summaries_to_epoch_end)
+            .sync_summaries_to_epoch_end(sync_summaries_to_epoch_end.clone())
             .with_metrics(prometheus_registry)
             .build();
 
@@ -1454,11 +1475,22 @@ impl IotaNode {
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
+        // We must explicitly send this instead of relying on the initial value to
+        // trigger watch value change, so that state-sync is able to process it.
+        send_trusted_peer_change(
+            config,
+            &trusted_peer_change_tx,
+            epoch_store.epoch_start_state(),
+        );
+
         Ok(P2pComponents {
             p2p_network,
             discovery_handle,
             state_sync_handle,
             randomness_handle,
+            trusted_peer_change_tx,
+            randomness_rx,
+            sync_summaries_to_epoch_end,
         })
     }
 
