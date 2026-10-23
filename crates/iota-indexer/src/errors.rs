@@ -170,6 +170,9 @@ pub enum IndexerError {
     #[error("historical fallback storage error: {0}")]
     HistoricalFallbackStorageError(String),
 
+    #[error("historical fallback response too large: {size} bytes received, limit is {max} bytes")]
+    HistoricalFallbackResponseTooLarge { size: u64, max: u64 },
+
     #[error("historical fallback input error: {0}")]
     HistoricalFallbackInput(String),
 

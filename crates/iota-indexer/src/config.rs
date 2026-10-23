@@ -145,12 +145,21 @@ pub struct HistoricFallbackOptions {
         help = "Experimental: Cache size for historic fallback."
     )]
     pub fallback_kv_cache_size: u64,
+
+    #[arg(
+        long,
+        default_value_t = Self::DEFAULT_MAX_RESPONSE_SIZE_BYTES,
+        env = "FALLBACK_KV_MAX_RESPONSE_SIZE_BYTES",
+        help = "Experimental: Maximum size in bytes of a single response body accepted from the fallback KV store. Larger responses are rejected."
+    )]
+    pub fallback_kv_max_response_size_bytes: usize,
 }
 
 impl HistoricFallbackOptions {
     pub const DEFAULT_MULTI_FETCH_BATCH_SIZE: usize = 100;
     pub const DEFAULT_CONCURRENT_FETCHES: usize = 10;
     pub const DEFAULT_CACHE_SIZE: u64 = 100_000;
+    pub const DEFAULT_MAX_RESPONSE_SIZE_BYTES: usize = 128 * 1024 * 1024;
 }
 
 impl Default for HistoricFallbackOptions {
@@ -160,6 +169,7 @@ impl Default for HistoricFallbackOptions {
             fallback_kv_multi_fetch_batch_size: Self::DEFAULT_MULTI_FETCH_BATCH_SIZE,
             fallback_kv_concurrent_fetches: Self::DEFAULT_CONCURRENT_FETCHES,
             fallback_kv_cache_size: Self::DEFAULT_CACHE_SIZE,
+            fallback_kv_max_response_size_bytes: Self::DEFAULT_MAX_RESPONSE_SIZE_BYTES,
         }
     }
 }
