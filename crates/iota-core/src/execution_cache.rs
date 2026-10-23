@@ -817,9 +817,7 @@ pub trait TransactionCacheRead: Send + Sync {
     /// can only have been executed in `epoch`, such as those of a checkpoint
     /// of that epoch. A store may answer from that epoch's records alone, so
     /// a transaction executed in another epoch can be reported as not
-    /// executed, and a cache may remember that answer for later reads of any
-    /// epoch: passing a transaction executed in another epoch makes it read as
-    /// not executed until the cache drops it.
+    /// executed.
     fn try_multi_get_executed_effects_digests_in_epoch(
         &self,
         _epoch: EpochId,
