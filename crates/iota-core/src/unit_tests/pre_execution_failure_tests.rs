@@ -233,11 +233,11 @@ impl UnresolvedAccountSetup {
     }
 }
 
-/// Turns the P-COOL flow on or off for authorities built while the returned
-/// guard lives.
-fn set_pcool_flow(enabled: bool) -> OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-        config.set_enable_pcool_flow_for_testing(enabled);
+/// Turns the P-COOL flow off, as on Mainnet and Testnet, for authorities built
+/// while the returned guard lives.
+fn disable_pcool_flow() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
         config
     })
 }
@@ -246,7 +246,7 @@ fn set_pcool_flow(enabled: bool) -> OverrideGuard {
 /// cannot be resolved fails the transaction, with gas charged to the sponsor.
 #[tokio::test]
 async fn unresolved_authenticator_account_fails_with_effects() {
-    let _guard = set_pcool_flow(false);
+    let _guard = disable_pcool_flow();
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -361,7 +361,7 @@ async fn unresolved_authenticator_account_effects_are_the_same_on_every_validato
 /// execution.
 #[tokio::test]
 async fn unresolved_gas_payer_account_fails_with_effects() {
-    let _guard = set_pcool_flow(false);
+    let _guard = disable_pcool_flow();
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -1414,7 +1414,7 @@ async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
 /// pays.
 #[tokio::test]
 async fn move_account_sponsor_order_is_unchanged_without_the_pcool_flow() {
-    let _guard = set_pcool_flow(false);
+    let _guard = disable_pcool_flow();
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Account(TestAuthenticator::Fails),
