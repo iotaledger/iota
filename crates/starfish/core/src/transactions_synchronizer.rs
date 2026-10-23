@@ -724,10 +724,21 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         // Build a mapping from authority -> set of transaction refs it has
-        // acknowledged
+        // acknowledged. A committed payload was acknowledged by a quorum, so
+        // when no acknowledger is known, every peer is asked for it.
+        let committee: BTreeSet<AuthorityIndex> = context
+            .committee
+            .authorities()
+            .map(|(index, _)| index)
+            .collect();
         let mut transaction_refs_by_authority: BTreeMap<AuthorityIndex, BTreeSet<TransactionRef>> =
             BTreeMap::new();
         for (tx_ref, authorities) in &missing_transactions {
+            let authorities = if authorities.is_empty() {
+                &committee
+            } else {
+                authorities
+            };
             for authority in authorities {
                 if *authority != context.own_index {
                     transaction_refs_by_authority
@@ -1268,7 +1279,7 @@ mod tests {
         core_thread::CoreError,
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
     };
@@ -2765,6 +2776,82 @@ mod tests {
         );
     }
 
+    /// A committed payload with no known acknowledger is fetched from any peer
+    /// that holds it.
+    #[tokio::test]
+    async fn live_syncing_without_acknowledgers_asks_every_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        let transaction_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
+        );
+        let mut encoder = create_encoder(&context);
+
+        let transactions = vec![Transaction::new(vec![7u8; 32])];
+        let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+        let commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, 1)
+                .set_commitment(commitment)
+                .build(),
+        );
+        let verified_transactions = CommitmentVerifiedTransactions::new(
+            transactions,
+            header.transaction_ref(),
+            Some(header.digest()),
+            serialized,
+        );
+
+        // Only authority 2 holds the payload.
+        network_client
+            .stub_fetch_transactions(
+                vec![verified_transactions.clone()],
+                AuthorityIndex::new_for_test(2),
+            )
+            .await;
+        dag_state
+            .write()
+            .accept_block_headers(vec![header.clone()], DataSource::Test);
+
+        let missing_transactions = BTreeMap::from([(
+            GenericTransactionRef::from(header.transaction_ref()),
+            BTreeSet::new(),
+        )]);
+
+        // WHEN
+        transaction_synchronizer
+            .fetch_transactions(missing_transactions)
+            .await
+            .unwrap();
+        sleep(Duration::from_millis(1000)).await;
+
+        // THEN
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), 1);
+        assert_eq!(
+            fetched_transactions[0].transaction_ref(),
+            verified_transactions.transaction_ref()
+        );
+
+        transaction_synchronizer.stop().await.unwrap();
+    }
+
     struct MockNetworkClient {
         transactions: Arc<Mutex<HashMap<(AuthorityIndex, TransactionRef), Bytes>>>,
         error_peers: Arc<Mutex<HashMap<AuthorityIndex, ConsensusError>>>,
@@ -3131,7 +3218,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }

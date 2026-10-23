@@ -555,6 +555,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 }
@@ -563,6 +564,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
+    use iota_sdk_move_types::iota_framework::object::UID;
     use iota_sdk_types::{
         CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
         TransactionEvents, TypeTag, Version,
@@ -578,7 +580,6 @@ mod tests {
         coin::TreasuryCap,
         effects::TransactionEffectsExtForTesting,
         error::{IotaError, IotaResult},
-        id::UID,
         messages_checkpoint::CheckpointSequenceNumber,
         object::{MoveStructExt, Object},
         parse_iota_struct_tag,
@@ -755,6 +756,7 @@ mod tests {
                     data: vec![gas_coin.clone()],
                     next_cursor: Some(gas_coin.coin_object_id),
                     has_next_page: false,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -792,6 +794,7 @@ mod tests {
                     data: coins[..limit].to_vec(),
                     next_cursor: Some(coins[limit - 1].coin_object_id),
                     has_next_page: true,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -830,6 +833,7 @@ mod tests {
                     data: vec![coin.clone()],
                     next_cursor: Some(coin.coin_object_id),
                     has_next_page: false,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -875,6 +879,7 @@ mod tests {
                     data: coins[..limit].to_vec(),
                     next_cursor: Some(coins[limit - 1].coin_object_id),
                     has_next_page: true,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -1327,7 +1332,7 @@ mod tests {
     }
 
     mod get_coin_metadata_tests {
-        use iota_types::{coin::CoinMetadata, id::UID};
+        use iota_types::coin::CoinMetadata;
         use mockall::predicate;
 
         use super::{super::*, *};
@@ -1437,13 +1442,12 @@ mod tests {
 
     mod get_total_supply_tests {
         use iota_sdk_move_types::{
-            iota_framework::{bag::Bag, vec_map::VecMap},
+            iota_framework::{bag::Bag, object::UID, vec_map::VecMap},
             iota_system::iota_system_state_inner::SystemParametersV1,
         };
         use iota_types::{
             coin::CoinMetadata,
             gas_coin::IotaTreasuryCap,
-            id::UID,
             iota_system_state::{
                 IotaSystemState,
                 iota_system_state_inner_v1::StorageFundV1,

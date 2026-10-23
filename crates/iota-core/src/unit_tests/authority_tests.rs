@@ -29,6 +29,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
@@ -5062,6 +5063,7 @@ async fn test_execute_randomness_state_update_records_key_to_digest() {
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
     assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
 
+    epoch_store.assign_to_a_new_commit_for_testing(&[key]);
     authority
         .try_execute_immediately(
             &transaction,
@@ -5200,11 +5202,15 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(shared_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(shared_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(clock_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(clock_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
         ];
@@ -7228,11 +7234,17 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7352,11 +7364,17 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7817,11 +7835,17 @@ async fn test_post_consensus_white_flag_no_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7917,7 +7941,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7964,7 +7991,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
 
     let verified_tx2 = epoch_store.verify_transaction(tx2.into()).unwrap();
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -8097,7 +8127,10 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 
     let seq = |tx: VerifiedTransaction| {
         SequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -8288,13 +8321,12 @@ async fn test_consensus_queue_graduated_load_shedding() {
     );
 }
 
-/// Builds an authority with the deny-rule-governance protocol flag toggled.
-async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
+/// Builds an authority with the P-COOL flow, and with it deny rule
+/// governance, toggled.
+async fn authority_with_pcool_flow(enabled: bool) -> Arc<AuthorityState> {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8302,7 +8334,7 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 }
 
 /// The end-of-epoch transaction creates the `TransactionDenyRules` object
-/// exactly when on-chain deny rule governance is enabled and the object does
+/// exactly when the P-COOL flow is enabled and the object does
 /// not exist at epoch start.
 #[rstest::rstest]
 #[tokio::test]
@@ -8316,12 +8348,7 @@ async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-        protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
-        protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-        protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8364,7 +8391,7 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(true).await;
+    let authority = authority_with_pcool_flow(true).await;
     let epoch_store = authority.epoch_store_for_testing();
     // Single-validator test committee: this authority holds all stake and
     // clears both the f+1 and 2f+1 thresholds alone.
@@ -8449,7 +8476,7 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(false).await;
+    let authority = authority_with_pcool_flow(false).await;
     let epoch_store = authority.epoch_store_for_testing();
     let me = epoch_store.name;
 
@@ -8546,6 +8573,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
 
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();

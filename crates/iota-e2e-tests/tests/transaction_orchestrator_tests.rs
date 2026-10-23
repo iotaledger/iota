@@ -14,7 +14,7 @@ use iota_core::{
     authority_client::NetworkAuthorityClient, transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{ObjectReference, TransactionExpiration};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -402,17 +402,24 @@ async fn test_wait_for_local_execution_across_epoch_boundary() {
 }
 
 /// The driver must follow `enable_pcool_flow` across the upgrade that flips
-/// it, without a fullnode restart: boot at v31 (flag off, QuorumDriver),
-/// upgrade to v32 (flag on), and the same orchestrator instance must serve
-/// both sides, post-upgrade via the TransactionDriver.
+/// it, without a fullnode restart: boot one version below the latest with the
+/// flag off (QuorumDriver), upgrade to the latest with the flag on, and the
+/// same orchestrator instance must serve both sides, post-upgrade via the
+/// TransactionDriver.
 ///
-/// No `override_pcool_flow`: the env override would pin the flag for every
-/// version.
+/// The flag is turned off below the latest version by a thread-local override:
+/// Devnet's earlier versions run the P-COOL flow without the settings it
+/// requires. No `override_pcool_flow`: the env override would pin the flag for
+/// every version.
 #[sim_test]
 async fn test_orchestrator_follows_pcool_flag_across_protocol_upgrade() {
     telemetry_subscribers::init_for_testing();
-    const START: u64 = 31;
-    const FINISH: u64 = 32;
+    const FINISH: u64 = ProtocolVersion::MAX.as_u64();
+    const START: u64 = FINISH - 1;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
+        config.set_enable_pcool_flow_for_testing(version.as_u64() >= FINISH);
+        config
+    });
 
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version(START.into())

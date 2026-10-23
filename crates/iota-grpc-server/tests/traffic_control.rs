@@ -13,11 +13,11 @@
 
 mod common;
 
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{collections::HashMap, future::Future, net::IpAddr, sync::Arc};
 
 use common::{
-    MockGrpcStateReader, UnreachableExecutor, create_large_object, start_test_server,
-    start_test_server_with_traffic_controller,
+    MockGrpcStateReader, TestCertificate, UnreachableExecutor, create_large_object,
+    start_test_server, start_test_server_with, start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
 use iota_grpc_server::GrpcServerHandle;
@@ -69,7 +69,7 @@ async fn server_with_policy(
     executor: Option<Arc<dyn TransactionExecutor>>,
 ) -> GrpcServerHandle {
     let client_id_source = policy_config.client_id_source.clone();
-    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None));
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
@@ -82,8 +82,15 @@ async fn server_with_policy(
 
 /// Connect a channel to the test server.
 async fn connect(handle: &GrpcServerHandle) -> Channel {
+    connect_from(handle, None).await
+}
+
+/// Connect a channel to the test server from `local_address`, or from an
+/// address the system picks if it is `None`.
+async fn connect_from(handle: &GrpcServerHandle, local_address: Option<IpAddr>) -> Channel {
     Channel::from_shared(format!("http://{}", handle.address()))
         .unwrap()
+        .local_address(local_address)
         .connect()
         .await
         .expect("failed to connect to test gRPC server")
@@ -159,6 +166,86 @@ async fn handler_errors_feed_the_error_policy() {
         }
     })
     .await;
+}
+
+/// The traffic controller finds the client address also when the client
+/// connects over TLS.
+#[tokio::test]
+async fn handler_errors_over_tls_feed_the_error_policy() {
+    let certificate = TestCertificate::new();
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+        dry_run: false,
+        ..Default::default()
+    };
+    let client_id_source = policy_config.client_id_source.clone();
+    let (handle, _reader) = start_test_server_with(
+        Arc::new(MockGrpcStateReader::default()),
+        None,
+        Some(Arc::new(TrafficController::init_for_test(policy_config))),
+        Some(client_id_source),
+        None,
+        |config| config.tls = Some(certificate.tls_config.clone()),
+    )
+    .await;
+    let client = StateServiceClient::new(certificate.connect(handle.address()).await);
+
+    assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+}
+
+/// The traffic controller blocks a client by its own address: a client from
+/// another address is still served. The server listens on 127.0.0.1, so a
+/// client address that is mixed up with the server address blocks both
+/// clients.
+// Other systems than Linux do not send 127.0.0.2 and 127.0.0.3 to the
+// loopback interface by default.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_blocked_client_does_not_block_a_client_from_another_address() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    )
+    .await;
+    let blocked_client =
+        StateServiceClient::new(connect_from(&handle, Some(IpAddr::from([127, 0, 0, 2]))).await);
+    let other_client =
+        StateServiceClient::new(connect_from(&handle, Some(IpAddr::from([127, 0, 0, 3]))).await);
+
+    assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
+        let mut client = blocked_client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+
+    let status = other_client
+        .clone()
+        .list_owned_objects(ListOwnedObjectsRequest::default())
+        .await
+        .expect_err("a request without an owner must fail");
+    assert_eq!(
+        status.code(),
+        Code::InvalidArgument,
+        "the client from another address must reach the handler: {status:?}"
+    );
 }
 
 /// Batch APIs embed per-item errors inside a successful gRPC response, where
@@ -277,15 +364,12 @@ async fn stream_errors_feed_the_error_policy() {
         objects: HashMap::from([(object_id, object)]),
         ..Default::default()
     });
-    let traffic_controller = Arc::new(TrafficController::init_for_test(
-        PolicyConfig {
-            connection_blocklist_ttl_sec: 120,
-            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
-            dry_run: false,
-            ..Default::default()
-        },
-        None,
-    ));
+    let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+        dry_run: false,
+        ..Default::default()
+    }));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         state_reader,
         traffic_controller,

@@ -1,0 +1,87 @@
+---
+description: 'The errors IotaGrpcClient throws or returns, what each one means, and how to tell them apart.'
+tags:
+  - reference
+  - ts-sdk
+  - typescript
+  - grpc
+teams:
+  - iotaledger/tooling
+---
+
+# Errors
+
+Errors that come from the node or the client extend `IotaGrpcError`. Invalid arguments are caught before anything is sent, and throw a plain `TypeError` or `RangeError` instead.
+
+## Error classes
+
+| Error                        | Raised when                                                                                                                       | Fields                         |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `TransportError`             | The whole call failed: the node could not be reached, refused the request, or the call was cancelled                             | `code` (Connect `Code`), `detail`, `cause` (`ConnectError`) |
+| `ServerError`                | The node refused one item of a batch. It is returned in that item's slot, and thrown by the single-item methods                  | `code` (numeric gRPC code), `detail` |
+| `EmptyRequestError`          | A batch method was called with an empty list                                                                                      |                                |
+| `UnexpectedEndOfStreamError` | A response the node split into several messages ended before the last one                                                         |                                |
+| `ProtoConversionError`       | A field the client or a decoder needs is missing, usually because the read mask left it out, or holds bytes that do not decode   |                                |
+| `SignatureConversionError`   | A signature passed to `executeTransaction(s)` is not a valid serialized signature                                                 |                                |
+| `ProtocolError`              | The node's answer broke the API contract. Base of the classes below                                                               |                                |
+| `TypeError`                  | An address, object ID, digest, type tag, transaction or view argument is malformed. Not an `IotaGrpcError`                        |                                |
+| `RangeError`                 | `maxMessageSizeBytes` or `limit` is out of range. Not an `IotaGrpcError`                                                          |                                |
+
+`ProtocolError` has these subclasses:
+
+| Error                         | Raised when                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| `UnexpectedResultCountError`  | A batch answer has a different number of results than items asked for               |
+| `UnexpectedObjectError`       | A slot of `getObjects` holds a different object than the one asked for there         |
+| `UnexpectedTransactionError`  | A slot of `getTransactions` or `executeTransactions` holds a different transaction   |
+| `UnknownVariantError`         | The node sent a variant this version of the client does not know                     |
+| `EmptyResponseFieldError`     | The node left out a field it must always send                                        |
+| `CheckpointStreamError`       | A checkpoint arrived out of order or incomplete. Base of `DataBeforeHeaderError`, `IncompleteCheckpointError`, `SequenceNumberMismatchError`, `UnknownPayloadError` and `IncompleteStreamError` |
+
+A `ProtocolError` means the node or the client has a bug. Your code did nothing wrong, and the error is worth reporting.
+
+## Status codes
+
+`TransportError.code` and `ServerError.code` are gRPC status codes. Compare them against Connect's `Code` enum:
+
+```ts
+import { Code } from '@connectrpc/connect';
+```
+
+| Code               | Typical cause                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------------- |
+| `NotFound`         | The object or transaction does not exist, was deleted, or was pruned                                      |
+| `FailedPrecondition` | Objects or changes were asked for on a transaction whose objects the node has pruned, or the node runs without gRPC indexes |
+| `InvalidArgument`  | An invalid signature, a view call to a function that is not a view, or a read mask path the node does not know |
+| `Unavailable`      | The node is unreachable, or `getHealth` found its latest checkpoint too old                               |
+| `Canceled`         | The call's `signal` was aborted                                                                           |
+
+## Handle errors
+
+Wrap the call in `try`/`catch` for whole-call failures, and check `ok` on each result of a batch:
+
+```ts
+import { Code } from '@connectrpc/connect';
+import { decodeObject, ServerError, TransportError } from '@iota/grpc';
+
+try {
+    const { body } = await client.getObjects(ids);
+
+    for (const result of body) {
+        if (result.ok) {
+            use(decodeObject(result.value));
+        } else if (result.error instanceof ServerError && result.error.code === Code.NotFound) {
+            console.log('missing');
+        } else {
+            throw result.error;
+        }
+    }
+} catch (error) {
+    if (error instanceof TransportError && error.code === Code.Unavailable) {
+        // Retry later, or try another node.
+    }
+    throw error;
+}
+```
+
+Some failures do not throw at all. A transaction that executes but fails comes back with a `Failed` status in its effects, and a view function that aborts comes back with an `executionError`. See [Simulate and Execute Transactions](how-tos/transactions.mdx) and [Call Move View Functions](how-tos/view-functions.mdx).

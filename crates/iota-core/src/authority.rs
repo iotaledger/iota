@@ -67,7 +67,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
-    deny_list_v1::check_coin_deny_list_v1,
+    deny_list_v1::{check_coin_deny_list_v1, coin_types_for_denylist_check},
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
@@ -110,7 +110,7 @@ use iota_types::{
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    traffic_control::{PolicyConfig, RemoteFirewallConfig, TrafficControlReconfigParams},
+    traffic_control::{PolicyConfig, TrafficControlReconfigParams},
     transaction::*,
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -147,7 +147,9 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
-        authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
+        authority_store_pruner::{
+            AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING, ObjectRetentionGuard,
+        },
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
@@ -173,6 +175,11 @@ use crate::{
     overload_monitor::{
         AuthorityOverloadInfo, compute_graduated_load_shedding_percentage,
         overload_monitor_accept_tx,
+    },
+    post_consensus_input_reader::{
+        AccountVerdict, InputResolution, ReceivingObjectsResolution, ValidationAtCommit,
+        ValidationInputsAtCommit,
+        reader::{CommitIndexedReader, DenyListAtCommit},
     },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
@@ -213,6 +220,10 @@ mod coin_deny_list_tests;
 #[cfg(test)]
 #[path = "unit_tests/pre_execution_failure_tests.rs"]
 mod pre_execution_failure_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/cancelled_move_authenticator_tests.rs"]
+mod cancelled_move_authenticator_tests;
 
 #[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
@@ -320,6 +331,13 @@ pub struct AuthorityMetrics {
     /// post-consensus conflict/lock validation rejected them. Distinct from
     /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
+    /// Results of the commit-indexed reader in post-consensus validation, by
+    /// result (keep, drop or missing) and the reason that decided it. Only
+    /// with deterministic validation on.
+    pub consensus_handler_validation_reader_verdicts: IntCounterVec,
+    /// The commit being validated minus the highest fully executed commit, set
+    /// once per commit. Only with deterministic validation on.
+    pub consensus_handler_commit_execution_lag: IntGauge,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -777,6 +795,17 @@ impl AuthorityMetrics {
                 "Number of UserTransactionV1 transactions dropped by post-consensus validation",
                 registry,
             ).unwrap(),
+            consensus_handler_validation_reader_verdicts: register_int_counter_vec_with_registry!(
+                "consensus_handler_validation_reader_verdicts",
+                "Verdicts of the commit-indexed reader in post-consensus validation, by verdict and deciding reason",
+                &["verdict", "reason"],
+                registry,
+            ).unwrap(),
+            consensus_handler_commit_execution_lag: register_int_gauge_with_registry!(
+                "consensus_handler_commit_execution_lag",
+                "The consensus commit being validated minus the highest fully executed commit",
+                registry,
+            ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
                 "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
@@ -860,6 +889,9 @@ impl AuthorityMetrics {
 ///
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
 pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
+
+/// The checked transaction inputs and, per Move authenticator, its checked inputs.
+type CheckedValidationInputs = (CheckedInputObjects, Vec<CheckedInputObjects>);
 
 /// Execution env contains the "environment" for the transaction to be executed
 /// in, that is, all the information necessary for execution that is not
@@ -1003,11 +1035,14 @@ impl AuthorityState {
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
     ///
+    /// [`Self::handle_transaction_validation_checks_at_commit`] repeats the
+    /// checks after loading the inputs for post-consensus validation at a
+    /// commit, so a check added here belongs there too.
+    ///
     /// `deny_config` is the deny rule source to enforce, chosen per caller:
     /// the local config alone, the local config combined with the governance
     /// rules (admission), or the governance-derived active set alone
-    /// (post-consensus) — the latter two when `deny_rule_governance` is
-    /// enabled.
+    /// (post-consensus) — the latter two with `enable_pcool_flow`.
     ///
     /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
     /// `false` reads the latest value, so denials apply immediately - for
@@ -1029,6 +1064,12 @@ impl AuthorityState {
     ///   validators that skip admission can put such transactions into their blocks anyway, so no
     ///   admission policy can limit how many deterministically-dropped transactions reach
     ///   consensus.
+    ///
+    /// With `enable_pcool_flow`, post-consensus validation does
+    /// not call this function: [`Self::handle_transaction_validation_checks_at_commit`]
+    /// reads the deny list as of the commit's horizon, where a change made
+    /// this epoch counts from the horizon distance after the commit that
+    /// made it.
     ///
     /// `verifier_limits_source` says where the metered bytecode verifier takes
     /// its limits for the packages the transaction publishes. Validator-local
@@ -1239,6 +1280,197 @@ impl AuthorityState {
         }
 
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
+    }
+
+    /// Like [`Self::handle_transaction_validation_checks`], but for
+    /// post-consensus validation at the commit `reader` was built for: the
+    /// inputs and receiving objects are read as of that commit through the
+    /// commit-indexed reader. Returns `Drop` or `Missing` when one of them is
+    /// dropped or not visible yet. Any other failed check returns the same
+    /// `Err` as at admission, except that the coin deny list is read as of the
+    /// reader's horizon, with changes counting from there rather than from the
+    /// next epoch. The Move authenticator's account is not resolved and the
+    /// authenticators are not run here: both happen at execution. Instead,
+    /// each account must have had its authenticator function field at the
+    /// horizon, or the transaction is reported missing. The package that
+    /// field names, and its dependencies, read as of the horizon, are checked
+    /// against the deny rules of the commit, and a denial is returned as
+    /// [`ValidationAtCommit::AuthenticatorPackageDenied`], since it holds for
+    /// every copy of the transaction. So an account whose function is changed
+    /// to a denied package above the horizon is not caught here.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    pub(crate) fn handle_transaction_validation_checks_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+        verifier_limits_source: VerifierLimitsSource<'_>,
+    ) -> IotaResult<ValidationAtCommit> {
+        let protocol_config = epoch_store.protocol_config();
+        let reference_gas_price = epoch_store.reference_gas_price();
+
+        let tx = transaction.data().transaction();
+
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
+            match self.read_objects_for_validation_at_commit(reader, transaction)? {
+                ValidationInputsAtCommit::Loaded {
+                    tx_input_objects,
+                    tx_receiving_objects,
+                    per_authenticator_inputs,
+                } => (
+                    tx_input_objects,
+                    tx_receiving_objects,
+                    per_authenticator_inputs,
+                ),
+                ValidationInputsAtCommit::Drop(kind, reason) => {
+                    return Ok(ValidationAtCommit::Drop(kind, reason));
+                }
+                ValidationInputsAtCommit::Missing(kind, reason) => {
+                    return Ok(ValidationAtCommit::Missing(kind, reason));
+                }
+            };
+
+        // The deny rules load packages through the reader. They run after the
+        // inputs are loaded, so a call into a package not visible at this
+        // commit has already answered missing instead of failing here as not
+        // found.
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx,
+            transaction.signatures(),
+            &transaction.input_objects()?,
+            &tx.receiving_objects(),
+            deny_config,
+            reader,
+        )?;
+
+        let move_authenticators = transaction.move_authenticators();
+
+        // The account is not resolved and the authenticators are not run
+        // here. Both read a shared object's contents, and a shared input names
+        // no version, so this would read whatever version this validator
+        // holds, which differs between validators. Execution reads every
+        // shared input at the version consensus assigned, so both happen
+        // there, and a failure there produces failure effects. What is left
+        // here asks only what the rows can answer: whether each authenticator
+        // input exists and is what the transaction declares, and whether each
+        // account had its authenticator function field at the horizon. That
+        // field also names the package checked against the deny rules below,
+        // and an account without it is reported missing last.
+        let (tx_checked_input_objects, per_authenticator_checked_inputs) = self
+            .check_transaction_inputs_at_commit(
+                protocol_config,
+                reference_gas_price,
+                tx,
+                tx_input_objects,
+                &tx_receiving_objects,
+                &move_authenticators,
+                per_authenticator_inputs,
+                verifier_limits_source,
+            )?;
+
+        let per_authenticator_checked_input_objects =
+            per_authenticator_checked_inputs.iter().collect::<Vec<_>>();
+
+        debug_assert!(
+            per_authenticator_checked_input_objects
+                .iter()
+                .all(|objects| objects.inner().filter_owned_objects().is_empty()),
+            "Move authenticator input objects must not contain owned objects"
+        );
+
+        // Each account's authenticator function field as of the horizon, read
+        // once: the deny check below reads the package it names, and an
+        // account without it is reported missing last.
+        let accounts = move_authenticators
+            .iter()
+            .map(|move_authenticator| {
+                let account_kind = move_authenticator
+                    .object_to_authenticate()
+                    .input_object_kind()
+                    .expect("the object to authenticate is validated before consensus");
+                Ok((account_kind, reader.read_account(account_kind.object_id())?))
+            })
+            .collect::<IotaResult<Vec<_>>>()?;
+
+        // The package holding each authenticate function, as at admission,
+        // but named by the account's field as of the horizon, the same on
+        // every validator.
+        if protocol_config.deny_authenticator_packages() && deny_config.has_denied_packages() {
+            let mut function_refs = Vec::new();
+            for (account_kind, verdict) in &accounts {
+                if let AccountVerdict::Account(field) = verdict {
+                    function_refs.extend(
+                        reader
+                            .visible_authenticator_function_ref(account_kind.object_id(), field)?,
+                    );
+                }
+            }
+            if let Err(error) = iota_transaction_checks::deny::check_authenticator_packages(
+                deny_config,
+                &function_refs,
+                reader,
+            ) {
+                if error.is_storage_or_epoch_error() {
+                    return Err(error);
+                }
+                return Ok(ValidationAtCommit::AuthenticatorPackageDenied(error));
+            }
+        }
+
+        // The sender against the coin types of its inputs and receiving
+        // objects, as at admission, but with the deny list as of the horizon,
+        // the same on every validator. A kept receiving object was loaded at
+        // the version the transaction names. A shared input's object is not
+        // loaded, so its type is read on its own. Execution also checks the
+        // coins Move code receives, and the coins it writes, against the deny
+        // list as the epoch started.
+        let mut shared_objects = Vec::new();
+        for input in tx_checked_input_objects.inner().iter().chain(
+            per_authenticator_checked_input_objects
+                .iter()
+                .flat_map(|objects| objects.inner().iter()),
+        ) {
+            if let (
+                InputObjectKind::SharedMoveObject {
+                    id,
+                    initial_shared_version,
+                    ..
+                },
+                None,
+            ) = (input.input_object_kind, input.as_object())
+            {
+                shared_objects
+                    .push(reader.read_shared_object_for_type(id, initial_shared_version)?);
+            }
+        }
+        let coin_types = coin_types_for_denylist_check(
+            tx_checked_input_objects
+                .inner()
+                .iter_objects()
+                .chain(
+                    per_authenticator_checked_input_objects
+                        .iter()
+                        .flat_map(|objects| objects.inner().iter_objects()),
+                )
+                .chain(&shared_objects)
+                .chain(tx_receiving_objects.iter_objects()),
+        );
+        if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
+            return Err(denial.into());
+        }
+
+        // Last, so a check that rejects the transaction outright is reported
+        // rather than a missing verdict that invites a resubmission.
+        for (account_kind, verdict) in accounts {
+            if let AccountVerdict::Missing(reason) = verdict {
+                return Ok(ValidationAtCommit::Missing(account_kind, reason));
+            }
+        }
+
+        Ok(ValidationAtCommit::Keep(
+            tx_checked_input_objects.inner().filter_owned_objects(),
+        ))
     }
 
     /// This is a private method and should be kept that way. It doesn't check
@@ -1616,13 +1848,17 @@ impl AuthorityState {
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
     /// checking errors if the pre-conditions are not satisfied, and
-    /// executing change epoch transactions.
+    /// executing change epoch transactions. With the P-COOL flow, a committee
+    /// validator executes only transactions of commits its consensus handler
+    /// assigned, so a transaction the handler has not assigned is assigned to
+    /// a new commit first.
     pub fn try_execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
         execution_env: ExecutionEnv,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
+        epoch_store.assign_to_a_new_commit_for_testing(&[certificate.key()]);
         let (effects, execution_error_opt) = self.try_execute_immediately(
             &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
             execution_env,
@@ -1869,6 +2105,21 @@ impl AuthorityState {
             epoch_store.insert_tx_key(key, *tx_digest)?;
         }
 
+        // Genesis and the change-epoch transaction are roots of no consensus
+        // commit, so the handler never assigns them one and recording them
+        // would stop the node. Without rows, the reader takes what they wrote
+        // as epoch-start state: genesis writes the first epoch's, the
+        // change-epoch transaction the next epoch's. The migration transactions
+        // executed at epoch 0 are genesis transactions too: node startup first
+        // re-executes each one through `execute_genesis_transaction`, which
+        // asserts its kind, to collect the genesis objects.
+        if epoch_store.pcool_bookkeeping_enabled()
+            && !transaction.transaction().is_genesis_tx()
+            && !transaction.transaction().is_end_of_epoch_tx()
+        {
+            epoch_store.record_executed_transaction(&key, effects);
+        }
+
         // Allow testing what happens if we crash here.
         fail_point!("crash");
 
@@ -2054,12 +2305,11 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            // The first account that cannot be resolved fails the transaction before
-            // any authenticator runs. The remaining inputs are still collected, since
-            // for the failure effects, we have to charge gas for those inputs.
-            let mut pre_execution_error = None;
+            // The first account that cannot be resolved fails the transaction. The
+            // remaining inputs are still collected, since the failure effects need
+            // them whether or not anyone is charged gas.
             let mut per_authenticator_input_objects = Vec::with_capacity(move_authenticators.len());
-            let mut function_refs = Vec::with_capacity(move_authenticators.len());
+            let mut resolutions = Vec::with_capacity(move_authenticators.len());
             for (move_authenticator, (authenticator_input_objects, account_object)) in
                 move_authenticators.iter().zip(per_authenticator_inputs)
             {
@@ -2078,21 +2328,14 @@ impl AuthorityState {
                 // so post-consensus validation cannot keep this check. Here, an
                 // account that fails it produces failure effects instead of a
                 // panic.
-                match self.check_move_account_for_execution(
+                resolutions.push(self.check_move_account_for_execution(
                     account_object_id,
                     account_object_version,
                     account_object_digest,
                     account_object,
                     &move_authenticator.address(),
                     protocol_config,
-                ) {
-                    Ok(function_ref) => function_refs.push(function_ref),
-                    Err(error) => {
-                        if pre_execution_error.is_none() {
-                            pre_execution_error = Some(error);
-                        }
-                    }
-                }
+                ));
 
                 per_authenticator_input_objects.push(authenticator_input_objects);
             }
@@ -2126,45 +2369,60 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
-            // With a pre-execution failure, no authenticator runs, the gas owner's
-            // included, so the executor gets the failure in place of the list. That
-            // changes neither
-            // who pays nor the outcome: the gas owner is charged either way, as
-            // when the first authenticator fails.
-            let move_authenticators = if pre_execution_error.is_some() {
-                Vec::new()
-            } else {
-                debug_assert_eq!(
-                    move_authenticators.len(),
-                    per_authenticator_checked_input_objects.len(),
-                    "Move authenticators amount must match the number of checked authenticator inputs"
-                );
-                move_authenticators
-                    .into_iter()
-                    .zip(function_refs)
-                    .zip(per_authenticator_checked_input_objects)
-                    .map(
-                        |(
-                            (move_authenticator, function_ref),
-                            authenticator_checked_input_objects,
-                        )| {
-                            MoveAuthenticatorForExecution {
-                                authenticator: move_authenticator.to_owned(),
-                                function_ref,
-                                input_objects: authenticator_checked_input_objects,
-                            }
-                        },
-                    )
-                    .collect::<Vec<_>>()
-            };
-
+            // The function refs of the accounts that resolved, so an
+            // authenticator that runs after another account failed to resolve
+            // still finds its own.
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|a| a.authenticator.address() == address)
-                        .map(|a| a.function_ref.authenticator_function_ref.clone())
+                        .zip(&resolutions)
+                        .find(|(move_authenticator, _)| move_authenticator.address() == address)
+                        .and_then(|(_, resolution)| resolution.as_ref().ok())
+                        .map(|function_ref| function_ref.authenticator_function_ref.clone())
                 });
+
+            let accounts = move_authenticators
+                .iter()
+                .map(|move_authenticator| move_authenticator.address())
+                .collect::<Vec<_>>();
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_checked_input_objects.len(),
+                "Move authenticators amount must match the number of checked authenticator inputs"
+            );
+            // Under deterministic validation, a gas owner that cannot be resolved
+            // did not authorize the transaction, so nobody pays; its own failure is
+            // then the one reported.
+            let deterministic_validation = protocol_config.enable_pcool_flow();
+            let mut first_resolution_error = None;
+            let mut gas_owner_resolution_error = None;
+            let mut resolved_authenticators = Vec::with_capacity(move_authenticators.len());
+            for ((move_authenticator, resolution), authenticator_checked_input_objects) in
+                move_authenticators
+                    .into_iter()
+                    .zip(resolutions)
+                    .zip(per_authenticator_checked_input_objects)
+            {
+                match resolution {
+                    Ok(function_ref) => {
+                        resolved_authenticators.push(MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref,
+                            input_objects: authenticator_checked_input_objects,
+                        })
+                    }
+                    Err(error)
+                        if deterministic_validation
+                            && move_authenticator.address() == gas_data.owner =>
+                    {
+                        gas_owner_resolution_error = Some(error);
+                    }
+                    Err(error) => {
+                        first_resolution_error.get_or_insert(error);
+                    }
+                }
+            }
 
             let auth_context_data = AuthContextData {
                 transaction_data_bytes: tx_bytes,
@@ -2174,9 +2432,24 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            let authenticators = match pre_execution_error {
-                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed(error),
-                None => MoveAuthenticatorsForExecution::Resolved(move_authenticators),
+            // With a resolution failure, the executor gets the failure in place of
+            // the list, with the accounts the authenticators would have
+            // authenticated and, under deterministic validation, the gas owner's
+            // authenticator if its account resolved, so it can decide who pays.
+            let authenticators = match gas_owner_resolution_error.or(first_resolution_error) {
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
+                    error,
+                    accounts,
+                    gas_owner: if deterministic_validation {
+                        resolved_authenticators
+                            .into_iter()
+                            .find(|resolved| resolved.authenticator.address() == gas_data.owner)
+                            .map(Box::new)
+                    } else {
+                        None
+                    },
+                },
+                None => MoveAuthenticatorsForExecution::Resolved(resolved_authenticators),
             };
 
             epoch_store
@@ -3098,10 +3371,17 @@ impl AuthorityState {
         chain_identifier: ChainIdentifier,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
-        firewall_config: Option<RemoteFirewallConfig>,
         epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
+
+        // Read by the quarantine flush and the execution watcher; the next
+        // epoch's store inherits it.
+        epoch_store.set_effects_store(
+            execution_cache_trait_pointers
+                .transaction_cache_reader
+                .clone(),
+        );
 
         let metrics = Arc::new(AuthorityMetrics::new(prometheus_registry));
         let (tx_ready_transactions, rx_ready_transactions) = unbounded_channel();
@@ -3133,6 +3413,7 @@ impl AuthorityState {
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
             checkpoint_progress_tracker.clone(),
+            epoch_store.object_pruning_limit(),
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -3144,7 +3425,6 @@ impl AuthorityState {
             Arc::new(TrafficController::init(
                 policy_config,
                 traffic_controller_metrics,
-                firewall_config.clone(),
             ))
         });
         let state = Arc::new(AuthorityState {
@@ -3242,6 +3522,15 @@ impl AuthorityState {
         self.execution_cache_trait_pointers
             .testing_api
             .database_for_testing()
+    }
+
+    /// Drops the committed versions of `id` the execution cache holds in
+    /// memory, so the next read of a committed version goes to the database.
+    #[cfg(test)]
+    pub fn evict_committed_object_for_testing(&self, id: &ObjectId) {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .evict_committed_object_for_testing(id)
     }
 
     pub async fn prune_checkpoints_for_eligible_epochs_for_testing(
@@ -4284,6 +4573,15 @@ impl AuthorityState {
         &self.pruner
     }
 
+    /// Keeps the object versions that transactions in the highest executed
+    /// checkpoint, and in every later one, supersede readable until the
+    /// returned guard is dropped. Take it before submitting a transaction whose
+    /// input or output objects are read from the store once it is
+    /// checkpointed.
+    pub fn retain_objects(&self) -> ObjectRetentionGuard {
+        self.pruner.retain_objects()
+    }
+
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
         self.get_checkpoint_store()
             .get_highest_executed_checkpoint_seq_number()?
@@ -5298,9 +5596,7 @@ impl AuthorityState {
         // committee injects (or skips) the kind together. If this epoch
         // change falls into safe mode the creation is dropped with it, the
         // object stays absent, and the next epoch end injects it again.
-        if epoch_store
-            .protocol_config()
-            .deny_rule_governance_on_chain()
+        if epoch_store.protocol_config().enable_pcool_flow()
             && epoch_store
                 .epoch_start_config()
                 .transaction_deny_rules_obj_initial_shared_version()
@@ -5846,6 +6142,12 @@ impl AuthorityState {
             // dynamic field because it is greater than the version of the child dynamic
             // field.
             (ObjectReadResultKind::CancelledTransactionObject(version), true) => Ok(*version),
+            // A transaction validated post-consensus at a commit leaves its account
+            // to execution, which reads it, so no check gets an unread account.
+            (ObjectReadResultKind::UnreadSharedObject, _) => unreachable!(
+                "only post-consensus validation at a commit lists an unread shared object, and \
+                    it leaves the account to execution"
+            ),
         }?;
 
         let authenticator_function_ref_field_id =
@@ -5900,6 +6202,49 @@ impl AuthorityState {
                     per_authenticator_inputs,
                 )
             })
+    }
+
+    /// Like [`Self::read_objects_for_validation`], but for post-consensus
+    /// validation at the commit `reader` was built for. Every input and every
+    /// receiving object comes from the commit-indexed reader, the inputs
+    /// first, so the first of them that decides is reported as at admission.
+    fn read_objects_for_validation_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        transaction: &VerifiedTransaction,
+    ) -> IotaResult<ValidationInputsAtCommit> {
+        let input_objects = match self.input_loader.read_objects_at_commit(
+            reader,
+            &transaction.collect_all_input_object_kind_for_reading()?,
+        )? {
+            InputResolution::Loaded(input_objects) => input_objects,
+            InputResolution::Drop(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Drop(kind, reason));
+            }
+            InputResolution::Missing(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Missing(kind, reason));
+            }
+        };
+        let tx_receiving_objects = match self.input_loader.read_receiving_objects_at_commit(
+            reader,
+            &transaction.data().transaction().receiving_objects(),
+        )? {
+            ReceivingObjectsResolution::Loaded(receiving_objects) => receiving_objects,
+            ReceivingObjectsResolution::Drop(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Drop(kind, reason));
+            }
+            ReceivingObjectsResolution::Missing(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Missing(kind, reason));
+            }
+        };
+
+        let (tx_input_objects, per_authenticator_inputs) =
+            transaction.split_input_objects_into_groups_for_reading(input_objects)?;
+        Ok(ValidationInputsAtCommit::Loaded {
+            tx_input_objects,
+            tx_receiving_objects,
+            per_authenticator_inputs,
+        })
     }
 
     #[allow(clippy::type_complexity)]
@@ -5991,6 +6336,68 @@ impl AuthorityState {
             tx_checked_input_objects,
             per_authenticator_checked_inputs,
         ))
+    }
+
+    /// Like [`Self::check_transaction_inputs_for_validation`], but for
+    /// post-consensus validation at a commit. One difference: the Move
+    /// account is not resolved here, only the authenticator's inputs are
+    /// checked, so no function reference comes back. The receiving objects,
+    /// read through the commit-indexed reader, get the same checks as at
+    /// admission.
+    fn check_transaction_inputs_at_commit(
+        &self,
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+        tx: &Transaction,
+        tx_input_objects: InputObjects,
+        tx_receiving_objects: &ReceivingObjects,
+        move_authenticators: &[&MoveAuthenticator],
+        per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        verifier_limits_source: VerifierLimitsSource<'_>,
+    ) -> IotaResult<CheckedValidationInputs> {
+        let authenticator_gas_budget = if move_authenticators.is_empty() {
+            0
+        } else {
+            protocol_config.max_auth_gas()
+        };
+
+        debug_assert_eq!(
+            move_authenticators.len(),
+            per_authenticator_inputs.len(),
+            "Move authenticators amount must match the number of authenticator inputs"
+        );
+
+        // The account object is among the authenticator's inputs. An account
+        // named as a shared object was decided by the reader from its rows,
+        // which drop the transaction when the object was not created shared.
+        // An account named as an immutable-or-owned input was read at the
+        // version the transaction names, and this check rejects one owned by
+        // an address or by another object. An immutable account is not
+        // rejected here. Looking up the account's authenticator function is
+        // left to execution.
+        let per_authenticator_checked_inputs = per_authenticator_inputs
+            .into_iter()
+            .map(|(authenticator_input_objects, _account_object)| {
+                iota_transaction_checks::check_move_authenticator_input_for_validation(
+                    authenticator_input_objects,
+                )
+            })
+            .collect::<IotaResult<Vec<_>>>()?;
+
+        // The gas status only meters an authenticator run, which does not happen here.
+        let (_gas_status, tx_checked_input_objects) =
+            iota_transaction_checks::check_transaction_input(
+                protocol_config,
+                reference_gas_price,
+                tx,
+                tx_input_objects,
+                tx_receiving_objects,
+                &self.metrics.bytecode_verifier_metrics,
+                verifier_limits_source,
+                authenticator_gas_budget,
+            )?;
+
+        Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
     }
 
     #[cfg(test)]

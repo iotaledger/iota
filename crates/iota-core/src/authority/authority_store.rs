@@ -15,7 +15,6 @@ use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::VerifiedExecutionData,
-    effects::TransactionEffectsExt,
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
@@ -1137,105 +1136,6 @@ impl AuthorityStore {
         batch.write().unwrap();
     }
 
-    /// This function is called at the end of epoch for each transaction that's
-    /// executed locally on the validator but didn't make to the last
-    /// checkpoint. The effects of the execution is reverted here.
-    /// The following things are reverted:
-    /// 1. All new object states are deleted.
-    /// 2. owner_index table change is reverted.
-    ///
-    /// NOTE: transaction and effects are intentionally not deleted. It's
-    /// possible that if this node is behind, the network will execute the
-    /// transaction in a later epoch. In that case, we need to keep it saved
-    /// so that when we receive the checkpoint that includes it from state
-    /// sync, we are able to execute the checkpoint.
-    /// TODO: implement GC for transactions that are no longer needed.
-    pub fn revert_state_update(&self, tx_digest: &TransactionDigest) -> IotaResult {
-        let Some(effects) = self.get_executed_effects(tx_digest)? else {
-            info!("Not reverting {:?} as it was not executed", tx_digest);
-            return Ok(());
-        };
-
-        info!(?tx_digest, ?effects, "reverting transaction");
-
-        // We should never be reverting shared object transactions.
-        assert!(effects.input_shared_objects().is_empty());
-
-        let mut write_batch = self.perpetual_tables.transactions.batch();
-        write_batch.delete_batch(
-            &self.perpetual_tables.executed_effects,
-            iter::once(tx_digest),
-        )?;
-        if effects.events_digest().is_some() {
-            write_batch.delete_batch(&self.perpetual_tables.events_2, [tx_digest])?;
-        }
-
-        let tombstones = effects
-            .all_tombstones()
-            .into_iter()
-            .map(|(id, version)| ObjectKey(id, version));
-        write_batch.delete_batch(&self.perpetual_tables.objects, tombstones)?;
-
-        let all_new_object_keys = effects
-            .all_changed_objects()
-            .into_iter()
-            .map(|(changed, _)| {
-                ObjectKey(changed.reference().object_id, changed.reference().version)
-            });
-        write_batch.delete_batch(&self.perpetual_tables.objects, all_new_object_keys.clone())?;
-
-        let modified_object_keys = effects
-            .modified_at_versions()
-            .into_iter()
-            .map(|modified| ObjectKey(*modified.object_id(), modified.version()));
-
-        macro_rules! get_objects_and_locks {
-            ($object_keys: expr) => {
-                self.perpetual_tables
-                    .objects
-                    .multi_get($object_keys.clone())?
-                    .into_iter()
-                    .zip($object_keys)
-                    .filter_map(|(obj_opt, key)| {
-                        let obj = self
-                            .perpetual_tables
-                            .object(
-                                &key,
-                                obj_opt.unwrap_or_else(|| {
-                                    panic!("Older object version not found: {:?}", key)
-                                }),
-                            )
-                            .expect("Matching indirect object not found")?;
-
-                        if obj.is_immutable() {
-                            return None;
-                        }
-
-                        let obj_ref = obj.object_ref();
-                        Some(obj.is_address_owned().then_some(obj_ref))
-                    })
-            };
-        }
-
-        let old_locks = get_objects_and_locks!(modified_object_keys);
-        let new_locks = get_objects_and_locks!(all_new_object_keys);
-
-        let old_locks: Vec<_> = old_locks.flatten().collect();
-
-        // Re-create old live markers.
-        self.initialize_live_object_markers_impl(&mut write_batch, &old_locks)?;
-
-        // Delete new live markers
-        write_batch.delete_batch(
-            &self.perpetual_tables.live_owned_object_markers,
-            new_locks.flatten(),
-        )?;
-
-        write_batch.write()?;
-
-        Ok(())
-    }
-
     /// Return the object with version less then or eq to the provided seq
     /// number. This is used by indexer to find the correct version of
     /// dynamic field child object. We do not store the version of the child
@@ -1615,6 +1515,8 @@ impl AuthorityStore {
             AuthorityStorePruningMetrics::new_for_test(),
             EPOCH_DURATION_MS_FOR_TESTING,
             None,
+            None,
+            None,
         )
         .await;
         let _ = AuthorityStorePruner::compact(&self.perpetual_tables);
@@ -1663,17 +1565,6 @@ impl GlobalStateHashStore for AuthorityStore {
             .root_state_hash_by_epoch
             .get(&epoch)
             .map_err(Into::into)
-    }
-
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
-        Ok(self
-            .perpetual_tables
-            .root_state_hash_by_epoch
-            .safe_range_iter_reversed(..)
-            .next()
-            .transpose()?)
     }
 
     fn insert_state_hash_for_epoch(

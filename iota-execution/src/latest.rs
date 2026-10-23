@@ -308,7 +308,7 @@ impl verifier::Verifier for Verifier<'_> {
         Box::new(IotaVerifierMeter::new(config))
     }
 
-    fn override_deprecate_global_storage_ops_during_deserialization(&self) -> Option<bool> {
+    fn override_deprecate_global_storage_ops(&self) -> Option<bool> {
         Some(true)
     }
 

@@ -11,7 +11,10 @@ use std::{
     time::Duration,
 };
 
-use iota_config::{local_ip_utils, node::GrpcApiConfig};
+use iota_config::{
+    local_ip_utils,
+    node::{GrpcApiConfig, TlsConfig},
+};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_grpc_types::v1::{
     move_package_service::move_package_service_client::MovePackageServiceClient,
@@ -45,7 +48,7 @@ use iota_types::{
     transaction::VerifiedTransaction,
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
-use tonic::transport::Channel;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig};
 
 // ---------------------------------------------------------------------------
 // Stream invariant helpers
@@ -249,6 +252,42 @@ impl TransactionExecutor for UnreachableExecutor {
         _timeout: Duration,
     ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
         unreachable!("test requests must fail validation before execution")
+    }
+}
+
+/// A `TransactionExecutor` whose executions never finish. `started` is
+/// notified when an execution starts.
+#[derive(Default)]
+pub struct PendingExecutor {
+    pub started: tokio::sync::Notify,
+}
+
+#[async_trait::async_trait]
+impl TransactionExecutor for PendingExecutor {
+    async fn execute_transaction(
+        &self,
+        _request: ExecuteTransactionRequestV1,
+        _skip_certification: bool,
+        _client_addr: Option<std::net::SocketAddr>,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        self.started.notify_one();
+        std::future::pending().await
+    }
+
+    fn simulate_transaction(
+        &self,
+        _transaction: Transaction,
+        _checks: VmChecks,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        unreachable!("test requests only execute transactions")
+    }
+
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        _digests: &[TransactionDigest],
+        _timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        unreachable!("test executions never finish")
     }
 }
 
@@ -802,4 +841,54 @@ pub async fn connect_move_package_service_client(
         .await
         .unwrap();
     MovePackageServiceClient::new(channel)
+}
+
+// ---------------------------------------------------------------------------
+// TLS helpers
+// ---------------------------------------------------------------------------
+
+/// A self-signed certificate for `localhost`, in files that a server's TLS
+/// config points to.
+pub struct TestCertificate {
+    pub tls_config: TlsConfig,
+    certificate_pem: String,
+    _dir: tempfile::TempDir,
+}
+
+impl TestCertificate {
+    pub fn new() -> Self {
+        let rcgen::CertifiedKey { cert, key_pair } =
+            rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("cert.pem");
+        let key_path = dir.path().join("key.pem");
+        std::fs::write(&cert_path, cert.pem()).unwrap();
+        std::fs::write(&key_path, key_pair.serialize_pem()).unwrap();
+        let tls_config = serde_json::from_value(serde_json::json!({
+            "cert": cert_path,
+            "key": key_path,
+        }))
+        .unwrap();
+        Self {
+            tls_config,
+            certificate_pem: cert.pem(),
+            _dir: dir,
+        }
+    }
+
+    /// Connects to the TLS server at `address`, trusting only this
+    /// certificate.
+    pub async fn connect(&self, address: std::net::SocketAddr) -> Channel {
+        Channel::from_shared(format!("https://{address}"))
+            .unwrap()
+            .tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(Certificate::from_pem(&self.certificate_pem))
+                    .domain_name("localhost"),
+            )
+            .unwrap()
+            .connect()
+            .await
+            .expect("failed to connect to the TLS gRPC server")
+    }
 }

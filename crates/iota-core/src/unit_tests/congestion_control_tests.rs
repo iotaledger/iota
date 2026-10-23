@@ -15,6 +15,7 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -1069,7 +1070,10 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     };
     let seq = |tx: &VerifiedTransaction| {
         VerifiedSequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.clone().into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -1081,7 +1085,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
         let epoch_store = epoch_store.clone();
         let authority = &authority;
         async move {
-            let mut output = ConsensusCommitOutput::new(round);
+            let mut output = ConsensusCommitOutput::new(round, round);
             // Roots are prefilled per transaction by randomness use, as the
             // commit boundary does; scheduling filters out deferred ones.
             let mut non_randomness_roots = BTreeSet::new();
@@ -1125,7 +1129,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                     &[],
                     &Arc::new(CheckpointServiceNoop {}),
                     authority.get_object_cache_reader().as_ref(),
-                    &ConsensusCommitInfo::new_for_test(round, 0, true),
+                    &ConsensusCommitInfo::new_for_test(round, round, 0, true),
                     &mut non_randomness_roots,
                     &mut randomness_roots,
                     PreviouslyDeferredTransactions::default(),
@@ -1306,7 +1310,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone().into(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1395,6 +1401,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
@@ -1496,7 +1505,9 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1651,7 +1662,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1739,6 +1752,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,

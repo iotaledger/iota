@@ -16,7 +16,7 @@ use std::{
     io::Write,
     path::Path,
     pin::Pin,
-    sync::{Arc, Weak},
+    sync::{Arc, OnceLock, Weak},
     task::{Context, Poll},
     time::{Duration, SystemTime},
 };
@@ -27,6 +27,7 @@ use iota_common::{
     random::get_rng,
     sync::notify_read::{CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME, NotifyRead},
 };
+use iota_macros::{fail_point, fail_point_async};
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
@@ -86,6 +87,7 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+        authority_store_tables::AuthorityPerpetualTables,
     },
     authority_client::{
         make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
@@ -255,6 +257,26 @@ pub struct CheckpointStore {
     full_checkpoint_contents_cache: FullCheckpointContentsCache,
     synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
     executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
+    locally_computed_checkpoint_notify_read:
+        NotifyRead<CheckpointSequenceNumber, CheckpointSummary>,
+    epoch_last_checkpoint_notify_read: NotifyRead<EpochId, CheckpointSequenceNumber>,
+    /// Set by [`Self::hold_synced_watermark_in_memory`]; empty while the saved
+    /// synced watermark is the one readers see.
+    synced_in_memory: OnceLock<SyncedWatermarkInMemory>,
+    /// Held for the whole of every write of the synced watermark, whether or
+    /// not it is held in memory, so that writes apply one at a time and the
+    /// saved watermark never passes the one readers see. Readers never take
+    /// it. Taken before the lock on the value held in memory.
+    synced_writes: Mutex<()>,
+}
+
+/// The synced watermark readers see, held in memory while the saved one only
+/// moves over checkpoints whose contents are stored.
+struct SyncedWatermarkInMemory {
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
+    /// Locked only to copy or replace the value, never across a read of the
+    /// store, so readers do not wait for one.
+    highest_synced: Mutex<Option<(CheckpointSequenceNumber, CheckpointDigest)>>,
 }
 
 impl CheckpointStore {
@@ -282,6 +304,10 @@ impl CheckpointStore {
             full_checkpoint_contents_cache: contents_cache,
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
+            locally_computed_checkpoint_notify_read: NotifyRead::new(),
+            epoch_last_checkpoint_notify_read: NotifyRead::new(),
+            synced_in_memory: OnceLock::new(),
+            synced_writes: Mutex::new(()),
         })
     }
 
@@ -429,11 +455,18 @@ impl CheckpointStore {
     ///
     /// Only the verified, synced and executed rows name a checkpoint. The
     /// pruner writes a random digest for `HighestPruned`, since nothing reads
-    /// it, so that row's sequence number is the only part worth having.
+    /// it, so that row's sequence number is the only part worth having. While
+    /// the synced watermark readers see is held in memory, `HighestSynced`
+    /// answers with that one instead of the saved row.
     fn get_watermark(
         &self,
         watermark: CheckpointWatermark,
     ) -> Result<Option<(CheckpointSequenceNumber, CheckpointDigest)>, TypedStoreError> {
+        if matches!(watermark, CheckpointWatermark::HighestSynced) {
+            if let Some(in_memory) = self.synced_in_memory.get() {
+                return Ok(*in_memory.highest_synced.lock());
+            }
+        }
         self.tables.watermarks.get(&watermark)
     }
 
@@ -654,6 +687,14 @@ impl CheckpointStore {
             )?;
         batch.write()?;
 
+        for checkpoint in checkpoints
+            .iter()
+            .filter(|c| c.next_epoch_committee().is_some())
+        {
+            self.epoch_last_checkpoint_notify_read
+                .notify(&checkpoint.epoch(), &checkpoint.sequence_number());
+        }
+
         for checkpoint in checkpoints {
             if let Some(local_checkpoint) = self
                 .tables
@@ -696,37 +737,54 @@ impl CheckpointStore {
         Ok(())
     }
 
+    /// Marks `checkpoint` as synced. Returns whether the watermark moved; see
+    /// [`Self::multi_update_highest_synced_checkpoint`].
     pub fn update_highest_synced_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         self.multi_update_highest_synced_checkpoint(std::slice::from_ref(checkpoint))
     }
 
     /// Marks a consecutive run of checkpoints as synced: writes the watermark
     /// once, for the last checkpoint, and notifies the waiters that write
     /// releases. Does nothing when another writer has already carried the
-    /// watermark past the run.
+    /// watermark past the run, or when the run starts above the checkpoint
+    /// after the watermark. Returns whether the watermark moved.
+    ///
+    /// Tooling that has to set the watermark regardless uses
+    /// [`Self::set_highest_synced_checkpoint_subtle`].
     pub fn multi_update_highest_synced_checkpoint(
         &self,
         checkpoints: &[VerifiedCheckpoint],
-    ) -> Result<(), TypedStoreError> {
+    ) -> Result<bool, TypedStoreError> {
         let Some(last) = checkpoints.last() else {
-            return Ok(());
+            return Ok(false);
         };
 
         // Only ever forwards, like the other two: another writer advances this
         // as well, and moving it back offers contents that may not be there.
         let previous = self.get_highest_synced_checkpoint_seq_number()?;
+        // The watermark promises that the contents of every checkpoint up to
+        // it are stored, and a writer stores them only for the run it marks.
+        // A run that starts above the checkpoint after the watermark would
+        // pass checkpoints whose contents may still be missing; they are
+        // marked synced once the checkpoints before them are.
+        let first = checkpoints[0].sequence_number();
+        if previous.is_some_and(|previous_seq_number| first > previous_seq_number + 1) {
+            debug!(
+                checkpoint_seq = first,
+                highest_synced = previous,
+                "Not marking checkpoints synced before the ones below them",
+            );
+            return Ok(false);
+        }
         if previous.is_none_or(|previous_seq_number| previous_seq_number < last.sequence_number()) {
             debug!(
                 checkpoint_seq = last.sequence_number(),
                 "Updating highest synced checkpoint",
             );
-            self.tables.watermarks.insert(
-                &CheckpointWatermark::HighestSynced,
-                &(last.sequence_number(), *last.digest()),
-            )?;
+            self.write_highest_synced(last)?;
 
             // A reader parks only below the watermark, so only what this
             // write has just passed can have anyone waiting on it.
@@ -736,8 +794,9 @@ impl CheckpointStore {
                 self.synced_checkpoint_notify_read
                     .notify(&checkpoint.sequence_number(), checkpoint);
             }
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
     async fn notify_read_checkpoint_watermark<F>(
@@ -795,6 +854,49 @@ impl CheckpointStore {
         .await
     }
 
+    /// Waits until this node's checkpoint builder has built checkpoint `seq`.
+    pub async fn notify_read_locally_computed_checkpoint(
+        &self,
+        seq: CheckpointSequenceNumber,
+    ) -> CheckpointSummary {
+        self.locally_computed_checkpoint_notify_read
+            .read("notify_read_locally_computed_checkpoint", &[seq], |seqs| {
+                Ok::<_, TypedStoreError>(vec![self.get_locally_computed_checkpoint(seqs[0])?])
+            })
+            .await
+            .expect("db error")
+            .pop()
+            .expect("one key requested")
+    }
+
+    pub(crate) fn notify_locally_computed_checkpoints<'a>(
+        &self,
+        summaries: impl IntoIterator<Item = &'a CheckpointSummary>,
+    ) {
+        for summary in summaries {
+            self.locally_computed_checkpoint_notify_read
+                .notify(&summary.sequence_number, summary);
+        }
+    }
+
+    /// Waits until the certified last checkpoint of `epoch` is known and
+    /// returns its sequence number.
+    pub async fn notify_read_epoch_last_checkpoint_seq_number(
+        &self,
+        epoch: EpochId,
+    ) -> CheckpointSequenceNumber {
+        self.epoch_last_checkpoint_notify_read
+            .read("notify_read_epoch_last_checkpoint", &[epoch], |epochs| {
+                Ok::<_, TypedStoreError>(vec![
+                    self.get_epoch_last_checkpoint_seq_number(epochs[0])?,
+                ])
+            })
+            .await
+            .expect("db error")
+            .pop()
+            .expect("one key requested")
+    }
+
     pub fn update_highest_executed_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -819,7 +921,99 @@ impl CheckpointStore {
         )?;
         self.executed_checkpoint_notify_read
             .notify(&seq, checkpoint);
+        // The checkpoint's outputs are stored now, so the saved synced
+        // watermark may pass it.
+        if let Some(in_memory) = self.synced_in_memory.get() {
+            let _writes = self.synced_writes.lock();
+            self.advance_saved_synced(in_memory)?;
+        }
         Ok(())
+    }
+
+    /// Moves the synced watermark readers see to `checkpoint`, and the saved
+    /// one towards it over the checkpoints whose contents are stored.
+    fn write_highest_synced(&self, checkpoint: &VerifiedCheckpoint) -> Result<(), TypedStoreError> {
+        let _writes = self.synced_writes.lock();
+        let row = (checkpoint.sequence_number(), *checkpoint.digest());
+        let Some(in_memory) = self.synced_in_memory.get() else {
+            return self
+                .tables
+                .watermarks
+                .insert(&CheckpointWatermark::HighestSynced, &row);
+        };
+        {
+            let mut highest_synced = in_memory.highest_synced.lock();
+            if highest_synced
+                .is_none_or(|(sequence_number, _)| sequence_number < checkpoint.sequence_number())
+            {
+                *highest_synced = Some(row);
+            }
+        }
+        self.advance_saved_synced(in_memory)
+    }
+
+    /// Moves the saved synced watermark forwards over the checkpoints, up to
+    /// the one readers see, that have executed or whose transactions and
+    /// effects are stored, stopping at the first that has neither. Call with
+    /// `synced_writes` held.
+    fn advance_saved_synced(
+        &self,
+        in_memory: &SyncedWatermarkInMemory,
+    ) -> Result<(), TypedStoreError> {
+        let Some((highest_synced, _)) = *in_memory.highest_synced.lock() else {
+            return Ok(());
+        };
+        let saved = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestSynced)?
+            .map(|(sequence_number, _)| sequence_number);
+        let highest_executed = self.get_highest_executed_checkpoint_seq_number()?;
+        let mut advanced_to = None;
+        for sequence_number in saved.map_or(0, |saved| saved + 1)..=highest_synced {
+            let stored = highest_executed.is_some_and(|executed| sequence_number <= executed)
+                || self.contents_stored(sequence_number, &in_memory.perpetual_tables)?;
+            if !stored {
+                break;
+            }
+            advanced_to = Some(sequence_number);
+        }
+        let Some(sequence_number) = advanced_to else {
+            return Ok(());
+        };
+        let checkpoint = self
+            .get_checkpoint_by_sequence_number(sequence_number)?
+            .expect("a checkpoint at or below the synced watermark is stored");
+        self.tables.watermarks.insert(
+            &CheckpointWatermark::HighestSynced,
+            &(sequence_number, *checkpoint.digest()),
+        )
+    }
+
+    /// Whether every transaction and effect of synced checkpoint
+    /// `sequence_number` is in the perpetual store, rather than only in
+    /// memory.
+    fn contents_stored(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+        perpetual_tables: &AuthorityPerpetualTables,
+    ) -> Result<bool, TypedStoreError> {
+        let checkpoint = self
+            .get_checkpoint_by_sequence_number(sequence_number)?
+            .expect("a checkpoint at or below the synced watermark is stored");
+        let contents = self
+            .get_checkpoint_contents(&checkpoint.contents_digest)?
+            .expect("the contents of a checkpoint at or below the synced watermark are stored");
+        let (transactions, effects): (Vec<_>, Vec<_>) = contents
+            .iter()
+            .map(|digests| (digests.transaction, digests.effects))
+            .unzip();
+        Ok(perpetual_tables
+            .transactions
+            .multi_contains_keys(&transactions)?
+            .into_iter()
+            .chain(perpetual_tables.effects.multi_contains_keys(&effects)?)
+            .all(|stored| stored))
     }
 
     pub fn update_highest_pruned_checkpoint(
@@ -830,6 +1024,47 @@ impl CheckpointStore {
             &CheckpointWatermark::HighestPruned,
             &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
+    }
+
+    /// From now on, holds the synced watermark that callers read in memory.
+    /// The value saved in the database passes a checkpoint only once that
+    /// checkpoint has executed or its transactions and effects are in
+    /// `perpetual_tables`.
+    ///
+    /// The synced watermark promises that the contents of every checkpoint up
+    /// to it can be loaded. A checkpoint can be marked synced while its
+    /// transactions and effects are only in memory: this node certified it
+    /// after building it, or state sync found its contents in memory. With
+    /// the watermark held in memory, a restarted node starts from a synced
+    /// checkpoint whose contents can be loaded, and state sync marks the later
+    /// checkpoints synced again.
+    ///
+    /// Turning this on does not change the value callers read. At startup,
+    /// call it before anything marks a checkpoint synced. A running node may
+    /// call it at an epoch change, after every checkpoint of the ending epoch
+    /// has executed. Once on, it stays on until the process stops, also in
+    /// later epochs where the node is not in the committee. There, state sync
+    /// marks a checkpoint synced only after its transactions and effects are
+    /// in `perpetual_tables`, so the saved value moves with the one callers
+    /// read. Does nothing if already on.
+    pub fn hold_synced_watermark_in_memory(
+        &self,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
+    ) -> Result<(), TypedStoreError> {
+        let _writes = self.synced_writes.lock();
+        if self.synced_in_memory.get().is_some() {
+            return Ok(());
+        }
+        let saved = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestSynced)?;
+        self.synced_in_memory
+            .get_or_init(|| SyncedWatermarkInMemory {
+                perpetual_tables,
+                highest_synced: Mutex::new(saved),
+            });
+        Ok(())
     }
 
     /// Sets the verified watermark to `checkpoint` whether or not that moves
@@ -858,10 +1093,14 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        self.tables.watermarks.insert(
-            &CheckpointWatermark::HighestSynced,
-            &(checkpoint.sequence_number(), *checkpoint.digest()),
-        )
+        let _writes = self.synced_writes.lock();
+        let row = (checkpoint.sequence_number(), *checkpoint.digest());
+        if let Some(in_memory) = self.synced_in_memory.get() {
+            *in_memory.highest_synced.lock() = Some(row);
+        }
+        self.tables
+            .watermarks
+            .insert(&CheckpointWatermark::HighestSynced, &row)
     }
 
     /// Sets highest executed checkpoint to any value.
@@ -1017,6 +1256,8 @@ impl CheckpointStore {
         self.tables
             .epoch_last_checkpoint_map
             .insert(&epoch_id, &checkpoint.sequence_number())?;
+        self.epoch_last_checkpoint_notify_read
+            .notify(&epoch_id, &checkpoint.sequence_number());
         Ok(())
     }
 
@@ -1101,6 +1342,7 @@ impl CheckpointStateHasher {
                 info!("GlobalStateHash was dropped, stopping checkpoint accumulation");
                 break;
             };
+            fail_point_async!("checkpoint-state-hasher-accumulate");
             hasher
                 .accumulate_checkpoint(&effects, seq, &epoch_store)
                 .expect("epoch ended while accumulating checkpoint");
@@ -1146,6 +1388,7 @@ pub struct CheckpointBuilder {
     global_state_hasher: Weak<GlobalStateHasher>,
     send_to_hasher: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
     output: Box<dyn CheckpointOutput>,
+    checkpoint_service: Weak<CheckpointService>,
     metrics: Arc<CheckpointMetrics>,
     max_transactions_per_checkpoint: usize,
     max_checkpoint_size_bytes: usize,
@@ -1185,6 +1428,7 @@ impl CheckpointBuilder {
         // for asynchronous/concurrent accumulation of regular checkpoints
         send_to_hasher: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
         output: Box<dyn CheckpointOutput>,
+        checkpoint_service: Weak<CheckpointService>,
         notify_aggregator: Arc<Notify>,
         last_built: watch::Sender<CheckpointSequenceNumber>,
         metrics: Arc<CheckpointMetrics>,
@@ -1200,6 +1444,7 @@ impl CheckpointBuilder {
             global_state_hasher,
             send_to_hasher,
             output,
+            checkpoint_service,
             notify_aggregator,
             last_built,
             metrics,
@@ -1216,7 +1461,20 @@ impl CheckpointBuilder {
     /// It is optional to pass in consensus_replay_waiter, to make it easier to
     /// attribute if slow recovery of previously built checkpoints is due to
     /// consensus replay or checkpoint building.
-    async fn run(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
+    ///
+    /// Stops once this node executes downloaded checkpoints for the rest of
+    /// the epoch, also in the middle of building, so it signs nothing more.
+    async fn run(self, consensus_replay_waiter: Option<ReplayWaiter>) {
+        let epoch_store = self.epoch_store.clone();
+        tokio::select! {
+            _ = epoch_store.wait_for_synced_checkpoint_execution() => {
+                info!("CheckpointBuilder stopping: executing synced checkpoints for the rest of the epoch");
+            }
+            _ = self.build_until_stopped(consensus_replay_waiter) => {}
+        }
+    }
+
+    async fn build_until_stopped(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
         if let Some(replay_waiter) = consensus_replay_waiter {
             info!("Waiting for consensus commits to replay ...");
             replay_waiter.wait_for_replay().await;
@@ -1571,6 +1829,7 @@ impl CheckpointBuilder {
         mut new_checkpoints: NonEmpty<BuiltCheckpoint>,
     ) -> IotaResult {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
+        fail_point_async!("checkpoint-builder-write-summaries");
         let mut batch = self.store.tables.checkpoint_content.batch();
         let mut all_tx_digests =
             Vec::with_capacity(new_checkpoints.iter().map(|c| c.contents.len()).sum());
@@ -1624,6 +1883,11 @@ impl CheckpointBuilder {
         }
 
         batch.write()?;
+        fail_point!("checkpoint-summaries-written");
+        if self.epoch_store.protocol_config().enable_pcool_flow() {
+            self.store
+                .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
+        }
 
         // Cache the full contents only now that the checkpoint_content rows
         // are durable
@@ -1637,6 +1901,13 @@ impl CheckpointBuilder {
             }
         }
 
+        let checkpoint_service = self.checkpoint_service.upgrade();
+        // The consensus handler still delivers our own signatures if the service is
+        // already gone.
+        let checkpoint_service: &(dyn CheckpointServiceNotify + Sync) = match &checkpoint_service {
+            Some(service) => service.as_ref(),
+            None => &CheckpointServiceNoop {},
+        };
         // Send all checkpoint sigs to consensus. The messages including
         // MisbehaviorReports are also sent in this step.
         for BuiltCheckpoint {
@@ -1644,7 +1915,13 @@ impl CheckpointBuilder {
         } in &new_checkpoints
         {
             self.output
-                .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
+                .checkpoint_created(
+                    summary,
+                    contents,
+                    &self.epoch_store,
+                    &self.store,
+                    checkpoint_service,
+                )
                 .await?;
         }
 
@@ -2411,6 +2688,9 @@ impl CheckpointAggregator {
                     );
 
                     self.store.insert_certified_checkpoint(&summary)?;
+                    if summary.next_epoch_committee().is_some() {
+                        fail_point!("certified-end-of-epoch-checkpoint-before-state-sync");
+                    }
                     self.metrics
                         .last_certified_checkpoint
                         .set(current.summary.sequence_number as i64);
@@ -2827,40 +3107,43 @@ impl CheckpointService {
             receive_from_builder,
         );
 
-        let builder = CheckpointBuilder::new(
-            state,
-            checkpoint_store.clone(),
-            epoch_store.clone(),
-            notify_builder.clone(),
-            effects_store,
-            global_state_hasher,
-            send_to_hasher,
-            checkpoint_output,
-            notify_aggregator.clone(),
-            highest_currently_built_seq_tx.clone(),
-            metrics.clone(),
-            max_transactions_per_checkpoint,
-            max_checkpoint_size_bytes,
-        );
-
         let last_signature_index = epoch_store
             .get_last_checkpoint_signature_index()
             .expect("should not cross end of epoch");
         let last_signature_index = Mutex::new(last_signature_index);
 
-        Arc::new(Self {
-            tables: checkpoint_store,
-            notify_builder,
-            notify_aggregator,
-            last_signature_index,
-            highest_currently_built_seq_tx,
-            highest_previously_built_seq,
-            metrics,
-            state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
-                builder,
-                aggregator,
-                ckpt_state_hasher,
-            )))),
+        Arc::new_cyclic(|checkpoint_service| {
+            let builder = CheckpointBuilder::new(
+                state,
+                checkpoint_store.clone(),
+                epoch_store,
+                notify_builder.clone(),
+                effects_store,
+                global_state_hasher,
+                send_to_hasher,
+                checkpoint_output,
+                checkpoint_service.clone(),
+                notify_aggregator.clone(),
+                highest_currently_built_seq_tx.clone(),
+                metrics.clone(),
+                max_transactions_per_checkpoint,
+                max_checkpoint_size_bytes,
+            );
+
+            Self {
+                tables: checkpoint_store,
+                notify_builder,
+                notify_aggregator,
+                last_signature_index,
+                highest_currently_built_seq_tx,
+                highest_previously_built_seq,
+                metrics,
+                state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
+                    builder,
+                    aggregator,
+                    ckpt_state_hasher,
+                )))),
+            }
         })
     }
 
@@ -2938,7 +3221,7 @@ impl CheckpointService {
     ) -> IotaResult {
         use crate::authority::authority_per_epoch_store::consensus_quarantine::ConsensusCommitOutput;
 
-        let mut output = ConsensusCommitOutput::new(0);
+        let mut output = ConsensusCommitOutput::new(0, 0);
         epoch_store.write_pending_checkpoint(&mut output, &checkpoint)?;
         output.set_default_commit_stats_for_testing();
         epoch_store.push_consensus_output_for_tests(output);
@@ -3033,7 +3316,7 @@ mod checked {
         )
     }
 }
-// test helper
+/// Discards every notification.
 pub struct CheckpointServiceNoop {}
 impl CheckpointServiceNotify for CheckpointServiceNoop {
     fn notify_checkpoint_signature(
@@ -3122,6 +3405,7 @@ mod tests {
         ops::Deref,
     };
 
+    use fastcrypto::traits::KeyPair as _;
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -3132,12 +3416,16 @@ mod tests {
     use iota_types::{
         effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::SignedCheckpointSummary,
+        messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
         transaction::VerifiedTransaction,
     };
     use tokio::sync::mpsc;
 
     use super::*;
-    use crate::authority::test_authority_builder::TestAuthorityBuilder;
+    use crate::{
+        authority::test_authority_builder::TestAuthorityBuilder,
+        consensus_adapter::SubmitToConsensus, epoch::reconfiguration::ReconfigurationInitiator,
+    };
 
     #[tokio::test]
     async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {
@@ -3375,6 +3663,247 @@ mod tests {
             cached.checkpoint_contents().digest(),
             summary.contents_digest
         );
+    }
+
+    /// The checkpoint builder stops once this node executes synced checkpoints
+    /// for the rest of the epoch.
+    #[tokio::test]
+    pub async fn checkpoint_builder_stops_when_executing_synced_checkpoints() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let tmp_dir = iota_common::tempdir();
+        let epoch_store = state.epoch_store_for_testing();
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            CheckpointStore::new(tmp_dir.path()),
+            epoch_store.clone(),
+            Arc::new(HashMap::<TransactionDigest, TransactionEffects>::new()),
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let mut tasks = checkpoint_service.spawn(None).await;
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), tasks.join_next())
+                .await
+                .is_err()
+        );
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        tokio::time::timeout(Duration::from_secs(5), tasks.join_next())
+            .await
+            .expect("the checkpoint builder should stop")
+            .unwrap()
+            .unwrap();
+    }
+
+    // A validator does not verify its own consensus blocks, so under
+    // deterministic validation its own signature must reach its aggregator
+    // when it is submitted, without waiting for the consensus handler to
+    // process the commit that includes it. The copy that the handler delivers
+    // later, and a signature made again for the same summary after a restart,
+    // must be the same bytes and be ignored.
+    #[tokio::test]
+    async fn own_checkpoint_signature_reaches_aggregator_without_consensus() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(std::num::NonZeroUsize::new(4).unwrap())
+                .build();
+        let validator_key = |i: usize| network_config.validator_configs()[i].authority_key_pair();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+
+        let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let digest = *tx.digest();
+        state
+            .database_for_testing()
+            .perpetual_tables
+            .transactions
+            .insert(&digest, tx.serializable_ref())
+            .unwrap();
+
+        let mut effects_map = HashMap::new();
+        commit_cert_for_test(
+            &mut effects_map,
+            state.clone(),
+            digest,
+            vec![],
+            GasCostSummary::new(1, 1, 1, 1, 1),
+        );
+        let effects = effects_map[&digest].clone();
+
+        let signature = iota_types::crypto::zero_ed25519_signature().into();
+        state
+            .epoch_store_for_testing()
+            .test_insert_user_signature(digest, vec![signature]);
+
+        let (submitted_tx, mut submitted) = mpsc::channel::<ConsensusTransaction>(10);
+        let output = SubmitCheckpointToConsensus {
+            sender: submitted_tx,
+            signer: state.secret.clone(),
+            authority: state.name,
+            next_reconfiguration_timestamp_ms: u64::MAX,
+            metrics: CheckpointMetrics::new_for_tests(),
+        };
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let epoch_store = state.epoch_store_for_testing();
+
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            Arc::new(effects_map),
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let (builder, mut aggregator, _hasher) = checkpoint_service.state.lock().take_unstarted();
+
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![digest], 0))
+            .unwrap();
+        let details = PendingCheckpointInfo {
+            timestamp_ms: 0,
+            last_of_epoch: false,
+            checkpoint_height: 0,
+        };
+        let new_checkpoints = builder
+            .create_checkpoints(vec![effects], &details, &HashSet::from([digest]))
+            .await
+            .unwrap();
+        let summary = new_checkpoints.first().summary.clone();
+        builder
+            .write_checkpoints(details.checkpoint_height, new_checkpoints)
+            .await
+            .unwrap();
+
+        // The signature was submitted to consensus, but nothing delivers it back
+        // yet. Take the copy the consensus handler would see after the round trip.
+        let submitted = submitted.try_recv().unwrap();
+        let submitted: ConsensusTransaction =
+            bcs::from_bytes(&bcs::to_bytes(&submitted).unwrap()).unwrap();
+        let ConsensusTransactionKind::CheckpointSignature(handler_copy) = submitted.kind else {
+            panic!("expected a checkpoint signature, got {submitted:?}");
+        };
+        assert_eq!(handler_copy.summary.auth_sig().authority, state.name);
+
+        let local_copies = epoch_store
+            .tables()
+            .unwrap()
+            .pending_checkpoint_signatures
+            .safe_iter()
+            .map(|item| item.unwrap().1)
+            .collect::<Vec<_>>();
+        assert_eq!(local_copies.len(), 1);
+        assert_eq!(
+            bcs::to_bytes(&local_copies[0]).unwrap(),
+            bcs::to_bytes(&*handler_copy).unwrap(),
+        );
+
+        // Signing the same summary again, as after a restart, gives the same
+        // signature.
+        let signed_again = SignedCheckpointSummary::new(
+            summary.epoch,
+            summary.clone(),
+            &*state.secret,
+            state.name,
+        );
+        assert_eq!(signed_again.auth_sig(), handler_copy.summary.auth_sig());
+
+        let signed_by = |i: usize| {
+            let key = validator_key(i);
+            CheckpointSignatureMessage {
+                summary: SignedCheckpointSummary::new(
+                    summary.epoch,
+                    summary.clone(),
+                    key,
+                    key.public().into(),
+                ),
+            }
+        };
+        checkpoint_service
+            .notify_checkpoint_signature(&epoch_store, &signed_by(1))
+            .unwrap();
+        assert!(aggregator.run_inner().unwrap().is_empty());
+        let votes_before = aggregator
+            .current
+            .as_ref()
+            .unwrap()
+            .signatures_by_digest
+            .get_all_unique_values();
+        assert_eq!(votes_before[&summary.digest()].0.len(), 2);
+
+        // A repeated signature from this validator, whether the handler's copy or
+        // one made again, is a repeat of the same signature, which is ignored
+        // without a warning or a split-brain check.
+        for repeat in [
+            (*handler_copy).clone(),
+            CheckpointSignatureMessage {
+                summary: signed_again,
+            },
+        ] {
+            let current = aggregator.current.as_mut().unwrap();
+            let envelope = SignedCheckpointSummary::new_from_data_and_sig(
+                summary.clone(),
+                repeat.summary.auth_sig().clone(),
+            );
+            assert!(matches!(
+                current
+                    .signatures_by_digest
+                    .insert(summary.digest(), envelope),
+                InsertResult::Failed {
+                    error: IotaError::StakeAggregatorRepeatedSigner {
+                        conflicting_sig: false,
+                        ..
+                    }
+                }
+            ));
+            checkpoint_service
+                .notify_checkpoint_signature(&epoch_store, &repeat)
+                .unwrap();
+            assert!(aggregator.run_inner().unwrap().is_empty());
+            assert_eq!(
+                aggregator
+                    .current
+                    .as_ref()
+                    .unwrap()
+                    .signatures_by_digest
+                    .get_all_unique_values(),
+                votes_before
+            );
+        }
+
+        // Two peer signatures and the local one certify the checkpoint; the peer
+        // signatures alone would not reach a quorum of four validators.
+        checkpoint_service
+            .notify_checkpoint_signature(&epoch_store, &signed_by(2))
+            .unwrap();
+        let certified = aggregator.run_inner().unwrap();
+        assert_eq!(certified.len(), 1);
+        assert_eq!(certified[0].digest(), &summary.digest());
     }
 
     #[sim_test]
@@ -3887,10 +4416,28 @@ mod tests {
             contents: &CheckpointContents,
             _epoch_store: &Arc<AuthorityPerEpochStore>,
             _checkpoint_store: &Arc<CheckpointStore>,
+            _checkpoint_service: &(dyn CheckpointServiceNotify + Sync),
         ) -> IotaResult {
             self.try_send((contents.clone(), summary.clone())).unwrap();
             Ok(())
         }
+    }
+
+    impl SubmitToConsensus for mpsc::Sender<ConsensusTransaction> {
+        fn submit_to_consensus(
+            &self,
+            transactions: &[ConsensusTransaction],
+            _epoch_store: &Arc<AuthorityPerEpochStore>,
+        ) -> IotaResult {
+            for transaction in transactions {
+                self.try_send(transaction.clone()).unwrap();
+            }
+            Ok(())
+        }
+    }
+
+    impl ReconfigurationInitiator for mpsc::Sender<ConsensusTransaction> {
+        fn close_epoch(&self, _epoch_store: &Arc<AuthorityPerEpochStore>) {}
     }
 
     #[async_trait::async_trait]

@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(msim)]
-use std::sync::atomic::Ordering;
 use std::{
     collections::HashMap,
     fmt,
     future::Future,
     num::NonZeroUsize,
-    sync::{Arc, Weak},
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -232,7 +233,14 @@ pub struct IotaNode {
     _discovery: discovery::Handle,
     state_sync_handle: state_sync::Handle,
     randomness_handle: randomness::Handle,
+    /// Lets state sync fetch summaries to the end of the epoch being
+    /// executed; set for each epoch from `sync_summaries_to_epoch_end`.
+    sync_summaries_to_epoch_end: Arc<AtomicBool>,
     checkpoint_store: Arc<CheckpointStore>,
+    /// Checked by the checkpoint store before its saved synced watermark
+    /// passes a checkpoint; see
+    /// [`CheckpointStore::hold_synced_watermark_in_memory`].
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
     state_sync_store: RocksDbStore,
     global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
@@ -485,11 +493,16 @@ impl IotaNode {
                 FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
             ),
         );
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => chain_identifier.chain(),
+        };
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
         let perpetual_tables_for_progress = perpetual_tables.clone();
         let perpetual_tables_for_snapshots = perpetual_tables.clone();
+        let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -529,11 +542,6 @@ impl IotaNode {
             )))
         };
 
-        let chain = match config.chain_override_for_testing {
-            Some(chain) => chain,
-            None => chain_identifier.chain(),
-        };
-
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
             config.authority_public_key(),
@@ -554,6 +562,16 @@ impl IotaNode {
         )?;
 
         info!("created epoch store");
+        // As at an epoch change; must come before anything marks a checkpoint
+        // synced.
+        if epoch_store.protocol_config().enable_pcool_flow()
+            && epoch_store
+                .committee()
+                .authority_exists(&config.authority_public_key())
+        {
+            checkpoint_store
+                .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
+        }
 
         replay_log!(
             "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
@@ -647,6 +665,9 @@ impl IotaNode {
                 .unwrap_or_default()
                 .mailbox_capacity(),
         );
+        let sync_summaries_to_epoch_end = Arc::new(AtomicBool::new(
+            Self::sync_summaries_to_epoch_end(&config, &epoch_store),
+        ));
         let (p2p_network, discovery_handle, state_sync_handle, randomness_handle) =
             Self::create_p2p_network(
                 &config,
@@ -654,6 +675,7 @@ impl IotaNode {
                 chain_identifier,
                 trusted_peer_change_rx,
                 randomness_tx,
+                sync_summaries_to_epoch_end.clone(),
                 &prometheus_registry,
             )?;
 
@@ -718,7 +740,6 @@ impl IotaNode {
             chain_identifier,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
-            config.firewall_config.clone(),
             epoch_end_db_snapshots,
         )
         .await;
@@ -919,7 +940,9 @@ impl IotaNode {
             _discovery: discovery_handle,
             state_sync_handle,
             randomness_handle,
+            sync_summaries_to_epoch_end,
             checkpoint_store,
+            perpetual_tables: perpetual_tables_for_synced_watermark,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
@@ -1033,12 +1056,23 @@ impl IotaNode {
         }
     }
 
+    /// Whether state sync should fetch summaries to the end of the epoch of
+    /// `epoch_store`: this node is in its committee and waits for its own
+    /// checkpoints there.
+    fn sync_summaries_to_epoch_end(
+        config: &NodeConfig,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> bool {
+        config.is_validator() && epoch_store.pcool_bookkeeping_enabled()
+    }
+
     fn create_p2p_network(
         config: &NodeConfig,
         state_sync_store: RocksDbStore,
         chain_identifier: ChainIdentifier,
         trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
         randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
+        sync_summaries_to_epoch_end: Arc<AtomicBool>,
         prometheus_registry: &Registry,
     ) -> Result<(
         Network,
@@ -1050,6 +1084,7 @@ impl IotaNode {
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
             .checkpoint_archive_config(config.checkpoint_archive_config().cloned())
+            .sync_summaries_to_epoch_end(sync_summaries_to_epoch_end)
             .with_metrics(prometheus_registry)
             .build();
 
@@ -1408,6 +1443,10 @@ impl IotaNode {
 
         info!("Starting consensus manager asynchronously");
 
+        // Subscribe before starting consensus so that the replay waiter cannot miss the
+        // one-shot consumer monitor broadcast if consensus starts immediately.
+        let replay_waiter = consensus_manager.replay_waiter();
+
         // Spawn consensus startup asynchronously to avoid blocking other components
         tokio::spawn({
             let config = config.clone();
@@ -1429,13 +1468,16 @@ impl IotaNode {
                     .await;
             }
         });
-        let replay_waiter = consensus_manager.replay_waiter();
-
         info!("Spawning checkpoint service");
-        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_ok() {
-            None
-        } else {
+        // With deterministic validation, a checkpoint built before a restart
+        // has to be rebuilt from the replayed commits before it is executed.
+        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_err() {
             Some(replay_waiter)
+        } else if epoch_store.protocol_config().enable_pcool_flow() {
+            warn!("DISABLE_REPLAY_WAITER is ignored with deterministic validation");
+            Some(replay_waiter)
+        } else {
+            None
         };
         let checkpoint_service_tasks = checkpoint_service.spawn(replay_waiter).await;
 
@@ -1898,7 +1940,7 @@ impl IotaNode {
                 // The empty set is announced too: every committee member
                 // attests its configuration each epoch, so silence means
                 // offline rather than "no rules".
-                if config.deny_rule_governance() {
+                if config.enable_pcool_flow() {
                     let proposed_rules = self.config.transaction_deny_config.to_deny_rule_set();
                     let recorded = cur_epoch_store.recorded_deny_rule_proposal(&self.state.name);
                     let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(
@@ -1937,6 +1979,10 @@ impl IotaNode {
             }
 
             let stop_condition = checkpoint_executor.run_epoch(run_with_range).await;
+
+            if stop_condition == StopReason::RuntimeShutdown {
+                return Ok(());
+            }
 
             if stop_condition == StopReason::RunWithRangeCondition {
                 IotaNode::shutdown(&self).await;
@@ -2025,6 +2071,10 @@ impl IotaNode {
                     hasher.clone(),
                 )
                 .await?;
+            self.sync_summaries_to_epoch_end.store(
+                Self::sync_summaries_to_epoch_end(&self.config, &new_epoch_store),
+                Ordering::Relaxed,
+            );
 
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_handle,
@@ -2269,6 +2319,18 @@ impl IotaNode {
             .expect("Reconfigure authority state cannot fail");
         info!(next_epoch, "Node State has been reconfigured");
         assert_eq!(next_epoch, new_epoch_store.epoch());
+        // Every checkpoint of the ending epoch has executed, so the saved
+        // synced watermark is safe to go on from while readers' value is held
+        // in memory. Nodes outside the committee build no checkpoints, so
+        // their saved watermark never falls behind and the hold is not turned
+        // on for them. A hold turned on in an earlier epoch stays on, which is
+        // harmless (see `CheckpointStore::hold_synced_watermark_in_memory`).
+        if new_epoch_store.protocol_config().enable_pcool_flow()
+            && self.state.is_committee_validator(&new_epoch_store)
+        {
+            self.checkpoint_store
+                .hold_synced_watermark_in_memory(self.perpetual_tables.clone())?;
+        }
         self.state.get_reconfig_api().update_epoch_flags_metrics(
             cur_epoch_store.epoch_start_config().flags(),
             new_epoch_store.epoch_start_config().flags(),
