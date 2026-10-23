@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use fastcrypto::encoding::Base64;
-use futures::{StreamExt, stream};
+use futures::stream;
 use futures_core::Stream;
 use iota_json_rpc_api::{
     GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient, WriteApiClient,
@@ -16,17 +16,15 @@ use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
     IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
-    TransactionBlocksPage, TransactionFilter,
+    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    ProtocolConfigResponse, TransactionBlocksPage,
 };
 use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest, TransactionKind, Version};
 use iota_types::{
     dynamic_field::DynamicFieldName, iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use jsonrpsee::core::client::Subscription;
 
 use crate::{
     RpcClient,
@@ -614,23 +612,6 @@ impl ReadApi {
                 }
             },
         )
-    }
-
-    /// Subscribe to a stream of transactions.
-    ///
-    /// This is only available through WebSockets.
-    pub async fn subscribe_transaction(
-        &self,
-        filter: TransactionFilter,
-    ) -> IotaRpcResult<impl Stream<Item = IotaRpcResult<IotaTransactionBlockEffects>>> {
-        let Some(c) = &self.api.ws else {
-            return Err(Error::Subscription(
-                "Subscription only supported by WebSocket client.".to_string(),
-            ));
-        };
-        let subscription: Subscription<IotaTransactionBlockEffects> =
-            c.subscribe_transaction(filter).await?;
-        Ok(subscription.map(|item| Ok(item?)))
     }
 
     /// Get move modules by package ID, keyed by name.

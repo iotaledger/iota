@@ -111,7 +111,6 @@ use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
     rpc_params,
-    ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use reqwest::header::HeaderName;
 use rustls::crypto::{CryptoProvider, ring};
@@ -145,9 +144,6 @@ pub const IOTA_MAINNET_GRPC_URL: &str = "https://grpc.mainnet.iota.cafe:443";
 /// By default `maximum concurrent requests` is set to 256 and `request timeout`
 /// is set to 60 seconds. These can be adjusted using
 /// [`Self::max_concurrent_requests()`], and the [`Self::request_timeout()`].
-/// If you use the WebSocket, consider setting `ws_ping_interval` appropriately
-/// to prevent an inactive WS subscription being disconnected due to proxy
-/// timeout.
 ///
 /// # Examples
 ///
@@ -167,8 +163,6 @@ pub const IOTA_MAINNET_GRPC_URL: &str = "https://grpc.mainnet.iota.cafe:443";
 pub struct IotaClientBuilder {
     request_timeout: Duration,
     max_concurrent_requests: Option<usize>,
-    ws_url: Option<String>,
-    ws_ping_interval: Option<Duration>,
     basic_auth: Option<(String, String)>,
     tls_config: Option<rustls::ClientConfig>,
     headers: Option<HashMap<String, String>>,
@@ -179,8 +173,6 @@ impl Default for IotaClientBuilder {
         Self {
             request_timeout: Duration::from_secs(60),
             max_concurrent_requests: None,
-            ws_url: None,
-            ws_ping_interval: None,
             basic_auth: None,
             tls_config: None,
             headers: None,
@@ -198,18 +190,6 @@ impl IotaClientBuilder {
     /// Set the max concurrent requests allowed.
     pub fn max_concurrent_requests(mut self, max_concurrent_requests: usize) -> Self {
         self.max_concurrent_requests = Some(max_concurrent_requests);
-        self
-    }
-
-    /// Set the WebSocket URL for the IOTA network.
-    pub fn ws_url(mut self, url: impl AsRef<str>) -> Self {
-        self.ws_url = Some(url.as_ref().to_string());
-        self
-    }
-
-    /// Set the WebSocket ping interval.
-    pub fn ws_ping_interval(mut self, duration: Duration) -> Self {
-        self.ws_ping_interval = Some(duration);
         self
     }
 
@@ -287,25 +267,6 @@ impl IotaClientBuilder {
             }
         }
 
-        let ws = if let Some(url) = self.ws_url {
-            let mut builder = WsClientBuilder::default()
-                .max_request_size(2 << 30)
-                .set_headers(headers.clone())
-                .request_timeout(self.request_timeout);
-
-            if let Some(duration) = self.ws_ping_interval {
-                builder = builder.enable_ws_ping(PingConfig::new().ping_interval(duration))
-            }
-
-            if let Some(max_concurrent_requests) = self.max_concurrent_requests {
-                builder = builder.max_concurrent_requests(max_concurrent_requests);
-            }
-
-            builder.build(url).await.ok()
-        } else {
-            None
-        };
-
         let mut http_builder = HttpClientBuilder::default()
             .max_request_size(2 << 30)
             .set_headers(headers)
@@ -321,9 +282,9 @@ impl IotaClientBuilder {
 
         let http = http_builder.build(http)?;
 
-        let info = Self::get_server_info(&http, &ws).await?;
+        let info = Self::get_server_info(&http).await?;
 
-        let rpc = RpcClient { http, ws, info };
+        let rpc = RpcClient { http, info };
         let api = Arc::new(rpc);
         let read_api = Arc::new(ReadApi::new(api.clone()));
         let quorum_driver_api = QuorumDriverApi::new(api.clone());
@@ -435,10 +396,7 @@ impl IotaClientBuilder {
     /// Return the server information as a `ServerInfo` structure.
     ///
     /// Fails with an error if it cannot call the RPC discover.
-    async fn get_server_info(
-        http: &HttpClient,
-        ws: &Option<WsClient>,
-    ) -> Result<ServerInfo, Error> {
+    async fn get_server_info(http: &HttpClient) -> Result<ServerInfo, Error> {
         let rpc_spec: Value = http.request("rpc.discover", rpc_params![]).await?;
         let version = rpc_spec
             .pointer("/info/version")
@@ -448,19 +406,10 @@ impl IotaClientBuilder {
             })?;
         let rpc_methods = Self::parse_methods(&rpc_spec)?;
 
-        let subscriptions = if let Some(ws) = ws {
-            match ws.request("rpc.discover", rpc_params![]).await {
-                Ok(rpc_spec) => Self::parse_methods(&rpc_spec)?,
-                Err(_) => Vec::new(),
-            }
-        } else {
-            Vec::new()
-        };
         let iota_system_state_v2_support =
             rpc_methods.contains(&"iotax_getLatestIotaSystemStateV2".to_string());
         Ok(ServerInfo {
             rpc_methods,
-            subscriptions,
             version: version.to_string(),
             iota_system_state_v2_support,
         })
@@ -504,7 +453,6 @@ impl IotaClientBuilder {
 ///         .await?;
 ///
 ///     println!("{:?}", iota.available_rpc_methods());
-///     println!("{:?}", iota.available_subscriptions());
 ///     println!("{:?}", iota.api_version());
 ///
 ///     let address = Address::from_str("0x0000....0000")?;
@@ -531,25 +479,19 @@ pub struct IotaClient {
 
 pub(crate) struct RpcClient {
     http: HttpClient,
-    ws: Option<WsClient>,
     info: ServerInfo,
 }
 
 impl Debug for RpcClient {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "RPC client. Http: {:?}, Websocket: {:?}",
-            self.http, self.ws
-        )
+        write!(f, "RPC client. Http: {:?}", self.http)
     }
 }
 
-/// Contains all the useful information regarding the API version, the available
-/// RPC calls, and subscriptions.
+/// Contains all the useful information regarding the API version and the
+/// available RPC calls.
 struct ServerInfo {
     rpc_methods: Vec<String>,
-    subscriptions: Vec<String>,
     version: String,
     iota_system_state_v2_support: bool,
 }
@@ -559,12 +501,6 @@ impl IotaClient {
     /// connected to.
     pub fn available_rpc_methods(&self) -> &Vec<String> {
         &self.api.info.rpc_methods
-    }
-
-    /// Return a list of streaming/subscription APIs supported by the node the
-    /// client is connected to.
-    pub fn available_subscriptions(&self) -> &Vec<String> {
-        &self.api.info.subscriptions
     }
 
     /// Return the API version information as a string.
@@ -623,11 +559,6 @@ impl IotaClient {
     /// Return a reference to the underlying http client.
     pub fn http(&self) -> &HttpClient {
         &self.api.http
-    }
-
-    /// Return a reference to the underlying WebSocket client, if any.
-    pub fn ws(&self) -> Option<&WsClient> {
-        self.api.ws.as_ref()
     }
 }
 
