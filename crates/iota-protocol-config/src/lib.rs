@@ -259,6 +259,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             user transaction from an authority that has sent EndOfPublish
 //             no longer makes a later transaction with the same key in the
 //             same commit be skipped as a duplicate.
+//             Raise the minimum validator joining stake to 6M IOTA, the low
+//             stake threshold to 5.5M IOTA and the very low stake threshold to
+//             5M IOTA on all chains.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3754,6 +3757,13 @@ impl ProtocolConfig {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
                     cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
+
+                    // Raise the minimum validator joining stake to 6M IOTA, the low
+                    // stake threshold to 5.5M IOTA and the very low stake threshold to
+                    // 5M IOTA on all chains.
+                    cfg.min_validator_joining_stake = Some(6_000_000_000_000_000);
+                    cfg.validator_low_stake_threshold = Some(5_500_000_000_000_000);
+                    cfg.validator_very_low_stake_threshold = Some(5_000_000_000_000_000);
                 }
                 // Use this template when making changes:
                 //
