@@ -580,7 +580,8 @@ impl IotaNode {
             panic!("Failed to check database corruption: {err}");
         }
 
-        // Initialize metrics to track db usage before creating any stores
+        // Before any store is created, so that the DB metrics are registered in
+        // this registry.
         Self::init_metrics(
             &config,
             &prometheus_registry,
@@ -968,8 +969,9 @@ impl IotaNode {
         }
     }
 
-    /// Checks that the total IOTA amount is as expected, and saves the expected
-    /// storage fund imbalance. Does nothing if the config turns the check off.
+    /// Checks that the total IOTA amount is as expected, and saves the total
+    /// IOTA supply and the expected storage fund imbalance. Does nothing if the
+    /// config turns the check off.
     /// Call it only on a database that holds just genesis.
     ///
     /// # Panics
@@ -983,7 +985,7 @@ impl IotaNode {
         // When we are opening the db table, the only time when it's safe to
         // check IOTA conservation is at genesis. Otherwise we may be in the middle of
         // an epoch and the IOTA conservation check will fail. This also initialize
-        // the expected_network_iota_amount table.
+        // the total_iota_supply and expected_storage_fund_imbalance tables.
         cache_traits
             .reconfig_api
             .try_expensive_check_iota_conservation(epoch_store, None)
@@ -1041,8 +1043,9 @@ impl IotaNode {
     ///
     /// # Panics
     ///
-    /// Panics if a genesis transaction fails to execute, or if the secondary
-    /// index checks are on and find the indexes inconsistent.
+    /// Panics if the genesis objects cannot be indexed, if a genesis
+    /// transaction fails to execute, or if the secondary index checks are on
+    /// and find the indexes inconsistent.
     async fn create_authority_state(
         config: &NodeConfig,
         secret: StableSyncAuthoritySigner,
@@ -1077,7 +1080,9 @@ impl IotaNode {
         let state = AuthorityState::new(
             authority_name,
             secret,
-            config.supported_protocol_versions.unwrap(),
+            config
+                .supported_protocol_versions
+                .expect("`prepare_config` fills in the supported protocol versions"),
             stores.store.clone(),
             stores.cache_traits.clone(),
             epoch_store.clone(),
@@ -1207,8 +1212,9 @@ impl IotaNode {
     ///
     /// # Panics
     ///
-    /// Panics if a task that builds a server on the serving runtime panics or
-    /// is cancelled.
+    /// Panics if the pending transaction log of the orchestrator cannot be
+    /// opened, or if a task that builds a server on the serving runtime panics
+    /// or is cancelled.
     async fn start_fullnode_services(
         config: &NodeConfig,
         grpc_api_config: Option<GrpcApiConfig>,
@@ -1318,13 +1324,11 @@ impl IotaNode {
         server_version: ServerVersion,
     ) -> Result<GrpcServerHandle> {
         // Convert transaction orchestrator to executor trait object for gRPC server
-        // Note that the transaction_orchestrator (so as executor) will be None if
-        // run_with_range is set
         let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
             transaction_orchestrator
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        // Run the gRPC read API server (and its per-request handlers) on the
+        // Run the gRPC API server (and its per-request handlers) on the
         // serving runtime, for the same reason as in `start_http_server`.
         serving_rt_handle
             .spawn({
@@ -1355,7 +1359,8 @@ impl IotaNode {
     /// # Panics
     ///
     /// Panics if the epoch store cannot be read while it re-executes the
-    /// pending certificates.
+    /// pending certificates, if the node has no randomness manager for the
+    /// epoch, or if the validator gRPC server fails to start.
     async fn start_validator_components(
         config: &NodeConfig,
         state: &Arc<AuthorityState>,
@@ -1389,7 +1394,7 @@ impl IotaNode {
 
         components.consensus_adapter.submit_recovered(epoch_store);
 
-        // Start the gRPC server
+        // Start the validator gRPC server
         components.validator_server_handle = components.validator_server_handle.start().await;
 
         Ok(components)
@@ -1630,7 +1635,7 @@ impl IotaNode {
         let randomness_handle = randomness.start(p2p_network.clone());
 
         // We must explicitly send this instead of relying on the initial value to
-        // trigger watch value change, so that state-sync is able to process it.
+        // trigger watch value change, so that discovery is able to process it.
         send_trusted_peer_change(
             config,
             &trusted_peer_change_tx,
