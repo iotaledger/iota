@@ -2187,11 +2187,13 @@ async fn test_received_version_named_as_owned_input_never_executes_under_determi
         .authority_clients
         .clone();
     // Submits the transaction through the validator that skips its input
-    // checks, and waits for every validator to reject it with the "object not
-    // found" error of the input that decided. A missing verdict is not
-    // recorded as the transaction's status, only sent to the queries waiting
-    // for it, so the queries start before the submission.
-    let submit_and_expect_rejection = |object_id: ObjectId| {
+    // checks, and waits for every validator to reject it on the input that
+    // decided: with the "object not found" error when the input is missing,
+    // and with the error for an input not available at the commit when it
+    // drops. A missing verdict is not recorded as the transaction's status,
+    // only sent to the queries waiting for it, so the queries start before
+    // the submission.
+    let submit_and_expect_rejection = |object_id: ObjectId, dropped: bool| {
         let stale_tx = stale_tx.clone();
         let authority_clients = authority_clients.clone();
         async move {
@@ -2255,14 +2257,21 @@ async fn test_received_version_named_as_owned_input_never_executes_under_determi
                 });
                 assert_eq!(digest, stale_digest);
                 assert!(
-                    matches!(
-                        &update,
+                    match &update {
                         TxStatusUpdate::Rejected {
-                            error: IotaError::UserInput {
-                                error: UserInputError::ObjectNotFound { object_id: id, .. }
+                            error: IotaError::UserInput { error },
+                        } => match error {
+                            UserInputError::ObjectNotFound { object_id: id, .. } => {
+                                !dropped && *id == object_id
                             }
-                        } if *id == object_id
-                    ),
+                            UserInputError::InputObjectNotAvailableAtCommit {
+                                object_id: id,
+                                ..
+                            } => dropped && *id == object_id,
+                            _ => false,
+                        },
+                        _ => false,
+                    },
                     "expected validator {validator:?} to reject the stale transaction on \
                      {object_id}, got {update:?}"
                 );
@@ -2272,7 +2281,7 @@ async fn test_received_version_named_as_owned_input_never_executes_under_determi
 
     // Submitted while the account's creation is above the horizon: the
     // account is missing on every validator.
-    submit_and_expect_rejection(aa_ref.object_id).await;
+    submit_and_expect_rejection(aa_ref.object_id, false).await;
     assert!(
         flushed_commit() < made_account_commit + HORIZON_DISTANCE,
         "the first submission must be decided before the horizon reaches the account's creation"
@@ -2281,7 +2290,7 @@ async fn test_received_version_named_as_owned_input_never_executes_under_determi
     // Resubmitted once the horizon is past the account's creation, and with
     // it past the receive: the received version drops on every validator.
     wait_for_commit(made_account_commit + HORIZON_DISTANCE + 5).await;
-    submit_and_expect_rejection(received_coin.object_id).await;
+    submit_and_expect_rejection(received_coin.object_id, true).await;
 
     // No validator executed it, and the coin is where the receive left it.
     for validator in test_env.test_cluster.get_validator_pubkeys() {
