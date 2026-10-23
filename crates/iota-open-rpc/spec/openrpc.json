@@ -11938,6 +11938,7 @@
             ]
           },
           "errors": {
+            "description": "Why a requested field could not be filled. In a batch read, an unknown digest carries its not-found error here.",
             "type": "array",
             "items": {
               "type": "string"
