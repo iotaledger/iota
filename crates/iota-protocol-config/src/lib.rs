@@ -264,6 +264,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             5M IOTA on all chains.
 //             Reject a multisig whose committee mixes Ed25519 with other key
 //             schemes unless every committee member has signed.
+//             Enable Groth16 verifying key input length checks before deserialization.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -781,6 +782,17 @@ struct FeatureFlags {
     // mixed committees can derive the same address.
     #[serde(skip_serializing_if = "is_false")]
     reject_partially_signed_mixed_ed25519_multisig: bool,
+
+    // If true, groth16::prepare_verifying_key checks that the verifying key has
+    // no more than MAX_PUBLIC_INPUTS public inputs.
+    #[serde(skip_serializing_if = "is_false")]
+    limit_groth16_pvk_inputs: bool,
+
+    // If true, groth16::verify_groth16_proof checks that the prepared verifying
+    // key has the length implied by the number of public inputs, and aborts
+    // with EInvalidVerifyingKey if it does not.
+    #[serde(skip_serializing_if = "is_false")]
+    check_groth16_pvk_length: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2288,6 +2300,14 @@ impl ProtocolConfig {
         self.feature_flags
             .reject_partially_signed_mixed_ed25519_multisig
     }
+
+    pub fn limit_groth16_pvk_inputs(&self) -> bool {
+        self.feature_flags.limit_groth16_pvk_inputs
+    }
+
+    pub fn check_groth16_pvk_length(&self) -> bool {
+        self.feature_flags.check_groth16_pvk_length
+    }
 }
 
 #[cfg(not(msim))]
@@ -3744,6 +3764,11 @@ impl ProtocolConfig {
                         // object in chunks of at most 1000 entries.
                         cfg.deny_rule_update_max_entries_per_tx = Some(1000);
                     }
+
+                    // Reject Groth16 verifying keys whose size does not match the
+                    // number of public inputs before deserializing them.
+                    cfg.feature_flags.limit_groth16_pvk_inputs = true;
+                    cfg.feature_flags.check_groth16_pvk_length = true;
                 }
                 // Use this template when making changes:
                 //
