@@ -22,24 +22,20 @@ use crate::error::RpcInterimResult;
 pub enum TransportProtocol {
     /// HTTP transport.
     Http,
-    /// WebSocket transport.
-    WebSocket,
 }
 
 impl std::fmt::Display for TransportProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::Http => "http",
-            Self::WebSocket => "websocket",
         };
 
         write!(f, "{s}")
     }
 }
 
-/// Defines a logger specifically for WebSocket connections with callbacks
-/// during the RPC request life-cycle. The primary use case for this is to
-/// collect timings for a larger metrics collection solution.
+/// Defines a logger with callbacks during the RPC request life-cycle. The primary use case for this
+/// is to collect timings for a larger metrics collection solution.
 pub trait Logger: Send + Sync + Clone + 'static {
     /// Intended to carry timestamp of a request, for example
     /// `std::time::Instant`. How the trait measures time, if at all, is

@@ -358,22 +358,6 @@ impl RpcModuleDocBuilder {
         self.add_method_internal(namespace, name, params, result, doc, tags, deprecated)
     }
 
-    pub fn add_subscription(
-        &mut self,
-        namespace: &str,
-        name: &str,
-        params: Vec<ContentDescriptor>,
-        result: Option<ContentDescriptor>,
-        doc: &str,
-        tag: Option<String>,
-        deprecated: bool,
-    ) {
-        let mut tags = tag.map(|t| Tag::new(&t)).into_iter().collect::<Vec<_>>();
-        tags.push(Tag::new("Websocket"));
-        tags.push(Tag::new("PubSub"));
-        self.add_method_internal(namespace, name, params, result, doc, tags, deprecated)
-    }
-
     fn add_method_internal(
         &mut self,
         namespace: &str,
