@@ -13,6 +13,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_account_private_key},
     deny_list_v1::{
@@ -1165,7 +1166,10 @@ impl RegulatedCoinEnv {
     ) -> (Vec<(TransactionDigest, IotaError)>, bool) {
         let digest = *transaction.digest();
         let consensus_tx = ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                transaction,
+                None,
+            ))),
             tracking_id: Default::default(),
         };
 

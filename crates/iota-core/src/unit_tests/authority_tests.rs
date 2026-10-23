@@ -29,6 +29,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
@@ -5200,11 +5201,15 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(shared_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(shared_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(clock_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(clock_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
         ];
@@ -7228,11 +7233,17 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7352,11 +7363,17 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7817,11 +7834,17 @@ async fn test_post_consensus_white_flag_no_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7917,7 +7940,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7964,7 +7990,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
 
     let verified_tx2 = epoch_store.verify_transaction(tx2.into()).unwrap();
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -8097,7 +8126,10 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 
     let seq = |tx: VerifiedTransaction| {
         SequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };

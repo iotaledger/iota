@@ -6,8 +6,8 @@ use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1Pr
 use iota_sdk_types::{
     Address,
     crypto::{
-        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
-        MultisigMemberSignature, PersonalMessage, Secp256k1Signature,
+        Ed25519Signature, Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee,
+        MultisigMember, MultisigMemberSignature, PersonalMessage, Secp256k1Signature,
     },
 };
 
@@ -30,7 +30,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
     let multisig_address: Address = (&multisig_pk).into();
 
     let intent_msg = IntentMessage::new(
-        Intent::iota_transaction(),
+        Intent::personal_message(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
 
@@ -48,7 +48,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
         .verify_claims(
             &intent_msg,
             multisig_address,
-            &VerifyParams::new(false, true),
+            &VerifyParams::new(false, true, true),
         )
         .unwrap_err();
     assert!(
@@ -67,7 +67,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
         .verify_claims(
             &intent_msg,
             multisig_address,
-            &VerifyParams::new(false, false),
+            &VerifyParams::new(false, false, true),
         )
         .unwrap_err();
     assert!(
@@ -78,4 +78,71 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
         ),
         "the scheme mismatch must only be checked when additional_multisig_checks is enabled, got {err:?}"
     );
+}
+
+#[test]
+fn verify_rejects_partially_signed_mixed_ed25519_multisig() {
+    let ed25519_key = Ed25519PrivateKey::random();
+    let secp256k1_key = Secp256k1PrivateKey::random();
+
+    // `MultisigCommittee::new` rejects committees mixing Ed25519 with other key
+    // schemes, but such committees can still appear in submitted signatures.
+    let multisig_pk = MultisigCommittee::new_unchecked(
+        vec![
+            MultisigMember::new(ed25519_key.public_key(), 1),
+            MultisigMember::new(secp256k1_key.public_key(), 1),
+        ],
+        1,
+    );
+    let multisig_address: Address = (&multisig_pk).into();
+
+    let intent_msg = IntentMessage::new(
+        Intent::personal_message(),
+        PersonalMessage("Hello".as_bytes().to_vec().into()),
+    );
+    let ed25519_sig: Ed25519Signature = ed25519_key.sign(&intent_msg.signing_digest());
+    let secp256k1_sig: Secp256k1Signature = secp256k1_key.sign(&intent_msg.signing_digest());
+
+    let partial = MultisigAggregatedSignature::new_unchecked(
+        vec![MultisigMemberSignature::Ed25519(ed25519_sig)],
+        0b01,
+        multisig_pk.clone(),
+    );
+    partial
+        .verify_claims(
+            &intent_msg,
+            multisig_address,
+            &VerifyParams::new(false, true, false),
+        )
+        .unwrap();
+    let err = partial
+        .verify_claims(
+            &intent_msg,
+            multisig_address,
+            &VerifyParams::new(false, true, true),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            IotaError::InvalidSignature { error }
+                if error.contains("requires a signature from every member")
+        ),
+        "expected a missing-signatures error, got {err:?}"
+    );
+
+    let full = MultisigAggregatedSignature::new_unchecked(
+        vec![
+            MultisigMemberSignature::Ed25519(ed25519_sig),
+            MultisigMemberSignature::Secp256k1(secp256k1_sig),
+        ],
+        0b11,
+        multisig_pk,
+    );
+    full.verify_claims(
+        &intent_msg,
+        multisig_address,
+        &VerifyParams::new(false, true, true),
+    )
+    .unwrap();
 }

@@ -166,25 +166,28 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
     let pk2 = kp2.public_key();
     let pk3 = kp3.public_key();
 
-    let multisig_pk = MultisigCommittee::new(
+    // `MultisigCommittee::new` rejects committees mixing Ed25519 with other key
+    // schemes, but signatures over them are still accepted when every member
+    // signs.
+    let multisig_pk = MultisigCommittee::new_unchecked(
         vec![
             MultisigMember::new(pk1, 1),
             MultisigMember::new(pk2, 1),
             MultisigMember::new(pk3, 1),
         ],
         2,
-    )
-    .unwrap();
+    );
     let addr = Address::from(&multisig_pk);
     let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
     let msg = tx.transaction().signing_digest();
     let sig1: SimpleSignature = kp1.sign(&msg);
     let sig2: SimpleSignature = kp2.sign(&msg);
+    let sig3: SimpleSignature = kp3.sign(&msg);
 
-    // Any 2 of 3 signatures verifies ok.
     let multi_sig1 =
-        MultisigAggregatedSignature::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
+        MultisigAggregatedSignature::new(vec![sig1.into(), sig2.into(), sig3.into()], multisig_pk)
+            .unwrap();
     TransactionEnvelope::new(SenderSignedTransaction::new(
         tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
