@@ -919,7 +919,8 @@ pub struct AuthorityEpochTables {
         DBMap<(CommitIndex, TransactionDigest), SavedPostConsensusDecision>,
     /// The candidates of a consensus commit in consensus order, written in
     /// the same batch as their rows in `post_consensus_decisions`, so its
-    /// presence means every candidate of the commit has a decision.
+    /// presence means every candidate of the commit has a decision. A digest
+    /// appears once per copy of the transaction validated at the commit.
     pub(crate) post_consensus_decision_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
 
     /// The last commit the consensus handler processed before this node
@@ -2048,7 +2049,9 @@ impl AuthorityPerEpochStore {
     }
 
     /// Saves the decisions of every candidate of commit `index`, in consensus
-    /// order, together with the commit's candidate list, in one batch.
+    /// order, together with the commit's candidate list, in one batch. A
+    /// digest with several copies validated appears once per copy, each entry
+    /// with the digest's decision.
     pub(crate) fn persist_post_consensus_decisions(
         &self,
         index: CommitIndex,
@@ -2726,6 +2729,18 @@ impl AuthorityPerEpochStore {
     pub async fn notify_read_dropped_digests(&self, digest: TransactionDigest) -> IotaError {
         self.dropped_tx_status_cache
             .notify_read_dropped(digest)
+            .await
+    }
+
+    /// Wait for any drop of a transaction at a commit. Unlike
+    /// [`Self::notify_read_dropped_digests`], this also returns on the drop of
+    /// one copy of the transaction for a reason that may come from that
+    /// copy's own signatures, which leaves the digest open for another copy.
+    /// Not for answering a client: the error returned is not necessarily
+    /// the final status of the transaction.
+    pub(crate) async fn notify_read_any_drop(&self, digest: TransactionDigest) -> IotaError {
+        self.dropped_tx_status_cache
+            .notify_read_any_drop(digest)
             .await
     }
 
@@ -4325,13 +4340,34 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                kind: ConsensusTransactionKind::UserTransactionV1(user_transaction),
                 ..
             }) => {
                 if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
-                        transaction.digest()
+                        user_transaction.digest()
+                    );
+                    return None;
+                }
+                // Once the epoch no longer accepts consensus transactions, such
+                // a transaction is ignored when scheduled, so it never
+                // executes. Under deterministic validation it is skipped here
+                // instead: kept at validation, it would hold its owned-object
+                // locks until the epoch ends, and it would hide a later copy of
+                // the same transaction in this commit. A transaction from an
+                // author that sent EndOfPublish was already dropped above. A
+                // deferred transaction is reloaded without passing through
+                // here, so it stays eligible.
+                if self.protocol_config().pcool_deterministic_validation()
+                    && !self
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring UserTransactionV1 {:?}: the epoch no longer accepts consensus \
+                         transactions",
+                        user_transaction.digest()
                     );
                     return None;
                 }
@@ -4846,6 +4882,11 @@ impl AuthorityPerEpochStore {
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
             soft_lock_release_tx_digests.extend(soft_lock_digests);
+            let kept: Vec<_> = sequenced_transactions
+                .iter()
+                .filter_map(|tx| tx.0.transaction.user_transaction_digest())
+                .collect();
+            self.dropped_tx_status_cache.remove_kept(&kept);
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
@@ -4854,10 +4895,18 @@ impl AuthorityPerEpochStore {
                     .inc_by(dropped.len() as u64);
                 // A drop for an input not visible at the horizon yet is not
                 // final for the digest, so it is not recorded as its status.
+                // A drop that may come from the signatures of the copy
+                // validated is not even reported to the current waiters:
+                // another copy can be kept, so they wait for its outcome, or
+                // until their own timeout or the end of the epoch. The
+                // consensus adapter is still told, so that it stops waiting
+                // for the transaction it submitted.
                 let mut final_drops = Vec::new();
                 let mut not_final = Vec::new();
+                let mut dropped_copies = Vec::new();
                 for (digest, error, decision) in dropped {
                     match decision {
+                        PostConsensusDecision::DroppedCopy => dropped_copies.push((digest, error)),
                         PostConsensusDecision::DroppedInputNotVisibleYet => {
                             not_final.push((digest, error))
                         }
@@ -4867,6 +4916,8 @@ impl AuthorityPerEpochStore {
                 self.dropped_tx_status_cache.insert_and_notify(&final_drops);
                 self.dropped_tx_status_cache
                     .notify_without_recording(&not_final);
+                self.dropped_tx_status_cache
+                    .notify_dropped_copies(&dropped_copies);
             }
 
             // Split back for downstream processing (separate reordering and

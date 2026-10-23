@@ -4,7 +4,8 @@
 //! Reads one shared input: whether the object exists and is shared at the
 //! declared initial version. It reads the object's creation row (the row at
 //! the declared initial shared version) and the latest object in the store,
-//! and, for an object that is gone, the highest row of `id`. These reads
+//! for an object that is gone the highest row of `id`, and after a drop the
+//! lowest row of `id`. These reads
 //! never use the object's contents. As for owned inputs, each step is its own
 //! type, and a store answer is kept until the creation row has been read a
 //! second time. A separate read, once the input is kept, loads an object of
@@ -226,15 +227,15 @@ impl SharedReader<ObjectAnswered> {
 // Deletion: the highest row of `id`
 // ---------------------------------------------------------------------------
 //
-// Execution writes a deletion marker at the tombstone version, and again at
-// the version of every later transaction that names the deleted object
-// mutably. Those later transactions write no handler row for the object, so
-// the latest marker depends on which of them a validator has executed, and
-// the deleting execution writes its tombstone before its marker, so a read
-// alongside it can find the one without the other. The deletion is therefore
-// decided from the id's highest handler row alone, which the hook writes
-// before the outputs and which names the deleting transaction. The marker is
-// never read.
+// Execution writes a deletion record in the store at the tombstone version,
+// and again at the version of every later transaction that names the deleted
+// object mutably. Those later transactions write no row for the object, so
+// the latest deletion record depends on which of them a validator has
+// executed, and the deleting execution writes its tombstone before its
+// deletion record, so a read alongside it can find the one without the
+// other. The deletion is therefore decided from the highest row of `id`
+// alone, which execution writes before the outputs and which names the
+// deleting transaction. The deletion record is never read.
 
 /// No live object for `id` in the store.
 pub struct ObjectAbsent {
@@ -311,10 +312,70 @@ impl SharedReader<ObjectAbsent> {
 }
 
 // ---------------------------------------------------------------------------
+// A drop: the lowest row of `id`
+// ---------------------------------------------------------------------------
+//
+// A drop from the store object, or from a tombstone row above the horizon,
+// assumes `id` existed at the horizon. A validator that has not executed the
+// commit that created `id`, or unwrapped it, has no object and no tombstone
+// row for it and answers missing. So a drop is checked against the lowest
+// row of `id`: one above the horizon that replaced no version is that
+// creation or unwrap, and the drop becomes missing. A drop decided from a
+// row at or below the horizon has a lowest row at or below it too, as an
+// id's row versions rise with the commits that write them.
+
+/// A drop decided by the reads above. The lowest row of `id` has not been
+/// read.
+pub struct Dropped {
+    reason: DropReason,
+}
+impl SharedState for Dropped {}
+
+impl SharedReader<Start> {
+    /// Starts the check of a drop the reads above decided for `id`.
+    pub fn start_drop_check(
+        id: ObjectId,
+        initial_shared_version: Version,
+        horizon: CommitIndex,
+        reason: DropReason,
+    ) -> SharedReader<Dropped> {
+        SharedReader {
+            id,
+            initial_shared_version,
+            horizon,
+            state: Dropped { reason },
+        }
+    }
+}
+
+/// Outcome of the read of the id's lowest row after a drop.
+#[must_use]
+pub enum DropCheck {
+    Drop(DropReason),
+    /// `id` did not exist at the horizon.
+    Missing(MissingReason),
+}
+
+impl SharedReader<Dropped> {
+    /// Reads the lowest row of `id`, which decides.
+    pub fn read_lowest_row(self, ctx: &CommitIndexedReader) -> IotaResult<DropCheck> {
+        let row = ctx
+            .epoch_store
+            .lowest_handler_processed_row_above(&self.id, Version::MIN_VALID_INCL)?;
+        Ok(
+            match classify_lowest_row(row.as_ref().map(|(_, row)| row), self.horizon) {
+                Some(reason) => DropCheck::Missing(reason),
+                None => DropCheck::Drop(self.state.reason),
+            },
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Type: an object of a kept input, for its type
 // ---------------------------------------------------------------------------
 //
-// A separate read, after the read above kept the input. The coin deny
+// A separate read, after the shared input's read kept it. The coin deny
 // check at the commit needs the coin type of every input, and a shared
 // input's object is not read for the keep. An object's type never changes, so
 // any stored version gives it, and the latest store object is used even when
@@ -407,7 +468,7 @@ impl SharedReader<TypeNeedBytes> {
 }
 
 // ---------------------------------------------------------------------------
-// Decisions on what a read returned, used by both reads of the creation row
+// Decisions on what a read returned
 // ---------------------------------------------------------------------------
 
 /// What the creation row decided about `(id, declared initial version)`.
@@ -460,7 +521,7 @@ fn classify_object(object: &Object, declared: Version) -> ObjectClass {
     }
 }
 
-/// What the id's highest handler row decided about a deletion.
+/// What the highest row of `id` decided about a deletion.
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
 enum DeletionClass {
@@ -497,6 +558,16 @@ fn classify_deletion_row(
         }
         RowOwnerClass::Matches => DeletionClass::AboveHorizon,
     }
+}
+
+/// The id's lowest row after a drop: missing when it is above the horizon
+/// and replaced no version, a creation or an unwrap there.
+fn classify_lowest_row(
+    row: Option<&HandlerProcessedObject>,
+    horizon: CommitIndex,
+) -> Option<MissingReason> {
+    row.filter(|row| row.produced_at > horizon && row.replaced_version.is_none())
+        .map(|_| MissingReason(MissingKind::SharedNotFound))
 }
 
 /// The creation row at `(id, declared)`: horizon first, then the row must be
@@ -669,10 +740,99 @@ mod tests {
         ));
     }
 
+    /// A transaction in commit 11, above the horizon of commit 12, creates a
+    /// shared object with initial shared version 8. A transaction declares
+    /// the object at version 5. A validator that has not executed commit 11
+    /// has no object and no row for it, and answers missing. One that has
+    /// holds the object shared at version 8, and must answer missing too, as
+    /// the object did not exist at the horizon. Once commit 11 is at the
+    /// horizon, both drop.
+    #[tokio::test]
+    async fn wrong_initial_version_of_an_object_created_above_the_horizon_is_missing() {
+        use iota_sdk_types::SenderSignedTransaction;
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::{
+                authority_per_epoch_store::handler_object_state::handler_processed_upserts,
+                authority_tests::init_state_with_objects_and_object_basics,
+            },
+            post_consensus_input_reader::SharedVerdict,
+        };
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+
+        const PRODUCING_COMMIT: CommitIndex = HORIZON + 1;
+
+        let sender = Address::ZERO;
+        let s_id = ObjectId::random();
+        let initial = Version::from_u64(8);
+        let gas = Object::with_id_owner_version_for_testing(
+            ObjectId::random(),
+            Version::from_u64(7),
+            Owner::Address(sender),
+        );
+        let (authority, _) = init_state_with_objects_and_object_basics([gas.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        let read_at = |commit_index| {
+            CommitIndexedReader::new(
+                authority.get_object_cache_reader().clone(),
+                epoch_store.clone(),
+                commit_index,
+            )
+            .read_shared(s_id, declared())
+            .unwrap()
+        };
+        let assert_missing = |verdict: SharedVerdict, kind: MissingKind| {
+            assert!(
+                matches!(verdict, SharedVerdict::Missing(reason) if reason.kind() == kind),
+                "expected missing with {kind:?}"
+            )
+        };
+
+        assert_missing(read_at(PRODUCING_COMMIT + 1), MissingKind::SharedNotFound);
+
+        let transaction = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let effects = TestEffectsBuilder::new(&transaction)
+            .with_created_objects([(s_id, Owner::Shared(initial))])
+            .build();
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(PRODUCING_COMMIT, vec![key]);
+        epoch_store
+            .record_commit_fully_executed(
+                PRODUCING_COMMIT,
+                &handler_processed_upserts(&effects, PRODUCING_COMMIT),
+            )
+            .unwrap();
+        authority.insert_genesis_object(Object::with_id_owner_version_for_testing(
+            s_id,
+            initial,
+            Owner::Shared(initial),
+        ));
+
+        assert_missing(read_at(PRODUCING_COMMIT + 1), MissingKind::SharedNotFound);
+        assert!(matches!(
+            read_at(PRODUCING_COMMIT + 2),
+            SharedVerdict::Drop(reason) if reason.kind() == DropKind::SharedInitialVersionMismatch
+        ));
+    }
+
     /// A creation row at or below the horizon proves the object was created
     /// this epoch, and the outputs follow the row. An absent object with no
     /// tombstone row breaks that, so the read is a storage error rather than
-    /// a verdict.
+    /// a result.
     #[tokio::test]
     async fn creation_row_without_object_or_tombstone_row_is_a_storage_error() {
         use iota_sdk_types::SenderSignedTransaction;

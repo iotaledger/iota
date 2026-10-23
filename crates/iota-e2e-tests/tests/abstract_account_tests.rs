@@ -640,6 +640,802 @@ async fn test_valid_abstract_account_tx_executes_under_deterministic_validation(
         .await
 }
 
+/// The protocol version the upgrade tests start at: the P-COOL flow is on and
+/// deterministic validation is off.
+#[cfg(msim)]
+const DETERMINISTIC_VALIDATION_OFF_VERSION: u64 = DETERMINISTIC_VALIDATION_ON_VERSION - 1;
+
+/// The protocol version the upgrade tests upgrade to, where deterministic
+/// validation is on.
+#[cfg(msim)]
+const DETERMINISTIC_VALIDATION_ON_VERSION: u64 =
+    iota_protocol_config::ProtocolVersion::MAX.as_u64();
+
+/// How long the upgrade tests wait for each condition on the nodes.
+#[cfg(msim)]
+const UPGRADE_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
+
+/// Deterministic validation reaches a network through a protocol upgrade at
+/// an epoch boundary. The cluster starts with the P-COOL flow on and
+/// deterministic validation off, upgrades to a version where it is on, and
+/// one validator restarts in the first epoch with it on. Transfers from a
+/// Move account and from a key account succeed before the upgrade, after it,
+/// after the restart and in the next epoch; a validator whose checkpoints
+/// differed from the certified ones would stop the test.
+///
+/// Simulator only: the protocol config override that turns the flag on is
+/// thread-local, and only the simulator runs every node on the test's thread.
+#[cfg(msim)]
+#[sim_test]
+async fn test_deterministic_validation_turned_on_at_a_protocol_upgrade() -> Result<(), anyhow::Error>
+{
+    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    telemetry_subscribers::init_for_testing();
+    let test_env = start_before_deterministic_validation(
+        TestClusterBuilder::new()
+            .with_num_validators(4)
+            .with_epoch_duration_ms(60_000),
+    )
+    .await?;
+
+    wait_for_deterministic_validation(&test_env.test_cluster).await;
+    transfer_from_move_account_and_key_account(&test_env).await?;
+
+    let restarted = test_env.test_cluster.get_validator_pubkeys()[1];
+    test_env.test_cluster.stop_node(&restarted);
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    test_env.test_cluster.start_node(&restarted).await;
+    transfer_from_move_account_and_key_account(&test_env).await?;
+
+    check_the_next_epoch_under_deterministic_validation(&test_env).await
+}
+
+/// A validator that is down when deterministic validation turns on starts
+/// after the upgrade in the last epoch with it off, catches up that epoch,
+/// moves to the first epoch with it on while that epoch's commits are being
+/// replayed, and then builds the same checkpoints as the others.
+///
+/// Simulator only, for the reason given on the test above.
+#[cfg(msim)]
+#[sim_test]
+async fn test_validator_down_when_deterministic_validation_turns_on_catches_up()
+-> Result<(), anyhow::Error> {
+    run_with_a_validator_down_across_the_upgrade(0).await
+}
+
+/// A validator that is down for the whole first epoch with deterministic
+/// validation on starts in the second one. It catches up the last epoch with
+/// it off, moves to the first epoch with it on after that epoch has already
+/// ended, and then builds the same checkpoints as the others.
+///
+/// Simulator only, for the reason given on the tests above.
+#[cfg(msim)]
+#[sim_test]
+async fn test_validator_down_for_the_first_deterministic_validation_epoch_catches_up()
+-> Result<(), anyhow::Error> {
+    run_with_a_validator_down_across_the_upgrade(1).await
+}
+
+/// A validator killed while it reconfigures into the first epoch with
+/// deterministic validation on, before it saves the new epoch's start
+/// configuration, restarts in the last epoch with it off and reconfigures
+/// again.
+///
+/// Simulator only, for the reason given on the tests above and because the
+/// kill is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_crash_before_saving_the_first_deterministic_validation_epoch_start()
+-> Result<(), anyhow::Error> {
+    run_with_a_crash_while_reconfiguring_into_deterministic_validation("reconfig_delay", |crash| {
+        iota_macros::register_fail_point_async("reconfig_delay", move || {
+            crash();
+            async {}
+        })
+    })
+    .await
+}
+
+/// A validator killed while it reconfigures into the first epoch with
+/// deterministic validation on, after it saved the new epoch's start
+/// configuration but before it opened the new epoch's store, restarts directly
+/// in the new epoch.
+///
+/// Simulator only, for the reason given on the tests above and because the
+/// kill is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_crash_before_opening_the_first_deterministic_validation_epoch_store()
+-> Result<(), anyhow::Error> {
+    run_with_a_crash_while_reconfiguring_into_deterministic_validation(
+        "before-open-new-epoch-store",
+        |crash| iota_macros::register_fail_point("before-open-new-epoch-store", move || crash()),
+    )
+    .await
+}
+
+/// A Move-authenticated transaction without an expiration executes while
+/// deterministic validation is off, and still executes once it is on, whether
+/// it was signed before or after the upgrade. One that expires in the epoch
+/// before the upgrade is refused as expired by every validator and does not
+/// execute, so its coins stay spendable.
+///
+/// Simulator only, for the reason given on the tests above.
+#[cfg(msim)]
+#[sim_test]
+async fn test_move_authenticated_transaction_without_expiration_after_the_upgrade()
+-> Result<(), anyhow::Error> {
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_types::{base_types::ConciseableName, messages_grpc::TxStatusUpdate};
+
+    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+    let test_env = start_before_deterministic_validation(
+        TestClusterBuilder::new()
+            .with_num_validators(4)
+            .with_epoch_duration_ms(60_000),
+    )
+    .await?;
+    let test_cluster = &test_env.test_cluster;
+    let aa_sender: Address = test_env.aa_ref.unwrap().object_id.into();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let fund = async || {
+        let gas = test_cluster
+            .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+            .await;
+        let coin = test_cluster
+            .fund_address_and_return_gas(rgp, Some(1_000_000), aa_sender)
+            .await;
+        (coin, gas)
+    };
+    let executed_before = fund().await;
+    let held_without_expiration = fund().await;
+    let held_expiring_before = fund().await;
+    let built_after = fund().await;
+
+    let without_expiration = async |(coin, gas): (ObjectReference, ObjectReference)| {
+        let pt = test_env.craft_object_transfer(coin, Address::random())?;
+        let mut tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
+        *tx_data.expiration_mut_for_testing() = iota_sdk_types::TransactionExpiration::None;
+        let signatures =
+            vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
+        anyhow::Ok(TransactionEnvelope::from_user_sig_data(tx_data, signatures))
+    };
+    anyhow::ensure!(
+        !deterministic_validation_on_running_validators(test_cluster)
+            .into_iter()
+            .any(|on| on),
+        "the transactions must be built before the upgrade"
+    );
+    test_env
+        .execute_and_check_tx_correctness(without_expiration(executed_before).await?)
+        .await?;
+    let held_none = without_expiration(held_without_expiration).await?;
+    let epoch_before = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
+    let held_expired = {
+        let (coin, gas) = held_expiring_before;
+        let pt = test_env.craft_object_transfer(coin, Address::random())?;
+        let mut tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
+        *tx_data.expiration_mut_for_testing() =
+            iota_sdk_types::TransactionExpiration::Epoch(epoch_before);
+        let signatures =
+            vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
+        TransactionEnvelope::from_user_sig_data(tx_data, signatures)
+    };
+
+    let upgrade_epoch = wait_for_deterministic_validation(test_cluster).await;
+    anyhow::ensure!(
+        upgrade_epoch > epoch_before,
+        "the held transactions must be signed before the upgrade"
+    );
+    test_env.execute_and_check_tx_correctness(held_none).await?;
+    test_env
+        .execute_and_check_tx_correctness(without_expiration(built_after).await?)
+        .await?;
+
+    let aggregator = test_cluster.authority_aggregator();
+    for (name, client) in aggregator.authority_clients.iter() {
+        let answer = client
+            .authority_client()
+            .submit_tx(vec![held_expired.clone()], Some(client_ip))
+            .await?;
+        anyhow::ensure!(
+            matches!(
+                answer.as_slice(),
+                [(
+                    _,
+                    TxStatusUpdate::Rejected {
+                        error: IotaError::TransactionExpired
+                    }
+                )]
+            ),
+            "validator {} must refuse a transaction that expired before the upgrade, got \
+             {answer:?}",
+            name.concise()
+        );
+    }
+    for handle in test_cluster.all_node_handles() {
+        anyhow::ensure!(
+            handle.with(|node| {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .get_executed_effects(held_expired.digest())
+                    .is_none()
+            }),
+            "a refused transaction must not execute"
+        );
+    }
+    let (coin, gas) = held_expiring_before;
+    let pt = test_env.craft_object_transfer(coin, Address::random())?;
+    let tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
+    let signatures =
+        vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    check_the_next_epoch_under_deterministic_validation(&test_env).await
+}
+
+/// A fullnode stopped before deterministic validation turns on and started
+/// after the upgrade catches up the last epoch with it off, executes the
+/// first epoch with it on, including a transfer made while it was down, and
+/// takes transactions again. A second fullnode serves the test while the
+/// first is down.
+///
+/// Simulator only, for the reason given on the tests above.
+#[cfg(msim)]
+#[sim_test]
+async fn test_fullnode_restarted_across_the_deterministic_validation_upgrade()
+-> Result<(), anyhow::Error> {
+    use test_cluster::FullNodeHandle;
+
+    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    telemetry_subscribers::init_for_testing();
+    let mut test_env = start_before_deterministic_validation(
+        TestClusterBuilder::new()
+            .with_num_validators(4)
+            .with_epoch_duration_ms(60_000),
+    )
+    .await?;
+    let restarted = test_env
+        .test_cluster
+        .swarm
+        .fullnodes()
+        .next()
+        .unwrap()
+        .name();
+    let other_fullnode = test_env.test_cluster.spawn_new_fullnode().await;
+
+    // Coins for the transfer made while the restarted fullnode is down: the
+    // faucet is reached through the wallet, which only knows that fullnode.
+    let aa_sender: Address = test_env.aa_ref.unwrap().object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(1_000_000), aa_sender)
+        .await;
+    tokio::time::timeout(UPGRADE_TEST_TIMEOUT, async {
+        while other_fullnode.iota_node.with(|node| {
+            [gas.object_id, coin.object_id]
+                .iter()
+                .any(|id| node.state().get_object(id).is_none())
+        }) {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("the other fullnode must sync the funded coins"))?;
+
+    // The cluster's handle pins the fullnode's store, which a restart could
+    // then not open, so the test uses the other fullnode until the restart.
+    drop(std::mem::replace(
+        &mut test_env.test_cluster.fullnode_handle,
+        other_fullnode,
+    ));
+    test_env.test_cluster.stop_node(&restarted);
+    anyhow::ensure!(
+        !deterministic_validation_on_running_validators(&test_env.test_cluster)
+            .into_iter()
+            .any(|on| on),
+        "the fullnode must stop before the upgrade"
+    );
+
+    let upgrade_epoch = wait_for_deterministic_validation(&test_env.test_cluster).await;
+    let pt = test_env.craft_object_transfer(coin, Address::random())?;
+    let tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
+    let signatures =
+        vec![test_env.create_move_authenticator_for_ed25519(&tx_data.digest().into_bytes())?];
+    let transfer = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+    let transferred_while_down = *transfer.digest();
+    test_env.execute_and_check_tx_correctness(transfer).await?;
+
+    test_env.test_cluster.start_node(&restarted).await;
+    let (restarted_handle, json_rpc_address) = {
+        let node = test_env.test_cluster.swarm.node(&restarted).unwrap();
+        (node.get_node_handle().unwrap(), node.json_rpc_address())
+    };
+    test_env.test_cluster.fullnode_handle =
+        FullNodeHandle::new(restarted_handle, json_rpc_address).await;
+    wait_for_running_nodes_to_reach_epoch(&test_env.test_cluster, upgrade_epoch).await;
+    tokio::time::timeout(
+        UPGRADE_TEST_TIMEOUT,
+        test_env
+            .test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &[transferred_while_down])
+                    .await
+            }),
+    )
+    .await
+    .map_err(|_| {
+        anyhow::anyhow!("the restarted fullnode must execute the transfer made while it was down")
+    })??;
+
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    check_the_next_epoch_under_deterministic_validation(&test_env).await
+}
+
+/// Runs a cluster of seven validators, one of them stopped before
+/// deterministic validation turns on and started again
+/// `epochs_after_the_upgrade` epochs after the first epoch with it on. With
+/// seven validators, the other six hold enough stake to pass the upgrade
+/// (2f+1 plus half of f with the default buffer); three of four would not.
+///
+/// Epochs last 30 seconds, so the test passes the epochs it waits for within
+/// the test runner's time limit. The fullnode keeps every checkpoint: in the simulator, nodes prune
+/// checkpoints older than two epochs, and there is no archive, so without it
+/// a validator down for two epochs would find no peer to sync from.
+#[cfg(msim)]
+async fn run_with_a_validator_down_across_the_upgrade(
+    epochs_after_the_upgrade: u64,
+) -> Result<(), anyhow::Error> {
+    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    telemetry_subscribers::init_for_testing();
+    let test_env = start_before_deterministic_validation(
+        TestClusterBuilder::new()
+            .with_num_validators(7)
+            .with_epoch_duration_ms(30_000)
+            .disable_fullnode_pruning(),
+    )
+    .await?;
+    let test_cluster = &test_env.test_cluster;
+
+    let stopped = test_cluster.get_validator_pubkeys()[1];
+    test_cluster.stop_node(&stopped);
+    anyhow::ensure!(
+        !deterministic_validation_on_running_validators(test_cluster)
+            .into_iter()
+            .any(|on| on),
+        "the validator must stop before the upgrade"
+    );
+    transfer_from_move_account_and_key_account(&test_env).await?;
+
+    let upgrade_epoch = wait_for_deterministic_validation(test_cluster).await;
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    let restart_epoch = upgrade_epoch + epochs_after_the_upgrade;
+    if restart_epoch > upgrade_epoch {
+        test_cluster
+            .wait_for_epoch_with_timeout(Some(restart_epoch), UPGRADE_TEST_TIMEOUT)
+            .await;
+        wait_for_running_nodes_to_reach_epoch(test_cluster, restart_epoch).await;
+        transfer_from_move_account_and_key_account(&test_env).await?;
+    }
+
+    test_cluster.start_node(&stopped).await;
+    wait_for_validator_to_reach_epoch(test_cluster, &stopped, restart_epoch).await;
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    assert_running_nodes_agree_on_checkpoints(test_cluster).await;
+    check_the_next_epoch_under_deterministic_validation(&test_env).await
+}
+
+/// Runs a cluster of four validators where one is killed once at
+/// `fail_point`, while it reconfigures into the first epoch with deterministic
+/// validation on. `register` registers the given kill at that fail point. The
+/// killed validator restarts by itself.
+#[cfg(msim)]
+async fn run_with_a_crash_while_reconfiguring_into_deterministic_validation(
+    fail_point: &'static str,
+    register: impl FnOnce(std::sync::Arc<dyn Fn() + Send + Sync>),
+) -> Result<(), anyhow::Error> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    use iota_types::iota_system_state::IotaSystemStateTrait;
+
+    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    telemetry_subscribers::init_for_testing();
+    let test_env = start_before_deterministic_validation(
+        TestClusterBuilder::new()
+            .with_num_validators(4)
+            .with_epoch_duration_ms(60_000),
+    )
+    .await?;
+    let test_cluster = &test_env.test_cluster;
+
+    let victim = test_cluster.get_validator_pubkeys()[1];
+    // A weak reference, so that the killed validator's store is not pinned
+    // and the restart can open it.
+    let (victim_sim_id, victim_state) = test_cluster
+        .swarm
+        .node(&victim)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|node| {
+            (
+                iota_simulator::current_simnode_id(),
+                Arc::downgrade(&node.state()),
+            )
+        });
+    let killed = Arc::new(AtomicBool::new(false));
+    {
+        let killed = killed.clone();
+        register(Arc::new(move || {
+            if iota_simulator::current_simnode_id() != victim_sim_id
+                || killed.load(Ordering::SeqCst)
+            {
+                return;
+            }
+            // The epoch-change transaction has executed, so the system state
+            // already carries the next epoch's protocol version.
+            let into_deterministic_validation = victim_state.upgrade().is_some_and(|state| {
+                state
+                    .get_iota_system_state_object_for_testing()
+                    .is_ok_and(|system_state| {
+                        system_state.protocol_version() == DETERMINISTIC_VALIDATION_ON_VERSION
+                    })
+            });
+            if into_deterministic_validation {
+                killed.store(true, Ordering::SeqCst);
+                iota_simulator::task::kill_current_node(None);
+            }
+        }));
+    }
+
+    let upgrade_epoch = wait_for_deterministic_validation(test_cluster).await;
+    wait_for_validator_to_reach_epoch(test_cluster, &victim, upgrade_epoch).await;
+    iota_macros::clear_fail_point(fail_point);
+    anyhow::ensure!(
+        killed.load(Ordering::SeqCst),
+        "the validator must be killed at {fail_point} while it reconfigures"
+    );
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    assert_running_nodes_agree_on_checkpoints(test_cluster).await;
+    check_the_next_epoch_under_deterministic_validation(&test_env).await
+}
+
+/// Turns the P-COOL flow on at every protocol version, and deterministic
+/// validation on from `DETERMINISTIC_VALIDATION_ON_VERSION`, until the guard is
+/// dropped.
+#[cfg(msim)]
+fn turn_on_deterministic_validation_at_the_upgrade() -> iota_protocol_config::OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        if version.as_u64() >= DETERMINISTIC_VALIDATION_ON_VERSION {
+            config.enable_pcool_deterministic_validation_for_testing();
+        }
+        config
+    })
+}
+
+/// Starts a cluster at `DETERMINISTIC_VALIDATION_OFF_VERSION` whose validators
+/// upgrade to `DETERMINISTIC_VALIDATION_ON_VERSION` at an epoch change, creates
+/// the Move account and checks that transfers succeed before the upgrade. The
+/// builder's epochs must be long enough for that to happen in the first one.
+#[cfg(msim)]
+async fn start_before_deterministic_validation(
+    builder: TestClusterBuilder,
+) -> Result<TestEnvironment, anyhow::Error> {
+    use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+
+    let mut test_env = TestEnvironment::with_cluster(
+        builder
+            .with_protocol_version(DETERMINISTIC_VALIDATION_OFF_VERSION.into())
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                DETERMINISTIC_VALIDATION_OFF_VERSION,
+                DETERMINISTIC_VALIDATION_ON_VERSION,
+            ))
+            .build()
+            .await,
+    );
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    anyhow::ensure!(
+        !deterministic_validation_on_running_validators(&test_env.test_cluster)
+            .into_iter()
+            .any(|on| on),
+        "the upgrade must come after the first transfers"
+    );
+    transfer_from_move_account_and_key_account(&test_env).await?;
+    Ok(test_env)
+}
+
+/// Whether each running validator has deterministic validation on in its
+/// current epoch.
+#[cfg(msim)]
+fn deterministic_validation_on_running_validators(test_cluster: &TestCluster) -> Vec<bool> {
+    test_cluster
+        .swarm
+        .validator_nodes()
+        .filter_map(|node| node.get_node_handle())
+        .map(|handle| {
+            handle.with(|node| {
+                node.state()
+                    .epoch_store_for_testing()
+                    .protocol_config()
+                    .pcool_deterministic_validation()
+            })
+        })
+        .collect()
+}
+
+/// Waits until a running validator is in an epoch with deterministic
+/// validation on, then until every running node is in that epoch or a later
+/// one, and returns that epoch.
+#[cfg(msim)]
+async fn wait_for_deterministic_validation(test_cluster: &TestCluster) -> u64 {
+    let upgrade_epoch = tokio::time::timeout(UPGRADE_TEST_TIMEOUT, async {
+        loop {
+            let upgrade_epoch = test_cluster
+                .swarm
+                .validator_nodes()
+                .filter_map(|node| node.get_node_handle())
+                .find_map(|handle| {
+                    handle.with(|node| {
+                        let epoch_store = node.state().epoch_store_for_testing();
+                        epoch_store
+                            .protocol_config()
+                            .pcool_deterministic_validation()
+                            .then(|| epoch_store.epoch())
+                    })
+                });
+            if let Some(upgrade_epoch) = upgrade_epoch {
+                return upgrade_epoch;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("a validator must reach an epoch with deterministic validation on");
+    wait_for_running_nodes_to_reach_epoch(test_cluster, upgrade_epoch).await;
+    assert!(
+        deterministic_validation_on_running_validators(test_cluster)
+            .into_iter()
+            .all(|on| on),
+        "every running validator must have deterministic validation on in epoch {upgrade_epoch}"
+    );
+    upgrade_epoch
+}
+
+/// Waits until every running node is in `epoch` or a later one, and every
+/// running fullnode's client for the validators is too.
+#[cfg(msim)]
+async fn wait_for_running_nodes_to_reach_epoch(test_cluster: &TestCluster, epoch: u64) {
+    let reached = |handle: &iota_node::IotaNodeHandle| {
+        handle.with(|node| {
+            node.state().epoch_store_for_testing().epoch() >= epoch
+                && node
+                    .clone_authority_aggregator()
+                    .is_none_or(|aggregator| aggregator.committee.epoch() >= epoch)
+        })
+    };
+    tokio::time::timeout(UPGRADE_TEST_TIMEOUT, async {
+        while !test_cluster.all_node_handles().iter().all(&reached) {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("every running node must reach epoch {epoch}"));
+}
+
+/// Waits until the validator is running and in `epoch` or a later one.
+#[cfg(msim)]
+async fn wait_for_validator_to_reach_epoch(
+    test_cluster: &TestCluster,
+    name: &AuthorityName,
+    epoch: u64,
+) {
+    use iota_types::base_types::ConciseableName;
+
+    tokio::time::timeout(UPGRADE_TEST_TIMEOUT, async {
+        while !test_cluster
+            .swarm
+            .node(name)
+            .unwrap()
+            .get_node_handle()
+            .is_some_and(|handle| {
+                handle.with(|node| node.state().epoch_store_for_testing().epoch() >= epoch)
+            })
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("validator {} must reach epoch {epoch}", name.concise()));
+}
+
+/// Waits for the network's next epoch, checks that every running validator
+/// has deterministic validation on in it, that transfers succeed in it, and
+/// that every running node agrees on the checkpoints.
+#[cfg(msim)]
+async fn check_the_next_epoch_under_deterministic_validation(
+    test_env: &TestEnvironment,
+) -> Result<(), anyhow::Error> {
+    let test_cluster = &test_env.test_cluster;
+    let next_epoch = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch())
+        + 1;
+    test_cluster
+        .wait_for_epoch_with_timeout(Some(next_epoch), UPGRADE_TEST_TIMEOUT)
+        .await;
+    wait_for_running_nodes_to_reach_epoch(test_cluster, next_epoch).await;
+    anyhow::ensure!(
+        deterministic_validation_on_running_validators(test_cluster)
+            .into_iter()
+            .all(|on| on),
+        "every running validator must have deterministic validation on in epoch {next_epoch}"
+    );
+    transfer_from_move_account_and_key_account(test_env).await?;
+    assert_running_nodes_agree_on_checkpoints(test_cluster).await;
+    Ok(())
+}
+
+/// Waits until every running node has executed a checkpoint a few past the
+/// one the test's fullnode has executed, so the network keeps making
+/// checkpoints, and every running validator has built it. Then checks that
+/// every running node holds the same certified checkpoint there, and that each
+/// validator's own checkpoints match the certified ones where it still holds
+/// both. A validator prunes its own checkpoints of earlier epochs, which its
+/// fork check covered when it executed them.
+#[cfg(msim)]
+async fn assert_running_nodes_agree_on_checkpoints(test_cluster: &TestCluster) {
+    use iota_types::base_types::ConciseableName;
+
+    let highest_executed = |handle: &iota_node::IotaNodeHandle| {
+        handle.with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default()
+        })
+    };
+    let last_built = |handle: &iota_node::IotaNodeHandle| {
+        handle.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .last_built_checkpoint_builder_summary()
+                .unwrap()
+                .map(|summary| summary.summary.sequence_number)
+                .unwrap_or_default()
+        })
+    };
+    let target = highest_executed(&test_cluster.fullnode_handle.iota_node) + 5;
+    tokio::time::timeout(UPGRADE_TEST_TIMEOUT, async {
+        while test_cluster
+            .all_node_handles()
+            .iter()
+            .any(|handle| highest_executed(handle) < target)
+            || test_cluster
+                .swarm
+                .validator_nodes()
+                .filter_map(|node| node.get_node_handle())
+                .any(|handle| last_built(&handle) < target)
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!("every running node must execute, and every running validator build, checkpoint {target}")
+    });
+
+    let certified_at_target: Vec<_> = test_cluster
+        .all_node_handles()
+        .iter()
+        .map(|handle| {
+            handle.with(|node| {
+                *node
+                    .state()
+                    .get_checkpoint_store()
+                    .get_checkpoint_by_sequence_number(target)
+                    .unwrap()
+                    .expect("an executed checkpoint is certified")
+                    .digest()
+            })
+        })
+        .collect();
+    assert!(
+        certified_at_target
+            .iter()
+            .all(|digest| *digest == certified_at_target[0]),
+        "every running node must hold the same checkpoint {target}: {certified_at_target:?}"
+    );
+    for node in test_cluster.swarm.validator_nodes() {
+        let Some(handle) = node.get_node_handle() else {
+            continue;
+        };
+        handle.with(|iota_node| {
+            let store = iota_node.state().get_checkpoint_store().clone();
+            for sequence_number in 1..=target {
+                let local = store
+                    .get_locally_computed_checkpoint(sequence_number)
+                    .unwrap();
+                let certified = store
+                    .get_checkpoint_by_sequence_number(sequence_number)
+                    .unwrap();
+                if let (Some(local), Some(certified)) = (local, certified) {
+                    assert_eq!(
+                        local.digest(),
+                        *certified.digest(),
+                        "validator {}'s checkpoint {sequence_number} must match the certified one",
+                        node.name().concise(),
+                    );
+                }
+            }
+        });
+    }
+}
+
+/// Executes a transfer of a fresh coin from the environment's Move account,
+/// then a transfer from a key account. Panics unless both succeed.
+#[cfg(msim)]
+async fn transfer_from_move_account_and_key_account(
+    test_env: &TestEnvironment,
+) -> Result<(), anyhow::Error> {
+    let Some(aa_ref) = test_env.aa_ref else {
+        anyhow::bail!("Abstract account not created yet");
+    };
+    let aa_sender: Address = aa_ref.object_id.into();
+    let test_cluster = &test_env.test_cluster;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let coin = test_cluster
+        .fund_address_and_return_gas(rgp, Some(1_000_000), aa_sender)
+        .await;
+    let pt = test_env.craft_object_transfer(coin, Address::random())?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
+
+    let tx = test_cluster
+        .test_transaction_builder_with_sender(test_cluster.get_address_0())
+        .await
+        .transfer_iota(Some(1_000_000), test_cluster.get_address_1())
+        .build();
+    test_cluster.sign_and_execute_transaction(&tx).await;
+    Ok(())
+}
+
 /// Under P-COOL with deterministic validation, a transaction whose
 /// authenticator fails at execution produces failure effects on every
 /// validator. Such a transaction reaches consensus through an honest validator
