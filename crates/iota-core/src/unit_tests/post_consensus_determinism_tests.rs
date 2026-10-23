@@ -3428,8 +3428,8 @@ fn package_read(verdict: PackageVerdict) -> InputRead {
 // Properties
 // ---------------------------------------------------------------------------
 
-/// Turns deterministic validation on, with the horizon distance read from
-/// `horizon_distance` each time a protocol config is built.
+/// Sets the horizon distance, read from `horizon_distance` each time a protocol
+/// config is built.
 fn pcool_flags(horizon_distance: Arc<AtomicU64>) -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(

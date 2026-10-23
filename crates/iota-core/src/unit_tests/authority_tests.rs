@@ -8042,7 +8042,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     let shared_objects = create_shared_objects(1);
     let gas_objects = create_gas_objects(2, sender);
 
-    // Enable the P-COOL flow (where the bug lived) and force congestion-driven
+    // Under the P-COOL flow (where the bug lived), force congestion-driven
     // deferral: count each transaction as one unit of cost, allow only one unit
     // per shared object per commit, and forbid any overshoot, so the second
     // transaction touching the shared object in the same commit is deferred.

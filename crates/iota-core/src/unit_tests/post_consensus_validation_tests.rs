@@ -2208,8 +2208,7 @@ async fn setup_handler_object_state_with_package(
 }
 
 /// [`setup_handler_object_state_with_package`] under the protocol config override the
-/// caller installed, or none, for a second validator sharing the override
-/// another one holds.
+/// caller installed, if any. The guard lives as long as the setup.
 async fn setup_handler_object_state_with_package_and_config_guard(
     package_name: &str,
     sender: Address,
@@ -5186,9 +5185,7 @@ async fn receive_of_a_version_deleted_last_epoch_is_dropped_on_every_node() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let mut pruning = setup_handler_object_state_with_package("tto", sender, gas_id).await;
-    // Shares the override `pruning` holds.
-    let mut keeping =
-        setup_handler_object_state_with_package_and_config_guard("tto", sender, gas_id, None).await;
+    let mut keeping = setup_handler_object_state_with_package("tto", sender, gas_id).await;
 
     // `M1::start` as the root of commit 1, then
     // `M1::deleter(parent, Receiving(child))` as the root of commit 2, which
@@ -5978,8 +5975,7 @@ async fn authenticator_function_rotated_above_the_horizon_gets_one_verdict_on_ev
         shared_object_with_id(account_id),
     ];
     let rotated = setup_handler_object_state(genesis.clone(), true).await;
-    // Share the override `rotated` holds.
-    let not_rotated = setup_handler_object_state_with_config_guard(genesis, None).await;
+    let not_rotated = setup_handler_object_state(genesis, true).await;
     assert_eq!(rotated.package_id, not_rotated.package_id);
     let denied = rotated.package_id;
     for node in [&rotated, &not_rotated] {
@@ -6034,8 +6030,7 @@ async fn authenticator_function_rotated_to_a_denied_package_above_the_horizon_is
         shared_object_with_id(account_id),
     ];
     let rotated = setup_handler_object_state(genesis.clone(), true).await;
-    // Share the override `rotated` holds.
-    let not_rotated = setup_handler_object_state_with_config_guard(genesis, None).await;
+    let not_rotated = setup_handler_object_state(genesis, true).await;
     assert_eq!(rotated.package_id, not_rotated.package_id);
     let denied = rotated.package_id;
     for node in [&rotated, &not_rotated] {
@@ -7668,8 +7663,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
         Object::with_id_owner_for_testing(consumer_gas, sender),
     ];
     let normal = setup_handler_object_state(genesis.clone(), true).await;
-    // Shares the override `normal` holds.
-    let mut restarted = setup_handler_object_state_with_config_guard(genesis, None).await;
+    let mut restarted = setup_handler_object_state(genesis, true).await;
     let producer = normal.build_transfer(&object, &gas, sender, &key, sender);
     for node in [&normal, &restarted] {
         node.complete_empty_commit(10);
@@ -9382,8 +9376,7 @@ async fn consumed_version_drops_the_same_whatever_the_consumer_execution(
         .map(|id| Object::with_id_owner_for_testing(id, sender))
         .collect();
     let ran = setup_handler_object_state(genesis.clone(), true).await;
-    // Share the override `ran` holds.
-    let lagging = setup_handler_object_state_with_config_guard(genesis, None).await;
+    let lagging = setup_handler_object_state(genesis, true).await;
     let nodes = [&ran, &lagging];
 
     // Commit 1 creates the object the consumer takes, commit 2 is empty.
@@ -11064,8 +11057,7 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
         Object::with_id_owner_for_testing(consumer_gas, sender),
     ];
     let pruning = setup_handler_object_state(genesis.clone(), true).await;
-    // Shares the override `pruning` holds.
-    let keeping = setup_handler_object_state_with_config_guard(genesis, None).await;
+    let keeping = setup_handler_object_state(genesis, true).await;
 
     let (field_ref, committed, _) =
         consume_a_dynamic_field_child_without_a_lock(&pruning, &gas_id, sender, &sender_key);

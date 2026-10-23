@@ -392,9 +392,7 @@ async fn collect_v2_stream(
 }
 
 /// Builds a P-COOL-enabled validator service backed by a single owned object
-/// and a gas coin, plus a signed transfer transaction spending them. The
-/// returned [`OverrideGuard`] enables the P-COOL flow and must be kept alive
-/// for the duration of the test.
+/// and a gas coin, plus a signed transfer transaction spending them.
 async fn setup_v2_transfer_tx() -> (
     Arc<ValidatorService>,
     TransactionEnvelope,
