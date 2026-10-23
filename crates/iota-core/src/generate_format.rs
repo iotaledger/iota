@@ -181,7 +181,7 @@ fn get_registry() -> Result<Registry> {
     let sig: SimpleSignature = kp1.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    // `MultisigCommittee::new` rejects committees mixing Ed25519 with other key
+    // `MultisigCommittee::new` rejects partially signed committees mixing Ed25519 with other key
     // schemes, but this one is signed by every member below.
     let multisig_pk = MultisigCommittee::new_unchecked(
         vec![
