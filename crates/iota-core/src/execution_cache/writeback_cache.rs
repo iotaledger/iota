@@ -2265,6 +2265,12 @@ impl TestingAPI for WritebackCache {
     fn database_for_testing(&self) -> Arc<AuthorityStore> {
         self.store.clone()
     }
+
+    #[cfg(test)]
+    fn evict_committed_object_for_testing(&self, id: &ObjectId) {
+        self.cached.object_cache.invalidate(id);
+        self.object_by_id_cache.invalidate(id);
+    }
 }
 
 impl ObjectStore for WritebackCache {

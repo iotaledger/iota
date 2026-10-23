@@ -926,6 +926,9 @@ struct TransactionCursor {
     carried_entry: Option<Bytes>,
     first_commit: bool,
     charged_bytes: usize,
+    /// Refs whose entry this response already carries, since several commits
+    /// can list one ref.
+    sent: BTreeSet<TransactionRef>,
 }
 
 impl TransactionCursor {
@@ -949,6 +952,7 @@ impl TransactionCursor {
             carried_entry: None,
             first_commit: true,
             charged_bytes: 0,
+            sent: BTreeSet::new(),
         }
     }
 
@@ -968,12 +972,19 @@ impl TransactionCursor {
                 commit_start = chunk.len();
                 continue;
             };
+            if self.sent.contains(&transaction_ref) {
+                refs.pop_first();
+                continue;
+            }
             if !self.read.contains_key(&transaction_ref) {
                 // Refs and store keys share their order, so the smallest unread
                 // ref is either read by this scan or absent from the store.
                 let unread: Vec<TransactionRef> = refs
                     .iter()
-                    .filter(|transaction_ref| !self.read.contains_key(transaction_ref))
+                    .filter(|transaction_ref| {
+                        !self.read.contains_key(transaction_ref)
+                            && !self.sent.contains(transaction_ref)
+                    })
                     .copied()
                     .collect();
                 let space = self.chunk_bytes.saturating_sub(chunk_size);
@@ -1000,6 +1011,7 @@ impl TransactionCursor {
                 break;
             }
             self.charged_bytes += charge;
+            self.sent.insert(transaction_ref);
             if !chunk.is_empty() && chunk_size + entry.len() > self.chunk_bytes {
                 self.carried_entry = Some(entry);
                 break;
@@ -6193,6 +6205,31 @@ mod tests {
             entry_refs(&chunks.concat()),
             commits_transaction_refs.concat()
         );
+    }
+
+    /// A ref listed by several commits is served once, with the first commit
+    /// listing it.
+    #[tokio::test]
+    async fn fast_sync_serves_a_ref_listed_by_several_commits_once() {
+        let blocks = two_rounds_of_payloads();
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        write_payloads(&store, &blocks);
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let refs = refs_by_round(&blocks);
+        let commits_transaction_refs = vec![refs[0].clone(), vec![refs[0][0], refs[1][0]]];
+
+        let served = served_chunks(TransactionCursor::new(
+            context,
+            store,
+            dag_state,
+            MAX_FETCH_RESPONSE_BYTES,
+            commits_transaction_refs,
+        ))
+        .concat();
+
+        let expected: Vec<TransactionRef> = refs[0].iter().copied().chain([refs[1][0]]).collect();
+        assert_eq!(entry_refs(&served), expected);
     }
 
     /// The payloads are read when the transport asks for a chunk, not when the

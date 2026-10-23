@@ -6,6 +6,8 @@
 //! policies inline, so a breaching client is blocked before
 //! [`TrafficController::tally`] returns.
 
+mod block_log;
+mod client_access;
 pub mod metrics;
 pub mod policies;
 pub mod sim;
@@ -14,97 +16,35 @@ use std::{
     fmt::Debug,
     net::{IpAddr, SocketAddr},
     str,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
-    time::{Duration, SystemTime},
+    sync::Arc,
 };
 
-use dashmap::DashMap;
-use iota_common::fatal;
-use iota_metrics::spawn_monitored_task;
 use iota_types::{
     error::IotaError,
     traffic_control::{ClientIdSource, PolicyConfig, PolicyType, TrafficControlReconfigParams},
 };
-use prometheus_filtered::IntGauge;
-use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::error;
 
-use self::metrics::TrafficControllerMetrics;
-use crate::policies::{MAX_CLIENT_THRESHOLD, PolicyResponse, TrafficControlPolicy, TrafficTally};
+use self::{
+    block_log::BlockReason,
+    client_access::{ClientAccessManager, client_prefix},
+    metrics::TrafficControllerMetrics,
+};
+use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
 
-const CLEAR_BLOCKLIST_INTERVAL: Duration = Duration::from_secs(3);
-
-type Blocklist = Arc<DashMap<IpAddr, SystemTime>>;
-
-#[derive(Clone)]
-struct Blocklists {
-    clients: Blocklist,
-    proxied_clients: Blocklist,
-}
-
-/// The blocklist TTLs in force, which the admin API can change at runtime.
-struct BlocklistTtls {
-    connection_blocklist_ttl_sec: AtomicU64,
-    proxy_blocklist_ttl_sec: AtomicU64,
-}
-
-impl BlocklistTtls {
-    fn from_config(policy_config: &PolicyConfig) -> Self {
-        Self {
-            connection_blocklist_ttl_sec: AtomicU64::new(
-                policy_config.connection_blocklist_ttl_sec,
-            ),
-            proxy_blocklist_ttl_sec: AtomicU64::new(policy_config.proxy_blocklist_ttl_sec),
-        }
-    }
-
-    fn connection_blocklist_ttl_sec(&self) -> u64 {
-        self.connection_blocklist_ttl_sec.load(Ordering::Relaxed)
-    }
-
-    fn proxy_blocklist_ttl_sec(&self) -> u64 {
-        self.proxy_blocklist_ttl_sec.load(Ordering::Relaxed)
-    }
-}
-
-#[derive(Clone)]
-enum Acl {
-    Tally(Arc<TallyState>),
-    /// If this variant is set, then we do no tallying or running
-    /// of background tasks, and instead simply block all IPs not
-    /// in the allowlist on calls to `check`. The allowlist should
-    /// only be populated once at initialization, and stays sorted so
-    /// that `check` can binary-search it.
-    Allowlist(Vec<IpAddr>),
-}
-
-/// Spam and error policies, along with the state shared by the paths that
-/// charge them. Absent in allowlist mode, which does no tallying.
-struct TallyState {
-    spam_policy: Arc<TrafficControlPolicy>,
-    error_policy: Arc<TrafficControlPolicy>,
-    blocklists: Blocklists,
-    shutdown: CancellationToken,
-}
-
-impl Drop for TallyState {
-    fn drop(&mut self) {
-        self.shutdown.cancel();
-    }
+/// The spam and error policies. Absent in allowlist mode, which does no
+/// tallying.
+struct Policies {
+    spam: TrafficControlPolicy,
+    error: TrafficControlPolicy,
 }
 
 #[derive(Clone)]
 pub struct TrafficController {
-    acl: Acl,
+    client_access: Arc<ClientAccessManager>,
+    policies: Option<Arc<Policies>>,
     policy_config: Arc<PolicyConfig>,
     metrics: Arc<TrafficControllerMetrics>,
-    // Read on the request path in `check` and toggled by the admin API.
-    dry_run: Arc<AtomicBool>,
-    // Read whenever a block is applied and changed by the admin API.
-    blocklist_ttls: Arc<BlocklistTtls>,
 }
 
 impl Debug for TrafficController {
@@ -128,31 +68,32 @@ impl Debug for TrafficController {
 }
 
 impl TrafficController {
+    /// Must be called from within a tokio runtime unless `policy_config` has
+    /// an allowlist, since blocklist mode spawns the task that drops expired
+    /// blocks.
     pub fn init(policy_config: PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
-        metrics.dry_run_enabled.set(policy_config.dry_run as i64);
-        let dry_run = Arc::new(AtomicBool::new(policy_config.dry_run));
-        metrics
-            .connection_blocklist_ttl_sec
-            .set(policy_config.connection_blocklist_ttl_sec as i64);
-        metrics
-            .proxy_blocklist_ttl_sec
-            .set(policy_config.proxy_blocklist_ttl_sec as i64);
-        let blocklist_ttls = Arc::new(BlocklistTtls::from_config(&policy_config));
-
-        let acl = match &policy_config.allow_list {
-            Some(allow_list) => Acl::Allowlist(parse_allowlist(allow_list)),
-            None => {
-                let state = spawn_tally_state(&policy_config, &metrics);
-                set_policy_config_metrics(&state, &policy_config, &metrics);
-                Acl::Tally(Arc::new(state))
-            }
-        };
+        let client_access = Arc::new(ClientAccessManager::new(&policy_config, metrics.clone()));
+        let policies = policy_config.allow_list.is_none().then(|| {
+            let policies = Policies {
+                spam: TrafficControlPolicy::from_policy_type(
+                    &policy_config.spam_policy_type,
+                    policy_config.connection_blocklist_ttl_sec,
+                    metrics.rate_limiter_evictions.clone(),
+                ),
+                error: TrafficControlPolicy::from_policy_type(
+                    &policy_config.error_policy_type,
+                    policy_config.connection_blocklist_ttl_sec,
+                    metrics.rate_limiter_evictions.clone(),
+                ),
+            };
+            set_policy_config_metrics(&policies, &policy_config, &metrics);
+            Arc::new(policies)
+        });
         Self {
-            acl,
+            client_access,
+            policies,
             policy_config: Arc::new(policy_config),
             metrics,
-            dry_run,
-            blocklist_ttls,
         }
     }
 
@@ -163,24 +104,22 @@ impl TrafficController {
         )
     }
 
-    fn tally_state(&self) -> Option<&TallyState> {
-        match &self.acl {
-            Acl::Tally(state) => Some(state),
-            Acl::Allowlist(_) => None,
-        }
-    }
-
+    /// The settings in force. The thresholds and the blocklist TTLs are
+    /// `None` in allowlist mode, which neither tallies nor blocks.
     pub fn get_current_state(&self) -> TrafficControlReconfigParams {
+        let ttls = self.client_access.blocklist_ttls_sec();
         TrafficControlReconfigParams {
             error_threshold: self
-                .tally_state()
-                .and_then(|state| state.error_policy.client_threshold()),
+                .policies
+                .as_ref()
+                .and_then(|policies| policies.error.client_threshold()),
             spam_threshold: self
-                .tally_state()
-                .and_then(|state| state.spam_policy.client_threshold()),
-            dry_run: Some(self.dry_run.load(Ordering::Relaxed)),
-            connection_blocklist_ttl_sec: Some(self.blocklist_ttls.connection_blocklist_ttl_sec()),
-            proxy_blocklist_ttl_sec: Some(self.blocklist_ttls.proxy_blocklist_ttl_sec()),
+                .policies
+                .as_ref()
+                .and_then(|policies| policies.spam.client_threshold()),
+            dry_run: Some(self.client_access.dry_run()),
+            connection_blocklist_ttl_sec: ttls.map(|(connection, _)| connection),
+            proxy_blocklist_ttl_sec: ttls.map(|(_, proxy)| proxy),
         }
     }
 
@@ -200,13 +139,13 @@ impl TrafficController {
         let updates = [
             (
                 error_threshold,
-                self.tally_state().map(|state| state.error_policy.as_ref()),
+                self.policies.as_ref().map(|policies| &policies.error),
                 &self.metrics.error_client_threshold,
                 "error",
             ),
             (
                 spam_threshold,
-                self.tally_state().map(|state| state.spam_policy.as_ref()),
+                self.policies.as_ref().map(|policies| &policies.spam),
                 &self.metrics.spam_client_threshold,
                 "spam",
             ),
@@ -217,54 +156,44 @@ impl TrafficController {
                 validate_threshold(policy, threshold, kind)?;
             }
         }
+        self.client_access
+            .validate_reconfigure(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
+            .map_err(IotaError::InvalidAdminRequest)?;
         for (threshold, policy, gauge, _) in updates {
             if let (Some(threshold), Some(policy)) = (threshold, policy) {
                 policy.set_client_threshold(threshold);
                 gauge.set(threshold as i64);
             }
         }
-        if let Some(dry_run) = dry_run {
-            self.metrics.dry_run_enabled.set(dry_run as i64);
-            self.dry_run.store(dry_run, Ordering::Relaxed);
-        }
-        let ttls = [
-            (
-                connection_blocklist_ttl_sec,
-                &self.blocklist_ttls.connection_blocklist_ttl_sec,
-                &self.metrics.connection_blocklist_ttl_sec,
-            ),
-            (
-                proxy_blocklist_ttl_sec,
-                &self.blocklist_ttls.proxy_blocklist_ttl_sec,
-                &self.metrics.proxy_blocklist_ttl_sec,
-            ),
-        ];
-        for (ttl_sec, live_ttl_sec, gauge) in ttls {
-            if let Some(ttl_sec) = ttl_sec {
-                live_ttl_sec.store(ttl_sec, Ordering::Relaxed);
-                gauge.set(ttl_sec as i64);
-            }
-        }
+        self.client_access.reconfigure(
+            dry_run,
+            connection_blocklist_ttl_sec,
+            proxy_blocklist_ttl_sec,
+        );
 
         Ok(self.get_current_state())
     }
 
-    /// Charges the tally against the spam and error policies, applying any
-    /// resulting block before returning. No-op in allowlist mode.
-    pub fn tally(&self, tally: TrafficTally) {
-        let Some(state) = self.tally_state() else {
+    /// Charges the tally against the spam and error policies, and has the
+    /// client access manager refuse each client that breaches one, before
+    /// returning. An IPv6 client is charged for the first `ipv6-prefix-len`
+    /// bits of its address. No-op in allowlist mode.
+    pub fn tally(&self, mut tally: TrafficTally) {
+        let Some(policies) = &self.policies else {
             return;
         };
+        let ipv6_prefix_len = self.policy_config.ipv6_prefix_len;
+        tally.direct = tally
+            .direct
+            .map(|client| client_prefix(client, ipv6_prefix_len));
+        tally.through_fullnode = tally
+            .through_fullnode
+            .map(|client| client_prefix(client, ipv6_prefix_len));
         self.metrics.tallies.inc();
         if tally.spam_weight.is_sampled() && self.policy_config.spam_sample_rate.is_sampled() {
-            let response = state.spam_policy.charge(&tally);
+            let response = policies.spam.charge(&tally);
             self.metrics.tally_handled.inc();
-            block_locally(
-                &response,
-                &self.blocklist_ttls,
-                &state.blocklists,
-                &self.metrics,
-            );
+            self.client_access.block(response, BlockReason::Spam);
         }
         if let Some((error_weight, error_type)) = &tally.error_info {
             if error_weight.is_sampled() {
@@ -272,96 +201,18 @@ impl TrafficController {
                     .tally_error_types
                     .with_label_values(&[error_type.as_str()])
                     .inc();
-                let response = state.error_policy.charge(&tally);
+                let response = policies.error.charge(&tally);
                 self.metrics.error_tally_handled.inc();
-                block_locally(
-                    &response,
-                    &self.blocklist_ttls,
-                    &state.blocklists,
-                    &self.metrics,
-                );
+                self.client_access.block(response, BlockReason::Error);
             }
         }
     }
 
-    /// Handle check with dry-run mode considered. A request whose client IP the
-    /// node could not resolve is refused in allowlist mode, and admitted in the
-    /// rate-limiting modes, where it is charged to no client.
+    /// Whether to serve a request from `client`, with dry run considered. A
+    /// request whose client IP the node could not resolve is refused in
+    /// allowlist mode, and served in blocklist mode.
     pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
-        let dry_run = self.dry_run.load(Ordering::Relaxed);
-        if client.is_none() {
-            self.metrics.unresolved_client_requests.inc();
-        }
-        let allowed = match &self.acl {
-            Acl::Allowlist(allowlist) => {
-                client.is_some_and(|client| allowlist.binary_search(&client).is_ok())
-            }
-            Acl::Tally(state) => check_blocklists(&state.blocklists, client, proxied_client),
-        };
-        match (allowed, dry_run) {
-            (true, _) => true,
-            (false, true) => {
-                debug!("Dry run mode: Blocked request from client {:?}", client);
-                self.metrics.num_dry_run_blocked_requests.inc();
-                true
-            }
-            (false, false) => {
-                debug!("Blocked request from client {:?}", client);
-                self.metrics.requests_blocked_at_protocol.inc();
-                false
-            }
-        }
-    }
-}
-
-/// Returns the allowlist sorted, so that `check` can binary-search it.
-fn parse_allowlist(allow_list: &[String]) -> Vec<IpAddr> {
-    let mut allowlist: Vec<IpAddr> = allow_list
-        .iter()
-        .map(|ip_str| {
-            parse_ip(ip_str)
-                .unwrap_or_else(|| fatal!("Failed to parse allowlist IP address: {ip_str:?}"))
-        })
-        .collect();
-    allowlist.sort_unstable();
-    allowlist
-}
-
-/// Builds the tallying state and spawns its background tasks. Must be called
-/// from within a tokio runtime.
-fn spawn_tally_state(
-    policy_config: &PolicyConfig,
-    metrics: &Arc<TrafficControllerMetrics>,
-) -> TallyState {
-    let blocklists = Blocklists {
-        clients: Arc::new(DashMap::new()),
-        proxied_clients: Arc::new(DashMap::new()),
-    };
-    let spam_policy = Arc::new(TrafficControlPolicy::from_policy_type(
-        &policy_config.spam_policy_type,
-        policy_config.connection_blocklist_ttl_sec,
-        metrics.rate_limiter_evictions.clone(),
-    ));
-    let error_policy = Arc::new(TrafficControlPolicy::from_policy_type(
-        &policy_config.error_policy_type,
-        policy_config.connection_blocklist_ttl_sec,
-        metrics.rate_limiter_evictions.clone(),
-    ));
-    let shutdown = CancellationToken::new();
-    let clear_loop_blocklists = blocklists.clone();
-    let clear_loop_metrics = metrics.clone();
-    let clear_loop_shutdown = shutdown.clone();
-    spawn_monitored_task!(run_clear_blocklists_loop(
-        clear_loop_blocklists,
-        clear_loop_metrics,
-        clear_loop_shutdown
-    ));
-
-    TallyState {
-        spam_policy,
-        error_policy,
-        blocklists,
-        shutdown,
+        self.client_access.check(client, proxied_client)
     }
 }
 
@@ -390,14 +241,14 @@ fn validate_threshold(
 
 /// Reports the thresholds the policies enforce.
 fn set_policy_config_metrics(
-    state: &TallyState,
+    policies: &Policies,
     policy_config: &PolicyConfig,
     metrics: &TrafficControllerMetrics,
 ) {
-    if let Some(threshold) = state.spam_policy.client_threshold() {
+    if let Some(threshold) = policies.spam.client_threshold() {
         metrics.spam_client_threshold.set(threshold as i64);
     }
-    if let Some(threshold) = state.error_policy.client_threshold() {
+    if let Some(threshold) = policies.error.client_threshold() {
         metrics.error_client_threshold.set(threshold as i64);
     }
     if let PolicyType::FreqThreshold(config) = &policy_config.spam_policy_type {
@@ -409,95 +260,6 @@ fn set_policy_config_metrics(
         metrics
             .error_proxied_client_threshold
             .set(config.proxied_client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
-    }
-}
-
-/// Returns true if neither client is blocked.
-fn check_blocklists(
-    blocklists: &Blocklists,
-    client: &Option<IpAddr>,
-    proxied_client: &Option<IpAddr>,
-) -> bool {
-    !blocked(client, &blocklists.clients) && !blocked(proxied_client, &blocklists.proxied_clients)
-}
-
-fn blocked(client: &Option<IpAddr>, blocklist: &Blocklist) -> bool {
-    client.is_some_and(|client| {
-        blocklist
-            .get(&client)
-            .is_some_and(|expiration| SystemTime::now() < *expiration)
-    })
-}
-
-/// The client to block and the TTL of that block, for the direct and the
-/// proxied client in that order.
-fn blocks(response: &PolicyResponse, ttls: &BlocklistTtls) -> [(Option<IpAddr>, u64); 2] {
-    [
-        (response.block_client, ttls.connection_blocklist_ttl_sec()),
-        (
-            response.block_proxied_client,
-            ttls.proxy_blocklist_ttl_sec(),
-        ),
-    ]
-}
-
-fn block_locally(
-    response: &PolicyResponse,
-    ttls: &BlocklistTtls,
-    blocklists: &Blocklists,
-    metrics: &TrafficControllerMetrics,
-) {
-    let targets = [
-        (&blocklists.clients, &metrics.connection_ip_blocklist_len),
-        (&blocklists.proxied_clients, &metrics.proxy_ip_blocklist_len),
-    ];
-    for ((client, ttl_secs), (blocklist, len_gauge)) in
-        blocks(response, ttls).into_iter().zip(targets)
-    {
-        let Some(client) = client else { continue };
-        insert_block(blocklist, len_gauge, client, ttl_secs);
-    }
-}
-
-/// Blocks a client for `ttl_secs`, counting it only when it was not already
-/// blocked so that the gauge matches the blocklist length.
-fn insert_block(blocklist: &Blocklist, len_gauge: &IntGauge, client: IpAddr, ttl_secs: u64) {
-    if blocklist
-        .insert(client, SystemTime::now() + Duration::from_secs(ttl_secs))
-        .is_none()
-    {
-        debug!("Adding client {client:?} to blocklist");
-        len_gauge.inc();
-    }
-}
-
-/// Waits for the next tick of a background loop, returning false once the last
-/// controller holding the loop's state has been dropped.
-async fn tick(interval: Duration, shutdown: &CancellationToken) -> bool {
-    tokio::select! {
-        _ = tokio::time::sleep(interval) => true,
-        _ = shutdown.cancelled() => false,
-    }
-}
-
-/// Drops expired blocklist entries and refreshes the length gauges.
-async fn run_clear_blocklists_loop(
-    blocklists: Blocklists,
-    metrics: Arc<TrafficControllerMetrics>,
-    shutdown: CancellationToken,
-) {
-    while tick(CLEAR_BLOCKLIST_INTERVAL, &shutdown).await {
-        let now = SystemTime::now();
-        blocklists.clients.retain(|_, expiration| now < *expiration);
-        blocklists
-            .proxied_clients
-            .retain(|_, expiration| now < *expiration);
-        metrics
-            .connection_ip_blocklist_len
-            .set(blocklists.clients.len() as i64);
-        metrics
-            .proxy_ip_blocklist_len
-            .set(blocklists.proxied_clients.len() as i64);
     }
 }
 
@@ -658,6 +420,7 @@ mod tests {
     use iota_types::traffic_control::{FreqThresholdConfig, Weight, default_blocklist_ttl_sec};
 
     use super::*;
+    use crate::{block_log::tests::capture_plain, client_access::MAX_BLOCKLIST_TTL_SEC};
 
     const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
 
@@ -684,7 +447,7 @@ mod tests {
                 PolicyType::NoOp
             },
             spam_sample_rate: Weight::one(),
-            // A TTL of zero would expire the block at once.
+            // A TTL of zero would block nothing.
             connection_blocklist_ttl_sec: 120,
             dry_run,
             ..Default::default()
@@ -738,18 +501,118 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_the_admin_api_changes_the_blocklist_ttl() {
+    async fn a_block_logs_one_line_however_often_the_client_breaches() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let log = capture_plain(|| {
+            for _ in 0..3 {
+                controller.tally(breach(PolicyKind::Spam));
+            }
+        });
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(
+            line.ends_with("client_blocked client=10.0.0.1 reason=spam ttl_secs=120"),
+            "{line}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_error_block_logs_the_error_reason() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Error));
+        let log = capture_plain(|| controller.tally(breach(PolicyKind::Error)));
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(
+            line.ends_with("client_blocked client=10.0.0.1 reason=error ttl_secs=120"),
+            "{line}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_breach_after_the_block_expired_logs_again() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let log = capture_plain(|| {
+            controller.tally(breach(PolicyKind::Spam));
+            controller.client_access.expire_client_blocks();
+            controller.tally(breach(PolicyKind::Spam));
+        });
+        assert_eq!(log.block_lines().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn dry_run_logs_no_block() {
+        let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
+        let log = capture_plain(|| controller.tally(breach(PolicyKind::Spam)));
+        assert_eq!(log.block_lines(), Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn turning_dry_run_off_logs_the_blocks_that_take_effect() {
+        let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
+        controller.tally(breach(PolicyKind::Spam));
+
+        // The node refuses the client from now on, and does not tally the
+        // requests it refuses, so the line has to come from the switch.
+        let log = capture_plain(|| {
+            controller
+                .admin_reconfigure(TrafficControlReconfigParams {
+                    error_threshold: None,
+                    spam_threshold: None,
+                    dry_run: Some(false),
+                    connection_blocklist_ttl_sec: None,
+                    proxy_blocklist_ttl_sec: None,
+                })
+                .expect("the request changes only the dry-run flag");
+        });
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(
+            line.ends_with("client_blocked client=10.0.0.1 reason=spam ttl_secs=120"),
+            "{line}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_addresses_of_one_ipv6_prefix_are_counted_and_blocked_together() {
         let controller = TrafficController::init_for_test(PolicyConfig {
-            spam_policy_type: PolicyType::TestNConnIP(1),
+            spam_policy_type: PolicyType::TestNConnIP(2),
+            ..policy_config(false, PolicyKind::Spam)
+        });
+        let address =
+            |last| IpAddr::V6(std::net::Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, last));
+        let tally = |client| TrafficTally::new(Some(client), None, None, Weight::one());
+
+        // Neither address reaches the threshold of two alone.
+        let log = capture_plain(|| {
+            controller.tally(tally(address(1)));
+            controller.tally(tally(address(2)));
+        });
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(
+            line.ends_with("client_blocked client=2001:db8:1:2::/64 reason=spam ttl_secs=120"),
+            "{line}"
+        );
+        assert!(!controller.check(&Some(address(3)), &None));
+    }
+
+    #[tokio::test]
+    async fn a_block_of_a_client_behind_a_fullnode_is_not_logged() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: freq_threshold(0),
             spam_sample_rate: Weight::one(),
-            connection_blocklist_ttl_sec: 0,
             dry_run: false,
             ..Default::default()
         });
+        let log = capture_plain(|| {
+            controller.tally(TrafficTally::new(None, Some(CLIENT), None, Weight::one()))
+        });
+        assert!(!controller.check(&None, &Some(CLIENT)));
+        assert_eq!(log.block_lines(), Vec::<String>::new());
+    }
 
-        // A TTL of zero expires the block at once, thus the client gets through.
-        controller.tally(breach(PolicyKind::Spam));
-        assert!(controller.check(&Some(CLIENT), &None));
+    #[tokio::test]
+    async fn test_the_admin_api_changes_the_blocklist_ttl() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            connection_blocklist_ttl_sec: 60,
+            ..policy_config(false, PolicyKind::Spam)
+        });
 
         controller
             .admin_reconfigure(TrafficControlReconfigParams {
@@ -762,9 +625,56 @@ mod tests {
             .expect("the request changes only the connection blocklist TTL");
 
         // The next block must take the new TTL, not the TTL at startup.
-        controller.tally(breach(PolicyKind::Spam));
+        let log = capture_plain(|| controller.tally(breach(PolicyKind::Spam)));
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(line.ends_with(" ttl_secs=120"), "{line}");
         assert!(!controller.check(&Some(CLIENT), &None));
         assert_eq!(controller.metrics.connection_blocklist_ttl_sec.get(), 120);
+    }
+
+    #[tokio::test]
+    async fn test_the_admin_api_rejects_a_blocklist_ttl_above_the_maximum() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in [
+            (Some(MAX_BLOCKLIST_TTL_SEC + 1), Some(5)),
+            (Some(5), Some(MAX_BLOCKLIST_TTL_SEC + 1)),
+        ] {
+            let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(true),
+                connection_blocklist_ttl_sec,
+                proxy_blocklist_ttl_sec,
+            });
+            assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+        }
+
+        // A rejected request applies nothing, not even its valid settings.
+        let state = controller.get_current_state();
+        assert_eq!(state.dry_run, Some(false));
+        assert_eq!(state.connection_blocklist_ttl_sec, Some(120));
+        assert_eq!(
+            state.proxy_blocklist_ttl_sec,
+            Some(default_blocklist_ttl_sec())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_a_zero_ttl_from_the_admin_api_turns_blocking_off() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: None,
+                connection_blocklist_ttl_sec: Some(0),
+                proxy_blocklist_ttl_sec: Some(0),
+            })
+            .expect("a zero blocklist TTL is valid");
+
+        let log = capture_plain(|| controller.tally(breach(PolicyKind::Spam)));
+        assert_eq!(log.block_lines(), Vec::<String>::new());
+        assert!(controller.check(&Some(CLIENT), &None));
     }
 
     /// The tallies the shipped default policy tolerates from one client before
@@ -1024,5 +934,57 @@ mod tests {
         }
         let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
         assert!(!controller.check(&Some(stranger), &None));
+    }
+
+    fn allowlist_mode() -> TrafficController {
+        TrafficController::init_for_test(PolicyConfig {
+            allow_list: Some(vec![CLIENT.to_string()]),
+            dry_run: false,
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn allowlist_mode_reports_no_blocklist_ttls() {
+        let state = allowlist_mode().get_current_state();
+        assert_eq!(state.connection_blocklist_ttl_sec, None);
+        assert_eq!(state.proxy_blocklist_ttl_sec, None);
+    }
+
+    #[test]
+    fn the_admin_api_rejects_a_blocklist_ttl_in_allowlist_mode() {
+        let controller = allowlist_mode();
+        for (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) in
+            [(Some(60), None), (None, Some(60))]
+        {
+            let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(true),
+                connection_blocklist_ttl_sec,
+                proxy_blocklist_ttl_sec,
+            });
+            assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+        }
+        // A rejected request applies nothing, not even its valid settings.
+        assert_eq!(controller.get_current_state().dry_run, Some(false));
+    }
+
+    #[test]
+    fn the_admin_api_turns_dry_run_on_in_allowlist_mode() {
+        let controller = allowlist_mode();
+        let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
+        assert!(!controller.check(&Some(stranger), &None));
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(true),
+                connection_blocklist_ttl_sec: None,
+                proxy_blocklist_ttl_sec: None,
+            })
+            .expect("allowlist mode has a dry-run flag");
+        assert!(controller.check(&Some(stranger), &None));
     }
 }

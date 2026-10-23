@@ -10,7 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use iota_common::{debug_fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{
     monitored_mpsc, monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task,
@@ -20,10 +20,13 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::AuthorityName,
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
+    move_authenticator::MoveAuthenticatorExt,
+    transaction::{
+        SenderSignedTransactionAPI, TransactionAPI, TransactionKindExt, VerifiedTransaction,
+    },
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -145,8 +148,8 @@ pub struct ConsensusHandler<C> {
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
     /// Marks commits fully executed for the P-COOL deterministic-validation
-    /// bookkeeping; `None` unless the feature is enabled. Held only so the
-    /// task is aborted with the handler.
+    /// bookkeeping; `None` unless this node keeps the bookkeeping. Held only
+    /// so the task is aborted with the handler.
     _execution_watcher: Option<ExecutionWatcher>,
 
     backpressure_subscriber: BackpressureSubscriber,
@@ -177,10 +180,8 @@ impl<C> ConsensusHandler<C> {
         let transaction_scheduler =
             AsyncTransactionScheduler::start(execution_scheduler, epoch_store.clone());
         let execution_watcher = epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-            .then(|| ExecutionWatcher::start(epoch_store.clone()))
-            .flatten();
+            .pcool_bookkeeping_enabled()
+            .then(|| ExecutionWatcher::start(epoch_store.clone()));
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -277,6 +278,23 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             debug!("not processing consensus commit: executing synced checkpoints");
             return Ok(());
         }
+        // A node that switched to executing synced checkpoints and then
+        // restarted stops after the same commit as before the restart: the
+        // synced checkpoints it has executed since the switch wrote outputs
+        // that validating a later commit would read.
+        let commit_index = consensus_output.commit_sub_dag_index();
+        let last_commit_before_switch = epoch_store
+            .last_commit_before_synced_checkpoint_execution()
+            .expect("the epoch store of the commit being processed must be readable");
+        if last_commit_before_switch.is_some_and(|last| commit_index > last) {
+            info!(
+                commit_index,
+                ?last_commit_before_switch,
+                "not processing consensus commit: switched to executing synced checkpoints before a restart"
+            );
+            epoch_store.resume_executing_synced_checkpoints();
+            return Ok(());
+        }
         // Every wait while processing the commit races against the switch, so
         // the commit cannot run against state that executing downloaded
         // checkpoints writes, and the switch is not held up waiting for it.
@@ -286,7 +304,14 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 info!("abandoned consensus commit: executing synced checkpoints for the rest of the epoch");
                 Ok(())
             }
-            result = self.process_consensus_output(consensus_output, block_transactions) => result,
+            result = self.process_consensus_output(consensus_output, block_transactions) => {
+                // A commit stopped by runtime shutdown is replayed after restart,
+                // so it is not handled yet.
+                if result.is_ok() {
+                    epoch_store.record_handled_commit(commit_index);
+                }
+                result
+            }
         }
     }
 
@@ -529,6 +554,18 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         {
             Ok(result) => result,
             Err(AdvanceDkgError::RuntimeShutdown) => return Err(RuntimeShutdown),
+            // The wait for the highest fully executed commit was cut short by
+            // the end of the epoch. Nothing in this commit is scheduled: the
+            // epoch is over and reconfiguration drops this handler.
+            Err(AdvanceDkgError::Iota(IotaError::EpochEnded(epoch)))
+                if self.epoch_store.pcool_bookkeeping_enabled() =>
+            {
+                info!(
+                    epoch,
+                    "consensus commit abandoned: the epoch ended during validation"
+                );
+                return Ok(());
+            }
             Err(AdvanceDkgError::Iota(e)) => {
                 panic!("Unrecoverable error in consensus handler: {e:?}")
             }
@@ -643,30 +680,44 @@ const EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME: &str =
 /// Receives commits from the epoch store in processing order and completes
 /// them in that order, so a completed commit implies every earlier commit is
 /// complete. Lives for one epoch: the wait ends when the epoch is terminated,
-/// and the task is aborted when the handler drops.
+/// and the task is aborted when the handler drops. An error stops the node:
+/// without the watcher, a commit waited on would complete only once its
+/// checkpoint is certified.
 pub(crate) struct ExecutionWatcher {
     handle: JoinHandle<()>,
 }
 
 impl ExecutionWatcher {
-    /// Starts the watcher for `epoch_store`'s epoch. Returns `None` if a
-    /// watcher already took the epoch store's assigned-commit receiver.
-    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Option<Self> {
-        let receiver = epoch_store.take_assigned_commits_receiver()?;
+    /// Starts the watcher for `epoch_store`'s epoch.
+    ///
+    /// # Panics
+    ///
+    /// If a watcher already took the epoch store's assigned-commit receiver.
+    /// Without a watcher the highest fully executed commit never advances and
+    /// post-consensus validation waits on it forever, so a second start is a
+    /// bug that must not run on.
+    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Self {
+        let receiver = epoch_store.take_assigned_commits_receiver().expect(
+            "the epoch store's assigned-commit receiver is taken once, by its epoch's \
+             consensus handler",
+        );
         let handle = spawn_monitored_task!(async move {
             match epoch_store
                 .within_alive_epoch(Self::run(receiver, &epoch_store))
                 .await
             {
                 Ok(Ok(())) => debug!("ExecutionWatcher finished: assigned-commit channel closed"),
-                Ok(Err(e)) => debug_fatal!("ExecutionWatcher stopping on error: {e}"),
+                Ok(Err(e)) => {
+                    epoch_store.record_execution_watcher_error(&e);
+                    fatal!("ExecutionWatcher stopping on error: {e}");
+                }
                 Err(_) => debug!(
                     epoch = epoch_store.epoch(),
                     "ExecutionWatcher stopping: epoch ended"
                 ),
             }
         });
-        Some(Self { handle })
+        Self { handle }
     }
 
     async fn run(
@@ -680,6 +731,8 @@ impl ExecutionWatcher {
                 .try_notify_read_executed_effects(EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME, &digests)
                 .await?;
             let upserts = handler_rows_for_commit(&effects, index);
+            #[cfg(test)]
+            epoch_store.injected_watcher_completion_error()?;
             // A no-op once the commit's output has flushed: the flush derives
             // the durable rows from the same effects and completes the commit
             // itself.
@@ -792,6 +845,18 @@ impl Drop for StarfishConsensusHandler {
     }
 }
 
+/// Whether the transaction or one of its Move authenticators names a shared
+/// object, the same answer as `contains_shared_object`. It does not merge the
+/// declarations, since `classify` runs on committed transactions before
+/// `validity_check` has rejected those whose declarations disagree.
+fn names_shared_object(transaction: &SenderSignedTransaction) -> bool {
+    transaction.transaction().kind().contains_shared_object()
+        || transaction
+            .move_authenticators()
+            .iter()
+            .any(|authenticator| !authenticator.shared_objects().is_empty())
+}
+
 pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
     match &transaction.kind {
         ConsensusTransactionKind::CertifiedTransaction(certificate) => {
@@ -802,7 +867,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             }
         }
         ConsensusTransactionKind::UserTransactionV1(transaction) => {
-            if transaction.contains_shared_object() {
+            if names_shared_object(transaction.data()) {
                 "shared_user_transaction"
             } else {
                 "owned_user_transaction"
@@ -1131,6 +1196,7 @@ mod tests {
             get_key_pair,
         },
         effects::TransactionEffectsAPI,
+        error::{IotaError, UserInputError},
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -1138,8 +1204,12 @@ mod tests {
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
-        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
-        utils::to_sender_signed_transaction,
+        transaction::{
+            CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionKey,
+        },
+        utils::{
+            make_move_authenticator_tx_with_inconsistent_shared_input, to_sender_signed_transaction,
+        },
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
@@ -1156,6 +1226,7 @@ mod tests {
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
         post_consensus_tx_reorder::PostConsensusTxReorder,
+        post_consensus_validation::PostConsensusDecision,
     };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1313,7 +1384,7 @@ mod tests {
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
         telemetry_subscribers::init_for_testing();
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_pcool_deterministic_validation_for_testing(true);
+            config.enable_pcool_deterministic_validation_for_testing();
             config
         });
         let network_config =
@@ -1378,6 +1449,218 @@ mod tests {
             .handle_consensus_output_for_test(commit(101, 11))
             .await;
         assert_eq!(consensus_handler.last_consensus_stats, initial_stats);
+    }
+
+    /// With deterministic validation on, a commit carrying a user transaction
+    /// after the switch to executing synced checkpoints is not processed: the
+    /// transaction is not validated, assigned to the commit, put in a pending
+    /// checkpoint or executed. The commit before the switch shows each of
+    /// these for a processed commit.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_stops_when_executing_synced_checkpoints_with_validation() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<Object> = (0..4)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .with_objects(objects.clone())
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        assert!(epoch_store.pcool_bookkeeping_enabled());
+        let rgp = epoch_store.reference_gas_price();
+        let transfer = |object: &Object, gas: &Object| {
+            let transaction = to_sender_signed_transaction(
+                Transaction::new_transfer(
+                    Address::random(),
+                    state.get_object(&object.id()).unwrap().object_ref(),
+                    sender,
+                    state.get_object(&gas.id()).unwrap().object_ref(),
+                    rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                    rgp,
+                ),
+                &key,
+            );
+            let digest = *transaction.digest();
+            let consensus_tx = ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+                tracking_id: Default::default(),
+            };
+            (digest, consensus_tx)
+        };
+        let in_pending_checkpoint = |digest: TransactionDigest| {
+            epoch_store
+                .get_pending_checkpoints(None)
+                .unwrap()
+                .iter()
+                .flat_map(|(_, checkpoint)| checkpoint.roots())
+                .any(|root| *root == TransactionKey::Digest(digest))
+        };
+        let executed = |digest: TransactionDigest| {
+            let reader = state.get_transaction_cache_reader().clone();
+            tokio::time::timeout(Duration::from_secs(60), async move {
+                reader
+                    .notify_read_executed_effects_for_testing("", &[digest])
+                    .await
+            })
+        };
+        let mut consensus_handler = ConsensusHandler::new(
+            epoch_store.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch_store.epoch_start_state()),
+            state.metrics.clone(),
+            BackpressureManager::new_for_tests().subscribe(),
+        );
+
+        let (before, before_tx) = transfer(&objects[0], &objects[1]);
+        consensus_handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                1,
+                100,
+                vec![(0, before_tx)],
+            ))
+            .await;
+        assert_eq!(
+            epoch_store
+                .post_consensus_decision(1, before)
+                .unwrap()
+                .map(|saved| saved.decision),
+            Some(PostConsensusDecision::Kept)
+        );
+        assert!(in_pending_checkpoint(before));
+        executed(before)
+            .await
+            .expect("the transaction of the commit before the switch must execute");
+        let stats_before_switch = consensus_handler.last_consensus_stats.clone();
+        assert_eq!(stats_before_switch.index.sub_dag_index, 1);
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        let (after, after_tx) = transfer(&objects[2], &objects[3]);
+        consensus_handler
+            .handle_consensus_output_for_test(commit_with_transactions(2, 101, vec![(0, after_tx)]))
+            .await;
+
+        assert_eq!(consensus_handler.last_consensus_stats, stats_before_switch);
+        assert_eq!(epoch_store.last_validated_commit().unwrap(), Some(1));
+        assert_eq!(epoch_store.post_consensus_decision(2, after).unwrap(), None);
+        assert_eq!(
+            epoch_store
+                .handler_object_state_for_testing()
+                .commit_index_of(&TransactionKey::Digest(after)),
+            None
+        );
+        assert!(!in_pending_checkpoint(after));
+        assert!(
+            executed(after).await.is_err(),
+            "a transaction of a commit after the switch must not be scheduled"
+        );
+    }
+
+    /// A node that switched to executing synced checkpoints and restarts in
+    /// the same epoch processes the commits it processed before the switch
+    /// again, and stops at the first one after them: synced checkpoints it
+    /// executed since the switch wrote outputs that validating a later commit
+    /// would read.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_restarted_after_the_switch_stops_after_the_same_commit() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let consensus_committee = get_consensus_committee(epoch_store.epoch_start_state());
+        let backpressure_manager = BackpressureManager::new_for_tests();
+        let new_handler = |epoch_store: Arc<AuthorityPerEpochStore>| {
+            ConsensusHandler::new(
+                epoch_store,
+                state.clone(),
+                Arc::new(CheckpointServiceNoop {}),
+                state.execution_scheduler().clone(),
+                state.get_object_cache_reader().clone(),
+                Arc::new(ArcSwap::default()),
+                consensus_committee.clone(),
+                Arc::new(AuthorityMetrics::new(&Registry::new())),
+                backpressure_manager.subscribe(),
+            )
+        };
+        let commit = |round: u32, index: u32| {
+            let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
+            CommittedSubDag::new(
+                header.reference(),
+                vec![header.clone()],
+                vec![header.reference()],
+                vec![],
+                header.timestamp_ms(),
+                CommitRef::new(index, CommitDigest::MIN),
+                vec![],
+                vec![],
+            )
+        };
+
+        let mut consensus_handler = new_handler(epoch_store.clone());
+        for (round, index) in [(100, 1), (101, 2)] {
+            consensus_handler
+                .handle_consensus_output_for_test(commit(round, index))
+                .await;
+        }
+        assert_eq!(consensus_handler.last_processed_subdag_index(), 2);
+        epoch_store.start_executing_synced_checkpoints().await;
+        drop(consensus_handler);
+
+        let reopened =
+            crate::authority::authority_per_epoch_store::authority_per_epoch_store_tests::reopen(
+                &state,
+                &epoch_store,
+            );
+        // The commit boundary insists on a randomness manager; one whose DKG
+        // never completes keeps randomness out of the commits.
+        let randomness_manager = crate::epoch::randomness::RandomnessManager::try_new(
+            Arc::downgrade(&reopened),
+            Box::new(crate::mock_consensus::MockConsensusClient::new(
+                Arc::downgrade(&state),
+                crate::mock_consensus::ConsensusMode::Noop,
+            )),
+            iota_network::randomness::Handle::new_stub(),
+            network_config.validator_configs()[0].authority_key_pair(),
+        )
+        .await
+        .unwrap();
+        reopened
+            .set_randomness_manager(randomness_manager)
+            .await
+            .unwrap();
+        let mut consensus_handler = new_handler(reopened.clone());
+        for (round, index) in [(100, 1), (101, 2), (102, 3)] {
+            consensus_handler
+                .handle_consensus_output_for_test(commit(round, index))
+                .await;
+        }
+        assert_eq!(
+            consensus_handler.last_processed_subdag_index(),
+            2,
+            "the restarted handler must not process a commit after the last one it processed \
+             before the switch"
+        );
+        assert!(reopened.is_executing_synced_checkpoints());
     }
 
     /// A commit mixing a shared-object certificate with an owned-object-only
@@ -1539,6 +1822,254 @@ mod tests {
         );
     }
 
+    /// With deterministic validation on, a dropped user transaction does not
+    /// enter the processed-transaction cache, so a retry is validated at every
+    /// commit it appears in. Once kept, the transaction is cached and a later
+    /// copy is skipped before validation.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn retries_of_a_dropped_transaction_reach_validation_until_it_is_kept() {
+        use iota_types::transaction::TransactionKey;
+
+        use crate::{
+            authority::authority_per_epoch_store::handler_object_state::{
+                HandlerProcessedObject, HandlerProcessedObjectKind,
+            },
+            post_consensus_validation::PostConsensusDecision,
+        };
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .with_objects(vec![object.clone(), gas.clone()])
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch = state.epoch_store_for_testing().clone();
+        let rgp = epoch.reference_gas_price();
+        let object = state.get_object(&object.id()).unwrap();
+        let gas = state.get_object(&gas.id()).unwrap();
+        let transaction = to_sender_signed_transaction(
+            Transaction::new_transfer(
+                Address::random(),
+                object.object_ref(),
+                sender,
+                gas.object_ref(),
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            ),
+            &key,
+        );
+        let digest = *transaction.digest();
+        let consensus_tx = ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            tracking_id: Default::default(),
+        };
+        // An input produced at commit 1. Validation at commit C reads the state
+        // as of commit C - 2, the default
+        // `pcool_deterministic_validation_horizon_distance`, so validation at
+        // commits 1 and 2 drops the transaction and validation at commit 3
+        // keeps it.
+        epoch
+            .flush_commit_rows_for_testing(
+                0,
+                vec![(
+                    iota_types::storage::ObjectKey::from(object.object_ref()),
+                    HandlerProcessedObject {
+                        produced_at: 1,
+                        digest: object.digest(),
+                        kind: HandlerProcessedObjectKind::Live,
+                        initial_shared_version: None,
+                        replaced_version: None,
+                        deleted_by: None,
+                    },
+                )],
+            )
+            .unwrap();
+        let backpressure = BackpressureManager::new_for_tests();
+        let mut handler = ConsensusHandler::new(
+            epoch.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch.epoch_start_state()),
+            state.metrics.clone(),
+            backpressure.subscribe(),
+        );
+        let bytes = bcs::to_bytes(&consensus_tx).unwrap();
+        let cache_key = SequencedConsensusTransactionKey::External(consensus_tx.key());
+        for index in 1..=4 {
+            let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(index, 0).build());
+            let batch = CommitmentVerifiedTransactions::new_for_test(
+                &header,
+                vec![starfish_core::Transaction::new(bytes.clone())],
+            );
+            let subdag = CommittedSubDag::new(
+                header.reference(),
+                vec![header.clone()],
+                vec![header.reference()],
+                vec![batch],
+                header.timestamp_ms(),
+                CommitRef::new(index, CommitDigest::MIN),
+                vec![],
+                vec![],
+            );
+            handler.handle_consensus_output_for_test(subdag).await;
+            let decision = epoch
+                .post_consensus_decision(index as u64, digest)
+                .unwrap()
+                .map(|saved| saved.decision);
+            match index {
+                1 | 2 => assert_eq!(
+                    decision,
+                    Some(PostConsensusDecision::DroppedInputNotVisibleYet)
+                ),
+                3 => assert_eq!(decision, Some(PostConsensusDecision::Kept)),
+                // Kept at commit 3, so this copy is skipped as already processed
+                // before validation and has no saved decision.
+                4 => assert_eq!(decision, None),
+                _ => unreachable!(),
+            }
+            assert_eq!(handler.processed_cache.contains(&cache_key), index >= 3);
+        }
+        let roots = epoch.get_pending_checkpoints(None).unwrap();
+        assert_eq!(
+            roots
+                .iter()
+                .flat_map(|(_, checkpoint)| checkpoint.roots())
+                .filter(|root| **root == TransactionKey::Digest(digest))
+                .count(),
+            1
+        );
+    }
+
+    /// A transaction dropped because an input is not visible at the commit's
+    /// horizon yet can succeed when sequenced again. The submitter waiting at
+    /// the time of the drop learns about it, but the drop is not kept as the
+    /// digest's status: a later status request or resubmission waits for the
+    /// retry's outcome instead of getting the old error back at once.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn drop_for_an_input_not_yet_at_the_horizon_does_not_answer_later_status_requests() {
+        use crate::authority::authority_per_epoch_store::handler_object_state::{
+            HandlerProcessedObject, HandlerProcessedObjectKind,
+        };
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let network = iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            .with_objects(vec![object.clone(), gas.clone()])
+            .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .build()
+            .await;
+        let epoch = state.epoch_store_for_testing().clone();
+        let rgp = epoch.reference_gas_price();
+        let object = state.get_object(&object.id()).unwrap();
+        let gas = state.get_object(&gas.id()).unwrap();
+        let transaction = to_sender_signed_transaction(
+            Transaction::new_transfer(
+                Address::random(),
+                object.object_ref(),
+                sender,
+                gas.object_ref(),
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            ),
+            &key,
+        );
+        let digest = *transaction.digest();
+        let consensus_tx = ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            tracking_id: Default::default(),
+        };
+        // An input produced at commit 1. Validation at commit C reads the state
+        // as of commit C - 2, the default
+        // `pcool_deterministic_validation_horizon_distance`, so at commit 1 the
+        // input is not visible yet.
+        epoch
+            .flush_commit_rows_for_testing(
+                0,
+                vec![(
+                    iota_types::storage::ObjectKey::from(object.object_ref()),
+                    HandlerProcessedObject {
+                        produced_at: 1,
+                        digest: object.digest(),
+                        kind: HandlerProcessedObjectKind::Live,
+                        initial_shared_version: None,
+                        replaced_version: None,
+                        deleted_by: None,
+                    },
+                )],
+            )
+            .unwrap();
+        let backpressure = BackpressureManager::new_for_tests();
+        let mut handler = ConsensusHandler::new(
+            epoch.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            get_consensus_committee(epoch.epoch_start_state()),
+            state.metrics.clone(),
+            backpressure.subscribe(),
+        );
+        // Polled once so it is registered before the commit is processed.
+        let waiting_submitter = epoch.notify_read_dropped_digests(digest);
+        pin_mut!(waiting_submitter);
+        assert!(futures::poll!(&mut waiting_submitter).is_pending());
+
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
+        let batch = CommitmentVerifiedTransactions::new_for_test(
+            &header,
+            vec![starfish_core::Transaction::new(
+                bcs::to_bytes(&consensus_tx).unwrap(),
+            )],
+        );
+        let subdag = CommittedSubDag::new(
+            header.reference(),
+            vec![header.clone()],
+            vec![header.reference()],
+            vec![batch],
+            header.timestamp_ms(),
+            CommitRef::new(1, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+        handler.handle_consensus_output_for_test(subdag).await;
+
+        let notified = tokio::time::timeout(Duration::from_secs(5), waiting_submitter)
+            .await
+            .expect("the submitter waiting at the drop must be told about it");
+        assert!(
+            matches!(notified, IotaError::UserInput { .. }),
+            "{notified:?}"
+        );
+        assert!(
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                epoch.notify_read_dropped_digests(digest)
+            )
+            .await
+            .is_err(),
+            "a status request after the drop must wait for the retry's outcome"
+        );
+    }
+
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_user_transaction_v1() {
         // GIVEN
@@ -1675,6 +2206,72 @@ mod tests {
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats, last_consensus_stats_2);
         }
+    }
+
+    /// Block verification checks only signatures, so a committed
+    /// `UserTransactionV1` can carry a Move authenticator that names one of
+    /// the transaction's shared objects with another initial shared version.
+    /// The handler reads the transaction's shared inputs before validating it,
+    /// and must still process the commit, with post-consensus validation
+    /// dropping the transaction. Callers set the protocol config.
+    async fn assert_user_transaction_with_inconsistent_shared_input_is_dropped() {
+        // GIVEN
+        let (state, mut consensus_handler, _) = handler_with_impersonated_authority().await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+
+        // AND a transaction whose authenticator disagrees with it on a shared
+        // object
+        let (transaction, shared) = make_move_authenticator_tx_with_inconsistent_shared_input(
+            Address::random(),
+            epoch_store.epoch(),
+        );
+        let digest = *transaction.digest();
+        // The first commit, so deterministic validation has no earlier commit
+        // to wait for.
+        let commit = commit_with_transactions(
+            1,
+            100,
+            vec![(0, ConsensusTransaction::new_user_transaction(transaction))],
+        );
+
+        // WHEN processing the commit
+        consensus_handler
+            .handle_consensus_output_for_test(commit)
+            .await;
+
+        // THEN post-consensus validation drops the transaction
+        let error = tokio::time::timeout(
+            Duration::from_secs(60),
+            epoch_store.notify_read_dropped_digests(digest),
+        )
+        .await
+        .expect("the transaction must be dropped by post-consensus validation");
+        assert_eq!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::InconsistentInput {
+                    object_id: shared.object_id,
+                },
+            }
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_drops_inconsistent_shared_input() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+        assert_user_transaction_with_inconsistent_shared_input_is_dropped().await;
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_drops_inconsistent_shared_input_with_validation() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        assert_user_transaction_with_inconsistent_shared_input_is_dropped().await;
     }
 
     /// Builds a commit in which every entry is a separate block authored by the

@@ -4,7 +4,7 @@
 
 // This test attempts to remove a child, add it back, remove it again, and then transfer/delete it.
 // This is an interesting test case because when child objects are removed, added back and removed again,
-// they won't show up in the child_object_effects in the object runtiem. We must look at either transfers
+// they won't show up in the child_object_effects in the object runtime. We must look at either transfers
 // or deleted_object_ids to figure them out.
 
 //# init --addresses test=0x0 --accounts A

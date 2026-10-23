@@ -19,12 +19,24 @@
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. Already executed — **retained** as a committee-agreed winner (registers the locks its own
-//!    effects report, skips re-validation); not dropped. See issue #11649.
+//! 3. Saved decisions, already-executed and deferred transactions:
+//!    - Replayed commit (deterministic validation only): a commit replayed after a restart repeats
+//!      the decisions saved on its first run. A saved drop is repeated without checks. A saved keep
+//!      is validated again unless the transaction has executed or was deferred at an earlier
+//!      commit.
+//!    - Already executed (typically by state sync): the transaction is **retained** as a
+//!      committee-agreed winner, not dropped. It registers the locks its own effects report and
+//!      skips re-validation. See issue #11649. With deterministic validation this applies only if
+//!      the first run of this commit saved a keep for it; otherwise it goes through the checks
+//!      below like any other transaction, unless it was deferred.
+//!    - Deferred at an earlier commit (deterministic validation only): the transaction is kept
+//!      without checks and takes no new locks. It was validated at the commit that kept it and
+//!      still holds the locks it took there.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
-//!    lock held by the same transaction (a deferred tx's own prior-round lock), which is exempt.
-//!    Cheap; performed before expensive checks.
+//!    lock held by the same transaction (with deterministic validation off, a deferred tx's own
+//!    lock from the commit that kept it), which is exempt. Cheap; performed before expensive
+//!    checks.
 //! 6. `handle_transaction_validation_checks()` — drop with error. Only reached when all locks are
 //!    free.
 //! 7. All passed — acquire locks in the local tracking map, keep transaction.
@@ -46,6 +58,7 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_macros::fail_point;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
@@ -54,18 +67,81 @@ use iota_types::{
     error::{IotaError, IotaResult},
     transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
 };
+use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
+use typed_store::Map;
 
 use crate::{
     authority::{
         AuthorityState,
-        authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, LockDetails, PreviouslyDeferredTransactions,
+            handler_object_state::CommitIndex,
+        },
     },
     consensus_handler::{
         SequencedConsensusTransactionKey, SequencedConsensusTransactionKind,
         VerifiedSequencedConsensusTransaction,
     },
+    post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
 };
+
+/// The post-consensus validation decision for one transaction at one
+/// consensus commit.
+///
+/// Saved in the epoch tables, so its encoding must stay readable by other
+/// binaries within the epoch: variants carry no data and new ones go at the
+/// end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PostConsensusDecision {
+    /// The transaction stayed in the commit.
+    Kept,
+    /// The transaction was dropped.
+    Dropped,
+    /// The transaction was dropped because an input is not visible at the
+    /// commit's [horizon](crate::post_consensus_input_reader::reader::horizon)
+    /// yet. The digest can be kept when sequenced again, so the drop is not
+    /// its final status.
+    DroppedInputNotVisibleYet,
+}
+
+/// A post-consensus validation decision as saved, so a replay of the commit
+/// after a restart reaches the same decision.
+///
+/// The error of a drop is kept as BCS bytes and decoded on its own, so a
+/// binary that encodes `IotaError` differently still reads the decision.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct SavedPostConsensusDecision {
+    pub(crate) decision: PostConsensusDecision,
+    /// The BCS bytes of the drop's error; empty for a keep.
+    pub(crate) error: Vec<u8>,
+}
+
+impl SavedPostConsensusDecision {
+    pub(crate) fn kept() -> Self {
+        Self {
+            decision: PostConsensusDecision::Kept,
+            error: Vec::new(),
+        }
+    }
+
+    pub(crate) fn dropped(decision: PostConsensusDecision, error: &IotaError) -> Self {
+        Self {
+            decision,
+            error: bcs::to_bytes(error).expect("an IotaError should encode to BCS"),
+        }
+    }
+
+    /// The error of a saved drop, or `IotaError::Unknown` if this binary
+    /// cannot decode it.
+    pub(crate) fn error(&self) -> IotaError {
+        bcs::from_bytes(&self.error).unwrap_or_else(|e| {
+            IotaError::Unknown(format!(
+                "the saved error of a post-consensus drop cannot be decoded: {e}"
+            ))
+        })
+    }
+}
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
 /// conflicts in a single pass.
@@ -78,6 +154,14 @@ use crate::{
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it registers the locks its
 ///   effects report (the raw input set without the flag) and skips re-validation. See issue #11649.
+/// - With deterministic validation, a transaction in `previously_deferred` is kept without checks
+///   and takes no new locks: the locks it took at the commit that kept it stay in place.
+///
+/// With deterministic validation, the decision for every candidate is saved before returning,
+/// including keeps that the caller then defers, and a commit replayed after a restart repeats the
+/// saved decisions; step 3 of the module docs says which transactions are validated again. Panics
+/// if the saved decisions are incomplete, the candidates differ from the saved ones, or a saved
+/// keep is now dropped.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -85,13 +169,20 @@ use crate::{
 ///
 /// * `authority_state` — Used for cache reads and deny checks.
 /// * `epoch_store` — Current epoch store (protocol config, lock storage, governance deny rules).
+/// * `commit_index` — The consensus commit being validated. With deterministic validation on,
+///   inputs are read as of this commit.
+/// * `deterministic_validation` — The `pcool_deterministic_validation` flag, read once per commit
+///   by the caller so every step of the commit decides on the same value.
+/// * `previously_deferred` — The transactions deferred at earlier commits and reloaded into
+///   `transactions`, randomness-using ones included. Read only with deterministic validation.
 /// * `transactions` — All sequenced transactions for this consensus commit; modified in-place.
 ///
 /// # Returns
 ///
 /// `Ok((dropped, locks, all_user_tx_digests))` where:
-/// - `dropped` — `(digest, error)` for every semantically-invalid or lock-conflicting transaction.
-///   Silent drops (duplicates) are **not** included.
+/// - `dropped` — `(digest, error, decision)` for every semantically-invalid or lock-conflicting
+///   transaction, where `decision` is never `Kept`. Without deterministic validation it is always
+///   `Dropped`. Silent drops (duplicates) are **not** included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the consensus quarantine
 ///   so subsequent commits can see them.
 /// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup (both kept and
@@ -99,13 +190,16 @@ use crate::{
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
+    commit_index: CommitIndex,
+    deterministic_validation: bool,
+    previously_deferred: &PreviouslyDeferredTransactions,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
 ) -> IotaResult<(
-    Vec<(TransactionDigest, IotaError)>,
+    Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
     HashMap<ObjectReference, LockDetails>,
     Vec<TransactionDigest>,
 )> {
-    let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
+    let mut dropped: Vec<(TransactionDigest, IotaError, PostConsensusDecision)> = Vec::new();
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
     // Locks acquired within this commit. Populated for every transaction that
     // passes all checks; used by subsequent transactions' conflict checks.
@@ -146,6 +240,49 @@ pub async fn validate_and_resolve_conflicts(
         .protocol_config()
         .pcool_skip_immutable_object_locks();
 
+    // With deterministic validation, the decisions saved when this commit was
+    // first validated, present only when it is replayed after a restart. A
+    // saved candidate list means every candidate has a saved decision.
+    let saved_candidates = if deterministic_validation {
+        epoch_store
+            .tables()?
+            .post_consensus_decision_candidates
+            .get(&commit_index)?
+    } else {
+        None
+    };
+    // A node that switched to executing synced checkpoints after commit
+    // `last` replays only the commits up to it after a restart. Synced
+    // checkpoints have since written outputs without handler rows, which the
+    // reader cannot place, so these commits repeat their saved decisions.
+    let replaying_up_to_the_switch = if deterministic_validation {
+        match epoch_store.last_commit_before_synced_checkpoint_execution()? {
+            Some(last) if commit_index > last => fatal!(
+                "commit {commit_index} validated after the switch to synced checkpoints \
+                 after commit {last}"
+            ),
+            Some(last) if saved_candidates.is_none() => fatal!(
+                "commit {commit_index} has no saved decisions although the switch to synced \
+                 checkpoints after commit {last} saved every decision up to it"
+            ),
+            Some(_) => true,
+            None => false,
+        }
+    } else {
+        false
+    };
+    let mut saved_decisions = HashMap::new();
+
+    // One reader for the whole commit, so every transaction in it is read as
+    // of the same commit index.
+    let reader = deterministic_validation.then(|| {
+        CommitIndexedReader::new(
+            authority_state.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            commit_index,
+        )
+    });
+
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
         // The same UserTransactionV1 may appear in DAG blocks from multiple
@@ -167,15 +304,63 @@ pub async fn validate_and_resolve_conflicts(
         let digest = *transaction.digest();
         all_user_tx_digests.push(digest);
 
+        let saved = match &saved_candidates {
+            Some(_) => match epoch_store.post_consensus_decision(commit_index, digest)? {
+                Some(saved) => Some(saved),
+                None => fatal!(
+                    "commit {commit_index} has a saved candidate list but no saved \
+                     validation decision for {digest:?}"
+                ),
+            },
+            None => None,
+        };
+        let saved_decision = saved.as_ref().map(|saved| saved.decision);
+        if let Some(decision) = saved_decision {
+            saved_decisions.insert(digest, decision);
+        }
+        // A saved drop is replayed as is: the inputs it was decided on may
+        // have changed since.
+        if let Some(saved) = saved.filter(|saved| saved.decision != PostConsensusDecision::Kept) {
+            dropped.push((digest, saved.error(), saved.decision));
+            keep[i] = false;
+            continue;
+        }
+        // Its locks are not registered: nothing in this epoch reads them, as
+        // every transaction up to the switch repeats its saved decision and no
+        // commit after it is validated.
+        if replaying_up_to_the_switch && saved_decision == Some(PostConsensusDecision::Kept) {
+            debug!(
+                ?digest,
+                "Repeating the saved keep up to the synced checkpoint switch"
+            );
+            continue;
+        }
+        // Validating it again could drop it, and the locks it took at the
+        // commit that kept it would then stay until the epoch ends. Later
+        // contenders find those locks in the quarantine or the lock table.
+        if deterministic_validation && previously_deferred.contains_key(&digest) {
+            debug!(
+                ?digest,
+                "Keeping a transaction deferred at an earlier commit without validating it again"
+            );
+            continue;
+        }
+
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
         // keep it in the sequence to flow into checkpoint roots like on every other
         // validator (dropping it forks — issue #11649). Register its owned-object
         // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
         // the active scheduler's enqueue filter suppresses the re-execution.
-        if authority_state
-            .get_transaction_cache_reader()
-            .try_is_tx_already_executed(&digest)?
+        //
+        // With deterministic validation, effects alone do not show at which
+        // commit the transaction was kept, so only a saved keep at this commit
+        // skips validation; its consumed inputs may be pruned by now. Without
+        // one, the commit-indexed reader decides, as on every other validator.
+        if (!deterministic_validation || saved_decision == Some(PostConsensusDecision::Kept))
+            && authority_state
+                .get_transaction_cache_reader()
+                .try_is_tx_already_executed(&digest)?
         {
             // Byte-based, so safe even though the inputs are already consumed.
             let owned_inputs = extract_owned_input_objects(tx)?;
@@ -218,10 +403,11 @@ pub async fn validate_and_resolve_conflicts(
         if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             warn!(
                 ?digest,
+                commit_index,
                 error = ?e,
                 "UserTransactionV1 failed validity_check post-consensus, dropping"
             );
-            dropped.push((digest, e));
+            dropped.push((digest, e, PostConsensusDecision::Dropped));
             keep[i] = false;
             continue;
         }
@@ -232,10 +418,11 @@ pub async fn validate_and_resolve_conflicts(
             Err(e) => {
                 warn!(
                     ?digest,
+                    commit_index,
                     error = ?e,
                     "Failed to extract owned input objects post-consensus, dropping"
                 );
-                dropped.push((digest, e));
+                dropped.push((digest, e, PostConsensusDecision::Dropped));
                 keep[i] = false;
                 continue;
             }
@@ -264,9 +451,10 @@ pub async fn validate_and_resolve_conflicts(
             if let Some(locked_by) =
                 find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
             {
-                // A lock held by this same transaction is its own lock from a
-                // prior round: it acquired owned-object locks, was then deferred,
-                // and is reloaded this round. A self-held lock is NOT a conflict
+                // With deterministic validation off, a lock held by this same
+                // transaction is its own lock from an earlier commit: it acquired
+                // owned-object locks, was then deferred, and is reloaded and
+                // validated again in this commit. A self-held lock is NOT a conflict
                 // - without this guard, the transaction will be dropped with
                 // `ObjectLockConflict` and never executed. Issue #11649 mirrors
                 // this guard for the already-executed branch in Check #1.
@@ -292,7 +480,7 @@ pub async fn validate_and_resolve_conflicts(
             }
         }
         if let Some(e) = conflict {
-            dropped.push((digest, e));
+            dropped.push((digest, e, PostConsensusDecision::Dropped));
             keep[i] = false;
             continue;
         }
@@ -311,19 +499,80 @@ pub async fn validate_and_resolve_conflicts(
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
-        let validated_owned_objects = match authority_state
-            .handle_transaction_validation_checks(
-                &verified_tx,
-                epoch_store,
-                deny_config,
-                // Epoch-gated coin deny-list read: the verdict here decides whether
-                // the transaction stays in the committed set, so it must not depend
-                // on this validator's execution progress.
-                true,
-                verifier_limits_source,
-            )
-            .await
-        {
+        let mut input_not_visible_yet = false;
+        let checked = match &reader {
+            // Inputs read as of the commit. A dropped or a missing input is
+            // reported with the error admission gives a missing input, so
+            // clients see a known error, and the reason goes to the log. A
+            // missing input drops the transaction from this commit only: the
+            // decision is saved as `DroppedInputNotVisibleYet`, which does not
+            // stop a resubmission from being kept at a later commit. The Move
+            // authenticator runs at execution instead. Here only whether each
+            // account is one is checked, and its authenticator function field is
+            // read for the deny check of its package, both as of the horizon. The
+            // coin deny list is read as of the horizon too.
+            Some(reader) => authority_state
+                .handle_transaction_validation_checks_at_commit(
+                    reader,
+                    &verified_tx,
+                    epoch_store,
+                    deny_config,
+                    verifier_limits_source,
+                )
+                .and_then(|verdict| {
+                    let verdicts = &authority_state
+                        .metrics
+                        .consensus_handler_validation_reader_verdicts;
+                    match verdict {
+                        ValidationAtCommit::Keep(owned) => {
+                            verdicts.with_label_values(&["keep", "none"]).inc();
+                            Ok(owned)
+                        }
+                        ValidationAtCommit::Drop(kind, reason) => {
+                            verdicts
+                                .with_label_values(&["drop", &format!("{:?}", reason.kind())])
+                                .inc();
+                            warn!(
+                                ?digest,
+                                commit_index,
+                                ?kind,
+                                ?reason,
+                                "input dropped by the commit-indexed reader"
+                            );
+                            Err(kind.object_not_found_error().into())
+                        }
+                        ValidationAtCommit::Missing(kind, reason) => {
+                            verdicts
+                                .with_label_values(&["missing", &format!("{:?}", reason.kind())])
+                                .inc();
+                            warn!(
+                                ?digest,
+                                commit_index,
+                                ?kind,
+                                ?reason,
+                                "input not visible at this commit"
+                            );
+                            input_not_visible_yet = true;
+                            Err(kind.object_not_found_error().into())
+                        }
+                    }
+                }),
+            None => {
+                authority_state
+                    .handle_transaction_validation_checks(
+                        &verified_tx,
+                        epoch_store,
+                        deny_config,
+                        // Epoch-gated coin deny-list read: the verdict here decides
+                        // whether the transaction stays in the committed set, so it
+                        // must not depend on this validator's execution progress.
+                        true,
+                        verifier_limits_source,
+                    )
+                    .await
+            }
+        };
+        let validated_owned_objects = match checked {
             Ok(owned) => owned,
             Err(e) => {
                 if e.is_storage_or_epoch_error() {
@@ -331,10 +580,16 @@ pub async fn validate_and_resolve_conflicts(
                 }
                 warn!(
                     ?digest,
+                    commit_index,
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                dropped.push((digest, e));
+                let decision = if input_not_visible_yet {
+                    PostConsensusDecision::DroppedInputNotVisibleYet
+                } else {
+                    PostConsensusDecision::Dropped
+                };
+                dropped.push((digest, e, decision));
                 keep[i] = false;
                 continue;
             }
@@ -361,6 +616,50 @@ pub async fn validate_and_resolve_conflicts(
             owned_inputs = ?locked_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
+    }
+
+    if deterministic_validation {
+        let drops: HashMap<_, _> = dropped
+            .iter()
+            .map(|(digest, error, decision)| (*digest, (*decision, error)))
+            .collect();
+        let decisions: Vec<_> = all_user_tx_digests
+            .iter()
+            .map(|digest| {
+                let decision = match drops.get(digest) {
+                    Some((decision, error)) => {
+                        SavedPostConsensusDecision::dropped(*decision, error)
+                    }
+                    None => SavedPostConsensusDecision::kept(),
+                };
+                (*digest, decision)
+            })
+            .collect();
+        match &saved_candidates {
+            Some(candidates) => {
+                if *candidates != all_user_tx_digests {
+                    fatal!(
+                        "validation candidates of commit {commit_index} differ from the saved \
+                         ones: saved {candidates:?}, now {all_user_tx_digests:?}"
+                    );
+                }
+                for (digest, SavedPostConsensusDecision { decision, .. }) in &decisions {
+                    let saved = saved_decisions.get(digest);
+                    if saved != Some(decision) {
+                        fatal!(
+                            "validation decision for {digest:?} at commit {commit_index} \
+                             differs from the saved one: saved {saved:?}, now {decision:?}"
+                        );
+                    }
+                }
+            }
+            None => {
+                epoch_store.persist_post_consensus_decisions(commit_index, &decisions)?;
+                if !decisions.is_empty() {
+                    fail_point!("crash-after-post-consensus-decisions");
+                }
+            }
+        }
     }
 
     if !dropped.is_empty() {

@@ -11,7 +11,7 @@ use std::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
+    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits, error::IotaResult,
     messages_consensus::TransactionDenyRuleProposal, transaction::TransactionKey,
 };
 use tokio::time::timeout;
@@ -481,21 +481,35 @@ fn reopen_with_config(
 ) -> Arc<AuthorityPerEpochStore> {
     store.release_db_handles();
     wait_for_epoch_db_to_close();
-    AuthorityPerEpochStore::new(
-        store.name,
-        store.committee().clone(),
-        &store.parent_path,
-        store.db_options.clone(),
-        store.metrics.clone(),
-        epoch_start_configuration,
-        authority_state.get_backing_package_store().clone(),
-        store.execution_component.metrics(),
-        store.signature_verifier.metrics.clone(),
-        &ExpensiveSafetyCheckConfig::default(),
-        store.chain,
-        0,
-    )
-    .unwrap()
+    // The closed DB's RocksDB file lock is occasionally still held when the
+    // open starts, which panics; over thousands of reopens in one process
+    // that happens, so the open is tried a few times.
+    const ATTEMPTS: u32 = 5;
+    for attempt in 1..=ATTEMPTS {
+        let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            AuthorityPerEpochStore::new(
+                store.name,
+                store.committee().clone(),
+                &store.parent_path,
+                store.db_options.clone(),
+                store.metrics.clone(),
+                epoch_start_configuration.clone(),
+                authority_state.get_backing_package_store().clone(),
+                store.execution_component.metrics(),
+                store.signature_verifier.metrics.clone(),
+                &ExpensiveSafetyCheckConfig::default(),
+                store.chain,
+                0,
+            )
+            .unwrap()
+        }));
+        match opened {
+            Ok(reopened) => return reopened,
+            Err(panic) if attempt == ATTEMPTS => std::panic::resume_unwind(panic),
+            Err(_) => std::thread::sleep(Duration::from_millis(100)),
+        }
+    }
+    unreachable!("the last attempt returns or resumes its panic")
 }
 
 /// Blocks until no epoch DB is open in this process. Releasing the store's
@@ -516,6 +530,30 @@ fn wait_for_epoch_db_to_close() {
         );
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+/// Empties every table a run of P-COOL deterministic validation writes: the
+/// bookkeeping, the saved validation decisions, the owned-object locks, the
+/// processed consensus messages, the resume point and the commit the node
+/// switched to synced checkpoints after. A [`reopen`] after it
+/// starts from an empty epoch.
+#[cfg(not(msim))]
+pub(crate) fn clear_pcool_validation_tables(store: &AuthorityPerEpochStore) -> IotaResult {
+    let tables = store.tables()?;
+    tables.handler_processed_objects.schedule_delete_all()?;
+    tables.post_consensus_decisions.schedule_delete_all()?;
+    tables
+        .post_consensus_decision_candidates
+        .schedule_delete_all()?;
+    tables
+        .owned_object_locked_transactions
+        .schedule_delete_all()?;
+    tables.consensus_message_processed.schedule_delete_all()?;
+    tables.last_consensus_stats.schedule_delete_all()?;
+    tables
+        .last_commit_before_synced_checkpoint_execution
+        .schedule_delete_all()?;
+    Ok(())
 }
 
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
@@ -2063,6 +2101,64 @@ async fn start_executing_synced_checkpoints_waits_for_the_commit_in_progress() {
         .unwrap();
 }
 
+/// Starting to execute synced checkpoints saves the last commit the consensus
+/// handler finished, not the one it was processing, and a restart reads it
+/// back without being switched yet: the handler replays the commits up to it
+/// and switches at the next one.
+#[tokio::test]
+async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing().clone();
+    assert_eq!(
+        store
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        None
+    );
+
+    let commit_guard = store.lock_consensus_commit().await;
+    store.record_handled_commit(6);
+    store.record_handled_commit(7);
+    drop(commit_guard);
+    // Commit 8 is in progress when the switch starts and is abandoned.
+    let commit_guard = store.lock_consensus_commit().await;
+    let start = tokio::spawn({
+        let store = store.clone();
+        async move { store.start_executing_synced_checkpoints().await }
+    });
+    timeout(
+        Duration::from_secs(5),
+        store.wait_for_synced_checkpoint_execution(),
+    )
+    .await
+    .unwrap();
+    drop(commit_guard);
+    timeout(Duration::from_secs(5), start)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        store
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        Some(7)
+    );
+
+    // A second start leaves the saved commit as it is.
+    store.record_handled_commit(9);
+    store.start_executing_synced_checkpoints().await;
+    let reopened = reopen(&authority_state, &store);
+    assert!(!reopened.is_executing_synced_checkpoints());
+    assert_eq!(
+        reopened
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        Some(7)
+    );
+    reopened.resume_executing_synced_checkpoints();
+    assert!(reopened.is_executing_synced_checkpoints());
+}
+
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
@@ -2120,6 +2216,7 @@ mod handler_object_state_storage {
             produced_at,
             initial_shared_version: None,
             replaced_version: None,
+            deleted_by: None,
         }
     }
 
@@ -2128,8 +2225,7 @@ mod handler_object_state_storage {
     /// lives.
     fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
         iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_pcool_deterministic_validation_for_testing(true);
+            config.enable_pcool_deterministic_validation_for_testing();
             config
         })
     }
@@ -2138,7 +2234,7 @@ mod handler_object_state_storage {
     async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2208,7 +2304,7 @@ mod handler_object_state_storage {
     async fn flushed_rows_for_one_id_keep_every_version() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2258,11 +2354,144 @@ mod handler_object_state_storage {
         );
     }
 
+    /// The highest row of an id is found in the overlay alone, in the table
+    /// alone, and across both from whichever holds the higher version, never
+    /// from a neighbouring id.
+    #[tokio::test]
+    async fn highest_handler_processed_row_reads_across_overlay_and_table() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let mut ids = [ObjectId::random(), ObjectId::random()];
+        ids.sort();
+        let [low, high] = ids;
+        let key = |id, version: u64| ObjectKey(id, Version::from_u64(version));
+        let highest = |id| epoch_store.highest_handler_processed_row(&id).unwrap();
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        assert_eq!(highest(low), None);
+
+        // Overlay only.
+        let low_v3 = generate_live_entry(1);
+        let high_v9 = generate_live_entry(1);
+        let commit_1_rows = vec![(key(low, 3), low_v3), (key(high, 9), high_v9)];
+        complete_commit(1, &commit_1_rows);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(highest(low), Some((key(low, 3), low_v3)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+
+        // Table only.
+        epoch_store
+            .flush_commit_rows_for_testing(1, commit_1_rows)
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        assert_eq!(highest(low), Some((key(low, 3), low_v3)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+
+        // Both, the overlay holding the higher version.
+        let low_v5 = generate_live_entry(2);
+        complete_commit(2, &[(key(low, 5), low_v5)]);
+        assert_eq!(highest(low), Some((key(low, 5), low_v5)));
+
+        // Both, the table holding the higher version.
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(low, 5), low_v5)])
+            .unwrap();
+        let low_v4 = generate_live_entry(3);
+        complete_commit(3, &[(key(low, 4), low_v4)]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(highest(low), Some((key(low, 5), low_v5)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+    }
+
+    /// The lowest row of an id above a version is found in the overlay alone,
+    /// in the table alone, and across both from whichever holds the lower
+    /// version, never at the version itself or from a neighbouring id.
+    #[tokio::test]
+    async fn lowest_handler_processed_row_above_reads_across_overlay_and_table() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let mut ids = [ObjectId::random(), ObjectId::random()];
+        ids.sort();
+        let [low, high] = ids;
+        let key = |id, version: u64| ObjectKey(id, Version::from_u64(version));
+        let lowest_above = |id, version: u64| {
+            epoch_store
+                .lowest_handler_processed_row_above(&id, Version::from_u64(version))
+                .unwrap()
+        };
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        assert_eq!(lowest_above(high, 0), None);
+
+        // Overlay only.
+        let low_v9 = generate_live_entry(1);
+        let high_v5 = generate_live_entry(1);
+        let commit_1_rows = vec![(key(low, 9), low_v9), (key(high, 5), high_v5)];
+        complete_commit(1, &commit_1_rows);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 5), high_v5)));
+        assert_eq!(lowest_above(high, 5), None);
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+
+        // Table only.
+        epoch_store
+            .flush_commit_rows_for_testing(1, commit_1_rows)
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 5), high_v5)));
+        assert_eq!(lowest_above(high, 5), None);
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+
+        // Both, the overlay holding the lower version.
+        let high_v4 = generate_live_entry(2);
+        complete_commit(2, &[(key(high, 4), high_v4)]);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 4), high_v4)));
+        assert_eq!(lowest_above(high, 4), Some((key(high, 5), high_v5)));
+
+        // Both, the table holding the lower version.
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(high, 4), high_v4)])
+            .unwrap();
+        let high_v7 = generate_live_entry(3);
+        complete_commit(3, &[(key(high, 7), high_v7)]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 4), high_v4)));
+        assert_eq!(lowest_above(high, 5), Some((key(high, 7), high_v7)));
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+    }
+
+    /// A handler-known execution puts its rows in the overlay, produced at
+    /// the commit the handler assigned.
     #[tokio::test]
     async fn map_hit_writes_handler_rows_at_the_assigned_commit() {
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_pcool_deterministic_validation_for_testing(true);
+                config.enable_pcool_deterministic_validation_for_testing();
                 config
             });
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2280,6 +2509,48 @@ mod handler_object_state_storage {
             .unwrap()
             .expect("handler-processed row must exist for a handler-known commit");
         assert_eq!(row.produced_at, 6);
+    }
+
+    /// An execution whose commit the handler has not assigned is a bug, until
+    /// this node executes synced checkpoints for the rest of the epoch; then
+    /// it writes nothing. The report is a `fatal!`, which panics, so the
+    /// first call runs under `catch_unwind`.
+    #[tokio::test]
+    async fn map_miss_is_reported_unless_executing_synced_checkpoints() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let effects = executed_owned_tx_effects(mutated, 5, 1);
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        let written = ObjectKey(mutated, effects.lamport_version());
+
+        let unassigned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            epoch_store.record_executed_transaction(&key, &effects);
+        }));
+        assert!(unassigned.is_err(), "an unassigned execution is reported");
+        assert_eq!(
+            epoch_store.handler_processed_object(&written).unwrap(),
+            None
+        );
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        epoch_store.record_executed_transaction(&key, &effects);
+        assert_eq!(
+            epoch_store.handler_processed_object(&written).unwrap(),
+            None
+        );
+        assert_eq!(
+            epoch_store
+                .handler_object_state_for_testing()
+                .overlay_size_for_testing(),
+            0
+        );
     }
 
     /// The highest fully executed commit starts at the durable resume point,

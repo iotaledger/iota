@@ -22,6 +22,7 @@ use crate::{
     consensus_handler::{ConsensusHandlerInitializer, StarfishConsensusHandler},
     consensus_manager::{
         ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
+        StartedConsumer, replay_target,
     },
     consensus_validator::IotaTxValidator,
     epoch_start_consensus_committee::get_consensus_committee,
@@ -46,7 +47,7 @@ pub struct StarfishManager {
     client: Arc<LazyStarfishClient>,
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
-    consumer_monitor_sender: broadcast::Sender<Arc<CommitConsumerMonitor>>,
+    consumer_monitor_sender: broadcast::Sender<StartedConsumer>,
 }
 
 impl StarfishManager {
@@ -160,6 +161,19 @@ impl ConsensusManagerTrait for StarfishManager {
         let starting_commit = last_processed_commit.saturating_sub(num_prior_commits);
         let consumer = CommitConsumer::new(commit_sender, starting_commit);
         let monitor = consumer.monitor();
+        let target = protocol_config.pcool_deterministic_validation().then(|| {
+            let target = replay_target(
+                epoch_store
+                    .last_validated_commit()
+                    .expect("the epoch store of the epoch being started must be readable"),
+                last_processed_commit,
+                epoch_store
+                    .last_commit_before_synced_checkpoint_execution()
+                    .expect("the epoch store of the epoch being started must be readable"),
+            );
+            info!(target, last_processed_commit, "Consensus replay target");
+            target
+        });
 
         // If there is a previous consumer monitor, it indicates that the consensus
         // engine has been restarted, due to an epoch change. However, that on its
@@ -232,8 +246,18 @@ impl ConsensusManagerTrait for StarfishManager {
         // Initialize the client to send transactions to this Starfish instance.
         self.client.set(client);
 
+        // Lets a test see whether the handler meets stored commits only after
+        // the replay wait.
+        iota_macros::fail_point_arg!(
+            "consensus-replay-target",
+            |report: crate::consensus_manager::ConsensusReplayTargetReport| {
+                let highest_observed = monitor.highest_observed_commit_at_startup();
+                report(target.unwrap_or(highest_observed), highest_observed)
+            }
+        );
+
         // Send the consumer monitor to the replay waiter.
-        let _ = self.consumer_monitor_sender.send(monitor);
+        let _ = self.consumer_monitor_sender.send((monitor, target));
     }
 
     async fn shutdown(&self) {

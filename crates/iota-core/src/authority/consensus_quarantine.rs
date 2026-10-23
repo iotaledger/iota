@@ -299,6 +299,25 @@ impl ConsensusCommitOutput {
         batch: &mut DBBatch,
     ) -> IotaResult {
         let tables = epoch_store.tables()?;
+        // Once this batch is durable the handler resumes above this commit and
+        // never replays it, so its saved validation decisions retire with it.
+        if epoch_store.pcool_bookkeeping_enabled() {
+            if let Some(candidates) = tables
+                .post_consensus_decision_candidates
+                .get(&self.commit_index)?
+            {
+                batch.delete_batch(
+                    &tables.post_consensus_decisions,
+                    candidates
+                        .into_iter()
+                        .map(|digest| (self.commit_index, digest)),
+                )?;
+                batch.delete_batch(
+                    &tables.post_consensus_decision_candidates,
+                    [self.commit_index],
+                )?;
+            }
+        }
         batch.insert_batch(
             &tables.consensus_message_processed,
             self.consensus_messages_processed
@@ -556,6 +575,16 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     builder_digest_to_checkpoint: HashMap<TransactionDigest, CheckpointSequenceNumber>,
 
+    /// The highest flushed builder checkpoint of each checkpoint height that a
+    /// later flushed commit can still need, for
+    /// `last_checkpoint_of_flushed_commits`.
+    flushed_checkpoint_by_height: BTreeMap<CheckpointHeight, CheckpointSequenceNumber>,
+
+    /// The last commits flushed by this process, oldest first, each with the
+    /// highest flushed checkpoint holding only transactions of that commit
+    /// and earlier ones. Holds as many commits as the horizon distance.
+    last_checkpoint_of_flushed_commits: VecDeque<(CommitIndex, CheckpointSequenceNumber)>,
+
     // Any un-committed next versions are stored here.
     shared_object_next_versions: RefCountedHashMap<ObjectId, Version>,
 
@@ -604,6 +633,8 @@ impl ConsensusOutputQuarantine {
             output_queue: VecDeque::new(),
             builder_checkpoint_summary: BTreeMap::new(),
             builder_digest_to_checkpoint: HashMap::new(),
+            flushed_checkpoint_by_height: BTreeMap::new(),
+            last_checkpoint_of_flushed_commits: VecDeque::new(),
             shared_object_next_versions: RefCountedHashMap::new(),
             congestion_control_object_debts: RefCountedHashMap::new(),
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
@@ -756,6 +787,10 @@ impl ConsensusOutputQuarantine {
                 );
             }
 
+            if epoch_store.pcool_bookkeeping_enabled() {
+                self.flushed_checkpoint_by_height
+                    .insert(checkpoint_height, seq);
+            }
             highest_committed_height = Some(checkpoint_height);
         }
 
@@ -789,6 +824,15 @@ impl ConsensusOutputQuarantine {
                 // Remove the quarantined data for this consensus commit and write it to
                 // the epoch store.
                 let output = self.output_queue.pop_front().unwrap();
+                if epoch_store.pcool_bookkeeping_enabled() {
+                    self.record_last_checkpoint_of_flushed_commit(
+                        output.commit_index,
+                        highest_in_commit,
+                        epoch_store
+                            .protocol_config()
+                            .pcool_deterministic_validation_horizon_distance_or_default(),
+                    );
+                }
                 self.remove_shared_object_next_versions(&output);
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
@@ -816,6 +860,54 @@ impl ConsensusOutputQuarantine {
             .set(self.output_queue.len() as i64);
 
         Ok(flushed)
+    }
+
+    /// Records the highest flushed checkpoint holding only transactions of
+    /// commits up to `commit_index`, whose highest pending checkpoint is at
+    /// `height`, keeping the last `kept` commits. Commits get increasing
+    /// heights and a build holds only pending checkpoints up to its own
+    /// height, so the checkpoints at or below `height` hold no later commit.
+    /// A commit whose pending checkpoints were all built into a later height
+    /// has no such checkpoint of its own and is not recorded.
+    fn record_last_checkpoint_of_flushed_commit(
+        &mut self,
+        commit_index: CommitIndex,
+        height: CheckpointHeight,
+        kept: u64,
+    ) {
+        let Some((&last_height, &seq)) = self
+            .flushed_checkpoint_by_height
+            .range(..=height)
+            .next_back()
+        else {
+            return;
+        };
+        // A later commit has a higher height, so only `last_height` and above
+        // can still be its last checkpoint.
+        self.flushed_checkpoint_by_height =
+            self.flushed_checkpoint_by_height.split_off(&last_height);
+        self.last_checkpoint_of_flushed_commits
+            .push_back((commit_index, seq));
+        while self.last_checkpoint_of_flushed_commits.len() as u64 > kept {
+            self.last_checkpoint_of_flushed_commits.pop_front();
+        }
+    }
+
+    /// The highest flushed checkpoint holding only transactions of commits at
+    /// or below `resume_point + 1 - horizon_distance`, where the resume point
+    /// is the last commit this process flushed. `None` while no such commit is
+    /// recorded, as after a restart until enough commits have flushed again.
+    pub(super) fn last_checkpoint_of_prunable_commits(
+        &self,
+        horizon_distance: u64,
+    ) -> Option<CheckpointSequenceNumber> {
+        let &(resume_point, _) = self.last_checkpoint_of_flushed_commits.back()?;
+        let prunable = (resume_point + 1).checked_sub(horizon_distance)?;
+        self.last_checkpoint_of_flushed_commits
+            .iter()
+            .rev()
+            .find(|(commit_index, _)| *commit_index <= prunable)
+            .map(|(_, seq)| *seq)
     }
 
     /// The last executed builder checkpoint whose `checkpoint_height` is fully
@@ -1295,13 +1387,20 @@ where
 mod tests {
     use iota_sdk_types::{CheckpointSummary, GasCostSummary};
     use iota_types::{
-        base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt,
-        transaction::TransactionKey,
+        base_types::{ExecutionDigests, dbg_addr},
+        crypto::{AccountPrivateKey, get_key_pair},
+        messages_checkpoint::CheckpointSummaryExt,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionKey},
     };
 
     use super::*;
     use crate::{
-        authority::test_authority_builder::TestAuthorityBuilder,
+        authority::{
+            authority_test_utils::{
+                init_state_with_ids, init_transfer_transaction, send_and_confirm_transaction,
+            },
+            test_authority_builder::TestAuthorityBuilder,
+        },
         checkpoints::{
             BuilderCheckpointSummary, CheckpointHeight, PendingCheckpointContentsV1,
             PendingCheckpointInfo,
@@ -1540,8 +1639,34 @@ mod tests {
     /// split build of the regular checkpoint is not enough on its own.
     #[tokio::test]
     async fn waits_for_the_randomness_checkpoint_of_a_split_commit() {
-        let state = TestAuthorityBuilder::new().build().await;
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let object_id = ObjectId::random();
+        let gas_id = ObjectId::random();
+        let state = init_state_with_ids(vec![(sender, object_id), (sender, gas_id)]).await;
         let epoch_store = state.epoch_store_for_testing();
+
+        // The flush of a commit reads the effects of its roots when P-COOL
+        // deterministic validation is on, so the randomness root stands for an
+        // executed transaction.
+        let rgp = state.reference_gas_price_for_testing().unwrap();
+        let transfer = init_transfer_transaction(
+            &state,
+            sender,
+            &sender_key,
+            dbg_addr(2),
+            state.get_object(&object_id).unwrap().object_ref(),
+            state.get_object(&gas_id).unwrap().object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let (certificate, _) = send_and_confirm_transaction(&state, transfer.into_inner())
+            .await
+            .unwrap();
+        let randomness_root =
+            TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(1));
+        epoch_store
+            .insert_tx_key(randomness_root, *certificate.digest())
+            .unwrap();
         let mut quarantine = ConsensusOutputQuarantine::new(
             9,
             HashMap::new(),
@@ -1555,10 +1680,7 @@ mod tests {
         output.set_default_commit_stats_for_testing();
         output.insert_pending_checkpoint(pending_checkpoint(vec![], regular_height));
         output.insert_pending_checkpoint(pending_checkpoint(
-            vec![TransactionKey::RandomnessRound(
-                epoch_store.epoch(),
-                RandomnessRound::new(1),
-            )],
+            vec![randomness_root],
             randomness_height,
         ));
         quarantine

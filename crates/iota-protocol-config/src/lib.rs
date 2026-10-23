@@ -751,12 +751,17 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     allow_dkg_completion_after_timeout: bool,
 
-    // If true, P-COOL deterministic validation is on. A committee validator
-    // does not execute state-synced checkpoints while its epoch is running: it
-    // waits for its own checkpoint builder and takes only randomness signatures
-    // from state sync. Once the certified last checkpoint of the epoch is
-    // known, it executes the rest of the epoch from state sync and stops
-    // processing consensus commits. Requires `enable_pcool_flow`.
+    // If true, P-COOL deterministic validation is on. Post-consensus
+    // validation reads object state as of the commit height being processed,
+    // and checks the sender against the coin deny list for the coin types of
+    // its inputs there, with changes made this epoch counting; execution no
+    // longer checks inputs against it. A committee validator does not execute
+    // state-synced checkpoints while its epoch is running: it waits for its own
+    // checkpoint builder and takes only randomness signatures from state sync.
+    // Once the certified last checkpoint of the epoch is known, it executes the
+    // rest of the epoch from state sync and stops processing consensus commits.
+    // Requires `enable_pcool_flow`, `deny_rule_governance` and
+    // `consensus_dedup_only_recorded_messages`.
     #[serde(skip_serializing_if = "is_false")]
     pcool_deterministic_validation: bool,
 
@@ -1647,6 +1652,12 @@ pub struct ProtocolConfig {
     /// set. Requires `enable_pcool_flow`.
     max_concurrent_execution_workers: Option<u16>,
 
+    /// Number of commits between the consensus commit that post-consensus
+    /// validation decides for and the horizon: the highest commit whose
+    /// recorded object state a verdict may rely on. Unset until the version
+    /// that enables `pcool_deterministic_validation`; reads as 2 until then.
+    pcool_deterministic_validation_horizon_distance: Option<u64>,
+
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
     /// considered valid. When set to `Some(version)`, scores are included in
     /// the MisbehaviorReports messages, where `version` determines the scoring
@@ -2110,12 +2121,7 @@ impl ProtocolConfig {
     }
 
     pub fn pcool_deterministic_validation(&self) -> bool {
-        let res = self.feature_flags.pcool_deterministic_validation;
-        assert!(
-            !res || self.enable_pcool_flow(),
-            "pcool_deterministic_validation requires enable_pcool_flow to be enabled"
-        );
-        res
+        self.feature_flags.pcool_deterministic_validation
     }
 
     /// Effective only with its prerequisite `enable_pcool_flow`: a config
@@ -2123,6 +2129,13 @@ impl ProtocolConfig {
     pub fn pcool_verifier_limits_from_protocol_config(&self) -> bool {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config
+    }
+
+    /// `pcool_deterministic_validation_horizon_distance`, or 2 for a version
+    /// that leaves it unset.
+    pub fn pcool_deterministic_validation_horizon_distance_or_default(&self) -> u64 {
+        self.pcool_deterministic_validation_horizon_distance
+            .unwrap_or(2)
     }
 
     pub fn validator_metadata_verify_v2(&self) -> bool {
@@ -2377,6 +2390,38 @@ impl ProtocolConfig {
                 || ret.max_meter_ticks_regex_reference_safety.is_some(),
             "pcool_verifier_limits_from_protocol_config requires \
                 max_meter_ticks_regex_reference_safety"
+        );
+        // Deterministic validation decides from consensus-derived state only.
+        // Without governance the deny checks read the node-local deny
+        // configuration, which differs between validators.
+        assert!(
+            !ret.feature_flags.pcool_deterministic_validation
+                || (ret.feature_flags.enable_pcool_flow && ret.feature_flags.deny_rule_governance),
+            "pcool_deterministic_validation requires enable_pcool_flow and deny_rule_governance"
+        );
+        // For the same reason, publish verdicts must not depend on each
+        // validator's own verifier signing limits.
+        assert!(
+            !ret.feature_flags.pcool_deterministic_validation
+                || ret.feature_flags.pcool_verifier_limits_from_protocol_config,
+            "pcool_deterministic_validation requires pcool_verifier_limits_from_protocol_config"
+        );
+        // For the same reason, the consensus handler must not skip a message
+        // as a duplicate of one that was dropped without being recorded, as
+        // its cache of such messages differs between validators.
+        assert!(
+            !ret.feature_flags.pcool_deterministic_validation
+                || ret.feature_flags.consensus_dedup_only_recorded_messages,
+            "pcool_deterministic_validation requires consensus_dedup_only_recorded_messages"
+        );
+        // With a distance of 0 the handler at a commit waits for that same
+        // commit to be fully executed, which cannot happen before the handler
+        // finishes it.
+        assert!(
+            !ret.feature_flags.pcool_deterministic_validation
+                || ret.pcool_deterministic_validation_horizon_distance != Some(0),
+            "pcool_deterministic_validation requires a positive \
+                pcool_deterministic_validation_horizon_distance"
         );
         // The injection cannot chunk updates or gate removals without its
         // knobs.
@@ -2941,6 +2986,8 @@ impl ProtocolConfig {
             max_congestion_limit_overshoot_per_commit: None,
 
             max_concurrent_execution_workers: None,
+
+            pcool_deterministic_validation_horizon_distance: None,
 
             scorer_version: None,
 
@@ -3762,6 +3809,22 @@ impl ProtocolConfig {
             self.additional_borrow_checks()
         };
 
+        // Far above the largest instantiation-loop graph in the system packages
+        // and examples.
+        const MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING: usize = 100_000;
+
+        // Applied with the signing limits only: execution verifies without a
+        // meter. Both fail with PROGRAM_TOO_COMPLEX, which signing rejects. On
+        // chains with the P-COOL flow, the signing limits also decide which
+        // transactions post-consensus validation keeps, so validators running
+        // binaries with different values here can disagree.
+        let (meter_instantiation_loops, max_instantiation_loop_graph_edges) =
+            if signing_limits.is_some() {
+                (true, Some(MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING))
+            } else {
+                (false, None)
+            };
+
         VerifierConfig {
             max_loop_depth: Some(self.max_loop_depth() as usize),
             max_generic_instantiation_length: Some(self.max_generic_instantiation_length() as usize),
@@ -3788,6 +3851,8 @@ impl ProtocolConfig {
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
             check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
+            meter_instantiation_loops,
+            max_instantiation_loop_graph_edges,
         }
     }
 
@@ -3991,8 +4056,13 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
+    /// Turning the flow off also turns off `pcool_deterministic_validation`,
+    /// which requires it.
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+        if !val {
+            self.feature_flags.pcool_deterministic_validation = false;
+        }
     }
 
     pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
@@ -4003,9 +4073,14 @@ impl ProtocolConfig {
         self.feature_flags.pcool_deterministic_validation = val;
     }
 
+    /// Turning the limits off also turns off `pcool_deterministic_validation`,
+    /// which requires them.
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config = val;
+        if !val {
+            self.feature_flags.pcool_deterministic_validation = false;
+        }
     }
 
     pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
@@ -4024,12 +4099,32 @@ impl ProtocolConfig {
         self.feature_flags.disallow_randomness_in_move_authenticator = val;
     }
 
+    /// Enables P-COOL deterministic validation together with the flags it
+    /// requires.
+    pub fn enable_pcool_deterministic_validation_for_testing(&mut self) {
+        self.feature_flags.enable_pcool_flow = true;
+        self.feature_flags.deny_rule_governance = true;
+        self.feature_flags
+            .pcool_verifier_limits_from_protocol_config = true;
+        // The limits flag requires this budget; versions before it leave it
+        // unset.
+        self.max_meter_ticks_regex_reference_safety
+            .get_or_insert(2_200_000);
+        self.feature_flags.consensus_dedup_only_recorded_messages = true;
+        self.feature_flags.pcool_deterministic_validation = true;
+    }
+
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
         self.consensus_commits_per_schedule = Some(val);
     }
 
+    /// Turning governance off also turns off `pcool_deterministic_validation`,
+    /// which requires it.
     pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
         self.feature_flags.deny_rule_governance = val;
+        if !val {
+            self.feature_flags.pcool_deterministic_validation = false;
+        }
     }
 
     pub fn set_deny_authenticator_packages_for_testing(&mut self, val: bool) {
@@ -4082,8 +4177,13 @@ impl ProtocolConfig {
         self.feature_flags.allow_dkg_completion_after_timeout = val;
     }
 
+    /// Turning the flag off also turns off `pcool_deterministic_validation`,
+    /// which requires it.
     pub fn set_consensus_dedup_only_recorded_messages_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_dedup_only_recorded_messages = val;
+        if !val {
+            self.feature_flags.pcool_deterministic_validation = false;
+        }
     }
 }
 
@@ -4216,6 +4316,19 @@ mod test {
             prot.max_arguments(),
             prot.max_arguments_as_option().unwrap()
         );
+    }
+
+    #[test]
+    fn only_signing_bounds_the_instantiation_loop_checker() {
+        let prot = ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let signing = prot.verifier_config(Some((0, 0, 0)));
+        assert!(signing.max_instantiation_loop_graph_edges.is_some());
+        assert!(signing.meter_instantiation_loops);
+
+        let execution = prot.verifier_config(None);
+        assert_eq!(execution.max_instantiation_loop_graph_edges, None);
+        assert!(!execution.meter_instantiation_loops);
     }
 
     #[test]
@@ -4376,6 +4489,163 @@ mod test {
         });
         let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
+    }
+
+    /// No version sets the horizon distance yet, so the reader gets the
+    /// default; an override still wins.
+    #[test]
+    fn horizon_distance_defaults_until_a_version_sets_it() {
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(
+            config.pcool_deterministic_validation_horizon_distance_as_option(),
+            None
+        );
+        assert_eq!(
+            config.pcool_deterministic_validation_horizon_distance_or_default(),
+            2
+        );
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(
+            config.pcool_deterministic_validation_horizon_distance_or_default(),
+            5
+        );
+    }
+
+    /// With a horizon distance of 0, the handler at a commit waits for that
+    /// same commit to be fully executed, which cannot happen before the
+    /// handler finishes it, so the network halts. The configuration is
+    /// rejected at startup.
+    #[test]
+    #[should_panic(expected = "pcool_deterministic_validation_horizon_distance")]
+    fn horizon_distance_of_zero_with_deterministic_validation_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(0);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// Every version and chain that turns deterministic validation on sets a
+    /// positive horizon distance in the version table.
+    #[test]
+    fn every_version_with_deterministic_validation_sets_a_positive_horizon_distance() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if config.pcool_deterministic_validation() {
+                    assert!(
+                        config
+                            .pcool_deterministic_validation_horizon_distance_as_option()
+                            .is_some_and(|distance| distance > 0),
+                        "version {version} on {chain:?} enables deterministic validation \
+                         without a positive horizon distance"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Every version and chain that turns deterministic validation on also
+    /// takes the verifier limits from the protocol config, so publish
+    /// verdicts do not depend on node-local signing limits.
+    #[test]
+    fn every_version_with_deterministic_validation_takes_verifier_limits_from_the_config() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert!(
+                    !config.pcool_deterministic_validation()
+                        || config.pcool_verifier_limits_from_protocol_config(),
+                    "version {version} on {chain:?} enables deterministic validation with \
+                     node-local verifier limits"
+                );
+            }
+        }
+    }
+
+    /// Turning deterministic validation on for a test also takes the verifier
+    /// limits from the protocol config, as a version that turns it on must,
+    /// whatever the version the test starts from.
+    #[test]
+    fn enabling_deterministic_validation_for_testing_takes_verifier_limits_from_the_config() {
+        let mut config = ProtocolConfig::get_for_version(
+            ProtocolVersion::new(MIN_PROTOCOL_VERSION),
+            Chain::Unknown,
+        );
+        assert!(!config.pcool_verifier_limits_from_protocol_config());
+        config.enable_pcool_deterministic_validation_for_testing();
+        assert!(config.pcool_verifier_limits_from_protocol_config());
+    }
+
+    /// Deterministic validation without governance would judge transactions
+    /// by node-local deny rules, so the combination is rejected at startup.
+    #[test]
+    #[should_panic(
+        expected = "pcool_deterministic_validation requires enable_pcool_flow and deny_rule_governance"
+    )]
+    fn deterministic_validation_without_deny_governance_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    #[test]
+    fn enabling_deterministic_validation_for_testing_enables_its_requirements() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert!(config.pcool_deterministic_validation());
+        assert!(config.enable_pcool_flow());
+        assert!(config.deny_rule_governance());
+        assert!(config.consensus_dedup_only_recorded_messages());
+    }
+
+    /// Without `consensus_dedup_only_recorded_messages` the consensus handler
+    /// could skip a message as a duplicate of one only some validators saw
+    /// dropped, so the combination is rejected at startup.
+    #[test]
+    #[should_panic(
+        expected = "pcool_deterministic_validation requires consensus_dedup_only_recorded_messages"
+    )]
+    fn deterministic_validation_without_dedup_of_recorded_messages_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_consensus_dedup_only_recorded_messages_for_testing(false);
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// A test that turns a requirement off keeps a valid config instead of
+    /// tripping the startup check.
+    #[test]
+    fn disabling_a_requirement_for_testing_disables_deterministic_validation() {
+        let disablers: [fn(&mut ProtocolConfig); 3] = [
+            |config| config.set_enable_pcool_flow_for_testing(false),
+            |config| config.set_deny_rule_governance_for_testing(false),
+            |config| config.set_consensus_dedup_only_recorded_messages_for_testing(false),
+        ];
+        for disable in disablers {
+            let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+                config.enable_pcool_deterministic_validation_for_testing();
+                disable(&mut config);
+                config
+            });
+            let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+            assert!(!config.pcool_deterministic_validation());
+        }
     }
 
     #[test]

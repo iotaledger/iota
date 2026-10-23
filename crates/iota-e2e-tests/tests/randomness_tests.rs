@@ -123,10 +123,9 @@ async fn test_randomness_using_transaction_reaches_finality_execution_scheduler(
 /// longer send signatures for those rounds, so it relies on the signatures in
 /// certified checkpoints.
 #[sim_test]
-#[ignore = "a restarted validator still validates against its own execution state, so it can drop a transaction its peers keep"]
 async fn test_validator_catches_up_across_randomness_rounds() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(true);
+        config.enable_pcool_deterministic_validation_for_testing();
         config
     });
     let test_cluster = TestClusterBuilder::new()

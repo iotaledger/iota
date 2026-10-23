@@ -2,19 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     str::FromStr,
     time::{Duration, SystemTime},
 };
 
-use iota_indexer::errors::IndexerError;
+use iota_indexer::{config::RetentionConfig, errors::IndexerError, pruning::pruner::PrunableTable};
 use iota_json::{call_args, type_args};
-use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json_rpc_api::{
+    IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
 use iota_json_rpc_types::{
-    EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
-    IotaObjectResponseQuery, IotaTransactionBlockData, IotaTransactionBlockKind,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
-    TransactionFilterV2,
+    CheckpointId, EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter,
+    IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockData,
+    IotaTransactionBlockKind, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, IotaTransactionKind,
+    ObjectsPage, TransactionFilter, TransactionFilterV2,
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
@@ -36,10 +39,11 @@ use move_core_types::annotated_value::MoveValue;
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, execute_tx_must_succeed,
-        indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
-        indexer_wait_for_transaction, publish_test_move_package, rpc_call_error_msg_matches,
-        start_test_cluster_with_read_write_indexer,
+        ApiTestSetup, WATERMARK_REFRESH_TIMEOUT, assert_reports_data_pruned,
+        execute_dummy_tx_and_wait_for_indexer, execute_tx_and_wait_for_indexer_checkpoint,
+        execute_tx_must_succeed, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
+        indexer_wait_for_object, indexer_wait_for_transaction, publish_test_move_package,
+        retry_with_timeout, rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -71,7 +75,13 @@ fn query_events_no_events_descending() {
             .await
             .unwrap();
 
-        assert_eq!(indexer_events, EventPage::empty())
+        assert_eq!(
+            indexer_events,
+            EventPage {
+                oldest_available_checkpoint: Some(0u64.into()),
+                ..EventPage::empty()
+            }
+        )
     });
 }
 
@@ -102,8 +112,323 @@ fn query_events_no_events_ascending() {
             .await
             .unwrap();
 
-        assert_eq!(indexer_events, EventPage::empty())
+        assert_eq!(
+            indexer_events,
+            EventPage {
+                oldest_available_checkpoint: Some(0u64.into()),
+                ..EventPage::empty()
+            }
+        )
     });
+}
+
+/// Returns the `oldest_available_checkpoint` reported for `filter`.
+async fn events_oldest_available_checkpoint(
+    client: &HttpClient,
+    filter: EventFilter,
+) -> Option<u64> {
+    client
+        .query_events(filter, None, None, None)
+        .await
+        .expect("query_events should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+#[tokio::test]
+async fn query_events_reports_oldest_available_checkpoint() {
+    // Only `tx_senders` is pruned; every other table, `events` included, is
+    // retained. A sender-filtered query reads `tx_senders` while a
+    // package-filtered one does not, so they report different checkpoints.
+    let overrides = HashMap::from([(PrunableTable::TxSenders, 1)]);
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_query_events_reports_oldest_available_checkpoint"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    let by_sender = EventFilter::Sender(
+        Address::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
+            .unwrap(),
+    );
+    let by_package = EventFilter::Package(ObjectId::from_str("0x2").unwrap());
+
+    let oldest = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        events_oldest_available_checkpoint(client, by_sender.clone())
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint");
+    assert_eq!(oldest, 0);
+    assert_eq!(
+        events_oldest_available_checkpoint(client, by_package.clone()).await,
+        Some(0)
+    );
+
+    let transactions = client
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery {
+                filter: None,
+                options: None,
+            },
+            None,
+            Some(1),
+            None,
+        )
+        .await
+        .unwrap();
+    let tx_digest = transactions
+        .data
+        .first()
+        .expect("the indexer has at least one transaction")
+        .digest;
+    assert_eq!(
+        events_oldest_available_checkpoint(client, EventFilter::Transaction(tx_digest)).await,
+        Some(0)
+    );
+
+    cluster.force_new_epoch().await;
+
+    // Once `tx_senders` is pruned, the sender filter reports a checkpoint
+    // above the genesis one.
+    retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || async {
+        events_oldest_available_checkpoint(client, by_sender.clone())
+            .await
+            .filter(|cp| *cp > 0)
+    })
+    .await
+    .expect("timeout waiting for a checkpoint above the pruned genesis one");
+
+    // The package filter does not read `tx_senders`, so pruning it does not
+    // change what that filter reports.
+    assert_eq!(
+        events_oldest_available_checkpoint(client, by_package).await,
+        Some(0)
+    );
+}
+
+/// Returns the `oldest_available_checkpoint` reported for `filter` by
+/// `iotax_queryTransactionBlocks`.
+///
+/// Queries in descending order, since an ascending page with no cursor starts
+/// below the watermark once `tx_senders` is pruned, which `FromOrToAddress`
+/// answers with an error rather than a page.
+async fn transaction_blocks_oldest_available_checkpoint(
+    client: &HttpClient,
+    filter: TransactionFilter,
+) -> Option<u64> {
+    client
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::new_with_filter(filter),
+            None,
+            None,
+            Some(true),
+        )
+        .await
+        .expect("query_transaction_blocks should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+#[tokio::test]
+async fn query_transaction_blocks_reports_oldest_available_checkpoint() {
+    // Only `tx_senders` is pruned; every other table is retained. A
+    // sender-filtered query reads `tx_senders` while a kind-filtered one does
+    // not, so they report different checkpoints.
+    let overrides = HashMap::from([(PrunableTable::TxSenders, 1)]);
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_query_transaction_blocks_reports_oldest_available_checkpoint"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    let sender =
+        Address::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
+            .unwrap();
+    let by_sender = TransactionFilter::FromAddress(sender);
+    // Reads `tx_senders` too.
+    let by_affected_address = TransactionFilter::FromOrToAddress { addr: sender };
+    let by_kind = TransactionFilter::TransactionKind(IotaTransactionKind::ProgrammableTransaction);
+    // Reads `transactions`, `pruner_cp_watermark` and `tx_global_order`, none
+    // of which this test prunes.
+    let by_checkpoint = TransactionFilter::Checkpoint(0);
+
+    let oldest = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        transaction_blocks_oldest_available_checkpoint(client, by_sender.clone())
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint");
+    assert_eq!(oldest, 0);
+    for filter in [
+        by_affected_address.clone(),
+        by_kind.clone(),
+        by_checkpoint.clone(),
+    ] {
+        assert_eq!(
+            transaction_blocks_oldest_available_checkpoint(client, filter).await,
+            Some(0)
+        );
+    }
+
+    cluster.force_new_epoch().await;
+
+    // Once `tx_senders` is pruned, the filters that read it report a checkpoint
+    // above the genesis one.
+    for filter in [by_sender, by_affected_address] {
+        retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || async {
+            transaction_blocks_oldest_available_checkpoint(client, filter.clone())
+                .await
+                .filter(|cp| *cp > 0)
+        })
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "timeout waiting for {filter:?} to report a checkpoint above the pruned genesis one"
+            )
+        });
+    }
+
+    // These filters do not read `tx_senders`, so pruning it does not change
+    // what they report.
+    for filter in [by_kind, by_checkpoint] {
+        assert_eq!(
+            transaction_blocks_oldest_available_checkpoint(client, filter).await,
+            Some(0)
+        );
+    }
+}
+
+/// A `Checkpoint` filter reads `tx_global_order` alongside the tables holding
+/// the transactions, so pruning it alone is enough to make the query fail.
+#[tokio::test]
+async fn query_transaction_blocks_by_checkpoint_fails_when_tx_global_order_is_pruned() {
+    // Only `tx_global_order` is pruned; the tables holding the transactions
+    // are retained.
+    let overrides = HashMap::from([(PrunableTable::TxGlobalOrder, 1)]);
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_query_transaction_blocks_by_checkpoint_fails_when_tx_global_order_is_pruned"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    let by_checkpoint = TransactionFilter::Checkpoint(0);
+    assert_eq!(
+        transaction_blocks_oldest_available_checkpoint(client, by_checkpoint.clone()).await,
+        Some(0)
+    );
+
+    cluster.force_new_epoch().await;
+
+    // Once `tx_global_order` is pruned past the genesis checkpoint, a query for
+    // that checkpoint fails.
+    retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || async {
+        client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery::new_with_filter(by_checkpoint.clone()),
+                None,
+                None,
+                None,
+            )
+            .await
+            .err()
+    })
+    .await
+    .expect("timeout waiting for the pruned checkpoint query to fail");
+}
+
+/// A cursor digest pruned from `tx_global_order` is reported as pruned data,
+/// whichever other tables the query reads.
+#[tokio::test]
+async fn queries_report_a_pruned_cursor_as_data_pruned() {
+    // Only `tx_global_order` is pruned; every other table is retained.
+    let overrides = HashMap::from([(PrunableTable::TxGlobalOrder, 1)]);
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_queries_report_a_pruned_cursor_as_data_pruned"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+    let epoch_0_tx_digest = *client
+        .get_checkpoint(CheckpointId::SequenceNumber(0))
+        .await
+        .expect("the genesis checkpoint is still there")
+        .transactions
+        .first()
+        .expect("the genesis checkpoint holds the genesis transaction");
+
+    cluster.force_new_epoch().await;
+    let oldest_available_epoch = 1;
+    let epoch_1_tx_digest = execute_dummy_tx_and_wait_for_indexer(cluster, store, client).await;
+    let epoch_1_checkpoint = *client
+        .get_latest_checkpoint_sequence_number()
+        .await
+        .expect("the latest checkpoint is indexed");
+
+    let address = Address::ZERO;
+    for filter in [
+        TransactionFilter::FromOrToAddress { addr: address },
+        TransactionFilter::FromAddress(address),
+        TransactionFilter::Checkpoint(epoch_1_checkpoint),
+    ] {
+        let query = IotaTransactionBlockResponseQuery::new_with_filter(filter.clone());
+        assert_reports_data_pruned(
+            client,
+            &format!("iotax_queryTransactionBlocks {filter:?}"),
+            oldest_available_epoch,
+            || {
+                client.query_transaction_blocks(
+                    query.clone(),
+                    Some(epoch_0_tx_digest),
+                    None,
+                    Some(true),
+                )
+            },
+        )
+        .await;
+
+        client
+            .query_transaction_blocks(query, Some(epoch_1_tx_digest), None, Some(true))
+            .await
+            .expect("a cursor from the current epoch works");
+    }
+
+    let pruned_cursor = iota_types::event::EventID {
+        tx_digest: epoch_0_tx_digest,
+        event_seq: 0,
+    };
+    assert_reports_data_pruned(client, "iotax_queryEvents", oldest_available_epoch, || {
+        client.query_events(
+            EventFilter::Sender(address),
+            Some(pruned_cursor),
+            None,
+            Some(true),
+        )
+    })
+    .await;
+
+    let available_cursor = iota_types::event::EventID {
+        tx_digest: epoch_1_tx_digest,
+        event_seq: 0,
+    };
+    client
+        .query_events(
+            EventFilter::Sender(address),
+            Some(available_cursor),
+            None,
+            Some(true),
+        )
+        .await
+        .expect("a cursor from the current epoch works");
 }
 
 #[test]

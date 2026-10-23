@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+use iota_sdk_move_types::iota_framework::{
+    object::{ID, UID},
+    vec_map::VecMap,
+};
 use serde::Deserialize;
-
-use crate::id::{ID, UID};
 
 // TODO: add tests to keep in sync
 /// Rust version of the Move iota::display::Display type

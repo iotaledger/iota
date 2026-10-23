@@ -214,14 +214,20 @@ pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
     use iota_sdk_types::{
-        Address, Digest, MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction,
-        SharedObjectReference, UserSignature,
+        Address, Digest, Identifier, MoveAuthenticator, MoveAuthenticatorV1, ObjectId,
+        SenderSignedTransaction, SharedObjectReference, Transaction, TransactionExpiration,
+        UserSignature, Version,
     };
 
     use crate::{
+        base_types::random_object_ref,
+        committee::EpochId,
         crypto::DefaultHash,
         object::OBJECT_START_VERSION,
-        transaction::TransactionEnvelope,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{
+            CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
+        },
         utils::{make_sponsored_transaction_data, make_transaction_data},
     };
 
@@ -247,6 +253,51 @@ mod move_authenticator {
         ));
         let sig = UserSignature::MoveAuthenticator(authenticator.clone());
         (sig, authenticator)
+    }
+
+    /// Make a transaction that passes a shared object to a Move call and is
+    /// signed with a [`MoveAuthenticator`] that names the same object with a
+    /// different initial shared version, for use in tests. The transaction
+    /// expires in `epoch`, as a Move-authenticated transaction must.
+    ///
+    /// Returns the transaction and the shared object as the transaction itself
+    /// names it.
+    pub fn make_move_authenticator_tx_with_inconsistent_shared_input(
+        address: Address,
+        epoch: EpochId,
+    ) -> (TransactionEnvelope, SharedObjectReference) {
+        let shared = SharedObjectReference::new(ObjectId::random(), Version::from(1), false);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let arg = builder.obj(CallArg::Shared(shared)).unwrap();
+        builder.programmable_move_call(
+            ObjectId::random(),
+            Identifier::from_static("module"),
+            Identifier::from_static("function"),
+            vec![],
+            vec![arg],
+        );
+        let mut data = Transaction::new_programmable(
+            address,
+            vec![random_object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            1,
+        );
+        *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch);
+        let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
+                shared.object_id,
+                Version::from(2),
+                false,
+            ))],
+            vec![],
+            SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
+        ));
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(
+            data,
+            vec![UserSignature::MoveAuthenticator(authenticator)],
+        ));
+        (tx, shared)
     }
 
     /// Make a sponsored transaction where both sender and sponsor sign with
