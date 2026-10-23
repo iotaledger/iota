@@ -265,6 +265,10 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Reject a multisig whose committee mixes Ed25519 with other key
 //             schemes unless every committee member has signed.
 //             Enable Groth16 verifying key input length checks before deserialization.
+//             Reject the deprecated global storage instructions and non-empty
+//             `acquires` lists when execution deserializes a module, and
+//             verify modules without the acquires pass and with vector element
+//             borrows checked by the call rule.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -751,10 +755,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     check_cyclic_dependencies: bool,
 
-    // If true, deprecate global storage ops during Move module deserialization
-    #[serde(skip_serializing_if = "is_false")]
-    deprecate_global_storage_ops_during_deserialization: bool,
-
     // Validate PTB input and result indices before signing.
     #[serde(skip_serializing_if = "is_false")]
     validate_ptb_argument_indices: bool,
@@ -794,7 +794,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     check_groth16_pvk_length: bool,
 
-    // If true, deprecate global storage ops everywhere.
+    // If true, deprecate global storage ops everywhere. A module that uses the
+    // deprecated global storage instructions, or has a non-empty `acquires`
+    // list, fails to deserialize. The verifier skips the acquires pass, checks
+    // vector element borrows with the same rule as calls, and fails if a
+    // deprecated instruction reaches it. This applies to every module the VM
+    // verifies, including published packages it loads. Signing always runs
+    // with it on.
     #[serde(skip_serializing_if = "is_false")]
     deprecate_global_storage_ops: bool,
 }
@@ -2281,11 +2287,6 @@ impl ProtocolConfig {
 
     pub fn check_cyclic_dependencies(&self) -> bool {
         self.feature_flags.check_cyclic_dependencies
-    }
-
-    pub fn deprecate_global_storage_ops_during_deserialization(&self) -> bool {
-        self.feature_flags
-            .deprecate_global_storage_ops_during_deserialization
     }
 
     pub fn validate_ptb_argument_indices(&self) -> bool {
@@ -3778,9 +3779,11 @@ impl ProtocolConfig {
                     cfg.feature_flags.limit_groth16_pvk_inputs = true;
                     cfg.feature_flags.check_groth16_pvk_length = true;
 
-                    // Reject the deprecated global storage instructions when a
-                    // module is deserialized or verified at execution too, not
-                    // only at signing.
+                    // At execution too, not only at signing: reject the
+                    // deprecated global storage instructions and non-empty
+                    // `acquires` lists when deserializing a module, and verify
+                    // modules without the acquires pass and with vector element
+                    // borrows checked by the call rule.
                     cfg.feature_flags.deprecate_global_storage_ops = true;
                 }
                 // Use this template when making changes:
@@ -3832,8 +3835,9 @@ impl ProtocolConfig {
             self.additional_borrow_checks()
         };
         let deprecate_global_storage_ops = if signing_limits.is_some() {
-            // Always reject the deprecated global storage instructions during
-            // signing, regardless of protocol version.
+            // Always on during signing, regardless of protocol version: reject
+            // the deprecated global storage instructions, skip the acquires
+            // pass and check vector element borrows with the call rule.
             true
         } else {
             self.deprecate_global_storage_ops()

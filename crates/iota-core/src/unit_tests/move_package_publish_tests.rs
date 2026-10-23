@@ -528,23 +528,16 @@ async fn test_publish_non_canonical_version_header_before_the_check() {
     );
 }
 
-/// A module using one of the deprecated global storage instructions is signed,
-/// and execution rejects it when it deserializes the module.
+/// A module using one of the deprecated global storage instructions is rejected
+/// at signing, so it is never certified or executed.
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_deprecated_bytes_modules() {
-    assert_eq!(
-        publish_module_using_global_storage().await.unwrap(),
-        ExecutionStatus::Failure {
-            error: ExecutionError::VmVerificationOrDeserializationError,
-            command: Some(0)
-        }
-    );
+    assert_rejected_at_signing(publish_module_using_global_storage().await);
 }
 
-/// Before execution rejects them, a module using one of the deprecated global
-/// storage instructions is rejected at signing, so it is never certified or
-/// executed.
+/// The same holds before execution rejects these instructions when it
+/// deserializes a module.
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_deprecated_bytes_modules_before_the_flag() {
@@ -553,7 +546,11 @@ async fn test_publish_deprecated_bytes_modules_before_the_flag() {
         config
     });
 
-    let error = publish_module_using_global_storage().await.unwrap_err();
+    assert_rejected_at_signing(publish_module_using_global_storage().await);
+}
+
+fn assert_rejected_at_signing(result: Result<ExecutionStatus, IotaError>) {
+    let error = result.unwrap_err();
     assert!(
         matches!(
             error,
