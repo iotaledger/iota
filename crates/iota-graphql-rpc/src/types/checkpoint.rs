@@ -424,23 +424,28 @@ impl Checkpoint {
             return Ok(Connection::new(false, false));
         }
 
-        let Some((mut absolute_lo_incl, absolute_hi_incl)) =
+        let Some((absolute_lo_incl, absolute_hi_incl)) =
             Self::pagination_range(db, filter, checkpoint_viewed_at).await?
         else {
             return Ok(Connection::new(false, false));
         };
 
+        // An epoch that starts after `checkpoint_viewed_at` has no checkpoints
+        // yet.
+        if absolute_lo_incl > absolute_hi_incl {
+            return Ok(Connection::new(false, false));
+        }
+
         // Without a fallback, anything below the pruning watermark is unreachable
-        if !db.inner.is_fallback_enabled() {
-            if let Some(lowest_unpruned_cp) = db
-                .inner
+        let oldest_available_checkpoint = if db.inner.is_fallback_enabled() {
+            0
+        } else {
+            db.inner
                 .watermark_cache()
                 .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
-                .map(|w| w as u64)
-            {
-                absolute_lo_incl = absolute_lo_incl.max(lowest_unpruned_cp);
-            }
-        }
+                .map_or(0, |w| w as u64)
+        };
+        let absolute_lo_incl = absolute_lo_incl.max(oldest_available_checkpoint);
 
         let available_range = absolute_lo_incl..=absolute_hi_incl;
 
@@ -450,7 +455,9 @@ impl Checkpoint {
             ));
         }
 
-        let Some(page_range) = page.narrow_to_available_range(&available_range)? else {
+        let Some(page_range) =
+            page.narrow_to_available_range(&available_range, oldest_available_checkpoint)?
+        else {
             return Ok(Connection::new(false, false));
         };
 
@@ -526,13 +533,15 @@ impl Page<Cursor> {
     /// Narrow page range to the `available` range and return the inclusive
     /// range this page should cover, or `None` if the range is empty.
     ///
-    /// A cursor below `available.start()` returns `Error::DataPruned` (the
-    /// data was pruned since the cursor was issued). A cursor above
-    /// `available.end()` returns `Error::Client` (the cursor is malformed).
-    /// When `after > before` the range is empty and no error is returned.
+    /// A cursor below `oldest_available_checkpoint` returns
+    /// `Error::DataPruned` (the data was pruned since the cursor was issued).
+    /// A cursor otherwise outside `available` returns `Error::Client` (the
+    /// cursor is malformed). When `after > before` the range is empty and no
+    /// error is returned.
     fn narrow_to_available_range(
         &self,
         available: &RangeInclusive<u64>,
+        oldest_available_checkpoint: u64,
     ) -> Result<Option<RangeInclusive<u64>>, Error> {
         let lo = *available.start();
         let hi = *available.end();
@@ -554,8 +563,13 @@ impl Page<Cursor> {
         // Since `after <= before`, it's enough to check if the smaller cursor is below
         // `lo`. Analogously for `hi`.
         if let Some((name, seq)) = after.or(before) {
-            if seq < lo {
+            if seq < oldest_available_checkpoint {
                 return Err(Error::DataPruned(format!(
+                    "`{name}` cursor (seq {seq}) is below the available range {available:?}"
+                )));
+            }
+            if seq < lo {
+                return Err(Error::Client(format!(
                     "`{name}` cursor (seq {seq}) is below the available range {available:?}"
                 )));
             }
