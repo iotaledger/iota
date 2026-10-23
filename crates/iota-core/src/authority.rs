@@ -1294,12 +1294,11 @@ impl AuthorityState {
     /// authenticators are not run here: both happen at execution. Instead,
     /// each account must have had its authenticator function field at the
     /// horizon, or the transaction is reported missing. The package that
-    /// field names is checked against the deny rules, read as of the same
-    /// horizon, and a denial is returned as
+    /// field names, and its dependencies, read as of the horizon, are checked
+    /// against the deny rules of the commit, and a denial is returned as
     /// [`ValidationAtCommit::AuthenticatorPackageDenied`], since it holds for
     /// every copy of the transaction. So an account whose function is changed
-    /// to a denied package above the horizon is not caught here, and a package
-    /// the reader does not see is left to execution.
+    /// to a denied package above the horizon is not caught here.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -2304,8 +2303,8 @@ impl AuthorityState {
             );
 
             // The first account that cannot be resolved fails the transaction. The
-            // remaining inputs are still collected, since for the failure effects,
-            // we have to charge gas for those inputs.
+            // remaining inputs are still collected, since the failure effects need
+            // them whether or not anyone is charged gas.
             let mut per_authenticator_input_objects = Vec::with_capacity(move_authenticators.len());
             let mut resolutions = Vec::with_capacity(move_authenticators.len());
             for (move_authenticator, (authenticator_input_objects, account_object)) in
@@ -2432,16 +2431,20 @@ impl AuthorityState {
 
             // With a resolution failure, the executor gets the failure in place of
             // the list, with the accounts the authenticators would have
-            // authenticated and the gas owner's authenticator if its account
-            // resolved, so it can decide who pays.
+            // authenticated and, under deterministic validation, the gas owner's
+            // authenticator if its account resolved, so it can decide who pays.
             let authenticators = match gas_owner_resolution_error.or(first_resolution_error) {
                 Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
                     error,
                     accounts,
-                    gas_owner: resolved_authenticators
-                        .into_iter()
-                        .find(|resolved| resolved.authenticator.address() == gas_data.owner)
-                        .map(Box::new),
+                    gas_owner: if deterministic_validation {
+                        resolved_authenticators
+                            .into_iter()
+                            .find(|resolved| resolved.authenticator.address() == gas_data.owner)
+                            .map(Box::new)
+                    } else {
+                        None
+                    },
                 },
                 None => MoveAuthenticatorsForExecution::Resolved(resolved_authenticators),
             };
@@ -6211,7 +6214,7 @@ impl AuthorityState {
     ) -> IotaResult<ValidationInputsAtCommit> {
         let input_objects = match self.input_loader.read_objects_at_commit(
             reader,
-            &transaction.collect_all_input_object_kind_for_reading_in_order()?,
+            &transaction.collect_all_input_object_kind_for_reading()?,
         )? {
             InputResolution::Loaded(input_objects) => input_objects,
             InputResolution::Drop(kind, reason) => {

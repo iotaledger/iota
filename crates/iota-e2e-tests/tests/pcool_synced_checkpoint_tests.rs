@@ -1030,10 +1030,12 @@ async fn test_restart_with_a_stalled_replay_and_unexecuted_locally_built_checkpo
     )
     .await;
     // The commits of these checkpoints are above every commit whose
-    // transactions are on disk. After the restart nothing executes, so the
-    // replay processes at most K commits above those and the switch saves a
-    // commit no higher. With more than K commits in these checkpoints, some
-    // lie above it, and the replay never executes their transactions.
+    // transactions are on disk. Post-consensus validation of commit C reads
+    // object state as of commit C - K, where K is the horizon distance read
+    // below. After the restart nothing executes, so the replay processes at
+    // most K commits above those and the switch saves a commit no higher.
+    // With more than K commits in these checkpoints, some lie above the saved
+    // commit, and the replay never executes their transactions.
     let horizon_distance = test_cluster
         .swarm
         .node(&victim)

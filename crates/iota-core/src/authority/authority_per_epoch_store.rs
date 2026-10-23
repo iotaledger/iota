@@ -697,10 +697,9 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
-    /// P-COOL deterministic-validation bookkeeping: the transaction-key ->
-    /// commit-index map and the overlays over the three bookkeeping tables,
-    /// holding entries not yet durable.
-    /// `None` without deterministic validation.
+    /// The handler object state for P-COOL deterministic validation: the map
+    /// from transaction key to assigned commit, and the rows not yet written
+    /// to the table. `None` without deterministic validation.
     handler_object_state: Option<HandlerObjectState>,
     /// See [`Self::pcool_bookkeeping_enabled`].
     pcool_bookkeeping_enabled: bool,
@@ -779,7 +778,7 @@ pub struct AuthorityPerEpochStore {
     soft_locks: OnceCell<Arc<PreConsensusSoftLocks>>,
 
     /// Effects of executed transactions, read by the quarantine flush to
-    /// derive a commit's handler-processed rows. Wired by `AuthorityState`
+    /// derive a commit's rows of the handler object state. Wired by `AuthorityState`
     /// once the execution cache exists; the next epoch's store inherits it.
     effects_store: OnceCell<Arc<dyn TransactionCacheRead>>,
 
@@ -867,10 +866,12 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
-    /// Every object version produced by a commit the handler processed, for
-    /// P-COOL deterministic post-consensus validation (see
-    /// [`handler_object_state`]). Flushed through each commit's quarantined
-    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
+    /// The rows of the handler object state, for P-COOL deterministic
+    /// post-consensus validation (see [`handler_object_state`]): every object
+    /// version produced by a commit the handler assigned. Written by each
+    /// commit's quarantine flush in the same batch as `last_consensus_stats`,
+    /// and by the checkpoint executor in a separate batch just before each
+    /// checkpoint's outputs. Same
     /// access profile as the lock table: one write per written object version
     /// per commit, one point lookup per validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
@@ -1894,27 +1895,30 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Whether this node keeps the P-COOL deterministic-validation
-    /// bookkeeping: the flag is on and this node is in the epoch's committee.
-    /// Every bookkeeping write, the execution watcher and the commit
-    /// assignment check this rather than the flag alone. A node outside the
-    /// committee runs no consensus handler, so no transaction it executes
-    /// would have its commit assigned.
+    /// Whether this node keeps the handler object state: the P-COOL
+    /// deterministic-validation flag is on and this node is in the epoch's
+    /// committee. Every write to the handler object state, the execution
+    /// watcher and the commit assignment check this rather than the flag
+    /// alone. A node outside the committee runs no consensus handler, so no
+    /// transaction it executes would have its commit assigned.
     pub fn pcool_bookkeeping_enabled(&self) -> bool {
         self.pcool_bookkeeping_enabled
     }
 
-    /// How far the object pruner may go in this epoch's checkpoints, or `None`
-    /// for no limit, when the P-COOL bookkeeping is off.
+    /// How far the object pruner may go in this epoch's checkpoints. `None`
+    /// means no limit, and is returned when this node does not keep the
+    /// handler object state.
     ///
-    /// A version that commit `c` consumed can still be kept, as on a validator
-    /// that has not executed `c`, by the validation of a commit below
-    /// `c + K` (K the horizon distance), and by the replay after a restart of
-    /// any commit above the resume point. Keeping it needs its bytes. Every
-    /// commit not flushed yet is above the resume point, so the versions of
-    /// commits up to `resume point + 1 - K` are the ones no validation can
-    /// keep any more. Checkpoints of earlier epochs are not limited: rows are
-    /// per epoch, so no validation keeps a version consumed in one.
+    /// Validation of commit `C` reads object state as of commit `C - K`, where
+    /// `K` is the protocol config's horizon distance. A version consumed by a
+    /// commit above `C - K` is still live in that state, so validation of `C`
+    /// can keep a transaction that uses it, which needs the version's bytes.
+    /// The commits still to be validated are those after the last flushed
+    /// commit, including the ones a restart replays. So only the versions
+    /// consumed by commits at or below `last flushed commit + 1 - K` may be
+    /// pruned, and the limit is the last checkpoint holding only such commits.
+    /// Checkpoints of earlier epochs are not limited: rows are per epoch, so
+    /// no validation keeps a version consumed in one.
     pub fn object_pruning_limit(&self) -> Option<ObjectPruningLimit> {
         if !self.pcool_bookkeeping_enabled {
             return None;
@@ -1954,12 +1958,12 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Registers the roots of commit `index` in the transaction-key ->
-    /// commit-index map and hands the commit to the execution watcher. Must
-    /// be called once per commit while the handler processes it, before any
-    /// of its transactions can be scheduled:
-    /// [`Self::record_executed_transaction`] records rows only for a
-    /// transaction whose commit is assigned.
+    /// Assigns commit `index` to its roots and hands the commit to the
+    /// execution watcher; see
+    /// [`HandlerObjectState::assign_commit_to_transactions`]. Call it once per
+    /// commit while the handler processes it, before any of its transactions
+    /// can be scheduled: [`Self::record_executed_transaction`] records rows
+    /// only for a transaction whose commit is assigned.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
@@ -2079,8 +2083,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Records one executed transaction's object writes for the P-COOL
-    /// deterministic-validation bookkeeping; see
+    /// Records the rows of one executed transaction in the handler object
+    /// state; see
     /// [`HandlerObjectState::record_executed_transaction`]. The caller skips
     /// genesis transactions, the epoch-0 migration transactions among them,
     /// and the change-epoch transaction, which run outside any commit.
@@ -2121,10 +2125,10 @@ impl AuthorityPerEpochStore {
             return Ok(());
         };
         let tables = self.tables()?;
-        // Outside the lock: a row found stays found, since rows are never
-        // deleted and are evicted only once durable. A row that appears after
-        // this check is inserted again with the same value, and the commit's
-        // flush writes and evicts it like any other row still in the overlay.
+        // The check needs no lock: a row that exists is never removed, it
+        // only moves from memory to the table. A row that appears right after
+        // this check is put in memory a second time with the same value, and
+        // the commit's flush writes it and removes it from memory.
         let inserts = handler_object_state.rows_not_yet_present(&tables, upserts)?;
         // Held so a flush cannot complete this commit between the guard inside
         // and the upserts: the flush runs under the write lock throughout.
@@ -2133,16 +2137,17 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Stages the handler rows of a commit flushing out of the quarantine into
-    /// `batch`. Returns them for the caller to evict once `batch` is durable, or `None`
-    /// when the bookkeeping is off.
+    /// Stages the rows of a commit flushing out of the quarantine into
+    /// `batch`. Returns them for the caller to remove from memory once `batch`
+    /// is written, or `None` when this node does not keep the handler object
+    /// state.
     ///
-    /// A commit the watcher completed stages only its rows still in the
-    /// overlay; see [`HandlerObjectState::take_completed_commit_rows`].
+    /// A commit the execution watcher completed stages only its rows still
+    /// held in memory; see [`HandlerObjectState::take_completed_commit_rows`].
     /// Otherwise the flush completes the commit, deriving its rows from the
-    /// effects of the transactions it checkpointed: the overlay holds nothing
-    /// for a commit replayed after a restart, since its transactions executed
-    /// before the crash and the execution hook does not run for them again.
+    /// effects of the transactions it checkpointed. A commit replayed after a
+    /// restart has no rows in memory, since its transactions executed before
+    /// the crash and are not executed again.
     fn stage_flushed_commit_rows(
         &self,
         index: CommitIndex,
@@ -2168,7 +2173,7 @@ impl AuthorityPerEpochStore {
         Ok(Some(FlushedCommitRows { index, rows }))
     }
 
-    /// The handler rows of commit `index`, derived from the effects of the
+    /// The rows of commit `index`, derived from the effects of the
     /// transactions its pending checkpoints hold.
     ///
     /// Every root of a flushing commit is in a checkpoint that has been built
@@ -2208,9 +2213,9 @@ impl AuthorityPerEpochStore {
         Ok(handler_rows_for_commit(&effects, index))
     }
 
-    /// Evicts the overlay entries of commits whose rows are now durable, and
-    /// raises the highest fully executed commit. Call only after the flush
-    /// batch has been written.
+    /// Removes the rows of the flushed commits from memory, and raises the
+    /// highest fully executed commit. Call only after the flush batch has
+    /// been written.
     fn evict_flushed_commit_rows(&self, flushed: &[FlushedCommitRows]) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
@@ -2220,12 +2225,12 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Makes the handler rows left by the executions behind `effects` - one
-    /// checkpoint's transactions - durable, then evicts them from the
-    /// overlay. The checkpoint executor calls this before this checkpoint's
-    /// outputs and its commits' quarantine flushes, so an object is never
-    /// durable without its handler row. Does nothing when the bookkeeping is
-    /// off or the epoch has ended.
+    /// Writes to the table the rows that the executions behind `effects`, the
+    /// transactions of one checkpoint, put in memory, then removes them from
+    /// memory. The checkpoint executor calls this before writing the
+    /// checkpoint's outputs and before its commits' quarantine flushes, so an
+    /// object is never written without its row. Does nothing when this node
+    /// does not keep the handler object state or the epoch has ended.
     ///
     /// Takes no lock: rows never change once written for a key, and no flush
     /// deletes them, so this write commutes with every other row write.
@@ -2251,15 +2256,15 @@ impl AuthorityPerEpochStore {
         let mut batch = tables.handler_processed_objects.batch();
         handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
         batch.write()?;
-        // Lets a test crash the node with the bookkeeping durable and the
-        // checkpoint's outputs not.
+        // Lets a test crash the node with the checkpoint's rows written and
+        // its outputs not.
         fail_point!("crash-after-checkpoint-bookkeeping-write");
         handler_object_state.evict_flushed_checkpoint_rows(&rows);
         Ok(())
     }
 
-    /// The handler-processed row at `key`, the exact version a transaction
-    /// names.
+    /// The row at `key`, the exact version a transaction names; see
+    /// [`HandlerObjectState::handler_processed_object`].
     pub fn handler_processed_object(
         &self,
         key: &ObjectKey,
@@ -2271,8 +2276,7 @@ impl AuthorityPerEpochStore {
         handler_object_state.handler_processed_object(&tables, key)
     }
 
-    /// The handler-processed row of `id` at its highest version, with its
-    /// key.
+    /// The row of `id` at its highest version, with its key.
     pub fn highest_handler_processed_row(
         &self,
         id: &ObjectId,
@@ -2284,8 +2288,7 @@ impl AuthorityPerEpochStore {
         handler_object_state.highest_handler_processed_row(&tables, id)
     }
 
-    /// The handler-processed row of `id` at its lowest version above
-    /// `version`, with its key.
+    /// The row of `id` at its lowest version above `version`, with its key.
     pub fn lowest_handler_processed_row_above(
         &self,
         id: &ObjectId,
@@ -2298,8 +2301,8 @@ impl AuthorityPerEpochStore {
         handler_object_state.lowest_handler_processed_row_above(&tables, id, version)
     }
 
-    /// The handler-processed row of `id` at its highest version below
-    /// `version`, with its key; see
+    /// The row of `id` at its highest version below `version`, with its key;
+    /// see
     /// [`HandlerObjectState::highest_handler_processed_row_below`].
     pub fn highest_handler_processed_row_below(
         &self,
@@ -2320,9 +2323,9 @@ impl AuthorityPerEpochStore {
             .expect("tests of the handler object state turn deterministic validation on")
     }
 
-    /// Durably writes `handler_rows`, then evicts them from the overlay - the
-    /// quarantine flush's locking and write-then-evict order, without its row
-    /// derivation or its completion of the commit. Like the flush's
+    /// Writes `handler_rows` to the table, then removes them from memory, with
+    /// the quarantine flush's locking and order of the two steps, but without
+    /// deriving the rows or completing the commit. Like the flush's
     /// `last_consensus_stats`, the same batch raises the resume point a
     /// reopened epoch store starts from to `commit_index`, unless it is
     /// already higher. Tests of the flush itself use
@@ -2377,8 +2380,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// The handler-processed row at `key` in the durable table, skipping the
-    /// overlay and the read-through cache.
+    /// The row at `key` in the table, skipping the rows held in memory and the
+    /// read-through cache.
     #[cfg(test)]
     pub fn durable_handler_processed_object_for_testing(
         &self,
@@ -2398,7 +2401,7 @@ impl AuthorityPerEpochStore {
     /// Flushes commit `index` out of the consensus quarantine through the
     /// same path a running node takes, with one pending checkpoint of `roots`
     /// at height `index` and checkpoint sequence number `index`. Calls must
-    /// use increasing indices. Returns the handler rows the flush wrote.
+    /// use increasing indices. Returns the rows the flush wrote.
     #[cfg(test)]
     pub fn flush_commit_through_quarantine_for_testing(
         &self,
@@ -2413,7 +2416,7 @@ impl AuthorityPerEpochStore {
     /// checkpoints are at or below `height`, through the same path a running
     /// node takes: builds checkpoint `sequence` of `roots` at `height` and
     /// handles it as executed. `sequence` must be above every checkpoint
-    /// built before. Returns the handler rows the flush wrote.
+    /// built before. Returns the rows the flush wrote.
     #[cfg(test)]
     pub fn flush_pushed_commits_for_testing(
         &self,
@@ -2452,8 +2455,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Pushes commit `index` into the consensus quarantine with one pending
-    /// checkpoint of `roots` at height `index`.
+    /// Pushes commit `index`, in consensus round `index`, into the consensus
+    /// quarantine with one pending checkpoint of `roots` at height `index`.
     #[cfg(test)]
     fn push_commit_with_one_pending_checkpoint_for_testing(
         &self,
@@ -2810,8 +2813,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// [`Self::handle_finalized_checkpoint`], returning the handler rows of
-    /// the commits it flushed out of the quarantine.
+    /// [`Self::handle_finalized_checkpoint`], returning the rows of the
+    /// commits it flushed out of the quarantine.
     fn finalize_checkpoint(
         &self,
         checkpoint: &CheckpointSummary,
@@ -4615,6 +4618,11 @@ impl AuthorityPerEpochStore {
         // checkpoint and are never assigned, so the highest fully executed
         // commit cannot reach them. They admit no user transaction either, so
         // they do not wait.
+        //
+        // A commit that reserves a randomness round is fully executed only once
+        // that round's randomness state update executes, which needs the
+        // validators to exchange the round's partial signatures. So this wait
+        // can last that long even on a validator whose execution keeps up.
         if self.pcool_bookkeeping_enabled && accepts_tx {
             self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
                 &self.protocol_config,
@@ -5136,8 +5144,8 @@ impl AuthorityPerEpochStore {
             let should_write_random_checkpoint =
                 randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
 
-            // The deterministic-validation bookkeeping tracks exactly the
-            // roots written to this commit's pending checkpoints.
+            // The handler object state assigns the commit to exactly the
+            // roots written to its pending checkpoints.
             if self.pcool_bookkeeping_enabled {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {

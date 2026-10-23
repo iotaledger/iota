@@ -1,12 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Reads one owned or immutable input, named by `(id, V)`. Each step is its
-//! own type that offers only the next allowed read, so a read cannot be
-//! skipped, repeated or taken out of order. The one exception is the last
-//! read of the other rows of `id`, whose follow-up reads depend only on what
-//! the first one returned. The decisions on what a read returned are plain
-//! functions.
+//! Reads one owned or immutable input, named by `(id, V)`: the object id and the version the
+//! transaction names. Each step is its own type that offers only the next allowed read, so a read
+//! cannot be skipped, repeated or taken out of order. The one exception is the last read of the
+//! other rows of `id`, whose follow-up reads depend only on what the first one returned. The
+//! decisions on what a read returned are plain functions.
 //!
 //! The row at `(id, V)`, when there is one, decides a drop or a missing, and
 //! a keep from it is checked against the rows above `V` as described below.

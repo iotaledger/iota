@@ -1065,13 +1065,7 @@ impl IotaNode {
         config: &NodeConfig,
         epoch_store: &AuthorityPerEpochStore,
     ) -> bool {
-        config.is_validator()
-            && epoch_store
-                .committee()
-                .authority_exists(&config.authority_public_key())
-            && epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
+        config.is_validator() && epoch_store.pcool_bookkeeping_enabled()
     }
 
     fn create_p2p_network(
@@ -2333,7 +2327,9 @@ impl IotaNode {
         // Every checkpoint of the ending epoch has executed, so the saved
         // synced watermark is safe to go on from while readers' value is held
         // in memory. Nodes outside the committee build no checkpoints, so
-        // their saved watermark never falls behind and is not held.
+        // their saved watermark never falls behind and the hold is not turned
+        // on for them. A hold turned on in an earlier epoch stays on, which is
+        // harmless (see `CheckpointStore::hold_synced_watermark_in_memory`).
         if new_epoch_store
             .protocol_config()
             .pcool_deterministic_validation()

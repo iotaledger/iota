@@ -23,10 +23,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    move_authenticator::MoveAuthenticatorExt,
-    transaction::{
-        SenderSignedTransactionAPI, TransactionAPI, TransactionKindExt, VerifiedTransaction,
-    },
+    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -151,8 +148,8 @@ pub struct ConsensusHandler<C> {
     /// transaction per author.
     deterministic_validation: bool,
     transaction_scheduler: AsyncTransactionScheduler,
-    /// Marks commits fully executed for the P-COOL deterministic-validation
-    /// bookkeeping; `None` unless this node keeps the bookkeeping. Held only
+    /// Marks commits fully executed in the P-COOL handler object state;
+    /// `None` unless this node keeps the handler object state. Held only
     /// so the task is aborted with the handler.
     _execution_watcher: Option<ExecutionWatcher>,
 
@@ -691,8 +688,8 @@ impl AsyncTransactionScheduler {
 const EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME: &str =
     "ExecutionWatcher::notify_read_executed_effects";
 
-/// Marks each consensus commit fully executed for the P-COOL
-/// deterministic-validation bookkeeping once all of its roots have effects.
+/// Marks each consensus commit fully executed in the P-COOL handler object
+/// state once all of its roots have effects.
 ///
 /// Receives commits from the epoch store in processing order and completes
 /// them in that order, so a completed commit implies every earlier commit is
@@ -862,18 +859,6 @@ impl Drop for StarfishConsensusHandler {
     }
 }
 
-/// Whether the transaction or one of its Move authenticators names a shared
-/// object, the same answer as `contains_shared_object`. It does not merge the
-/// declarations, since `classify` runs on committed transactions before
-/// `validity_check` has rejected those whose declarations disagree.
-fn names_shared_object(transaction: &SenderSignedTransaction) -> bool {
-    transaction.transaction().kind().contains_shared_object()
-        || transaction
-            .move_authenticators()
-            .iter()
-            .any(|authenticator| !authenticator.shared_objects().is_empty())
-}
-
 pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
     match &transaction.kind {
         ConsensusTransactionKind::CertifiedTransaction(certificate) => {
@@ -884,7 +869,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             }
         }
         ConsensusTransactionKind::UserTransactionV1(transaction) => {
-            if names_shared_object(transaction.data()) {
+            if transaction.data().contains_shared_object() {
                 "shared_user_transaction"
             } else {
                 "owned_user_transaction"

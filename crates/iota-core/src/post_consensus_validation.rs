@@ -23,14 +23,16 @@
 //!    for a reason that may come from its own signatures (see `drop_may_come_from_signatures`).
 //! 3. Saved decisions, already-executed and deferred transactions:
 //!    - Replayed commit (deterministic validation only): a commit replayed after a restart repeats
-//!      the decisions saved on its first run. A saved drop is repeated without checks. A saved keep
-//!      is validated again unless the transaction has executed or was deferred at an earlier
-//!      commit.
+//!      the decisions saved on its first run. A saved drop is repeated without checks. Once the
+//!      switch to executing synced checkpoints after commit `L` is saved, a commit at or below `L`
+//!      repeats a saved keep without checks and takes no locks for it. Otherwise a saved keep is
+//!      validated again unless the transaction has executed or was deferred at an earlier commit.
 //!    - Already executed (typically by state sync): the transaction is **retained** as a
-//!      committee-agreed winner, not dropped. It registers the locks its own effects report and
-//!      skips re-validation. See issue #11649. With deterministic validation this applies only if
-//!      the first run of this commit saved a keep for it; otherwise it goes through the checks
-//!      below like any other transaction, unless it was deferred.
+//!      committee-agreed winner, not dropped: dropping it would make this validator's checkpoints
+//!      differ from those of the other validators. It registers the locks its own effects report
+//!      and skips re-validation. With deterministic validation this applies only if the first run
+//!      of this commit saved a keep for it; otherwise it goes through the checks below like any
+//!      other transaction, unless it was deferred.
 //!    - Deferred at an earlier commit (deterministic validation only): the transaction is kept
 //!      without checks and takes no new locks. It was validated at the commit that kept it and
 //!      still holds the locks it took there.
@@ -50,7 +52,7 @@
 //! Step 5 probes every `ImmOrOwnedMoveObject` reference, but with
 //! `pcool_skip_immutable_object_locks` set only genuinely owned references are
 //! locked — an immutable input never takes a new version, so its lock would
-//! never lapse (issue #12602). Step 7 filters via the loaded objects, step 3
+//! hold until the epoch ends. Step 7 filters via the loaded objects, step 3
 //! via the executed transaction's effects; without the flag both lock the raw
 //! probed set.
 
@@ -160,10 +162,12 @@ impl SavedPostConsensusDecision {
 /// - Runs deduplication, structural validity, lock conflict check, and deny checks (deny list, gas,
 ///   ownership, coin deny list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map; with
-///   `pcool_skip_immutable_object_locks` set, immutable inputs are not locked (issue #12602).
+///   `pcool_skip_immutable_object_locks` set, immutable inputs are not locked, as an immutable
+///   input never takes a new version and its lock would hold until the epoch ends.
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it registers the locks its
-///   effects report (the raw input set without the flag) and skips re-validation. See issue #11649.
+///   effects report (the raw input set without the flag) and skips re-validation. Dropping it would
+///   make this validator's checkpoints differ from those of the other validators.
 /// - With deterministic validation, a transaction in `previously_deferred` is kept without checks
 ///   and takes no new locks: the locks it took at the commit that kept it stay in place.
 ///
@@ -176,7 +180,8 @@ impl SavedPostConsensusDecision {
 /// including keeps that the caller then defers, and a commit replayed after a restart repeats the
 /// saved decisions; step 3 of the module docs says which transactions are validated again. Panics
 /// if the saved decisions are incomplete, the candidates differ from the saved ones, or a saved
-/// keep is now dropped.
+/// keep is now dropped. Once the switch to executing synced checkpoints after commit `L` is saved,
+/// also panics for a commit above `L`, or for a commit at or below `L` without saved decisions.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -413,8 +418,9 @@ pub async fn validate_and_resolve_conflicts(
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
         // keep it in the sequence to flow into checkpoint roots like on every other
-        // validator (dropping it forks — issue #11649). Register its owned-object
-        // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
+        // validator (dropping it would make this validator's checkpoint differ from
+        // those of the others). Register its owned-object locks so double-spend
+        // siblings still lose, then skip re-validation (#2/#5);
         // the active scheduler's enqueue filter suppresses the re-execution.
         //
         // With deterministic validation, effects alone do not show at which
@@ -437,8 +443,8 @@ pub async fn validate_and_resolve_conflicts(
                 // A winner cannot be out-locked: after the effects filter,
                 // every reference here was consumed by this transaction, so a
                 // lock held by a different tx is a consistency violation, not
-                // a conflict. (Flag off, immutable references stay in the set
-                // and weaken this invariant — issue #12602.)
+                // a conflict. (Flag off, immutable references, which are not
+                // consumed, stay in the set and weaken this invariant.)
                 if let Some(other) =
                     find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
                 {
@@ -522,8 +528,8 @@ pub async fn validate_and_resolve_conflicts(
                 // owned-object locks, was then deferred, and is reloaded and
                 // validated again in this commit. A self-held lock is NOT a conflict
                 // - without this guard, the transaction will be dropped with
-                // `ObjectLockConflict` and never executed. Issue #11649 mirrors
-                // this guard for the already-executed branch in Check #1.
+                // `ObjectLockConflict` and never executed. Check #1 accepts a
+                // lock held by the same transaction too.
                 //
                 // Note that same-commit duplicates cannot slip through here since
                 // Check #0 lets a later copy through only while no copy of the
@@ -684,7 +690,7 @@ pub async fn validate_and_resolve_conflicts(
         // All checks passed — acquire owned-object locks in local tracking.
         // The validated set comes from loaded objects, so unlike the
         // byte-derived `owned_inputs` it excludes immutable inputs, which must
-        // never be locked (issue #12602). It is a subset of `owned_inputs`,
+        // never be locked (see the module docs). It is a subset of `owned_inputs`,
         // so every reference locked here was probed by Check #4 first.
         let locked_inputs: Vec<ObjectReference> = if skip_immutable_locks {
             validated_owned_objects
@@ -912,7 +918,7 @@ fn drop_may_come_from_signatures(
 /// Narrows the byte-derived owned inputs of an already-executed transaction to
 /// the references it consumed — the same set the main path locks — by
 /// intersecting them with the pre-execution references in its own effects;
-/// immutable inputs never appear there (issue #12602). A missing effects body
+/// immutable inputs never appear there. A missing effects body
 /// is a storage error, never a "not executed" verdict, which would drop a
 /// committee-agreed winner other validators keep.
 fn filter_locked_inputs_by_effects(

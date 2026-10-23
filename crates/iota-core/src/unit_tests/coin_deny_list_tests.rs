@@ -425,6 +425,11 @@ async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
     );
 }
 
+// Post-consensus validation at commit C reads state as of commit C - K,
+// called the horizon of C. K is the protocol config's
+// `pcool_deterministic_validation_horizon_distance`, 2 in these tests, so
+// commit 2 has horizon 0 and commit 3 has horizon 1.
+//
 // Under P-COOL with deterministic validation, post-consensus validation checks
 // the sender against the coin types of its inputs, reading the deny list as of
 // the commit's horizon. A sender denied in the previous epoch and allowed again

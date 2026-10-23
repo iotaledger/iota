@@ -35,10 +35,10 @@ use crate::{
     transaction::SenderSignedTransactionAPI,
     utils::{
         assert_size_limit_err, blake2b256_of_sig, make_move_authenticator_sig,
-        make_move_authenticator_tx, make_passkey_authenticator_sig,
-        make_sponsored_move_authenticator_tx, make_sponsored_regular_sig_tx, make_transaction,
-        make_transaction_data, make_upgraded_multisig_tx, ptb_above_max_tx_size,
-        ptb_with_pure_inputs,
+        make_move_authenticator_tx, make_move_authenticator_tx_with_inconsistent_shared_input,
+        make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
+        make_sponsored_regular_sig_tx, make_transaction, make_transaction_data,
+        make_upgraded_multisig_tx, ptb_above_max_tx_size, ptb_with_pure_inputs,
     },
 };
 
@@ -1447,6 +1447,15 @@ fn test_consensus_commit_prologue_v1_transaction() {
     );
     assert!(tx.is_system_tx());
     assert_eq!(tx.data().transaction().input_objects().unwrap().len(), 1);
+}
+
+/// A transaction and its Move authenticator that name the same shared object
+/// with different initial versions still report a shared object, without
+/// panicking: `validity_check` rejects such a transaction only later.
+#[test]
+fn test_contains_shared_object_with_inconsistent_authenticator_input() {
+    let (tx, _) = make_move_authenticator_tx_with_inconsistent_shared_input(Address::random(), 0);
+    assert!(tx.data().contains_shared_object());
 }
 
 fn transaction_deny_rules_update_kind() -> TransactionKind {

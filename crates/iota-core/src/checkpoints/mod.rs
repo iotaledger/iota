@@ -1026,25 +1026,27 @@ impl CheckpointStore {
         )
     }
 
-    /// From now on, holds the synced watermark readers see in memory; the
-    /// saved one only moves over checkpoints whose transactions and effects
-    /// are stored, or that have executed.
+    /// From now on, holds the synced watermark that callers read in memory.
+    /// The value saved in the database passes a checkpoint only once that
+    /// checkpoint has executed or its transactions and effects are in
+    /// `perpetual_tables`.
     ///
     /// The synced watermark promises that the contents of every checkpoint up
     /// to it can be loaded. A checkpoint can be marked synced while its
     /// transactions and effects are only in memory: this node certified it
-    /// after building it, or state sync found its contents in memory. The
-    /// saved watermark passes such a checkpoint only once it has executed, or
-    /// once its transactions and effects are in `perpetual_tables`, so after a
-    /// restart readers start from a watermark whose contents can be loaded,
-    /// and state sync marks the checkpoints above it synced again.
+    /// after building it, or state sync found its contents in memory. With
+    /// the watermark held in memory, a restarted node starts from a synced
+    /// checkpoint whose contents can be loaded, and state sync marks the later
+    /// checkpoints synced again.
     ///
-    /// Readers go on from the saved watermark, which until now is the one they
-    /// see, so turning this on never moves what they see. At startup call it
-    /// before anything marks a checkpoint synced. A running node can turn it
-    /// on at an epoch change, when every checkpoint of the ending epoch has
-    /// executed. A saved watermark written without this is taken as it is.
-    /// Does nothing once it is on.
+    /// Turning this on does not change the value callers read. At startup,
+    /// call it before anything marks a checkpoint synced. A running node may
+    /// call it at an epoch change, after every checkpoint of the ending epoch
+    /// has executed. Once on, it stays on until the process stops, also in
+    /// later epochs where the node is not in the committee. There, state sync
+    /// marks a checkpoint synced only after its transactions and effects are
+    /// in `perpetual_tables`, so the saved value moves with the one callers
+    /// read. Does nothing if already on.
     pub fn hold_synced_watermark_in_memory(
         &self,
         perpetual_tables: Arc<AuthorityPerpetualTables>,
