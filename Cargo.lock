@@ -6806,7 +6806,6 @@ dependencies = [
  "http-body 1.0.1",
  "hyper",
  "indexmap 2.11.0",
- "iota-config",
  "iota-core",
  "iota-json",
  "iota-json-rpc-api",

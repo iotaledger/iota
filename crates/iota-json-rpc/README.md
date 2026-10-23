@@ -39,6 +39,6 @@ let custom_runtime: Option<tokio::runtime::Handle> = None;
 
 // Start the server.
 builder
-.start(default_socket_addr, custom_runtime, Some(ServerType::Http))
+.start(default_socket_addr, custom_runtime, None)
 .await?;
 ```

@@ -30,8 +30,7 @@ use iota_config::{
 };
 use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
 use iota_json_rpc_types::{
-    EventFilter, IotaEvent, IotaMoveValue, IotaObjectDataFilter, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, TransactionFilter,
+    EventFilter, IotaEvent, IotaMoveValue, IotaObjectDataFilter, TransactionFilter,
 };
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
@@ -182,7 +181,6 @@ use crate::{
         reader::{CommitIndexedReader, DenyListAtCommit},
     },
     stake_aggregator::StakeAggregator,
-    subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
@@ -314,9 +312,7 @@ pub struct AuthorityMetrics {
     pub(crate) transaction_overload_sources: IntCounterVec,
 
     // Post processing metrics
-    post_processing_total_events_emitted: IntCounter,
     post_processing_total_tx_indexed: IntCounter,
-    post_processing_total_tx_had_event_processed: IntCounter,
     post_processing_total_failures: IntCounter,
 
     // Consensus handler metrics
@@ -712,21 +708,9 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            post_processing_total_events_emitted: register_int_counter_with_registry!(
-                "post_processing_total_events_emitted",
-                "Total number of events emitted in post processing",
-                registry,
-            )
-                .unwrap(),
             post_processing_total_tx_indexed: register_int_counter_with_registry!(
                 "post_processing_total_tx_indexed",
                 "Total number of txes indexed in post processing",
-                registry,
-            )
-                .unwrap(),
-            post_processing_total_tx_had_event_processed: register_int_counter_with_registry!(
-                "post_processing_total_tx_had_event_processed",
-                "Total number of txes finished event processing in post processing",
                 registry,
             )
                 .unwrap(),
@@ -949,7 +933,6 @@ pub struct AuthorityState {
     pub indexes: Option<Arc<IndexStore>>,
     pub grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
 
-    pub subscription_handler: Arc<SubscriptionHandler>,
     pub checkpoint_store: Arc<CheckpointStore>,
 
     committee_store: Arc<CommitteeStore>,
@@ -3175,58 +3158,8 @@ impl AuthorityState {
                 .tap_ok(|_| self.metrics.post_processing_total_tx_indexed.inc())
                 .tap_err(|e| error!(?tx_digest, "Post processing - Couldn't index tx: {e}"))
                 .expect("Indexing tx should not fail");
-
-            let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
-            let events = self.make_transaction_block_events(
-                events.clone(),
-                *tx_digest,
-                timestamp_ms,
-                epoch_store,
-                inner_temporary_store,
-            )?;
-            // Emit events
-            self.subscription_handler
-                .process_tx(transaction.data().transaction(), &effects, &events)
-                .tap_ok(|_| {
-                    self.metrics
-                        .post_processing_total_tx_had_event_processed
-                        .inc()
-                })
-                .tap_err(|e| {
-                    warn!(
-                        ?tx_digest,
-                        "Post processing - Couldn't process events for tx: {}", e
-                    )
-                })?;
-
-            self.metrics
-                .post_processing_total_events_emitted
-                .inc_by(events.data.len() as u64);
         };
         Ok(())
-    }
-
-    fn make_transaction_block_events(
-        &self,
-        transaction_events: TransactionEvents,
-        digest: TransactionDigest,
-        timestamp_ms: u64,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        inner_temporary_store: &InnerTemporaryStore,
-    ) -> IotaResult<IotaTransactionBlockEvents> {
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    inner_temporary_store,
-                    self.get_backing_package_store(),
-                )));
-        IotaTransactionBlockEvents::try_from(
-            transaction_events,
-            digest,
-            Some(timestamp_ms),
-            layout_resolver.as_mut(),
-        )
     }
 
     pub fn unixtime_now_ms() -> u64 {
@@ -3454,7 +3387,6 @@ impl AuthorityState {
             execution_cache_trait_pointers,
             indexes,
             grpc_indexes_store,
-            subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
             execution_scheduler,

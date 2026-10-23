@@ -237,7 +237,6 @@ impl ValidatorConfigBuilder {
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
             state_snapshot_write_config: StateSnapshotConfig::default(),
-            indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
@@ -245,7 +244,6 @@ impl ValidatorConfigBuilder {
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
             ),
             run_with_range: None,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
@@ -643,12 +641,10 @@ impl FullnodeConfigBuilder {
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
             state_snapshot_write_config: self.state_snapshot_write_config.unwrap_or_default(),
-            indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
             execution_cache_config: ExecutionCacheConfig::default(),
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(

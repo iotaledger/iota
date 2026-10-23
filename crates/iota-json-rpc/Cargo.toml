@@ -39,7 +39,6 @@ tower-http.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-iota-config.workspace = true
 iota-core.workspace = true
 iota-json.workspace = true
 iota-json-rpc-api.workspace = true
