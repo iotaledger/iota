@@ -6234,6 +6234,7 @@ dependencies = [
  "prost-types 0.14.3",
  "rand 0.10.3",
  "rand 0.8.6",
+ "rstest",
  "serde",
  "serde_json",
  "telemetry-subscribers",
