@@ -5,11 +5,22 @@
 use std::collections::BTreeSet;
 
 use async_graphql::InputObject;
+use iota_indexer::{
+    ingestion::common::CommitterTables,
+    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
+};
 use iota_sdk_types::Address as NativeAddress;
 
-use crate::types::{
-    digest::Digest, intersect, iota_address::IotaAddress,
-    transaction_block::TransactionBlockKindInput, type_filter::FqNameFilter, uint53::UInt53,
+use crate::{
+    data::Db,
+    types::{
+        digest::Digest,
+        intersect,
+        iota_address::IotaAddress,
+        transaction_block::{TransactionBlockKindInput, tx_lookups::subquery_tables},
+        type_filter::FqNameFilter,
+        uint53::UInt53,
+    },
 };
 
 /// Represents optional available filters for transaction blocks.
@@ -205,6 +216,39 @@ impl TransactionBlockFilter {
         no_other_filters
             .then_some(self.transaction_ids.as_ref())
             .flatten()
+    }
+
+    /// The oldest checkpoint a page of transactions with this filter is
+    /// available from: the value reported on `DATA_PRUNED`.
+    pub(crate) fn oldest_available_checkpoint(&self, db: &Db) -> OldestAvailableCheckpoint {
+        use CommitterTables::*;
+
+        if self.only_at_checkpoint().is_some() {
+            return OldestAvailableCheckpoint::for_tables(
+                &db.inner,
+                &[],
+                &[Transactions, PrunerCpWatermark, TxGlobalOrder],
+            );
+        }
+        if self.only_affected_address().is_some() {
+            return OldestAvailableCheckpoint::for_tables(
+                &db.inner,
+                &[],
+                &[TxSenders, TxRecipients, Transactions, TxGlobalOrder],
+            );
+        }
+        if self.only_transaction_ids().is_some() {
+            return OldestAvailableCheckpoint::for_tables(
+                &db.inner,
+                &[],
+                &[Transactions, TxGlobalOrder],
+            );
+        }
+        // The general query reads the lookup tables of its subqueries, and
+        // `transactions` for the contents.
+        let mut tables = vec![Transactions];
+        tables.extend(subquery_tables(self));
+        OldestAvailableCheckpoint::for_tables(&db.inner, &tables, &[])
     }
 
     pub(crate) fn is_empty(&self) -> bool {

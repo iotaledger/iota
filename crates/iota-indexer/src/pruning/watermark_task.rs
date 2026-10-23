@@ -7,7 +7,7 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use arc_swap::ArcSwap;
+use arc_swap::{ArcSwap, Guard};
 use iota_metrics::spawn_monitored_task;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
@@ -39,6 +39,23 @@ pub struct WatermarkCache {
 
 /// Map from entity name to its watermark data
 type WatermarkCacheInner = HashMap<String, StoredWatermark>;
+
+/// The watermarks of all tables as read from the cache at one moment.
+pub struct Watermarks(Guard<Arc<WatermarkCacheInner>>);
+
+impl Watermarks {
+    /// Gets the lowest checkpoint and transaction that are available for all
+    /// specified tables.
+    ///
+    /// Returns `None` if no watermarks are available for any of the tables.
+    pub fn lowest_available_cp_and_tx(&self, tables: &[CommitterTables]) -> Option<(i64, i64)> {
+        tables
+            .iter()
+            .filter_map(|table| self.0.get(table.as_ref()))
+            .map(|watermark| (watermark.min_available_cp, watermark.min_available_tx))
+            .reduce(|(cp, tx), (next_cp, next_tx)| (cp.max(next_cp), tx.max(next_tx)))
+    }
+}
 
 impl Default for WatermarkCache {
     fn default() -> Self {
@@ -83,12 +100,13 @@ impl WatermarkCache {
         &self,
         tables: &[CommitterTables],
     ) -> Option<(i64, i64)> {
-        let cache = self.inner.load();
-        tables
-            .iter()
-            .filter_map(|table| cache.get(table.as_ref()))
-            .map(|watermark| (watermark.min_available_cp, watermark.min_available_tx))
-            .reduce(|(cp, tx), (next_cp, next_tx)| (cp.max(next_cp), tx.max(next_tx)))
+        self.load().lowest_available_cp_and_tx(tables)
+    }
+
+    /// Reads all watermarks at once, for lookups over several sets of tables
+    /// that have to see the same state of the cache.
+    pub fn load(&self) -> Watermarks {
+        Watermarks(self.inner.load())
     }
 
     /// Updates the cache with fresh watermarks from the database

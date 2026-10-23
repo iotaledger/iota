@@ -4,7 +4,9 @@
 
 use async_graphql::{ErrorExtensionValues, ErrorExtensions, Pos, Response, ServerError};
 use async_graphql_axum::GraphQLResponse;
-use iota_indexer::errors::IndexerError;
+use iota_indexer::{
+    errors::IndexerError, pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
+};
 use iota_indexer_streaming::error::IndexerStreamingError;
 use iota_names::error::IotaNamesError;
 
@@ -78,8 +80,14 @@ pub enum Error {
     // Catch-all for client-fault errors
     #[error("{0}")]
     Client(String),
-    #[error("Requested data has been pruned: {0}")]
-    DataPruned(String),
+    #[error("Requested data has been pruned: {message}")]
+    DataPruned {
+        message: String,
+        /// The oldest checkpoint the request could have found data in.
+        ///
+        /// Anything before it has been pruned and is no longer served.
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
+    },
     #[error("Internal error occurred while processing request: {0}")]
     Internal(String),
     #[error(transparent)]
@@ -99,8 +107,15 @@ impl ErrorExtensions for Error {
             | Error::Client(_) => {
                 e.set("code", code::BAD_USER_INPUT);
             }
-            Error::DataPruned(_) => {
+            Error::DataPruned {
+                oldest_available_checkpoint,
+                ..
+            } => {
                 e.set("code", code::DATA_PRUNED);
+                e.set(
+                    "oldestAvailableCheckpoint",
+                    u64::from(*oldest_available_checkpoint),
+                );
             }
             Error::Internal(_) => {
                 e.set("code", code::INTERNAL_SERVER_ERROR);
@@ -121,7 +136,13 @@ impl ErrorExtensions for Error {
 impl From<IndexerError> for Error {
     fn from(e: IndexerError) -> Self {
         match e {
-            IndexerError::DataPruned { message, .. } => Error::DataPruned(message),
+            IndexerError::DataPruned {
+                message,
+                oldest_available_checkpoint,
+            } => Error::DataPruned {
+                message,
+                oldest_available_checkpoint,
+            },
             _ => Error::Internal(e.to_string()),
         }
     }

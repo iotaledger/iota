@@ -16,6 +16,7 @@ use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, SelectableHelpe
 use iota_indexer::{
     ingestion::common::CommitterTables,
     models::objects::{StoredHistoryObject, StoredObject},
+    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
     schema::objects,
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
@@ -764,6 +765,33 @@ impl ObjectImpl<'_> {
 }
 
 impl Object {
+    /// The oldest checkpoint an object at a given version is available from:
+    /// the value reported on `DATA_PRUNED`. The fallback serves both the
+    /// version and the content.
+    pub(crate) fn oldest_available_checkpoint_at_version(db: &Db) -> OldestAvailableCheckpoint {
+        OldestAvailableCheckpoint::for_tables(
+            &db.inner,
+            &[],
+            &[
+                CommitterTables::ObjectsVersion,
+                CommitterTables::ObjectsBackwardHistory,
+            ],
+        )
+    }
+
+    /// The oldest checkpoint the latest version of an object at or below a
+    /// parent version is available from: the value reported on `DATA_PRUNED`.
+    /// The version comes from `objects_version` in the database only, as the
+    /// fallback keeps no version history and cannot pick it. The fallback
+    /// serves the content.
+    pub(crate) fn oldest_available_checkpoint_under_parent(db: &Db) -> OldestAvailableCheckpoint {
+        OldestAvailableCheckpoint::for_tables(
+            &db.inner,
+            &[CommitterTables::ObjectsVersion],
+            &[CommitterTables::ObjectsBackwardHistory],
+        )
+    }
+
     /// Construct a GraphQL object from a native object, without its stored
     /// (indexed) counterpart.
     ///
@@ -1425,23 +1453,17 @@ impl FallbackObjectKey for ParentVersionKey {
     }
 }
 
-/// Checks if `objects_version` table covers the whole chain history.
-///
-/// This function currently returns false for indexer restored from snapshot.
-fn objects_version_complete(db: &Db) -> bool {
-    !db.inner.is_pruned(CommitterTables::ObjectsVersion)
-}
-
 /// Fills the missing `results` entries with objects fetched from the
 /// historical fallback.
 ///
 /// It stores nothing when the object does not exist at the requested version
 /// (e.g. when the object is wrapped or deleted). It stores
-/// [`Error::DataPruned`] per key when the historical fallback is not
-/// configured.
+/// [`Error::DataPruned`] reporting `oldest_available_checkpoint` per key when
+/// the historical fallback is not configured.
 async fn fill_missing_objects_from_fallback<K: FallbackObjectKey>(
     db: &Db,
     keys_with_refs: Vec<(K, (ObjectId, Version))>,
+    oldest_available_checkpoint: OldestAvailableCheckpoint,
     results: &mut HashMap<K, Result<Object, Error>>,
 ) -> Result<(), Error> {
     if keys_with_refs.is_empty() {
@@ -1463,9 +1485,10 @@ async fn fill_missing_objects_from_fallback<K: FallbackObjectKey>(
         object_refs
             .iter()
             .map(|(id, _)| {
-                Err(Error::DataPruned(format!(
-                    "data for object {id} potentially pruned"
-                )))
+                Err(Error::DataPruned {
+                    message: format!("data for object {id} potentially pruned"),
+                    oldest_available_checkpoint,
+                })
             })
             .collect()
     };
@@ -1609,7 +1632,7 @@ impl Loader<HistoricalKey> for Db {
         // When version history is complete, unresolved key = nonexisting object
         // version. When history is incomplete we have to query the KV to know
         // if object exists or not.
-        if !objects_version_complete(self) {
+        if self.inner.is_pruned(CommitterTables::ObjectsVersion) {
             fallback_keys.append(&mut unresolved_keys);
         }
 
@@ -1617,7 +1640,13 @@ impl Loader<HistoricalKey> for Db {
             .into_iter()
             .map(|key| (key, (key.id.into(), Version::from(key.version))))
             .collect();
-        fill_missing_objects_from_fallback(self, keys_with_refs, &mut result).await?;
+        fill_missing_objects_from_fallback(
+            self,
+            keys_with_refs,
+            Object::oldest_available_checkpoint_at_version(self),
+            &mut result,
+        )
+        .await?;
 
         Ok(result)
     }
@@ -1871,19 +1900,27 @@ impl Loader<ParentVersionKey> for Db {
         // cases, since this cannot be handled by KV currently: before_version
         // query will not work properly since we don't store wrapped-or-deleted
         // version in the KV.
-        if !objects_version_complete(self) {
+        let oldest_available_checkpoint = Object::oldest_available_checkpoint_under_parent(self);
+        if self.inner.is_pruned(CommitterTables::ObjectsVersion) {
             for key in unresolved_keys {
                 let id = key.id;
                 results.insert(
                     key,
-                    Err(Error::DataPruned(format!(
-                        "data for object {id} potentially pruned"
-                    ))),
+                    Err(Error::DataPruned {
+                        message: format!("data for object {id} potentially pruned"),
+                        oldest_available_checkpoint,
+                    }),
                 );
             }
         }
 
-        fill_missing_objects_from_fallback(self, fallback_keys, &mut results).await?;
+        fill_missing_objects_from_fallback(
+            self,
+            fallback_keys,
+            oldest_available_checkpoint,
+            &mut results,
+        )
+        .await?;
 
         Ok(results)
     }

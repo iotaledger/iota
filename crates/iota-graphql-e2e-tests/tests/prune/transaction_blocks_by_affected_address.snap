@@ -118,7 +118,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
@@ -208,7 +209,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
@@ -231,7 +233,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
@@ -243,7 +246,7 @@ Response: {
   "data": null,
   "errors": [
     {
-      "message": "Requested data has been pruned: checkpoint 1 has been pruned",
+      "message": "Requested data has been pruned: the cursor has expired: checkpoint 1 it was issued at has been pruned",
       "locations": [
         {
           "line": 4,
@@ -254,7 +257,8 @@ Response: {
         "transactionBlocks"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]

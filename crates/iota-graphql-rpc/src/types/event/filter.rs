@@ -3,11 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
+use iota_indexer::pruning::{
+    CommitterTables, oldest_available_checkpoint::OldestAvailableCheckpoint,
+};
 
-use crate::types::{
-    digest::Digest,
-    iota_address::IotaAddress,
-    type_filter::{ModuleFilter, TypeFilter},
+use crate::{
+    data::Db,
+    types::{
+        digest::Digest,
+        event::lookups::lookup_table,
+        iota_address::IotaAddress,
+        type_filter::{ModuleFilter, TypeFilter},
+    },
 };
 
 /// Represents optional available filters for events.
@@ -59,5 +66,22 @@ impl EventFilter {
             return None;
         }
         self.transaction_digest
+    }
+
+    /// The oldest checkpoint a page of events with this filter is available
+    /// from: the value reported on `DATA_PRUNED`.
+    pub(crate) fn oldest_available_checkpoint(&self, db: &Db) -> OldestAvailableCheckpoint {
+        if self.only_transaction_digest().is_some() {
+            return OldestAvailableCheckpoint::events_by_tx_digest(&db.inner);
+        }
+
+        // The general query reads `events`, the lookup table of the filter, and
+        // `tx_global_order` for the transaction digest.
+        let mut tables = vec![CommitterTables::Events];
+        tables.extend(lookup_table(self));
+        if self.transaction_digest.is_some() {
+            tables.push(CommitterTables::TxGlobalOrder);
+        }
+        OldestAvailableCheckpoint::for_tables(&db.inner, &tables, &[])
     }
 }
