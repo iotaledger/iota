@@ -715,15 +715,27 @@ async fn signing_sponsor_is_charged_under_deterministic_validation() {
     )
     .await;
 
-    let (effects, _) = setup.execute().unwrap();
+    let (effects, execution_error) = setup.execute().unwrap();
 
+    let expected = authenticator_function_not_found(setup.account_id);
+    assert_eq!(effects.status(), &expected);
     assert_eq!(
-        effects.status(),
-        &authenticator_function_not_found(setup.account_id)
+        ExecutionStatus::Failure {
+            error: execution_error
+                .expect("execution must report the failure")
+                .kind()
+                .clone(),
+            command: None,
+        },
+        expected
     );
     assert!(
         effects.gas_cost_summary().gas_used() > 0,
         "the sponsor that signed must be charged"
+    );
+    assert!(
+        effects.created().is_empty(),
+        "a failed transaction must not create objects"
     );
     assert_eq!(effects.gas_object().owner(), &Owner::Address(sponsor.0));
 }
