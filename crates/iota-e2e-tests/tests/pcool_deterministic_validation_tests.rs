@@ -7,10 +7,9 @@
 //! C - K, called the horizon of C. K, the horizon distance, is the protocol
 //! config's `pcool_deterministic_validation_horizon_distance`.
 //!
-//! Gated to the simulator for the reason given in
-//! `pcool_transaction_flow_tests.rs`: the protocol-config override that turns
-//! the feature on is thread-local, and only the simulator runs every node on
-//! the test's thread.
+//! The tests run at the latest protocol version, where the P-COOL flow is on.
+//! They are gated to the simulator because they stop nodes at fail points and
+//! pick the node to stop by its simulator node id.
 //!
 //! Run with: `cargo simtest -p iota-e2e-tests pcool_deterministic_validation`.
 
@@ -56,15 +55,6 @@ use tokio::{
     task::JoinHandle,
     time::{Instant, sleep, timeout},
 };
-
-/// Enables the P-COOL flow and the deterministic-validation bookkeeping. The
-/// guard must be held for the whole test.
-fn enable_deterministic_validation_for_testing() -> iota_protocol_config::OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    })
-}
 
 async fn transfer(test_cluster: &TestCluster) -> TransactionEffects {
     let tx = test_cluster
@@ -285,8 +275,8 @@ async fn wait_for_validators_to_reach_epoch(
     .unwrap_or_else(|_| panic!("every validator must reach epoch {epoch}"));
 }
 
-/// Builds a four-validator cluster with deterministic validation on and checks
-/// that the override reached the validators.
+/// Builds a four-validator cluster and checks that every validator runs the
+/// P-COOL flow.
 async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
@@ -300,7 +290,7 @@ async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
                     .epoch_store_for_testing()
                     .protocol_config()
                     .enable_pcool_flow(),
-                "the protocol-config override must reach the validators"
+                "every validator must run the P-COOL flow"
             );
         });
     }
@@ -325,7 +315,6 @@ fn sim_node_id(test_cluster: &TestCluster, name: &AuthorityName) -> iota_simulat
 /// time. The cluster must then reach the same checkpoints on every validator.
 async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills: usize) {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(600_000).await;
     let victim = test_cluster.get_validator_pubkeys()[0];
     let victim_sim_id = sim_node_id(&test_cluster, &victim);
@@ -384,7 +373,6 @@ async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills
 #[sim_test]
 async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(600_000)
         .build()
@@ -408,7 +396,7 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
                 .epoch_store_for_testing()
                 .protocol_config()
                 .enable_pcool_flow(),
-            "the protocol-config override must reach the validators"
+            "every validator must run the P-COOL flow"
         );
         iota_simulator::current_simnode_id()
     });
@@ -515,7 +503,6 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
 #[sim_test]
 async fn test_restart_after_crash_before_the_state_hash_is_saved_catches_up() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(1_200_000)
         .build()
@@ -732,7 +719,6 @@ async fn test_restart_after_crash_before_the_state_hash_is_saved_catches_up() {
 #[sim_test]
 async fn test_crash_after_post_consensus_decisions_recovers() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(600_000)
         .build()
@@ -867,7 +853,6 @@ async fn test_receiving_an_object_nobody_created_does_not_halt_the_cluster() {
     use iota_test_transaction_builder::publish_package;
     use iota_types::{messages_grpc::TxStatusUpdate, transaction::CallArg};
 
-    let _guard = enable_deterministic_validation_for_testing();
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
     let test_cluster = TestClusterBuilder::new()
@@ -994,12 +979,12 @@ async fn test_receiving_an_object_nobody_created_does_not_halt_the_cluster() {
 /// A validator stopped while the network keeps processing transfers replays
 /// the commits it missed on restart, faster than it re-executes them. Its
 /// validation must still decide every transaction as its peers did, so it
-/// builds the certified checkpoints. Without deterministic validation, such a
-/// validator drops transfers whose gas version it has not executed yet.
+/// builds the certified checkpoints. Validation that read the validator's latest
+/// object state instead of the state at the horizon would drop transfers whose
+/// gas version it has not executed yet.
 #[sim_test]
 async fn test_stopped_validator_catches_up_without_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(600_000).await;
     let stop = Arc::new(AtomicBool::new(false));
     let traffic = spawn_transfer_traffic_with_double_spends(
@@ -1027,7 +1012,6 @@ async fn test_stopped_validator_catches_up_without_fork() {
 #[sim_test]
 async fn test_execution_stall_and_restart_on_one_validator_does_not_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(600_000).await;
     let stalled = test_cluster.get_validator_pubkeys()[2];
     let stalled_sim_id = sim_node_id(&test_cluster, &stalled);
@@ -1112,7 +1096,6 @@ async fn test_crashes_at_shared_crash_points_under_double_spends() {
 #[sim_test]
 async fn test_validator_catches_up_across_randomness_rounds_without_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(600_000).await;
     let package_ref = publish_basics_package(&test_cluster.wallet).await;
     let lagging = test_cluster.get_validator_pubkeys()[0];
@@ -1134,7 +1117,6 @@ async fn test_validator_catches_up_across_randomness_rounds_without_fork() {
 #[sim_test]
 async fn test_aggressive_pruning_across_epoch_changes_does_not_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(15_000).await;
     let names = test_cluster.get_validator_pubkeys();
     for name in &names {
@@ -1173,20 +1155,19 @@ async fn test_aggressive_pruning_across_epoch_changes_does_not_fork() {
 /// checkpoints.
 ///
 /// The late validator's handler waits, before validating commit C, until commit
-/// C − 2 is fully executed, so it falls behind the other two. Their handlers
-/// then wait for randomness rounds that no validator starts while the maximum
-/// number of rounds is in flight, until a checkpoint holding a later round is
-/// executed. With three of four validators running, certifying that checkpoint
-/// needs each running validator's own signature, so each must give its own
-/// signature to its aggregator without waiting for its handler. Randomness
-/// rounds are made every 50 ms, so the running validators reach this point
-/// within about 30 s and well below checkpoint 100; a validator that only got
-/// its own signature through its handler would stop there for good.
+/// C - K (K = 4) is fully executed, so it falls behind the other two. Their
+/// handlers then wait for randomness rounds that no validator starts while the
+/// maximum number of rounds is in flight, until a checkpoint holding a later
+/// round is executed. With three of four validators running, certifying that
+/// checkpoint needs each running validator's own signature, so each must give
+/// its own signature to its aggregator without waiting for its handler.
+/// Randomness rounds are made every 50 ms, so the running validators reach this
+/// point within about 30 s and well below checkpoint 100; a validator that only
+/// got its own signature through its handler would stop there for good.
 #[sim_test]
 async fn test_stopped_and_late_validator_do_not_halt_the_cluster() {
     telemetry_subscribers::init_for_testing();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_random_beacon_min_round_interval_ms_for_testing(50);
         config
     });
@@ -1441,7 +1422,6 @@ async fn test_restart_replays_user_transactions_sequenced_after_the_final_round(
     const KILLS: usize = 2;
     const EPOCH_DURATION_MS: u64 = 15_000;
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(EPOCH_DURATION_MS).await;
     let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
     let names = test_cluster.get_validator_pubkeys();
@@ -1916,7 +1896,6 @@ async fn owner_of(test_cluster: &TestCluster, object_id: &ObjectId) -> Owner {
 #[sim_test]
 async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizon() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(600_000)
         .build()
@@ -1926,7 +1905,7 @@ async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizo
         let protocol_config = epoch_store.protocol_config();
         assert!(
             protocol_config.enable_pcool_flow(),
-            "the protocol-config override must reach the validators"
+            "every validator must run the P-COOL flow"
         );
         protocol_config.pcool_deterministic_validation_horizon_distance()
     });
@@ -2006,7 +1985,6 @@ async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizo
 #[sim_test]
 async fn test_drop_at_the_commit_fails_fast_through_the_fullnode() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(600_000).await;
     let wallet = &test_cluster.wallet;
     let package_id = publish_basics_package(wallet).await.object_id;
