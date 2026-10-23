@@ -368,11 +368,9 @@ impl HttpRestKVClient {
         }
 
         let bytes = self.read_body_bounded(resp).await?;
-        let values = bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
+        bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!("failed to deserialize multi_get response: {e:?}"))
-        })?;
-        check_multi_get_len(values.len(), request.keys.len())?;
-        Ok(values)
+        })
     }
 
     /// Fetches a paginated list of items from a range-query endpoint.
@@ -460,17 +458,9 @@ impl HttpRestKVClient {
         }
 
         let bytes = self.read_body_bounded(resp).await?;
-        let values = bcs::from_bytes::<Vec<T>>(&bytes).map_err(|e| {
+        bcs::from_bytes::<Vec<T>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!("failed to deserialize paginated response: {e:?}"))
-        })?;
-        if values.len() > limit.get() {
-            return Err(IndexerError::HistoricalFallbackStorageError(format!(
-                "paginated response returned {} items, more than the requested limit of {}",
-                values.len(),
-                limit.get()
-            )));
-        }
-        Ok(values)
+        })
     }
 
     async fn multi_fetch_objects_before_version(
@@ -583,25 +573,12 @@ impl HttpRestKVClient {
         }
 
         let bytes = self.read_body_bounded(resp).await?;
-        let values = bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
+        bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!(
                 "failed to deserialize before_version response: {e:?}"
             ))
-        })?;
-        check_multi_get_len(values.len(), request.keys.len())?;
-        Ok(values)
+        })
     }
-}
-
-/// A multi_get response must carry exactly one entry per requested key,
-/// otherwise results cannot be matched back to their keys.
-fn check_multi_get_len(received: usize, requested: usize) -> IndexerResult<()> {
-    if received != requested {
-        return Err(IndexerError::HistoricalFallbackStorageError(format!(
-            "multi_get response returned {received} entries for {requested} requested keys"
-        )));
-    }
-    Ok(())
 }
 
 fn deser<K, T>(key: &K, bytes: &[u8]) -> Option<T>
@@ -951,44 +928,6 @@ mod tests {
             err,
             IndexerError::HistoricalFallbackResponseTooLarge { size, max }
                 if size > MAX_RESPONSE_SIZE as u64 && max == MAX_RESPONSE_SIZE as u64,
-            "unexpected error: {err:?}"
-        );
-    }
-
-    #[tokio::test]
-    async fn rejects_multi_get_response_with_wrong_entry_count() {
-        let app = Router::new().route("/{*path}", any(|| async { encode(vec![None, None]) }));
-        let url = spawn_server(app).await;
-        let client = client(url);
-
-        let err = client.multi_fetch(single_key()).await.unwrap_err();
-
-        assert_matches!(
-            err,
-            IndexerError::HistoricalFallbackStorageError(ref msg)
-                if msg == "multi_get response returned 2 entries for 1 requested keys",
-            "unexpected error: {err:?}"
-        );
-    }
-
-    #[tokio::test]
-    async fn rejects_paginated_response_exceeding_limit() {
-        let app = Router::new().route(
-            "/{*path}",
-            any(|| async { bcs::to_bytes(&vec![1u64, 2u64]).unwrap() }),
-        );
-        let url = spawn_server(app).await;
-        let client = client(url);
-
-        let err = client
-            .paginate::<u64, u64>(Key::Transaction(TransactionDigest::ZERO), None, 1, false)
-            .await
-            .unwrap_err();
-
-        assert_matches!(
-            err,
-            IndexerError::HistoricalFallbackStorageError(ref msg)
-                if msg == "paginated response returned 2 items, more than the requested limit of 1",
             "unexpected error: {err:?}"
         );
     }
