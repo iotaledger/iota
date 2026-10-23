@@ -18,6 +18,8 @@ pub mod node_config_metrics;
 pub mod object_storage_config;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod p2p;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod setting;
 // Filesystem-backed config helpers (the `Config` / `PersistedConfig` traits and
 // path utilities). Node-only, so the whole module is gated out on wasm.
 #[cfg(not(target_arch = "wasm32"))]
