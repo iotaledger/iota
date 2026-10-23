@@ -164,11 +164,13 @@ pub(crate) fn absent_if_dropped<T: Default>(
 /// No real epoch reaches it.
 const NO_BUCKET: EpochId = EpochId::MAX;
 
-/// What the per-operation metrics of a bucket's maps are labelled with: the
-/// bucket's column-family name without its epoch, so that the buckets of one
-/// store share their series instead of adding a set per epoch.
+/// What the metrics of a bucket store are labelled with, given the column-family
+/// name of one of its buckets or its column-family prefix: the prefix without
+/// its trailing `_e`, such as `hist_obj`. The buckets of one store share their
+/// series instead of adding a set per epoch.
 pub(crate) fn bucket_metrics_label(cf_name: &str) -> &str {
-    cf_name.trim_end_matches(|c: char| c.is_ascii_digit())
+    let prefix = cf_name.trim_end_matches(|c: char| c.is_ascii_digit());
+    prefix.strip_suffix("_e").unwrap_or(prefix)
 }
 
 /// The column-family name of `epoch`'s bucket: `"{cf_prefix}{epoch}"`.
@@ -502,7 +504,7 @@ mod tests {
     fn the_buckets_of_a_store_share_one_metrics_label() {
         assert_eq!(
             super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 7)),
-            "hist_obj_e"
+            "hist_obj"
         );
         assert_eq!(
             super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 702)),
