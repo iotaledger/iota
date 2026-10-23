@@ -40,12 +40,12 @@ The following steps demonstrate how to create a multisig transaction and then su
 
 Use the following commands to generate three IOTA addresses and keys and add them to the `iota.keystore`, then list the keys.
 
-Use `iota client` to create IOTA addresses of different key schemes.
+Use `iota client` to create three Ed25519 IOTA addresses.
 
 ```shell
-iota client new-address --key-scheme secp256k1
-iota client new-address --key-scheme secp256r1
-iota client new-address --key-scheme secp256r1
+iota client new-address --key-scheme ed25519
+iota client new-address --key-scheme ed25519
+iota client new-address --key-scheme ed25519
 ```
 
 ### Step 2: Add keys to IOTA keystore
@@ -65,8 +65,8 @@ The response resembles the following, but displays actual addresses, keys, and p
 │ │ iotaAddress             │  <IOTA-ADDRESS>                                              │ │
 │ │ publicBase64Key         │  <PUBLIC-KEY>                                                │ │
 │ │ publicBase64KeyWithFlag │  <PUBLIC-KEY-WITH-FLAG>                                      │ │
-│ │ keyScheme               │  secp256k1                                                   │ │
-│ │ flag                    │  1                                                           │ │
+│ │ keyScheme               │  ed25519                                                     │ │
+│ │ flag                    │  0                                                           │ │
 │ │ peerId                  │  <PEER-ID>                                                   │ │
 │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────╯ │
 │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────╮ │
@@ -74,8 +74,8 @@ The response resembles the following, but displays actual addresses, keys, and p
 │ │ iotaAddress             │  <IOTA-ADDRESS>                                              │ │
 │ │ publicBase64Key         │  <PUBLIC-KEY>                                                │ │
 │ │ publicBase64KeyWithFlag │  <PUBLIC-KEY-WITH-FLAG>                                      │ │
-│ │ keyScheme               │  secp256r1                                                   │ │
-│ │ flag                    │  2                                                           │ │
+│ │ keyScheme               │  ed25519                                                     │ │
+│ │ flag                    │  0                                                           │ │
 │ │ peerId                  │  <PEER-ID>                                                   │ │
 │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────╯ │
 │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────╮ │
@@ -83,8 +83,8 @@ The response resembles the following, but displays actual addresses, keys, and p
 │ │ iotaAddress             │  <IOTA-ADDRESS>                                              │ │
 │ │ publicBase64Key         │  <PUBLIC-KEY>                                                │ │
 │ │ publicBase64KeyWithFlag │  <PUBLIC-KEY-WITH-FLAG>                                      │ │
-│ │ keyScheme               │  secp256r1                                                   │ │
-│ │ flag                    │  2                                                           │ │
+│ │ keyScheme               │  ed25519                                                     │ │
+│ │ flag                    │  0                                                           │ │
 │ │ peerId                  │  <PEER-ID>                                                   │ │
 │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────╯ │
 ╰────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -95,7 +95,7 @@ The response resembles the following, but displays actual addresses, keys, and p
 To create a multisig address, input a list of public keys to use for the multisig address and a list of their corresponding weights and the threshold (replacing `<VARIABLES>` with actual values).
 
 ```shell
-iota keytool multi-sig-address --pks <PUBLIC-KEY-SECP256K1> <PUBLIC-KEY-SECP256R1-1> <PUBLIC-KEY-SECP256R1-2> --weights 1 2 3 --threshold 3
+iota keytool multi-sig-address --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> <PUBLIC-KEY-3> --weights 1 2 3 --threshold 3
 ```
 
 The response resembles the following:
