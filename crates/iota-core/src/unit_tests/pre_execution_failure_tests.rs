@@ -5,7 +5,7 @@
 //! execution fails, instead of halting the validator. They cover a Move
 //! authenticator whose account cannot be resolved, both when a sponsor pays gas
 //! and when the account pays its own, and the executor handling a resolution
-//! failure. With deterministic validation on, they also cover who pays: nobody,
+//! failure. With the P-COOL flow, they also cover who pays: nobody,
 //! when the gas owner is an account that did not authorize the transaction.
 
 use std::{cell::Cell, collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
@@ -233,19 +233,20 @@ impl UnresolvedAccountSetup {
     }
 }
 
-/// Turns deterministic validation on for authorities built while the returned
+/// Turns the P-COOL flow on or off for authorities built while the returned
 /// guard lives.
-fn enable_deterministic_validation() -> OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+fn set_pcool_flow(enabled: bool) -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(enabled);
         config
     })
 }
 
-/// A sender's account that cannot be resolved fails the transaction, with gas
-/// charged to the sponsor.
+/// Without the P-COOL flow, as on Mainnet and Testnet, a sender's account that
+/// cannot be resolved fails the transaction, with gas charged to the sponsor.
 #[tokio::test]
 async fn unresolved_authenticator_account_fails_with_effects() {
+    let _guard = set_pcool_flow(false);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -301,15 +302,15 @@ async fn unresolved_authenticator_account_fails_with_effects() {
         Owner::Address(setup.sender),
         "the transfer must not have run"
     );
-    // With deterministic validation off, a failed transaction charges gas as
-    // usual: the gas coin is charged and the other owned inputs move to their
-    // next versions.
+    // Without the P-COOL flow, a failed transaction charges gas as usual: the
+    // gas coin is charged and the other owned inputs move to their next
+    // versions.
     assert!(
         effects
             .old_object_metadata()
             .iter()
             .any(|old| old.reference().object_id == setup.transfer_id),
-        "the account's owned input must move to its next version with the flag off"
+        "the account's owned input must move to its next version"
     );
 }
 
@@ -354,11 +355,13 @@ async fn unresolved_authenticator_account_effects_are_the_same_on_every_validato
     );
 }
 
-/// With deterministic validation off, the gas payer's own account that cannot
-/// be resolved fails the transaction too, with gas charged to that account, as
-/// for any account whose authentication fails at execution.
+/// Without the P-COOL flow, as on Mainnet and Testnet, the gas payer's own
+/// account that cannot be resolved fails the transaction too, with gas charged
+/// to that account, as for any account whose authentication fails at
+/// execution.
 #[tokio::test]
 async fn unresolved_gas_payer_account_fails_with_effects() {
+    let _guard = set_pcool_flow(false);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -446,14 +449,14 @@ fn assert_moved_unchanged(before: &Object, after: &Object, version: Version) {
     );
 }
 
-/// With deterministic validation on, a gas owner whose account cannot be
+/// With the P-COOL flow, a gas owner whose account cannot be
 /// resolved did not authorize the transaction, so nobody is charged. Owned
 /// inputs, the gas coin included, move to their next versions with their
 /// contents unchanged, so the account can use them again. A mutable shared
 /// input moves to the version consensus assigned, with its contents unchanged.
 #[tokio::test]
 async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validation() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -517,7 +520,7 @@ async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validat
 /// recorded as cancelled and the gas coin stays usable at its next version.
 #[tokio::test]
 async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let mut setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -565,7 +568,7 @@ async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged()
 /// first coin as the gas object.
 #[tokio::test]
 async fn unauthorized_transaction_merges_no_gas_coin() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let second_gas_id = ObjectId::random();
     let setup = UnresolvedAccountSetup::new_with_second_gas_coin(
@@ -623,7 +626,7 @@ async fn unauthorized_transaction_merges_no_gas_coin() {
 /// unchanged.
 #[tokio::test]
 async fn paying_sponsor_loses_only_its_merged_gas_coin() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let second_gas_id = ObjectId::random();
@@ -666,7 +669,7 @@ async fn paying_sponsor_loses_only_its_merged_gas_coin() {
 /// nobody.
 #[tokio::test]
 async fn effects_without_a_gas_charge_are_the_same_on_every_validator() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (account, shared) = (Object::shared_for_testing(), Object::shared_for_testing());
     let (transfer_id, gas_id) = (ObjectId::random(), ObjectId::random());
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
@@ -700,12 +703,12 @@ async fn effects_without_a_gas_charge_are_the_same_on_every_validator() {
     );
 }
 
-/// With deterministic validation on, a sponsor that signed the transaction
+/// With the P-COOL flow, a sponsor that signed the transaction
 /// authorized paying for it, so it is still charged when the sender's account
 /// cannot be resolved.
 #[tokio::test]
 async fn signing_sponsor_is_charged_under_deterministic_validation() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -731,13 +734,13 @@ async fn signing_sponsor_is_charged_under_deterministic_validation() {
     assert_eq!(effects.gas_object().owner(), &Owner::Address(sponsor.0));
 }
 
-/// With deterministic validation on, a signing sponsor pays for a sender
+/// With the P-COOL flow, a signing sponsor pays for a sender
 /// account that cannot be resolved, but the account authorized nothing, so its
 /// owned inputs move to their next versions with their contents unchanged and
 /// stay usable.
 #[tokio::test]
 async fn unresolved_sender_accounts_owned_inputs_stay_usable_when_a_sponsor_pays() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -766,12 +769,12 @@ async fn unresolved_sender_accounts_owned_inputs_stay_usable_when_a_sponsor_pays
         .expect("the account's owned input must stay usable");
 }
 
-/// With deterministic validation on, the gas owner decides who pays, not the
+/// With the P-COOL flow, the gas owner decides who pays, not the
 /// sender: an account sponsoring a sender that signs is not charged when the
 /// account cannot be resolved.
 #[tokio::test]
 async fn unresolved_sponsoring_account_is_not_charged_under_deterministic_validation() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sender: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -1277,12 +1280,12 @@ fn is_authentication_abort(status: &ExecutionStatus, code: u64) -> bool {
     )
 }
 
-/// With deterministic validation on, a Move-account sponsor whose authenticator
+/// With the P-COOL flow, a Move-account sponsor whose authenticator
 /// passes pays for a sender whose authenticator fails, wherever its signature
 /// is. Both orders charge the same and change the same objects.
 #[tokio::test]
 async fn move_account_sponsor_pays_wherever_its_signature_is() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let inputs = MoveAccountSponsorInputs::random();
     let mut effects = Vec::new();
     for position in [SponsorSignature::First, SponsorSignature::Second] {
@@ -1331,12 +1334,12 @@ async fn move_account_sponsor_pays_wherever_its_signature_is() {
     );
 }
 
-/// With deterministic validation on, a Move-account sponsor whose
+/// With the P-COOL flow, a Move-account sponsor whose
 /// authenticator passes pays even when the sender's account cannot be
 /// resolved. The resolution failure is reported.
 #[tokio::test]
 async fn move_account_sponsor_pays_when_the_sender_account_cannot_be_resolved() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Unresolvable,
@@ -1365,11 +1368,11 @@ async fn move_account_sponsor_pays_when_the_sender_account_cannot_be_resolved() 
     );
 }
 
-/// With deterministic validation on, a Move-account sponsor whose
+/// With the P-COOL flow, a Move-account sponsor whose
 /// authenticator fails is not charged, and its failure is reported.
 #[tokio::test]
 async fn failing_move_account_sponsor_is_not_charged() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Account(TestAuthenticator::Passes),
@@ -1394,12 +1397,12 @@ async fn failing_move_account_sponsor_is_not_charged() {
     );
 }
 
-/// With deterministic validation on, when both authenticators fail, the
+/// With the P-COOL flow, when both authenticators fail, the
 /// sponsor's failure is reported, since it is the one that decides that nobody
 /// pays, even when the sender's signature comes first.
 #[tokio::test]
 async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Account(TestAuthenticator::Fails),
@@ -1418,10 +1421,12 @@ async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
 }
 
-/// With deterministic validation off, authenticators keep running in signature
-/// order, the first failure is reported, and the sponsor pays.
+/// Without the P-COOL flow, as on Mainnet and Testnet, authenticators keep
+/// running in signature order, the first failure is reported, and the sponsor
+/// pays.
 #[tokio::test]
-async fn move_account_sponsor_order_is_unchanged_with_the_flag_off() {
+async fn move_account_sponsor_order_is_unchanged_without_the_pcool_flow() {
+    let _guard = set_pcool_flow(false);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Account(TestAuthenticator::Fails),
@@ -1446,16 +1451,16 @@ async fn move_account_sponsor_order_is_unchanged_with_the_flag_off() {
             .old_object_metadata()
             .iter()
             .any(|old| old.reference().object_id == setup.transfer_id),
-        "every owned input must be rewritten with the flag off"
+        "every owned input must be rewritten without the P-COOL flow"
     );
 }
 
-/// With deterministic validation on, when neither account can be resolved, the
+/// With the P-COOL flow, when neither account can be resolved, the
 /// sponsor's resolution failure is reported, since it is the one that decides
 /// that nobody pays, even when the sender's signature comes first.
 #[tokio::test]
 async fn unresolvable_sponsor_failure_is_reported_when_both_cannot_be_resolved() {
-    let _guard = enable_deterministic_validation();
+    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Unresolvable,

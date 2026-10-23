@@ -564,9 +564,7 @@ impl IotaNode {
         info!("created epoch store");
         // As at an epoch change; must come before anything marks a checkpoint
         // synced.
-        if epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
+        if epoch_store.protocol_config().enable_pcool_flow()
             && epoch_store
                 .committee()
                 .authority_exists(&config.authority_public_key())
@@ -1475,10 +1473,7 @@ impl IotaNode {
         // has to be rebuilt from the replayed commits before it is executed.
         let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_err() {
             Some(replay_waiter)
-        } else if epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-        {
+        } else if epoch_store.protocol_config().enable_pcool_flow() {
             warn!("DISABLE_REPLAY_WAITER is ignored with deterministic validation");
             Some(replay_waiter)
         } else {
@@ -1945,7 +1940,7 @@ impl IotaNode {
                 // The empty set is announced too: every committee member
                 // attests its configuration each epoch, so silence means
                 // offline rather than "no rules".
-                if config.deny_rule_governance() {
+                if config.enable_pcool_flow() {
                     let proposed_rules = self.config.transaction_deny_config.to_deny_rule_set();
                     let recorded = cur_epoch_store.recorded_deny_rule_proposal(&self.state.name);
                     let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(
@@ -2330,9 +2325,7 @@ impl IotaNode {
         // their saved watermark never falls behind and the hold is not turned
         // on for them. A hold turned on in an earlier epoch stays on, which is
         // harmless (see `CheckpointStore::hold_synced_watermark_in_memory`).
-        if new_epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
+        if new_epoch_store.protocol_config().enable_pcool_flow()
             && self.state.is_committee_validator(&new_epoch_store)
         {
             self.checkpoint_store

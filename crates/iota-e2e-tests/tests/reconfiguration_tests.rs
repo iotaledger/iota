@@ -671,13 +671,13 @@ async fn test_reconfig_with_committee_change_basic() {
 }
 
 /// The committee change of `test_reconfig_with_committee_change_basic` with
-/// `pcool_deterministic_validation`: the joining
+/// `enable_pcool_flow`: the joining
 /// validator waits for its own checkpoints once in the committee, and executes
 /// synced checkpoints again after leaving it.
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic_skipping_synced_checkpoint_execution() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     run_reconfig_with_committee_change_basic().await;
@@ -1499,7 +1499,7 @@ async fn execute_add_validator_transactions(
     });
 }
 
-/// With `pcool_deterministic_validation`, a validator that is down while its
+/// With `enable_pcool_flow`, a validator that is down while its
 /// epoch ends, and restarts with the end of
 /// that epoch more than `max_checkpoints_ahead_of_execution` checkpoints
 /// ahead, still reaches the network's epoch. Its own consensus can no longer
@@ -1508,7 +1508,7 @@ async fn execute_add_validator_transactions(
 #[sim_test]
 async fn validator_far_behind_catches_up_across_epoch_end() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     let test_cluster = TestClusterBuilder::new()
@@ -1543,7 +1543,7 @@ async fn validator_far_behind_catches_up_across_epoch_end() {
         .await;
 }
 
-/// With `pcool_deterministic_validation`, a validator
+/// With `enable_pcool_flow`, a validator
 /// killed after it certified its epoch's last checkpoint and marked it synced,
 /// but before it executed it, recovers on restart and reaches the next epochs. The
 /// transactions of its unexecuted checkpoints exist only in memory, so it has
@@ -1556,7 +1556,7 @@ async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
     use iota_macros::register_fail_point;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     let test_cluster = TestClusterBuilder::new()

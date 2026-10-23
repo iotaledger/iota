@@ -1884,11 +1884,7 @@ impl CheckpointBuilder {
 
         batch.write()?;
         fail_point!("checkpoint-summaries-written");
-        if self
-            .epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-        {
+        if self.epoch_store.protocol_config().enable_pcool_flow() {
             self.store
                 .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
         }
@@ -3717,7 +3713,7 @@ mod tests {
     #[tokio::test]
     async fn own_checkpoint_signature_reaches_aggregator_without_consensus() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config
         });
         let network_config =

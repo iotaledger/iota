@@ -125,11 +125,15 @@ async fn execute_cancelled_move_account_transaction() -> (TransactionEffects, Op
         .unwrap()
 }
 
-/// A transaction that uses `Random` and is sent by a Move account gets the
-/// usual cancellation effects when consensus cancels it because randomness is
-/// unavailable.
+/// Without the P-COOL flow, as on Mainnet and Testnet, a transaction that uses
+/// `Random` and is sent by a Move account gets the usual cancellation effects
+/// when consensus cancels it because randomness is unavailable.
 #[tokio::test]
 async fn cancelled_move_account_transaction_gets_cancellation_effects() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
     let (effects, execution_error) = execute_cancelled_move_account_transaction().await;
     assert!(
         matches!(
@@ -143,14 +147,14 @@ async fn cancelled_move_account_transaction_gets_cancellation_effects() {
     assert!(execution_error.is_some());
 }
 
-/// With deterministic validation, the account's authenticator does not run for
+/// With the P-COOL flow, the account's authenticator does not run for
 /// a cancelled transaction either, so the account, which pays for gas, did not
 /// authorize it: the transaction gets the cancellation effects and nobody is
 /// charged.
 #[tokio::test]
-async fn cancelled_move_account_transaction_charges_nobody_under_deterministic_validation() {
+async fn cancelled_move_account_transaction_charges_nobody_with_the_pcool_flow() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
     let (effects, _) = execute_cancelled_move_account_transaction().await;

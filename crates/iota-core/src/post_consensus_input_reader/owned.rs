@@ -519,6 +519,10 @@ mod tests {
     use super::*;
 
     const HORIZON: CommitIndex = 10;
+    /// The horizon distance these tests set, so validation at
+    /// `VALIDATED_COMMIT` reads the state as of `HORIZON`.
+    const HORIZON_DISTANCE: CommitIndex = 4;
+    const VALIDATED_COMMIT: CommitIndex = HORIZON + HORIZON_DISTANCE;
 
     fn named(version: u64) -> ObjectReference {
         ObjectReference::new(
@@ -547,7 +551,7 @@ mod tests {
         Classification::Missing(MissingReason(kind))
     }
 
-    /// A transaction in commit 11 mutates object `x` to version 8. Commit 12
+    /// A transaction in commit 11 mutates object `x` to version 8. Commit 14
     /// is validated with horizon 10, so version 8 must not be visible yet.
     /// The first read finds no row at `(x, 8)`. Commit 11 then executes, and
     /// writes its row before the new version reaches the store. The store now
@@ -573,7 +577,10 @@ mod tests {
         };
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
+                config.set_enable_pcool_flow_for_testing(true);
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
                 config
             });
 
@@ -606,7 +613,7 @@ mod tests {
         let ctx = CommitIndexedReader::new(
             authority.get_object_cache_reader().clone(),
             epoch_store.clone(),
-            PRODUCING_COMMIT + 1,
+            VALIDATED_COMMIT,
         );
 
         let no_tables_entry = match OwnedReader::start(input, HORIZON)
@@ -651,7 +658,7 @@ mod tests {
 
     /// Object `x` is at version 7 when the epoch starts, so there is no row
     /// for version 7. A transaction in commit 11, above the horizon of commit
-    /// 12, replaces version 7 without a lock, as a receive does, and writes
+    /// 14, replaces version 7 without a lock, as a receive does, and writes
     /// version 8. A validator that has not executed commit 11 still holds
     /// version 7 as the latest and keeps it. A validator that has executed it
     /// holds the row for version 8 and version 8 as the latest, and must keep
@@ -680,7 +687,10 @@ mod tests {
         };
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
+                config.set_enable_pcool_flow_for_testing(true);
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
                 config
             });
 
@@ -730,15 +740,15 @@ mod tests {
 
         // A validator that has not executed commit 11.
         assert_keeps(
-            read_at(CONSUMING_COMMIT + 1, x_epoch_start.object_ref()),
+            read_at(VALIDATED_COMMIT, x_epoch_start.object_ref()),
             x_epoch_start.object_ref(),
         );
         assert_drops(
-            read_at(CONSUMING_COMMIT + 1, x_stale.object_ref()),
+            read_at(VALIDATED_COMMIT, x_stale.object_ref()),
             DropKind::StoreSuperseded,
         );
         assert_drops(
-            read_at(CONSUMING_COMMIT + 1, y_stale.object_ref()),
+            read_at(VALIDATED_COMMIT, y_stale.object_ref()),
             DropKind::StoreSuperseded,
         );
 
@@ -765,27 +775,30 @@ mod tests {
 
         // The same reads on this validator.
         assert_keeps(
-            read_at(CONSUMING_COMMIT + 1, x_epoch_start.object_ref()),
+            read_at(VALIDATED_COMMIT, x_epoch_start.object_ref()),
             x_epoch_start.object_ref(),
         );
         assert_drops(
-            read_at(CONSUMING_COMMIT + 1, x_stale.object_ref()),
+            read_at(VALIDATED_COMMIT, x_stale.object_ref()),
             DropKind::StoreSuperseded,
         );
         assert_drops(
-            read_at(CONSUMING_COMMIT + 1, y_stale.object_ref()),
+            read_at(VALIDATED_COMMIT, y_stale.object_ref()),
             DropKind::StoreSuperseded,
         );
 
         // Commit 11 at the horizon.
         assert_drops(
-            read_at(CONSUMING_COMMIT + 2, x_epoch_start.object_ref()),
+            read_at(
+                CONSUMING_COMMIT + HORIZON_DISTANCE,
+                x_epoch_start.object_ref(),
+            ),
             DropKind::HandlerRowSuperseded,
         );
     }
 
     /// Object `x` is at version 7 when the epoch starts. Commit 11, above the
-    /// horizon of commit 12, replaces it with version 11 and creates object
+    /// horizon of commit 14, replaces it with version 11 and creates object
     /// `z` at version 11. Version 9 of `x`, between the two, and version 5 of
     /// `z`, below its creation, do not exist at the horizon: a validator that
     /// has not executed commit 11 answers missing, and one that has must too.
@@ -809,7 +822,10 @@ mod tests {
         };
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
+                config.set_enable_pcool_flow_for_testing(true);
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
                 config
             });
 
@@ -852,11 +868,11 @@ mod tests {
 
         // A validator that has not executed commit 11.
         assert_missing(
-            read_at(WRITING_COMMIT + 1, x_between),
+            read_at(VALIDATED_COMMIT, x_between),
             MissingKind::StoreBelowVersion,
         );
         assert_missing(
-            read_at(WRITING_COMMIT + 1, z_below),
+            read_at(VALIDATED_COMMIT, z_below),
             MissingKind::StoreNotFound,
         );
 
@@ -886,21 +902,21 @@ mod tests {
 
         // The same reads on this validator.
         assert_missing(
-            read_at(WRITING_COMMIT + 1, x_between),
+            read_at(VALIDATED_COMMIT, x_between),
             MissingKind::VersionNotLiveAtHorizon,
         );
         assert_missing(
-            read_at(WRITING_COMMIT + 1, z_below),
+            read_at(VALIDATED_COMMIT, z_below),
             MissingKind::VersionNotLiveAtHorizon,
         );
 
         // Commit 11 at the horizon.
         assert_drops(
-            read_at(WRITING_COMMIT + 2, x_between),
+            read_at(WRITING_COMMIT + HORIZON_DISTANCE, x_between),
             DropKind::StoreSuperseded,
         );
         assert_drops(
-            read_at(WRITING_COMMIT + 2, z_below),
+            read_at(WRITING_COMMIT + HORIZON_DISTANCE, z_below),
             DropKind::StoreSuperseded,
         );
     }

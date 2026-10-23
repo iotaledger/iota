@@ -3,7 +3,7 @@
 
 //! Cluster tests for P-COOL deterministic validation on committee validators
 //! that execute only what their own consensus handler assigned, which
-//! `pcool_deterministic_validation` makes them do. Such a validator executes synced checkpoints
+//! `enable_pcool_flow` makes them do. Such a validator executes synced checkpoints
 //! only once it switches to doing so for the rest of an epoch, after the network has certified the
 //! epoch's last checkpoint.
 //!
@@ -52,7 +52,7 @@ use tracing::info;
 /// test.
 fn enable_deterministic_validation_for_testing() -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     })
 }
@@ -70,7 +70,7 @@ async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
             let epoch_store = node.state().epoch_store_for_testing();
             let config = epoch_store.protocol_config();
             assert!(
-                config.pcool_deterministic_validation(),
+                config.enable_pcool_flow(),
                 "the protocol-config override must reach the validators"
             );
         });
@@ -846,18 +846,15 @@ async fn test_restart_after_switching_with_unexecuted_locally_built_checkpoints(
 }
 
 /// `test_restart_after_switching_with_unexecuted_locally_built_checkpoints` in
-/// the first epoch after a protocol upgrade turns deterministic validation on.
-/// The validators started with it off, so they hold the synced watermark in
-/// memory only from that epoch change on.
+/// the first epoch after a protocol upgrade turns the P-COOL flow, and with it
+/// deterministic validation, on. The validators started with it off, so they
+/// hold the synced watermark in memory only from that epoch change on.
 #[sim_test]
 async fn test_restart_after_switching_with_unexecuted_checkpoints_after_an_upgrade() {
     const UPGRADE_VERSION: u64 = ProtocolVersion::MAX.as_u64();
     telemetry_subscribers::init_for_testing();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        if version.as_u64() >= UPGRADE_VERSION {
-            config.enable_pcool_deterministic_validation_for_testing();
-        }
+        config.set_enable_pcool_flow_for_testing(version.as_u64() >= UPGRADE_VERSION);
         config
     });
     let test_cluster = TestClusterBuilder::new()
@@ -879,7 +876,7 @@ async fn test_restart_after_switching_with_unexecuted_checkpoints_after_an_upgra
                     node.state()
                         .epoch_store_for_testing()
                         .protocol_config()
-                        .pcool_deterministic_validation()
+                        .enable_pcool_flow()
                 })
             })
             .collect::<Vec<_>>()
@@ -1046,7 +1043,7 @@ async fn test_restart_with_a_stalled_replay_and_unexecuted_locally_built_checkpo
             node.state()
                 .epoch_store_for_testing()
                 .protocol_config()
-                .pcool_deterministic_validation_horizon_distance_or_default()
+                .pcool_deterministic_validation_horizon_distance()
         });
     let (at_risk, commits_at_risk) = timeout(Duration::from_secs(60), async {
         loop {

@@ -61,7 +61,7 @@ use tokio::{
 /// guard must be held for the whole test.
 fn enable_deterministic_validation_for_testing() -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config
     })
 }
@@ -299,7 +299,7 @@ async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
                 node.state()
                     .epoch_store_for_testing()
                     .protocol_config()
-                    .pcool_deterministic_validation(),
+                    .enable_pcool_flow(),
                 "the protocol-config override must reach the validators"
             );
         });
@@ -407,7 +407,7 @@ async fn test_crash_after_checkpoint_bookkeeping_write_recovers() {
             node.state()
                 .epoch_store_for_testing()
                 .protocol_config()
-                .pcool_deterministic_validation(),
+                .enable_pcool_flow(),
             "the protocol-config override must reach the validators"
         );
         iota_simulator::current_simnode_id()
@@ -1186,7 +1186,7 @@ async fn test_aggressive_pruning_across_epoch_changes_does_not_fork() {
 async fn test_stopped_and_late_validator_do_not_halt_the_cluster() {
     telemetry_subscribers::init_for_testing();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_random_beacon_min_round_interval_ms_for_testing(50);
         config
     });
@@ -1925,10 +1925,10 @@ async fn test_removed_denial_lets_a_whole_coin_transfer_through_after_the_horizo
         let epoch_store = node.state().epoch_store_for_testing();
         let protocol_config = epoch_store.protocol_config();
         assert!(
-            protocol_config.pcool_deterministic_validation(),
+            protocol_config.enable_pcool_flow(),
             "the protocol-config override must reach the validators"
         );
-        protocol_config.pcool_deterministic_validation_horizon_distance_or_default()
+        protocol_config.pcool_deterministic_validation_horizon_distance()
     });
 
     let regulated = RegulatedCoin::publish(&test_cluster).await;

@@ -7,10 +7,11 @@
 //!
 //! Terms used here, as in `post_consensus_input_reader`:
 //! - `C` is the commit being validated, and `K` is how many commits behind `C` the object state is
-//!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`, 2 unless a test
-//!   sets it. Validation at `C` reads the state as of commit `C - K`, called the horizon. So
-//!   "commit 12, horizon 10" is validation at commit 12 with `K = 2`. The reader treats a row
-//!   produced above the horizon, such as one produced by commit 11, as missing.
+//!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`, which these
+//!   tests set to 4 unless a test sets another. Validation at `C` reads the state as of commit `C -
+//!   K`, called the horizon. So "commit 14, horizon 10" is validation at commit 14 with `K = 4`.
+//!   The reader treats a row produced above the horizon, such as one produced by commit 11, as
+//!   missing.
 //! - A row is one entry of the handler object state (`handler_object_state`). It records that a
 //!   transaction in some commit produced version `V` of object `id`: the commit, the digest, and
 //!   whether the object is live, deleted or wrapped at that version. "The row at `(id, V)`" is that
@@ -1435,15 +1436,17 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let tx_digest = *verified_tx.digest();
 
-    // Simulate state-sync winning the race: execute the transaction locally via
-    // the checkpoint execution path (as a lagging node catching up would),
-    // *before* the consensus handler processes the commit that sequenced it.
+    // The transaction is executed before the consensus handler processes the
+    // commit that sequences it. With the P-COOL flow a committee validator no
+    // longer executes synced checkpoints within the epoch, so an earlier
+    // commit kept and executed it.
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(
         verified_tx.clone(),
         epoch_store.epoch(),
         // checkpoint
         1,
     );
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     authority
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -1452,7 +1455,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
             .get_transaction_cache_reader()
             .try_is_tx_already_executed(&tx_digest)
             .unwrap(),
-        "precondition: transaction should be marked executed after state-sync execution"
+        "precondition: transaction should be marked executed"
     );
 
     // Now the committee's consensus delivers the same transaction. Process the
@@ -1690,15 +1693,16 @@ impl LockTierSetup {
         self.epoch_store.verify_transaction(tx).unwrap()
     }
 
-    /// Marks `verified_tx` as executed via the checkpoint-executor path
-    /// (simulates state-sync winning the race against this node's consensus
-    /// handler).
-    fn execute_via_state_sync(&self, verified_tx: &VerifiedTransaction) {
+    /// Executes `verified_tx` in a commit of its own, as when an earlier
+    /// commit kept and executed the same transaction.
+    fn execute_in_an_earlier_commit(&self, verified_tx: &VerifiedTransaction) {
         let executable = VerifiedExecutableTransaction::new_from_checkpoint(
             verified_tx.clone(),
             self.epoch_store.epoch(),
             1,
         );
+        self.epoch_store
+            .assign_to_a_new_commit_for_testing(&[executable.key()]);
         self.authority
             .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
@@ -1822,7 +1826,7 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     // we mark the tx as executed (otherwise the perpetual
     // `live_owned_object_markers` for its inputs are already consumed).
     s.seed_lock(tier, &tx);
-    s.execute_via_state_sync(&tx);
+    s.execute_in_an_earlier_commit(&tx);
 
     let mut transactions = vec![make_user_tx_v1_verified(tx)];
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
@@ -1954,9 +1958,9 @@ async fn tier3_persistent_same_digest_lock_retains_already_executed() {
 async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     let s = setup_lock_tier().await;
 
-    // The tx the committee actually executed (via state-sync on this node).
+    // The tx the committee actually executed (by an earlier commit on this node).
     let tx = s.make_tx();
-    s.execute_via_state_sync(&tx);
+    s.execute_in_an_earlier_commit(&tx);
 
     // Seed the quarantine with a lock on `tx`'s inputs held by a DIFFERENT
     // digest — simulates the consistency violation the `fatal!` guards against.
@@ -2001,13 +2005,12 @@ fn activate_deny_rules(
     epoch_store.push_consensus_output_for_tests(output);
 }
 
-/// With `deny_rule_governance` enabled, post-consensus validation drops a
+/// With the P-COOL flow, post-consensus validation drops a
 /// transaction whose sender is denied by the consensus-governed active set.
 #[sim_test]
-async fn post_consensus_validation_uses_governance_rules_when_enabled() {
+async fn post_consensus_validation_uses_governance_rules() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_deny_rule_governance_for_testing(true);
         config
     });
 
@@ -2062,13 +2065,12 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
     assert!(locks.is_empty(), "dropped transaction must not take locks");
 }
 
-/// With `deny_rule_governance` enabled and active rules denying an unrelated
+/// With the P-COOL flow and active rules denying an unrelated
 /// address, a non-denied sender's transaction is kept and takes its locks.
 #[sim_test]
 async fn post_consensus_validation_keeps_non_denied_transactions() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_deny_rule_governance_for_testing(true);
         config
     });
 
@@ -2119,65 +2121,12 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
     );
 }
 
-/// With `deny_rule_governance` disabled, the same active set is ignored and
-/// validation falls back to the (empty) local config.
-#[sim_test]
-async fn post_consensus_validation_uses_local_config_when_disabled() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
-    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
-    let recipient = Address::random();
-    let object_id = ObjectId::random();
-    let gas_id = ObjectId::random();
-    let (authority, _) = init_state_with_objects_and_object_basics(vec![
-        Object::with_id_owner_for_testing(object_id, sender),
-        Object::with_id_owner_for_testing(gas_id, sender),
-    ])
-    .await;
-    let epoch_store = authority.epoch_store_for_testing();
-
-    activate_deny_rules(
-        &epoch_store,
-        iota_sdk_types::DenyRuleSet {
-            denied_addresses: [sender].into(),
-            ..Default::default()
-        },
-        1,
-    );
-
-    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
-    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
-    let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let tx =
-        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
-    let mut transactions = vec![make_user_tx_v1(tx)];
-
-    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        1,
-        false,
-        &Default::default(),
-        &mut transactions,
-    )
-    .await
-    .unwrap();
-
-    assert!(dropped.is_empty());
-    assert_eq!(transactions.len(), 1);
-    assert_eq!(locks.len(), 2);
-}
-
 /// A sender denied by the active set is dropped, and after a newer-generation
 /// proposal withdraws the rules the same sender's transaction is kept.
 #[sim_test]
 async fn post_consensus_validation_applies_relaxed_rules() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_deny_rule_governance_for_testing(true);
         config
     });
 
@@ -2284,9 +2233,10 @@ async fn setup_handler_object_state(
 ) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         if validation_enabled {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         } else {
-            config.set_pcool_deterministic_validation_for_testing(false);
+            config.set_enable_pcool_flow_for_testing(false);
         }
         config
     });
@@ -2299,7 +2249,8 @@ async fn setup_handler_object_state_outside_committee(
     genesis_objects: Vec<Object>,
 ) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config
     });
     // The builder's genesis committee holds its own generated validator keys,
@@ -2352,7 +2303,8 @@ async fn setup_handler_object_state_with_package(
     gas_id: ObjectId,
 ) -> HandlerObjectStateSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config
     });
     setup_handler_object_state_with_package_and_config_guard(
@@ -3222,7 +3174,7 @@ impl HandlerObjectStateSetup {
     fn horizon_distance(&self) -> CommitIndex {
         self.epoch_store
             .protocol_config()
-            .pcool_deterministic_validation_horizon_distance_or_default()
+            .pcool_deterministic_validation_horizon_distance()
     }
 
     /// Moves the authority to the next epoch under the same protocol config
@@ -4364,20 +4316,20 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
     let wrong = Version::from_u64(1);
     assert!(wrong < initial);
 
-    // Commit 16, horizon 14: the deletion at 15 is not yet visible.
-    assert_drops_with(
-        s.read_shared(16, shared_id, wrong),
-        DropKind::SharedInitialVersionMismatch,
-    );
-    assert_deleted_by(s.read_shared(16, shared_id, initial), &delete_effects);
-
-    // Commit 18, horizon 16: every validator has executed the deletion.
+    // Commit 18, horizon 14: the deletion at 15 is not yet visible.
     assert_drops_with(
         s.read_shared(18, shared_id, wrong),
         DropKind::SharedInitialVersionMismatch,
     );
+    assert_deleted_by(s.read_shared(18, shared_id, initial), &delete_effects);
+
+    // Commit 20, horizon 16: every validator has executed the deletion.
     assert_drops_with(
-        s.read_shared(18, shared_id, initial),
+        s.read_shared(20, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_drops_with(
+        s.read_shared(20, shared_id, initial),
         DropKind::SharedDeletedAtOrBelowHorizon,
     );
 
@@ -4390,16 +4342,16 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
     // The tombstone row decides at both commits, and gives the version and
     // the deleting transaction.
     assert_drops_with(
-        s.read_shared(16, shared_id, wrong),
-        DropKind::SharedInitialVersionMismatch,
-    );
-    assert_deleted_by(s.read_shared(16, shared_id, initial), &delete_effects);
-    assert_drops_with(
         s.read_shared(18, shared_id, wrong),
         DropKind::SharedInitialVersionMismatch,
     );
+    assert_deleted_by(s.read_shared(18, shared_id, initial), &delete_effects);
     assert_drops_with(
-        s.read_shared(18, shared_id, initial),
+        s.read_shared(20, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_drops_with(
+        s.read_shared(20, shared_id, initial),
         DropKind::SharedDeletedAtOrBelowHorizon,
     );
 }
@@ -4437,7 +4389,7 @@ async fn reader_answers_missing_for_a_shared_id_the_store_does_not_have() {
 
 /// Execution of a shared object's deletion at commit 11 writes the handler's
 /// tombstone row, then the tombstone, then the deletion marker. Validation of
-/// commit 12 runs alongside it and here reads the object between the
+/// commit 14 runs alongside it and here reads the object between the
 /// tombstone and the marker. The tombstone row answers the deletion with its
 /// version and transaction, as it does once the marker is written, and the
 /// read never fails.
@@ -4503,8 +4455,8 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
         None
     );
 
-    // Commit 12, horizon 10: the deletion at 11 is above the horizon.
-    assert_deleted_by(s.read_shared(12, &shared_id, initial), &deletion_effects);
+    // Commit 14, horizon 10: the deletion at 11 is above the horizon.
+    assert_deleted_by(s.read_shared(14, &shared_id, initial), &deletion_effects);
 }
 
 // ---------------------------------------------------------------------------
@@ -4687,7 +4639,7 @@ async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
         s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared = share_effects.created()[0];
     let shared_id = shared.reference().object_id();
-    // Commit 11 mutates the gas coin. At commit 12 the horizon is 10.
+    // Commit 11 mutates the gas coin. At commit 14 the horizon is 10.
     s.assigned_commit_shared_object_basics_call(
         "set_value",
         vec![
@@ -4712,7 +4664,7 @@ async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
         &sender_key,
     );
 
-    match s.read_inputs_at_commit(12, &tx) {
+    match s.read_inputs_at_commit(14, &tx) {
         InputResolution::Missing(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
             assert_eq!(reference, gas_ref);
             assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon);
@@ -4721,9 +4673,9 @@ async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
         InputResolution::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
         InputResolution::Loaded(_) => panic!("the gas coin must not be visible"),
     }
-    // At commit 13 the horizon reaches the producing commit.
+    // At commit 15 the horizon reaches the producing commit.
     assert!(matches!(
-        s.read_inputs_at_commit(13, &tx),
+        s.read_inputs_at_commit(15, &tx),
         InputResolution::Loaded(_)
     ));
 }
@@ -5406,15 +5358,12 @@ async fn receive_of_a_version_deleted_last_epoch_is_dropped_on_every_node() {
     for s in [&mut pruning, &mut keeping] {
         s.advance_epoch().await;
         assert_eq!(s.epoch_store.epoch(), 1);
-        assert!(
-            s.epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
-        );
+        assert!(s.epoch_store.protocol_config().enable_pcool_flow());
     }
     pruning._config_guard = Some(ProtocolConfig::apply_overrides_for_testing(
         |_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         },
     ));
@@ -5856,7 +5805,7 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
     let deny_config = &s.authority.config.transaction_deny_config;
 
     // The account is shared and deleted with a second gas coin. Had commit 15
-    // written the call's gas coin, that coin would be missing at commit 16.
+    // written the call's gas coin, that coin would be missing at commit 18.
     let share_effects = s.assigned_commit_object_basics_call(
         "share",
         vec![],
@@ -5894,12 +5843,12 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
     );
     let gas_ref = s.latest_ref(&gas_id);
 
-    // Commit 16, horizon 14: the deletion at 15 is not yet visible to every
+    // Commit 18, horizon 14: the deletion at 15 is not yet visible to every
     // validator.
     match s
         .authority
         .handle_transaction_validation_checks_at_commit(
-            &s.reader_at(16),
+            &s.reader_at(18),
             &tx,
             &s.epoch_store,
             deny_config,
@@ -5916,7 +5865,7 @@ async fn validation_at_commit_keeps_a_deleted_account_that_execution_rejects() {
     }
 
     s.epoch_store
-        .assign_commit_to_transactions(16, vec![TransactionKey::Digest(*tx.digest())]);
+        .assign_commit_to_transactions(18, vec![TransactionKey::Digest(*tx.digest())]);
     let effects = s.execute_with_assigned_shared_versions_unchecked(tx);
     assert_eq!(
         effects.status(),
@@ -6035,7 +5984,8 @@ async fn setup_account_with_authenticator_in_object_basics(
 /// The protocol config override with deterministic validation on.
 fn enable_deterministic_validation() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config
     })
 }
@@ -6140,7 +6090,7 @@ async fn validation_at_commit_leaves_an_authenticator_package_it_does_not_see_to
 
 /// Commit 11 rotates the account's authenticate function from a denied
 /// package to an allowed one, recorded as the new version of the account's
-/// authenticator function field that the rotation writes. At commit 12,
+/// authenticator function field that the rotation writes. At commit 14,
 /// horizon 10, a validator that has executed commit 11 and one that has not
 /// both read the function the account named before the rotation, so both drop
 /// the transaction alike. Once the horizon reaches the rotation, the
@@ -6179,8 +6129,8 @@ async fn authenticator_function_rotated_above_the_horizon_gets_one_verdict_on_ev
         &sponsor_key,
     );
 
-    let on_rotated = rotated.validate_at_commit_under(12, &tx, &deny_package(denied));
-    let on_not_rotated = not_rotated.validate_at_commit_under(12, &tx, &deny_package(denied));
+    let on_rotated = rotated.validate_at_commit_under(14, &tx, &deny_package(denied));
+    let on_not_rotated = not_rotated.validate_at_commit_under(14, &tx, &deny_package(denied));
     assert_eq!(
         authenticator_package_denial(&on_rotated),
         authenticator_package_denial(&on_not_rotated),
@@ -6197,7 +6147,7 @@ async fn authenticator_function_rotated_above_the_horizon_gets_one_verdict_on_ev
 
 /// Commit 11 rotates the account's authenticate function from an allowed
 /// package to a denied one. A rotation to a denied package above the horizon
-/// is not caught at the commit: at commit 12, horizon 10, a validator that has
+/// is not caught at the commit: at commit 14, horizon 10, a validator that has
 /// executed commit 11 and one that has not both read the function the account
 /// named before the rotation, so both keep the transaction. Once the horizon
 /// reaches the rotation, the transaction is dropped.
@@ -6235,8 +6185,8 @@ async fn authenticator_function_rotated_to_a_denied_package_above_the_horizon_is
         &sponsor_key,
     );
 
-    assert_kept(rotated.validate_at_commit_under(12, &tx, &deny_package(denied)));
-    assert_kept(not_rotated.validate_at_commit_under(12, &tx, &deny_package(denied)));
+    assert_kept(rotated.validate_at_commit_under(14, &tx, &deny_package(denied)));
+    assert_kept(not_rotated.validate_at_commit_under(14, &tx, &deny_package(denied)));
 
     assert_authenticator_package_denied(
         rotated.validate_at_commit_under(
@@ -6377,7 +6327,8 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
 #[tokio::test]
 async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_flag_off() {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_deny_authenticator_packages_for_testing(false);
         config
     });
@@ -6388,7 +6339,7 @@ async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_
 
 /// A Move authenticator naming a mutable shared object as a call argument is
 /// refused at admission, and a byzantine submitter can still sequence it. At
-/// commit 16, horizon 14, the object is already deleted at commit 15 on one
+/// commit 18, horizon 14, the object is already deleted at commit 15 on one
 /// validator and still live on another. Both must drop the transaction on the
 /// declaration, which no object read can change.
 #[tokio::test]
@@ -6453,7 +6404,7 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
         let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
             &s.authority,
             &s.epoch_store,
-            16,
+            18,
             true,
             &Default::default(),
             &mut transactions,
@@ -7070,7 +7021,8 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
 #[tokio::test]
 async fn executed_deferred_transaction_replays_both_occurrences() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7183,7 +7135,8 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
 #[tokio::test]
 async fn deferred_transaction_is_kept_without_being_validated_again() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7268,24 +7221,25 @@ async fn deferred_transaction_is_kept_without_being_validated_again() {
     s.complete_commit(1, &[&kept_effects]);
     s.complete_commit(2, &[&deferred_effects]);
     let next = s.build_transfer(&object_id, &gas_id, sender, &key, Address::random());
-    // Commit 4 is the first whose horizon covers the outputs of commit 2.
-    let scheduled = s.process_at(4, std::slice::from_ref(&next)).await;
+    // Commit 6 is the first whose horizon covers the outputs of commit 2.
+    let scheduled = s.process_at(6, std::slice::from_ref(&next)).await;
     assert_eq!(scheduled.len(), 1);
     assert_eq!(scheduled[0].digest(), next.digest());
 }
 
-/// A transaction on the shared object `S` is kept at commit 3 and deferred by
+/// A transaction on the shared object `S` is kept at commit 5 and deferred by
 /// congestion control, since a deletion of `S` in the same commit takes the
-/// only slot on `S`. It is kept at commit 5, whose horizon covers the
-/// deletion at commit 3: it is not validated again and keeps the locks it
-/// took at commit 3. The replay of both commits after a restart repeats these
+/// only slot on `S`. It is kept at commit 9, whose horizon covers the
+/// deletion at commit 5: it is not validated again and keeps the locks it
+/// took at commit 5. The replay of both commits after a restart repeats these
 /// decisions. Execution fails the transaction because `S` is deleted and
 /// charges its gas, and its sender can then spend the new versions of its
 /// owned inputs.
 #[tokio::test]
 async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7336,7 +7290,7 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     let shared_id = *setup_effects[0].created()[0].reference().object_id();
     let object_id = *setup_effects[1].created()[0].reference().object_id();
 
-    // The higher gas price orders the deletion first in commit 3.
+    // The higher gas price orders the deletion first in commit 5.
     let deletion = {
         let gas_price = 2 * s.rgp;
         let tx = Transaction::new_move_call(
@@ -7393,7 +7347,7 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
             s.restart_epoch_store().await;
             s.complete_empty_commit(1);
         }
-        let (first, versions) = s.process_at_with_versions(3, &candidates).await;
+        let (first, versions) = s.process_at_with_versions(5, &candidates).await;
         assert_eq!(
             first.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
             vec![*deletion.digest()],
@@ -7403,7 +7357,7 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
             s.epoch_store.get_all_deferred_transactions_for_test().len(),
             1
         );
-        assert_kept_with_its_locks(&s, 3, restarted);
+        assert_kept_with_its_locks(&s, 5, restarted);
 
         let deletion_effects = deletion_effects.get_or_insert_with(|| {
             let effects = s.execute_with_handler_versions(deletion.clone(), versions);
@@ -7413,16 +7367,16 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
                 .unwrap();
             effects
         });
-        s.complete_commit(3, &[deletion_effects]);
+        s.complete_commit(5, &[deletion_effects]);
 
-        // Commit 5 is the first whose horizon covers the deletion at commit 3.
-        let (second, versions) = s.process_at_with_versions(5, &[]).await;
+        // Commit 9 is the first whose horizon covers the deletion at commit 5.
+        let (second, versions) = s.process_at_with_versions(9, &[]).await;
         assert_eq!(
             second.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
             vec![*deferred.digest()],
             "restarted: {restarted}"
         );
-        assert_kept_with_its_locks(&s, 5, restarted);
+        assert_kept_with_its_locks(&s, 9, restarted);
         reload_versions = Some(versions);
     }
 
@@ -7440,11 +7394,11 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
         &GasCostSummary::default()
     );
     assert!(s.latest_ref(&gas).version > gas_before.version);
-    s.complete_commit(5, &[&deferred_effects]);
+    s.complete_commit(9, &[&deferred_effects]);
 
     let next = s.build_transfer(&object_id, &gas, sender, &key, Address::random());
-    // Commit 7 is the first whose horizon covers the outputs of commit 5.
-    let scheduled = s.process_at(7, std::slice::from_ref(&next)).await;
+    // Commit 13 is the first whose horizon covers the outputs of commit 9.
+    let scheduled = s.process_at(13, std::slice::from_ref(&next)).await;
     assert_eq!(
         scheduled.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
         vec![*next.digest()]
@@ -7535,7 +7489,8 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
 /// others.
 fn enable_deterministic_validation_with_one_transaction_per_commit() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7894,7 +7849,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
     }
     normal.complete_empty_commit(12);
     let retry = normal
-        .validate_at(14, std::slice::from_ref(&consumer))
+        .validate_at(16, std::slice::from_ref(&consumer))
         .await;
     assert_eq!(retry.dropped.len(), 1);
     normal
@@ -7902,7 +7857,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
         .record_commit_fully_executed(13, &[])
         .unwrap();
     let accepted = normal
-        .validate_at(15, std::slice::from_ref(&consumer))
+        .validate_at(17, std::slice::from_ref(&consumer))
         .await;
     assert_eq!(accepted.kept, vec![*consumer.digest()]);
     // Only one epoch DB can be open while a store reopens.
@@ -7911,14 +7866,14 @@ async fn retry_after_retired_drop_matches_reopened_store() {
     assert_eq!(
         retry,
         restarted
-            .validate_at(14, std::slice::from_ref(&consumer))
+            .validate_at(16, std::slice::from_ref(&consumer))
             .await
     );
     restarted.complete_empty_commit(13);
     assert_eq!(
         accepted,
         restarted
-            .validate_at(15, std::slice::from_ref(&consumer))
+            .validate_at(17, std::slice::from_ref(&consumer))
             .await
     );
 }
@@ -8030,7 +7985,7 @@ async fn replay_after_the_consumed_version_is_pruned_repeats_the_saved_keep() {
 
 /// A transfer naming a version produced at commit 13 is dropped at commit 12,
 /// where that version is above the horizon, and its retry is kept at commit
-/// 15. After a crash before either commit flushes, both replay with their
+/// 17. After a crash before either commit flushes, both replay with their
 /// saved decisions: the drop again, and the retry kept.
 #[tokio::test]
 async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
@@ -8056,7 +8011,7 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
     let consumer = s.build_transfer(&object, &consumer_gas, sender, &key, Address::random());
 
     /// Processes commit 12 with the consumer, completes commits 12 and 13,
-    /// processes commit 15 with the consumer again, and returns the two saved
+    /// processes commit 17 with the consumer again, and returns the two saved
     /// decisions.
     async fn run(
         s: &HandlerObjectStateSetup,
@@ -8070,7 +8025,7 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
         );
         s.complete_commit(12, &[]);
         s.complete_commit(13, &[produced]);
-        let retried = s.process_at(15, std::slice::from_ref(consumer)).await;
+        let retried = s.process_at(17, std::slice::from_ref(consumer)).await;
         assert_eq!(retried.len(), 1);
         assert_eq!(retried[0].digest(), consumer.digest());
         (
@@ -8079,7 +8034,7 @@ async fn missing_drop_and_its_kept_retry_replay_after_a_restart() {
                 .unwrap()
                 .map(|saved| saved.decision),
             s.epoch_store
-                .post_consensus_decision(15, *consumer.digest())
+                .post_consensus_decision(17, *consumer.digest())
                 .unwrap()
                 .map(|saved| saved.decision),
         )
@@ -8219,7 +8174,7 @@ fn assert_repeats_the_saved_keep(first: &ValidationResult, replayed: ValidationR
     assert!(replayed.locks.is_empty(), "{:?}", replayed.locks);
 }
 
-/// Commit 7 keeps a transaction on a shared object created at commit 5, and
+/// Commit 7 keeps a transaction on a shared object created at commit 3, and
 /// the transaction is deferred. The node switches to synced checkpoints after
 /// commit 7, a synced checkpoint deletes the object, and the node restarts.
 /// The replay of commit 7 keeps the transaction from its saved decision,
@@ -8238,7 +8193,7 @@ async fn replay_up_to_the_switch_repeats_a_saved_keep_without_reading_inputs() {
     )
     .await;
     let share_effects =
-        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 3);
     let shared_id = *share_effects.created()[0].reference().object_id();
     let kept = s.build_move_call(
         "object_basics",
@@ -8342,8 +8297,8 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
     seed_quarantined_lock(&s.epoch_store, s.latest_ref(&gas1), winner_digest);
     s.execute_with_assigned_commit(vec![winner], 10);
 
-    // Commit 11, horizon 9: the winner's row is above the horizon.
-    assert_keeps(s.read_owned(11, x_v1), x_v1);
+    // Commit 13, horizon 9: the winner's row is above the horizon.
+    assert_keeps(s.read_owned(13, x_v1), x_v1);
 
     let contender = s
         .epoch_store
@@ -8361,7 +8316,7 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
     let (dropped, locks, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
-        11,
+        13,
         true,
         &Default::default(),
         &mut transactions,
@@ -8395,8 +8350,8 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
         assert_eq!(verdicts.with_label_values(&labels).get(), 0, "{labels:?}");
     }
 
-    // Commit 12, horizon 10: the winner's row decides.
-    assert_owned_drops(s.read_owned(12, x_v1), DropKind::HandlerRowSuperseded);
+    // Commit 14, horizon 10: the winner's row decides.
+    assert_owned_drops(s.read_owned(14, x_v1), DropKind::HandlerRowSuperseded);
 }
 
 // ---------------------------------------------------------------------------
@@ -8430,8 +8385,8 @@ fn assert_owned_drops(verdict: OwnedVerdict, kind: DropKind) {
     }
 }
 
-/// A row produced by commit 10 is at the horizon of commit 12 and keeps. For
-/// commit 11, whose horizon is 9, the same row is above the horizon and
+/// A row produced by commit 10 is at the horizon of commit 14 and keeps. For
+/// commit 13, whose horizon is 9, the same row is above the horizon and
 /// answers missing.
 #[tokio::test]
 async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
@@ -8451,9 +8406,9 @@ async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
     s.execute_with_assigned_commit(vec![tx], 10);
     let produced = s.latest_ref(&obj_id);
 
-    assert_keeps(s.read_owned(12, produced), produced);
+    assert_keeps(s.read_owned(14, produced), produced);
     assert_owned_missing(
-        s.read_owned(11, produced),
+        s.read_owned(13, produced),
         MissingKind::HandlerRowAboveHorizon,
     );
 }
@@ -8466,7 +8421,7 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
+        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
         config
     });
@@ -8524,8 +8479,8 @@ async fn owned_received_version_drops_from_the_receive_row() {
         7,
     );
 
-    assert_keeps(s.read_owned(8, child_ref), child_ref);
-    assert_owned_drops(s.read_owned(9, child_ref), DropKind::HandlerRowSuperseded);
+    assert_keeps(s.read_owned(10, child_ref), child_ref);
+    assert_owned_drops(s.read_owned(11, child_ref), DropKind::HandlerRowSuperseded);
 
     let tx = s
         .epoch_store
@@ -8538,7 +8493,7 @@ async fn owned_received_version_drops_from_the_receive_row() {
             s.rgp,
         ))
         .unwrap();
-    match s.read_inputs_at_commit(9, &tx) {
+    match s.read_inputs_at_commit(11, &tx) {
         InputResolution::Drop(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
             assert_eq!(reference, child_ref);
             assert_eq!(reason.kind(), DropKind::HandlerRowSuperseded);
@@ -8557,9 +8512,9 @@ async fn owned_received_version_drops_from_the_receive_row() {
         &receive_effects,
     )
     .await;
-    assert_owned_drops(s.read_owned(9, child_ref), DropKind::HandlerRowSuperseded);
+    assert_owned_drops(s.read_owned(11, child_ref), DropKind::HandlerRowSuperseded);
     assert!(matches!(
-        s.reader_at(8).read_owned(child_ref),
+        s.reader_at(10).read_owned(child_ref),
         Err(IotaError::Storage(_))
     ));
 }
@@ -8617,8 +8572,8 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
         6,
     );
 
-    assert_keeps(s.read_owned(7, field_ref), field_ref);
-    assert_owned_drops(s.read_owned(8, field_ref), DropKind::HandlerRowSuperseded);
+    assert_keeps(s.read_owned(9, field_ref), field_ref);
+    assert_owned_drops(s.read_owned(10, field_ref), DropKind::HandlerRowSuperseded);
 
     s.prune_versions_consumed_by(
         &[
@@ -8630,7 +8585,7 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
         &remove_effects,
     )
     .await;
-    assert_owned_drops(s.read_owned(8, field_ref), DropKind::HandlerRowSuperseded);
+    assert_owned_drops(s.read_owned(10, field_ref), DropKind::HandlerRowSuperseded);
 }
 
 /// Shared mutations write no rows, so a shared object's creation version
@@ -8650,7 +8605,7 @@ async fn owned_read_of_a_shared_creation_version_drops() {
         s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
     let shared_ref = *share_effects.created()[0].reference();
     assert_owned_drops(
-        s.read_owned(7, shared_ref),
+        s.read_owned(9, shared_ref),
         DropKind::HandlerRowSharedObject,
     );
 
@@ -8674,7 +8629,7 @@ async fn owned_read_of_a_shared_creation_version_drops() {
     )
     .await;
     assert_owned_drops(
-        s.read_owned(8, shared_ref),
+        s.read_owned(10, shared_ref),
         DropKind::HandlerRowSharedObject,
     );
 }
@@ -8742,12 +8697,10 @@ struct ImmutableInputSetup {
     _config_guard: OverrideGuard,
 }
 
-/// Builds the state above with the P-COOL flow on and the immutable-lock skip
-/// set to `skip_immutable_locks`.
-async fn setup_immutable_input(skip_immutable_locks: bool) -> ImmutableInputSetup {
-    let _config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+/// Builds the state above with the P-COOL flow on.
+async fn setup_immutable_input() -> ImmutableInputSetup {
+    let _config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_pcool_skip_immutable_object_locks_for_testing(skip_immutable_locks);
         config
     });
 
@@ -8827,14 +8780,16 @@ impl ImmutableInputSetup {
             .unwrap()
     }
 
-    /// Marks `tx` as executed via the checkpoint-executor path, as state-sync
-    /// would when it wins the race against this node's consensus handler.
-    fn execute_via_state_sync(&self, tx: &VerifiedTransaction) {
+    /// Executes `tx` in a commit of its own, as when an earlier commit kept
+    /// and executed the same transaction.
+    fn execute_in_an_earlier_commit(&self, tx: &VerifiedTransaction) {
         let executable = VerifiedExecutableTransaction::new_from_checkpoint(
             tx.clone(),
             self.epoch_store.epoch(),
             1,
         );
+        self.epoch_store
+            .assign_to_a_new_commit_for_testing(&[executable.key()]);
         self.authority
             .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
@@ -8873,7 +8828,7 @@ impl ImmutableInputSetup {
 #[tokio::test]
 async fn test_immutable_object_input_not_locked() {
     telemetry_subscribers::init_for_testing();
-    let s = setup_immutable_input(true).await;
+    let s = setup_immutable_input().await;
 
     let tx1 = s.read_immutable(s.gas1_ref);
     let tx2 = s.read_immutable(s.gas2_ref);
@@ -8897,43 +8852,16 @@ async fn test_immutable_object_input_not_locked() {
     );
 }
 
-/// The gate itself: with the flag off, the first reader locks the immutable
-/// object and the second is dropped against it.
-#[tokio::test]
-async fn test_immutable_object_input_locked_when_flag_disabled() {
-    telemetry_subscribers::init_for_testing();
-    let s = setup_immutable_input(false).await;
-
-    let tx1 = s.read_immutable(s.gas1_ref);
-    let tx2 = s.read_immutable(s.gas2_ref);
-    let tx2_digest = *tx2.digest();
-    let mut transactions = vec![
-        make_user_tx_v1_verified(tx1.clone()),
-        make_user_tx_v1_verified(tx2),
-    ];
-
-    let (dropped, locks) = s.resolve(&mut transactions).await;
-
-    assert_eq!(dropped.len(), 1, "the second reader must be dropped");
-    assert_eq!(dropped[0].0, tx2_digest);
-    assert!(matches!(dropped[0].1, IotaError::ObjectLockConflict { .. }));
-    assert_eq!(
-        locks.get(&s.immutable_ref),
-        Some(tx1.digest()),
-        "the immutable object is locked while the flag is off"
-    );
-}
-
 /// The already-executed branch locks the transaction's owned inputs and leaves
 /// the immutable input free. A later reader of the same immutable object is
 /// then kept instead of hitting the winner-out-locked `fatal!`.
 #[tokio::test]
 async fn test_already_executed_tx_does_not_lock_immutable_input() {
     telemetry_subscribers::init_for_testing();
-    let s = setup_immutable_input(true).await;
+    let s = setup_immutable_input().await;
 
     let executed = s.read_immutable_with_owned(s.gas1_ref);
-    s.execute_via_state_sync(&executed);
+    s.execute_in_an_earlier_commit(&executed);
 
     let later_reader = s.read_immutable(s.gas2_ref);
     let mut transactions = vec![
@@ -9040,15 +8968,14 @@ async fn assert_node_limits_reject(setup: &PublishSetup) {
     );
 }
 
-/// With `pcool_verifier_limits_from_protocol_config` set, post-consensus
-/// validation meters a published package with the protocol config's limits.
+/// Post-consensus validation meters a published package with the protocol
+/// config's limits.
 /// A validator whose own `VerifierSigningConfig` would reject the package
 /// keeps it, as every validator on default settings does.
 #[tokio::test]
 async fn post_consensus_validation_meters_packages_with_protocol_limits() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
-        config.set_pcool_verifier_limits_from_protocol_config_for_testing(true);
         config
     });
     let setup = setup_publish_with_one_tick_node_limits().await;
@@ -9076,49 +9003,10 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
     assert_eq!(locks.len(), 1, "only the gas coin is locked");
 }
 
-/// Without the flag, post-consensus validation still meters with this
-/// validator's own `VerifierSigningConfig`: the package is dropped here
-/// while validators on default settings keep it.
-#[tokio::test]
-async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_disabled() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config.set_pcool_verifier_limits_from_protocol_config_for_testing(false);
-        config
-    });
-    let setup = setup_publish_with_one_tick_node_limits().await;
-    assert_node_limits_reject(&setup).await;
-
-    let epoch_store = setup.authority.epoch_store_for_testing();
-    let digest = *setup.tx.digest();
-    let mut transactions = vec![make_user_tx_v1(setup.tx.clone())];
-    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
-        &setup.authority,
-        &epoch_store,
-        1,
-        false,
-        &Default::default(),
-        &mut transactions,
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(dropped.len(), 1);
-    assert_eq!(dropped[0].0, digest);
-    assert!(matches!(
-        &dropped[0].1,
-        IotaError::UserInput {
-            error: UserInputError::PackageVerificationTimedout { .. }
-        }
-    ));
-    assert!(transactions.is_empty());
-    assert!(locks.is_empty(), "dropped transaction must not take locks");
-}
-
 // ---------------------------------------------------------------------------
 // P-COOL deterministic validation waits for the horizon to be fully executed
 //
-// The horizon distance K is 2 here: commit C reads state as of commit C - 2
+// The horizon distance K is 4 here: commit C reads state as of commit C - 4
 // and waits until the highest fully executed commit has reached it.
 // ---------------------------------------------------------------------------
 
@@ -9168,8 +9056,8 @@ async fn validation_does_not_wait_when_the_horizon_is_already_fully_executed() {
     let s = setup_handler_object_state(vec![], true).await;
     assert_eq!(s.highest_fully_executed_commit(), 0);
 
-    // Commit 2 has horizon 0, which is fully executed from the start.
-    process_commit_without_waiting(&s, 2).await;
+    // Commit 4 has horizon 0, which is fully executed from the start.
+    process_commit_without_waiting(&s, 4).await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -9193,18 +9081,18 @@ async fn validation_waits_until_the_horizon_is_fully_executed() {
     s.epoch_store
         .assign_commit_to_transactions(1, vec![TransactionKey::Digest(*tx.digest())]);
 
-    // Commit 3 has horizon 1 and must block on it.
+    // Commit 5 has horizon 1 and must block on it.
     let mut processing = tokio::spawn(process_commit_at(
         s.authority.clone(),
         s.epoch_store.clone(),
-        3,
+        5,
         vec![],
     ));
     assert!(
         tokio::time::timeout(Duration::from_millis(200), &mut processing)
             .await
             .is_err(),
-        "commit 3 must wait for commit 1"
+        "commit 5 must wait for commit 1"
     );
 
     // The transaction executes, the execution watcher marks commit 1 fully
@@ -9212,7 +9100,7 @@ async fn validation_waits_until_the_horizon_is_fully_executed() {
     s.execute(tx);
     tokio::time::timeout(Duration::from_secs(10), processing)
         .await
-        .expect("commit 3 must proceed once commit 1 is fully executed")
+        .expect("commit 5 must proceed once commit 1 is fully executed")
         .unwrap()
         .unwrap();
     assert!(s.highest_fully_executed_commit() >= 1);
@@ -9248,19 +9136,19 @@ async fn epoch_end_releases_a_pending_wait() {
     let s = setup_handler_object_state(vec![], true).await;
     assert_eq!(s.highest_fully_executed_commit(), 0);
 
-    // Commit 5 has horizon 3. Nothing has executed and no execution watcher
+    // Commit 7 has horizon 3. Nothing has executed and no execution watcher
     // runs, so the wait is pending.
     let mut processing = tokio::spawn(process_commit_at(
         s.authority.clone(),
         s.epoch_store.clone(),
-        5,
+        7,
         vec![],
     ));
     assert!(
         tokio::time::timeout(Duration::from_millis(200), &mut processing)
             .await
             .is_err(),
-        "commit 5 must wait for commit 3"
+        "commit 7 must wait for commit 3"
     );
 
     // Terminating the epoch cuts the wait short. The call returns the error,
@@ -9617,12 +9505,12 @@ enum Consumption {
     Wrap,
 }
 
-/// An object consumed at commit 3 and a contender naming the consumed
+/// An object consumed at commit 5 and a contender naming the consumed
 /// version at every later commit. Two nodes: one executed the consumer when
-/// its handler reached commit 3, and one has not executed it while the
-/// horizon is below commit 3. Both drop the contender with the same error at
+/// its handler reached commit 5, and one has not executed it while the
+/// horizon is below commit 5. Both drop the contender with the same error at
 /// every commit, keep the consumer's outputs from the first commit whose
-/// horizon reaches commit 3 and drop them before, and once both have
+/// horizon reaches commit 5 and drop them before, and once both have
 /// executed the consumer, the reader alone drops the consumed version on
 /// both.
 #[rstest::rstest]
@@ -9723,12 +9611,12 @@ async fn consumed_version_drops_the_same_whatever_the_consumer_execution(
         .unwrap();
 
     for node in nodes {
-        let scheduled = node.process_at(3, std::slice::from_ref(&consumer)).await;
+        let scheduled = node.process_at(5, std::slice::from_ref(&consumer)).await;
         assert_eq!(scheduled.len(), 1);
         assert_eq!(scheduled[0].digest(), consumer.digest());
     }
     let effects = ran.execute(consumer.clone());
-    ran.complete_commit(3, &[&effects]);
+    ran.complete_commit(5, &[&effects]);
     ran.prune_versions_consumed_by(&[*create.digest(), *consumer.digest()], &effects)
         .await;
     // Names the consumer's gas output, which `lagging` does not hold yet.
@@ -9745,29 +9633,29 @@ async fn consumed_version_drops_the_same_whatever_the_consumer_execution(
         .unwrap();
     let candidates = [stale.clone(), fresh.clone()];
 
-    // Commit 4, horizon 2: `lagging` may validate it without executing the
+    // Commit 6, horizon 2: `lagging` may validate it without executing the
     // consumer.
-    let at_4 = ran.validate_at(4, &candidates).await;
-    assert!(at_4.kept.is_empty());
-    assert_eq!(at_4.dropped.len(), 2);
+    let at_6 = ran.validate_at(6, &candidates).await;
+    assert!(at_6.kept.is_empty());
+    assert_eq!(at_6.dropped.len(), 2);
     assert!(
         matches!(
-            &at_4.dropped[0].1,
+            &at_6.dropped[0].1,
             IotaError::ObjectLockConflict { obj_ref, pending_transaction }
                 if *obj_ref == consumed && pending_transaction == consumer.digest()
         ),
         "{:?}",
-        at_4.dropped[0].1
+        at_6.dropped[0].1
     );
-    assert_eq!(at_4, lagging.validate_at(4, &candidates).await);
+    assert_eq!(at_6, lagging.validate_at(6, &candidates).await);
 
-    // Commits 5 and 6 have the horizon at or above commit 3, so every node
+    // Commits 9 and 10 have the horizon at or above commit 5, so every node
     // has executed the consumer by then.
-    lagging.complete_commit(3, &[&lagging.execute(consumer.clone())]);
-    for index in [5, 6] {
+    lagging.complete_commit(5, &[&lagging.execute(consumer.clone())]);
+    for index in [9, 10] {
         let result = ran.validate_at(index, &candidates).await;
         assert_eq!(result.kept, vec![*fresh.digest()]);
-        assert_eq!(result.dropped, at_4.dropped[..1].to_vec());
+        assert_eq!(result.dropped, at_6.dropped[..1].to_vec());
         assert_eq!(result, lagging.validate_at(index, &candidates).await);
         for node in nodes {
             assert_owned_drops(
@@ -9814,11 +9702,7 @@ async fn version_consumed_last_epoch_drops_on_every_node(#[values(true, false)] 
     s.authority.reconfigure_for_testing().await;
     s.epoch_store = (*s.authority.epoch_store_for_testing()).clone();
     assert_eq!(s.epoch_store.epoch(), 1);
-    assert!(
-        s.epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-    );
+    assert!(s.epoch_store.protocol_config().enable_pcool_flow());
 
     assert_owned_drops(s.read_owned(3, consumed), DropKind::StoreSuperseded);
     assert_keeps(s.read_owned(3, produced), produced);
@@ -10127,13 +10011,13 @@ async fn setup_validators_with_a_shared_regulated_coin(
 
     let enable_validation = || {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
             config
         })
     };
     let epoch_zero_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config.set_pcool_deterministic_validation_for_testing(false);
+        config.set_enable_pcool_flow_for_testing(false);
         config
     });
     let mut validators = Vec::new();
@@ -10232,7 +10116,8 @@ async fn setup_validators_with_a_shared_regulated_coin(
     drop(epoch_zero_guard);
     for s in &mut validators {
         let mut epoch_one_config = s.epoch_store.protocol_config().clone();
-        epoch_one_config.enable_pcool_deterministic_validation_for_testing();
+        epoch_one_config.set_enable_pcool_flow_for_testing(true);
+        epoch_one_config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
         s.authority
             .reconfigure_for_testing_with_protocol_config(epoch_one_config)
             .await;
@@ -10299,7 +10184,7 @@ async fn setup_validators_with_a_shared_regulated_coin(
     )
 }
 
-/// Validates, at commit 12 (horizon 10), a transaction by the denied address
+/// Validates, at commit 14 (horizon 10), a transaction by the denied address
 /// naming the shared regulated coin, on a validator that has executed the
 /// coin's deletion and on one that has not. `deleting_commit` is the commit
 /// the deletion is assigned to on the first validator, above the horizon.
@@ -10315,10 +10200,10 @@ async fn run_shared_coin_deletion_verdict_comparison(
     assert!(not_deleted.authority.get_object(&coin.coin_id).is_some());
 
     let on_deleted = deleted
-        .validate_at(12, std::slice::from_ref(&transaction))
+        .validate_at(14, std::slice::from_ref(&transaction))
         .await;
     let on_not_deleted = not_deleted
-        .validate_at(12, std::slice::from_ref(&transaction))
+        .validate_at(14, std::slice::from_ref(&transaction))
         .await;
     assert_eq!(
         on_not_deleted.dropped,
@@ -10333,7 +10218,7 @@ async fn run_shared_coin_deletion_verdict_comparison(
 }
 
 /// A shared coin of a regulated type is deleted by commit 11, which is above
-/// the horizon of commit 12. Commit 12 holds a transaction naming the coin,
+/// the horizon of commit 14. Commit 14 holds a transaction naming the coin,
 /// sent by an address the coin type's deny list denies. Every validator must
 /// keep or drop it alike, whether or not it has executed the deletion.
 #[tokio::test]
@@ -10532,11 +10417,11 @@ async fn commit_after_the_final_round_decides_on_a_row_whose_output_is_not_store
     s.epoch_store
         .get_reconfig_state_write_lock_guard()
         .close_all_tx();
-    // Commit 11, horizon 9: the producer's row is at the horizon.
+    // Commit 13, horizon 9: the producer's row is at the horizon.
     let result = process_commit_at(
         s.authority.clone(),
         s.epoch_store.clone(),
-        11,
+        13,
         vec![consumer],
     )
     .await;
@@ -10714,10 +10599,10 @@ async fn validation_wait_ends_after_the_execution_watcher_fails() {
 
 /// The handler executes commit 9's transaction, whose row stays in memory
 /// and whose output stays in the object cache. After the final round,
-/// commit 11 (horizon 9) carries a transfer of that output, does not wait,
+/// commit 13 (horizon 9) carries a transfer of that output, does not wait,
 /// and saves no decision for it. The node crashes before commit 9's
 /// checkpoint is durable, losing the row and the output. The replay of commit
-/// 11 must not stop the node.
+/// 13 must not stop the node.
 #[tokio::test]
 async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -10751,14 +10636,14 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
     process_commit_at(
         s.authority.clone(),
         s.epoch_store.clone(),
-        11,
+        13,
         vec![consumer.clone()],
     )
     .await
     .unwrap();
     assert_eq!(
         s.epoch_store
-            .post_consensus_decision(11, *consumer.digest())
+            .post_consensus_decision(13, *consumer.digest())
             .unwrap(),
         None
     );
@@ -10785,11 +10670,11 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
     tokio::spawn(process_commit_at(
         s.authority.clone(),
         s.epoch_store.clone(),
-        11,
+        13,
         vec![consumer],
     ))
     .await
-    .expect("the replay of commit 11 must not stop the node")
+    .expect("the replay of commit 13 must not stop the node")
     .unwrap();
 }
 
@@ -10811,9 +10696,9 @@ async fn replay_after_losing_the_deletion_of_a_coin_shared_this_epoch_repeats_th
 
 /// The denied address's entry is removed at commit 11, on one validator only.
 /// The deny list is read at the commit as of its horizon, so the removal
-/// counts from commit 13 on. At commit 12 (horizon 10) a transfer of the
+/// counts from commit 15 on. At commit 14 (horizon 10) a transfer of the
 /// address's own regulated coin is dropped on both validators, whether or
-/// not they executed the removal. At commit 13 (horizon 11) it is kept.
+/// not they executed the removal. At commit 15 (horizon 11) it is kept.
 #[tokio::test]
 async fn deny_entry_removed_at_a_commit_counts_from_the_horizon_distance_after_it() {
     let (removed, not_removed, coin) =
@@ -10828,10 +10713,10 @@ async fn deny_entry_removed_at_a_commit_counts_from_the_horizon_distance_after_i
     coin.call_deny_list(&removed, "deny_list_v1_remove", Some(coin.denied), 11);
 
     let on_removed = removed
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     let on_not_removed = not_removed
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     assert_eq!(
         on_not_removed.dropped,
@@ -10841,14 +10726,14 @@ async fn deny_entry_removed_at_a_commit_counts_from_the_horizon_distance_after_i
 
     coin.call_deny_list(&not_removed, "deny_list_v1_remove", Some(coin.denied), 11);
     for s in [&removed, &not_removed] {
-        let at_13 = s.validate_at(13, std::slice::from_ref(&transfer)).await;
-        assert_eq!(at_13.kept, vec![*transfer.digest()]);
+        let at_15 = s.validate_at(15, std::slice::from_ref(&transfer)).await;
+        assert_eq!(at_15.kept, vec![*transfer.digest()]);
     }
 }
 
 /// An address is denied at commit 11, on one validator only. A transfer of
-/// its regulated coin is kept at commit 12 (horizon 10) on both validators,
-/// and dropped at commit 13 (horizon 11) once both have executed the denial.
+/// its regulated coin is kept at commit 14 (horizon 10) on both validators,
+/// and dropped at commit 15 (horizon 11) once both have executed the denial.
 #[tokio::test]
 async fn deny_entry_added_at_a_commit_counts_from_the_horizon_distance_after_it() {
     let (denied_first, denied_later, coin) =
@@ -10863,25 +10748,25 @@ async fn deny_entry_added_at_a_commit_counts_from_the_horizon_distance_after_it(
     coin.call_deny_list(&denied_first, "deny_list_v1_add", Some(coin.other), 11);
 
     let on_denied = denied_first
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     let on_not_denied = denied_later
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     assert_eq!(on_not_denied.kept, vec![*transfer.digest()]);
     assert_eq!(on_denied, on_not_denied);
 
     coin.call_deny_list(&denied_later, "deny_list_v1_add", Some(coin.other), 11);
     for s in [&denied_first, &denied_later] {
-        let at_13 = s.validate_at(13, std::slice::from_ref(&transfer)).await;
-        assert_eq!(at_13.dropped, coin.address_denied(&transfer, coin.other));
+        let at_15 = s.validate_at(15, std::slice::from_ref(&transfer)).await;
+        assert_eq!(at_15.dropped, coin.address_denied(&transfer, coin.other));
     }
 }
 
 /// The coin type is paused for every address at commit 11, on one validator
 /// only. A transfer of a regulated coin by an address that is not denied is
-/// kept at commit 12 (horizon 10) on both validators, and dropped for the
-/// pause at commit 13 (horizon 11) once both have executed it.
+/// kept at commit 14 (horizon 10) on both validators, and dropped for the
+/// pause at commit 15 (horizon 11) once both have executed it.
 #[tokio::test]
 async fn global_pause_at_a_commit_counts_from_the_horizon_distance_after_it() {
     let (paused_first, paused_later, coin) =
@@ -10896,10 +10781,10 @@ async fn global_pause_at_a_commit_counts_from_the_horizon_distance_after_it() {
     coin.call_deny_list(&paused_first, "deny_list_v1_enable_global_pause", None, 11);
 
     let on_paused = paused_first
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     let on_not_paused = paused_later
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     assert_eq!(on_not_paused.kept, vec![*transfer.digest()]);
     assert_eq!(on_paused, on_not_paused);
@@ -10913,8 +10798,8 @@ async fn global_pause_at_a_commit_counts_from_the_horizon_distance_after_it() {
         .into(),
     )];
     for s in [&paused_first, &paused_later] {
-        let at_13 = s.validate_at(13, std::slice::from_ref(&transfer)).await;
-        assert_eq!(at_13.dropped, paused);
+        let at_15 = s.validate_at(15, std::slice::from_ref(&transfer)).await;
+        assert_eq!(at_15.dropped, paused);
     }
 }
 
@@ -10922,8 +10807,8 @@ async fn global_pause_at_a_commit_counts_from_the_horizon_distance_after_it() {
 /// one validator, which creates the entry's dynamic field and deletes it
 /// again. Rows above the horizon from several commits, as a replay after a
 /// restart can find them, must not change the result: a transfer of the
-/// address's regulated coin is kept at commit 12 (horizon 10) on both
-/// validators. At commit 13 (horizon 11) the denial counts, and at commit 14
+/// address's regulated coin is kept at commit 14 (horizon 10) on both
+/// validators. At commit 15 (horizon 11) the denial counts, and at commit 16
 /// (horizon 12) the deleted entry reads as not denied again.
 #[tokio::test]
 async fn deny_entry_added_and_removed_above_the_horizon_gets_one_verdict_on_every_validator() {
@@ -10956,31 +10841,31 @@ async fn deny_entry_added_and_removed_above_the_horizon_gets_one_verdict_on_ever
     );
 
     let on_changed = changed
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     let on_unchanged = unchanged
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     assert_eq!(on_unchanged.kept, vec![*transfer.digest()]);
     assert_eq!(on_changed, on_unchanged);
 
-    let at_13 = changed
-        .validate_at(13, std::slice::from_ref(&transfer))
+    let at_15 = changed
+        .validate_at(15, std::slice::from_ref(&transfer))
         .await;
-    assert_eq!(at_13.dropped, coin.address_denied(&transfer, coin.other));
-    let at_14 = changed
-        .validate_at(14, std::slice::from_ref(&transfer))
+    assert_eq!(at_15.dropped, coin.address_denied(&transfer, coin.other));
+    let at_16 = changed
+        .validate_at(16, std::slice::from_ref(&transfer))
         .await;
-    assert_eq!(at_14.kept, vec![*transfer.digest()]);
+    assert_eq!(at_16.kept, vec![*transfer.digest()]);
 }
 
 /// An address is denied at commit 9 on both validators. On one of them its
 /// entry is then removed at commit 11, which deletes the entry's dynamic
 /// field, and added again at commit 12, which creates it anew under the same
-/// id. At commit 12 (horizon 10) the read must walk past the new field and
+/// id. At commit 14 (horizon 10) the read must walk past the new field and
 /// the deletion to the entry of commit 9, so a transfer of the address's
-/// regulated coin is dropped on both validators. At commit 13 (horizon 11)
-/// the deleted entry reads as not denied, and at commit 14 (horizon 12) the
+/// regulated coin is dropped on both validators. At commit 15 (horizon 11)
+/// the deleted entry reads as not denied, and at commit 16 (horizon 12) the
 /// new one denies again.
 #[tokio::test]
 async fn deny_entry_deleted_and_created_again_above_the_horizon_gets_one_verdict() {
@@ -11035,10 +10920,10 @@ async fn run_deny_entry_deleted_and_created_again(durable: bool) {
     }
 
     let on_changed = changed
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     let on_unchanged = unchanged
-        .validate_at(12, std::slice::from_ref(&transfer))
+        .validate_at(14, std::slice::from_ref(&transfer))
         .await;
     assert_eq!(
         on_unchanged.dropped,
@@ -11046,14 +10931,14 @@ async fn run_deny_entry_deleted_and_created_again(durable: bool) {
     );
     assert_eq!(on_changed, on_unchanged);
 
-    let at_13 = changed
-        .validate_at(13, std::slice::from_ref(&transfer))
+    let at_15 = changed
+        .validate_at(15, std::slice::from_ref(&transfer))
         .await;
-    assert_eq!(at_13.kept, vec![*transfer.digest()]);
-    let at_14 = changed
-        .validate_at(14, std::slice::from_ref(&transfer))
+    assert_eq!(at_15.kept, vec![*transfer.digest()]);
+    let at_16 = changed
+        .validate_at(16, std::slice::from_ref(&transfer))
         .await;
-    assert_eq!(at_14.dropped, coin.address_denied(&transfer, coin.other));
+    assert_eq!(at_16.dropped, coin.address_denied(&transfer, coin.other));
 }
 
 /// A regulated coin frozen at commit 5 is an immutable input of a call that
@@ -11140,13 +11025,13 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
         DynamicFieldAtHorizon::Live(object) => Some(object.object_ref()),
         DynamicFieldAtHorizon::Absent => None,
     };
-    assert_eq!(read(6), None, "created above horizon 4");
-    assert_eq!(read(7), Some(field_ref), "created at horizon 5");
-    assert_eq!(read(8), None, "deleted at horizon 6");
+    assert_eq!(read(8), None, "created above horizon 4");
+    assert_eq!(read(9), Some(field_ref), "created at horizon 5");
+    assert_eq!(read(10), None, "deleted at horizon 6");
 
     s.prune_versions_consumed_by(&committed, &remove_effects)
         .await;
-    let result = s.reader_at(7).read_dynamic_field(field_ref.object_id);
+    let result = s.reader_at(9).read_dynamic_field(field_ref.object_id);
     assert!(
         matches!(result, Err(IotaError::Storage(_))),
         "unexpected result: {result:?}"
@@ -11154,9 +11039,9 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
 }
 
 /// On a validator that lost the bytes of a dynamic-field child consumed
-/// without a lock, pruned by hand past the pruning limit, commit 7 holds a
+/// without a lock, pruned by hand past the pruning limit, commit 9 holds a
 /// transfer of the child paid with a gas coin named at a wrong digest. Every
-/// read of the transaction's inputs at commit 7 must end the same way: each
+/// read of the transaction's inputs at commit 9 must end the same way: each
 /// validator reads them once, and a storage error saves no decision, so the
 /// commit is validated afresh after the restart that follows the handler's
 /// panic.
@@ -11197,7 +11082,7 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
             let kinds = consumer
                 .collect_all_input_object_kind_for_reading()
                 .unwrap();
-            match loader.read_objects_at_commit(&s.reader_at(7), &kinds) {
+            match loader.read_objects_at_commit(&s.reader_at(9), &kinds) {
                 Ok(InputResolution::Drop(..)) => "drop",
                 Ok(InputResolution::Missing(..)) => "missing",
                 Ok(InputResolution::Loaded(_)) => "loaded",
@@ -11321,16 +11206,16 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
     let consume = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
     let consume_digest = *consume.digest();
     s.execute_with_assigned_commit(vec![consume], 5);
-    // Commit 6 reads at horizon 4: the row of commit 3 keeps the version, the
+    // Commit 8 reads at horizon 4: the row of commit 3 keeps the version, the
     // consumer's row at commit 5 is above the horizon.
-    assert_keeps(s.read_owned(6, named), named);
+    assert_keeps(s.read_owned(8, named), named);
 
     execute_checkpoint_and_prune(&s, &[produce_digest, consume_digest]).await;
-    assert_keeps(s.read_owned(6, named), named);
+    assert_keeps(s.read_owned(8, named), named);
 }
 
 /// A dynamic-field child is consumed through its parent at commit 6 without a
-/// lock, and commit 7 (horizon 5) holds a transaction naming the consumed
+/// lock, and commit 9 (horizon 5) holds a transaction naming the consumed
 /// version as an owned input. On one validator the pruner runs over the
 /// executed checkpoint of those commits, the other has not run it. The
 /// child's bytes stay, and both reach the same result: they drop the
@@ -11383,7 +11268,7 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
             post_consensus_validation::validate_and_resolve_conflicts(
                 &authority,
                 &epoch_store,
-                7,
+                9,
                 true,
                 &Default::default(),
                 &mut transactions,
@@ -11422,16 +11307,18 @@ async fn object_pruning_limit_follows_the_flushed_commits() {
     };
     assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
 
-    // Commit `i` flushes with checkpoint `i`; the horizon distance is 2.
+    // Commit `i` flushes with checkpoint `i`; the horizon distance is 4.
+    for index in 1..=3 {
+        s.epoch_store
+            .flush_commit_through_quarantine_for_testing(index, vec![])
+            .unwrap();
+        assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
+    }
     s.epoch_store
-        .flush_commit_through_quarantine_for_testing(1, vec![])
-        .unwrap();
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
-    s.epoch_store
-        .flush_commit_through_quarantine_for_testing(2, vec![])
+        .flush_commit_through_quarantine_for_testing(4, vec![])
         .unwrap();
     assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(1)));
-    for index in 3..=6 {
+    for index in 5..=8 {
         s.epoch_store
             .flush_commit_through_quarantine_for_testing(index, vec![])
             .unwrap();

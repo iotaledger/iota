@@ -1342,7 +1342,7 @@ impl AuthorityPerEpochStore {
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
-        let resume_point = protocol_config.pcool_deterministic_validation().then(|| {
+        let resume_point = protocol_config.enable_pcool_flow().then(|| {
             tables
                 .get_last_consensus_index()
                 .expect("AuthorityEpochTables should hold a readable consensus resume point")
@@ -1352,7 +1352,7 @@ impl AuthorityPerEpochStore {
         let handler_object_state =
             resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
         let pcool_bookkeeping_enabled =
-            committee.authority_exists(&name) && protocol_config.pcool_deterministic_validation();
+            committee.authority_exists(&name) && protocol_config.enable_pcool_flow();
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1926,7 +1926,7 @@ impl AuthorityPerEpochStore {
         }
         let horizon_distance = self
             .protocol_config()
-            .pcool_deterministic_validation_horizon_distance_or_default();
+            .pcool_deterministic_validation_horizon_distance();
         Some(ObjectPruningLimit {
             epoch: self.epoch(),
             highest_prunable_checkpoint: self
@@ -1970,6 +1970,14 @@ impl AuthorityPerEpochStore {
             return;
         };
         handler_object_state.assign_commit_to_transactions(index, roots);
+    }
+
+    /// See [`HandlerObjectState::assign_to_a_new_commit_for_testing`]. Does
+    /// nothing on a node that keeps no handler object state.
+    pub fn assign_to_a_new_commit_for_testing(&self, keys: &[TransactionKey]) {
+        if let Some(handler_object_state) = &self.handler_object_state {
+            handler_object_state.assign_to_a_new_commit_for_testing(keys);
+        }
     }
 
     /// The execution watcher's end of the assigned-commit channel; `None`
@@ -4441,7 +4449,7 @@ impl AuthorityPerEpochStore {
                 // kept. Without deterministic validation the adapter waits until
                 // the epoch ends, as for the other copies ignored at the end of
                 // the epoch.
-                if self.protocol_config().pcool_deterministic_validation()
+                if self.protocol_config().enable_pcool_flow()
                     && transaction.certificate_author == self.name
                 {
                     self.dropped_tx_status_cache
@@ -4477,7 +4485,7 @@ impl AuthorityPerEpochStore {
                 // author that sent EndOfPublish was already dropped above. A
                 // deferred transaction is reloaded without passing through
                 // here, so it stays eligible.
-                if self.protocol_config().pcool_deterministic_validation()
+                if self.protocol_config().enable_pcool_flow()
                     && !self
                         .get_reconfig_state_read_lock_guard()
                         .should_accept_consensus_certs()
@@ -4645,7 +4653,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
                 ..
             }) => {
-                if !self.protocol_config().deny_rule_governance() {
+                if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring TransactionDenyRuleProposal from {:?}: deny rule governance is disabled",
                         proposal.authority.concise()
@@ -4705,7 +4713,7 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
-        let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+        let deterministic_validation = self.protocol_config.enable_pcool_flow();
         // Only `process_consensus_transactions` below moves the reconfig
         // state to `RejectAllTx`, so this value holds until it runs. Only
         // deterministic validation reads it.
@@ -5409,7 +5417,7 @@ impl AuthorityPerEpochStore {
         roots: &mut BTreeSet<TransactionKey>,
         consensus_commit_info: &ConsensusCommitInfo,
     ) -> IotaResult<()> {
-        if !self.protocol_config().deny_rule_governance_on_chain() {
+        if !self.protocol_config().enable_pcool_flow() {
             return Ok(());
         }
         // Mirroring starts the epoch after the object is created: without the
@@ -5627,6 +5635,18 @@ impl AuthorityPerEpochStore {
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+        let round = self.get_highest_pending_checkpoint_height() / 2 + 1;
+        // With the handler object state, each commit takes a new index, and
+        // the earlier ones count as fully executed: no execution watcher runs
+        // here to complete them.
+        let commit_index = match &self.handler_object_state {
+            Some(handler_object_state) => {
+                let index = handler_object_state.next_commit_index_for_testing();
+                handler_object_state.mark_fully_executed_for_testing(index - 1);
+                index
+            }
+            None => round,
+        };
         let verified_transactions = transactions
             .into_iter()
             .filter_map(|transaction| {
@@ -5642,8 +5662,8 @@ impl AuthorityPerEpochStore {
             checkpoint_service,
             cache_reader,
             &ConsensusCommitInfo::new_for_test(
-                self.get_highest_pending_checkpoint_height() / 2 + 1,
-                self.get_highest_pending_checkpoint_height() / 2 + 1,
+                commit_index,
+                round,
                 0,
                 skip_consensus_commit_prologue_in_test,
             ),
@@ -6586,7 +6606,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
                 ..
             }) => {
-                // The `deny_rule_governance` feature gate is enforced in
+                // The `enable_pcool_flow` feature gate is enforced in
                 // `verify_consensus_transaction`, which filters every
                 // sequenced transaction before it reaches this point.
                 if !self

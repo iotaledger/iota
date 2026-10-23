@@ -358,8 +358,10 @@ checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 100
+deny_rule_update_max_entries_per_tx: 1000
 consensus_gc_depth: 60
 max_congestion_limit_overshoot_per_commit: 100
+pcool_deterministic_validation_horizon_distance: 4
 scorer_version: 2
 auth_context_digest_cost_base: 30
 auth_context_tx_data_bytes_cost_base: 30

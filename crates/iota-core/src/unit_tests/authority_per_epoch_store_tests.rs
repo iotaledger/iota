@@ -1497,8 +1497,6 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
@@ -1661,8 +1659,7 @@ async fn pushed_commit_records_the_proposal_and_recomputes_enforcement() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    protocol_config.set_enable_pcool_flow_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
@@ -1758,8 +1755,6 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     // The validator's own key is needed below: the reopened store gets its own
     // randomness manager, and one is built from the committee member's key.
@@ -1852,8 +1847,6 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
@@ -1936,8 +1929,6 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     // One entry per transaction, so the four denied addresses below split
     // across four chunks.
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1);
@@ -2408,7 +2399,6 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_enable_pcool_flow_for_testing(gated_features_enabled);
     protocol_config.set_calculate_validator_scores_for_testing(gated_features_enabled);
-    protocol_config.set_deny_rule_governance_for_testing(gated_features_enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -2701,7 +2691,7 @@ mod handler_object_state_storage {
     /// lives.
     fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
         iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
+            config.set_enable_pcool_flow_for_testing(true);
             config
         })
     }

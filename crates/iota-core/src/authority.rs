@@ -1042,8 +1042,7 @@ impl AuthorityState {
     /// `deny_config` is the deny rule source to enforce, chosen per caller:
     /// the local config alone, the local config combined with the governance
     /// rules (admission), or the governance-derived active set alone
-    /// (post-consensus) — the latter two when `deny_rule_governance` is
-    /// enabled.
+    /// (post-consensus) — the latter two with `enable_pcool_flow`.
     ///
     /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
     /// `false` reads the latest value, so denials apply immediately - for
@@ -1066,7 +1065,7 @@ impl AuthorityState {
     ///   admission policy can limit how many deterministically-dropped transactions reach
     ///   consensus.
     ///
-    /// With `pcool_deterministic_validation`, post-consensus validation does
+    /// With `enable_pcool_flow`, post-consensus validation does
     /// not call this function: [`Self::handle_transaction_validation_checks_at_commit`]
     /// reads the deny list as of the commit's horizon, where a change made
     /// this epoch counts from the horizon distance after the commit that
@@ -1849,13 +1848,17 @@ impl AuthorityState {
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
     /// checking errors if the pre-conditions are not satisfied, and
-    /// executing change epoch transactions.
+    /// executing change epoch transactions. With the P-COOL flow, a committee
+    /// validator executes only transactions of commits its consensus handler
+    /// assigned, so a transaction the handler has not assigned is assigned to
+    /// a new commit first.
     pub fn try_execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
         execution_env: ExecutionEnv,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
+        epoch_store.assign_to_a_new_commit_for_testing(&[certificate.key()]);
         let (effects, execution_error_opt) = self.try_execute_immediately(
             &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
             execution_env,
@@ -2391,7 +2394,7 @@ impl AuthorityState {
             // Under deterministic validation, a gas owner that cannot be resolved
             // did not authorize the transaction, so nobody pays; its own failure is
             // then the one reported.
-            let deterministic_validation = protocol_config.pcool_deterministic_validation();
+            let deterministic_validation = protocol_config.enable_pcool_flow();
             let mut first_resolution_error = None;
             let mut gas_owner_resolution_error = None;
             let mut resolved_authenticators = Vec::with_capacity(move_authenticators.len());
@@ -5593,9 +5596,7 @@ impl AuthorityState {
         // committee injects (or skips) the kind together. If this epoch
         // change falls into safe mode the creation is dropped with it, the
         // object stays absent, and the next epoch end injects it again.
-        if epoch_store
-            .protocol_config()
-            .deny_rule_governance_on_chain()
+        if epoch_store.protocol_config().enable_pcool_flow()
             && epoch_store
                 .epoch_start_config()
                 .transaction_deny_rules_obj_initial_shared_version()

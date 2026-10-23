@@ -1401,6 +1401,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
@@ -1749,6 +1752,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
