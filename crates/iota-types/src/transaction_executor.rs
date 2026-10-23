@@ -117,14 +117,14 @@ pub struct SimulateTransactionResult {
 /// [`VmChecks::Enabled`], a dev inspect wants [`VmChecks::Disabled`].
 #[derive(Default, Debug, Copy, Clone)]
 pub enum VmChecks {
-    /// Run the transaction as it would run on chain: the same input and gas
-    /// checks a validator applies, and metering against the transaction's own
-    /// budget.
+    /// Run the transaction as it would run on chain: the input checks a
+    /// validator applies ([`InputCheckRules::STRICT`]), and metering against
+    /// the transaction's own budget.
     #[default]
     Enabled,
     /// Relax the rules around entry functions and argument values, so that any
-    /// Move function can be called and any value built from its bytes. Input
-    /// checks are reduced to the ones execution cannot proceed without.
+    /// Move function can be called and any value built from its bytes, and
+    /// drop the input checks named in [`InputCheckRules::RELAXED_UNSAFE`].
     Disabled,
 }
 
