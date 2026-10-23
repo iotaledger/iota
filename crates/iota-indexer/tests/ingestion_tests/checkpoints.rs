@@ -55,7 +55,6 @@ pub async fn watermarks_table(
         .await
 }
 
-#[rstest]
 #[tokio::test]
 pub async fn epoch_partitioned_tables() -> Result<(), IndexerError> {
     EpochPartitionedTables
@@ -222,7 +221,7 @@ impl IngestionTest for EpochPartitionedTables {
         let num_epochs = 4;
         for _i in 0..num_epochs {
             sim.inner.create_checkpoint(); // checkpoint at epoch _i
-            sim.inner.advance_epoch(false); // last checkpoint at epoch _i and epoch _i + 1
+            sim.inner.advance_epoch(false); // last checkpoint at epoch _i, starts epoch _i + 1
         }
         sim.inner.create_checkpoint(); // checkpoint at epoch 4
         let pg_store = sim.start_indexer(None).await;
