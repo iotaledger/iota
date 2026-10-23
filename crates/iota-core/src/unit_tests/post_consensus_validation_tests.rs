@@ -149,11 +149,6 @@ fn make_end_of_publish() -> VerifiedSequencedConsensusTransaction {
 /// Test that a valid UserTransactionV1 passes through validation unchanged.
 #[sim_test]
 async fn test_valid_user_transaction_passes() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
@@ -213,7 +208,6 @@ async fn drop_error_for_gas_version_below_canceled_range(
     validate_input_object_versions: bool,
 ) -> IotaError {
     let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_validate_input_object_versions_for_testing(validate_input_object_versions);
         config
     });
@@ -343,11 +337,6 @@ async fn test_non_user_transaction_passes_through() {
 /// deduplicated: only the first occurrence is kept.
 #[sim_test]
 async fn test_duplicate_transaction_deduplicated() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
@@ -406,11 +395,6 @@ async fn test_duplicate_transaction_deduplicated() {
 /// correctly filtered: only duplicates are removed, valid and non-user pass.
 #[sim_test]
 async fn test_mixed_batch_filtering() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
@@ -486,11 +470,6 @@ async fn test_mixed_batch_filtering() {
 #[sim_test]
 async fn test_simple_conflict() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
@@ -584,11 +563,6 @@ async fn test_simple_conflict() {
 #[sim_test]
 async fn test_stale_version_dropped_fresh_kept() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
@@ -702,11 +676,6 @@ async fn test_stale_version_dropped_fresh_kept() {
 async fn test_no_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
@@ -791,11 +760,6 @@ async fn test_no_conflict() {
 #[sim_test]
 async fn test_chain_conflict() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
@@ -907,11 +871,6 @@ async fn test_chain_conflict() {
 #[sim_test]
 async fn test_multiple_conflicts_in_batch() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
@@ -1031,11 +990,6 @@ async fn test_multiple_conflicts_in_batch() {
 async fn test_gas_object_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
@@ -1122,11 +1076,6 @@ async fn test_gas_object_conflict() {
 #[sim_test]
 async fn test_winner_blocks_multiple_losers() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
@@ -1249,11 +1198,6 @@ async fn test_winner_blocks_multiple_losers() {
 #[sim_test]
 async fn test_dropped_tx_does_not_acquire_locks() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
@@ -1408,11 +1352,6 @@ async fn test_dropped_tx_does_not_acquire_locks() {
 /// than `#[sim_test]` — it does not need the deterministic simulator.
 #[tokio::test]
 async fn already_executed_tx_must_remain_in_checkpoint_roots() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
@@ -1508,11 +1447,6 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
 /// Only the winner of the owned-object conflict may appear in the roots.
 #[tokio::test]
 async fn double_spend_loser_excluded_from_checkpoint_roots() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
@@ -1628,9 +1562,6 @@ enum LockTier {
 }
 
 /// Shared setup: one owned object + one gas object, both owned by `sender`.
-/// `_config_guard` keeps the P-COOL protocol-config override active for
-/// the duration of the test; on drop it clears the thread-local override so a
-/// later test on the same OS thread can install its own.
 struct LockTierSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
@@ -1640,15 +1571,9 @@ struct LockTierSetup {
     object_ref: ObjectReference,
     gas_ref: ObjectReference,
     rgp: u64,
-    _config_guard: OverrideGuard,
 }
 
 async fn setup_lock_tier() -> LockTierSetup {
-    let _config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
@@ -1674,7 +1599,6 @@ async fn setup_lock_tier() -> LockTierSetup {
         object_ref,
         gas_ref,
         rgp,
-        _config_guard,
     }
 }
 
@@ -2009,11 +1933,6 @@ fn activate_deny_rules(
 /// transaction whose sender is denied by the consensus-governed active set.
 #[sim_test]
 async fn post_consensus_validation_uses_governance_rules() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
@@ -2069,11 +1988,6 @@ async fn post_consensus_validation_uses_governance_rules() {
 /// address, a non-denied sender's transaction is kept and takes its locks.
 #[sim_test]
 async fn post_consensus_validation_keeps_non_denied_transactions() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
@@ -2125,11 +2039,6 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
 /// proposal withdraws the rules the same sender's transaction is kept.
 #[sim_test]
 async fn post_consensus_validation_applies_relaxed_rules() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
@@ -2231,15 +2140,13 @@ async fn setup_handler_object_state(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
 ) -> HandlerObjectStateSetup {
-    let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-        if validation_enabled {
-            config.set_enable_pcool_flow_for_testing(true);
-        } else {
+    let config_guard = (!validation_enabled).then(|| {
+        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(false);
-        }
-        config
+            config
+        })
     });
-    setup_handler_object_state_with_config_guard(genesis_objects, Some(config_guard)).await
+    setup_handler_object_state_with_config_guard(genesis_objects, config_guard).await
 }
 
 /// Like [`setup_handler_object_state`] with the flags on, but for a node whose authority
@@ -2247,14 +2154,10 @@ async fn setup_handler_object_state(
 async fn setup_handler_object_state_outside_committee(
     genesis_objects: Vec<Object>,
 ) -> HandlerObjectStateSetup {
-    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     // The builder's genesis committee holds its own generated validator keys,
     // so a node signing with a fresh key is outside it.
     let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
-    build_handler_object_state_setup(genesis_objects, Some(config_guard), Some(&keypair)).await
+    build_handler_object_state_setup(genesis_objects, None, Some(&keypair)).await
 }
 
 /// Like [`setup_handler_object_state`], under the protocol config override the caller
@@ -2300,17 +2203,8 @@ async fn setup_handler_object_state_with_package(
     sender: Address,
     gas_id: ObjectId,
 ) -> HandlerObjectStateSetup {
-    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-    setup_handler_object_state_with_package_and_config_guard(
-        package_name,
-        sender,
-        gas_id,
-        Some(config_guard),
-    )
-    .await
+    setup_handler_object_state_with_package_and_config_guard(package_name, sender, gas_id, None)
+        .await
 }
 
 /// [`setup_handler_object_state_with_package`] under the protocol config override the
@@ -5357,12 +5251,6 @@ async fn receive_of_a_version_deleted_last_epoch_is_dropped_on_every_node() {
         assert_eq!(s.epoch_store.epoch(), 1);
         assert!(s.epoch_store.protocol_config().enable_pcool_flow());
     }
-    pruning._config_guard = Some(ProtocolConfig::apply_overrides_for_testing(
-        |_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        },
-    ));
 
     // The same transaction on both validators: their stores agree on the
     // parent's and the gas coin's latest versions.
@@ -5977,14 +5865,6 @@ async fn setup_account_with_authenticator_in_object_basics(
     (s, tx)
 }
 
-/// The protocol config override with deterministic validation on.
-fn enable_deterministic_validation() -> OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    })
-}
-
 /// Post-consensus validation does not resolve the account, but it still
 /// checks the package that holds the account's authenticate function, and that
 /// package's dependencies, against the deny rules, as a validator does before
@@ -5993,9 +5873,7 @@ fn enable_deterministic_validation() -> OverrideGuard {
 /// admission gives.
 #[tokio::test]
 async fn validation_at_commit_checks_the_authenticator_package_against_the_deny_rules() {
-    let (s, tx) =
-        setup_account_with_authenticator_in_object_basics(Some(enable_deterministic_validation()))
-            .await;
+    let (s, tx) = setup_account_with_authenticator_in_object_basics(None).await;
 
     for denied in [s.package_id, ObjectId::FRAMEWORK] {
         assert_authenticator_package_denied(
@@ -6322,7 +6200,6 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
 #[tokio::test]
 async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_flag_off() {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_deny_authenticator_packages_for_testing(false);
         config
     });
@@ -7015,7 +6892,6 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
 #[tokio::test]
 async fn executed_deferred_transaction_replays_both_occurrences() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7128,7 +7004,6 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
 #[tokio::test]
 async fn deferred_transaction_is_kept_without_being_validated_again() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7230,7 +7105,6 @@ async fn deferred_transaction_is_kept_without_being_validated_again() {
 #[tokio::test]
 async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7480,7 +7354,6 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
 /// others.
 fn enable_deterministic_validation_with_one_transaction_per_commit() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -7586,7 +7459,7 @@ async fn deferred_unauthorized_account_transaction_moves_its_gas_coin_at_executi
     let (other, other_key): (Address, AccountPrivateKey) = get_key_pair();
     let other_ids = [ObjectId::random(), ObjectId::random()];
     let (s, account_id, gas_id) = setup_unauthorized_gas_owner(
-        enable_deterministic_validation_with_one_transaction_per_commit(),
+        Some(enable_deterministic_validation_with_one_transaction_per_commit()),
         other_ids
             .iter()
             .map(|id| Object::with_id_owner_for_testing(*id, other))
@@ -8411,7 +8284,6 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(5);
         config
     });
@@ -8684,16 +8556,10 @@ struct ImmutableInputSetup {
     gas2_ref: ObjectReference,
     owned_ref: ObjectReference,
     rgp: u64,
-    _config_guard: OverrideGuard,
 }
 
-/// Builds the state above with the P-COOL flow on.
+/// Builds the state above.
 async fn setup_immutable_input() -> ImmutableInputSetup {
-    let _config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
 
     let immutable_id = ObjectId::random();
@@ -8724,7 +8590,6 @@ async fn setup_immutable_input() -> ImmutableInputSetup {
         sender_key,
         package_ref,
         rgp,
-        _config_guard,
     }
 }
 
@@ -8964,10 +8829,6 @@ async fn assert_node_limits_reject(setup: &PublishSetup) {
 /// keeps it, as every validator on default settings does.
 #[tokio::test]
 async fn post_consensus_validation_meters_packages_with_protocol_limits() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let setup = setup_publish_with_one_tick_node_limits().await;
     assert_node_limits_reject(&setup).await;
 
@@ -9239,14 +9100,14 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
     );
 }
 
-/// A [`HandlerObjectStateSetup`] under `config_guard`, with an account since the epoch
-/// started whose authenticator function does not exist, a gas coin owned by
-/// the account's address, and `other_objects` at genesis. Returns the setup,
-/// the account's id and the coin's id. A transaction naming the account and
-/// paying with the coin fails at execution, since its authenticator cannot
-/// run, so the account never authorized it.
+/// A [`HandlerObjectStateSetup`] under `config_guard`, if any, with an account
+/// since the epoch started whose authenticator function does not exist, a gas
+/// coin owned by the account's address, and `other_objects` at genesis.
+/// Returns the setup, the account's id and the coin's id. A transaction naming
+/// the account and paying with the coin fails at execution, since its
+/// authenticator cannot run, so the account never authorized it.
 async fn setup_unauthorized_gas_owner(
-    config_guard: OverrideGuard,
+    config_guard: Option<OverrideGuard>,
     other_objects: Vec<Object>,
 ) -> (HandlerObjectStateSetup, ObjectId, ObjectId) {
     let account_id = ObjectId::random();
@@ -9258,7 +9119,7 @@ async fn setup_unauthorized_gas_owner(
         Object::with_id_owner_for_testing(gas_id, account_id.into()),
     ];
     genesis_objects.extend(other_objects);
-    let s = setup_handler_object_state_with_config_guard(genesis_objects, Some(config_guard)).await;
+    let s = setup_handler_object_state_with_config_guard(genesis_objects, config_guard).await;
     (s, account_id, gas_id)
 }
 
@@ -9304,8 +9165,7 @@ fn account_authenticator(account_id: ObjectId) -> MoveAuthenticatorV1 {
 /// failure consumed is still dropped on the failed transaction's lock.
 #[tokio::test]
 async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
-    let (s, account_id, gas_id) =
-        setup_unauthorized_gas_owner(enable_deterministic_validation(), vec![]).await;
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner(None, vec![]).await;
     let failed_at = 5;
     let gas_ref = s.latest_ref(&gas_id);
     let unauthorized =
@@ -9409,8 +9269,7 @@ async fn keep_and_fail(
 /// is kept once the horizon reaches the commit of the failure.
 #[tokio::test]
 async fn consecutive_failures_each_move_the_gas_coin_on() {
-    let (s, account_id, gas_id) =
-        setup_unauthorized_gas_owner(enable_deterministic_validation(), vec![]).await;
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner(None, vec![]).await;
     let mut commit = 5;
     for value in 1..=3 {
         let tx = s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, value);
@@ -9426,8 +9285,7 @@ async fn consecutive_failures_each_move_the_gas_coin_on() {
 /// dropped.
 #[tokio::test]
 async fn already_executed_transaction_locks_the_gas_coin_it_names() {
-    let (s, account_id, gas_id) =
-        setup_unauthorized_gas_owner(enable_deterministic_validation(), vec![]).await;
+    let (s, account_id, gas_id) = setup_unauthorized_gas_owner(None, vec![]).await;
     let gas_ref = s.latest_ref(&gas_id);
     let unauthorized =
         s.build_self_paid_account_call(account_authenticator(account_id), &gas_id, 1);
@@ -9976,8 +9834,7 @@ fn share_zero_regulated_coin(
 /// publishes the coin, hands out the owned coins and denies the address with
 /// deterministic validation off, as its executions run outside any consensus
 /// commit; the epoch change turns it on and makes the denial active for the
-/// epoch-gated read. The first setup holds the protocol config override for
-/// both.
+/// epoch-gated read.
 async fn setup_validators_with_a_shared_regulated_coin(
     options: RegulatedCoinOptions,
 ) -> (
@@ -9999,12 +9856,6 @@ async fn setup_validators_with_a_shared_regulated_coin(
         Object::with_id_owner_for_testing(other_gas, other),
     ];
 
-    let enable_validation = || {
-        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        })
-    };
     let epoch_zero_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(false);
         config
@@ -10113,7 +9964,6 @@ async fn setup_validators_with_a_shared_regulated_coin(
         assert_eq!(s.epoch_store.epoch(), 1);
         assert!(s.epoch_store.pcool_bookkeeping_enabled());
     }
-    validators[0]._config_guard = Some(enable_validation());
 
     let mut shared_coins = Vec::new();
     for (s, (coin_type, _, _, shared_before_the_epoch)) in validators.iter().zip(&coins) {

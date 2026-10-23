@@ -7,7 +7,7 @@ use iota_network::api::{
     GetCheckpointRequest, GetTxStatusRequest, NotifyCapabilitiesRequest, SubmitTxRequest,
     TxStatusQuery, ValidatorPeer, ValidatorV2,
 };
-use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig};
+use iota_protocol_config::{Chain, ProtocolConfig};
 // Additional imports for P-COOL tests
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, SplitCoins,
@@ -396,17 +396,11 @@ async fn collect_v2_stream(
 /// returned [`OverrideGuard`] enables the P-COOL flow and must be kept alive
 /// for the duration of the test.
 async fn setup_v2_transfer_tx() -> (
-    OverrideGuard,
     Arc<ValidatorService>,
     TransactionEnvelope,
     TransactionDigest,
 ) {
     telemetry_subscribers::init_for_testing();
-
-    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
@@ -445,12 +439,12 @@ async fn setup_v2_transfer_tx() -> (
     let tx = to_sender_signed_transaction(tx, &sender_key);
     let expected_digest = *tx.digest();
 
-    (guard, validator_service, tx, expected_digest)
+    (validator_service, tx, expected_digest)
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_success() {
-    let (_guard, validator_service, tx, expected_digest) = setup_v2_transfer_tx().await;
+    let (validator_service, tx, expected_digest) = setup_v2_transfer_tx().await;
 
     let response = validator_service
         .submit_tx(make_v2_submit_request(vec![tx]))
@@ -469,7 +463,7 @@ async fn test_v2_submit_tx_success() {
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_resubmission_suppressed() {
-    let (_guard, validator_service, tx, expected_digest) = setup_v2_transfer_tx().await;
+    let (validator_service, tx, expected_digest) = setup_v2_transfer_tx().await;
 
     // First submission goes through.
     let response = validator_service
@@ -509,11 +503,6 @@ async fn test_v2_submit_tx_resubmission_suppressed() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_invalid_signature() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let sender = Address::random();
     let wrong_key = AccountPrivateKey::random();
@@ -635,11 +624,6 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
 async fn test_v2_submit_tx_already_executed() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -702,11 +686,6 @@ async fn test_v2_submit_tx_already_executed() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
@@ -798,11 +777,6 @@ async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
 async fn test_v2_submit_tx_multiple_transactions() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id1 = ObjectId::random();
     let gas_id2 = ObjectId::random();
@@ -848,11 +822,6 @@ async fn test_v2_submit_tx_multiple_transactions() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_invalid_transaction() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
@@ -913,11 +882,6 @@ async fn test_v2_submit_tx_invalid_transaction() {
 async fn test_v2_submit_tx_gas_object_validation() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
 
@@ -970,11 +934,6 @@ async fn test_v2_submit_tx_gas_object_validation() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_different_gas_prices_accepted() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id1 = ObjectId::random();
@@ -1045,11 +1004,6 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_oversized_transaction() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
@@ -1169,11 +1123,6 @@ async fn collect_v2_status_stream(
 async fn test_v2_get_tx_status_already_executed() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1244,11 +1193,6 @@ async fn test_v2_get_tx_status_already_executed() {
 async fn test_v2_get_tx_status_already_executed_with_details() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1316,11 +1260,6 @@ async fn test_v2_get_tx_status_refuses_contradicting_previously_signed() {
     // the acknowledgment is unsigned. Simulates divergent re-execution by
     // recording a signed digest that differs from the executed effects.
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
@@ -1414,11 +1353,6 @@ async fn test_v2_get_tx_status_allows_matching_previously_signed() {
     // the wait path serves it, exercising the equivocation check there.
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1498,11 +1432,6 @@ async fn test_v2_get_tx_status_allows_matching_previously_signed() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_get_tx_status_multiple_queries() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id1 = ObjectId::random();
@@ -1598,11 +1527,6 @@ async fn test_v2_get_tx_status_multiple_queries() {
 async fn test_v2_get_tx_status_too_many_queries() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let authority_state = TestAuthorityBuilder::new().build().await;
 
     let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
@@ -1634,11 +1558,6 @@ async fn test_v2_get_tx_status_too_many_queries() {
 async fn test_v2_get_tx_status_empty_queries_ping() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let authority_state = TestAuthorityBuilder::new().build().await;
 
     let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
@@ -1663,11 +1582,6 @@ async fn test_v2_get_tx_status_empty_queries_ping() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_get_tx_status_dropped_digest_rejected() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let authority_state = TestAuthorityBuilder::new().build().await;
 
@@ -1707,11 +1621,6 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
 async fn test_v2_get_tx_status_unknown_digest_expires() {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     let authority_state = TestAuthorityBuilder::new().build().await;
 
     let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
@@ -1745,11 +1654,6 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn v2_get_tx_status_stops_waiting_when_stream_is_dropped() {
     telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     let authority_state = TestAuthorityBuilder::new().build().await;
     let epoch_store = authority_state.epoch_store_for_testing();

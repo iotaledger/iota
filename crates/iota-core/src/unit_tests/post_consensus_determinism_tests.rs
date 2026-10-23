@@ -3432,7 +3432,6 @@ fn package_read(verdict: PackageVerdict) -> InputRead {
 /// `horizon_distance` each time a protocol config is built.
 fn pcool_flags(horizon_distance: Arc<AtomicU64>) -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(
             horizon_distance.load(Ordering::SeqCst),
         );
