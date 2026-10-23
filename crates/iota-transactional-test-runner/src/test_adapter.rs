@@ -226,7 +226,18 @@ impl AdapterInitConfig {
             .unwrap_or_default();
 
         let mut protocol_config = if let Some(protocol_version) = protocol_version {
-            ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
+            let mut config =
+                ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown);
+            // The test chain runs the P-COOL flow from protocol version 32, but
+            // sets the settings it requires only from version 39. A test pinned
+            // to an earlier version gets the values version 39 sets.
+            if protocol_version < 39 && config.enable_pcool_flow() {
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
+                config.set_consensus_dedup_only_recorded_messages_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_max_meter_ticks_regex_reference_safety_for_testing(2_200_000);
+            }
+            config
         } else {
             ProtocolConfig::get_for_max_version_UNSAFE()
         };

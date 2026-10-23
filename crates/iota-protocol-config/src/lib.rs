@@ -2352,9 +2352,11 @@ impl ProtocolConfig {
         }
 
         // Devnet runs the P-COOL flow from version 32, before the settings it
-        // requires exist; only versions from 39 on are checked for them.
+        // requires exist; only versions from 39 on are checked for them. A test
+        // override can return the config of another version, so the check
+        // reads the version of the config returned.
         let pcool_requirements_apply =
-            ret.feature_flags.enable_pcool_flow && version >= ProtocolVersion::new(39);
+            ret.feature_flags.enable_pcool_flow && ret.version >= ProtocolVersion::new(39);
         // Post-consensus validation meters published packages with the
         // verifier limits from this config, and reads the regex check budget
         // through the panicking accessor.
@@ -4563,6 +4565,20 @@ mod test {
         assert!(config.consensus_dedup_only_recorded_messages());
         assert_eq!(config.pcool_deterministic_validation_horizon_distance(), 4);
         assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
+    }
+
+    /// An override that returns an older version's config for every version
+    /// asked for, as `TestAuthorityBuilder` installs, is checked against the
+    /// version of that config, which runs the P-COOL flow on Devnet before the
+    /// settings it requires exist.
+    #[test]
+    fn an_override_returning_an_older_config_is_checked_against_its_version() {
+        let older = ProtocolConfig::get_for_version(ProtocolVersion::new(37), Chain::Unknown);
+        assert!(older.enable_pcool_flow());
+        assert!(!older.consensus_dedup_only_recorded_messages());
+        let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| older.clone());
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(config.version, ProtocolVersion::new(37));
     }
 
     /// Without `consensus_dedup_only_recorded_messages` the consensus handler
