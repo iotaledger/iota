@@ -1537,11 +1537,13 @@ async fn validator_far_behind_catches_up_across_epoch_end() {
         .await;
 }
 
-/// With `enable_pcool_flow`, a validator
-/// killed after it certified its epoch's last checkpoint and marked it synced,
-/// but before it executed it, recovers on restart and reaches the next epochs. The
-/// transactions of its unexecuted checkpoints exist only in memory, so it has
-/// to replay its consensus commits and rebuild those checkpoints.
+/// With `enable_pcool_flow`, a validator killed after it marked its epoch's
+/// last checkpoint synced, but before it executed it, recovers on restart and
+/// reaches the next epochs. Whether state sync took the checkpoint from the
+/// validator's own aggregator or from peers, the kill comes at the first
+/// epoch's end. The transactions of its unexecuted checkpoints exist only in
+/// memory, so it has to replay its consensus commits and rebuild those
+/// checkpoints.
 #[cfg(msim)]
 #[sim_test]
 async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
@@ -1565,7 +1567,7 @@ async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
     let killed = Arc::new(AtomicBool::new(false));
     {
         let killed = killed.clone();
-        register_fail_point("synced-end-of-epoch-checkpoint-from-consensus", move || {
+        register_fail_point("synced-end-of-epoch-checkpoint", move || {
             if iota_simulator::current_simnode_id() == crashed_sim_id
                 && !killed.swap(true, Ordering::SeqCst)
             {
@@ -1579,7 +1581,7 @@ async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
         }
     })
     .await
-    .expect("the validator should certify the end of the first epoch");
+    .expect("the validator should mark the first epoch's last checkpoint synced");
 
     // The simulator restarts a killed node on its own; stop and start it
     // explicitly to get a handle to the new instance.
