@@ -249,7 +249,6 @@ unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = [
-  "https://github.com/iotaledger/iota-rust-sdk.git",
   "https://github.com/iotaledger/iota-sim.git",
   "https://github.com/MystenLabs/fastcrypto.git",
   "https://github.com/mystenlabs/anemo.git",
