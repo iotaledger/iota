@@ -12,15 +12,13 @@
 # crates whose latest release lags behind the others keep working. The release
 # dates come from the crates.io API; yanked releases are skipped.
 #
-# An argument is detected: a semver version (for example 1.0.0-rc.2) pins that
-# crates.io release of every crate, a hex commit hash (7 to 40 characters) pins
-# that commit. Every other attribute of a dependency line (package,
-# default-features, features, optional, ...) is kept as is.
+# With a hex commit hash (7 to 40 characters) as argument, every SDK crate is
+# pinned to that commit instead. Every other attribute of a dependency line
+# (package, default-features, features, optional, ...) is kept as is.
 #
-# Usage: ./scripts/update_rust_sdk.sh [version|commit]
+# Usage: ./scripts/update_rust_sdk.sh [commit]
 # Examples:
 #   ./scripts/update_rust_sdk.sh
-#   ./scripts/update_rust_sdk.sh 1.0.0-rc.2
 #   ./scripts/update_rust_sdk.sh e85d63ce8048a08e3a74949f0548299f13c58e49
 
 set -euo pipefail
@@ -38,20 +36,16 @@ SDK_CRATE_PATTERN='iota-sdk-[a-z0-9-]+'
 
 SOURCE=${1:-}
 
-VERSION_PATTERN='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
 COMMIT_PATTERN='^[0-9a-f]{7,40}$'
 
 if [ -z "$SOURCE" ]; then
     SOURCE_KIND=latest
-elif [[ $SOURCE =~ $VERSION_PATTERN ]]; then
-    SOURCE_KIND=version
 elif [[ $SOURCE =~ $COMMIT_PATTERN ]]; then
     SOURCE_KIND=rev
 else
-    echo "Usage: $0 [version|commit]"
+    echo "Usage: $0 [commit]"
     echo "Examples:"
     echo "  $0"
-    echo "  $0 1.0.0-rc.2"
     echo "  $0 e85d63ce8048a08e3a74949f0548299f13c58e49"
     exit 1
 fi
@@ -193,12 +187,6 @@ latest)
         SDK_VERSIONS+="$crate=$release"$'\n'
     done
     echo "Pinning the SDK crates to their latest releases"
-    ;;
-version)
-    for crate in $(sdk_manifests env SDK_MODE=list | sort -u); do
-        SDK_VERSIONS+="$crate=$SOURCE"$'\n'
-    done
-    echo "Pinning the SDK crates to version $SOURCE"
     ;;
 rev)
     echo "Pinning the SDK crates to commit $SOURCE"
