@@ -130,7 +130,7 @@ pub struct QueryableEpochSystemState {
 #[derive(Insertable, Identifiable, AsChangeset, Clone, Debug)]
 #[diesel(primary_key(epoch))]
 #[diesel(table_name = epochs)]
-pub(crate) struct StartOfEpochUpdate {
+pub struct StartOfEpochUpdate {
     pub epoch: i64,
     pub first_checkpoint_id: i64,
     pub first_tx_sequence_number: i64,
@@ -145,7 +145,7 @@ pub(crate) struct StartOfEpochUpdate {
 #[derive(Identifiable, AsChangeset, Clone, Debug)]
 #[diesel(primary_key(epoch))]
 #[diesel(table_name = epochs)]
-pub(crate) struct EndOfEpochUpdate {
+pub struct EndOfEpochUpdate {
     pub epoch: i64,
     pub network_total_transactions: i64,
     pub last_checkpoint_id: i64,
@@ -160,7 +160,7 @@ pub(crate) struct EndOfEpochUpdate {
 }
 
 impl StartOfEpochUpdate {
-    pub fn new(
+    pub(crate) fn new(
         new_system_state_summary: &IotaSystemStateSummary,
         first_checkpoint_id: u64,
         first_tx_sequence_number: u64,
@@ -189,7 +189,7 @@ impl StartOfEpochUpdate {
 }
 
 impl EndOfEpochUpdate {
-    pub fn new(
+    pub(crate) fn new(
         last_checkpoint_summary: &CertifiedCheckpointSummary,
         event: &IndexedEpochInfoEvent,
     ) -> Self {

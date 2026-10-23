@@ -15,6 +15,7 @@ use crate::{
     },
     models::{
         display::StoredDisplay,
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
         packages::StoredPackage,
@@ -74,7 +75,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn persist_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError>;
 
-    async fn advance_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError>;
+    async fn advance_epoch(
+        &self,
+        last_epoch: EndOfEpochUpdate,
+        new_epoch: StartOfEpochUpdate,
+    ) -> Result<(), IndexerError>;
 
     async fn get_network_total_transactions_by_end_of_epoch(
         &self,
