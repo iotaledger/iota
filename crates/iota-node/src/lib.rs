@@ -25,7 +25,10 @@ use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
-    ConsensusConfig, NodeConfig, node::RunWithRange, node_config_metrics::NodeConfigMetrics,
+    ConsensusConfig, NodeConfig,
+    node::{GrpcApiConfig, RunWithRange},
+    node_config_metrics::NodeConfigMetrics,
+    object_storage_config::ObjectStoreConfig,
 };
 use iota_core::{
     authority::{
@@ -395,6 +398,10 @@ impl IotaNode {
         let run_with_range = config.run_with_range;
         let is_validator = config.is_validator();
         let is_full_node = !is_validator;
+        // Validators do not expose gRPC APIs. This must agree with the gRPC
+        // rule in `NodeConfig::validate`, which is what makes the `expect` on
+        // the gRPC API config below unreachable.
+        let serves_grpc_api = is_full_node && config.enable_grpc_api;
         let prometheus_registry = registry_service.default_registry();
 
         info!(node =? config.authority_public_key(),
@@ -633,7 +640,7 @@ impl IotaNode {
             None
         };
 
-        let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
+        let grpc_indexes_store = if serves_grpc_api {
             Some(Arc::new(
                 GrpcIndexesStore::new(
                     config.db_path().join(GRPC_INDEXES_DIR),
@@ -688,21 +695,27 @@ impl IotaNode {
         );
 
         info!("start snapshot upload");
-        // The state snapshot writer is the consumer of the epoch end database
-        // snapshot: the boundary hands each epoch to it on this channel. A
-        // depth of one is enough, because an epoch arriving while the writer
-        // is still busy is skipped rather than queued.
-        let (state_snapshot_requests, state_snapshot_receiver) = mpsc::channel(1);
-        let state_snapshot_handle = Self::start_state_snapshot(
-            &config,
-            &prometheus_registry,
-            checkpoint_store.clone(),
-            perpetual_tables_for_snapshots,
-            state_snapshot_receiver,
-        )?;
-        let epoch_end_db_snapshots = state_snapshot_handle
-            .is_some()
-            .then(|| EpochEndDbSnapshotHandle::new(state_snapshot_requests));
+        let (state_snapshot_handle, epoch_end_db_snapshots) =
+            match &config.state_snapshot_write_config.object_store_config {
+                Some(remote_store_config) => {
+                    // The state snapshot writer is the consumer of the epoch end
+                    // database snapshot: the boundary hands each epoch to it on
+                    // this channel. A depth of one is enough, because an epoch
+                    // arriving while the writer is still busy is skipped rather
+                    // than queued.
+                    let (requests, receiver) = mpsc::channel(1);
+                    let handle = Self::start_state_snapshot(
+                        &config,
+                        remote_store_config,
+                        &prometheus_registry,
+                        checkpoint_store.clone(),
+                        perpetual_tables_for_snapshots,
+                        receiver,
+                    )?;
+                    (Some(handle), Some(EpochEndDbSnapshotHandle::new(requests)))
+                }
+                None => (None, None),
+            };
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
@@ -805,27 +818,34 @@ impl IotaNode {
             None
         };
 
-        // Run the JSON-RPC server (and its per-request handlers) on the serving
-        // runtime. `iota_http::Builder::serve` spawns the accept loop via
-        // `Handle::current()`, so the builder must execute on the serving runtime.
-        let http_server = serving_rt_handle
-            .spawn({
-                let state = state.clone();
-                let transaction_orchestrator = transaction_orchestrator.clone();
-                let config = config.clone();
-                let prometheus_registry = prometheus_registry.clone();
-                async move {
-                    build_http_server(
-                        state,
-                        &transaction_orchestrator,
-                        &config,
-                        &prometheus_registry,
-                    )
+        // Validators do not expose the JSON-RPC API.
+        let http_server = if is_full_node {
+            // Run the JSON-RPC server (and its per-request handlers) on the serving
+            // runtime. `iota_http::Builder::serve` spawns the accept loop via
+            // `Handle::current()`, so the builder must execute on the serving runtime.
+            Some(
+                serving_rt_handle
+                    .spawn({
+                        let state = state.clone();
+                        let transaction_orchestrator = transaction_orchestrator.clone();
+                        let config = config.clone();
+                        let prometheus_registry = prometheus_registry.clone();
+                        async move {
+                            build_http_server(
+                                state,
+                                &transaction_orchestrator,
+                                &config,
+                                &prometheus_registry,
+                            )
+                            .await
+                        }
+                    })
                     .await
-                }
-            })
-            .await
-            .expect("Failed to join JSON-RPC server startup task")?;
+                    .expect("Failed to join JSON-RPC server startup task")?,
+            )
+        } else {
+            None
+        };
 
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
             cache_traits.global_state_hash_store.clone(),
@@ -864,36 +884,48 @@ impl IotaNode {
             .configured_max_protocol_version
             .set(config.supported_protocol_versions.unwrap().max.as_u64() as i64);
 
-        // Convert transaction orchestrator to executor trait object for gRPC server
-        // Note that the transaction_orchestrator (so as executor) will be None if it is
-        // a validator node or run_with_range is set
-        let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
-            transaction_orchestrator
+        let grpc_server_handle = if serves_grpc_api {
+            let grpc_api_config = config
+                .grpc_api_config
                 .clone()
-                .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
+                .expect("`NodeConfig::validate` rejects an enabled gRPC API without a config");
 
-        // Run the gRPC read API server (and its per-request handlers) on the
-        // serving runtime, for the same reason as the JSON-RPC server above.
-        let grpc_server_handle = serving_rt_handle
-            .spawn({
-                let config = config.clone();
-                let state = state.clone();
-                let state_sync_store = state_sync_store.clone();
-                let prometheus_registry = prometheus_registry.clone();
-                async move {
-                    build_grpc_server(
-                        &config,
-                        state,
-                        state_sync_store,
-                        executor,
-                        &prometheus_registry,
-                        server_version,
-                    )
+            // Convert transaction orchestrator to executor trait object for gRPC server
+            // Note that the transaction_orchestrator (so as executor) will be None if
+            // run_with_range is set
+            let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
+                transaction_orchestrator
+                    .clone()
+                    .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
+
+            // Run the gRPC read API server (and its per-request handlers) on the
+            // serving runtime, for the same reason as the JSON-RPC server above.
+            Some(
+                serving_rt_handle
+                    .spawn({
+                        let config = config.clone();
+                        let state = state.clone();
+                        let state_sync_store = state_sync_store.clone();
+                        let prometheus_registry = prometheus_registry.clone();
+                        async move {
+                            build_grpc_server(
+                                grpc_api_config,
+                                &config,
+                                state,
+                                state_sync_store,
+                                executor,
+                                &prometheus_registry,
+                                server_version,
+                            )
+                            .await
+                        }
+                    })
                     .await
-                }
-            })
-            .await
-            .expect("Failed to join gRPC server startup task")?;
+                    .expect("Failed to join gRPC server startup task")?,
+            )
+        } else {
+            None
+        };
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -1026,34 +1058,30 @@ impl IotaNode {
         self.close_epoch(&epoch_store).await
     }
 
-    /// Creates a StateSnapshotUploader and starts it if
-    /// `state-snapshot-write-config.object-store-config` is set. Snapshot
-    /// publication is a fullnode-only role.
+    /// Creates a StateSnapshotUploader that publishes to `remote_store_config`
+    /// and starts it. Snapshot publication is a fullnode-only role.
     fn start_state_snapshot(
         config: &NodeConfig,
+        remote_store_config: &ObjectStoreConfig,
         prometheus_registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
-    ) -> Result<Option<tokio::sync::broadcast::Sender<()>>> {
-        if let Some(remote_store_config) = &config.state_snapshot_write_config.object_store_config {
-            debug_assert!(
-                !config.is_validator(),
-                "`NodeConfig::validate` rejects snapshot upload on a validator"
-            );
-            let snapshot_uploader = StateSnapshotUploader::new(
-                &config.snapshot_path(),
-                remote_store_config.clone(),
-                config.state_snapshot_write_config.concurrency,
-                60,
-                prometheus_registry,
-                checkpoint_store,
-                perpetual_tables,
-            )?;
-            Ok(Some(snapshot_uploader.start(requests)))
-        } else {
-            Ok(None)
-        }
+    ) -> Result<tokio::sync::broadcast::Sender<()>> {
+        debug_assert!(
+            !config.is_validator(),
+            "`NodeConfig::validate` rejects snapshot upload on a validator"
+        );
+        let snapshot_uploader = StateSnapshotUploader::new(
+            &config.snapshot_path(),
+            remote_store_config.clone(),
+            config.state_snapshot_write_config.concurrency,
+            60,
+            prometheus_registry,
+            checkpoint_store,
+            perpetual_tables,
+        )?;
+        Ok(snapshot_uploader.start(requests))
     }
 
     /// Whether state sync should fetch summaries to the end of the epoch of
@@ -2586,33 +2614,15 @@ fn build_kv_store(
 
 /// Builds and starts the gRPC server for the IOTA node based on the node's
 /// configuration.
-///
-/// Returns `None` on a validator and when the gRPC API is disabled.
-///
-/// # Panics
-///
-/// Panics if the gRPC API is enabled without a `grpc-api-config`.
-/// [`NodeConfig::validate`] rejects such a config at startup.
 async fn build_grpc_server(
+    grpc_config: GrpcApiConfig,
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     prometheus_registry: &Registry,
     server_version: ServerVersion,
-) -> Result<Option<GrpcServerHandle>> {
-    // Validators do not expose gRPC APIs. This return must agree with the
-    // gRPC rule in `NodeConfig::validate`, which is what makes the `expect`
-    // below unreachable.
-    if config.is_validator() || !config.enable_grpc_api {
-        return Ok(None);
-    }
-
-    let grpc_config = config
-        .grpc_api_config
-        .as_ref()
-        .expect("`NodeConfig::validate` rejects an enabled gRPC API without a config");
-
+) -> Result<GrpcServerHandle> {
     // Get chain identifier from state directly
     let chain_id = state.get_chain_identifier();
 
@@ -2637,7 +2647,7 @@ async fn build_grpc_server(
     let handle = start_grpc_server(
         grpc_reader,
         executor,
-        grpc_config.clone(),
+        grpc_config,
         shutdown_token,
         chain_id,
         Some(grpc_server_metrics),
@@ -2646,32 +2656,25 @@ async fn build_grpc_server(
     )
     .await?;
 
-    Ok(Some(handle))
+    Ok(handle)
 }
 
 /// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
 /// API based on the node's configuration.
 ///
 /// This function performs the following tasks:
-/// 1. Checks if the node is a validator by inspecting the consensus configuration; if so, it
-///    returns early as validators do not expose these APIs.
-/// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based on the node's state
+/// 1. Creates an Axum router to handle HTTP requests.
+/// 2. Initializes the JSON-RPC server and registers various RPC modules based on the node's state
 ///    and configuration, including CoinApi, TransactionBuilderApi, GovernanceApi,
 ///    TransactionExecutionApi, and IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening for incoming
+/// 3. Binds the server to the specified JSON-RPC address and starts listening for incoming
 ///    connections.
-pub async fn build_http_server(
+async fn build_http_server(
     state: Arc<AuthorityState>,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
-) -> Result<Option<iota_http::ServerHandle>> {
-    // Validators do not expose these APIs
-    if config.is_validator() {
-        return Ok(None);
-    }
-
+) -> Result<iota_http::ServerHandle> {
     let mut router = axum::Router::new();
 
     let json_rpc_router = {
@@ -2759,7 +2762,7 @@ pub async fn build_http_server(
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
 
-    Ok(Some(handle))
+    Ok(handle)
 }
 
 fn json_rpc_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics {
@@ -2951,8 +2954,8 @@ genesis:
     }
 
     /// `start_async` validates the config before it does anything else. That
-    /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
-    /// `start_state_snapshot` unreachable.
+    /// keeps the `expect` on the gRPC API config in `start_async` and the
+    /// `debug_assert` in `start_state_snapshot` unreachable.
     #[tokio::test]
     async fn start_rejects_a_config_no_node_could_start_with() {
         let mut config = config_with_db_path(std::path::Path::new("/nonexistent/db"));
