@@ -484,7 +484,7 @@ impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
         }
         let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
         let buckets = Arc::new(RwLock::new(buckets));
-        Self::spawn_size_reporting(&db, name, cf_prefix, &buckets);
+        Self::spawn_size_reporting(&db, cf_prefix, &buckets);
         Ok(Self {
             db,
             name,
@@ -500,12 +500,11 @@ impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
     }
 
     /// Reports the size of the SST files of all the store's buckets together
-    /// under the store's name in `rocksdb_total_sst_files_size`, which reports
-    /// a column family each, while the store is open. The buckets report
+    /// in `rocksdb_total_sst_files_size`, which reports a column family each,
+    /// under the store's [`bucket_metrics_label`] while the store is open. The buckets report
     /// nothing on their own: one series each would grow with every epoch.
     fn spawn_size_reporting(
         db: &Arc<Database>,
-        name: &'static str,
         cf_prefix: &'static str,
         buckets: &Arc<RwLock<BTreeMap<EpochId, Arc<B>>>>,
     ) {
@@ -536,7 +535,7 @@ impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
                     DBMetrics::get()
                         .cf_metrics
                         .rocksdb_total_sst_files_size
-                        .with_label_values(&[name])
+                        .with_label_values(&[bucket_metrics_label(cf_prefix)])
                         .set(size.min(i64::MAX as u64) as i64);
                 }
             }
@@ -1094,19 +1093,19 @@ mod tests {
     fn test_buckets(
         epochs: &[EpochId],
     ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
-        named_test_buckets("test buckets", epochs)
+        prefixed_test_buckets(TEST_CF_PREFIX, epochs)
     }
 
-    /// [`test_buckets`] for a store called `name`.
-    fn named_test_buckets(
-        name: &'static str,
+    /// [`test_buckets`] with the column-family prefix `cf_prefix`.
+    fn prefixed_test_buckets(
+        cf_prefix: &'static str,
         epochs: &[EpochId],
     ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
         let dir = iota_common::tempdir();
         let db_options = default_db_options().options;
         let cf_names: Vec<String> = epochs
             .iter()
-            .map(|&epoch| bucket_cf_name(TEST_CF_PREFIX, epoch))
+            .map(|&epoch| bucket_cf_name(cf_prefix, epoch))
             .chain([RETENTION_CF.to_string()])
             .collect();
         let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_names
@@ -1124,8 +1123,8 @@ mod tests {
 
         let buckets = EpochBuckets::open(
             db,
-            name,
-            TEST_CF_PREFIX,
+            "test buckets",
+            cf_prefix,
             db_options,
             None,
             earliest_retained_table,
@@ -1465,12 +1464,12 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn the_size_of_all_buckets_is_reported_under_the_store_name() {
-        const NAME: &str = "size reporting test buckets";
-        let (buckets, _dir) = named_test_buckets(NAME, &[1, 2]);
+    async fn the_size_of_all_buckets_is_reported_under_the_store_label() {
+        const CF_PREFIX: &str = "size_report_e";
+        let (buckets, _dir) = prefixed_test_buckets(CF_PREFIX, &[1, 2]);
         let mut expected = 0;
         for epoch in [1, 2] {
-            let cf_name = bucket_cf_name(TEST_CF_PREFIX, epoch);
+            let cf_name = bucket_cf_name(CF_PREFIX, epoch);
             let map: DBMap<u64, Vec<u8>> = DBMap::reopen(
                 &buckets.db,
                 Some(&cf_name),
@@ -1487,7 +1486,7 @@ mod tests {
         let gauge = DBMetrics::get()
             .cf_metrics
             .rocksdb_total_sst_files_size
-            .with_label_values(&[NAME]);
+            .with_label_values(&["size_report"]);
         let deadline = tokio::time::Instant::now() + SIZE_REPORT_PERIOD * 3;
         while gauge.get() != expected as i64 && tokio::time::Instant::now() < deadline {
             tokio::time::sleep(Duration::from_secs(1)).await;
