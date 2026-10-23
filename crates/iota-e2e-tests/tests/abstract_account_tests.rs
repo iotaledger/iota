@@ -597,22 +597,12 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     Ok(())
 }
 
-/// Under P-COOL with deterministic validation, a valid Abstract Account
-/// transaction executes successfully. Post-consensus validation checks the
-/// authenticator's input objects, which include the account, and keeps the
-/// transaction. Resolving the account and running the authenticator are left
-/// to execution.
-///
-/// Simulator only: the protocol config override that turns the flag on is
-/// thread-local, and only the simulator runs every node on the test's thread.
-#[cfg(msim)]
+/// A valid Abstract Account transaction executes successfully. Post-consensus
+/// validation checks the authenticator's input objects, which include the
+/// account, and keeps the transaction. Resolving the account and running the
+/// authenticator are left to execution.
 #[sim_test]
-async fn test_valid_abstract_account_tx_executes_under_deterministic_validation()
--> Result<(), anyhow::Error> {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
+async fn test_valid_abstract_account_tx_executes() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -1451,8 +1441,7 @@ async fn transfer_from_move_account_and_key_account(
 /// the old key. Consensus orders it after the rotation, and every validator
 /// fails it at execution.
 ///
-/// Simulator only, for the reason given on the test above and because the
-/// pause is a fail point.
+/// Simulator only, because the pause is a fail point.
 #[cfg(msim)]
 #[sim_test]
 async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_validation()
@@ -1469,10 +1458,6 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
     use iota_macros::{clear_fail_point, register_fail_point_async};
     use iota_sdk_types::{ExecutionStatus, GasCostSummary};
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1718,8 +1703,7 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
 /// with a config that denies it, and an epoch change follows, after which the
 /// fullnode's authority clients reach the restarted validators again.
 ///
-/// Simulator only, for the reason given on the tests above and because the
-/// admission skip is a fail point.
+/// Simulator only, because the admission skip is a fail point.
 #[cfg(msim)]
 #[sim_test]
 async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_deterministic_validation()
@@ -1731,10 +1715,6 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_determ
     use iota_sdk_types::ExecutionStatus;
     use iota_types::messages_grpc::TxStatusUpdate;
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -2068,7 +2048,6 @@ async fn test_received_version_named_as_owned_input_never_executes_under_determi
     const HORIZON_DISTANCE: u64 = 50;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(HORIZON_DISTANCE);
         config
     });

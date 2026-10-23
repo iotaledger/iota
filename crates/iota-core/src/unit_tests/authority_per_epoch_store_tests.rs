@@ -1659,7 +1659,6 @@ async fn pushed_commit_records_the_proposal_and_recomputes_enforcement() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_pcool_flow_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())

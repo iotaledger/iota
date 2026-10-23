@@ -1500,8 +1500,7 @@ fn test_transaction_deny_rules_update_transaction() {
 fn test_transaction_deny_rules_kinds_rejected_from_users() {
     let mut flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
     flag_off.set_enable_pcool_flow_for_testing(false);
-    let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
-    flag_on.set_enable_pcool_flow_for_testing(true);
+    let flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
 
     let create =
         TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);
