@@ -1004,6 +1004,13 @@ impl CheckpointStore {
         let contents = self
             .get_checkpoint_contents(&checkpoint.contents_digest)?
             .expect("the contents of a checkpoint at or below the synced watermark are stored");
+        // A checkpoint whose outputs are only in memory usually misses all of
+        // them, so one lookup settles most calls before the full check.
+        if let Some(last) = contents.iter().last() {
+            if !perpetual_tables.effects.contains_key(&last.effects)? {
+                return Ok(false);
+            }
+        }
         let (transactions, effects): (Vec<_>, Vec<_>) = contents
             .iter()
             .map(|digests| (digests.transaction, digests.effects))
