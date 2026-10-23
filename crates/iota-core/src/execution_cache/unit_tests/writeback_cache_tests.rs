@@ -980,6 +980,74 @@ async fn test_commit_moves_a_superseded_version_execution_missed() {
     .await;
 }
 
+/// Writes `object` in one transaction, and then supersedes it in a second one
+/// whose pre-image execution missed. Returns both transactions' digests.
+fn write_and_supersede_missed(s: &mut Scenario, object: &Object) -> [TransactionDigest; 2] {
+    let mut writes = Scenario::new_outputs();
+    writes.written.insert(object.id(), object.clone());
+    let writer = *writes.transaction.digest();
+    s.cache().write_transaction_outputs(1, Arc::new(writes));
+
+    let mut rng = StdRng::from_seed([1; 32]);
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
+    let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
+        .transfer(object.object_ref(), Address::random())
+        .build_and_sign(&sender_key);
+    let tx = VerifiedTransaction::new_unchecked(tx);
+    let mut outputs = Scenario::new_outputs();
+    outputs.effects = TestEffectsBuilder::new(tx.inner()).build();
+    outputs.transaction = Arc::new(tx);
+    assert!(outputs.superseded.is_empty(), "the pre-image is missed");
+    let superseder = *outputs.transaction.digest();
+    s.cache().write_transaction_outputs(1, Arc::new(outputs));
+    [writer, superseder]
+}
+
+fn assert_moved_into_bucket(s: &Scenario, object: &Object) {
+    let key = ObjectKey(object.id(), object.version());
+    assert_eq!(s.store.perpetual_tables.objects.get(&key).unwrap(), None);
+    assert_eq!(
+        s.store.get_historic_objects().get(&key).unwrap().as_ref(),
+        Some(object)
+    );
+}
+
+/// A missed pre-image written earlier in the same checkpoint is moved into the
+/// bucket.
+#[tokio::test]
+async fn test_commit_moves_a_missed_pre_image_written_in_the_same_batch() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let object = Scenario::new_object();
+        let digests = write_and_supersede_missed(&mut s, &object);
+        let batch = s.cache().build_db_batch(1, 0, &digests);
+        s.cache().commit_transaction_outputs(1, batch, &digests);
+
+        assert_moved_into_bucket(&s, &object);
+    })
+    .await;
+}
+
+/// A missed pre-image written by the previous checkpoint is moved into the
+/// bucket even when this checkpoint's batch is built before that checkpoint
+/// is committed, as the checkpoint executor does.
+#[tokio::test]
+async fn test_commit_moves_a_missed_pre_image_the_previous_checkpoint_has_not_committed() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let object = Scenario::new_object();
+        let [writer, superseder] = write_and_supersede_missed(&mut s, &object);
+        let first = s.cache().build_db_batch(1, 0, &[writer]);
+        let second = s.cache().build_db_batch(1, 1, &[superseder]);
+        s.cache().commit_transaction_outputs(1, first, &[writer]);
+        s.cache()
+            .commit_transaction_outputs(1, second, &[superseder]);
+
+        assert_moved_into_bucket(&s, &object);
+    })
+    .await;
+}
+
 /// Committing a transaction that deletes or wraps an object records a
 /// tombstone for each in the bucket of the committing epoch.
 #[tokio::test]
