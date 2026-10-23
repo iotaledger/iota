@@ -386,7 +386,6 @@ impl IotaNode {
         serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<Arc<IotaNode>> {
         config.validate()?;
-        NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         if config.supported_protocol_versions.is_none() {
             info!(
                 "populating config.supported_protocol_versions with default {:?}",
@@ -394,6 +393,7 @@ impl IotaNode {
             );
             config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
         }
+        NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
 
         let run_with_range = config.run_with_range;
         let is_validator = config.is_validator();
@@ -424,6 +424,19 @@ impl IotaNode {
 
         // Initialize IOTA metrics.
         iota_metrics::init_metrics(&prometheus_registry);
+        // Register uptime metric
+        prometheus_registry
+            .register(iota_metrics::uptime_metric(
+                if is_validator {
+                    "validator"
+                } else {
+                    "fullnode"
+                },
+                server_version.version,
+                &chain_identifier.to_string(),
+            ))
+            .expect("Failed registering uptime metric");
+
         // Unsupported (because of the use of static variable) and unnecessary in
         // simtests.
         #[cfg(not(msim))]
@@ -447,19 +460,6 @@ impl IotaNode {
                 runtime_monitor_metrics,
             );
         }
-
-        // Register uptime metric
-        prometheus_registry
-            .register(iota_metrics::uptime_metric(
-                if is_validator {
-                    "validator"
-                } else {
-                    "fullnode"
-                },
-                server_version.version,
-                &chain_identifier.to_string(),
-            ))
-            .expect("Failed registering uptime metric");
 
         // If genesis come with some migration data then load them into memory from the
         // file path specified in config.
@@ -500,10 +500,6 @@ impl IotaNode {
                 FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
             ),
         );
-        let chain = match config.chain_override_for_testing {
-            Some(chain) => chain,
-            None => chain_identifier.chain(),
-        };
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
@@ -519,6 +515,13 @@ impl IotaNode {
         )
         .await?;
 
+        let cache_traits = build_execution_cache(
+            &config.execution_cache_config,
+            &prometheus_registry,
+            &store,
+            backpressure_manager.clone(),
+        );
+
         let cur_epoch = store.get_recovery_epoch_at_restart()?;
         let committee = committee_store
             .get_committee(&cur_epoch)?
@@ -528,25 +531,9 @@ impl IotaNode {
             .expect("EpochStartConfiguration of the current epoch must exist");
         let cache_metrics = Arc::new(ResolverMetrics::new(&prometheus_registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&prometheus_registry);
-
-        let cache_traits = build_execution_cache(
-            &config.execution_cache_config,
-            &prometheus_registry,
-            &store,
-            backpressure_manager.clone(),
-        );
-
-        let auth_agg = {
-            let safe_client_metrics_base = SafeClientMetricsBase::new(&prometheus_registry);
-            let auth_agg_metrics = Arc::new(AuthAggMetrics::new(&prometheus_registry));
-            Arc::new(ArcSwap::new(Arc::new(
-                AuthorityAggregator::new_from_epoch_start_state(
-                    epoch_start_configuration.epoch_start_state(),
-                    &committee_store,
-                    safe_client_metrics_base,
-                    auth_agg_metrics,
-                ),
-            )))
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => chain_identifier.chain(),
         };
 
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
@@ -580,12 +567,6 @@ impl IotaNode {
                 .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
         }
 
-        replay_log!(
-            "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
-            epoch_store.epoch(),
-            epoch_store.protocol_config()
-        );
-
         // the database is empty at genesis time
         if is_genesis {
             info!("checking IOTA conservation at genesis");
@@ -617,8 +598,27 @@ impl IotaNode {
             &epoch_store,
         );
 
+        let auth_agg = {
+            let safe_client_metrics_base = SafeClientMetricsBase::new(&prometheus_registry);
+            let auth_agg_metrics = Arc::new(AuthAggMetrics::new(&prometheus_registry));
+            Arc::new(ArcSwap::new(Arc::new(
+                AuthorityAggregator::new_from_epoch_start_state(
+                    epoch_store.epoch_start_state(),
+                    &committee_store,
+                    safe_client_metrics_base,
+                    auth_agg_metrics,
+                ),
+            )))
+        };
+
         // Database has everything from genesis, set corrupted key to 0
         unmark_db_corruption(db_corrupted_path)?;
+
+        replay_log!(
+            "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
+            epoch_store.epoch(),
+            epoch_store.protocol_config()
+        );
 
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
@@ -785,10 +785,6 @@ impl IotaNode {
             }
         }
 
-        // Start the loop that receives new randomness and generates transactions for
-        // it.
-        RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
-
         if config
             .expensive_safety_check_config
             .enable_secondary_index_checks()
@@ -802,8 +798,49 @@ impl IotaNode {
             }
         }
 
+        // Start the loop that receives new randomness and generates transactions for
+        // it.
+        RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
+
         let (end_of_epoch_channel, end_of_epoch_receiver) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
+
+        let global_state_hasher = Arc::new(GlobalStateHasher::new(
+            cache_traits.global_state_hash_store.clone(),
+            GlobalStateHashMetrics::new(&prometheus_registry),
+        ));
+
+        let authority_names_to_peer_ids = epoch_store
+            .epoch_start_state()
+            .get_authority_names_to_peer_ids();
+
+        let network_connection_metrics =
+            NetworkConnectionMetrics::new("iota", &registry_service.default_registry());
+
+        let authority_names_to_peer_ids = ArcSwap::from_pointee(authority_names_to_peer_ids);
+
+        let (_connection_monitor_handle, connection_statuses) = ConnectionMonitor::spawn(
+            p2p_network.downgrade(),
+            network_connection_metrics,
+            HashMap::new(),
+            None,
+        );
+
+        let connection_monitor_status = ConnectionMonitorStatus {
+            connection_statuses,
+            authority_names_to_peer_ids,
+        };
+
+        let connection_monitor_status = Arc::new(connection_monitor_status);
+        let iota_node_metrics =
+            Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
+
+        iota_node_metrics
+            .binary_max_protocol_version
+            .set(ProtocolVersion::MAX.as_u64() as i64);
+        iota_node_metrics
+            .configured_max_protocol_version
+            .set(config.supported_protocol_versions.unwrap().max.as_u64() as i64);
 
         let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
             Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
@@ -846,43 +883,6 @@ impl IotaNode {
         } else {
             None
         };
-
-        let global_state_hasher = Arc::new(GlobalStateHasher::new(
-            cache_traits.global_state_hash_store.clone(),
-            GlobalStateHashMetrics::new(&prometheus_registry),
-        ));
-
-        let authority_names_to_peer_ids = epoch_store
-            .epoch_start_state()
-            .get_authority_names_to_peer_ids();
-
-        let network_connection_metrics =
-            NetworkConnectionMetrics::new("iota", &registry_service.default_registry());
-
-        let authority_names_to_peer_ids = ArcSwap::from_pointee(authority_names_to_peer_ids);
-
-        let (_connection_monitor_handle, connection_statuses) = ConnectionMonitor::spawn(
-            p2p_network.downgrade(),
-            network_connection_metrics,
-            HashMap::new(),
-            None,
-        );
-
-        let connection_monitor_status = ConnectionMonitorStatus {
-            connection_statuses,
-            authority_names_to_peer_ids,
-        };
-
-        let connection_monitor_status = Arc::new(connection_monitor_status);
-        let iota_node_metrics =
-            Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
-
-        iota_node_metrics
-            .binary_max_protocol_version
-            .set(ProtocolVersion::MAX.as_u64() as i64);
-        iota_node_metrics
-            .configured_max_protocol_version
-            .set(config.supported_protocol_versions.unwrap().max.as_u64() as i64);
 
         let grpc_server_handle = if serves_grpc_api {
             let grpc_api_config = config
