@@ -408,9 +408,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { version = "1.0.0-rc.1", package = "iota-sdk-grpc-client" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2012cfc8a75b8b5df6dbd076125f163d627da0a4", package = "iota-sdk-grpc-client" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { version = "1.0.0-rc.1", package = "iota-sdk-grpc-types" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2012cfc8a75b8b5df6dbd076125f163d627da0a4", package = "iota-sdk-grpc-types" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -451,11 +451,11 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { version = "1.0.0-rc.1", default-features = false }
-iota-sdk-graphql-client = { version = "1.0.0-rc.1", default-features = false, features = ["tls-ring"] }
-iota-sdk-move-types = { version = "1.0.0-rc.1", default-features = false }
-iota-sdk-transaction-builder = { version = "1.0.0-rc.1", default-features = false }
-iota-sdk-types = { version = "1.0.0-rc.1", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2012cfc8a75b8b5df6dbd076125f163d627da0a4", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2012cfc8a75b8b5df6dbd076125f163d627da0a4", default-features = false, features = ["tls-ring"] }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2012cfc8a75b8b5df6dbd076125f163d627da0a4", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2012cfc8a75b8b5df6dbd076125f163d627da0a4", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2012cfc8a75b8b5df6dbd076125f163d627da0a4", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -518,9 +518,3 @@ typed-store-error = { path = "crates/typed-store-error" }
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
 fastcrypto = "=0.1.11"
-
-# The SDK commit adding `MultisigVerifier::with_reject_partially_signed_mixed_ed25519`.
-# Drop once a release containing it is published.
-[patch.crates-io]
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "1d5f9ef83dfec5299e2bc6f8ec9b4a865e6da0ad" }
