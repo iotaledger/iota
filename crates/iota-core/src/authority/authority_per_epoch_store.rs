@@ -4084,6 +4084,106 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Computes the part of `mirror` that may leave the object: a deny list
+    /// entry once 2f+1 stake has announced a proposal without it, a kill
+    /// switch once f+1 stake has. Past that much explicit non-support the
+    /// entry or switch cannot reach its activation threshold whatever the
+    /// validators still to announce propose, so none of them can reactivate
+    /// it. Stake that has not announced counts neither way. Pure, like
+    /// `compute_active_transaction_deny_rules`.
+    pub(crate) fn compute_removable_transaction_deny_rules(
+        proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+        committee: &Committee,
+        mirror: &DenyRuleSet,
+    ) -> DenyRuleSet {
+        let announced = Self::announced_stake(proposals, committee);
+        let mut address_stakes: BTreeMap<Address, StakeUnit> = BTreeMap::new();
+        let mut object_stakes: BTreeMap<ObjectId, StakeUnit> = BTreeMap::new();
+        let mut package_stakes: BTreeMap<ObjectId, StakeUnit> = BTreeMap::new();
+
+        for (authority, proposal) in proposals {
+            let stake = committee.weight(authority);
+            let rules = &proposal.proposed_rules;
+            for address in rules
+                .denied_addresses
+                .intersection(&mirror.denied_addresses)
+            {
+                *address_stakes.entry(*address).or_default() += stake;
+            }
+            for object in rules.denied_objects.intersection(&mirror.denied_objects) {
+                *object_stakes.entry(*object).or_default() += stake;
+            }
+            for package in rules.denied_packages.intersection(&mirror.denied_packages) {
+                *package_stakes.entry(*package).or_default() += stake;
+            }
+        }
+
+        fn removable<T: Ord + Copy>(
+            entries: &BTreeSet<T>,
+            stakes: BTreeMap<T, StakeUnit>,
+            announced: StakeUnit,
+            threshold: StakeUnit,
+        ) -> BTreeSet<T> {
+            entries
+                .iter()
+                .filter(|entry| announced - stakes.get(entry).copied().unwrap_or(0) >= threshold)
+                .copied()
+                .collect()
+        }
+
+        let validity_threshold = committee.validity_threshold();
+        let quorum_threshold = committee.quorum_threshold();
+        let switch_removable = |mirror_switch: bool, enabled: fn(&DenyRuleSet) -> bool| {
+            let supporting = proposals
+                .iter()
+                .filter(|(_, proposal)| enabled(&proposal.proposed_rules))
+                .map(|(authority, _)| committee.weight(authority))
+                .sum::<StakeUnit>();
+            mirror_switch && announced - supporting >= validity_threshold
+        };
+        DenyRuleSet {
+            denied_addresses: removable(
+                &mirror.denied_addresses,
+                address_stakes,
+                announced,
+                quorum_threshold,
+            ),
+            denied_objects: removable(
+                &mirror.denied_objects,
+                object_stakes,
+                announced,
+                quorum_threshold,
+            ),
+            denied_packages: removable(
+                &mirror.denied_packages,
+                package_stakes,
+                announced,
+                quorum_threshold,
+            ),
+            package_publish_disabled: switch_removable(mirror.package_publish_disabled, |rules| {
+                rules.package_publish_disabled
+            }),
+            package_upgrade_disabled: switch_removable(mirror.package_upgrade_disabled, |rules| {
+                rules.package_upgrade_disabled
+            }),
+            shared_object_disabled: switch_removable(mirror.shared_object_disabled, |rules| {
+                rules.shared_object_disabled
+            }),
+            user_transaction_disabled: switch_removable(
+                mirror.user_transaction_disabled,
+                |rules| rules.user_transaction_disabled,
+            ),
+            receiving_objects_disabled: switch_removable(
+                mirror.receiving_objects_disabled,
+                |rules| rules.receiving_objects_disabled,
+            ),
+            move_authenticator_disabled: switch_removable(
+                mirror.move_authenticator_disabled,
+                |rules| rules.move_authenticator_disabled,
+            ),
+        }
+    }
+
     pub fn get_quarantined_owned_object_lock(
         &self,
         obj_ref: &ObjectReference,
@@ -5296,11 +5396,11 @@ impl AuthorityPerEpochStore {
 
     /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
     /// on-chain object to the current proposal aggregate, chunked and gated
-    /// by `compute_deny_rule_update_chunks`. Advances the mirrored state to
-    /// the injected target in the same commit output that persists it. Each
-    /// scheduled update becomes a checkpoint root: nothing else in the commit
-    /// can depend on the object, so an unrooted update would never be
-    /// checkpointed.
+    /// by `compute_deny_rule_update_chunks`. Runs only for commits that record
+    /// a proposal. Advances the mirrored state to the injected target in the
+    /// same commit output that persists it. Each scheduled update becomes a
+    /// checkpoint root: nothing else in the commit can depend on the object,
+    /// so an unrooted update would never be checkpointed.
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -5319,6 +5419,10 @@ impl AuthorityPerEpochStore {
         else {
             return Ok(());
         };
+        // A commit that records no proposal would find nothing new.
+        if output.deny_rule_proposals().is_empty() {
+            return Ok(());
+        }
 
         // The aggregate from every recorded proposal, this commit's included.
         let mut proposals = self
@@ -5331,28 +5435,18 @@ impl AuthorityPerEpochStore {
                 .iter()
                 .map(|(authority, proposal)| (*authority, proposal.clone())),
         );
-        // No proposals means an empty aggregate and zero announced stake.
-        // The diff can produce no chunk from that.
-        if proposals.is_empty() {
-            return Ok(());
-        }
         let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
         let mirror = self.mirrored_transaction_deny_rules.load_full();
-
-        // Removals wait for enough of the committee to re-announce, so entries
-        // do not drop out while announcements are still arriving.
-        let announced_stake = Self::announced_stake(&proposals, self.committee());
-        let removals_unlocked = announced_stake >= self.committee().quorum_threshold()
-            && consensus_commit_info.round
-                >= self.protocol_config().deny_rule_removal_grace_round_floor();
-        self.metrics
-            .deny_rule_removals_unlocked
-            .set(removals_unlocked as i64);
+        // A validator that has not announced this epoch may still support
+        // what the object holds, so removals wait for explicit non-support
+        // rather than for a share of the committee to have announced.
+        let removable =
+            Self::compute_removable_transaction_deny_rules(&proposals, self.committee(), &mirror);
 
         let (chunks, target) = compute_deny_rule_update_chunks(
             &aggregate,
             &mirror,
-            removals_unlocked,
+            &removable,
             self.protocol_config().deny_rule_update_max_entries_per_tx() as usize,
             self.epoch(),
             consensus_commit_info.round,
@@ -5388,8 +5482,12 @@ impl AuthorityPerEpochStore {
                 *transaction.digest(),
             ));
         }
-        // Holding the mirror back when a chunk was skipped (epoch closing) makes
-        // the next commit re-derive the same delta; re-application is a no-op.
+        // Scheduling is all-or-nothing today: proposals are recorded only
+        // while transactions are still accepted, and the epoch closes after
+        // this runs. A partial schedule would leave the object ahead of the
+        // held-back mirror until the next proposal-recording commit re-sends
+        // the delta or the boundary re-seeds the mirror from the object, so a
+        // removal the object applied would stay enforced until then.
         if all_scheduled {
             self.metrics.deny_rule_updates_injected.inc();
             self.metrics
@@ -5397,10 +5495,6 @@ impl AuthorityPerEpochStore {
                 .inc_by(chunk_count as u64);
             output.record_deny_rule_mirror(target.clone());
             self.mirrored_transaction_deny_rules.store(Arc::new(target));
-            // The recompute in `push_consensus_output` only runs for commits
-            // that record proposals, so a removal unlocking on a proposal-free
-            // commit would otherwise stay enforced after the object dropped it.
-            self.store_active_transaction_deny_rules(&proposals);
         }
 
         Ok(())
@@ -7139,30 +7233,37 @@ pub(crate) fn union_deny_rule_sets(mut rules: DenyRuleSet, other: &DenyRuleSet) 
 }
 
 /// Computes the `TransactionDenyRulesUpdate` transactions that bring the
-/// on-chain object from `mirror` to `aggregate`: additions and switch
-/// activations always, removals and switch deactivations only when
-/// `removals_unlocked`. A delta larger than `max_entries_per_tx` is split into
-/// disjoint chunks of the sorted delta, each carrying the absolute switch
+/// on-chain object from `mirror` towards `aggregate`: additions and switch
+/// activations always, removals and switch deactivations only for the part of
+/// `mirror` in `removable`. A delta larger than `max_entries_per_tx` is split
+/// into disjoint chunks of the sorted delta, each carrying the absolute switch
 /// states. Returns the chunks (empty when the object is up to date) and the
-/// state the object holds once they have executed — the next mirror. Pure, so
-/// every validator derives the same transactions at the same commit.
+/// state the object holds once they have executed, which is the next mirror.
+/// Pure, so every validator derives the same transactions at the same commit.
 pub(crate) fn compute_deny_rule_update_chunks(
     aggregate: &DenyRuleSet,
     mirror: &DenyRuleSet,
-    removals_unlocked: bool,
+    removable: &DenyRuleSet,
     max_entries_per_tx: usize,
     epoch: EpochId,
     round: u64,
     deny_rules_obj_initial_shared_version: Version,
 ) -> (Vec<TransactionDenyRulesUpdate>, DenyRuleSet) {
-    let switch = |aggregate_switch: bool, mirror_switch: bool| {
-        if removals_unlocked {
-            aggregate_switch
-        } else {
-            aggregate_switch || mirror_switch
-        }
+    let switch = |aggregate_switch: bool, mirror_switch: bool, removable_switch: bool| {
+        aggregate_switch || (mirror_switch && !removable_switch)
     };
-    let mut delta = TransactionDenyRulesUpdate {
+    fn removed<T: Ord + Copy>(
+        mirror: &BTreeSet<T>,
+        aggregate: &BTreeSet<T>,
+        removable: &BTreeSet<T>,
+    ) -> BTreeSet<T> {
+        mirror
+            .difference(aggregate)
+            .filter(|entry| removable.contains(entry))
+            .copied()
+            .collect()
+    }
+    let delta = TransactionDenyRulesUpdate {
         epoch,
         round,
         added_addresses: aggregate
@@ -7170,62 +7271,63 @@ pub(crate) fn compute_deny_rule_update_chunks(
             .difference(&mirror.denied_addresses)
             .copied()
             .collect(),
-        removed_addresses: BTreeSet::new(),
+        removed_addresses: removed(
+            &mirror.denied_addresses,
+            &aggregate.denied_addresses,
+            &removable.denied_addresses,
+        ),
         added_objects: aggregate
             .denied_objects
             .difference(&mirror.denied_objects)
             .copied()
             .collect(),
-        removed_objects: BTreeSet::new(),
+        removed_objects: removed(
+            &mirror.denied_objects,
+            &aggregate.denied_objects,
+            &removable.denied_objects,
+        ),
         added_packages: aggregate
             .denied_packages
             .difference(&mirror.denied_packages)
             .copied()
             .collect(),
-        removed_packages: BTreeSet::new(),
+        removed_packages: removed(
+            &mirror.denied_packages,
+            &aggregate.denied_packages,
+            &removable.denied_packages,
+        ),
         package_publish_disabled: switch(
             aggregate.package_publish_disabled,
             mirror.package_publish_disabled,
+            removable.package_publish_disabled,
         ),
         package_upgrade_disabled: switch(
             aggregate.package_upgrade_disabled,
             mirror.package_upgrade_disabled,
+            removable.package_upgrade_disabled,
         ),
         shared_object_disabled: switch(
             aggregate.shared_object_disabled,
             mirror.shared_object_disabled,
+            removable.shared_object_disabled,
         ),
         user_transaction_disabled: switch(
             aggregate.user_transaction_disabled,
             mirror.user_transaction_disabled,
+            removable.user_transaction_disabled,
         ),
         receiving_objects_disabled: switch(
             aggregate.receiving_objects_disabled,
             mirror.receiving_objects_disabled,
+            removable.receiving_objects_disabled,
         ),
         move_authenticator_disabled: switch(
             aggregate.move_authenticator_disabled,
             mirror.move_authenticator_disabled,
+            removable.move_authenticator_disabled,
         ),
         deny_rules_obj_initial_shared_version,
     };
-    if removals_unlocked {
-        delta.removed_addresses = mirror
-            .denied_addresses
-            .difference(&aggregate.denied_addresses)
-            .copied()
-            .collect();
-        delta.removed_objects = mirror
-            .denied_objects
-            .difference(&aggregate.denied_objects)
-            .copied()
-            .collect();
-        delta.removed_packages = mirror
-            .denied_packages
-            .difference(&aggregate.denied_packages)
-            .copied()
-            .collect();
-    }
 
     // The object state once the delta has executed.
     let target = DenyRuleSet {
