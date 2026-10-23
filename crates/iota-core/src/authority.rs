@@ -177,7 +177,8 @@ use crate::{
         overload_monitor_accept_tx,
     },
     post_consensus_input_reader::{
-        InputResolution, ReceivingObjectsResolution, ValidationAtCommit, ValidationInputsAtCommit,
+        AccountVerdict, InputResolution, ReceivingObjectsResolution, ValidationAtCommit,
+        ValidationInputsAtCommit,
         reader::{CommitIndexedReader, DenyListAtCommit},
     },
     stake_aggregator::StakeAggregator,
@@ -1290,7 +1291,13 @@ impl AuthorityState {
     /// `Err` as at admission, except that the coin deny list is read as of the
     /// reader's horizon, with changes counting from there rather than from the
     /// next epoch. The Move authenticator's account is not resolved and the
-    /// authenticators are not run here: both happen at execution.
+    /// authenticators are not run here: both happen at execution. Instead,
+    /// each account must have had its authenticator function field at the
+    /// horizon, or the transaction is reported missing. The package that
+    /// field names is checked against the deny rules, read as of the same
+    /// horizon. So an account whose function is changed to a denied package
+    /// above the horizon is not caught here, and a package the reader does not
+    /// see is left to execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
@@ -1346,7 +1353,10 @@ impl AuthorityState {
         // shared input at the version consensus assigned, so both happen
         // there, and a failure there produces failure effects. What is left
         // here asks only what the rows can answer: whether each authenticator
-        // input exists and is what the transaction declares.
+        // input exists and is what the transaction declares, and whether each
+        // account had its authenticator function field at the horizon. That
+        // field also names the package checked against the deny rules below,
+        // and an account without it is reported missing last.
         let (tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_at_commit(
                 protocol_config,
@@ -1368,6 +1378,40 @@ impl AuthorityState {
                 .all(|objects| objects.inner().filter_owned_objects().is_empty()),
             "Move authenticator input objects must not contain owned objects"
         );
+
+        // Each account's authenticator function field as of the horizon, read
+        // once: the deny check below reads the package it names, and an
+        // account without it is reported missing last.
+        let accounts = move_authenticators
+            .iter()
+            .map(|move_authenticator| {
+                let account_kind = move_authenticator
+                    .object_to_authenticate()
+                    .input_object_kind()
+                    .expect("the object to authenticate is validated before consensus");
+                Ok((account_kind, reader.read_account(account_kind.object_id())?))
+            })
+            .collect::<IotaResult<Vec<_>>>()?;
+
+        // The package holding each authenticate function, as at admission,
+        // but named by the account's field as of the horizon, the same on
+        // every validator.
+        if protocol_config.deny_authenticator_packages() && deny_config.has_denied_packages() {
+            let mut function_refs = Vec::new();
+            for (account_kind, verdict) in &accounts {
+                if let AccountVerdict::Account(field) = verdict {
+                    function_refs.extend(
+                        reader
+                            .visible_authenticator_function_ref(account_kind.object_id(), field)?,
+                    );
+                }
+            }
+            iota_transaction_checks::deny::check_authenticator_packages(
+                deny_config,
+                &function_refs,
+                reader,
+            )?;
+        }
 
         // The sender against the coin types of its inputs and receiving
         // objects, as at admission, but with the deny list as of the horizon,
@@ -1409,6 +1453,14 @@ impl AuthorityState {
         );
         if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
             return Err(denial.into());
+        }
+
+        // Last, so a check that rejects the transaction outright is reported
+        // rather than a missing verdict that invites a resubmission.
+        for (account_kind, verdict) in accounts {
+            if let AccountVerdict::Missing(reason) = verdict {
+                return Ok(ValidationAtCommit::Missing(account_kind, reason));
+            }
         }
 
         Ok(ValidationAtCommit::Keep(

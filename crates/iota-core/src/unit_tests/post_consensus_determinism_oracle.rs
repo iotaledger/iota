@@ -12,21 +12,22 @@
 //! set `P_c`. A candidate at commit `C` is judged in the commit's order:
 //!
 //! 1. a same-commit duplicate of an earlier candidate is silently dropped;
-//! 2. a digest already processed, other than a deferral reload, is a duplicate: it never reaches
-//!    validation and has no saved decision;
-//! 3. an owned input locked by another digest, counting locks taken earlier in this commit, drops
-//!    the candidate (lock conflict); a lock the candidate itself holds, from the commit that
-//!    deferred it, is no conflict;
-//! 4. every input is checked against `S_{C-K}`: an owned input is visible only if the state has
+//! 2. a deferral reload is kept without checks and takes no lock: the locks it took at the commit
+//!    that kept it stay in the table. A shared input deleted since that commit, or a receiving
+//!    object another transaction received since, fails its execution;
+//! 3. any other digest already processed is a duplicate: it never reaches validation and has no
+//!    saved decision;
+//! 4. an owned input locked by another digest, counting locks taken earlier in this commit, drops
+//!    the candidate (lock conflict);
+//! 5. every input is checked against `S_{C-K}`: an owned input is visible only if the state has
 //!    exactly the named version and digest live, stale if the state has a newer version or a
 //!    tombstone at or above it, and missing if the version is not produced yet or the id is
 //!    unknown; a shared input is visible if the object is live with the declared initial shared
 //!    version, stale if it is live otherwise or deleted, and missing if it is absent; a package is
 //!    visible if present and missing otherwise. A shared object deleted above the horizon is
 //!    therefore visible, and its transaction executes against the deletion. A receiving object is
-//!    checked as an owned input is, after every input, so a kept one was live at its named version
-//!    at the horizon and execution can always run it;
-//! 5. a candidate with every input visible is kept: its owned inputs are locked, its digest is
+//!    checked as an owned input is, after every input;
+//! 6. a candidate with every input visible is kept: its owned inputs are locked, its digest is
 //!    processed, and unless deferred it executes at `C`. Receiving references take no lock.
 //!
 //! Content checks (gas balance, ownership, deny rules) are not modeled: the
@@ -54,6 +55,9 @@ pub const SENDER: Address = Address::new([0x5E; 32]);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Slot {
     Live(Object),
+    /// For a shared object, the version the next transaction naming it is
+    /// assigned: the deletion's, or that of the last execution naming it
+    /// mutably since.
     Deleted(Version),
     Wrapped(Version),
 }
@@ -160,7 +164,7 @@ impl Candidate {
     }
 }
 
-/// Rule 4 for one input.
+/// Rule 5 for one input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputClass {
     Visible,
@@ -305,7 +309,7 @@ impl Oracle {
         &self.outcomes[commit as usize - 1]
     }
 
-    /// Rule 4 for every input of `candidate` at `commit`, in input order.
+    /// Rule 5 for every input of `candidate` at `commit`, in input order.
     pub fn input_classes(&self, commit: CommitIndex, candidate: &Candidate) -> Vec<InputClass> {
         let state = self.horizon_state(commit);
         candidate
@@ -330,9 +334,11 @@ impl Oracle {
             if verdict != Verdict::Kept {
                 continue;
             }
-            for reference in &candidate.owned_inputs {
-                outcome.locks.insert(*reference, candidate.digest);
-                self.locks.insert(*reference, candidate.digest);
+            if !candidate.deferral_reload {
+                for reference in &candidate.owned_inputs {
+                    outcome.locks.insert(*reference, candidate.digest);
+                    self.locks.insert(*reference, candidate.digest);
+                }
             }
             self.processed.insert(candidate.digest);
             if !candidate.defer {
@@ -351,14 +357,14 @@ impl Oracle {
         commit_locks: &BTreeMap<ObjectReference, TransactionDigest>,
         candidate: &Candidate,
     ) -> Verdict {
-        if self.processed.contains(&candidate.digest) && !candidate.deferral_reload {
+        if candidate.deferral_reload {
+            return Verdict::Kept;
+        }
+        if self.processed.contains(&candidate.digest) {
             return Verdict::Duplicate;
         }
         for reference in &candidate.owned_inputs {
-            let holder = commit_locks
-                .get(reference)
-                .or_else(|| self.locks.get(reference));
-            if holder.is_some_and(|holder| *holder != candidate.digest) {
+            if commit_locks.contains_key(reference) || self.locks.contains_key(reference) {
                 return Verdict::Dropped(DropClass::Lock);
             }
         }
@@ -373,7 +379,7 @@ impl Oracle {
     }
 }
 
-/// Rule 4 for one input against the state at the horizon.
+/// Rule 5 for one input against the state at the horizon.
 pub fn input_class(state: &State, input: &Input) -> InputClass {
     match input {
         Input::Owned(reference) | Input::Receiving(reference) => {
@@ -415,8 +421,9 @@ pub fn input_class(state: &State, input: &Input) -> InputClass {
 /// it, and applies the changes. An owned input is consumed at the named
 /// version: a consumer between the horizon and the commit that named the
 /// version as an owned input took a lock that would have dropped the
-/// candidate. A receive takes no lock, so an owned input it consumed is not
-/// live here, which fails the execution and leaves that object as it is. A shared input already
+/// candidate, or, for a deferral reload, found the reload's lock. A receive
+/// takes no lock, so an owned input it consumed is not live here, which fails
+/// the execution and leaves that object as it is. A shared input already
 /// deleted at execution, a receiving object not live at its named version, or
 /// a failing transaction, aborts: it only charges gas, mutating every live
 /// owned input and every live mutable shared input.
@@ -483,11 +490,14 @@ fn execute(state: &mut State, candidate: &Candidate) -> Execution {
         },
         _ => None,
     });
+    // As in shared version assignment, every named owned and receiving
+    // version counts, whether or not the object is still there.
     let lamport = Version::lamport_increment(
-        owned
+        candidate
+            .owned_inputs
             .iter()
-            .chain(&received)
-            .map(|object| object.version())
+            .chain(&candidate.receiving)
+            .map(|reference| reference.version)
             .chain(shared_versions)
             .chain(wrapped_versions),
     )
@@ -604,6 +614,11 @@ fn execute(state: &mut State, candidate: &Candidate) -> Execution {
     }
     for change in &changes {
         state.slots.insert(change.id, change.after.clone());
+    }
+    // A mutable access moves the version the next transaction naming the
+    // object is assigned to this execution's version, deleted or not.
+    for id in &deleted_shared_inputs {
+        state.slots.insert(*id, Slot::Deleted(lamport));
     }
     Execution {
         digest: candidate.digest,

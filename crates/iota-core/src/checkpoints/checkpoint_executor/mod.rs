@@ -26,7 +26,7 @@ use std::{future::Future, sync::Arc, time::Instant};
 use futures::{StreamExt, TryStreamExt};
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
-use iota_macros::fail_point;
+use iota_macros::{fail_point, fail_point_async};
 use iota_sdk_types::{
     CheckpointContents, CheckpointSummary, RandomnessRound, TransactionDigest, TransactionEffects,
     TransactionEffectsDigest, TransactionKind,
@@ -558,6 +558,7 @@ impl CheckpointExecutor {
                 .execute_transactions_from_synced_checkpoint(ckpt_state, tx_data, pipeline_handle)
                 .await;
         };
+        fail_point_async!("execute-locally-built-checkpoint");
 
         self.metrics.checkpoint_executor_validator_path.inc();
 

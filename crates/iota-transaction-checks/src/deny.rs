@@ -203,7 +203,9 @@ fn check_package_dependencies(
 /// [`check_transaction_for_validation`].
 ///
 /// Call it once the references have been loaded, over every authenticator the
-/// transaction carries, and before any authenticator runs.
+/// transaction carries, and before any authenticator runs. A package missing
+/// from `package_store` is reported as `ObjectNotFound`, so a caller that
+/// must not reject a transaction for it leaves that reference out.
 #[instrument(level = "trace", skip_all)]
 pub fn check_authenticator_packages<'a>(
     filter_config: &dyn DenyRuleConfig,
