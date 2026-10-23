@@ -15,8 +15,10 @@ use downcast::Any;
 use tracing::{error, info};
 
 use crate::{
-    db::ConnectionPool, errors::IndexerError, ingestion::primary::persist::EpochToCommit,
-    models::epoch::StoredEpochInfo, store::diesel_macro::*,
+    db::ConnectionPool,
+    errors::IndexerError,
+    models::epoch::{StartOfEpochUpdate, StoredEpochInfo},
+    store::diesel_macro::*,
 };
 
 const GET_PARTITION_SQL: &str = {
@@ -75,13 +77,13 @@ pub struct EpochPartitionData {
 }
 
 impl EpochPartitionData {
-    pub fn compose_data(epoch: EpochToCommit, last_db_epoch: StoredEpochInfo) -> Self {
+    pub fn compose_data(new_epoch: StartOfEpochUpdate, last_db_epoch: StoredEpochInfo) -> Self {
         let last_epoch = last_db_epoch.epoch as u64;
         let last_epoch_start_cp = last_db_epoch.first_checkpoint_id as u64;
-        let next_epoch = epoch.new_epoch.epoch as u64;
-        let next_epoch_start_cp = epoch.new_epoch.first_checkpoint_id as u64;
+        let next_epoch = new_epoch.epoch as u64;
+        let next_epoch_start_cp = new_epoch.first_checkpoint_id as u64;
 
-        let next_epoch_start_tx = epoch.new_epoch.first_tx_sequence_number as u64;
+        let next_epoch_start_tx = new_epoch.first_tx_sequence_number as u64;
         let last_epoch_start_tx = last_db_epoch.first_tx_sequence_number as u64;
 
         Self {

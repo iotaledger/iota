@@ -39,7 +39,10 @@ use crate::{
     models::{
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
-        epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
+        epoch::{
+            EndOfEpochUpdate, StartOfEpochUpdate, StoredEpochInfo, StoredFeatureFlag,
+            StoredProtocolConfig,
+        },
         events::StoredEvent,
         obj_indices::StoredObjectVersion,
         objects::{
@@ -1079,51 +1082,49 @@ impl PgIndexerStore {
             })
     }
 
-    fn advance_epoch(&self, epoch_to_commit: EpochToCommit) -> Result<(), IndexerError> {
-        let last_epoch_id = epoch_to_commit.last_epoch.as_ref().map(|e| e.epoch);
-        // partition_0 has been created, so no need to advance it.
-        if let Some(last_epoch_id) = last_epoch_id {
-            let last_db_epoch: Option<StoredEpochInfo> =
-                read_only_blocking!(&self.blocking_cp, |conn| {
-                    epochs::table
-                        .filter(epochs::epoch.eq(last_epoch_id))
-                        .first::<StoredEpochInfo>(conn)
-                        .optional()
-                })
-                .context("Failed to read last epoch from PostgresDB")?;
-            if let Some(last_epoch) = last_db_epoch {
-                let epoch_partition_data =
-                    EpochPartitionData::compose_data(epoch_to_commit, last_epoch);
-                let table_partitions = self.partition_manager.get_table_partitions()?;
-                for (table, (_, last_partition)) in table_partitions {
-                    // Only advance epoch partition for epoch partitioned
-                    // tables.
-                    if !self
-                        .partition_manager
-                        .get_strategy(&table)
-                        .is_epoch_partitioned()
-                    {
-                        continue;
-                    }
-                    let guard = self.metrics.advance_epoch_latency.start_timer();
-                    self.partition_manager.advance_epoch(
-                        table.clone(),
-                        last_partition,
-                        &epoch_partition_data,
-                    )?;
-                    let elapsed = guard.stop_and_record();
-                    info!(
-                        elapsed,
-                        "Advanced epoch partition {} for table {}",
-                        last_partition,
-                        table.clone()
-                    );
-                }
-            } else {
-                tracing::error!("last epoch: {last_epoch_id} from PostgresDB is None.");
-            }
-        }
+    fn compose_epoch_partition_data(
+        &self,
+        last_epoch_id: i64,
+        new_epoch: StartOfEpochUpdate,
+    ) -> Result<EpochPartitionData, IndexerError> {
+        let last_db_epoch: StoredEpochInfo = read_only_blocking!(&self.blocking_cp, |conn| {
+            epochs::table
+                .filter(epochs::epoch.eq(last_epoch_id))
+                .first::<StoredEpochInfo>(conn)
+        })
+        .context("Failed to read last epoch from PostgresDB")?;
+        Ok(EpochPartitionData::compose_data(new_epoch, last_db_epoch))
+    }
 
+    fn advance_epoch(
+        &self,
+        last_epoch: EndOfEpochUpdate,
+        new_epoch: StartOfEpochUpdate,
+    ) -> Result<(), IndexerError> {
+        let epoch_partition_data =
+            self.compose_epoch_partition_data(last_epoch.epoch, new_epoch)?;
+        let table_partitions = self.partition_manager.get_table_partitions()?;
+        for (table, (_, last_partition)) in table_partitions {
+            // Only advance epoch partition for epoch partitioned tables.
+            if !self
+                .partition_manager
+                .get_strategy(&table)
+                .is_epoch_partitioned()
+            {
+                continue;
+            }
+            let guard = self.metrics.advance_epoch_latency.start_timer();
+            self.partition_manager.advance_epoch(
+                table.clone(),
+                last_partition,
+                &epoch_partition_data,
+            )?;
+            let elapsed = guard.stop_and_record();
+            info!(
+                elapsed,
+                "Advanced epoch partition {} for table {}", last_partition, table
+            );
+        }
         Ok(())
     }
 
@@ -2045,8 +2046,12 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn advance_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.advance_epoch(epoch))
+    async fn advance_epoch(
+        &self,
+        last_epoch: EndOfEpochUpdate,
+        new_epoch: StartOfEpochUpdate,
+    ) -> Result<(), IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.advance_epoch(last_epoch, new_epoch))
             .await
     }
 
