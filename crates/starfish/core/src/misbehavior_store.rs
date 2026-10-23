@@ -1389,6 +1389,10 @@ mod tests {
                 round: 4,
                 last_round: 5,
             },
+            ConsensusError::TooManyCommitSyncEntries {
+                peer: AuthorityIndex::new_for_test(0),
+                limit: 4,
+            },
             // Commit lists an honest server never sends.
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
             ConsensusError::WrongCommitVersionForFlags {
