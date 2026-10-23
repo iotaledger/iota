@@ -113,7 +113,7 @@ ROLLOUT_NETWORKS = ("devnet", "testnet", "mainnet")
 
 # Networks a release can target, keyed off the release tag suffix in
 # release.yml (alpha/beta/rc/none). Used to look up the network's current epoch.
-UPGRADE_NETWORKS = ("alphanet", "devnet", "testnet", "mainnet")
+UPGRADE_NETWORKS = ("devnet", "testnet", "mainnet")
 
 # Public JSON-RPC endpoint of a network's fullnode, used to look up the current
 # epoch when reporting the earliest time a new protocol version can be enabled.
