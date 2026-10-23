@@ -1,0 +1,76 @@
+### Determining the Correct Number of Hops
+
+While `x-forwarded-for` is set to `0` the node determines no client at all. With a rate-limiting policy that means no client is limited, and in allowlist mode it means every request is refused. Use this setting only to read the hop count off the logs, and set the correct value straight after.
+
+To determine the correct number of hops for the `x-forwarded-for` setting:
+
+1. Set `x-forwarded-for: 0` temporarily.
+2. Run the node and query any endpoint from a known IP address.
+3. Check the logs for lines containing `x-forwarded-for`.
+4. The correct value is 1 + the number of IP addresses that appear after your known IP in the header.
+
+## What if I'm Unsure of the Number of Proxies?
+
+If you're unsure about the correct number of proxies to configure, you can use the [`config-traffic-control.sh`](https://github.com/iotaledger/iota/blob/develop/setups/validator/config-traffic-control.sh) script included in the IOTA codebase. This script analyzes your node logs to determine the correct configuration.
+
+Follow these steps:
+
+1. Configure `x-forwarded-for` in the policy config to `0`, which is a special case setting that allows the node to provide logging details of the `x-forwarded-for` header contents:
+
+```yaml
+policy-config:
+  client-id-source:
+    x-forwarded-for: 0
+```
+
+2. Restart your node.
+3. Tail the node logs and pipe them into the script, providing as an additional argument an IP address of a known host that you can use to query any endpoint of your node:
+
+```bash
+journalctl -fu iota-node | setups/validator/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
+```
+
+4. Using the host whose IP was provided to the script, query any endpoint of your node. The script will collect request data and provide a recommended configuration:
+
+```bash
+journalctl -fu iota-node | setups/validator/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
+x-forwarded-for contents: YOUR_KNOWN_IP_ADDRESS
+Configuration:
+  client-id-source:
+    x-forwarded-for: 1
+```
+
+5. Set the configuration as specified by the script.
+6. Restart your node to apply the new configuration.
+
+The script automatically calculates the correct number of hops by analyzing the position of your known IP address in the `x-forwarded-for` header.
+
+## Recommended Production Settings
+
+For production nodes, we recommend:
+
+```yaml
+policy-config:
+  # Use socket-addr for direct connections or x-forwarded-for for proxied setups
+  client-id-source: socket-addr  # Adjust based on your setup
+  
+  connection-blocklist-ttl-sec: 300  # Block for 5 minutes
+  proxy-blocklist-ttl-sec: 300  # Block for 5 minutes
+  
+  spam-policy-type:
+    freq-threshold:
+      # Adjust these thresholds based on your expected legitimate traffic
+      client-threshold: 50  # Sustained tallies per second
+      proxied-client-threshold: 10  # Sustained tallies per second per client behind proxy
+      burst-secs: 30
+  
+  # Consider enabling error policy for production
+  error-policy-type:
+    freq-threshold:
+      client-threshold: 20  # Error tallies per second
+      proxied-client-threshold: 5
+      burst-secs: 30
+  
+  spam-sample-rate: 0.5  # Sample half of all requests
+  dry-run: false  # Ensure this is false for actual protection
+```
