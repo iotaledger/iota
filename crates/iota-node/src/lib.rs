@@ -26,6 +26,8 @@ pub use handle::IotaNodeHandle;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
     ConsensusConfig, NodeConfig,
+    genesis::Genesis,
+    migration_tx_data::MigrationTxData,
     node::{GrpcApiConfig, RunWithRange},
     node_config_metrics::NodeConfigMetrics,
     object_storage_config::ObjectStoreConfig,
@@ -66,7 +68,7 @@ use iota_core::{
         reconfiguration::ReconfigurationInitiator,
     },
     epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, EpochEndDbSnapshotRequest},
-    execution_cache::build_execution_cache,
+    execution_cache::{ExecutionCacheTraitPointers, build_execution_cache},
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
@@ -180,6 +182,151 @@ pub struct ValidatorComponents {
     checkpoint_metrics: Arc<CheckpointMetrics>,
     iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
     validator_registry_id: RegistryID,
+}
+
+/// The stores a node opens at start, the execution cache over them, and the
+/// backpressure manager the cache is built with.
+struct NodeStores {
+    committee_store: Arc<CommitteeStore>,
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
+    checkpoint_store: Arc<CheckpointStore>,
+    store: Arc<AuthorityStore>,
+    cache_traits: ExecutionCacheTraitPointers,
+    backpressure_manager: Arc<BackpressureManager>,
+    /// Whether the database was empty before the node opened it, which is
+    /// the case only at genesis.
+    is_genesis: bool,
+}
+
+impl NodeStores {
+    /// Opens the stores in the database directory of `config`, and writes
+    /// genesis into them when the database is empty.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database cannot be read or written.
+    async fn open(
+        config: &NodeConfig,
+        genesis: &Genesis,
+        migration_tx_data: Option<&MigrationTxData>,
+        prometheus_registry: &Registry,
+    ) -> Result<Self> {
+        let genesis_committee = genesis.committee()?;
+        let committee_store = Arc::new(CommitteeStore::new(
+            config.db_path().join("epochs"),
+            &genesis_committee,
+            None,
+        ));
+
+        // By default, only enable write stall on validators for perpetual db.
+        let enable_write_stall = config
+            .enable_db_write_stall
+            .unwrap_or(config.is_validator());
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
+        let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
+            &config.db_path().join("store"),
+            Some(perpetual_tables_options),
+        ));
+        let is_genesis = perpetual_tables
+            .database_is_empty()
+            .expect("Database read should not fail at init.");
+        let checkpoint_store = CheckpointStore::new_with_contents_cache(
+            &config.db_path().join("checkpoints"),
+            FullCheckpointContentsCache::new(
+                config
+                    .full_checkpoint_contents_cache_size_mb
+                    .saturating_mul(1024 * 1024),
+                FullCheckpointContentsCacheMetrics::new(prometheus_registry),
+            ),
+        );
+        let backpressure_manager =
+            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
+
+        let store = AuthorityStore::open(
+            perpetual_tables.clone(),
+            genesis,
+            config,
+            prometheus_registry,
+            migration_tx_data,
+        )
+        .await?;
+
+        let cache_traits = build_execution_cache(
+            &config.execution_cache_config,
+            prometheus_registry,
+            &store,
+            backpressure_manager.clone(),
+        );
+
+        Ok(Self {
+            committee_store,
+            perpetual_tables,
+            checkpoint_store,
+            store,
+            cache_traits,
+            backpressure_manager,
+            is_genesis,
+        })
+    }
+
+    /// Opens the store of the epoch the node starts in.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database has no committee or no start configuration for
+    /// that epoch, or if the checkpoint store cannot be read.
+    fn open_epoch_store(
+        &self,
+        config: &NodeConfig,
+        chain_identifier: ChainIdentifier,
+        prometheus_registry: &Registry,
+    ) -> Result<Arc<AuthorityPerEpochStore>> {
+        let cur_epoch = self.store.get_recovery_epoch_at_restart()?;
+        let committee = self
+            .committee_store
+            .get_committee(&cur_epoch)?
+            .expect("Committee of the current epoch must exist");
+        let epoch_start_configuration = self
+            .store
+            .get_epoch_start_configuration()?
+            .expect("EpochStartConfiguration of the current epoch must exist");
+        let cache_metrics = Arc::new(ResolverMetrics::new(prometheus_registry));
+        let signature_verifier_metrics = SignatureVerifierMetrics::new(prometheus_registry);
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => chain_identifier.chain(),
+        };
+
+        let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
+        let epoch_store = AuthorityPerEpochStore::new(
+            config.authority_public_key(),
+            committee,
+            &config.db_path().join("store"),
+            Some(epoch_options.options),
+            EpochMetrics::new(prometheus_registry),
+            epoch_start_configuration,
+            self.cache_traits.backing_package_store.clone(),
+            cache_metrics,
+            signature_verifier_metrics,
+            &config.expensive_safety_check_config,
+            (chain_identifier, chain),
+            self.checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .expect("checkpoint store read cannot fail")
+                .unwrap_or(0),
+        )?;
+
+        info!("created epoch store");
+        Ok(epoch_store)
+    }
+}
+
+/// The p2p network of a node and the handles of the services that run on it.
+struct P2pComponents {
+    p2p_network: Network,
+    discovery_handle: discovery::Handle,
+    state_sync_handle: state_sync::Handle,
+    randomness_handle: randomness::Handle,
 }
 
 #[cfg(msim)]
@@ -472,87 +619,15 @@ impl IotaNode {
         remove_legacy_db_checkpoints(&config);
 
         let secret = Arc::pin(config.authority_key_pair().copy());
-        let genesis_committee = genesis.committee()?;
-        let committee_store = Arc::new(CommitteeStore::new(
-            config.db_path().join("epochs"),
-            &genesis_committee,
-            None,
-        ));
-
-        // By default, only enable write stall on validators for perpetual db.
-        let enable_write_stall = config
-            .enable_db_write_stall
-            .unwrap_or(config.is_validator());
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
-        let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-            &config.db_path().join("store"),
-            Some(perpetual_tables_options),
-        ));
-        let is_genesis = perpetual_tables
-            .database_is_empty()
-            .expect("Database read should not fail at init.");
-        let checkpoint_store = CheckpointStore::new_with_contents_cache(
-            &config.db_path().join("checkpoints"),
-            FullCheckpointContentsCache::new(
-                config
-                    .full_checkpoint_contents_cache_size_mb
-                    .saturating_mul(1024 * 1024),
-                FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
-            ),
-        );
-        let backpressure_manager =
-            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
-
-        let store = AuthorityStore::open(
-            perpetual_tables.clone(),
-            &genesis,
+        let stores = NodeStores::open(
             &config,
-            &prometheus_registry,
+            &genesis,
             migration_tx_data.as_ref(),
+            &prometheus_registry,
         )
         .await?;
-
-        let cache_traits = build_execution_cache(
-            &config.execution_cache_config,
-            &prometheus_registry,
-            &store,
-            backpressure_manager.clone(),
-        );
-
-        let cur_epoch = store.get_recovery_epoch_at_restart()?;
-        let committee = committee_store
-            .get_committee(&cur_epoch)?
-            .expect("Committee of the current epoch must exist");
-        let epoch_start_configuration = store
-            .get_epoch_start_configuration()?
-            .expect("EpochStartConfiguration of the current epoch must exist");
-        let cache_metrics = Arc::new(ResolverMetrics::new(&prometheus_registry));
-        let signature_verifier_metrics = SignatureVerifierMetrics::new(&prometheus_registry);
-        let chain = match config.chain_override_for_testing {
-            Some(chain) => chain,
-            None => chain_identifier.chain(),
-        };
-
-        let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
-        let epoch_store = AuthorityPerEpochStore::new(
-            config.authority_public_key(),
-            committee,
-            &config.db_path().join("store"),
-            Some(epoch_options.options),
-            EpochMetrics::new(&prometheus_registry),
-            epoch_start_configuration,
-            cache_traits.backing_package_store.clone(),
-            cache_metrics,
-            signature_verifier_metrics,
-            &config.expensive_safety_check_config,
-            (chain_identifier, chain),
-            checkpoint_store
-                .get_highest_executed_checkpoint_seq_number()
-                .expect("checkpoint store read cannot fail")
-                .unwrap_or(0),
-        )?;
-
-        info!("created epoch store");
+        let epoch_store =
+            stores.open_epoch_store(&config, chain_identifier, &prometheus_registry)?;
         // As at an epoch change; must come before anything marks a checkpoint
         // synced.
         if epoch_store.protocol_config().enable_pcool_flow()
@@ -560,17 +635,20 @@ impl IotaNode {
                 .committee()
                 .authority_exists(&config.authority_public_key())
         {
-            checkpoint_store.hold_synced_watermark_in_memory(perpetual_tables.clone())?;
+            stores
+                .checkpoint_store
+                .hold_synced_watermark_in_memory(stores.perpetual_tables.clone())?;
         }
 
         // the database is empty at genesis time
-        if is_genesis {
+        if stores.is_genesis {
             info!("checking IOTA conservation at genesis");
             // When we are opening the db table, the only time when it's safe to
             // check IOTA conservation is at genesis. Otherwise we may be in the middle of
             // an epoch and the IOTA conservation check will fail. This also initialize
             // the expected_network_iota_amount table.
-            cache_traits
+            stores
+                .cache_traits
                 .reconfig_api
                 .try_expensive_check_iota_conservation(&epoch_store, None)
                 .expect("IOTA conservation check cannot fail at genesis");
@@ -588,7 +666,7 @@ impl IotaNode {
             );
         }
 
-        checkpoint_store.insert_genesis_checkpoint(
+        stores.checkpoint_store.insert_genesis_checkpoint(
             genesis.checkpoint(),
             genesis.checkpoint_contents().clone(),
             &epoch_store,
@@ -600,7 +678,7 @@ impl IotaNode {
             Arc::new(ArcSwap::new(Arc::new(
                 AuthorityAggregator::new_from_epoch_start_state(
                     epoch_store.epoch_start_state(),
-                    &committee_store,
+                    &stores.committee_store,
                     safe_client_metrics_base,
                     auth_agg_metrics,
                 ),
@@ -618,9 +696,9 @@ impl IotaNode {
 
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
-            cache_traits.clone(),
-            committee_store.clone(),
-            checkpoint_store.clone(),
+            stores.cache_traits.clone(),
+            stores.committee_store.clone(),
+            stores.checkpoint_store.clone(),
         );
 
         let index_store = if is_full_node && config.enable_index_processing {
@@ -640,8 +718,8 @@ impl IotaNode {
             Some(Arc::new(
                 GrpcIndexesStore::new(
                     config.db_path().join(GRPC_INDEXES_DIR),
-                    Arc::clone(&store),
-                    &checkpoint_store,
+                    Arc::clone(&stores.store),
+                    &stores.checkpoint_store,
                 )
                 .await,
             ))
@@ -650,8 +728,9 @@ impl IotaNode {
         };
 
         // Seed the open epoch's `epoch_info` row before services start.
-        checkpoint_store
-            .seed_epoch_info(&store, chain_identifier)
+        stores
+            .checkpoint_store
+            .seed_epoch_info(&stores.store, chain_identifier)
             .expect("failed to seed the epoch_info chain");
 
         info!("creating archive reader");
@@ -671,16 +750,20 @@ impl IotaNode {
         let sync_summaries_to_epoch_end = Arc::new(AtomicBool::new(
             Self::sync_summaries_to_epoch_end(&config, &epoch_store),
         ));
-        let (p2p_network, discovery_handle, state_sync_handle, randomness_handle) =
-            Self::create_p2p_network(
-                &config,
-                state_sync_store.clone(),
-                chain_identifier,
-                trusted_peer_change_rx,
-                randomness_tx,
-                sync_summaries_to_epoch_end.clone(),
-                &prometheus_registry,
-            )?;
+        let P2pComponents {
+            p2p_network,
+            discovery_handle,
+            state_sync_handle,
+            randomness_handle,
+        } = Self::create_p2p_network(
+            &config,
+            state_sync_store.clone(),
+            chain_identifier,
+            trusted_peer_change_rx,
+            randomness_tx,
+            sync_summaries_to_epoch_end.clone(),
+            &prometheus_registry,
+        )?;
 
         // We must explicitly send this instead of relying on the initial value to
         // trigger watch value change, so that state-sync is able to process it.
@@ -704,8 +787,8 @@ impl IotaNode {
                         &config,
                         remote_store_config,
                         &prometheus_registry,
-                        checkpoint_store.clone(),
-                        perpetual_tables.clone(),
+                        stores.checkpoint_store.clone(),
+                        stores.perpetual_tables.clone(),
                         receiver,
                     )?;
                     (Some(handle), Some(EpochEndDbSnapshotHandle::new(requests)))
@@ -735,13 +818,13 @@ impl IotaNode {
             authority_name,
             secret,
             config.supported_protocol_versions.unwrap(),
-            store.clone(),
-            cache_traits.clone(),
+            stores.store.clone(),
+            stores.cache_traits.clone(),
             epoch_store.clone(),
-            committee_store.clone(),
+            stores.committee_store.clone(),
             index_store,
             grpc_indexes_store,
-            checkpoint_store.clone(),
+            stores.checkpoint_store.clone(),
             &prometheus_registry,
             &genesis_objects,
             config.clone(),
@@ -802,7 +885,7 @@ impl IotaNode {
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
-            cache_traits.global_state_hash_store.clone(),
+            stores.cache_traits.global_state_hash_store.clone(),
             GlobalStateHashMetrics::new(&prometheus_registry),
         ));
 
@@ -927,11 +1010,11 @@ impl IotaNode {
                     state.clone(),
                     epoch_store.committee().clone(),
                     epoch_store.clone(),
-                    checkpoint_store.clone(),
+                    stores.checkpoint_store.clone(),
                     state_sync_handle.clone(),
                     randomness_handle.clone(),
                     Arc::downgrade(&global_state_hasher),
-                    backpressure_manager.clone(),
+                    stores.backpressure_manager.clone(),
                     connection_monitor_status.clone(),
                     &registry_service,
                     serving_rt_handle.clone(),
@@ -966,14 +1049,14 @@ impl IotaNode {
             state_sync_handle,
             randomness_handle,
             sync_summaries_to_epoch_end,
-            checkpoint_store,
-            perpetual_tables,
+            checkpoint_store: stores.checkpoint_store,
+            perpetual_tables: stores.perpetual_tables,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
             connection_monitor_status,
             trusted_peer_change_tx,
-            backpressure_manager,
+            backpressure_manager: stores.backpressure_manager,
             checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
 
             #[cfg(msim)]
@@ -1095,12 +1178,7 @@ impl IotaNode {
         randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
         sync_summaries_to_epoch_end: Arc<AtomicBool>,
         prometheus_registry: &Registry,
-    ) -> Result<(
-        Network,
-        discovery::Handle,
-        state_sync::Handle,
-        randomness::Handle,
-    )> {
+    ) -> Result<P2pComponents> {
         let (state_sync, state_sync_server) = state_sync::Builder::new()
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
@@ -1222,12 +1300,12 @@ impl IotaNode {
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
-        Ok((
+        Ok(P2pComponents {
             p2p_network,
             discovery_handle,
             state_sync_handle,
             randomness_handle,
-        ))
+        })
     }
 
     /// Asynchronously constructs and initializes the components necessary for
