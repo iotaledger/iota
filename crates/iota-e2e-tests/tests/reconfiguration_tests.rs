@@ -1184,6 +1184,123 @@ async fn safe_mode_reconfig_test() {
     assert_eq!(system_state.system_state_version(), 2);
 }
 
+/// A stake whose activation epoch change ran in safe mode is still in the
+/// pool's pending stake when the epoch number says it is active. Withdrawing it
+/// must take it out of the pending stake instead of recording a withdrawal
+/// against a pool balance that never received it.
+#[cfg(msim)]
+#[sim_test]
+async fn safe_mode_pending_stake_withdraw_test() {
+    use iota_test_transaction_builder::make_staking_transaction;
+    use iota_types::{
+        governance::StakedIota,
+        iota_system_state::{IotaSystemState, advance_epoch_result_injection},
+    };
+
+    // Epoch changes are forced below, so the epoch timer must not fire on its own.
+    const EPOCH_DURATION: u64 = 600_000;
+
+    // Inject failure at epoch change 1 -> 2.
+    advance_epoch_result_injection::set_override(Some((2, 3)));
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(EPOCH_DURATION)
+        // The epoch conservation check compares the storage fund with the live
+        // objects' storage rebates, but a safe-mode epoch change parks the
+        // epoch's storage charges in the system state's safe-mode fields
+        // instead of the fund, so the staking transaction below would trip it.
+        .with_node_config_overrides(vec![
+            "all:expensive-safety-check-config.force-disable-epoch-iota-conservation-check=true"
+                .parse()
+                .unwrap(),
+        ])
+        .build()
+        .await;
+    let state = test_cluster.fullnode_handle.iota_node.state();
+
+    // A regular epoch change first; it also migrates the system state to V2.
+    test_cluster.force_new_epoch().await;
+    let system_state = test_cluster.wait_for_epoch(Some(1)).await;
+    assert!(!system_state.safe_mode());
+    let validator_address = system_state
+        .into_iota_system_state_summary()
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
+    let pending_amounts = |system_state: IotaSystemState| {
+        let summary = system_state.into_iota_system_state_summary();
+        let validator = summary
+            .iter_active_validators()
+            .find(|validator| validator.iota_address == validator_address)
+            .unwrap();
+        (
+            validator.pending_stake,
+            validator.pending_total_iota_withdraw,
+        )
+    };
+
+    // Stake during epoch 1, so the receipt records activation epoch 2.
+    let sender = test_cluster
+        .wallet
+        .get_all_accounts_and_gas_objects()
+        .await
+        .unwrap()[0]
+        .0;
+    let staking_tx = make_staking_transaction(&test_cluster.wallet, validator_address).await;
+    let effects = test_cluster.execute_transaction(staking_tx).await;
+    assert_eq!(effects.created().len(), 1);
+    let staked_iota = *effects.created()[0].reference();
+    let principal = StakedIota::try_from(&state.get_object(&staked_iota.object_id).unwrap())
+        .unwrap()
+        .principal();
+    assert!(principal > 0);
+
+    // The 1 -> 2 epoch change runs in safe mode: the epoch number advances but
+    // the stake is not processed into the pool.
+    test_cluster.set_safe_mode_expected(true);
+    test_cluster.force_new_epoch().await;
+    let system_state = test_cluster.wait_for_epoch(Some(2)).await;
+    assert!(system_state.safe_mode());
+    assert_eq!(pending_amounts(system_state), (principal, 0));
+
+    // Withdraw the receipt during the safe-mode epoch.
+    let gas = test_cluster
+        .wallet
+        .get_one_gas_object_owned_by_address(sender)
+        .await
+        .unwrap()
+        .unwrap();
+    let gas_price = test_cluster.wallet.get_reference_gas_price().await.unwrap();
+    let unstaking_tx = test_cluster.wallet.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas, gas_price)
+            .call_unstaking(staked_iota)
+            .build(),
+    );
+    let effects = test_cluster.execute_transaction(unstaking_tx).await;
+
+    // Only the principal comes back, and the stake leaves the pending stake
+    // instead of being recorded as a withdrawal from the pool.
+    assert_eq!(effects.created().len(), 1);
+    let returned_coin = effects.created()[0].reference().object_id;
+    let returned_amount = state
+        .get_object(&returned_coin)
+        .unwrap()
+        .as_coin_maybe()
+        .unwrap()
+        .value();
+    assert_eq!(returned_amount, principal);
+    let system_state = state.get_iota_system_state_object_for_testing().unwrap();
+    assert_eq!(pending_amounts(system_state), (0, 0));
+
+    // The next epoch change completes normally with the pool unchanged.
+    test_cluster.set_safe_mode_expected(false);
+    test_cluster.force_new_epoch().await;
+    let system_state = test_cluster.wait_for_epoch(Some(3)).await;
+    assert!(!system_state.safe_mode());
+    assert_eq!(pending_amounts(system_state), (0, 0));
+}
+
 #[sim_test]
 async fn test_authority_capabilities_invalid_signature_rejection() {
     // Test that AuthorityCapabilities signed by a random node (not a validator)

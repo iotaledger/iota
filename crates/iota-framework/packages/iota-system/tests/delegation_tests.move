@@ -5,17 +5,20 @@
 #[test_only]
 module iota_system::stake_tests;
 
+use iota::balance;
 use iota::coin;
 use iota::table::Table;
-use iota::test_scenario;
+use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{Self, assert_eq};
 use iota_system::governance_test_utils::{
     Self,
     add_validator,
     add_validator_candidate,
     advance_epoch,
+    advance_epoch_safe_mode,
     advance_epoch_with_max_committee_members_count,
     advance_epoch_with_balanced_reward_amounts,
+    assert_equal_approx,
     assert_validator_total_stake_amounts,
     assert_validator_candidate_total_stake_amounts,
     create_validators_with_stakes_and_commission_rates,
@@ -1019,4 +1022,259 @@ fun set_up_iota_system_state_with_storage_fund() {
     );
     create_iota_system_state_for_testing(validators, 300, 100, ctx);
     scenario_val.end();
+}
+
+// ==== stake across a safe-mode epoch change ====
+
+#[test]
+fun test_withdraw_stake_skipped_by_safe_mode_epoch_change() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    // Validator 1 holds 100 IOTA. A pending stake larger than the pool makes the
+    // next epoch change abort if the withdrawal is recorded against the pool.
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 200, scenario);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 200 * NANOS_PER_IOTA, 0, scenario);
+
+    // The epoch change that should have processed the stake runs in safe mode.
+    advance_epoch_safe_mode(scenario);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 200 * NANOS_PER_IOTA, 0, scenario);
+
+    // The stake was never processed, so withdrawing it only returns the principal
+    // and removes it from the pending stake.
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 200 * NANOS_PER_IOTA);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 0, 0, scenario);
+
+    // The next normal epoch change completes with the pool unchanged.
+    advance_epoch(scenario);
+    assert_validator_total_stake_amounts(
+        vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2],
+        vector[100 * NANOS_PER_IOTA, 100 * NANOS_PER_IOTA],
+        scenario,
+    );
+    scenario_val.end();
+}
+
+#[test]
+fun test_withdraw_stake_after_two_safe_mode_epoch_changes() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 200, scenario);
+    advance_epoch_safe_mode(scenario);
+    advance_epoch_safe_mode(scenario);
+
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 200 * NANOS_PER_IOTA);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 0, 0, scenario);
+
+    advance_epoch(scenario);
+    assert_validator_total_stake_amounts(
+        vector[VALIDATOR_ADDR_1],
+        vector[100 * NANOS_PER_IOTA],
+        scenario,
+    );
+    scenario_val.end();
+}
+
+#[test]
+fun test_withdraw_stake_processed_one_epoch_late() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 100, scenario);
+    advance_epoch_safe_mode(scenario);
+    // The next normal epoch change processes the stake one epoch late.
+    advance_epoch(scenario);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 0, 0, scenario);
+    assert_validator_total_stake_amounts(
+        vector[VALIDATOR_ADDR_1],
+        vector[200 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    // 20 IOTA of rewards per validator: half is commission staked back by the
+    // validator, half goes to the pool.
+    advance_epoch_with_balanced_reward_amounts(0, 40, scenario);
+
+    // The receipt is active now: principal plus its share of the rewards comes back.
+    unstake(STAKER_ADDR_1, 0, scenario);
+    let returned = total_iota_balance(STAKER_ADDR_1, scenario);
+    assert_equal_approx(returned, 105 * NANOS_PER_IOTA, 10);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 0, returned, scenario);
+
+    advance_epoch(scenario);
+    scenario_val.end();
+}
+
+#[test]
+fun test_withdraw_active_stake_during_safe_mode_epoch() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 100, scenario);
+    advance_epoch(scenario);
+    advance_epoch_safe_mode(scenario);
+
+    // The stake was processed before the safe-mode epoch change, so it is
+    // withdrawn through the active path and settles at the next epoch change.
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 0, 100 * NANOS_PER_IOTA, scenario);
+
+    // The same holds for a genesis receipt.
+    unstake(VALIDATOR_ADDR_2, 0, scenario);
+    assert_eq(total_iota_balance(VALIDATOR_ADDR_2, scenario), 100 * NANOS_PER_IOTA);
+    assert_pending_amounts(VALIDATOR_ADDR_2, 0, 100 * NANOS_PER_IOTA, scenario);
+
+    advance_epoch(scenario);
+    assert_validator_total_stake_amounts(
+        vector[VALIDATOR_ADDR_1],
+        vector[100 * NANOS_PER_IOTA],
+        scenario,
+    );
+    scenario_val.end();
+}
+
+#[test]
+fun test_withdraw_preactive_stake_across_safe_mode_epoch_change() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    add_validator_candidate(
+        NEW_VALIDATOR_ADDR,
+        b"name5",
+        b"/ip4/127.0.0.1/udp/85",
+        NEW_VALIDATOR_PUBKEY,
+        NEW_VALIDATOR_POP,
+        scenario,
+    );
+    // Stake to a preactive pool is processed on request, not at the epoch change.
+    stake_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, scenario);
+    advance_epoch_safe_mode(scenario);
+
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+    assert_validator_candidate_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[0],
+        scenario,
+    );
+    scenario_val.end();
+}
+
+#[test]
+fun test_exchange_rate_getter_across_safe_mode_epoch_change() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 100, scenario);
+    scenario.next_tx(STAKER_ADDR_1);
+    let staked_iota = scenario.take_from_sender<StakedIota>();
+    let pool_id = staked_iota.pool_id();
+    scenario.return_to_sender(staked_iota);
+
+    advance_epoch(scenario);
+    advance_epoch_safe_mode(scenario);
+
+    scenario.next_tx(@0x0);
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+    let pool = system_state.active_validator_by_address(VALIDATOR_ADDR_1).get_staking_pool_ref();
+    let rate_at_gap = staking_pool::pool_token_exchange_rate_at_epoch(pool, 2);
+    let gap_iota = rate_at_gap.iota_amount();
+    let gap_tokens = rate_at_gap.pool_token_amount();
+    let rates = system_state.pool_exchange_rates(&pool_id);
+    // No rate was recorded for the safe-mode epoch; the getter falls back to the last one.
+    assert!(!rates.contains(2));
+    assert_exchange_rate_eq(rates, 1, 200 * NANOS_PER_IOTA, 200 * NANOS_PER_IOTA);
+    assert_eq(gap_iota, 200 * NANOS_PER_IOTA);
+    assert_eq(gap_tokens, 200 * NANOS_PER_IOTA);
+    test_scenario::return_shared(system_state);
+    scenario_val.end();
+}
+
+#[test]
+fun test_withdraw_stake_from_inactive_pool_across_safe_mode_epoch_changes() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 100, scenario);
+    advance_epoch(scenario);
+    remove_validator(VALIDATOR_ADDR_1, scenario);
+    advance_epoch(scenario);
+    advance_epoch_safe_mode(scenario);
+    advance_epoch_safe_mode(scenario);
+
+    // Withdrawals from an inactive pool settle immediately, whether the receipt
+    // predates the pool's deactivation epoch or was processed at it.
+    scenario.next_tx(STAKER_ADDR_1);
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+    assert!(!system_state.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1));
+    test_scenario::return_shared(system_state);
+
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+    unstake(VALIDATOR_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+    scenario_val.end();
+}
+
+#[test]
+fun test_epoch_change_settles_withdraw_recorded_against_unprocessed_stake() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let ctx = scenario.ctx();
+
+    let mut pool = staking_pool::new(ctx);
+    pool.activate_staking_pool(0);
+    // 100 IOTA processed into the pool at the first epoch change.
+    let processed = pool.request_add_stake(
+        balance::create_for_testing(100 * NANOS_PER_IOTA),
+        1,
+        ctx,
+    );
+    pool.process_pending_stakes_and_withdraws(ctx);
+    assert_eq(pool.iota_balance(), 100 * NANOS_PER_IOTA);
+
+    // A 200 IOTA stake left pending by a safe-mode epoch change and then also
+    // recorded as a 200 IOTA withdrawal: the state the old withdrawal path left behind.
+    let skipped = pool.request_add_stake(
+        balance::create_for_testing(200 * NANOS_PER_IOTA),
+        2,
+        ctx,
+    );
+    pool.set_pending_withdraws_for_testing(200 * NANOS_PER_IOTA, 200 * NANOS_PER_IOTA);
+
+    scenario.next_epoch(@0x0);
+    pool.process_pending_stakes_and_withdraws(scenario.ctx());
+    assert_eq(pool.iota_balance(), 100 * NANOS_PER_IOTA);
+    assert_eq(pool.pending_stake_amount(), 0);
+    assert_eq(pool.pending_stake_withdraw_amount(), 0);
+
+    test_utils::destroy(processed);
+    test_utils::destroy(skipped);
+    test_utils::destroy(pool);
+    scenario_val.end();
+}
+
+fun assert_pending_amounts(
+    validator: address,
+    pending_stake: u64,
+    pending_withdraw: u64,
+    scenario: &mut Scenario,
+) {
+    scenario.next_tx(@0x0);
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+    let validator = system_state.active_validator_by_address(validator);
+    assert_eq(validator.pending_stake_amount(), pending_stake);
+    assert_eq(validator.pending_stake_withdraw_amount(), pending_withdraw);
+    test_scenario::return_shared(system_state);
 }
