@@ -31,7 +31,7 @@ pub const MAX_PUBLIC_INPUTS: usize = 8;
 
 // Byte length of a compressed BN254 G1 element. fastcrypto_zkp does not export
 // it, unlike `fastcrypto::groups::bls12381::G1_ELEMENT_BYTE_LENGTH`.
-// TODO(<issue link>): use `fastcrypto_zkp::bn254::api::G1_SIZE`.
+// TODO(https://github.com/iotaledger/iota/issues/13310): use `fastcrypto_zkp::bn254::api::G1_SIZE`.
 const BN254_G1_SIZE: usize = 32;
 
 #[derive(Clone)]
