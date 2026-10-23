@@ -38,7 +38,7 @@ use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use serde::{Serialize, de::DeserializeOwned};
 use statrs::statistics::{Data, Median};
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use crate::{
     IotaRpcModule, ObjectProvider,
@@ -620,7 +620,15 @@ fn validator_exchange_rates(
         let mut rates = state
             .get_dynamic_fields(exchange_rates_id, None, exchange_rates_size as usize)?
             .into_iter()
-            .map(|(_object_id, df)| {
+            .filter_map(|(object_id, df)| {
+                if df.is_none() {
+                    // The table's size says how many rates exist, so a row
+                    // that no longer resolves skews the APY inputs.
+                    warn!(?object_id, "an exchange-rate table entry did not resolve");
+                }
+                df
+            })
+            .map(|df| {
                 let epoch: EpochId = bcs::from_bytes(&df.bcs_name).map_err(|e| {
                     IotaError::ObjectDeserialization {
                         error: e.to_string(),
@@ -812,7 +820,15 @@ where
     state
         .get_dynamic_fields(table_id, None, limit as usize)?
         .into_iter()
-        .map(|(_object_id, df)| {
+        .filter_map(|(object_id, df)| {
+            if df.is_none() {
+                // The table's size says how many validators exist, so a row
+                // that no longer resolves silently shortens the result.
+                warn!(?object_id, "a validator table entry did not resolve");
+            }
+            df
+        })
+        .map(|df| {
             let validator_summary =
                 get_validator_from_table(object_store, table_id, &key(df)?, protocol_version)?;
 

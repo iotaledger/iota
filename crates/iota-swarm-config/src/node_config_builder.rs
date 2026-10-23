@@ -300,6 +300,7 @@ pub struct FullnodeConfigBuilder {
     policy_config: Option<PolicyConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
+    num_epochs_to_retain_for_indexes: Option<u64>,
     iota_names_config: Option<IotaNamesConfig>,
     enable_grpc_api: bool,
     grpc_api_config: Option<GrpcApiConfig>,
@@ -409,6 +410,11 @@ impl FullnodeConfigBuilder {
                 &network_key_pair,
             )));
         }
+        self
+    }
+
+    pub fn with_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.num_epochs_to_retain_for_indexes = epochs;
         self
     }
 
@@ -593,6 +599,9 @@ impl FullnodeConfigBuilder {
         };
 
         let mut pruning_config = AuthorityStorePruningConfig::default();
+        if let Some(epochs) = self.num_epochs_to_retain_for_indexes {
+            pruning_config.num_epochs_to_retain_for_indexes = Some(epochs);
+        }
         if self.disable_pruning {
             pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
             pruning_config.set_num_epochs_to_retain(u64::MAX);
