@@ -15,7 +15,9 @@ use async_graphql::{
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
-    models::checkpoints::StoredCheckpoint, pruning::CommitterTables, schema::checkpoints,
+    models::checkpoints::StoredCheckpoint,
+    pruning::{CommitterTables, oldest_available_checkpoint::OldestAvailableCheckpoint},
+    schema::checkpoints,
 };
 use iota_sdk_types::{CheckpointDigest, CheckpointSummary};
 use serde::{Deserialize, Serialize};
@@ -260,6 +262,12 @@ impl CheckpointId {
 }
 
 impl Checkpoint {
+    /// The oldest checkpoint a page of checkpoints is available from: the
+    /// value reported on `DATA_PRUNED`.
+    pub(crate) fn oldest_available_checkpoint(db: &Db) -> OldestAvailableCheckpoint {
+        OldestAvailableCheckpoint::for_tables(&db.inner, &[], &[CommitterTables::Checkpoints])
+    }
+
     pub(crate) fn sequence_number_impl(&self) -> u64 {
         self.stored.sequence_number as u64
     }
@@ -437,22 +445,16 @@ impl Checkpoint {
         }
 
         // Without a fallback, anything below the pruning watermark is unreachable
-        let oldest_available_checkpoint = if db.inner.is_fallback_enabled() {
-            0
-        } else {
-            db.inner
-                .watermark_cache()
-                .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
-                .map_or(0, |w| w as u64)
-        };
-        let absolute_lo_incl = absolute_lo_incl.max(oldest_available_checkpoint);
+        let oldest_available_checkpoint = Self::oldest_available_checkpoint(db);
+        let absolute_lo_incl = absolute_lo_incl.max(u64::from(oldest_available_checkpoint));
 
         let available_range = absolute_lo_incl..=absolute_hi_incl;
 
         if available_range.is_empty() {
-            return Err(Error::DataPruned(
-                "all checkpoints in the requested range have been pruned".into(),
-            ));
+            return Err(Error::DataPruned {
+                message: "all checkpoints in the requested range have been pruned".into(),
+                oldest_available_checkpoint,
+            });
         }
 
         let Some(page_range) =
@@ -541,7 +543,7 @@ impl Page<Cursor> {
     fn narrow_to_available_range(
         &self,
         available: &RangeInclusive<u64>,
-        oldest_available_checkpoint: u64,
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
     ) -> Result<Option<RangeInclusive<u64>>, Error> {
         let lo = *available.start();
         let hi = *available.end();
@@ -563,10 +565,13 @@ impl Page<Cursor> {
         // Since `after <= before`, it's enough to check if the smaller cursor is below
         // `lo`. Analogously for `hi`.
         if let Some((name, seq)) = after.or(before) {
-            if seq < oldest_available_checkpoint {
-                return Err(Error::DataPruned(format!(
-                    "`{name}` cursor (seq {seq}) is below the available range {available:?}"
-                )));
+            if seq < u64::from(oldest_available_checkpoint) {
+                return Err(Error::DataPruned {
+                    message: format!(
+                        "`{name}` cursor (seq {seq}) is below the available range {available:?}"
+                    ),
+                    oldest_available_checkpoint,
+                });
             }
             if seq < lo {
                 return Err(Error::Client(format!(

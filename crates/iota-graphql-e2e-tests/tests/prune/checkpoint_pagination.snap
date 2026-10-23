@@ -112,7 +112,8 @@ Response: {
         "checkpoints"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
@@ -202,7 +203,8 @@ Response: {
         "checkpoints"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]
