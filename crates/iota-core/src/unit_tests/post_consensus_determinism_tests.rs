@@ -3430,7 +3430,7 @@ fn package_read(verdict: PackageVerdict) -> InputRead {
 
 /// Sets the horizon distance, read from `horizon_distance` each time a protocol
 /// config is built.
-fn pcool_flags(horizon_distance: Arc<AtomicU64>) -> OverrideGuard {
+fn horizon_distance_override(horizon_distance: Arc<AtomicU64>) -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_pcool_deterministic_validation_horizon_distance_for_testing(
             horizon_distance.load(Ordering::SeqCst),
@@ -3508,7 +3508,7 @@ fn rng_seed() -> u64 {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn random_histories_and_schedules_match_the_oracle() {
     let horizon_distance = Arc::new(AtomicU64::new(2));
-    let _flags = pcool_flags(horizon_distance.clone());
+    let _flags = horizon_distance_override(horizon_distance.clone());
     let env = Env::new(horizon_distance).await;
     let seed = rng_seed();
     let cases = case_count();
@@ -3681,7 +3681,7 @@ fn produced(oracle: &Oracle, commit: CommitIndex, object: ObjectId) -> ObjectRef
 
 async fn run_scenario(name: &str, history: &History, steps: Vec<Step>) {
     let horizon_distance = Arc::new(AtomicU64::new(history.k()));
-    let _flags = pcool_flags(horizon_distance.clone());
+    let _flags = horizon_distance_override(horizon_distance.clone());
     let env = Env::new(horizon_distance).await;
     tokio::task::block_in_place(|| {
         let schedule = Schedule { steps };

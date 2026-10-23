@@ -630,45 +630,41 @@ async fn test_valid_abstract_account_tx_executes() -> Result<(), anyhow::Error> 
         .await
 }
 
-/// The protocol version the upgrade tests start at, with the P-COOL flow, and
-/// with it deterministic validation, off.
+/// The protocol version the upgrade tests start at, with the P-COOL flow off.
 #[cfg(msim)]
-const DETERMINISTIC_VALIDATION_OFF_VERSION: u64 = DETERMINISTIC_VALIDATION_ON_VERSION - 1;
+const PCOOL_FLOW_OFF_VERSION: u64 = PCOOL_FLOW_ON_VERSION - 1;
 
-/// The protocol version the upgrade tests upgrade to, where the P-COOL flow,
-/// and with it deterministic validation, is on.
+/// The protocol version the upgrade tests upgrade to, where the P-COOL flow is
+/// on.
 #[cfg(msim)]
-const DETERMINISTIC_VALIDATION_ON_VERSION: u64 =
-    iota_protocol_config::ProtocolVersion::MAX.as_u64();
+const PCOOL_FLOW_ON_VERSION: u64 = iota_protocol_config::ProtocolVersion::MAX.as_u64();
 
 /// How long the upgrade tests wait for each condition on the nodes.
 #[cfg(msim)]
 const UPGRADE_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
 
-/// Deterministic validation reaches a network through a protocol upgrade at
-/// an epoch boundary. The cluster starts with the P-COOL flow on and
-/// deterministic validation off, upgrades to a version where it is on, and
-/// one validator restarts in the first epoch with it on. Transfers from a
-/// Move account and from a key account succeed before the upgrade, after it,
-/// after the restart and in the next epoch; a validator whose checkpoints
-/// differed from the certified ones would stop the test.
+/// The P-COOL flow reaches a network through a protocol upgrade at an epoch
+/// boundary. The cluster starts with the flow off, upgrades to a version where
+/// it is on, and one validator restarts in the first epoch with it on.
+/// Transfers from a Move account and from a key account succeed before the
+/// upgrade, after it, after the restart and in the next epoch; a validator
+/// whose checkpoints differed from the certified ones would stop the test.
 ///
 /// Simulator only: the protocol config override that turns the flag on is
 /// thread-local, and only the simulator runs every node on the test's thread.
 #[cfg(msim)]
 #[sim_test]
-async fn test_deterministic_validation_turned_on_at_a_protocol_upgrade() -> Result<(), anyhow::Error>
-{
-    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+async fn test_pcool_flow_turned_on_at_a_protocol_upgrade() -> Result<(), anyhow::Error> {
+    let _guard = turn_on_the_pcool_flow_at_the_upgrade();
     telemetry_subscribers::init_for_testing();
-    let test_env = start_before_deterministic_validation(
+    let test_env = start_before_the_pcool_flow(
         TestClusterBuilder::new()
             .with_num_validators(4)
             .with_epoch_duration_ms(60_000),
     )
     .await?;
 
-    wait_for_deterministic_validation(&test_env.test_cluster).await;
+    wait_for_the_pcool_flow(&test_env.test_cluster).await;
     transfer_from_move_account_and_key_account(&test_env).await?;
 
     let restarted = test_env.test_cluster.get_validator_pubkeys()[1];
@@ -677,47 +673,45 @@ async fn test_deterministic_validation_turned_on_at_a_protocol_upgrade() -> Resu
     test_env.test_cluster.start_node(&restarted).await;
     transfer_from_move_account_and_key_account(&test_env).await?;
 
-    check_the_next_epoch_under_deterministic_validation(&test_env).await
+    check_the_next_epoch_with_the_pcool_flow(&test_env).await
 }
 
-/// A validator that is down when deterministic validation turns on starts
-/// after the upgrade in the last epoch with it off, catches up that epoch,
-/// moves to the first epoch with it on while that epoch's commits are being
-/// replayed, and then builds the same checkpoints as the others.
+/// A validator that is down when the P-COOL flow turns on starts after the
+/// upgrade in the last epoch with it off, catches up that epoch, moves to the
+/// first epoch with it on while that epoch's commits are being replayed, and
+/// then builds the same checkpoints as the others.
 ///
 /// Simulator only, for the reason given on the test above.
 #[cfg(msim)]
 #[sim_test]
-async fn test_validator_down_when_deterministic_validation_turns_on_catches_up()
--> Result<(), anyhow::Error> {
+async fn test_validator_down_when_the_pcool_flow_turns_on_catches_up() -> Result<(), anyhow::Error>
+{
     run_with_a_validator_down_across_the_upgrade(0).await
 }
 
-/// A validator that is down for the whole first epoch with deterministic
-/// validation on starts in the second one. It catches up the last epoch with
-/// it off, moves to the first epoch with it on after that epoch has already
-/// ended, and then builds the same checkpoints as the others.
+/// A validator that is down for the whole first epoch with the P-COOL flow on
+/// starts in the second one. It catches up the last epoch with it off, moves to
+/// the first epoch with it on after that epoch has already ended, and then
+/// builds the same checkpoints as the others.
 ///
 /// Simulator only, for the reason given on the tests above.
 #[cfg(msim)]
 #[sim_test]
-async fn test_validator_down_for_the_first_deterministic_validation_epoch_catches_up()
--> Result<(), anyhow::Error> {
+async fn test_validator_down_for_the_first_pcool_flow_epoch_catches_up() -> Result<(), anyhow::Error>
+{
     run_with_a_validator_down_across_the_upgrade(1).await
 }
 
-/// A validator killed while it reconfigures into the first epoch with
-/// deterministic validation on, before it saves the new epoch's start
-/// configuration, restarts in the last epoch with it off and reconfigures
-/// again.
+/// A validator killed while it reconfigures into the first epoch with the
+/// P-COOL flow on, before it saves the new epoch's start configuration,
+/// restarts in the last epoch with it off and reconfigures again.
 ///
 /// Simulator only, for the reason given on the tests above and because the
 /// kill is a fail point.
 #[cfg(msim)]
 #[sim_test]
-async fn test_crash_before_saving_the_first_deterministic_validation_epoch_start()
--> Result<(), anyhow::Error> {
-    run_with_a_crash_while_reconfiguring_into_deterministic_validation("reconfig_delay", |crash| {
+async fn test_crash_before_saving_the_first_pcool_flow_epoch_start() -> Result<(), anyhow::Error> {
+    run_with_a_crash_while_reconfiguring_into_the_pcool_flow("reconfig_delay", |crash| {
         iota_macros::register_fail_point_async("reconfig_delay", move || {
             crash();
             async {}
@@ -726,29 +720,27 @@ async fn test_crash_before_saving_the_first_deterministic_validation_epoch_start
     .await
 }
 
-/// A validator killed while it reconfigures into the first epoch with
-/// deterministic validation on, after it saved the new epoch's start
-/// configuration but before it opened the new epoch's store, restarts directly
-/// in the new epoch.
+/// A validator killed while it reconfigures into the first epoch with the
+/// P-COOL flow on, after it saved the new epoch's start configuration but
+/// before it opened the new epoch's store, restarts directly in the new epoch.
 ///
 /// Simulator only, for the reason given on the tests above and because the
 /// kill is a fail point.
 #[cfg(msim)]
 #[sim_test]
-async fn test_crash_before_opening_the_first_deterministic_validation_epoch_store()
--> Result<(), anyhow::Error> {
-    run_with_a_crash_while_reconfiguring_into_deterministic_validation(
+async fn test_crash_before_opening_the_first_pcool_flow_epoch_store() -> Result<(), anyhow::Error> {
+    run_with_a_crash_while_reconfiguring_into_the_pcool_flow(
         "before-open-new-epoch-store",
         |crash| iota_macros::register_fail_point("before-open-new-epoch-store", move || crash()),
     )
     .await
 }
 
-/// A Move-authenticated transaction without an expiration executes while
-/// deterministic validation is off, and still executes once it is on, whether
-/// it was signed before or after the upgrade. One that expires in the epoch
-/// before the upgrade is refused as expired by every validator and does not
-/// execute, so its coins stay spendable.
+/// A Move-authenticated transaction without an expiration executes while the
+/// P-COOL flow is off, and still executes once it is on, whether it was signed
+/// before or after the upgrade. One that expires in the epoch before the
+/// upgrade is refused as expired by every validator and does not execute, so
+/// its coins stay spendable.
 ///
 /// Simulator only, for the reason given on the tests above.
 #[cfg(msim)]
@@ -758,10 +750,10 @@ async fn test_move_authenticated_transaction_without_expiration_after_the_upgrad
     use iota_core::authority_client::validator_v2::ValidatorV2API;
     use iota_types::{base_types::ConciseableName, messages_grpc::TxStatusUpdate};
 
-    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    let _guard = turn_on_the_pcool_flow_at_the_upgrade();
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
-    let test_env = start_before_deterministic_validation(
+    let test_env = start_before_the_pcool_flow(
         TestClusterBuilder::new()
             .with_num_validators(4)
             .with_epoch_duration_ms(60_000),
@@ -793,7 +785,7 @@ async fn test_move_authenticated_transaction_without_expiration_after_the_upgrad
         anyhow::Ok(TransactionEnvelope::from_user_sig_data(tx_data, signatures))
     };
     anyhow::ensure!(
-        !deterministic_validation_on_running_validators(test_cluster)
+        !pcool_flow_on_running_validators(test_cluster)
             .into_iter()
             .any(|on| on),
         "the transactions must be built before the upgrade"
@@ -817,7 +809,7 @@ async fn test_move_authenticated_transaction_without_expiration_after_the_upgrad
         TransactionEnvelope::from_user_sig_data(tx_data, signatures)
     };
 
-    let upgrade_epoch = wait_for_deterministic_validation(test_cluster).await;
+    let upgrade_epoch = wait_for_the_pcool_flow(test_cluster).await;
     anyhow::ensure!(
         upgrade_epoch > epoch_before,
         "the held transactions must be signed before the upgrade"
@@ -870,25 +862,23 @@ async fn test_move_authenticated_transaction_without_expiration_after_the_upgrad
         ))
         .await?;
     transfer_from_move_account_and_key_account(&test_env).await?;
-    check_the_next_epoch_under_deterministic_validation(&test_env).await
+    check_the_next_epoch_with_the_pcool_flow(&test_env).await
 }
 
-/// A fullnode stopped before deterministic validation turns on and started
-/// after the upgrade catches up the last epoch with it off, executes the
-/// first epoch with it on, including a transfer made while it was down, and
-/// takes transactions again. A second fullnode serves the test while the
-/// first is down.
+/// A fullnode stopped before the P-COOL flow turns on and started after the
+/// upgrade catches up the last epoch with it off, executes the first epoch with
+/// it on, including a transfer made while it was down, and takes transactions
+/// again. A second fullnode serves the test while the first is down.
 ///
 /// Simulator only, for the reason given on the tests above.
 #[cfg(msim)]
 #[sim_test]
-async fn test_fullnode_restarted_across_the_deterministic_validation_upgrade()
--> Result<(), anyhow::Error> {
+async fn test_fullnode_restarted_across_the_pcool_flow_upgrade() -> Result<(), anyhow::Error> {
     use test_cluster::FullNodeHandle;
 
-    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    let _guard = turn_on_the_pcool_flow_at_the_upgrade();
     telemetry_subscribers::init_for_testing();
-    let mut test_env = start_before_deterministic_validation(
+    let mut test_env = start_before_the_pcool_flow(
         TestClusterBuilder::new()
             .with_num_validators(4)
             .with_epoch_duration_ms(60_000),
@@ -935,13 +925,13 @@ async fn test_fullnode_restarted_across_the_deterministic_validation_upgrade()
     ));
     test_env.test_cluster.stop_node(&restarted);
     anyhow::ensure!(
-        !deterministic_validation_on_running_validators(&test_env.test_cluster)
+        !pcool_flow_on_running_validators(&test_env.test_cluster)
             .into_iter()
             .any(|on| on),
         "the fullnode must stop before the upgrade"
     );
 
-    let upgrade_epoch = wait_for_deterministic_validation(&test_env.test_cluster).await;
+    let upgrade_epoch = wait_for_the_pcool_flow(&test_env.test_cluster).await;
     let pt = test_env.craft_object_transfer(coin, Address::random())?;
     let tx_data = test_env.craft_tx_from_pt(pt, gas, aa_sender, None).await?;
     let signatures =
@@ -977,14 +967,14 @@ async fn test_fullnode_restarted_across_the_deterministic_validation_upgrade()
     })??;
 
     transfer_from_move_account_and_key_account(&test_env).await?;
-    check_the_next_epoch_under_deterministic_validation(&test_env).await
+    check_the_next_epoch_with_the_pcool_flow(&test_env).await
 }
 
-/// Runs a cluster of seven validators, one of them stopped before
-/// deterministic validation turns on and started again
-/// `epochs_after_the_upgrade` epochs after the first epoch with it on. With
-/// seven validators, the other six hold enough stake to pass the upgrade
-/// (2f+1 plus half of f with the default buffer); three of four would not.
+/// Runs a cluster of seven validators, one of them stopped before the P-COOL
+/// flow turns on and started again `epochs_after_the_upgrade` epochs after the
+/// first epoch with it on. With seven validators, the other six hold enough
+/// stake to pass the upgrade (2f+1 plus half of f with the default buffer);
+/// three of four would not.
 ///
 /// Epochs last 30 seconds, so the test passes the epochs it waits for within
 /// the test runner's time limit. The fullnode keeps every checkpoint: in the simulator, nodes prune
@@ -994,9 +984,9 @@ async fn test_fullnode_restarted_across_the_deterministic_validation_upgrade()
 async fn run_with_a_validator_down_across_the_upgrade(
     epochs_after_the_upgrade: u64,
 ) -> Result<(), anyhow::Error> {
-    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    let _guard = turn_on_the_pcool_flow_at_the_upgrade();
     telemetry_subscribers::init_for_testing();
-    let test_env = start_before_deterministic_validation(
+    let test_env = start_before_the_pcool_flow(
         TestClusterBuilder::new()
             .with_num_validators(7)
             .with_epoch_duration_ms(30_000)
@@ -1008,14 +998,14 @@ async fn run_with_a_validator_down_across_the_upgrade(
     let stopped = test_cluster.get_validator_pubkeys()[1];
     test_cluster.stop_node(&stopped);
     anyhow::ensure!(
-        !deterministic_validation_on_running_validators(test_cluster)
+        !pcool_flow_on_running_validators(test_cluster)
             .into_iter()
             .any(|on| on),
         "the validator must stop before the upgrade"
     );
     transfer_from_move_account_and_key_account(&test_env).await?;
 
-    let upgrade_epoch = wait_for_deterministic_validation(test_cluster).await;
+    let upgrade_epoch = wait_for_the_pcool_flow(test_cluster).await;
     transfer_from_move_account_and_key_account(&test_env).await?;
     let restart_epoch = upgrade_epoch + epochs_after_the_upgrade;
     if restart_epoch > upgrade_epoch {
@@ -1030,15 +1020,15 @@ async fn run_with_a_validator_down_across_the_upgrade(
     wait_for_validator_to_reach_epoch(test_cluster, &stopped, restart_epoch).await;
     transfer_from_move_account_and_key_account(&test_env).await?;
     assert_running_nodes_agree_on_checkpoints(test_cluster).await;
-    check_the_next_epoch_under_deterministic_validation(&test_env).await
+    check_the_next_epoch_with_the_pcool_flow(&test_env).await
 }
 
-/// Runs a cluster of four validators where one is killed once at
-/// `fail_point`, while it reconfigures into the first epoch with deterministic
-/// validation on. `register` registers the given kill at that fail point. The
-/// killed validator restarts by itself.
+/// Runs a cluster of four validators where one is killed once at `fail_point`,
+/// while it reconfigures into the first epoch with the P-COOL flow on.
+/// `register` registers the given kill at that fail point. The killed validator
+/// restarts by itself.
 #[cfg(msim)]
-async fn run_with_a_crash_while_reconfiguring_into_deterministic_validation(
+async fn run_with_a_crash_while_reconfiguring_into_the_pcool_flow(
     fail_point: &'static str,
     register: impl FnOnce(std::sync::Arc<dyn Fn() + Send + Sync>),
 ) -> Result<(), anyhow::Error> {
@@ -1049,9 +1039,9 @@ async fn run_with_a_crash_while_reconfiguring_into_deterministic_validation(
 
     use iota_types::iota_system_state::IotaSystemStateTrait;
 
-    let _guard = turn_on_deterministic_validation_at_the_upgrade();
+    let _guard = turn_on_the_pcool_flow_at_the_upgrade();
     telemetry_subscribers::init_for_testing();
-    let test_env = start_before_deterministic_validation(
+    let test_env = start_before_the_pcool_flow(
         TestClusterBuilder::new()
             .with_num_validators(4)
             .with_epoch_duration_ms(60_000),
@@ -1085,21 +1075,21 @@ async fn run_with_a_crash_while_reconfiguring_into_deterministic_validation(
             }
             // The epoch-change transaction has executed, so the system state
             // already carries the next epoch's protocol version.
-            let into_deterministic_validation = victim_state.upgrade().is_some_and(|state| {
+            let into_the_pcool_flow = victim_state.upgrade().is_some_and(|state| {
                 state
                     .get_iota_system_state_object_for_testing()
                     .is_ok_and(|system_state| {
-                        system_state.protocol_version() == DETERMINISTIC_VALIDATION_ON_VERSION
+                        system_state.protocol_version() == PCOOL_FLOW_ON_VERSION
                     })
             });
-            if into_deterministic_validation {
+            if into_the_pcool_flow {
                 killed.store(true, Ordering::SeqCst);
                 iota_simulator::task::kill_current_node(None);
             }
         }));
     }
 
-    let upgrade_epoch = wait_for_deterministic_validation(test_cluster).await;
+    let upgrade_epoch = wait_for_the_pcool_flow(test_cluster).await;
     wait_for_validator_to_reach_epoch(test_cluster, &victim, upgrade_epoch).await;
     iota_macros::clear_fail_point(fail_point);
     anyhow::ensure!(
@@ -1108,38 +1098,35 @@ async fn run_with_a_crash_while_reconfiguring_into_deterministic_validation(
     );
     transfer_from_move_account_and_key_account(&test_env).await?;
     assert_running_nodes_agree_on_checkpoints(test_cluster).await;
-    check_the_next_epoch_under_deterministic_validation(&test_env).await
+    check_the_next_epoch_with_the_pcool_flow(&test_env).await
 }
 
-/// Turns the P-COOL flow, and with it deterministic validation, off below
-/// `DETERMINISTIC_VALIDATION_ON_VERSION` and on from it, until the guard is
-/// dropped.
+/// Turns the P-COOL flow off below `PCOOL_FLOW_ON_VERSION` and on from it,
+/// until the guard is dropped.
 #[cfg(msim)]
-fn turn_on_deterministic_validation_at_the_upgrade() -> iota_protocol_config::OverrideGuard {
+fn turn_on_the_pcool_flow_at_the_upgrade() -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
-        config.set_enable_pcool_flow_for_testing(
-            version.as_u64() >= DETERMINISTIC_VALIDATION_ON_VERSION,
-        );
+        config.set_enable_pcool_flow_for_testing(version.as_u64() >= PCOOL_FLOW_ON_VERSION);
         config
     })
 }
 
-/// Starts a cluster at `DETERMINISTIC_VALIDATION_OFF_VERSION` whose validators
-/// upgrade to `DETERMINISTIC_VALIDATION_ON_VERSION` at an epoch change, creates
-/// the Move account and checks that transfers succeed before the upgrade. The
-/// builder's epochs must be long enough for that to happen in the first one.
+/// Starts a cluster at `PCOOL_FLOW_OFF_VERSION` whose validators upgrade to
+/// `PCOOL_FLOW_ON_VERSION` at an epoch change, creates the Move account and
+/// checks that transfers succeed before the upgrade. The builder's epochs must
+/// be long enough for that to happen in the first one.
 #[cfg(msim)]
-async fn start_before_deterministic_validation(
+async fn start_before_the_pcool_flow(
     builder: TestClusterBuilder,
 ) -> Result<TestEnvironment, anyhow::Error> {
     use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 
     let mut test_env = TestEnvironment::with_cluster(
         builder
-            .with_protocol_version(DETERMINISTIC_VALIDATION_OFF_VERSION.into())
+            .with_protocol_version(PCOOL_FLOW_OFF_VERSION.into())
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
-                DETERMINISTIC_VALIDATION_OFF_VERSION,
-                DETERMINISTIC_VALIDATION_ON_VERSION,
+                PCOOL_FLOW_OFF_VERSION,
+                PCOOL_FLOW_ON_VERSION,
             ))
             .build()
             .await,
@@ -1148,7 +1135,7 @@ async fn start_before_deterministic_validation(
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
     anyhow::ensure!(
-        !deterministic_validation_on_running_validators(&test_env.test_cluster)
+        !pcool_flow_on_running_validators(&test_env.test_cluster)
             .into_iter()
             .any(|on| on),
         "the upgrade must come after the first transfers"
@@ -1157,10 +1144,9 @@ async fn start_before_deterministic_validation(
     Ok(test_env)
 }
 
-/// Whether each running validator has deterministic validation on in its
-/// current epoch.
+/// Whether each running validator has the P-COOL flow on in its current epoch.
 #[cfg(msim)]
-fn deterministic_validation_on_running_validators(test_cluster: &TestCluster) -> Vec<bool> {
+fn pcool_flow_on_running_validators(test_cluster: &TestCluster) -> Vec<bool> {
     test_cluster
         .swarm
         .validator_nodes()
@@ -1176,11 +1162,11 @@ fn deterministic_validation_on_running_validators(test_cluster: &TestCluster) ->
         .collect()
 }
 
-/// Waits until a running validator is in an epoch with deterministic
-/// validation on, then until every running node is in that epoch or a later
-/// one, and returns that epoch.
+/// Waits until a running validator is in an epoch with the P-COOL flow on, then
+/// until every running node is in that epoch or a later one, and returns that
+/// epoch.
 #[cfg(msim)]
-async fn wait_for_deterministic_validation(test_cluster: &TestCluster) -> u64 {
+async fn wait_for_the_pcool_flow(test_cluster: &TestCluster) -> u64 {
     let upgrade_epoch = tokio::time::timeout(UPGRADE_TEST_TIMEOUT, async {
         loop {
             let upgrade_epoch = test_cluster
@@ -1203,13 +1189,13 @@ async fn wait_for_deterministic_validation(test_cluster: &TestCluster) -> u64 {
         }
     })
     .await
-    .expect("a validator must reach an epoch with deterministic validation on");
+    .expect("a validator must reach an epoch with the P-COOL flow on");
     wait_for_running_nodes_to_reach_epoch(test_cluster, upgrade_epoch).await;
     assert!(
-        deterministic_validation_on_running_validators(test_cluster)
+        pcool_flow_on_running_validators(test_cluster)
             .into_iter()
             .all(|on| on),
-        "every running validator must have deterministic validation on in epoch {upgrade_epoch}"
+        "every running validator must have the P-COOL flow on in epoch {upgrade_epoch}"
     );
     upgrade_epoch
 }
@@ -1261,11 +1247,11 @@ async fn wait_for_validator_to_reach_epoch(
     .unwrap_or_else(|_| panic!("validator {} must reach epoch {epoch}", name.concise()));
 }
 
-/// Waits for the network's next epoch, checks that every running validator
-/// has deterministic validation on in it, that transfers succeed in it, and
-/// that every running node agrees on the checkpoints.
+/// Waits for the network's next epoch, checks that every running validator has
+/// the P-COOL flow on in it, that transfers succeed in it, and that every
+/// running node agrees on the checkpoints.
 #[cfg(msim)]
-async fn check_the_next_epoch_under_deterministic_validation(
+async fn check_the_next_epoch_with_the_pcool_flow(
     test_env: &TestEnvironment,
 ) -> Result<(), anyhow::Error> {
     let test_cluster = &test_env.test_cluster;
@@ -1279,10 +1265,10 @@ async fn check_the_next_epoch_under_deterministic_validation(
         .await;
     wait_for_running_nodes_to_reach_epoch(test_cluster, next_epoch).await;
     anyhow::ensure!(
-        deterministic_validation_on_running_validators(test_cluster)
+        pcool_flow_on_running_validators(test_cluster)
             .into_iter()
             .all(|on| on),
-        "every running validator must have deterministic validation on in epoch {next_epoch}"
+        "every running validator must have the P-COOL flow on in epoch {next_epoch}"
     );
     transfer_from_move_account_and_key_account(test_env).await?;
     assert_running_nodes_agree_on_checkpoints(test_cluster).await;
@@ -1425,16 +1411,16 @@ async fn transfer_from_move_account_and_key_account(
     Ok(())
 }
 
-/// Under P-COOL with deterministic validation, a transaction whose
-/// authenticator fails at execution produces failure effects on every
-/// validator. Such a transaction reaches consensus through an honest validator
-/// whose view is behind: before submitting, it runs the authenticator against
-/// its own older state, where it passes. Post-consensus validation keeps the
-/// transaction without running the authenticator, so validators at different
-/// points cannot disagree on it, and execution runs the authenticator at the
-/// version consensus assigned, where it fails. The account pays its own gas but
-/// did not authorize the transaction, so nobody is charged, and the account can
-/// spend the gas coin afterwards at its next version.
+/// Under P-COOL, a transaction whose authenticator fails at execution produces
+/// failure effects on every validator. Such a transaction reaches consensus
+/// through an honest validator whose view is behind: before submitting, it runs
+/// the authenticator against its own older state, where it passes.
+/// Post-consensus validation keeps the transaction without running the
+/// authenticator, so validators at different points cannot disagree on it, and
+/// execution runs the authenticator at the version consensus assigned, where it
+/// fails. The account pays its own gas but did not authorize the transaction,
+/// so nobody is charged, and the account can spend the gas coin afterwards at
+/// its next version.
 ///
 /// Staging: execution on one validator is paused before the owner key rotation
 /// executes there, so that validator still admits a transaction signed with
@@ -1444,7 +1430,7 @@ async fn transfer_from_move_account_and_key_account(
 /// Simulator only, because the pause is a fail point.
 #[cfg(msim)]
 #[sim_test]
-async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_validation()
+async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
 -> Result<(), anyhow::Error> {
     use std::{
         sync::{
@@ -1688,26 +1674,25 @@ async fn test_stale_abstract_account_tx_fails_with_effects_under_deterministic_v
     Ok(())
 }
 
-/// Under P-COOL with deterministic validation, a transaction from an account
-/// whose authenticate function lives in a package the deny rules name is
-/// dropped at the commit on every validator, even when the validator that
-/// submits it skips its admission checks, as a faulty one can. Nobody executes
-/// it, so the denied package's authenticate function does not run, and the
-/// validators keep building the certified checkpoints, which the fullnode keeps
-/// executing. The same transaction from an account whose authenticate function
-/// lives in a second copy of the package, which is not denied, executes.
+/// Under P-COOL, a transaction from an account whose authenticate function
+/// lives in a package the deny rules name is dropped at the commit on every
+/// validator, even when the validator that submits it skips its admission
+/// checks, as a faulty one can. Nobody executes it, so the denied package's
+/// authenticate function does not run, and the validators keep building the
+/// certified checkpoints, which the fullnode keeps executing. The same
+/// transaction from an account whose authenticate function lives in a second
+/// copy of the package, which is not denied, executes.
 ///
-/// The deny rules in force under deterministic validation are the ones the
-/// validators agree on through consensus, from their local deny configs. The
-/// package only exists once the cluster runs, so every validator is restarted
-/// with a config that denies it, and an epoch change follows, after which the
-/// fullnode's authority clients reach the restarted validators again.
+/// The deny rules in force under P-COOL are the ones the validators agree on
+/// through consensus, from their local deny configs. The package only exists
+/// once the cluster runs, so every validator is restarted with a config that
+/// denies it, and an epoch change follows, after which the fullnode's authority
+/// clients reach the restarted validators again.
 ///
 /// Simulator only, because the admission skip is a fail point.
 #[cfg(msim)]
 #[sim_test]
-async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_deterministic_validation()
--> Result<(), anyhow::Error> {
+async fn test_denied_authenticator_package_is_dropped_at_the_commit() -> Result<(), anyhow::Error> {
     use std::time::Duration;
 
     use iota_core::authority_client::validator_v2::ValidatorV2API;
@@ -1731,7 +1716,7 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_determ
             assert!(
                 protocol_config.enable_pcool_flow()
                     && protocol_config.deny_authenticator_packages(),
-                "deterministic validation and the authenticator package deny check must be on"
+                "the P-COOL flow and the authenticator package deny check must be on"
             );
         });
     }
@@ -2015,10 +2000,9 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_determ
     Ok(())
 }
 
-/// Under P-COOL with deterministic validation, a transaction that names, as an
-/// owned input, a version that a receive already used never reaches
-/// execution: every validator reports it missing, and drops it once
-/// resubmitted.
+/// Under P-COOL, a transaction that names, as an owned input, a version that a
+/// receive already used never reaches execution: every validator reports it
+/// missing, and drops it once resubmitted.
 ///
 /// An object can be received from its parent only while the parent is not an
 /// account, but the parent can become one afterwards and then send
@@ -2035,8 +2019,7 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit_under_determ
 /// Simulator only, because the admission bypass is a fail point.
 #[cfg(msim)]
 #[sim_test]
-async fn test_received_version_named_as_owned_input_never_executes_under_deterministic_validation()
--> Result<(), anyhow::Error> {
+async fn test_received_version_named_as_owned_input_never_executes() -> Result<(), anyhow::Error> {
     use std::time::Duration;
 
     use iota_core::authority_client::validator_v2::ValidatorV2API;

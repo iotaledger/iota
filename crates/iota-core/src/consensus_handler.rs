@@ -1446,11 +1446,11 @@ mod tests {
         assert_eq!(consensus_handler.last_consensus_stats, initial_stats);
     }
 
-    /// With deterministic validation on, a commit carrying a user transaction
-    /// after the switch to executing synced checkpoints is not processed: the
-    /// transaction is not validated, assigned to the commit, put in a pending
-    /// checkpoint or executed. The commit before the switch shows each of
-    /// these for a processed commit.
+    /// With the P-COOL flow on, a commit carrying a user transaction after the
+    /// switch to executing synced checkpoints is not processed: the transaction
+    /// is not validated, assigned to the commit, put in a pending checkpoint or
+    /// executed. The commit before the switch shows each of these for a
+    /// processed commit.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_stops_when_executing_synced_checkpoints_with_validation() {
         telemetry_subscribers::init_for_testing();
@@ -1812,10 +1812,10 @@ mod tests {
         );
     }
 
-    /// With deterministic validation on, a dropped user transaction does not
-    /// enter the processed-transaction cache, so a retry is validated at every
-    /// commit it appears in. Once kept, the transaction is cached and a later
-    /// copy is skipped before validation.
+    /// With the P-COOL flow on, a dropped user transaction does not enter the
+    /// processed-transaction cache, so a retry is validated at every commit it
+    /// appears in. Once kept, the transaction is cached and a later copy is
+    /// skipped before validation.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn retries_of_a_dropped_transaction_reach_validation_until_it_is_kept() {
         use iota_types::transaction::TransactionKey;
@@ -2154,7 +2154,7 @@ mod tests {
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
         let digest = *honest.digest();
@@ -2224,7 +2224,7 @@ mod tests {
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let failing_copy = copy_with_failing_authenticator(honest.data().transaction().clone());
         let digest = *honest.digest();
@@ -2359,9 +2359,9 @@ mod tests {
         ))
     }
 
-    /// A handler with deterministic validation on, over an authority of a
-    /// four-member committee whose genesis gives `sender` the `objects`.
-    async fn deterministic_validation_handler(
+    /// A handler over an authority of a four-member committee whose genesis
+    /// gives `sender` the `objects`.
+    async fn four_member_committee_handler(
         objects: Vec<Object>,
     ) -> (
         Arc<AuthorityState>,
@@ -2430,7 +2430,7 @@ mod tests {
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let author = *epoch.committee().authority_by_index(1).unwrap();
         let transfer =
             |object, gas| transfer_in_current_epoch(&state, &epoch, sender, &key, object, gas);
@@ -2505,7 +2505,7 @@ mod tests {
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let transaction = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         // The state an EndOfPublish quorum leaves while deferred transactions
         // keep the epoch from rejecting all transactions.
@@ -2574,7 +2574,7 @@ mod tests {
             .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
             .collect();
         let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
-        let (state, epoch, mut handler) = deterministic_validation_handler(objects).await;
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
         let transaction = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
         let digest = *transaction.digest();
         let own_index = u8::try_from(epoch.committee().authority_index(&state.name).unwrap())

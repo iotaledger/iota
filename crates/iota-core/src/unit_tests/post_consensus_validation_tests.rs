@@ -5831,8 +5831,8 @@ fn assert_kept(result: IotaResult<ValidationAtCommit>) {
 }
 
 /// A shared account whose authenticator function field names the
-/// `object_basics` package, on a setup with deterministic validation on, and
-/// a sponsored transfer the account sends. Returns the setup and the transfer.
+/// `object_basics` package, on a setup with the P-COOL flow on, and a sponsored
+/// transfer the account sends. Returns the setup and the transfer.
 async fn setup_account_with_authenticator_in_object_basics(
     config_guard: Option<OverrideGuard>,
 ) -> (HandlerObjectStateSetup, VerifiedTransaction) {
@@ -7265,9 +7265,9 @@ async fn deferred_transaction_on_a_shared_object_deleted_meanwhile_is_kept() {
     );
 }
 
-/// With deterministic validation, a transaction among the previously deferred
-/// ones is kept without checks and takes no locks, while the same transaction
-/// sequenced anew is validated and dropped.
+/// Under P-COOL, a transaction among the previously deferred ones is kept
+/// without checks and takes no locks, while the same transaction sequenced anew
+/// is validated and dropped.
 #[tokio::test]
 async fn previously_deferred_transaction_is_kept_without_checks() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
@@ -7344,10 +7344,9 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
     );
 }
 
-/// The protocol config override with deterministic validation on, under which
-/// congestion control schedules one transaction per commit and defers the
-/// others.
-fn enable_deterministic_validation_with_one_transaction_per_commit() -> OverrideGuard {
+/// The protocol config override under which congestion control schedules one
+/// transaction per commit and defers the others.
+fn one_transaction_per_commit() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_per_object_congestion_control_mode_for_testing(
             iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
@@ -7373,7 +7372,7 @@ async fn deferred_transaction_lock_blocks_a_competitor_after_its_commit_flushes(
         ids.iter()
             .map(|id| Object::with_id_owner_for_testing(*id, sender))
             .collect(),
-        Some(enable_deterministic_validation_with_one_transaction_per_commit()),
+        Some(one_transaction_per_commit()),
     )
     .await;
     let transactions = vec![
@@ -7454,7 +7453,7 @@ async fn deferred_unauthorized_account_transaction_moves_its_gas_coin_at_executi
     let (other, other_key): (Address, AccountPrivateKey) = get_key_pair();
     let other_ids = [ObjectId::random(), ObjectId::random()];
     let (s, account_id, gas_id) = setup_unauthorized_gas_owner(
-        Some(enable_deterministic_validation_with_one_transaction_per_commit()),
+        Some(one_transaction_per_commit()),
         other_ids
             .iter()
             .map(|id| Object::with_id_owner_for_testing(*id, other))
@@ -7554,7 +7553,7 @@ async fn receive_deferred_behind_a_consumption_of_its_child_is_kept_and_aborts()
             "tto_shared",
             sender,
             gas_id,
-            Some(enable_deterministic_validation_with_one_transaction_per_commit()),
+            Some(one_transaction_per_commit()),
         )
         .await;
         s.authority
@@ -9826,11 +9825,11 @@ fn share_zero_regulated_coin(
         .expect("the share transaction creates the shared coin")
 }
 
-/// Two validators of one chain at epoch 1, with deterministic validation on
-/// and the state of [`SharedRegulatedCoin`], built as `options` asks. Epoch 0
-/// publishes the coin, hands out the owned coins and denies the address, each
-/// in a commit of its own; the epoch change makes the denial active for the
-/// epoch-gated read.
+/// Two validators of one chain at epoch 1, with the P-COOL flow on and the
+/// state of [`SharedRegulatedCoin`], built as `options` asks. Epoch 0 publishes
+/// the coin, hands out the owned coins and denies the address, each in a commit
+/// of its own; the epoch change makes the denial active for the epoch-gated
+/// read.
 async fn setup_validators_with_a_shared_regulated_coin(
     options: RegulatedCoinOptions,
 ) -> (

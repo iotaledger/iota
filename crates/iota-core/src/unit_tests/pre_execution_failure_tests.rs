@@ -455,7 +455,7 @@ fn assert_moved_unchanged(before: &Object, after: &Object, version: Version) {
 /// contents unchanged, so the account can use them again. A mutable shared
 /// input moves to the version consensus assigned, with its contents unchanged.
 #[tokio::test]
-async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validation() {
+async fn unresolved_gas_payer_account_is_not_charged_with_the_pcool_flow() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -702,7 +702,7 @@ async fn effects_without_a_gas_charge_are_the_same_on_every_validator() {
 /// authorized paying for it, so it is still charged when the sender's account
 /// cannot be resolved.
 #[tokio::test]
-async fn signing_sponsor_is_charged_under_deterministic_validation() {
+async fn signing_sponsor_is_charged_with_the_pcool_flow() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -778,7 +778,7 @@ async fn unresolved_sender_accounts_owned_inputs_stay_usable_when_a_sponsor_pays
 /// sender: an account sponsoring a sender that signs is not charged when the
 /// account cannot be resolved.
 #[tokio::test]
-async fn unresolved_sponsoring_account_is_not_charged_under_deterministic_validation() {
+async fn unresolved_sponsoring_account_is_not_charged_with_the_pcool_flow() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sender: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
