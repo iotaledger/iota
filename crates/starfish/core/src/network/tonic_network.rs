@@ -24,8 +24,8 @@ use iota_network_stack::{
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{
-    AuthorityIndex, HEADERS_PER_FETCH_CEILING, NetworkKeyPair, NetworkPublicKey,
-    TRANSACTIONS_PER_FETCH_CEILING,
+    AuthorityIndex, COMMITS_PER_FETCH_CEILING, HEADERS_PER_FETCH_CEILING, NetworkKeyPair,
+    NetworkPublicKey, TRANSACTIONS_PER_FETCH_CEILING,
 };
 use tokio::sync::Mutex;
 use tokio_stream::iter;
@@ -37,7 +37,9 @@ use super::{
     BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
     SerializedBlockBundle, TransactionChunkStream,
     admission::AdmissionLayer,
-    bounded_codec::{EntryLimit, TOO_MANY_ENTRIES_IN_REQUEST, TOO_MANY_ENTRIES_IN_RESPONSE},
+    bounded_codec::{
+        EntryLimit, NO_ENTRY_LIMIT, TOO_MANY_ENTRIES_IN_REQUEST, TOO_MANY_ENTRIES_IN_RESPONSE,
+    },
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -255,10 +257,16 @@ impl NetworkClient for TonicClient {
             end: commit_range.end(),
         });
         request.set_timeout(timeout);
-        let response = client
-            .fetch_commits(request)
-            .await
-            .map_err(|e| ConsensusError::NetworkRequest(format!("fetch_commits failed: {e:?}")))?;
+        let response = client.fetch_commits(request).await.map_err(|e| {
+            if e.message() == TOO_MANY_ENTRIES_IN_RESPONSE {
+                ConsensusError::TooManyCommitSyncEntries {
+                    peer,
+                    limit: FetchCommitsResponse::MAX_ENTRIES,
+                }
+            } else {
+                ConsensusError::NetworkRequest(format!("fetch_commits failed: {e:?}"))
+            }
+        })?;
         let response = response.into_inner();
         Ok((response.commits, response.certifier_block_headers))
     }
@@ -327,6 +335,17 @@ impl NetworkClient for TonicClient {
                     break;
                 }
                 Err(e) => {
+                    // The decoder refuses a message at the first header past its
+                    // ceiling, so the message carried at least one more.
+                    if e.message() == TOO_MANY_ENTRIES_IN_RESPONSE {
+                        return Err(ConsensusError::TooManyFetchedHeadersReturned {
+                            peer,
+                            requested: max_headers,
+                            received: headers
+                                .len()
+                                .saturating_add(FetchLatestBlockHeadersResponse::MAX_ENTRIES + 1),
+                        });
+                    }
                     if headers.is_empty() {
                         if e.code() == tonic::Code::DeadlineExceeded {
                             return Err(ConsensusError::NetworkRequestTimeout(format!(
@@ -521,6 +540,12 @@ where
                 });
             }
             Err(e) => {
+                if e.message() == TOO_MANY_ENTRIES_IN_RESPONSE {
+                    return Err(ConsensusError::TooManyCommitSyncEntries {
+                        peer,
+                        limit: FetchCommitsAndTransactionsResponse::MAX_ENTRIES,
+                    });
+                }
                 let error = mid_stream_error(e);
                 if commits.is_empty() {
                     return Err(error);
@@ -593,6 +618,12 @@ where
         response: Result<FetchCommitsAndTransactionsResponse, tonic::Status>,
     ) -> ConsensusResult<Vec<Bytes>> {
         let response = response.map_err(|e| {
+            if e.message() == TOO_MANY_ENTRIES_IN_RESPONSE {
+                return ConsensusError::TooManyCommitSyncEntries {
+                    peer: self.peer,
+                    limit: FetchCommitsAndTransactionsResponse::MAX_ENTRIES,
+                };
+            }
             let error = mid_stream_error(e);
             warn!(
                 "fetch_commits_and_transactions from {} failed mid-stream: {error}",
@@ -1856,6 +1887,11 @@ pub(crate) struct FetchCommitsRequest {
     end: CommitIndex,
 }
 
+impl EntryLimit for FetchCommitsRequest {
+    const MAX_ENTRIES: usize = NO_ENTRY_LIMIT;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
+}
+
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchCommitsResponse {
     // Serialized consecutive Commit.
@@ -1866,12 +1902,32 @@ pub(crate) struct FetchCommitsResponse {
     certifier_block_headers: Vec<Bytes>,
 }
 
+/// Upper bound on any committee's size: the number of distinct authority
+/// indices.
+const MAX_COMMITTEE_SIZE: usize = AuthorityIndex::MAX.value() + 1;
+
+/// Maximum number of certifier headers in a commit-sync response, for any
+/// committee.
+const MAX_CERTIFIER_HEADERS_PER_FETCH: usize =
+    MAX_COMMITTEE_SIZE * MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY;
+
+impl EntryLimit for FetchCommitsResponse {
+    // Regular sync returns at most the requested range of commits.
+    const MAX_ENTRIES: usize = COMMITS_PER_FETCH_CEILING + MAX_CERTIFIER_HEADERS_PER_FETCH;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
+}
+
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchCommitsAndTransactionsRequest {
     #[prost(uint32, tag = "1")]
     start: CommitIndex,
     #[prost(uint32, tag = "2")]
     end: CommitIndex,
+}
+
+impl EntryLimit for FetchCommitsAndTransactionsRequest {
+    const MAX_ENTRIES: usize = NO_ENTRY_LIMIT;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
 }
 
 #[derive(Clone, prost::Message)]
@@ -1888,16 +1944,39 @@ pub(crate) struct FetchCommitsAndTransactionsResponse {
     transactions: Vec<Bytes>,
 }
 
+impl EntryLimit for FetchCommitsAndTransactionsResponse {
+    // The three fields together. Fast sync returns up to twice the requested
+    // range of commits, and the server fills a transaction message up to
+    // `MAX_FETCH_RESPONSE_BYTES` with entries of at least one `TransactionRef`
+    // each, so raising that constant needs this ceiling raised a release first.
+    const MAX_ENTRIES: usize = 2 * COMMITS_PER_FETCH_CEILING
+        + MAX_CERTIFIER_HEADERS_PER_FETCH
+        + MAX_FETCH_RESPONSE_BYTES / SERIALIZED_TRANSACTION_REF_BYTES;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
+}
+
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchLatestBlockHeadersRequest {
     #[prost(uint32, repeated, tag = "1")]
     authorities: Vec<u32>,
 }
 
+impl EntryLimit for FetchLatestBlockHeadersRequest {
+    const MAX_ENTRIES: usize = NO_ENTRY_LIMIT;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_REQUEST;
+}
+
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchLatestBlockHeadersResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]
     vec_serialized_block_header: Vec<Bytes>,
+}
+
+impl EntryLimit for FetchLatestBlockHeadersResponse {
+    // One header per requested authority, and a server refuses a request
+    // naming more authorities than its committee.
+    const MAX_ENTRIES: usize = MAX_COMMITTEE_SIZE;
+    const REFUSAL: &'static str = TOO_MANY_ENTRIES_IN_RESPONSE;
 }
 
 #[derive(Clone, prost::Message)]
@@ -3335,6 +3414,158 @@ mod tests {
             .await;
         assert!(matches!(refused, Err(ConsensusError::NetworkRequest(_))));
         assert_eq!(service.lock().handle_fetch_transactions.len(), 1);
+    }
+
+    /// Sent through the tonic server and client, a latest header response at
+    /// the ceiling arrives whole, and one past it is refused while it is
+    /// decoded and charged to the peer.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_latest_header_response_past_the_ceiling_is_refused_while_decoding() {
+        use std::time::Duration;
+
+        use super::{
+            EntryLimit, FetchLatestBlockHeadersRequest, FetchLatestBlockHeadersResponse,
+            TOO_MANY_ENTRIES_IN_RESPONSE,
+        };
+        use crate::network::NetworkClient as _;
+
+        let service = Arc::new(Mutex::new(TestService::new()));
+        let (_server, client, server_index) = serve(service.clone()).await;
+        let ceiling = FetchLatestBlockHeadersResponse::MAX_ENTRIES;
+        // The client accepts one header per requested authority.
+        let fetch = || {
+            client.fetch_latest_block_headers(
+                server_index,
+                vec![server_index; ceiling],
+                Duration::from_secs(5),
+            )
+        };
+
+        // Empty headers, which the server sends as a single message.
+        service.lock().fetch_latest_block_headers_response = vec![Bytes::new(); ceiling];
+        let headers = fetch().await.expect("a response at the ceiling is kept");
+        assert_eq!(headers.len(), ceiling);
+
+        service.lock().fetch_latest_block_headers_response = vec![Bytes::new(); ceiling + 1];
+        let mut stub = client
+            .get_client(server_index, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let mut stream = stub
+            .fetch_latest_block_headers(FetchLatestBlockHeadersRequest {
+                authorities: vec![0],
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let status = stream.message().await.unwrap_err();
+        assert_eq!(status.message(), TOO_MANY_ENTRIES_IN_RESPONSE);
+        assert!(matches!(
+            fetch().await,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested,
+                received,
+                ..
+            }) if requested == ceiling && received == ceiling + 1
+        ));
+    }
+
+    /// Sent through the tonic server and client, a regular commit-sync
+    /// response at the ceiling arrives whole, and one past it is refused while
+    /// it is decoded and charged to the peer.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_commit_response_past_the_ceiling_is_refused_while_decoding() {
+        use std::time::Duration;
+
+        use super::{EntryLimit, FetchCommitsResponse};
+        use crate::{
+            commit::{Commit, CommitV1, TrustedCommit},
+            network::NetworkClient as _,
+        };
+
+        let service = Arc::new(Mutex::new(TestService::new()));
+        let (_server, client, server_index) = serve(service.clone()).await;
+        let ceiling = FetchCommitsResponse::MAX_ENTRIES;
+        let empty_commits = |count| {
+            vec![TrustedCommit::new_trusted(Commit::V1(CommitV1::default()), Bytes::new()); count]
+        };
+        let fetch = || {
+            client.fetch_commits(
+                server_index,
+                CommitRange::new(1..=1),
+                Duration::from_secs(5),
+            )
+        };
+
+        service.lock().fetch_commits_response = empty_commits(ceiling);
+        let (commits, _) = fetch().await.expect("a response at the ceiling is kept");
+        assert_eq!(commits.len(), ceiling);
+
+        service.lock().fetch_commits_response = empty_commits(ceiling + 1);
+        assert!(matches!(
+            fetch().await,
+            Err(ConsensusError::TooManyCommitSyncEntries { peer, limit })
+                if peer == server_index && limit == ceiling
+        ));
+    }
+
+    /// Sent through the tonic server and client, a fast commit-sync message
+    /// past the ceiling is refused while it is decoded and charged to the
+    /// peer, whether it carries the commits or later transactions.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_fast_commit_sync_message_past_the_ceiling_is_refused_while_decoding() {
+        use std::time::Duration;
+
+        use super::{EntryLimit, FetchCommitsAndTransactionsResponse};
+        use crate::network::NetworkClient as _;
+
+        let service = Arc::new(Mutex::new(TestService::new()));
+        let (_server, client, server_index) = serve(service.clone()).await;
+        let ceiling = FetchCommitsAndTransactionsResponse::MAX_ENTRIES;
+        let fetch = || {
+            client.fetch_commits_and_transactions(
+                server_index,
+                CommitRange::new(1..=1),
+                Duration::from_secs(5),
+            )
+        };
+
+        // Empty commits, which the server sends as a single message. At the
+        // ceiling the message decodes and the collector's own count check
+        // rejects it.
+        service.lock().fetch_commits_and_transactions_commits = vec![Bytes::new(); ceiling];
+        assert!(matches!(
+            fetch().await,
+            Err(ConsensusError::TooManyCommitsFromPeer { .. })
+        ));
+        service.lock().fetch_commits_and_transactions_commits = vec![Bytes::new(); ceiling + 1];
+        assert!(matches!(
+            fetch().await,
+            Err(ConsensusError::TooManyCommitSyncEntries { peer, limit })
+                if peer == server_index && limit == ceiling
+        ));
+
+        // One commit with room for one transaction, then a message with one
+        // transaction and one past the ceiling.
+        {
+            let mut service = service.lock();
+            service.fetch_commits_and_transactions_commits =
+                vec![Bytes::from(vec![0; SERIALIZED_TRANSACTION_REF_BYTES])];
+            service.fetch_commits_and_transactions_chunks =
+                vec![Ok(vec![Bytes::new()]), Ok(vec![Bytes::new(); ceiling + 1])];
+        }
+        let fetched = fetch().await.expect("the commits are accepted");
+        let chunks: Vec<_> = fetched.transactions.collect().await;
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].as_ref().unwrap().len(), 1);
+        assert!(matches!(
+            &chunks[1],
+            Err(ConsensusError::TooManyCommitSyncEntries { peer, limit })
+                if *peer == server_index && *limit == ceiling
+        ));
     }
 
     /// Starts a server at index 0 on `service`, and returns it with a client

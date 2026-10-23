@@ -405,7 +405,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
         | ConsensusError::NotEnoughCommitVotes { .. }
-        | ConsensusError::FetchedTransactionsMismatch { .. } => FaultType::Unprovable,
+        | ConsensusError::FetchedTransactionsMismatch { .. }
+        | ConsensusError::TooManyCommitSyncEntries { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had
@@ -1387,6 +1388,10 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 round: 4,
                 last_round: 5,
+            },
+            ConsensusError::TooManyCommitSyncEntries {
+                peer: AuthorityIndex::new_for_test(0),
+                limit: 4,
             },
             // Commit lists an honest server never sends.
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
