@@ -5371,13 +5371,7 @@ async fn validation_at_commit_drops_a_forbidden_system_object_input() {
 
         let error = s
             .authority
-            .handle_transaction_validation_checks(
-                &tx,
-                &s.epoch_store,
-                deny_config,
-                false,
-                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-            )
+            .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
             .await
             .expect_err("a validator must reject the input before submission");
         assert_eq!(
@@ -5491,13 +5485,7 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
     // the transaction.
     let error = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
         .await
         .expect_err("a validator must reject an account without a function before submission");
     assert!(
@@ -5612,13 +5600,7 @@ async fn validation_at_commit_drops_an_immutable_account() {
 
     let error = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
         .await
         .expect_err("a validator must reject an immutable account before submission");
     assert!(
@@ -5867,13 +5849,7 @@ async fn validation_at_commit_checks_the_authenticator_package_against_the_deny_
         );
         let at_admission = s
             .authority
-            .handle_transaction_validation_checks(
-                &tx,
-                &s.epoch_store,
-                &deny_package(denied),
-                false,
-                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-            )
+            .handle_transaction_validation_checks(&tx, &s.epoch_store, &deny_package(denied))
             .await
             .map(|_| ())
             .unwrap_err();
@@ -6156,13 +6132,7 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
     let at_commit = s.validate_at_commit_under(12, &tx, &deny_package(denied));
     let at_admission = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            &deny_package(denied),
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, &deny_package(denied))
         .await
         .map(|_| ())
         .unwrap_err();
@@ -8778,8 +8748,6 @@ async fn assert_node_limits_reject(setup: &PublishSetup) {
             &VerifiedTransaction::new_unchecked(setup.tx.clone()),
             &epoch_store,
             &setup.authority.config.transaction_deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&setup.authority.config.verifier_signing_config),
         )
         .await;
 

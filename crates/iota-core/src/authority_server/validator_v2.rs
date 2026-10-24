@@ -345,19 +345,7 @@ impl ValidatorService {
             Vec::new()
         } else {
             match state
-                .handle_transaction_validation_checks(
-                    &verified_tx,
-                    epoch_store,
-                    deny_config,
-                    // Latest-value coin deny-list read: admission is validator-local,
-                    // and denials should take effect immediately. This deliberately
-                    // differs from the epoch-gated post-consensus read; see the
-                    // read-mode notes on `handle_transaction_validation_checks`.
-                    false,
-                    iota_transaction_checks::VerifierLimitsSource::NodeConfig(
-                        &state.config.verifier_signing_config,
-                    ),
-                )
+                .handle_transaction_validation_checks(&verified_tx, epoch_store, deny_config)
                 .await
             {
                 Ok(objs) => objs,
