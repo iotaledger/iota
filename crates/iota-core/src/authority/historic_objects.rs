@@ -382,10 +382,11 @@ impl HistoricObjects {
         let Some(bucket) = self.buckets.get(epoch) else {
             return Ok(None);
         };
-        bucket
-            .objects
-            .get(key)
-            .map_err(|e| IotaError::Storage(e.to_string()))
+        match bucket.objects.get(key) {
+            // The bucket was dropped during the read.
+            Err(TypedStoreError::UnregisteredColumn(_)) => Ok(None),
+            read => read.map_err(|e| IotaError::Storage(e.to_string())),
+        }
     }
 
     /// Fills each `None` in `objects` — the live table's answers for `keys`, in

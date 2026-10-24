@@ -844,3 +844,30 @@ async fn test_expiry_deletes_every_tombstone_an_object_left_in_the_epoch() {
     assert!(perpetual.objects.get(&wrapped).unwrap().is_none());
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
 }
+
+/// A read of one epoch's bucket that the bucket's expiry drops under it
+/// answers that the bucket holds nothing, as the reads of every bucket do,
+/// rather than with a storage error.
+#[tokio::test]
+async fn test_a_read_of_a_dropped_bucket_in_its_epoch_finds_nothing() {
+    let (perpetual, historic, _store, _dir) = test_store();
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let key = ObjectKey(object.id(), object.version());
+    let bucket = historic.ensure(3).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(key, object.clone())])
+        .unwrap();
+    batch.write().unwrap();
+    assert_eq!(historic.get_in_epoch(3, &key).unwrap(), Some(object));
+
+    perpetual
+        .objects
+        .db
+        .drop_cf(&crate::epoch_buckets::bucket_cf_name(
+            super::HISTORIC_OBJECTS_CF_PREFIX,
+            3,
+        ))
+        .unwrap();
+    assert_eq!(historic.get_in_epoch(3, &key).unwrap(), None);
+}
