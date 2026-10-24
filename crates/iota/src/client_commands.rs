@@ -831,7 +831,7 @@ impl IotaClientCommands {
                 let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
 
-                let objects =
+                let mut objects =
                     PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectId>| match coin_type {
                         Some(ref coin_type) => {
                             client
@@ -847,6 +847,10 @@ impl IotaClientCommands {
                         }
                     })
                     .await?;
+                // Pages are ordered by balance, so a coin whose balance changes
+                // while they are read can come back on a later page.
+                let mut seen = BTreeSet::new();
+                objects.retain(|coin| seen.insert(coin.coin_object_id));
 
                 fn canonicalize_type(type_: &str) -> Result<String, anyhow::Error> {
                     Ok(TypeTag::from_str(type_)
@@ -1518,20 +1522,30 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
-                let objects = PagedFn::collect(async |cursor: Option<ObjectId>| {
-                    client
-                        .read_api()
-                        .get_owned_objects(
-                            address,
-                            Some(IotaObjectResponseQuery::new_with_options(
-                                IotaObjectDataOptions::full_content(),
-                            )),
-                            cursor,
-                            None,
-                        )
-                        .await
-                })
-                .await?;
+                let mut objects: Vec<IotaObjectResponse> =
+                    PagedFn::collect(async |cursor: Option<ObjectId>| {
+                        client
+                            .read_api()
+                            .get_owned_objects(
+                                address,
+                                Some(IotaObjectResponseQuery::new_with_options(
+                                    IotaObjectDataOptions::full_content(),
+                                )),
+                                cursor,
+                                None,
+                            )
+                            .await
+                    })
+                    .await?;
+                // Coins are ordered by balance, so a coin whose balance changes
+                // while the pages are read can come back on a later page.
+                let mut seen = BTreeSet::new();
+                objects.retain(|object| {
+                    object
+                        .data
+                        .as_ref()
+                        .is_none_or(|data| seen.insert(data.object_id))
+                });
                 IotaClientCommandResult::Objects(objects)
             }
             IotaClientCommands::NewAddress {
