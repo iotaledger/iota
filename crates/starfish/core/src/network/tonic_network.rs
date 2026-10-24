@@ -701,7 +701,6 @@ where
     let max_headers = max_fetched_headers(requested_headers, requested_only);
     let max_allowed_bytes =
         max_fetch_block_headers_response_bytes(context, requested_headers, requested_only);
-    let wanted_headers = context.parameters.max_headers_per_header_sync_fetch;
     let mut vec_serialized_block_header = vec![];
     let mut total_fetched_bytes = 0;
     loop {
@@ -730,7 +729,10 @@ where
                     break;
                 }
                 vec_serialized_block_header.extend(headers);
-                if !requested_only && vec_serialized_block_header.len() >= wanted_headers {
+                if !requested_only
+                    && vec_serialized_block_header.len()
+                        >= context.parameters.max_headers_per_header_sync_fetch
+                {
                     break;
                 }
             }
