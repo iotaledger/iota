@@ -697,9 +697,9 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
-    /// The handler object state for P-COOL deterministic validation: the map
-    /// from transaction key to assigned commit, and the rows not yet written
-    /// to the table. `None` without deterministic validation.
+    /// The handler object state for the P-COOL flow: the map from transaction
+    /// key to assigned commit, and the rows not yet written to the table.
+    /// `None` without the flow.
     handler_object_state: Option<HandlerObjectState>,
     /// See [`Self::pcool_bookkeeping_enabled`].
     pcool_bookkeeping_enabled: bool,
@@ -1896,11 +1896,11 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Whether this node keeps the handler object state: the P-COOL
-    /// deterministic-validation flag is on and this node is in the epoch's
+    /// Whether this node keeps the handler object state: the
+    /// `enable_pcool_flow` flag is on and this node is in the epoch's
     /// committee. Every write to the handler object state, the execution
-    /// watcher and the commit assignment check this rather than the flag
-    /// alone. A node outside the committee runs no consensus handler, so no
+    /// watcher and the commit assignment check this rather than the flag alone.
+    /// A node outside the committee runs no consensus handler, so no
     /// transaction it executes would have its commit assigned.
     pub fn pcool_bookkeeping_enabled(&self) -> bool {
         self.pcool_bookkeeping_enabled
@@ -1980,8 +1980,8 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// The execution watcher's end of the assigned-commit channel; `None`
-    /// once a watcher has taken it, or without deterministic validation. See
+    /// The execution watcher's end of the assigned-commit channel; `None` once
+    /// a watcher has taken it, or without the P-COOL flow. See
     /// [`HandlerObjectState::take_assigned_commits_receiver`].
     pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
         let Some(handler_object_state) = &self.handler_object_state else {
@@ -1990,8 +1990,8 @@ impl AuthorityPerEpochStore {
         handler_object_state.take_assigned_commits_receiver()
     }
 
-    /// Receiver of the highest fully executed commit, or `None` without
-    /// deterministic validation; see
+    /// Receiver of the highest fully executed commit, or `None` without the
+    /// P-COOL flow; see
     /// [`HandlerObjectState::subscribe_highest_fully_executed_commit`].
     pub fn subscribe_highest_fully_executed_commit(&self) -> Option<watch::Receiver<CommitIndex>> {
         let Some(handler_object_state) = &self.handler_object_state else {
@@ -2329,7 +2329,7 @@ impl AuthorityPerEpochStore {
     pub fn handler_object_state_for_testing(&self) -> &HandlerObjectState {
         self.handler_object_state
             .as_ref()
-            .expect("tests of the handler object state turn deterministic validation on")
+            .expect("tests of the handler object state turn the P-COOL flow on")
     }
 
     /// Writes `handler_rows` to the table, then removes them from memory, with
@@ -2787,8 +2787,8 @@ impl AuthorityPerEpochStore {
     }
 
     /// The effects reader of the quarantine flush and the execution watcher,
-    /// both of which run only with the P-COOL deterministic-validation flag
-    /// on, by which point `AuthorityState` has wired it.
+    /// both of which run only with the P-COOL flow on, by which point
+    /// `AuthorityState` has wired it.
     pub(crate) fn effects_store(&self) -> &Arc<dyn TransactionCacheRead> {
         self.effects_store
             .get()
@@ -4442,13 +4442,13 @@ impl AuthorityPerEpochStore {
                     transaction.certificate_author.concise(),
                     digest,
                 );
-                // The copy is not recorded as processed, so the consensus adapter
-                // that submitted it would hold its submit permit, which checkpoint
-                // signatures also need, until the epoch ends. Only this
-                // validator's adapter is told: another author's copy can still be
-                // kept. Without deterministic validation the adapter waits until
-                // the epoch ends, as for the other copies ignored at the end of
-                // the epoch.
+                // The copy is not recorded as processed, so the consensus
+                // adapter that submitted it would hold its submit permit, which
+                // checkpoint signatures also need, until the epoch ends. Only
+                // this validator's adapter is told: another author's copy can
+                // still be kept. Without the P-COOL flow the adapter waits
+                // until the epoch ends, as for the other copies ignored at the
+                // end of the epoch.
                 if self.protocol_config().enable_pcool_flow()
                     && transaction.certificate_author == self.name
                 {
@@ -4478,13 +4478,13 @@ impl AuthorityPerEpochStore {
                 }
                 // Once the epoch no longer accepts consensus transactions, such
                 // a transaction is ignored when scheduled, so it never
-                // executes. Under deterministic validation it is skipped here
-                // instead: kept at validation, it would hold its owned-object
-                // locks until the epoch ends, and it would hide a later copy of
-                // the same transaction in this commit. A transaction from an
-                // author that sent EndOfPublish was already dropped above. A
-                // deferred transaction is reloaded without passing through
-                // here, so it stays eligible.
+                // executes. Under the P-COOL flow it is skipped here instead:
+                // kept at validation, it would hold its owned-object locks
+                // until the epoch ends, and it would hide a later copy of the
+                // same transaction in this commit. A transaction from an author
+                // that sent EndOfPublish was already dropped above. A deferred
+                // transaction is reloaded without passing through here, so it
+                // stays eligible.
                 if self.protocol_config().enable_pcool_flow()
                     && !self
                         .get_reconfig_state_read_lock_guard()
@@ -4713,12 +4713,12 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
-        let deterministic_validation = self.protocol_config.enable_pcool_flow();
-        // Only `process_consensus_transactions` below moves the reconfig
-        // state to `RejectAllTx`, so this value holds until it runs. Only
-        // deterministic validation reads it.
-        let accepts_tx = deterministic_validation
-            && self.get_reconfig_state_read_lock_guard().should_accept_tx();
+        let enable_pcool = self.protocol_config.enable_pcool_flow();
+        // Only `process_consensus_transactions` below moves the reconfig state
+        // to `RejectAllTx`, so this value holds until it runs. Only the P-COOL
+        // flow reads it.
+        let accepts_tx =
+            enable_pcool && self.get_reconfig_state_read_lock_guard().should_accept_tx();
 
         // Validation reads rows produced at or below the horizon, so every
         // commit up to it must be fully executed before any input is read.
@@ -4747,7 +4747,6 @@ impl AuthorityPerEpochStore {
         let mut current_commit_sequenced_randomness_transactions =
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
-        let enable_pcool = self.protocol_config.enable_pcool_flow();
 
         // Post-consensus load shedding: compute the drop percentage once before
         // the loop so user transactions can be dropped inline during categorization.
@@ -4950,9 +4949,9 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // still hold the locks they took there, giving them natural precedence;
-        // with deterministic validation they are kept without being validated
-        // again. Also collects all UserTransactionV1 digests for soft lock release
-        // after the consensus output is quarantined.
+        // they are kept without being validated again. Also collects all
+        // UserTransactionV1 digests for soft lock release after the consensus
+        // output is quarantined.
         let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
 
         // When execution-worker congestion control is active, one combined
@@ -4981,19 +4980,19 @@ impl AuthorityPerEpochStore {
                 );
             }
 
-            // With deterministic validation, a commit's rows are written
-            // before the highest fully executed commit advances past it, so
-            // after the wait above every row produced at or below the horizon
-            // is readable before validation of `C` starts, and does not change
-            // during it. Rows produced above the horizon can still appear, but
-            // they answer missing. Validating before that wait would make the
-            // result depend on how far this validator's execution has got.
+            // With the P-COOL flow, a commit's rows are written before the
+            // highest fully executed commit advances past it, so after the wait
+            // above every row produced at or below the horizon is readable
+            // before validation of `C` starts, and does not change during it.
+            // Rows produced above the horizon can still appear, but they answer
+            // missing. Validating before that wait would make the result depend
+            // on how far this validator's execution has got.
             //
             // After the final round no user transaction executes or reaches a
             // checkpoint, so they are all ignored here. Validating them
             // without the wait would save decisions that no checkpoint retires
             // and that a replay after a restart could contradict.
-            if deterministic_validation && !accepts_tx {
+            if enable_pcool && !accepts_tx {
                 sequenced_transactions.retain(|tx| {
                     let user_transaction = match &tx.0.transaction {
                         SequencedConsensusTransactionKind::External(ext) => {

@@ -332,11 +332,11 @@ pub struct AuthorityMetrics {
     /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
     /// Results of the commit-indexed reader in post-consensus validation, by
-    /// result (keep, drop or missing) and the reason that decided it. Only
-    /// with deterministic validation on.
+    /// result (keep, drop or missing) and the reason that decided it. Only with
+    /// the P-COOL flow on.
     pub consensus_handler_validation_reader_verdicts: IntCounterVec,
     /// The commit being validated minus the highest fully executed commit, set
-    /// once per commit. Only with deterministic validation on.
+    /// once per commit. Only with the P-COOL flow on.
     pub consensus_handler_commit_execution_lag: IntGauge,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
@@ -2358,10 +2358,10 @@ impl AuthorityState {
                 per_authenticator_checked_input_objects.len(),
                 "Move authenticators amount must match the number of checked authenticator inputs"
             );
-            // Under deterministic validation, a gas owner that cannot be resolved
-            // did not authorize the transaction, so nobody pays; its own failure is
+            // Under the P-COOL flow, a gas owner that cannot be resolved did
+            // not authorize the transaction, so nobody pays; its own failure is
             // then the one reported.
-            let deterministic_validation = protocol_config.enable_pcool_flow();
+            let pcool_flow = protocol_config.enable_pcool_flow();
             let mut first_resolution_error = None;
             let mut gas_owner_resolution_error = None;
             let mut resolved_authenticators = Vec::with_capacity(move_authenticators.len());
@@ -2379,10 +2379,7 @@ impl AuthorityState {
                             input_objects: authenticator_checked_input_objects,
                         })
                     }
-                    Err(error)
-                        if deterministic_validation
-                            && move_authenticator.address() == gas_data.owner =>
-                    {
+                    Err(error) if pcool_flow && move_authenticator.address() == gas_data.owner => {
                         gas_owner_resolution_error = Some(error);
                     }
                     Err(error) => {
@@ -2399,15 +2396,15 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            // With a resolution failure, the executor gets the failure in place of
-            // the list, with the accounts the authenticators would have
-            // authenticated and, under deterministic validation, the gas owner's
+            // With a resolution failure, the executor gets the failure in place
+            // of the list, with the accounts the authenticators would have
+            // authenticated and, under the P-COOL flow, the gas owner's
             // authenticator if its account resolved, so it can decide who pays.
             let authenticators = match gas_owner_resolution_error.or(first_resolution_error) {
                 Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
                     error,
                     accounts,
-                    gas_owner: if deterministic_validation {
+                    gas_owner: if pcool_flow {
                         resolved_authenticators
                             .into_iter()
                             .find(|resolved| resolved.authenticator.address() == gas_data.owner)

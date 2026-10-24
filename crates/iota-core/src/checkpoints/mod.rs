@@ -3711,12 +3711,12 @@ mod tests {
             .unwrap();
     }
 
-    // A validator does not verify its own consensus blocks, so under
-    // deterministic validation its own signature must reach its aggregator
-    // when it is submitted, without waiting for the consensus handler to
-    // process the commit that includes it. The copy that the handler delivers
-    // later, and a signature made again for the same summary after a restart,
-    // must be the same bytes and be ignored.
+    // A validator does not verify its own consensus blocks, so under the P-COOL
+    // flow its own signature must reach its aggregator when it is submitted,
+    // without waiting for the consensus handler to process the commit that
+    // includes it. The copy that the handler delivers later, and a signature
+    // made again for the same summary after a restart, must be the same bytes
+    // and be ignored.
     #[tokio::test]
     async fn own_checkpoint_signature_reaches_aggregator_without_consensus() {
         let network_config =
