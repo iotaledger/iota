@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME","RESOLVED_IOTA_CLOCK"],"struct":["Clock"]};

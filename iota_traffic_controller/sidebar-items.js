@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ClientIpStatus"],"fn":["forwarded_hop_depth","get_client_ip","parse_ip"],"mod":["metrics","policies","sim"],"struct":["TrafficController"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["to_iota_struct_tag_string","to_iota_type_tag_string"],"struct":["AsProtocolVersion","BigInt","IotaStructTag","IotaTypeTag","Readable","SequenceNumber","TypeName"]};

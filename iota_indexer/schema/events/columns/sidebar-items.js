@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["bcs","event_sequence_number","event_type","module","package","senders","star","timestamp_ms","transaction_digest","tx_sequence_number"]};

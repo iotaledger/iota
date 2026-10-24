@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BEFORE_VERSION_REQUIRES_OB_ERROR_MSG"],"fn":["data_as_bytes","multi_get_data","transaction_digests_by_address"],"struct":["BeforeVersion","MultiGetRequest","TransactionDigestsByAddressQuery"]};
