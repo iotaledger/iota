@@ -4758,9 +4758,11 @@ impl AuthorityPerEpochStore {
         let drop_seed = consensus_commit_info.round;
 
         // Transactions dropped by post-consensus load shedding in this commit.
-        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
-        // the submitter's `await_consensus_or_checkpoint` wait is woken and its
-        // consensus-submission semaphore slot is released.
+        // Fed to `dropped_tx_status_cache.notify_without_recording` after the
+        // loop so the submitter's `await_consensus_or_checkpoint` wait is woken
+        // and its consensus-submission semaphore slot is released. A later
+        // retry must not complete from this transient result before reaching
+        // consensus.
         let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
@@ -4799,7 +4801,7 @@ impl AuthorityPerEpochStore {
         }
         if !load_shedding_dropped.is_empty() {
             self.dropped_tx_status_cache
-                .insert_and_notify(&load_shedding_dropped);
+                .notify_without_recording(&load_shedding_dropped);
         }
 
         let mut output =
