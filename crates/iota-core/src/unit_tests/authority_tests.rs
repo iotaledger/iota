@@ -19,6 +19,7 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_crypto::IotaSigner as _;
+use iota_sdk_move_types::iota_system::iota_system::IotaSystemState as IotaSystemStateWrapper;
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
@@ -45,7 +46,7 @@ use iota_types::{
     gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::PackageStoreWithFallback,
-    iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
+    iota_system_state::IotaSystemStateTrait,
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},

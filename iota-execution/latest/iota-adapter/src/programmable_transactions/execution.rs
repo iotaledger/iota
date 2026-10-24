@@ -16,6 +16,7 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_move_types::iota_framework::package::UpgradeTicket;
     use iota_sdk_types::{
         Address, Command, CommandArgumentError, Identifier, MovePackage, ObjectId,
         PackageUpgradeError, ProgrammableTransaction, StructTag, TypeTag,
@@ -34,7 +35,7 @@ mod checked {
         metrics::LimitsMetrics,
         move_package::{
             IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
-            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            UpgradeCap, UpgradePolicy, UpgradeReceipt,
             normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
