@@ -82,9 +82,10 @@ fn buffer_bytes(count: usize, entry_bytes: usize) -> usize {
 }
 
 /// Upper bound on the headers a fetch response may carry; a response with
-/// more is the peer's fault. Commit sync: our own cap, since the server
-/// returns only the requested headers. Header sync: the ceiling every
-/// configuration respects, since the peer fills gaps up to its own cap.
+/// more is the peer's fault. Commit sync and live header sync: our own cap,
+/// since the server returns only the requested headers. Periodic header sync:
+/// the ceiling every configuration respects, since the peer fills gaps up to
+/// its own cap.
 fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
     if commit_sync {
         context.parameters.max_headers_per_commit_sync_fetch
@@ -671,10 +672,11 @@ fn mid_stream_error(e: tonic::Status) -> ConsensusError {
 /// header buffer. A stream cut by an error after headers arrived yields the
 /// delivered chunks.
 ///
-/// Commit sync rejects more headers than the server's cap allows, since the
-/// server returns only what was requested. Header sync accepts the peer's
-/// gap-fill up to the ceiling every configuration respects, and stops reading
-/// once our own cap is held; the caller trims to it.
+/// Commit sync and live header sync reject more headers than our own cap
+/// allows, since the server returns only what was requested. Periodic header
+/// sync accepts the peer's gap-fill up to the ceiling every configuration
+/// respects, and stops reading once our own cap is held; the caller trims to
+/// it.
 async fn collect_block_headers<S>(
     context: &Context,
     peer: AuthorityIndex,

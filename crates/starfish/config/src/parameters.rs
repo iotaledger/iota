@@ -82,7 +82,9 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_block_rate_window")]
     pub block_rate_window: Duration,
 
-    /// Number of block headers to fetch per commit sync request.
+    /// Number of block headers to fetch per commit sync request. Also limits
+    /// the response to a live header sync request, so it must be at least
+    /// `max_headers_per_header_sync_fetch`.
     #[serde(default = "Parameters::default_max_headers_per_commit_sync_fetch")]
     pub max_headers_per_commit_sync_fetch: usize,
 
@@ -430,6 +432,12 @@ impl Parameters {
                     "{name} must not exceed {HEADERS_PER_FETCH_CEILING}"
                 ));
             }
+        }
+        if self.max_headers_per_header_sync_fetch > self.max_headers_per_commit_sync_fetch {
+            return Err(
+                "max_headers_per_header_sync_fetch must not exceed max_headers_per_commit_sync_fetch"
+                    .to_string(),
+            );
         }
         let transaction_fetch_fields = [
             (
