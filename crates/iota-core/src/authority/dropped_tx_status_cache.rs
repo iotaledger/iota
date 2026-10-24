@@ -197,7 +197,7 @@ mod tests {
 
     /// A drop recorded before the same digest is kept is no longer answered
     /// once it is kept.
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_keep_removes_an_earlier_drop() {
         let cache = DroppedTxStatusCache::new();
         let digest = TransactionDigest::random();
@@ -205,15 +205,16 @@ mod tests {
 
         cache.remove_kept(&[digest]);
 
-        assert!(
-            timeout(
-                Duration::from_millis(100),
-                cache.notify_read_dropped(digest)
-            )
-            .await
-            .is_err(),
-            "a request after the keep must wait for the kept transaction's outcome"
-        );
+        {
+            let waiter = cache.notify_read_dropped(digest);
+            futures::pin_mut!(waiter);
+            assert!(
+                futures::poll!(&mut waiter).is_pending(),
+                "a request after the keep must wait for the kept transaction's outcome"
+            );
+            assert_eq!(cache.num_pending_for_testing(), 1);
+        }
+        assert_eq!(cache.num_pending_for_testing(), 0);
     }
 
     /// The drop of one copy of a digest ends a wait for any drop, but is not
