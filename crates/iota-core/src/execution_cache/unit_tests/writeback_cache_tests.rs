@@ -935,6 +935,49 @@ async fn test_commit_relocates_superseded_versions() {
     .await;
 }
 
+/// A version the commit moved out of the live table is read by exact key
+/// with the historic fallback from its epoch's bucket, and only from that
+/// epoch's bucket.
+#[tokio::test]
+async fn test_read_a_moved_version_from_its_epochs_bucket_only() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let superseded = Object::immutable_with_id_for_testing(ObjectId::random());
+        let (id, version) = (superseded.id(), superseded.version());
+        s.store
+            .perpetual_tables
+            .objects
+            .insert(
+                &ObjectKey(id, version),
+                &get_store_object(superseded.clone(), Some(0)),
+            )
+            .unwrap();
+        let mut outputs = Scenario::new_outputs();
+        outputs.superseded = vec![(ObjectKey(id, version), superseded.clone())];
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+        s.reset_cache();
+
+        let cache = s.cache();
+        assert_eq!(cache.try_get_object_by_key(&id, version).unwrap(), None);
+        assert_eq!(
+            cache
+                .try_get_object_by_key_with_historic_fallback(&id, version, 1)
+                .unwrap(),
+            Some(superseded)
+        );
+        assert_eq!(
+            cache
+                .try_get_object_by_key_with_historic_fallback(&id, version, 2)
+                .unwrap(),
+            None,
+            "another epoch's bucket is not read"
+        );
+    })
+    .await;
+}
+
 #[tokio::test]
 #[should_panic(expected = "should be empty due to revert_state_update")]
 async fn test_missing_reverts_panic() {

@@ -1439,6 +1439,23 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
+    fn try_get_object_by_key_with_historic_fallback(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        // The commit moves a version out of the live table and into the
+        // bucket in one batch, and drops it from the cache only after that
+        // batch is written, so one of the two reads finds it.
+        if let Some(object) = ObjectCacheRead::try_get_object_by_key(self, object_id, version)? {
+            return Ok(Some(object));
+        }
+        self.store
+            .get_historic_objects()
+            .get_in_epoch(epoch, &ObjectKey(*object_id, version))
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_objects_by_key(
         &self,

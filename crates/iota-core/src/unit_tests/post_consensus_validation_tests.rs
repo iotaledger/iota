@@ -2379,11 +2379,14 @@ impl HandlerObjectStateSetup {
     }
 
     /// A keyed read of `(id, version)` from the object store, the way
-    /// validation's content read would issue it; `None` for tombstones.
+    /// validation's content read would issue it, including the version the
+    /// commit moved into this epoch's historic objects bucket; `None` for
+    /// tombstones.
     fn store_object(&self, id: &ObjectId, version: Version) -> Option<Object> {
         self.authority
             .get_object_cache_reader()
-            .get_object_by_key(id, version)
+            .try_get_object_by_key_with_historic_fallback(id, version, self.epoch_store.epoch())
+            .unwrap()
     }
 
     /// Executes `tx` and checks that it succeeded. `new_from_checkpoint` is
@@ -2511,7 +2514,8 @@ impl HandlerObjectStateSetup {
 
     /// [`Self::commit_outputs`] of `committed`, then removes every version
     /// `consumer` consumed from the object store, as the pruner does once
-    /// the consumer's checkpoint is executed. `consumer` must be one of
+    /// the consumer's checkpoint is executed, and from the epoch's historic
+    /// objects bucket the commit moved it to. `consumer` must be one of
     /// `committed`.
     async fn prune_versions_consumed_by(
         &self,
@@ -2524,6 +2528,22 @@ impl HandlerObjectStateSetup {
             .prune_objects_immediately_for_testing(vec![consumer.clone()])
             .await
             .unwrap();
+        let bucket = self
+            .authority
+            .get_historic_objects()
+            .ensure(self.epoch_store.epoch())
+            .unwrap();
+        let mut batch = bucket.objects.batch();
+        batch
+            .delete_batch_tagged(
+                &bucket.objects,
+                consumer
+                    .modified_at_versions()
+                    .iter()
+                    .map(|modified| ObjectKey(*modified.object_id(), modified.version())),
+            )
+            .unwrap();
+        batch.write().unwrap();
         for modified in consumer.modified_at_versions() {
             self.authority
                 .evict_committed_object_for_testing(modified.object_id());

@@ -1088,6 +1088,9 @@ struct StoreState {
     objects: BTreeMap<ObjectId, BTreeMap<Version, StoredEntry>>,
     /// Deletion markers by id and version, with whether they are dirty.
     markers: BTreeMap<ObjectId, BTreeMap<Version, (MarkerValue, bool)>>,
+    /// The consumed versions the commit of their consumer moved out of the
+    /// live state into the epoch's historic objects bucket.
+    moved: BTreeSet<ObjectKey>,
 }
 
 impl StoreState {
@@ -1115,9 +1118,24 @@ impl StoreState {
     }
 
     fn by_key(&self, id: &ObjectId, version: Version) -> Option<Object> {
+        if self.moved.contains(&ObjectKey(*id, version)) {
+            return None;
+        }
         match &self.objects.get(id)?.get(&version)?.version {
             StoredVersion::Live { object, pruned } if !pruned => Some(object.clone()),
             _ => None,
+        }
+    }
+
+    /// [`Self::by_key`], or else the version moved into the epoch's bucket,
+    /// which the objects pruner does not touch.
+    fn by_key_with_history(&self, id: &ObjectId, version: Version) -> Option<Object> {
+        if !self.moved.contains(&ObjectKey(*id, version)) {
+            return self.by_key(id, version);
+        }
+        match &self.objects.get(id)?.get(&version)?.version {
+            StoredVersion::Live { object, .. } => Some(object.clone()),
+            StoredVersion::Tombstone(_) => None,
         }
     }
 }
@@ -1228,9 +1246,15 @@ impl FakeStore {
         }
     }
 
+    /// Makes an execution's outputs durable and, as the commit does, moves
+    /// the versions it consumed out of the live state into the epoch's
+    /// bucket.
     fn make_durable(&self, execution: &Execution) {
         let mut state = self.lock();
         for change in &execution.changes {
+            if let Some(before) = &change.before {
+                state.moved.insert(ObjectKey(change.id, before.version()));
+            }
             let version = change.after.version();
             if let Some(entry) = state
                 .objects
@@ -1339,6 +1363,15 @@ impl ObjectCacheRead for FakeStore {
         version: Version,
     ) -> IotaResult<Option<Object>> {
         Ok(self.lock().by_key(object_id, version))
+    }
+
+    fn try_get_object_by_key_with_historic_fallback(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        _epoch: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        Ok(self.lock().by_key_with_history(object_id, version))
     }
 
     fn try_multi_get_objects_by_key(

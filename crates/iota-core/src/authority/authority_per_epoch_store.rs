@@ -4351,6 +4351,11 @@ impl AuthorityPerEpochStore {
         debug!("All pending epoch tasks completed");
     }
 
+    /// Whether [`Self::epoch_terminated`] has been called.
+    pub fn is_epoch_terminated(&self) -> bool {
+        self.epoch_alive_token.is_cancelled()
+    }
+
     /// Waits for the notification about epoch termination
     pub async fn wait_epoch_terminated(&self) {
         self.epoch_alive_token.cancelled().await

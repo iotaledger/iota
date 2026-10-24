@@ -185,12 +185,26 @@ impl HistoricObjects {
         Ok(None)
     }
 
+    /// The object `epoch`'s bucket holds under `key`, `None` when it holds
+    /// none or there is no bucket for `epoch`. Reads only that bucket, so the
+    /// answer does not depend on how many epochs the node retains.
+    pub fn get_in_epoch(&self, epoch: EpochId, key: &ObjectKey) -> IotaResult<Option<Object>> {
+        let Some(bucket) = self.buckets.get(epoch) else {
+            return Ok(None);
+        };
+        bucket
+            .objects
+            .get(key)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
     /// Fills each `None` in `objects` — the live table's answers for `keys`, in
     /// the same order — with the version the buckets hold under that key.
     ///
-    /// Only for reads that serve a response: consensus and execution read
-    /// current versions, which never leave the live table, so a miss there is a
-    /// bug and must stay one.
+    /// Only for reads that serve a response. Execution reads current versions,
+    /// which never leave the live table, so a miss there is a bug and must stay
+    /// one. Validation at a commit reads earlier versions of its own epoch
+    /// through [`Self::get_in_epoch`] instead.
     pub fn fill_missing(
         &self,
         keys: &[ObjectKey],

@@ -310,6 +310,17 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
+    /// [`Self::try_get_object_by_key`], or else the version `epoch`'s
+    /// historic objects bucket holds, where the commit moves every version a
+    /// transaction of that epoch superseded. Reads no other epoch's bucket, so
+    /// the answer does not depend on how many epochs the node retains.
+    fn try_get_object_by_key_with_historic_fallback(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Object>>;
+
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
