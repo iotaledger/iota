@@ -188,10 +188,10 @@ impl ConsensusClient for UpdatableConsensusClient {
 /// waits for, as [`replay_target`] computes it.
 pub(crate) type StartedConsumer = (Arc<CommitConsumerMonitor>, Option<CommitIndex>);
 
-/// Returns the commit the checkpoint builder waits for the consensus handler to handle before it
-/// starts building, with deterministic validation. This is `last_validated_commit`, or
-/// `resume_point` when that is `None`, capped at `last_commit_before_synced_checkpoint_execution`
-/// when that is set.
+/// Returns the commit the checkpoint builder waits for the consensus handler to
+/// handle before it starts building, with the P-COOL flow. This is
+/// `last_validated_commit`, or `resume_point` when that is `None`, capped at
+/// `last_commit_before_synced_checkpoint_execution` when that is set.
 pub(crate) fn replay_target(
     last_validated_commit: Option<u64>,
     resume_point: CommitIndex,
@@ -208,8 +208,8 @@ pub(crate) fn replay_target(
 }
 
 /// Receives, through the `consensus-replay-target` fail point, the commit the
-/// replay waits for (every stored commit without deterministic validation)
-/// and the highest commit consensus had stored at startup.
+/// replay waits for (every stored commit without the P-COOL flow) and the
+/// highest commit consensus had stored at startup.
 pub type ConsensusReplayTargetReport = Arc<dyn Fn(CommitIndex, CommitIndex) + Send + Sync>;
 
 /// Waits for consensus to finish replaying at consensus handler.

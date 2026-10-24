@@ -8,12 +8,11 @@ use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_move_types::iota_framework::coin::{DenyCapV1, RegulatedCoinMetadata};
 use iota_sdk_types::{
     Address, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    StructTag, TransactionDigest, TransactionEffects, TypeTag, UnchangedSharedKind, Version,
+    StructTag, TransactionEffects, TypeTag, UnchangedSharedKind, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
-    attestation::AttestedTransaction,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_account_private_key},
     deny_list_v1::{
@@ -21,7 +20,6 @@ use iota_types::{
     },
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionEnvelope, TransactionKey,
@@ -37,9 +35,7 @@ use crate::{
         move_integration_tests::build_and_try_publish_test_package,
         test_authority_builder::TestAuthorityBuilder,
     },
-    consensus_handler::VerifiedSequencedConsensusTransaction,
     post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
-    post_consensus_validation,
 };
 
 // Test that a v1 regulated coin can be created and all the necessary objects
@@ -231,186 +227,6 @@ async fn test_regulated_coin_v1_types() {
     ));
 }
 
-// The coin deny-list read mode of `handle_transaction_validation_checks`
-// decides whether its verdict depends on the validator's execution progress.
-//
-// With the latest-value read (`epoch_gated_coin_deny_list = false`), the
-// verdict for one and the same transaction flips within an epoch once the
-// `deny_list_v1_add` transaction executes locally. That is intended for
-// admission at signing (denials apply immediately), but post-consensus it
-// would make two validators - one that has already executed the deny-add and
-// one that has not - reach opposite keep/drop decisions for the same
-// sequenced transaction, diverging the checkpoint. The epoch-gated read
-// (`epoch_gated_coin_deny_list = true`) returns the value settled before the
-// current epoch and is identical at both frontiers, which is why the
-// post-consensus caller uses it.
-//
-// The two calls below (before/after executing the deny-add on a single
-// authority) model those two execution frontiers.
-#[tokio::test]
-async fn test_coin_deny_list_read_modes_across_execution_progress() {
-    let env = RegulatedCoinEnv::new().await;
-    assert_eq!(env.epoch(), 0);
-    let transfer_tx = env.build_transfer().await;
-
-    // Frontier 1 - the deny-add has not executed: no deny list config exists
-    // for the coin type, both read modes pass the transaction.
-    for epoch_gated in [false, true] {
-        env.validation_check(&transfer_tx, epoch_gated)
-            .await
-            .expect("no deny list entry executed yet");
-    }
-    assert!(
-        get_per_type_coin_deny_list_v1(
-            &env.regulated_coin_type.to_canonical_string(false),
-            &env.env.authority.get_object_store(),
-        )
-        .is_none()
-    );
-
-    // Execute `deny_list_v1_add(sender)` in the same epoch.
-    env.deny_sender().await;
-
-    // Frontier 2, latest-value read - the very same transaction is now
-    // rejected within the same epoch: the verdict followed the local
-    // execution frontier.
-    let err = env.validation_check(&transfer_tx, false).await.unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            IotaError::UserInput {
-                error: UserInputError::AddressDeniedForCoin { address, .. }
-            } if *address == env.env.sender
-        ),
-        "unexpected error: {err:?}"
-    );
-
-    // Frontier 2, epoch-gated read - same verdict as frontier 1: the entry
-    // written this epoch is not active yet, execution progress is irrelevant.
-    env.validation_check(&transfer_tx, true)
-        .await
-        .expect("entry written this epoch must not be active for the epoch-gated read");
-}
-
-// Relaxation mirror of the test above: a denial settled in a previous epoch
-// is lifted in the current one. The latest-value read honors the removal
-// immediately, while the epoch-gated read still denies until the removal
-// settles at the next epoch boundary - the window in which admission accepts
-// transactions that post-consensus deterministically drops.
-#[tokio::test]
-async fn test_coin_deny_list_read_modes_after_denial_relaxed() {
-    let env = RegulatedCoinEnv::new().await;
-    env.deny_sender().await;
-
-    // Settle the denial: entries written in epoch 0 activate in epoch 1.
-    env.reconfigure().await;
-    assert_eq!(env.epoch(), 1);
-
-    let transfer_tx = env.build_transfer().await;
-
-    // Frontier 1 - the removal has not executed: the denial is settled, both
-    // read modes reject the transaction.
-    for epoch_gated in [false, true] {
-        let err = env
-            .validation_check(&transfer_tx, epoch_gated)
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(
-                &err,
-                IotaError::UserInput {
-                    error: UserInputError::AddressDeniedForCoin { .. }
-                }
-            ),
-            "a settled denial must be enforced by both read modes, got {err:?}"
-        );
-    }
-
-    // Execute `deny_list_v1_remove(sender)` in the same epoch.
-    env.undeny_sender().await;
-
-    // Frontier 2, latest-value read - the removal applies immediately.
-    env.validation_check(&transfer_tx, false)
-        .await
-        .expect("a removal must apply immediately for the latest-value read");
-
-    // Frontier 2, epoch-gated read - the removal is not settled yet, the
-    // denial still holds until the next epoch boundary.
-    let err = env.validation_check(&transfer_tx, true).await.unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            IotaError::UserInput {
-                error: UserInputError::AddressDeniedForCoin { .. }
-            }
-        ),
-        "a removal written this epoch must not be active for the epoch-gated read, got {err:?}"
-    );
-}
-
-// Runs the real post-consensus validation pipeline over a `UserTransactionV1`
-// spending a regulated coin whose type was globally paused earlier in the
-// same epoch. The pause has already executed locally, so the latest-value
-// read would report "paused" and drop the transaction - on this validator,
-// but not on one whose execution lags behind the pause. The epoch-gated read
-// used post-consensus keeps it on every validator: the pause activates next
-// epoch. (Recipient-side enforcement at execution,
-// `check_coin_deny_list_v1_during_execution`, has always been epoch-gated
-// the same way.)
-#[tokio::test]
-async fn test_post_consensus_keeps_tx_spending_coin_paused_this_epoch() {
-    let env = RegulatedCoinEnv::new().await;
-
-    // Globally pause the regulated coin; executes in the current epoch.
-    env.pause().await;
-
-    // A transaction spending the paused coin, sequenced as `UserTransactionV1`.
-    let transfer_tx = env.build_transfer().await;
-    let (dropped, kept) = env.post_consensus_validate(transfer_tx).await;
-    assert!(dropped.is_empty(), "unexpected drops: {dropped:?}");
-    assert!(kept);
-}
-
-// The admitted-then-dropped window end-to-end: a pause settled at the epoch
-// boundary is lifted mid-epoch. Admission (latest-value read) honors the
-// lifted pause immediately, while the epoch-gated post-consensus read still
-// sees the settled pause, so the admitted transaction is deterministically
-// dropped until the removal settles at the next epoch boundary.
-#[tokio::test]
-async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
-    let env = RegulatedCoinEnv::new().await;
-    env.pause().await;
-
-    // Settle the pause: entries written in epoch 0 activate in epoch 1.
-    env.reconfigure().await;
-    assert_eq!(env.epoch(), 1);
-
-    // Lift the pause; executes in epoch 1, settles at epoch 2.
-    env.unpause().await;
-
-    let transfer_tx = env.build_transfer().await;
-
-    // Admission honors the lifted pause immediately.
-    env.validation_check(&transfer_tx, false)
-        .await
-        .expect("a lifted pause must apply immediately at admission");
-
-    // Post-consensus still sees the settled pause and drops.
-    let (dropped, kept) = env.post_consensus_validate(transfer_tx).await;
-    assert!(!kept);
-    assert_eq!(dropped.len(), 1);
-    assert!(
-        matches!(
-            &dropped[0].1,
-            IotaError::UserInput {
-                error: UserInputError::CoinTypeGlobalPause { .. }
-            }
-        ),
-        "unexpected drop reason: {:?}",
-        dropped[0].1
-    );
-}
-
 // Post-consensus validation at commit C reads state as of commit C - K,
 // called the horizon of C. K is the protocol config's
 // `pcool_deterministic_validation_horizon_distance`, 4 in these tests, so
@@ -433,7 +249,7 @@ async fn test_sender_undenied_this_epoch_is_kept_once_the_horizon_reaches_the_re
     env.undeny_sender_at(1).await;
 
     let transfer_tx = env.build_transfer().await;
-    env.validation_check(&transfer_tx, false)
+    env.validation_check(&transfer_tx)
         .await
         .expect("admission must accept a sender the latest deny list allows");
     env.assert_dropped_at_commit(
@@ -557,7 +373,7 @@ async fn test_tx_spending_coin_unpaused_this_epoch_is_kept_once_the_horizon_reac
     env.unpause_at(1).await;
 
     let transfer_tx = env.build_transfer().await;
-    env.validation_check(&transfer_tx, false)
+    env.validation_check(&transfer_tx)
         .await
         .expect("admission must accept a coin the latest deny list does not pause");
     env.assert_dropped_at_commit(
@@ -584,6 +400,28 @@ async fn test_tx_spending_coin_unpaused_this_epoch_is_kept_once_the_horizon_reac
     assert!(
         effects.gas_cost_summary().gas_used() > 0,
         "the failed transaction must be charged gas"
+    );
+}
+
+// Under P-COOL, a global pause enabled at commit 1 of this epoch is checked as
+// of the horizon: at commit 4 (horizon 0) it is not visible yet, so a transfer
+// of the paused coin is kept; at commit 5 (horizon 1) it is dropped.
+#[tokio::test]
+async fn test_tx_spending_coin_paused_this_epoch_is_dropped_once_the_horizon_reaches_it() {
+    let epoch_zero = RegulatedCoinEnv::epoch_zero_override();
+    let env = RegulatedCoinEnv::new().await;
+    drop(epoch_zero);
+    let _guard = env.reconfigure_with_the_pcool_flow().await;
+
+    let transfer_tx = env.build_transfer().await;
+    env.pause_at(1).await;
+    env.assert_kept_at_commit(&transfer_tx, 4);
+    env.assert_dropped_at_commit(
+        &transfer_tx,
+        5,
+        UserInputError::CoinTypeGlobalPause {
+            coin_type: env.coin_type(),
+        },
     );
 }
 
@@ -641,7 +479,7 @@ async fn test_sender_denied_this_epoch_receiving_a_coin_is_dropped_once_the_hori
 
     env.deny_sender_at(1).await;
     let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
-    let err = env.validation_check(&receive_tx, false).await.unwrap_err();
+    let err = env.validation_check(&receive_tx).await.unwrap_err();
     assert!(
         matches!(
             &err,
@@ -687,7 +525,7 @@ async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
     env.undeny_sender_at(1).await;
 
     let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
-    env.validation_check(&receive_tx, false)
+    env.validation_check(&receive_tx)
         .await
         .expect("admission must accept a sender the latest deny list allows");
     env.assert_dropped_at_commit(
@@ -723,39 +561,6 @@ async fn test_execution_fails_denied_sender_forwarding_a_received_coin() {
     );
 }
 
-// Post-consensus validation without deterministic validation drops the
-// transaction of `test_execution_fails_denied_sender_forwarding_a_received_coin`:
-// it reads the receiving object, so the epoch-gated sender check sees the coin
-// type.
-#[tokio::test]
-async fn test_post_consensus_drops_denied_sender_receiving_a_coin() {
-    let env = RegulatedCoinEnv::new().await;
-    let parent_id = env.create_parent().await;
-    env.transfer_coin(parent_id.into()).await;
-
-    env.deny_sender().await;
-    env.reconfigure().await;
-    env.undeny_sender().await;
-
-    let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
-    env.validation_check(&receive_tx, false)
-        .await
-        .expect("admission must accept a sender the latest deny list allows");
-
-    let (dropped, kept) = env.post_consensus_validate(receive_tx).await;
-    assert!(!kept, "post-consensus validation must drop the transaction");
-    assert!(
-        matches!(
-            &dropped[0].1,
-            IotaError::UserInput {
-                error: UserInputError::AddressDeniedForCoin { address, .. }
-            } if *address == env.env.sender
-        ),
-        "unexpected drop reason: {:?}",
-        dropped[0].1
-    );
-}
-
 // Under P-COOL, a transaction receiving a coin whose global pause was settled
 // at the epoch boundary and lifted at commit 1 is admitted. It is dropped at
 // commit 4 (horizon 0) and kept from commit 5 (horizon 1) on. Execution still
@@ -774,7 +579,7 @@ async fn test_execution_fails_tx_receiving_coin_unpaused_this_epoch() {
     env.unpause_at(1).await;
 
     let receive_tx = env.build_receive_and_send(parent_id, dbg_addr(2)).await;
-    env.validation_check(&receive_tx, false)
+    env.validation_check(&receive_tx)
         .await
         .expect("admission must accept a coin the latest deny list does not pause");
     env.assert_dropped_at_commit(
@@ -950,10 +755,6 @@ impl RegulatedCoinEnv {
             .unwrap()
     }
 
-    fn epoch(&self) -> u64 {
-        self.env.authority.epoch_store_for_testing().epoch()
-    }
-
     async fn reconfigure(&self) {
         self.env.authority.reconfigure_for_testing().await;
     }
@@ -1045,12 +846,13 @@ impl RegulatedCoinEnv {
             .await;
     }
 
-    async fn unpause(&self) {
-        self.call_deny_list("deny_list_v1_disable_global_pause", None, None)
+    /// [`Self::pause`] assigned to consensus commit `commit`.
+    async fn pause_at(&self, commit: CommitIndex) {
+        self.call_deny_list("deny_list_v1_enable_global_pause", None, Some(commit))
             .await;
     }
 
-    /// [`Self::unpause`] assigned to consensus commit `commit`.
+    /// Lifts the global pause in a call assigned to consensus commit `commit`.
     async fn unpause_at(&self, commit: CommitIndex) {
         self.call_deny_list("deny_list_v1_disable_global_pause", None, Some(commit))
             .await;
@@ -1122,13 +924,11 @@ impl RegulatedCoinEnv {
         gas_object.object_ref()
     }
 
-    /// Runs `handle_transaction_validation_checks` with the given coin
-    /// deny-list read mode. The epoch store is fetched per call, so the check
-    /// follows epoch changes made through [`Self::reconfigure`].
+    /// Runs the admission checks, `handle_transaction_validation_checks`. The
+    /// epoch store is fetched per call, so the check follows epoch changes.
     async fn validation_check(
         &self,
         transaction: &TransactionEnvelope,
-        epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let epoch_store = self.env.authority.epoch_store_for_testing();
 
@@ -1138,56 +938,8 @@ impl RegulatedCoinEnv {
                 &VerifiedTransaction::new_unchecked(transaction.clone()),
                 &epoch_store,
                 &self.env.authority.config.transaction_deny_config,
-                epoch_gated_coin_deny_list,
-                VerifierLimitsSource::NodeConfig(
-                    &self.env.authority.config.verifier_signing_config,
-                ),
             )
             .await
-    }
-
-    /// Runs post-consensus validation over the transaction sequenced as a
-    /// `UserTransactionV1`. Returns the drop list and whether the transaction
-    /// was kept in the sequence.
-    async fn post_consensus_validate(
-        &self,
-        transaction: TransactionEnvelope,
-    ) -> (Vec<(TransactionDigest, IotaError)>, bool) {
-        let digest = *transaction.digest();
-        let consensus_tx = ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
-                transaction,
-                None,
-            ))),
-            tracking_id: Default::default(),
-        };
-
-        let mut transactions = vec![VerifiedSequencedConsensusTransaction::new_test(
-            consensus_tx,
-        )];
-
-        let epoch_store = self.env.authority.epoch_store_for_testing();
-        let (dropped, _locks, user_tx_digests) =
-            post_consensus_validation::validate_and_resolve_conflicts(
-                &self.env.authority,
-                &epoch_store,
-                1,
-                false,
-                &Default::default(),
-                &mut transactions,
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(user_tx_digests, vec![digest]);
-
-        (
-            dropped
-                .into_iter()
-                .map(|(digest, error, _)| (digest, error))
-                .collect(),
-            transactions.len() == 1,
-        )
     }
 
     /// The regulated coin type as the deny list and the statuses name it.

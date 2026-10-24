@@ -743,14 +743,13 @@ impl CheckpointExecutor {
     /// synced checkpoints for the rest of the epoch instead, switching first
     /// when the certified last checkpoint of the epoch becomes known.
     ///
-    /// For a committee validator keeping the deterministic validation
-    /// bookkeeping, which writes a transaction's handler rows only when the
-    /// consensus handler has assigned its commit. Until the switch only the
-    /// handler schedules these transactions, so they execute with their rows.
-    /// Normally they have executed before this node built the checkpoint. A
-    /// checkpoint built before a restart is the exception: its outputs were
-    /// only in memory, and the handler executes them again only once it
-    /// replays their commits.
+    /// For a committee validator keeping the P-COOL flow's bookkeeping, which
+    /// writes a transaction's handler rows only when the consensus handler has
+    /// assigned its commit. Until the switch only the handler schedules these
+    /// transactions, so they execute with their rows. Normally they have
+    /// executed before this node built the checkpoint. A checkpoint built
+    /// before a restart is the exception: its outputs were only in memory, and
+    /// the handler executes them again only once it replays their commits.
     async fn wait_for_handler_execution(
         &self,
         checkpoint: &VerifiedCheckpoint,

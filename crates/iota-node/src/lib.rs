@@ -1469,12 +1469,12 @@ impl IotaNode {
             }
         });
         info!("Spawning checkpoint service");
-        // With deterministic validation, a checkpoint built before a restart
-        // has to be rebuilt from the replayed commits before it is executed.
+        // With the P-COOL flow, a checkpoint built before a restart has to be
+        // rebuilt from the replayed commits before it is executed.
         let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_err() {
             Some(replay_waiter)
         } else if epoch_store.protocol_config().enable_pcool_flow() {
-            warn!("DISABLE_REPLAY_WAITER is ignored with deterministic validation");
+            warn!("DISABLE_REPLAY_WAITER is ignored with the P-COOL flow");
             Some(replay_waiter)
         } else {
             None

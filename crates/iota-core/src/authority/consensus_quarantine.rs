@@ -1645,9 +1645,9 @@ mod tests {
         let state = init_state_with_ids(vec![(sender, object_id), (sender, gas_id)]).await;
         let epoch_store = state.epoch_store_for_testing();
 
-        // The flush of a commit reads the effects of its roots when P-COOL
-        // deterministic validation is on, so the randomness root stands for an
-        // executed transaction.
+        // The flush of a commit reads the effects of its roots when the P-COOL
+        // flow is on, so the randomness root stands for an executed
+        // transaction.
         let rgp = state.reference_gas_price_for_testing().unwrap();
         let transfer = init_transfer_transaction(
             &state,
