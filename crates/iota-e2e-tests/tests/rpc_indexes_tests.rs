@@ -69,7 +69,20 @@ async fn transactions_from(
 /// Queries chain across the epoch boundary in both directions.
 #[sim_test]
 async fn indexes_chain_across_epoch_buckets_on_a_live_node() {
+    check_indexes_chain_across_epoch_buckets(true).await;
+}
+
+/// [`indexes_chain_across_epoch_buckets_on_a_live_node`] with the certificate
+/// flow that mainnet and testnet use.
+#[sim_test]
+async fn indexes_chain_across_epoch_buckets_without_the_pcool_flow() {
+    let _pcool_guard = override_pcool_flow(false);
+    check_indexes_chain_across_epoch_buckets(false).await;
+}
+
+async fn check_indexes_chain_across_epoch_buckets(pcool_flow: bool) {
     let cluster = TestClusterBuilder::new().build().await;
+    assert_pcool_flow(&cluster, pcool_flow);
 
     let (sender, digest_epoch_0) = transfer_coin(&cluster.wallet).await;
     cluster.force_new_epoch().await;
@@ -81,16 +94,45 @@ async fn indexes_chain_across_epoch_buckets_on_a_live_node() {
     assert_eq!(reverse, vec![digest_epoch_1, digest_epoch_0]);
 }
 
+/// Checks that every validator of `cluster` runs the P-COOL flow exactly when
+/// `enabled`.
+fn assert_pcool_flow(cluster: &TestCluster, enabled: bool) {
+    for handle in cluster.all_validator_handles() {
+        handle.with(|node| {
+            assert_eq!(
+                node.state()
+                    .epoch_store_for_testing()
+                    .protocol_config()
+                    .enable_pcool_flow(),
+                enabled
+            );
+        });
+    }
+}
+
 const EPOCHS_TO_RETAIN: u64 = 2;
 
 /// The epoch boundary drops index history outside
 /// `num_epochs_to_retain_for_indexes` while recent history keeps serving.
 #[sim_test]
 async fn index_pruning_drops_expired_epochs_on_a_live_node() {
+    check_index_pruning_drops_expired_epochs(true).await;
+}
+
+/// [`index_pruning_drops_expired_epochs_on_a_live_node`] with the certificate
+/// flow that mainnet and testnet use.
+#[sim_test]
+async fn index_pruning_drops_expired_epochs_without_the_pcool_flow() {
+    let _pcool_guard = override_pcool_flow(false);
+    check_index_pruning_drops_expired_epochs(false).await;
+}
+
+async fn check_index_pruning_drops_expired_epochs(pcool_flow: bool) {
     let cluster = TestClusterBuilder::new()
         .with_fullnode_num_epochs_to_retain_for_indexes(Some(EPOCHS_TO_RETAIN))
         .build()
         .await;
+    assert_pcool_flow(&cluster, pcool_flow);
 
     let (sender, old_digest) = transfer_coin(&cluster.wallet).await;
 
