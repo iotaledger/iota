@@ -351,6 +351,40 @@ impl HistoricLedger {
         Ok(None)
     }
 
+    /// Whether `epoch`'s bucket holds every one of `transactions` and
+    /// `effects`, read from the store. `false` when there is no bucket for
+    /// `epoch`.
+    pub fn holds_in_epoch(
+        &self,
+        epoch: EpochId,
+        transactions: &[TransactionDigest],
+        effects: &[TransactionEffectsDigest],
+    ) -> Result<bool, TypedStoreError> {
+        let Some(bucket) = self.buckets.get(epoch) else {
+            return Ok(false);
+        };
+        let holds = || -> Result<bool, TypedStoreError> {
+            // Outputs that are only in memory usually miss all of them, so
+            // one lookup settles most calls before the full check.
+            if let Some(last) = effects.last() {
+                if !bucket.effects.contains_key(last)? {
+                    return Ok(false);
+                }
+            }
+            Ok(bucket
+                .transactions
+                .multi_contains_keys(transactions)?
+                .into_iter()
+                .chain(bucket.effects.multi_contains_keys(effects)?)
+                .all(|held| held))
+        };
+        match holds() {
+            // The bucket was dropped during the read.
+            Err(TypedStoreError::UnregisteredColumn(_)) => Ok(false),
+            other => other,
+        }
+    }
+
     /// Whether any bucket holds the effects under `digest`.
     pub fn contains_effects(&self, digest: &TransactionEffectsDigest) -> IotaResult<bool> {
         #[cfg(test)]

@@ -89,7 +89,7 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
-        authority_store_tables::AuthorityPerpetualTables,
+        historic_ledger::HistoricLedger,
         ledger_backlog_migration::CheckpointBacklogMigrationProgress,
     },
     authority_client::{
@@ -323,7 +323,7 @@ pub struct CheckpointStore {
 /// The synced watermark readers see, held in memory while the saved one only
 /// moves over checkpoints whose contents are stored.
 struct SyncedWatermarkInMemory {
-    perpetual_tables: Arc<AuthorityPerpetualTables>,
+    historic_ledger: Arc<HistoricLedger>,
     /// Locked only to copy or replace the value, never across a read of the
     /// store, so readers do not wait for one.
     highest_synced: Mutex<Option<(CheckpointSequenceNumber, CheckpointDigest)>>,
@@ -1069,7 +1069,7 @@ impl CheckpointStore {
         let mut advanced_to = None;
         for sequence_number in saved.map_or(0, |saved| saved + 1)..=highest_synced {
             let stored = highest_executed.is_some_and(|executed| sequence_number <= executed)
-                || self.contents_stored(sequence_number, &in_memory.perpetual_tables)?;
+                || self.contents_stored(sequence_number, &in_memory.historic_ledger)?;
             if !stored {
                 break;
             }
@@ -1088,12 +1088,12 @@ impl CheckpointStore {
     }
 
     /// Whether every transaction and effect of synced checkpoint
-    /// `sequence_number` is in the perpetual store, rather than only in
-    /// memory.
+    /// `sequence_number` is in the ledger bucket of its epoch, rather than
+    /// only in memory.
     fn contents_stored(
         &self,
         sequence_number: CheckpointSequenceNumber,
-        perpetual_tables: &AuthorityPerpetualTables,
+        historic_ledger: &HistoricLedger,
     ) -> Result<bool, TypedStoreError> {
         let checkpoint = self
             .get_checkpoint_by_sequence_number(sequence_number)?
@@ -1101,23 +1101,11 @@ impl CheckpointStore {
         let contents = self
             .get_checkpoint_contents(&checkpoint.contents_digest)?
             .expect("the contents of a checkpoint at or below the synced watermark are stored");
-        // A checkpoint whose outputs are only in memory usually misses all of
-        // them, so one lookup settles most calls before the full check.
-        if let Some(last) = contents.iter().last() {
-            if !perpetual_tables.effects.contains_key(&last.effects)? {
-                return Ok(false);
-            }
-        }
         let (transactions, effects): (Vec<_>, Vec<_>) = contents
             .iter()
             .map(|digests| (digests.transaction, digests.effects))
             .unzip();
-        Ok(perpetual_tables
-            .transactions
-            .multi_contains_keys(&transactions)?
-            .into_iter()
-            .chain(perpetual_tables.effects.multi_contains_keys(&effects)?)
-            .all(|stored| stored))
+        historic_ledger.holds_in_epoch(checkpoint.epoch(), &transactions, &effects)
     }
 
     pub fn update_highest_pruned_checkpoint(
@@ -1132,8 +1120,8 @@ impl CheckpointStore {
 
     /// From now on, holds the synced watermark that callers read in memory.
     /// The value saved in the database passes a checkpoint only once that
-    /// checkpoint has executed or its transactions and effects are in
-    /// `perpetual_tables`.
+    /// checkpoint has executed or its transactions and effects are in the
+    /// ledger bucket of its epoch.
     ///
     /// The synced watermark promises that the contents of every checkpoint up
     /// to it can be loaded. A checkpoint can be marked synced while its
@@ -1144,16 +1132,18 @@ impl CheckpointStore {
     /// checkpoints synced again.
     ///
     /// Turning this on does not change the value callers read. At startup,
-    /// call it before anything marks a checkpoint synced. A running node may
-    /// call it at an epoch change, after every checkpoint of the ending epoch
-    /// has executed. Once on, it stays on until the process stops, also in
-    /// later epochs where the node is not in the committee. There, state sync
-    /// marks a checkpoint synced only after its transactions and effects are
-    /// in `perpetual_tables`, so the saved value moves with the one callers
-    /// read. Does nothing if already on.
+    /// call it once the one-time startup passes are done and before state
+    /// sync starts: until then only the genesis checkpoint, whose contents are
+    /// in the ledger already, and the ledger migration's rewind write the
+    /// synced watermark. A running node may call it at an epoch change, after
+    /// every checkpoint of the ending epoch has executed. Once on, it stays on
+    /// until the process stops, also in later epochs where the node is not in
+    /// the committee. There, state sync marks a checkpoint synced only after
+    /// its transactions and effects are in the ledger, so the saved value
+    /// moves with the one callers read. Does nothing if already on.
     pub fn hold_synced_watermark_in_memory(
         &self,
-        perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_ledger: Arc<HistoricLedger>,
     ) -> Result<(), TypedStoreError> {
         let _writes = self.synced_writes.lock();
         if self.synced_in_memory.get().is_some() {
@@ -1165,7 +1155,7 @@ impl CheckpointStore {
             .get(&CheckpointWatermark::HighestSynced)?;
         self.synced_in_memory
             .get_or_init(|| SyncedWatermarkInMemory {
-                perpetual_tables,
+                historic_ledger,
                 highest_synced: Mutex::new(saved),
             });
         Ok(())
@@ -1238,9 +1228,16 @@ impl CheckpointStore {
     /// sync fetches the checkpoints between the two again, and returns the
     /// sequence number it now names. Does nothing when execution has already
     /// caught up.
+    ///
+    /// Writes only the saved watermark, so it must run before
+    /// [`Self::hold_synced_watermark_in_memory`].
     pub fn rewind_highest_synced_to_executed(
         &self,
     ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        debug_assert!(
+            self.synced_in_memory.get().is_none(),
+            "the synced watermark is rewound before it is held in memory"
+        );
         let Some(executed) = self.get_watermark(CheckpointWatermark::HighestExecuted)? else {
             return Ok(None);
         };

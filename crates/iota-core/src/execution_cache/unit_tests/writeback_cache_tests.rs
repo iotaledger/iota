@@ -159,7 +159,7 @@ impl Scenario {
         }
     }
 
-    fn new_outputs() -> TransactionOutputs {
+    pub(crate) fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
         let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
         let receiver = Address::random();

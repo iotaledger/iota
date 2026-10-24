@@ -334,3 +334,48 @@ async fn a_state_synced_transaction_lands_in_the_executing_epochs_bucket() {
     })
     .await;
 }
+
+/// A checkpoint's contents count as held when the bucket of its epoch holds
+/// every transaction and effect, and not when one is missing or the epoch has
+/// no bucket.
+#[tokio::test]
+async fn contents_are_held_only_in_the_bucket_of_their_epoch() {
+    let dir = iota_common::tempdir();
+    let (_perpetual, _historic_objects, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let outputs = Scenario::new_outputs();
+    let transaction = *outputs.transaction.digest();
+    let effects_digest = outputs.effects.digest();
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = bucket.effects.batch();
+    batch
+        .insert_batch_tagged(&bucket.effects, [(effects_digest, outputs.effects.clone())])
+        .unwrap();
+    batch.write().unwrap();
+    assert!(
+        !historic
+            .holds_in_epoch(1, &[transaction], &[effects_digest])
+            .unwrap(),
+        "the transaction is missing"
+    );
+
+    let mut batch = bucket.transactions.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.transactions,
+            [(transaction, outputs.transaction.serializable_ref())],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    assert!(
+        historic
+            .holds_in_epoch(1, &[transaction], &[effects_digest])
+            .unwrap()
+    );
+    assert!(
+        !historic
+            .holds_in_epoch(2, &[transaction], &[effects_digest])
+            .unwrap(),
+        "another epoch's bucket is not read"
+    );
+}

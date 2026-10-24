@@ -239,10 +239,6 @@ pub struct IotaNode {
     /// executed; set for each epoch from `sync_summaries_to_epoch_end`.
     sync_summaries_to_epoch_end: Arc<AtomicBool>,
     checkpoint_store: Arc<CheckpointStore>,
-    /// Checked by the checkpoint store before its saved synced watermark
-    /// passes a checkpoint; see
-    /// [`CheckpointStore::hold_synced_watermark_in_memory`].
-    perpetual_tables: Arc<AuthorityPerpetualTables>,
     state_sync_store: RocksDbStore,
     global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
@@ -526,7 +522,6 @@ impl IotaNode {
 
         let historic_objects_for_progress = historic_objects.clone();
         let perpetual_tables_for_snapshots = perpetual_tables.clone();
-        let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             historic_objects,
@@ -588,16 +583,6 @@ impl IotaNode {
         )?;
 
         info!("created epoch store");
-        // As at an epoch change; must come before anything marks a checkpoint
-        // synced.
-        if epoch_store.protocol_config().enable_pcool_flow()
-            && epoch_store
-                .committee()
-                .authority_exists(&config.authority_public_key())
-        {
-            checkpoint_store
-                .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
-        }
 
         replay_log!(
             "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
@@ -688,6 +673,18 @@ impl IotaNode {
             .map_err(|e| {
                 anyhow!("failed to sweep the object versions superseded before this build: {e}")
             })?;
+
+        // As at an epoch change. After the one-time passes above, whose
+        // rewind writes only the saved synced watermark, and before state sync
+        // marks anything synced.
+        if epoch_store.protocol_config().enable_pcool_flow()
+            && epoch_store
+                .committee()
+                .authority_exists(&config.authority_public_key())
+        {
+            checkpoint_store
+                .hold_synced_watermark_in_memory(store.get_historic_ledger().clone())?;
+        }
 
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
@@ -1007,7 +1004,6 @@ impl IotaNode {
             randomness_handle,
             sync_summaries_to_epoch_end,
             checkpoint_store,
-            perpetual_tables: perpetual_tables_for_synced_watermark,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
@@ -2386,7 +2382,7 @@ impl IotaNode {
             && self.state.is_committee_validator(&new_epoch_store)
         {
             self.checkpoint_store
-                .hold_synced_watermark_in_memory(self.perpetual_tables.clone())?;
+                .hold_synced_watermark_in_memory(self.state.get_historic_ledger().clone())?;
         }
         self.state.get_reconfig_api().update_epoch_flags_metrics(
             cur_epoch_store.epoch_start_config().flags(),
