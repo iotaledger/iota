@@ -15,11 +15,14 @@ use std::{
 use http::{HeaderMap, HeaderValue, Request, Response};
 use pin_project_lite::pin_project;
 use tokio::time::Sleep;
-use tonic::{Status, body::Body};
+use tonic::Status;
 use tower::Service;
 
 const GRPC_TIMEOUT_HEADER: &str = "grpc-timeout";
 
+/// Ends a call at the shorter of its `grpc-timeout` and `server_timeout`. At
+/// that point it answers with the status `DEADLINE_EXCEEDED` and the default
+/// response body, which must be empty.
 #[derive(Debug, Clone)]
 pub struct GrpcTimeout<S> {
     inner: S,
@@ -51,8 +54,9 @@ impl<S> GrpcTimeout<S> {
 impl<S, RequestBody, ResponseBody> Service<Request<RequestBody>> for GrpcTimeout<S>
 where
     S: Service<Request<RequestBody>, Response = Response<ResponseBody>>,
+    ResponseBody: Default,
 {
-    type Response = Response<MaybeEmptyBody<ResponseBody>>;
+    type Response = Response<ResponseBody>;
     type Error = S::Error;
     type Future = ResponseFuture<S::Future>;
 
@@ -104,74 +108,23 @@ pin_project! {
 impl<F, ResponseBody, E> Future for ResponseFuture<F>
 where
     F: Future<Output = Result<Response<ResponseBody>, E>>,
+    ResponseBody: Default,
 {
-    type Output = Result<Response<MaybeEmptyBody<ResponseBody>>, E>;
+    type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
         if let Poll::Ready(result) = this.inner.poll(cx) {
-            return Poll::Ready(result.map(|response| response.map(MaybeEmptyBody::full)));
+            return Poll::Ready(result);
         }
 
         if let Some(sleep) = this.sleep.as_pin_mut() {
             ready!(sleep.poll(cx));
-            let response = Status::deadline_exceeded("Timeout expired")
-                .into_http()
-                .map(|_: Body| MaybeEmptyBody::empty());
-            return Poll::Ready(Ok(response));
+            return Poll::Ready(Ok(Status::deadline_exceeded("Timeout expired").into_http()));
         }
 
         Poll::Pending
-    }
-}
-
-pin_project! {
-    pub struct MaybeEmptyBody<B> {
-        #[pin]
-        inner: Option<B>,
-    }
-}
-
-impl<B> MaybeEmptyBody<B> {
-    fn full(inner: B) -> Self {
-        Self { inner: Some(inner) }
-    }
-
-    fn empty() -> Self {
-        Self { inner: None }
-    }
-}
-
-impl<B> http_body::Body for MaybeEmptyBody<B>
-where
-    B: http_body::Body + Send,
-{
-    type Data = B::Data;
-    type Error = B::Error;
-
-    fn poll_frame(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
-        match self.project().inner.as_pin_mut() {
-            Some(b) => b.poll_frame(cx),
-            None => Poll::Ready(None),
-        }
-    }
-
-    fn is_end_stream(&self) -> bool {
-        match &self.inner {
-            Some(b) => b.is_end_stream(),
-            None => true,
-        }
-    }
-
-    fn size_hint(&self) -> http_body::SizeHint {
-        match &self.inner {
-            Some(body) => body.size_hint(),
-            None => http_body::SizeHint::with_exact(0),
-        }
     }
 }
 
@@ -229,7 +182,13 @@ fn try_parse_grpc_timeout(
 
 #[cfg(test)]
 mod tests {
+    use std::{convert::Infallible, future, future::Pending, marker::PhantomData};
+
+    use http_body_util::BodyExt;
+    use tonic::body::Body;
+
     use super::*;
+    use crate::concurrency::ReclaimableBody;
 
     // Helper function to reduce the boiler plate of our test cases
     fn setup_map_try_parse(val: Option<&str>) -> Result<Option<Duration>, HeaderValue> {
@@ -305,33 +264,68 @@ mod tests {
         setup_map_try_parse(Some("oneH")).unwrap().unwrap();
     }
 
-    #[tokio::test]
-    async fn server_timeout_skips_exempt_paths() {
-        use std::{convert::Infallible, future, future::Pending};
+    /// A service whose responses never become ready, so the only way a call
+    /// resolves is via the timeout branch.
+    struct NeverResponds<B>(PhantomData<B>);
 
-        // A service whose responses never become ready, so the only way a call
-        // resolves is via the timeout branch.
-        #[derive(Clone)]
-        struct NeverReady;
-        impl Service<Request<()>> for NeverReady {
-            type Response = Response<Body>;
-            type Error = Infallible;
-            type Future = Pending<Result<Response<Body>, Infallible>>;
+    impl<B> NeverResponds<B> {
+        fn new() -> Self {
+            Self(PhantomData)
+        }
+    }
 
-            fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-                Poll::Ready(Ok(()))
-            }
+    impl<B> Service<Request<()>> for NeverResponds<B> {
+        type Response = Response<B>;
+        type Error = Infallible;
+        type Future = Pending<Result<Response<B>, Infallible>>;
 
-            fn call(&mut self, _req: Request<()>) -> Self::Future {
-                future::pending()
-            }
+        fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
         }
 
+        fn call(&mut self, _req: Request<()>) -> Self::Future {
+            future::pending()
+        }
+    }
+
+    /// For each response body type that `GrpcTimeout` wraps in this repository.
+    #[tokio::test]
+    async fn a_call_past_its_deadline_ends_with_deadline_exceeded_and_an_empty_body() {
+        async fn assert_deadline_response<B>()
+        where
+            B: http_body::Body + Default,
+            B::Error: std::fmt::Debug,
+        {
+            let mut svc =
+                GrpcTimeout::new(NeverResponds::<B>::new(), Some(Duration::from_millis(10)));
+            let response = tokio::time::timeout(Duration::from_secs(5), svc.call(Request::new(())))
+                .await
+                .expect("the call must end at its deadline")
+                .unwrap();
+            assert_eq!(
+                Status::from_header_map(response.headers()).map(|status| status.code()),
+                Some(tonic::Code::DeadlineExceeded)
+            );
+            assert!(response.body().is_end_stream());
+            assert_eq!(response.body().size_hint().exact(), Some(0));
+            let body = response.into_body().collect().await.unwrap();
+            assert!(body.trailers().is_none());
+            assert!(body.to_bytes().is_empty());
+        }
+
+        assert_deadline_response::<Body>().await;
+        assert_deadline_response::<tonic::service::AxumBody>().await;
+        assert_deadline_response::<ReclaimableBody<Body, (), ()>>().await;
+    }
+
+    #[tokio::test]
+    async fn server_timeout_skips_exempt_paths() {
         const EXEMPT: &[&str] = &["/pkg.Svc/Stream"];
         let timeout = Duration::from_millis(50);
 
         // Non-exempt path: the server-side fallback timeout fires.
-        let mut svc = GrpcTimeout::new_with_exempt_paths(NeverReady, Some(timeout), EXEMPT);
+        let mut svc =
+            GrpcTimeout::new_with_exempt_paths(NeverResponds::<Body>::new(), Some(timeout), EXEMPT);
         let fut = svc.call(Request::builder().uri("/pkg.Svc/Unary").body(()).unwrap());
         assert!(
             fut.await.is_ok(),
@@ -339,7 +333,8 @@ mod tests {
         );
 
         // Exempt path: no fallback timeout, so the request is never aborted.
-        let mut svc = GrpcTimeout::new_with_exempt_paths(NeverReady, Some(timeout), EXEMPT);
+        let mut svc =
+            GrpcTimeout::new_with_exempt_paths(NeverResponds::<Body>::new(), Some(timeout), EXEMPT);
         let fut = svc.call(Request::builder().uri("/pkg.Svc/Stream").body(()).unwrap());
         assert!(
             tokio::time::timeout(Duration::from_millis(150), fut)
