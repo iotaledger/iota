@@ -4993,7 +4993,6 @@ impl AuthorityPerEpochStore {
                     authority_state,
                     self,
                     consensus_commit_info.index,
-                    deterministic_validation,
                     &previously_deferred_tx_digests,
                     &mut sequenced_transactions,
                 )
