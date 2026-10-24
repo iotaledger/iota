@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Cluster tests for P-COOL deterministic validation.
+//! Cluster tests for P-COOL post-consensus validation.
 //!
 //! Post-consensus validation of commit C reads object state as of commit
 //! C - K, called the horizon of C. K, the horizon distance, is the protocol
@@ -11,7 +11,7 @@
 //! They are gated to the simulator because they stop nodes at fail points and
 //! pick the node to stop by its simulator node id.
 //!
-//! Run with: `cargo simtest -p iota-e2e-tests pcool_deterministic_validation`.
+//! Run with: `cargo simtest -p iota-e2e-tests --test pcool_post_consensus_validation_tests`.
 
 #![cfg(msim)]
 
