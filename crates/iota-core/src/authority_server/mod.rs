@@ -230,12 +230,14 @@ impl ValidatorService {
 
     /// Tallies traffic per stream item and maps each domain item into its
     /// proto equivalent. Each item carries its own business-logic Weight,
-    /// which feeds the spam-policy axis of the traffic controller. Top-level
-    /// errors are tallied once at stream creation.
+    /// which feeds the spam-policy axis of the traffic controller, and
+    /// `item_error` returns the error an item reports, which feeds the error
+    /// policy. Top-level errors are tallied once at stream creation.
     fn post_handle_stream<S, DomainItem, ProtoItem>(
         &self,
         ip: Option<IpAddr>,
         result: Result<S, tonic::Status>,
+        item_error: fn(&DomainItem) -> Option<IotaError>,
     ) -> Result<tonic::Response<StreamResponse<ProtoItem>>, tonic::Status>
     where
         S: tokio_stream::Stream<Item = Result<(DomainItem, Weight), tonic::Status>>
@@ -265,7 +267,7 @@ impl ValidatorService {
                 Option<IotaError>,
                 Result<DomainItem, tonic::Status>,
             ) = match item {
-                Ok((data, w)) => (w, None, Ok(data)),
+                Ok((data, w)) => (w, item_error(&data), Ok(data)),
                 Err(status) => (
                     Weight::zero(),
                     Some(IotaError::from(status.clone())),
