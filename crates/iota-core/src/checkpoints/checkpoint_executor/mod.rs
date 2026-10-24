@@ -452,6 +452,7 @@ impl CheckpointExecutor {
                     batch,
                     &ckpt_state.data.tx_digests,
                 );
+                fail_point!("crash-after-checkpoint-outputs-commit");
                 ckpt_state
             }
         })
