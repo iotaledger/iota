@@ -146,7 +146,7 @@ pub struct ConsensusHandler<C> {
     /// The `enable_pcool_flow` flag, fixed for the epoch. With it
     /// on, the per-commit duplicate check keeps one copy of a user
     /// transaction per author.
-    deterministic_validation: bool,
+    pcool_flow: bool,
     transaction_scheduler: AsyncTransactionScheduler,
     /// Marks commits fully executed in the P-COOL handler object state;
     /// `None` unless this node keeps the handler object state. Held only
@@ -184,7 +184,7 @@ impl<C> ConsensusHandler<C> {
             .pcool_bookkeeping_enabled()
             .then(|| ExecutionWatcher::start(epoch_store.clone()));
 
-        let deterministic_validation = epoch_store.protocol_config().enable_pcool_flow();
+        let pcool_flow = epoch_store.protocol_config().enable_pcool_flow();
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -202,7 +202,7 @@ impl<C> ConsensusHandler<C> {
             processed_cache: LruCache::new(
                 NonZeroUsize::new(randomize_cache_capacity_in_tests(PROCESSED_CACHE_CAP)).unwrap(),
             ),
-            deterministic_validation,
+            pcool_flow,
             transaction_scheduler,
             _execution_watcher: execution_watcher,
             backpressure_subscriber,
@@ -262,8 +262,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         block_transactions: ConsensusOutputTransactions,
     ) -> Result<(), RuntimeShutdown> {
         let epoch_store = self.epoch_store.clone();
-        // Only deterministic validation switches a validator to executing
-        // synced checkpoints within an epoch.
+        // Only the P-COOL flow switches a validator to executing synced
+        // checkpoints within an epoch.
         if !epoch_store.protocol_config().enable_pcool_flow() {
             return self
                 .process_consensus_output(consensus_output, block_transactions)
@@ -498,14 +498,13 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     transaction,
                 };
 
-                // The digest does not cover the signatures, so with deterministic
-                // validation one author's copy of a user transaction must not hide
+                // The digest does not cover the signatures, so with the P-COOL
+                // flow one author's copy of a user transaction must not hide
                 // another author's copy: validation tries a later copy when an
                 // earlier one fails on its own signatures. One copy per author
                 // bounds that work.
-                let copy_author = (self.deterministic_validation
-                    && sequenced_transaction.is_user_transaction())
-                .then_some(cert_origin);
+                let copy_author = (self.pcool_flow && sequenced_transaction.is_user_transaction())
+                    .then_some(cert_origin);
                 // With the flag on, the set holds only keys of messages that passed verification
                 // earlier in this commit and the cache only keys recorded as processed. A hit in
                 // either means this message would be skipped after verification too, whatever its
