@@ -405,7 +405,8 @@ pub async fn validate_and_resolve_conflicts(
         //
         // With deterministic validation, effects alone do not show at which
         // commit the transaction was kept, so only a saved keep at this commit
-        // skips validation; its consumed inputs may be pruned by now. Without
+        // skips validation; its consumed inputs may have left the live state by
+        // now. Without
         // one, the commit-indexed reader decides, as on every other validator.
         if (!deterministic_validation || saved_decision == Some(PostConsensusDecision::Kept))
             && authority_state
