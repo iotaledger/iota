@@ -467,6 +467,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SynchronizerSaturated(_)
         | ConsensusError::TransactionSynchronizerSaturated
         | ConsensusError::BlockRejected { .. }
+        | ConsensusError::SolidCommitLagging { .. }
         | ConsensusError::EmptyMerkleTree
         | ConsensusError::MissingBlockHeader { .. }
         | ConsensusError::CommitRangeExceededAfterScanning { .. }
@@ -1485,6 +1486,10 @@ mod tests {
             ConsensusError::BlockRejected {
                 block_ref: BlockRef::MIN,
                 reason: "test".to_string(),
+            },
+            ConsensusError::SolidCommitLagging {
+                block_ref: BlockRef::MIN,
+                lag: 1,
             },
             // Commit lists an honest server can send.
             ConsensusError::NoCommitReceived { peer: authority },
