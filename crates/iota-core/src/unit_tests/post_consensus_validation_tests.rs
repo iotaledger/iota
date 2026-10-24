@@ -2513,10 +2513,10 @@ impl HandlerObjectStateSetup {
     }
 
     /// [`Self::commit_outputs`] of `committed`, then removes every version
-    /// `consumer` consumed from the object store, as the pruner does once
-    /// the consumer's checkpoint is executed, and from the epoch's historic
-    /// objects bucket the commit moved it to. `consumer` must be one of
-    /// `committed`.
+    /// `consumer` consumed from the epoch's historic objects bucket the
+    /// commit moved it to, as on a validator that lost those bytes. The
+    /// removal from the live table finds nothing left there. `consumer` must
+    /// be one of `committed`.
     async fn prune_versions_consumed_by(
         &self,
         committed: &[TransactionDigest],
@@ -7910,8 +7910,8 @@ async fn replay_of_an_executed_durable_unflushed_commit_repeats_its_decisions() 
     assert_eq!(saved(&s), decisions);
 }
 
-/// Commit 1 keeps a transfer, which executes. The pruner then removes the
-/// version it consumed, and the node crashes before commit 1 flushes. The
+/// Commit 1 keeps a transfer, which executes. The version it consumed then
+/// loses its bytes, and the node crashes before commit 1 flushes. The
 /// replay of commit 1 keeps the transfer again from its saved decision,
 /// without the consumed version's bytes, which a fresh read would need.
 #[tokio::test]
@@ -8419,8 +8419,9 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
 /// the child above that version decides: at or below the horizon the version
 /// drops, whether or not this validator still holds its bytes, and the
 /// loader drops a transaction naming it. Above the horizon it is kept, as on
-/// a validator that has not executed the receive. The pruning limit keeps its
-/// bytes; pruned by hand past that limit, the load fails with a storage error.
+/// a validator that has not executed the receive. This epoch's historic
+/// objects bucket keeps its bytes; removed by hand from there, the load fails
+/// with a storage error.
 #[tokio::test]
 async fn owned_received_version_drops_from_the_receive_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -8560,7 +8561,7 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
 
 /// Shared mutations write no rows, so a shared object's creation version
 /// named as owned drops from the creation row itself, before and after a
-/// mutation consumed it and the pruner removed it.
+/// mutation consumed it and its bytes were removed.
 #[tokio::test]
 async fn owned_read_of_a_shared_creation_version_drops() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -10945,7 +10946,7 @@ async fn frozen_regulated_coin_input_is_checked_at_the_commit() {
 /// uses for the deny list's dynamic fields, on a dynamic-field child created
 /// at commit 5 and deleted at commit 6. Below the horizon of the creation it
 /// is absent, at it the created version, and from the deletion on absent
-/// again. Once the pruner removes the created version, the read that needs
+/// again. Once the created version's bytes are removed, the read that needs
 /// it is a storage error, never an answer.
 #[tokio::test]
 async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes() {
@@ -10980,7 +10981,7 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
 }
 
 /// On a validator that lost the bytes of a dynamic-field child consumed
-/// without a lock, pruned by hand past the pruning limit, commit 9 holds a
+/// without a lock, removed by hand, commit 9 holds a
 /// transfer of the child paid with a gas coin named at a wrong digest. Every
 /// read of the transaction's inputs at commit 9 must end the same way: each
 /// validator reads them once, and a storage error saves no decision, so the
@@ -11035,9 +11036,9 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
 }
 
 /// Commits the outputs of the transactions `executed` names, oldest first,
-/// and executes them as one certified checkpoint, followed by an empty one,
-/// then expires every historic objects bucket but the running epoch's, as a
-/// node with aggressive retention does.
+/// and executes them as one certified checkpoint, then expires every
+/// historic objects bucket but the running epoch's, as a node with
+/// aggressive retention does.
 async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[TransactionDigest]) {
     use iota_types::{
         base_types::ExecutionData,
@@ -11082,9 +11083,8 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
         4,
     );
     // The fixture's first checkpoint is its own genesis; checkpoint 1 holds
-    // the transactions and checkpoint 2, executed after it, lets the pruner
-    // reach checkpoint 1.
-    let (checkpoints, ..) = fixture.make_checkpoints(3, None, || contents.clone());
+    // the transactions.
+    let (checkpoints, ..) = fixture.make_checkpoints(2, None, || contents.clone());
     for checkpoint in checkpoints.iter().skip(1) {
         checkpoint_store
             .insert_certified_checkpoint(checkpoint)
@@ -11102,8 +11102,8 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
     }
 }
 
-/// A version that a commit above the horizon consumed keeps its bytes after
-/// the pruner runs over the consumer's executed checkpoint. A validation at a
+/// A version that a commit above the horizon consumed stays readable after
+/// the consumer's checkpoint commits and the earlier buckets expire. A validation at a
 /// commit less than the horizon distance above the consumer, or a replay of
 /// any commit after a restart before the consumer's output flushed, keeps the
 /// version, as on a validator that has not executed the consumer, and needs
@@ -11139,9 +11139,10 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
 
 /// A dynamic-field child is consumed through its parent at commit 6 without a
 /// lock, and commit 9 (horizon 5) holds a transaction naming the consumed
-/// version as an owned input. On one validator the pruner runs over the
-/// executed checkpoint of those commits, the other has not run it. The
-/// child's bytes stay, and both reach the same result: they drop the
+/// version as an owned input. On one validator the checkpoint of those
+/// commits executes and the earlier buckets expire, the other has not
+/// executed it. The child's bytes stay readable, and both reach the same
+/// result: they drop the
 /// transaction, since a child cannot be an owned input.
 #[tokio::test]
 async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep() {

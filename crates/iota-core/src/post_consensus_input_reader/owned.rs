@@ -19,8 +19,9 @@
 //! including a receive and a change through a dynamic-field parent, which
 //! take no lock. If that row was produced at or below the horizon, every
 //! validator has seen the consumption, so `V` drops even when its object has
-//! already left this validator's live state. A row above the horizon is ignored, because
-//! a validator that has not executed its commit cannot see it. A keep from
+//! already left this validator's live state. A row above the horizon is
+//! ignored, because a validator that has not executed its commit cannot see
+//! it. A keep from
 //! the store skips this read: a row above `V` at or below the horizon belongs
 //! to a commit that is executed before validation starts, so the store would
 //! already have answered a newer version. Mutations of a shared object write

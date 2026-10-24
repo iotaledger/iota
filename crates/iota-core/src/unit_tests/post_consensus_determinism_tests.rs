@@ -26,7 +26,7 @@
 //! - commit completions by the execution watcher;
 //! - the wait for the highest fully executed commit to reach the horizon;
 //! - the writes of each checkpoint's rows to the table;
-//! - commit flushes and pruning;
+//! - commit flushes and bucket expiry;
 //! - the switch to executing synced checkpoints at the end of the epoch;
 //! - crashes at every write to disk.
 //!
@@ -54,10 +54,10 @@
 //!
 //! The executor runs a transaction only once the handler assigned its
 //! commit, until the switch. From then on it runs every commit, writing no
-//! rows, and the handler validates no further commit. As on the node,
-//! pruning deletes no consumed version that a validation above the resume
-//! point can still keep. A node that crashes after the switch replays the
-//! commits up to the switch on restart and switches again at the next one.
+//! rows, and the handler validates no further commit. As on the node, a
+//! consumed version moves into the running epoch's bucket, which is not
+//! expired, so a validation above the resume point can still read it. A node that crashes after the
+//! switch replays the commits up to the switch on restart and switches again at the next one.
 //! The scenario `restart_after_the_switch_replays_only_up_to_the_switch`
 //! covers the restart.
 //!
@@ -85,7 +85,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::EpochId,
-    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    effects::TransactionEffectsExt,
     error::{IotaError, IotaResult},
     execution::SharedInput,
     iota_system_state::IotaSystemState,
@@ -1129,7 +1129,7 @@ impl StoreState {
     }
 
     /// [`Self::by_key`], or else the version moved into `epoch`'s bucket,
-    /// which the objects pruner does not touch.
+    /// which is not expired while the epoch runs.
     fn by_key_with_history(
         &self,
         id: &ObjectId,
@@ -1287,15 +1287,15 @@ impl FakeStore {
         }
     }
 
-    /// Deletes a version's bytes, as the pruner does; the latest reference of
-    /// the id is unaffected.
+    /// Deletes a version's bytes, as the expiry of an earlier epoch's bucket
+    /// does; the latest reference of the id is unaffected.
     fn prune(&self, key: &ObjectKey) {
         let mut state = self.lock();
         let Some(versions) = state.objects.get_mut(&key.0) else {
             return;
         };
         let is_latest = versions.keys().next_back() == Some(&key.1);
-        assert!(!is_latest, "the pruner never deletes the latest version");
+        assert!(!is_latest, "expiry never deletes the latest version");
         if let Some(entry) = versions.get_mut(&key.1) {
             if let StoredVersion::Live { pruned, .. } = &mut entry.version {
                 *pruned = true;
@@ -2383,7 +2383,7 @@ impl<'a> Validator<'a> {
         self.checkpointed_through = last;
         self.trace
             .push(format!("checkpoint of commits {first}..={last} committed"));
-        // The executor nudges the pruner after every checkpoint.
+        // Bucket expiry can run after every checkpoint.
         self.prune(false);
         Ok(Ok(()))
     }
@@ -2579,45 +2579,21 @@ impl<'a> Validator<'a> {
         Ok(())
     }
 
-    /// The object pruner. A version consumed at commit `c` can still be kept
-    /// by a validation at a commit below `c + K`, and the next validation is
-    /// at least the commit after the last flushed one, where a restart
-    /// resumes. So only a version consumed at `c` with `c + K` at or below
-    /// that commit is pruned, and only once its consumer's checkpoint is
-    /// committed.
+    /// Bucket expiry. A version consumed in this epoch sits in this epoch's
+    /// bucket, which is not expired while the epoch runs, so expiry removes
+    /// nothing a validation of this epoch reads. With `pre_epoch_too`, the
+    /// versions retained from earlier epochs lose their bytes, as the expiry
+    /// of those epochs' buckets does.
     fn prune(&mut self, pre_epoch_too: bool) {
-        let history = self.history;
-        let next_validation = self.flushed_through + 1;
-        let consumed: Vec<ObjectKey> = self
-            .executed
-            .iter()
-            .filter(|(digest, executed)| {
-                executed.durable
-                    && history
-                        .execution(digest)
-                        .is_some_and(|(commit, _)| commit + history.k() <= next_validation)
-            })
-            .flat_map(|(_, executed)| {
-                executed
-                    .effects
-                    .old_object_metadata()
-                    .into_iter()
-                    .map(|owned| ObjectKey::from(*owned.reference()))
-            })
-            .collect();
-        for key in &consumed {
-            self.store.prune(key);
-        }
         if pre_epoch_too {
             for object in &self.history.retained_pre_epoch {
                 self.store.prune(&ObjectKey(object.id(), object.version()));
             }
         }
         self.trace.push(format!(
-            "prune {} consumed versions{}",
-            consumed.len(),
+            "expire the earlier buckets{}",
             if pre_epoch_too {
-                " and the retained pre-epoch versions"
+                ", with the retained pre-epoch versions"
             } else {
                 ""
             }
@@ -3874,8 +3850,8 @@ async fn replay_of_a_consumed_epoch_start_input() {
     run_scenario("replay of a consumed epoch-start input", &history, steps).await;
 }
 
-/// As [`replay_of_a_consumed_epoch_start_input`], with the consumed version
-/// pruned before the crash; the replay must need no bytes of it.
+/// As [`replay_of_a_consumed_epoch_start_input`], with a bucket expiry
+/// before the crash, which removes nothing the replay reads.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn replay_after_pruning_the_consumed_input() {
     let history = consumed_epoch_start_history();
