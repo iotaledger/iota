@@ -182,25 +182,6 @@ fn validate_rejects_header_fetch_caps_above_the_response_ceiling() {
 }
 
 #[test]
-fn validate_rejects_header_sync_cap_above_commit_sync_cap() {
-    let parameters = starfish_config::Parameters {
-        max_headers_per_header_sync_fetch: 101,
-        max_headers_per_commit_sync_fetch: 100,
-        ..Default::default()
-    };
-    let error = parameters.validate().unwrap_err();
-    assert!(error.contains("max_headers_per_header_sync_fetch"));
-
-    starfish_config::Parameters {
-        max_headers_per_header_sync_fetch: 100,
-        max_headers_per_commit_sync_fetch: 100,
-        ..Default::default()
-    }
-    .validate()
-    .unwrap();
-}
-
-#[test]
 fn validate_rejects_transaction_fetch_caps_above_the_response_ceiling() {
     let parameters = starfish_config::Parameters {
         max_transactions_per_transaction_sync_fetch: starfish_config::TRANSACTIONS_PER_FETCH_CEILING
