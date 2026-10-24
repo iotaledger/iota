@@ -763,9 +763,11 @@ impl CheckpointExecutor {
         if self.epoch_store.is_executing_synced_checkpoints() {
             return false;
         }
+        // The transactions of a checkpoint execute in its epoch, so only that
+        // epoch's records are read.
         if self
             .transaction_cache_reader
-            .multi_get_executed_effects_digests(digests)
+            .multi_get_executed_effects_digests_in_epoch(checkpoint.epoch(), digests)
             .iter()
             .all(Option::is_some)
         {
