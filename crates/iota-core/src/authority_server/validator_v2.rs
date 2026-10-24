@@ -786,7 +786,14 @@ impl ValidatorV2 for ValidatorService {
         request: tonic::Request<SubmitTxRequest>,
     ) -> Result<tonic::Response<Self::SubmitTxStream>, tonic::Status> {
         let (req, ip) = self.pre_handle(request).await?;
-        self.post_handle_stream(ip, self.submit_tx_impl(req).await)
+        self.post_handle_stream(
+            ip,
+            self.submit_tx_impl(req).await,
+            |(_, update)| match update {
+                TxStatusUpdate::Rejected { error } => Some(error.clone()),
+                _ => None,
+            },
+        )
     }
 
     type GetTxStatusStream = StreamResponse<TxStatus>;
@@ -796,7 +803,9 @@ impl ValidatorV2 for ValidatorService {
         request: tonic::Request<GetTxStatusRequest>,
     ) -> Result<tonic::Response<Self::GetTxStatusStream>, tonic::Status> {
         let (req, ip) = self.pre_handle(request).await?;
-        self.post_handle_stream(ip, self.get_tx_status_impl(req).await)
+        // A rejection a status query reports is the outcome of an earlier
+        // submission, not an error in this request.
+        self.post_handle_stream(ip, self.get_tx_status_impl(req).await, |_| None)
     }
 
     async fn notify_capabilities(
