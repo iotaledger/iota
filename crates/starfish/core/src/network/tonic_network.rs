@@ -82,13 +82,13 @@ fn buffer_bytes(count: usize, entry_bytes: usize) -> usize {
 }
 
 /// Upper bound on the headers a fetch response may carry; a response with
-/// more is the peer's fault. Commit sync and live header sync: our own cap,
-/// since the server returns only the requested headers. Periodic header sync:
-/// the ceiling every configuration respects, since the peer fills gaps up to
-/// its own cap.
-fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
-    if commit_sync {
-        context.parameters.max_headers_per_commit_sync_fetch
+/// more is the peer's fault. Commit sync and live header sync: the requested
+/// count, since the server returns only the requested headers. Periodic
+/// header sync: the ceiling every configuration respects, since the peer fills
+/// gaps up to its own cap.
+fn max_fetched_headers(requested_headers: usize, requested_only: bool) -> usize {
+    if requested_only {
+        requested_headers
     } else {
         HEADERS_PER_FETCH_CEILING
     }
@@ -96,9 +96,13 @@ fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
 
 /// Header-fetch budget: the upper bound on headers a response may carry,
 /// each at the maximum serialized header size for this committee.
-fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) -> usize {
+fn max_fetch_block_headers_response_bytes(
+    context: &Context,
+    requested_headers: usize,
+    requested_only: bool,
+) -> usize {
     buffer_bytes(
-        max_fetched_headers(context, commit_sync),
+        max_fetched_headers(requested_headers, requested_only),
         max_signed_block_header_bytes(context.committee.size()),
     )
 }
@@ -216,7 +220,8 @@ impl NetworkClient for TonicClient {
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
-        let commit_sync = highest_accepted_rounds.is_empty();
+        let requested_headers = block_refs.len();
+        let requested_only = highest_accepted_rounds.is_empty();
         let mut request = Request::new(FetchBlockHeadersRequest {
             block_refs: block_refs
                 .iter()
@@ -243,7 +248,14 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        collect_block_headers(&self.context, peer, stream, commit_sync).await
+        collect_block_headers(
+            &self.context,
+            peer,
+            stream,
+            requested_headers,
+            requested_only,
+        )
+        .await
     }
 
     async fn fetch_commits(
@@ -672,23 +684,24 @@ fn mid_stream_error(e: tonic::Status) -> ConsensusError {
 /// header buffer. A stream cut by an error after headers arrived yields the
 /// delivered chunks.
 ///
-/// Commit sync and live header sync reject more headers than our own cap
-/// allows, since the server returns only what was requested. Periodic header
-/// sync accepts the peer's gap-fill up to the ceiling every configuration
-/// respects, and stops reading once our own cap is held; the caller trims to
-/// it.
+/// Commit sync and live header sync reject more headers than they requested,
+/// since the server returns only what was requested. Periodic header sync
+/// accepts the peer's gap-fill up to the ceiling every configuration respects,
+/// and stops reading once our own cap is held; the caller trims to it.
 async fn collect_block_headers<S>(
     context: &Context,
     peer: AuthorityIndex,
     mut stream: S,
-    commit_sync: bool,
+    requested_headers: usize,
+    requested_only: bool,
 ) -> ConsensusResult<Vec<Bytes>>
 where
     S: Stream<Item = Result<FetchBlockHeadersResponse, tonic::Status>> + Unpin,
 {
-    let max_headers = max_fetched_headers(context, commit_sync);
-    let max_allowed_bytes = max_fetch_block_headers_response_bytes(context, commit_sync);
-    let wanted_headers = context.parameters.max_headers_per_fetch(commit_sync);
+    let max_headers = max_fetched_headers(requested_headers, requested_only);
+    let max_allowed_bytes =
+        max_fetch_block_headers_response_bytes(context, requested_headers, requested_only);
+    let wanted_headers = context.parameters.max_headers_per_header_sync_fetch;
     let mut vec_serialized_block_header = vec![];
     let mut total_fetched_bytes = 0;
     loop {
@@ -717,7 +730,7 @@ where
                     break;
                 }
                 vec_serialized_block_header.extend(headers);
-                if !commit_sync && vec_serialized_block_header.len() >= wanted_headers {
+                if !requested_only && vec_serialized_block_header.len() >= wanted_headers {
                     break;
                 }
             }
@@ -2271,16 +2284,15 @@ mod tests {
         }
     }
 
-    /// A peer returning more headers than the server-side cap is rejected
+    /// A peer returning more headers than the fetch asked for is rejected
     /// while the response is still streaming, before its chunks are kept.
     #[tokio::test]
-    async fn headers_past_the_count_cap_are_rejected() {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context.parameters.max_headers_per_commit_sync_fetch = 3;
+    async fn headers_past_the_requested_count_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
         let flood = stream::iter([Ok(header_chunk(2, 6)), Ok(header_chunk(2, 6))]);
 
-        let result = collect_block_headers(&context, peer, flood, true).await;
+        let result = collect_block_headers(&context, peer, flood, 3, true).await;
 
         assert!(matches!(
             result,
@@ -2292,11 +2304,11 @@ mod tests {
         ));
     }
 
-    /// A response of maximum-size headers filling the cap fits the budget.
+    /// A response of maximum-size headers, one per requested reference, fits
+    /// the budget.
     #[tokio::test]
-    async fn maximal_headers_at_the_count_cap_are_collected() {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context.parameters.max_headers_per_commit_sync_fetch = 3;
+    async fn maximal_headers_at_the_requested_count_are_collected() {
+        let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
         let header_bytes = max_signed_block_header_bytes(context.committee.size());
         let maximal = stream::iter([
@@ -2304,24 +2316,23 @@ mod tests {
             Ok(header_chunk(1, header_bytes)),
         ]);
 
-        let headers = collect_block_headers(&context, peer, maximal, true)
+        let headers = collect_block_headers(&context, peer, maximal, 3, true)
             .await
             .expect("a maximal honest response is kept");
 
         assert_eq!(headers.len(), 3);
     }
 
-    /// A response filling the cap exactly is still collected in full.
+    /// One header per requested reference is still collected in full.
     #[tokio::test]
-    async fn headers_at_the_count_cap_are_collected() {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context.parameters.max_headers_per_commit_sync_fetch = 3;
+    async fn headers_at_the_requested_count_are_collected() {
+        let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
         let full = stream::iter([Ok(header_chunk(2, 6)), Ok(header_chunk(1, 6))]);
 
-        let headers = collect_block_headers(&context, peer, full, true)
+        let headers = collect_block_headers(&context, peer, full, 3, true)
             .await
-            .expect("a response at the cap is kept");
+            .expect("a response at the requested count is kept");
 
         assert_eq!(headers.len(), 3);
     }
@@ -2402,14 +2413,13 @@ mod tests {
     /// the buffer first.
     #[tokio::test]
     async fn headers_past_the_byte_budget_are_not_kept() {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context.parameters.max_headers_per_commit_sync_fetch = 2;
+        let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let budget = max_fetch_block_headers_response_bytes(&context, true);
+        let budget = max_fetch_block_headers_response_bytes(&context, 2, true);
         let overrunning =
             stream::iter([Ok(header_chunk(1, budget / 2)), Ok(header_chunk(1, budget))]);
 
-        let headers = collect_block_headers(&context, peer, overrunning, true)
+        let headers = collect_block_headers(&context, peer, overrunning, 2, true)
             .await
             .expect("the chunks within the budget are kept");
 
@@ -2429,7 +2439,7 @@ mod tests {
             Ok(header_chunk(2, 6)),
         ]);
 
-        let headers = collect_block_headers(&context, peer, generous, false)
+        let headers = collect_block_headers(&context, peer, generous, 1, false)
             .await
             .expect("a peer above our cap is not at fault");
 
@@ -2446,7 +2456,7 @@ mod tests {
         let peer = AuthorityIndex::new_for_test(1);
         let flood = stream::iter([Ok(header_chunk(HEADERS_PER_FETCH_CEILING + 1, 1))]);
 
-        let result = collect_block_headers(&context, peer, flood, false).await;
+        let result = collect_block_headers(&context, peer, flood, 1, false).await;
 
         assert!(matches!(
             result,
@@ -2575,12 +2585,11 @@ mod tests {
         ));
     }
 
-    /// The per-fetch response budgets track the matching server-side count cap:
-    /// the value is the cap times the maximum per-item size, depends only on
-    /// the cap and committee, and never on how many items the caller
-    /// requested.
+    /// A fetch response budget is the maximum number of entries the response
+    /// may carry times the maximum entry size, whatever the local per-fetch
+    /// caps are.
     #[tokio::test]
-    async fn fetch_response_budgets_track_server_caps() {
+    async fn fetch_response_budgets_ignore_local_caps() {
         let (mut context, _keys) = Context::new_for_test(4);
         context.parameters.max_headers_per_commit_sync_fetch = 7;
         context.parameters.max_headers_per_header_sync_fetch = 11;
@@ -2593,15 +2602,16 @@ mod tests {
 
         // Every entry is budgeted with the descriptor it occupies once collected.
         let header_entry = max_signed_block_header_bytes(committee_size) + size_of::<Bytes>();
-        // Commit sync selects the commit-sync header cap.
+        // Commit sync and live header sync are budgeted at the headers they
+        // requested, since the server returns only those.
         assert_eq!(
-            max_fetch_block_headers_response_bytes(&context, true),
-            7 * header_entry
+            max_fetch_block_headers_response_bytes(&context, 3, true),
+            3 * header_entry
         );
-        // Header sync is budgeted at the ceiling every configuration respects,
-        // since the peer's gap-fill follows its own cap.
+        // Periodic header sync is budgeted at the ceiling every configuration
+        // respects, since the peer's gap-fill follows its own cap.
         assert_eq!(
-            max_fetch_block_headers_response_bytes(&context, false),
+            max_fetch_block_headers_response_bytes(&context, 3, false),
             HEADERS_PER_FETCH_CEILING * header_entry
         );
         // The transaction budget is one maximum-size entry per requested
