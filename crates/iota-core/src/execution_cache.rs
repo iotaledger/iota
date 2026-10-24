@@ -1228,6 +1228,10 @@ pub trait TestingAPI: Send + Sync {
     /// Drops the cached copies of committed data, so that reads issued
     /// afterwards answer from the store.
     fn clear_caches_for_testing(&self);
+
+    /// The executed transactions whose outputs are not committed yet.
+    #[cfg(test)]
+    fn uncommitted_transactions_for_testing(&self) -> Vec<TransactionDigest>;
 }
 
 pub trait ExecutionCacheAPI:

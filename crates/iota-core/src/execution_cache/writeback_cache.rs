@@ -2311,6 +2311,15 @@ impl TestingAPI for WritebackCache {
         self.object_by_id_cache.invalidate(id);
     }
 
+    #[cfg(test)]
+    fn uncommitted_transactions_for_testing(&self) -> Vec<TransactionDigest> {
+        self.dirty
+            .pending_transaction_writes
+            .iter()
+            .map(|entry| *entry.key())
+            .collect()
+    }
+
     fn clear_caches_for_testing(&self) {
         self.clear_caches();
     }

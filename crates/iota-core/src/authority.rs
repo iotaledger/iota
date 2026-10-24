@@ -3215,6 +3215,14 @@ impl AuthorityState {
         .await
     }
 
+    /// The executed transactions whose outputs are not committed yet.
+    #[cfg(test)]
+    pub fn uncommitted_transactions_for_testing(&self) -> Vec<TransactionDigest> {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .uncommitted_transactions_for_testing()
+    }
+
     pub fn execution_scheduler(&self) -> &Arc<ExecutionSchedulerWrapper> {
         &self.execution_scheduler
     }
