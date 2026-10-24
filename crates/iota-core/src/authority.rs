@@ -1145,8 +1145,6 @@ impl AuthorityState {
             &tx_receiving_objects,
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
-            // The latest value, so a denial applies at once.
-            None,
         )?;
 
         let (kind, signer, gas_data) = tx.execution_parts();
