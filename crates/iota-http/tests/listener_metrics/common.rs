@@ -10,9 +10,9 @@ use std::{
 };
 
 use axum::{Router, routing::get};
-use fastcrypto::traits::KeyPair as _;
 use iota_http::{Builder, Config, metrics::ListenerMetrics};
 pub use iota_metrics::test_utils::MetricsReader;
+use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
 use prometheus_filtered::{MetricLevel, Registry};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -100,10 +100,10 @@ pub fn tls_configs() -> (
     tokio_rustls::rustls::ServerConfig,
     tokio_rustls::rustls::ClientConfig,
 ) {
-    let keypair = key_pair(SERVER_SEED);
-    let public_key = keypair.public().to_owned();
+    let private_key = private_key(SERVER_SEED);
+    let public_key = private_key.public_key();
     (
-        iota_tls::create_rustls_server_config(keypair.private(), SERVER_NAME.to_string()),
+        iota_tls::create_rustls_server_config(private_key, SERVER_NAME.to_string()),
         iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
     )
 }
@@ -116,9 +116,9 @@ pub fn serve_tls(config: Config, metrics: &ListenerMetrics, app: Router) -> Sock
 /// A TLS listener that accepts the client key `CLIENT_SEED` only.
 pub fn serve_mutual_tls(config: Config, metrics: &ListenerMetrics, app: Router) -> SocketAddr {
     let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-        key_pair(SERVER_SEED).private(),
+        private_key(SERVER_SEED),
         SERVER_NAME.to_string(),
-        iota_tls::AllowPublicKeys::new([key_pair(CLIENT_SEED).public().to_owned()].into()),
+        iota_tls::AllowPublicKeys::new([private_key(CLIENT_SEED).public_key()].into()),
     );
     keep_running(serve_handle(config, metrics, Some(server_config), app))
 }
@@ -126,9 +126,9 @@ pub fn serve_mutual_tls(config: Config, metrics: &ListenerMetrics, app: Router) 
 /// Opens a TLS connection with the client key `CLIENT_SEED`.
 pub async fn connect_mutual_tls(addr: SocketAddr) -> tokio_rustls::client::TlsStream<TcpStream> {
     let client_config = iota_tls::create_rustls_client_config(
-        key_pair(SERVER_SEED).public().to_owned(),
+        private_key(SERVER_SEED).public_key(),
         SERVER_NAME.to_string(),
-        Some(key_pair(CLIENT_SEED).private()),
+        Some(private_key(CLIENT_SEED)),
     );
     let tcp = TcpStream::connect(addr).await.unwrap();
     tokio_rustls::TlsConnector::from(Arc::new(client_config))
@@ -140,7 +140,6 @@ pub async fn connect_mutual_tls(addr: SocketAddr) -> tokio_rustls::client::TlsSt
 const SERVER_SEED: u8 = 42;
 const CLIENT_SEED: u8 = 43;
 
-fn key_pair(seed: u8) -> fastcrypto::ed25519::Ed25519KeyPair {
-    use fastcrypto::{ed25519::Ed25519PrivateKey, traits::ToFromBytes};
-    fastcrypto::ed25519::Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap())
+fn private_key(seed: u8) -> Ed25519PrivateKey {
+    Ed25519PrivateKey::new([seed; 32])
 }
