@@ -258,7 +258,8 @@ validators:
           value: 0
         pool_token_balance: 5500000000000000
         exchange_rates:
-          id: "0x18ba5fb83616434e898e18fa3fb38f728172c62daf1a547b51c65102e1d2264c"
+          id:
+            id: "0x18ba5fb83616434e898e18fa3fb38f728172c62daf1a547b51c65102e1d2264c"
           size: 1
         pending_stake: 0
         pending_total_iota_withdraw: 0
@@ -277,17 +278,21 @@ validators:
         size: 0
   pending_active_validators:
     contents:
-      id: "0xb369e7e3d0c73c4a69354e2beca158367229737f406585bf27a8dc335e1780eb"
+      id:
+        id: "0xb369e7e3d0c73c4a69354e2beca158367229737f406585bf27a8dc335e1780eb"
       size: 0
   pending_removals: []
   staking_pool_mappings:
-    id: "0xf61aa830f9093fb38bf28ed4a598ffb6b4d472615d0dec81229e0923ff779998"
+    id:
+      id: "0xf61aa830f9093fb38bf28ed4a598ffb6b4d472615d0dec81229e0923ff779998"
     size: 1
   inactive_validators:
-    id: "0xf42c1617ed1f7faa280ff7b00ab244bb08a27ad6475846bc5a5ad8304c458f44"
+    id:
+      id: "0xf42c1617ed1f7faa280ff7b00ab244bb08a27ad6475846bc5a5ad8304c458f44"
     size: 0
   validator_candidates:
-    id: "0xa9755bb81927bdd6461680ca7cefa790e5555788c3d255904fcd6a3c9bf09952"
+    id:
+      id: "0xa9755bb81927bdd6461680ca7cefa790e5555788c3d255904fcd6a3c9bf09952"
     size: 0
   at_risk_validators:
     contents: []
