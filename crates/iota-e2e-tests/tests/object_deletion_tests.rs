@@ -17,7 +17,7 @@ mod sim_only_tests {
         effects::TransactionEffectsAPI, governance::StakedIota,
         messages_checkpoint::CheckpointSequenceNumber, storage::ObjectKey, transaction::CallArg,
     };
-    use test_cluster::{TestCluster, TestClusterBuilder};
+    use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
     use tokio::time::timeout;
 
     // Tests that relocation moves superseded object versions into the historic
@@ -178,6 +178,61 @@ mod sim_only_tests {
             panic!("expected version {created_version} of {object_id}, got {response:?}");
         };
         assert_eq!(object_data.version, created_version);
+    }
+
+    // Without the P-COOL flow, as on mainnet and testnet, committee validators
+    // move a superseded version into the bucket of the epoch that superseded
+    // it once its checkpoint executes, and a restarted validator still has it
+    // there.
+    #[sim_test]
+    async fn validators_move_superseded_versions_without_the_pcool_flow() {
+        let _pcool_guard = override_pcool_flow(false);
+        let test_cluster = TestClusterBuilder::new().build().await;
+        let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
+        let created_version = test_cluster.get_latest_object_ref(&object_id).await.version;
+        let mutate_effects = create_and_wrap_child(&test_cluster, package_id, object_id).await;
+        let digest = *mutate_effects.transaction_digest();
+
+        let check = |node: &IotaNode| {
+            let state = node.state();
+            let epoch_store = state.epoch_store_for_testing();
+            assert!(!epoch_store.protocol_config().enable_pcool_flow());
+            assert_relocated(&state, object_id, created_version);
+            assert!(
+                state
+                    .get_historic_objects()
+                    .get_in_epoch(epoch_store.epoch(), &ObjectKey(object_id, created_version))
+                    .unwrap()
+                    .is_some(),
+                "expected the version in the bucket of the epoch that superseded it"
+            );
+        };
+        for handle in test_cluster.all_validator_handles() {
+            handle
+                .with_async(|node| async {
+                    timeout(
+                        Duration::from_secs(60),
+                        wait_until_txn_checkpoint_executed(node, &digest),
+                    )
+                    .await
+                    .unwrap();
+                    check(node);
+                })
+                .await;
+        }
+
+        let restarted = test_cluster.get_validator_pubkeys()[0];
+        test_cluster.stop_node(&restarted);
+        // Lets the stopped node release its databases.
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        test_cluster.start_node(&restarted).await;
+        test_cluster
+            .swarm
+            .node(&restarted)
+            .unwrap()
+            .get_node_handle()
+            .unwrap()
+            .with(check);
     }
 
     // `iotax_getStakesByIds` still reports a withdrawn stake, reading the
@@ -486,6 +541,21 @@ mod sim_only_tests {
             .await;
         assert_eq!(effects.deleted().len(), 1);
         effects
+    }
+
+    /// Waits until the checkpoint holding `digest` has executed on `node`, so
+    /// that the transaction's outputs are committed.
+    async fn wait_until_txn_checkpoint_executed(node: &IotaNode, digest: &TransactionDigest) {
+        let seq = wait_until_txn_in_checkpoint(node, digest).await;
+        while node
+            .state()
+            .get_checkpoint_store()
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .is_none_or(|executed| executed < seq)
+        {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
     }
 
     async fn wait_until_txn_in_checkpoint(
