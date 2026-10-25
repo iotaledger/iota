@@ -1411,6 +1411,92 @@ async fn transfer_from_move_account_and_key_account(
     Ok(())
 }
 
+/// Pauses transaction execution on one validator until the returned flag is
+/// set to false. Clear the `transaction_execution_delay` fail point afterwards.
+#[cfg(msim)]
+fn pause_execution_on(
+    test_cluster: &TestCluster,
+    validator: &AuthorityName,
+) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::Duration,
+    };
+
+    use iota_macros::register_fail_point_async;
+
+    let paused_sim_id = test_cluster
+        .swarm
+        .node(validator)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|_| iota_simulator::current_simnode_id());
+    let paused = Arc::new(AtomicBool::new(true));
+    {
+        let paused = paused.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let paused = paused.clone();
+            async move {
+                if iota_simulator::current_simnode_id() == paused_sim_id {
+                    while paused.load(Ordering::SeqCst) {
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
+                }
+            }
+        });
+    }
+    paused
+}
+
+/// Waits for the validator to build the checkpoint holding the transaction and
+/// asserts that it matches the certified one.
+#[cfg(msim)]
+async fn assert_validator_built_the_certified_checkpoint(
+    test_cluster: &TestCluster,
+    validator: &AuthorityName,
+    digest: &iota_sdk_types::TransactionDigest,
+) {
+    use std::time::Duration;
+
+    let node = test_cluster
+        .swarm
+        .node(validator)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    let (local, certified) = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            let built = node.with(|node| {
+                let state = node.state();
+                let seq = state
+                    .epoch_store_for_testing()
+                    .get_transaction_checkpoint(digest)
+                    .unwrap()?;
+                let store = state.get_checkpoint_store();
+                Some((
+                    store.get_locally_computed_checkpoint(seq).unwrap()?,
+                    store.get_checkpoint_by_sequence_number(seq).unwrap()?,
+                ))
+            });
+            if let Some(built) = built {
+                break built;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("the validator must build the transaction's checkpoint within 60s");
+    assert_eq!(
+        &local,
+        certified.data(),
+        "the validator's own checkpoint must match the certified one"
+    );
+}
+
 /// Under P-COOL, a transaction whose authenticator fails at execution produces
 /// failure effects on every validator. Such a transaction reaches consensus
 /// through an honest validator whose view is behind: before submitting, it runs
@@ -1432,16 +1518,10 @@ async fn transfer_from_move_account_and_key_account(
 #[sim_test]
 async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
 -> Result<(), anyhow::Error> {
-    use std::{
-        sync::{
-            Arc,
-            atomic::{AtomicBool, Ordering},
-        },
-        time::Duration,
-    };
+    use std::{sync::atomic::Ordering, time::Duration};
 
     use iota_core::authority_client::validator_v2::ValidatorV2API;
-    use iota_macros::{clear_fail_point, register_fail_point_async};
+    use iota_macros::clear_fail_point;
     use iota_sdk_types::{ExecutionStatus, GasCostSummary};
 
     telemetry_subscribers::init_for_testing();
@@ -1487,28 +1567,7 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
     // Pause execution on one validator until the stale transaction has been
     // admitted and executed by the others.
     let paused_validator = test_env.test_cluster.get_validator_pubkeys()[0];
-    let paused_sim_id = test_env
-        .test_cluster
-        .swarm
-        .node(&paused_validator)
-        .unwrap()
-        .get_node_handle()
-        .unwrap()
-        .with(|_| iota_simulator::current_simnode_id());
-    let paused = Arc::new(AtomicBool::new(true));
-    {
-        let paused = paused.clone();
-        register_fail_point_async("transaction_execution_delay", move || {
-            let paused = paused.clone();
-            async move {
-                if iota_simulator::current_simnode_id() == paused_sim_id {
-                    while paused.load(Ordering::SeqCst) {
-                        tokio::time::sleep(Duration::from_millis(50)).await;
-                    }
-                }
-            }
-        });
-    }
+    let paused = pause_execution_on(&test_env.test_cluster, &paused_validator);
 
     // The rotation executes on every validator but the paused one.
     let pt = test_env.craft_aa_rotate_owner_key_ptb(&new_owner_pk)?;
@@ -1592,11 +1651,12 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
     assert!(
         matches!(
             &**error,
-            ExecutionError::MoveAbort { location: MoveLocation { module, function_name, .. }, .. }
+            ExecutionError::MoveAbort { location: MoveLocation { module, function_name, .. }, code }
             if module.as_str() == "basic_keyed_aa"
             && function_name.as_ref().is_some_and(|f| f.as_str() == "authenticate_ed25519")
+            && ErrorBitset::from_u64(*code).unwrap().error_code() == Some(0)
         ),
-        "expected the abort of basic_keyed_aa::authenticate_ed25519, got {error:?}"
+        "expected the abort of basic_keyed_aa::authenticate_ed25519 with error code 0, got {error:?}"
     );
     // The account pays its own gas but did not authorize the transaction, so
     // nobody is charged. Its gas coin moves to its next version with its
@@ -1613,44 +1673,15 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
         .map(|mutated| *mutated.reference())
         .expect("the gas coin must move to its next version");
 
-    // The paused validator kept the transaction too: the checkpoint it builds
-    // from its own consensus output matches the certified one. Its effects
-    // alone would not show that, since a validator that dropped the
-    // transaction still executes it from the certified checkpoint.
-    let paused_node = test_env
-        .test_cluster
-        .swarm
-        .node(&paused_validator)
-        .unwrap()
-        .get_node_handle()
-        .unwrap();
-    let (local, certified) = tokio::time::timeout(Duration::from_secs(60), async {
-        loop {
-            let built = paused_node.with(|node| {
-                let state = node.state();
-                let seq = state
-                    .epoch_store_for_testing()
-                    .get_transaction_checkpoint(&stale_digest)
-                    .unwrap()?;
-                let store = state.get_checkpoint_store();
-                Some((
-                    store.get_locally_computed_checkpoint(seq).unwrap()?,
-                    store.get_checkpoint_by_sequence_number(seq).unwrap()?,
-                ))
-            });
-            if let Some(built) = built {
-                break built;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    })
-    .await
-    .expect("the paused validator must build the stale transaction's checkpoint within 60s");
-    assert_eq!(
-        &local,
-        certified.data(),
-        "the paused validator's own checkpoint must match the certified one"
-    );
+    // The paused validator kept the transaction too. Its effects alone would
+    // not show that, since a validator that dropped the transaction still
+    // executes it from the certified checkpoint.
+    assert_validator_built_the_certified_checkpoint(
+        &test_env.test_cluster,
+        &paused_validator,
+        &stale_digest,
+    )
+    .await;
 
     // The account can spend the gas coin at its next version with its new
     // key, here by sending all of it away.
@@ -1670,6 +1701,152 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
             tx_data, signatures,
         ))
         .await?;
+
+    Ok(())
+}
+
+/// Under P-COOL, a transaction from an account that was deleted since the
+/// validator that proposed it last saw it executes with failure effects on
+/// every validator: the account is read as deleted and the transaction fails
+/// with `InputObjectDeleted`. The account's authenticator does not run, so the
+/// account did not authorize paying for gas: nothing is charged, and the gas
+/// coin is the only object mutated, moving to its next version.
+///
+/// Staging: execution on one validator is paused, and that validator is sent
+/// the account's deletion and then a transaction from the account, which it
+/// still admits since it has not executed the deletion. It submits both to
+/// consensus in that order, so the deletion lands in the same commit as the
+/// stale transaction or a commit shortly before it. A deletion at or below the
+/// stale transaction's horizon would drop it at the commit instead.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn test_stale_abstract_account_tx_after_deletion_fails_with_effects_with_the_pcool_flow()
+-> Result<(), anyhow::Error> {
+    use std::{sync::atomic::Ordering, time::Duration};
+
+    use iota_macros::clear_fail_point;
+    use iota_sdk_types::ExecutionStatus;
+    use iota_types::messages_grpc::TxStatusUpdate;
+
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::with_cluster(
+        TestClusterBuilder::new()
+            .with_epoch_duration_ms(600_000)
+            .build()
+            .await,
+    );
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    let stale_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let delete_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let paused_validator = test_env.test_cluster.get_validator_pubkeys()[0];
+    let paused = pause_execution_on(&test_env.test_cluster, &paused_validator);
+
+    let pt = test_env.craft_aa_delete_object_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, delete_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let delete_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+    let delete_digest = *delete_tx.digest();
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, stale_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let stale_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+    let stale_digest = *stale_tx.digest();
+
+    for tx in [delete_tx, stale_tx] {
+        let update = test_env
+            .test_cluster
+            .submit_tx_to_validator(&paused_validator, tx)
+            .await?;
+        assert!(
+            matches!(update, TxStatusUpdate::Submitted),
+            "the paused validator must submit the transaction, got {update:?}"
+        );
+    }
+
+    // The other validators execute both and certify their checkpoints, which
+    // the fullnode then executes.
+    let effects = tokio::time::timeout(
+        Duration::from_secs(30),
+        test_env
+            .test_cluster
+            .fullnode_handle
+            .iota_node
+            .with_async(|node| async move {
+                node.state()
+                    .get_transaction_cache_reader()
+                    .try_notify_read_executed_effects("", &[delete_digest, stale_digest])
+                    .await
+            }),
+    )
+    .await
+    .expect("both transactions must execute within 30s")?;
+    let [delete_effects, effects] =
+        <[_; 2]>::try_from(effects).expect("one effects per transaction");
+    assert!(
+        delete_effects.status().is_success(),
+        "the deletion must succeed, got {:?}",
+        delete_effects.status()
+    );
+
+    paused.store(false, Ordering::SeqCst);
+    clear_fail_point("transaction_execution_delay");
+
+    let ExecutionStatus::Failure { error, command } = effects.status() else {
+        panic!(
+            "expected the stale transaction to fail, got {:?}",
+            effects.status()
+        );
+    };
+    assert!(command.is_none(), "the failure must carry no command index");
+    assert!(
+        matches!(error, ExecutionError::InputObjectDeleted),
+        "expected InputObjectDeleted, got {error:?}"
+    );
+    assert_eq!(
+        effects.gas_cost_summary(),
+        &Default::default(),
+        "nothing may be charged for the failed transaction"
+    );
+    let mutated: Vec<_> = effects
+        .mutated()
+        .into_iter()
+        .map(|mutated| mutated.reference().object_id)
+        .collect();
+    assert_eq!(
+        mutated,
+        vec![stale_gas.object_id],
+        "only the gas coin may be mutated"
+    );
+
+    assert_validator_built_the_certified_checkpoint(
+        &test_env.test_cluster,
+        &paused_validator,
+        &stale_digest,
+    )
+    .await;
 
     Ok(())
 }
@@ -2282,6 +2459,22 @@ async fn test_received_version_named_as_owned_input_never_executes() -> Result<(
         "the receive must have moved the coin past the version the stale transaction named"
     );
 
+    // The account can use the coin at the version the receive left it at.
+    let fresh_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let pt = test_env.craft_object_transfer(coin_now, Address::ZERO)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, fresh_gas, aa_sender, None)
+        .await?;
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
+
     Ok(())
 }
 
@@ -2382,6 +2575,75 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
     assert!(
         congested_objects.contains(&aa_ref.object_id),
         "Expected the AA shared object to be reported as congested, got: {congested_objects:?}",
+    );
+
+    Ok(())
+}
+
+/// Under P-COOL, the account object an authenticator reads counts toward
+/// congestion, as it does in the certificate flow: a transaction from an
+/// account is deferred when the account object is congested and, with no
+/// deferral rounds allowed, cancelled. The transaction is kept at the commit
+/// and fails at execution with
+/// `ExecutionCancelledDueToSharedObjectCongestionV2`, naming the account.
+#[sim_test]
+async fn test_abstract_account_shared_object_congestion_cancellation_with_the_pcool_flow()
+-> Result<(), anyhow::Error> {
+    use iota_sdk_types::ExecutionStatus;
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalGasBudget,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config.set_congestion_control_gas_price_feedback_mechanism_for_testing(true);
+        config
+    });
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_sender = aa_ref.object_id.into();
+
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await?;
+
+    let ExecutionStatus::Failure { error, command } = effects.status() else {
+        panic!("expected the cancellation, got {:?}", effects.status());
+    };
+    assert!(
+        command.is_none(),
+        "the congestion cancellation must carry no command index"
+    );
+    let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+        congested_objects, ..
+    } = error
+    else {
+        panic!("expected an ExecutionCancelledDueToSharedObjectCongestionV2 error, got {error:?}");
+    };
+    assert!(
+        congested_objects.contains(&aa_ref.object_id),
+        "expected the account object to be reported as congested, got {congested_objects:?}"
     );
 
     Ok(())
@@ -3267,6 +3529,201 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let tx2 = TransactionEnvelope::from_user_sig_data(tx2_data, signatures);
     // Submit TX2 for execution and expect success
     test_env.execute_and_check_tx_correctness(tx2).await
+}
+
+/// Under P-COOL, receiving a coin that belongs to an account fails at execution
+/// and leaves the coin to the account. Bob calls the receive function on a coin
+/// owned by the account, which fails, and then the account uses the coin, as
+/// gas when `use_as_gas` is set and as an input otherwise.
+async fn receiving_a_coin_of_an_account_fails_and_the_account_keeps_it(
+    use_as_gas: bool,
+) -> Result<(), anyhow::Error> {
+    use iota_sdk_types::ExecutionStatus;
+
+    /// `EAccountCannotReceiveObject` of the framework's `transfer` module.
+    const E_ACCOUNT_CANNOT_RECEIVE_OBJECT: u64 = 5;
+
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let bob = {
+        let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+        keystore
+            .generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)
+            .expect("ED25519 key generation should not fail")
+            .0
+    };
+    let bob_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
+        .await;
+    let conflict_coin_ref = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let second_gas_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_receive_gas_ptb(
+        conflict_coin_ref,
+        AA_MODULE_NAME,
+        AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK,
+    )?;
+    let tx_data = test_env.craft_tx_from_pt(pt, bob_gas, bob, None).await?;
+    let receive_tx = test_env.test_cluster.wallet.sign_transaction(&tx_data);
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(receive_tx)
+        .await?;
+    let ExecutionStatus::Failure { error, .. } = effects.status() else {
+        panic!("expected the receive to fail, got {:?}", effects.status());
+    };
+    assert!(
+        matches!(
+            error,
+            ExecutionError::MoveAbort {
+                location: MoveLocation { package, module, function_name, .. },
+                code: E_ACCOUNT_CANNOT_RECEIVE_OBJECT,
+            } if *package == ObjectId::FRAMEWORK
+                && module.as_str() == "transfer"
+                && function_name.as_ref().is_some_and(|name| name.as_str() == "receive_impl")
+        ),
+        "expected the receive to abort with transfer::EAccountCannotReceiveObject, got {error:?}"
+    );
+
+    let (pt, gas_coin) = if use_as_gas {
+        (
+            test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?,
+            conflict_coin_ref,
+        )
+    } else {
+        (
+            test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?,
+            second_gas_coin,
+        )
+    };
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, gas_coin, aa_sender, None)
+        .await?;
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await
+}
+
+/// P-COOL counterpart of `test_receiving_gas_executing_aa_tx_first`: the coin
+/// is the account's gas.
+#[sim_test]
+async fn test_receiving_gas_executing_aa_tx_first_with_the_pcool_flow() -> Result<(), anyhow::Error>
+{
+    receiving_a_coin_of_an_account_fails_and_the_account_keeps_it(true).await
+}
+
+/// P-COOL counterpart of `test_receiving_gas_executing_aa_tx_later`: the coin
+/// is an input of the account's transaction.
+#[sim_test]
+async fn test_receiving_gas_executing_aa_tx_later_with_the_pcool_flow() -> Result<(), anyhow::Error>
+{
+    receiving_a_coin_of_an_account_fails_and_the_account_keeps_it(false).await
+}
+
+/// P-COOL counterpart of `test_failing_receiving_gas_then_create_account`.
+/// Bob calls the account's receive function on a coin of an object that is not
+/// an account yet, which fails because the object has another type. The object
+/// then becomes an account, and the account uses the coin.
+#[sim_test]
+async fn test_failing_receiving_gas_then_create_account_with_the_pcool_flow()
+-> Result<(), anyhow::Error> {
+    use iota_sdk_types::{CommandArgumentError, ExecutionStatus};
+
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_delayed_abstract_account_object(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let bob = {
+        let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+        keystore
+            .generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)
+            .expect("ED25519 key generation should not fail")
+            .0
+    };
+    let bob_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), bob)
+        .await;
+    let conflict_coin_ref = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let second_gas_coin = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_receive_gas_ptb(
+        conflict_coin_ref,
+        AA_MODULE_NAME,
+        AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK,
+    )?;
+    let tx_data = test_env.craft_tx_from_pt(pt, bob_gas, bob, None).await?;
+    let receive_tx = test_env.test_cluster.wallet.sign_transaction(&tx_data);
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(receive_tx)
+        .await?;
+    let ExecutionStatus::Failure { error, command } = effects.status() else {
+        panic!("expected the receive to fail, got {:?}", effects.status());
+    };
+    assert_eq!(
+        *command,
+        Some(0),
+        "the receive call must be the failing command"
+    );
+    assert!(
+        matches!(
+            error,
+            ExecutionError::CommandArgumentError {
+                argument: 0,
+                kind: CommandArgumentError::TypeMismatch,
+            }
+        ),
+        "expected the object of another type to be rejected as the receive's argument, got {error:?}"
+    );
+
+    let effects = test_env.make_delayed_abstract_account().await?;
+    assert!(
+        effects.status().is_success(),
+        "Expected make_delayed_abstract_account to succeed, got: {:?}",
+        effects.status()
+    );
+
+    let pt = test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, second_gas_coin, aa_sender, None)
+        .await?;
+    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    test_env
+        .execute_and_check_tx_correctness(TransactionEnvelope::from_user_sig_data(
+            tx_data, signatures,
+        ))
+        .await
 }
 
 // ----------------------------------------------------------
