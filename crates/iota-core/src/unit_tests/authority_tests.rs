@@ -100,6 +100,7 @@ use crate::{
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
     execution_scheduler::ExecutionSchedulerAPI,
+    post_consensus_validation::PostConsensusDecision,
     test_utils::{
         init_state_parameters_from_rng, make_transfer_object_transaction, set_scheduler_env,
     },
@@ -1518,6 +1519,114 @@ pub async fn sequence_past_executed_transactions(authority: &Arc<AuthorityState>
     }
 }
 
+/// Sequences `transaction` as a `UserTransactionV1` in a commit after
+/// everything executed so far, and returns what that commit schedules, with
+/// the error saved for a drop.
+pub async fn sequence_user_transaction_and_get_drop_error(
+    authority: &Arc<AuthorityState>,
+    transaction: VerifiedTransaction,
+) -> (usize, Option<IotaError>) {
+    sequence_past_executed_transactions(authority).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let digest = *transaction.digest();
+    let commit_index = epoch_store
+        .handler_object_state_for_testing()
+        .next_commit_index_for_testing();
+    let (schedulables, _) = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(
+                ConsensusTransaction::new_user_transaction(transaction.into()),
+            )],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority,
+        )
+        .await
+        .unwrap();
+    let saved_drop = epoch_store
+        .post_consensus_decision(commit_index, digest)
+        .unwrap()
+        .filter(|saved| saved.decision != PostConsensusDecision::Kept)
+        .map(|saved| saved.error());
+    (schedulables.len(), saved_drop)
+}
+
+/// The error `transaction` is turned away with: at admission as a certificate
+/// flow transaction, or dropped at the next commit as a `UserTransactionV1`.
+pub async fn rejection_error(
+    authority: &Arc<AuthorityState>,
+    transaction: VerifiedTransaction,
+    user_transaction: bool,
+) -> IotaError {
+    if user_transaction {
+        let (scheduled, error) =
+            sequence_user_transaction_and_get_drop_error(authority, transaction).await;
+        assert_eq!(scheduled, 0);
+        error.expect("the commit must drop the transaction")
+    } else {
+        let epoch_store = authority.load_epoch_store_one_call_per_task();
+        authority
+            .handle_transaction(&epoch_store, transaction)
+            .await
+            .unwrap_err()
+    }
+}
+
+#[tokio::test]
+async fn test_user_transaction_v1_with_max_sequence_number_dropped_at_commit() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id: ObjectId = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state = init_state_with_ids_and_versions(vec![
+        (sender, object_id, Version::MAX_VALID_EXCL),
+        (sender, gas_object_id, Version::default()),
+    ])
+    .await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+    let transfer_transaction = init_transfer_transaction(
+        &authority_state,
+        sender,
+        &sender_key,
+        dbg_addr(2),
+        object.object_ref(),
+        gas_object.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let (scheduled, error) =
+        sequence_user_transaction_and_get_drop_error(&authority_state, transfer_transaction).await;
+
+    assert_eq!(scheduled, 0);
+    assert_eq!(
+        error,
+        Some(IotaError::UserInput {
+            error: UserInputError::InvalidSequenceNumber
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_user_transaction_v1_shared_object_with_max_sequence_number_dropped_at_commit() {
+    let (authority, _fullnode, transaction, _, _) =
+        construct_shared_object_transaction_with_version(Some(Version::MAX_VALID_EXCL)).await;
+
+    let (scheduled, error) =
+        sequence_user_transaction_and_get_drop_error(&authority, transaction).await;
+
+    assert_eq!(scheduled, 0);
+    assert_eq!(
+        error,
+        Some(IotaError::UserInput {
+            error: UserInputError::InvalidSequenceNumber
+        })
+    );
+}
+
 #[tokio::test]
 async fn test_handle_transfer_transaction_unknown_sender() {
     let sender = dbg_addr(1);
@@ -2023,8 +2132,9 @@ async fn test_publish_module_no_dependencies_ok() {
     signed_effects.into_data().status().unwrap();
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn test_publish_non_existing_dependent_module() {
+async fn test_publish_non_existing_dependent_module(#[values(false, true)] user_transaction: bool) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
@@ -2078,11 +2188,9 @@ async fn test_publish_non_existing_dependent_module() {
     );
     let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
-    let response = authority
-        .handle_transaction(&epoch_store, transaction)
-        .await;
+    let error = rejection_error(&authority, transaction, user_transaction).await;
     assert!(matches!(
-        response.unwrap_err(),
+        error,
         IotaError::UserInput {
             error: UserInputError::DependentPackageNotFound { .. }
         }
@@ -2430,8 +2538,9 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
     assert_eq!(error, &ExecutionError::InsufficientCoinBalance)
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn test_missing_package() {
+async fn test_missing_package(#[values(false, true)] user_transaction: bool) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, _object_basics) =
@@ -2455,17 +2564,16 @@ async fn test_missing_package() {
     .unwrap();
     let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
-    let result = authority_state
-        .handle_transaction(&epoch_store, transaction)
-        .await;
+    let error = rejection_error(&authority_state, transaction, user_transaction).await;
     assert!(matches!(
-        UserInputError::try_from(result.unwrap_err()).unwrap(),
+        UserInputError::try_from(error).unwrap(),
         UserInputError::DependentPackageNotFound { .. }
     ));
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn test_type_argument_dependencies() {
+async fn test_type_argument_dependencies(#[values(false, true)] user_transaction: bool) {
     let (s1, s1_key): (_, AccountPrivateKey) = get_key_pair();
     let (s2, s2_key): (_, AccountPrivateKey) = get_key_pair();
     let (s3, s3_key): (_, AccountPrivateKey) = get_key_pair();
@@ -2555,12 +2663,10 @@ async fn test_type_argument_dependencies() {
     .unwrap();
     let transaction = to_sender_signed_transaction(tx, &s3_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
-    let result = authority_state
-        .handle_transaction(&epoch_store, transaction)
-        .await;
+    let error = rejection_error(&authority_state, transaction, user_transaction).await;
 
     assert!(matches!(
-        UserInputError::try_from(result.unwrap_err()).unwrap(),
+        UserInputError::try_from(error).unwrap(),
         UserInputError::DependentPackageNotFound { .. }
     ));
 }
@@ -5514,6 +5620,213 @@ async fn test_consensus_message_processed() {
             .epoch_store_for_testing()
             .get_next_object_version(&shared_object_id),
     );
+}
+
+/// The `UserTransactionV1` counterpart of `test_consensus_message_processed`.
+/// On the first validator every transaction is sequenced, executed, then
+/// sequenced again in a later commit. On the second validator it is either
+/// sequenced first, or executed from the first validator's effects before it
+/// is sequenced. Every copy after the first must change nothing.
+#[tokio::test]
+async fn test_user_transaction_v1_sequenced_in_two_commits() {
+    telemetry_subscribers::init_for_testing();
+
+    const ITERATIONS: u32 = 8;
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_objects = create_gas_objects(ITERATIONS, sender);
+    let shared_object_id = ObjectId::random();
+    let shared_object = {
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
+    };
+    let initial_shared_version = shared_object.version();
+    let mut genesis_objects = gas_objects.clone();
+    genesis_objects.push(shared_object);
+
+    let dir = tempfile::TempDir::new().unwrap();
+    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+        .committee_size(2.try_into().unwrap())
+        .with_objects(genesis_objects.clone())
+        .build();
+    let genesis = network_config.genesis;
+    let key1 = network_config.validator_configs[0]
+        .authority_key_pair()
+        .copy();
+    let key2 = network_config.validator_configs[1]
+        .authority_key_pair()
+        .copy();
+    let authority1 =
+        init_state_with_objects_and_committee(genesis_objects.clone(), &genesis, &key1).await;
+    let authority2 = init_state_with_objects_and_committee(genesis_objects, &genesis, &key2).await;
+    let rgp = authority1.reference_gas_price_for_testing().unwrap();
+
+    let sequence = |authority: Arc<AuthorityState>, transaction: TransactionEnvelope| async move {
+        let (schedulables, assigned_versions) = authority
+            .epoch_store_for_testing()
+            .process_consensus_transactions_for_tests(
+                vec![SequencedConsensusTransaction::new_test(
+                    ConsensusTransaction::new_user_transaction(transaction),
+                )],
+                &Arc::new(CheckpointServiceNoop {}),
+                authority.get_object_cache_reader().as_ref(),
+                &authority.metrics,
+                true,
+                &authority,
+            )
+            .await
+            .unwrap();
+        (
+            schedulables
+                .into_iter()
+                .map(|schedulable| schedulable.as_tx().unwrap().clone())
+                .collect::<Vec<_>>(),
+            assigned_versions.into_map(),
+        )
+    };
+    let execute = |authority: Arc<AuthorityState>,
+                   executable: VerifiedExecutableTransaction,
+                   assigned_versions: Vec<VersionAssignment>| async move {
+        let epoch_store = authority.epoch_store_for_testing();
+        let digest = *executable.digest();
+        epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+        authority.execution_scheduler().enqueue_transactions(
+            vec![(
+                executable,
+                ExecutionEnv::new().with_assigned_versions(assigned_versions),
+            )],
+            &epoch_store,
+        );
+        tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            authority
+                .get_transaction_cache_reader()
+                .try_notify_read_executed_effects("", &[digest]),
+        )
+        .await
+        .expect("the transaction did not execute")
+        .unwrap()
+        .pop()
+        .unwrap()
+    };
+    let next_version = |authority: &AuthorityState| {
+        authority
+            .epoch_store_for_testing()
+            .get_next_object_version(&shared_object_id)
+    };
+
+    let mut rng = StdRng::from_seed([1u8; 32]);
+    for gas_object in &gas_objects {
+        let gas_ref = authority1
+            .get_object(&gas_object.id())
+            .unwrap()
+            .object_ref();
+        let data = Transaction::new_move_call(
+            sender,
+            ObjectId::FRAMEWORK,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("create"),
+            vec![],
+            gas_ref,
+            vec![
+                CallArg::Shared(SharedObjectReference::new(
+                    shared_object_id,
+                    initial_shared_version,
+                    true,
+                )),
+                CallArg::Pure(16u64.to_le_bytes().to_vec()),
+                CallArg::pure(&AccountAddress::new(sender.into_bytes())),
+            ],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+            rgp,
+        )
+        .unwrap();
+        let transaction: TransactionEnvelope = authority1
+            .epoch_store_for_testing()
+            .verify_transaction(to_sender_signed_transaction(data, &sender_key))
+            .unwrap()
+            .into();
+        let digest = *transaction.digest();
+
+        let (mut executables, assigned_versions) =
+            sequence(authority1.clone(), transaction.clone()).await;
+        assert_eq!(executables.len(), 1);
+        let executable = executables.pop().unwrap();
+        let effects1 = execute(
+            authority1.clone(),
+            executable.clone(),
+            assigned_versions
+                .get(&executable.key())
+                .cloned()
+                .unwrap_or_default(),
+        )
+        .await;
+        let next_version1 = next_version(&authority1);
+
+        let (second_copy, second_copy_versions) =
+            sequence(authority1.clone(), transaction.clone()).await;
+        assert!(
+            second_copy.is_empty(),
+            "a second copy must not be scheduled"
+        );
+        assert!(second_copy_versions.is_empty());
+        assert_eq!(next_version1, next_version(&authority1));
+        assert_eq!(
+            authority1
+                .get_transaction_cache_reader()
+                .get_executed_effects(&digest)
+                .unwrap(),
+            effects1
+        );
+
+        let effects2 = if rng.random_bool(0.5) {
+            let (mut executables, assigned_versions) =
+                sequence(authority2.clone(), transaction.clone()).await;
+            assert_eq!(executables.len(), 1);
+            let executable = executables.pop().unwrap();
+            let assigned = assigned_versions
+                .get(&executable.key())
+                .cloned()
+                .unwrap_or_default();
+            execute(authority2.clone(), executable, assigned).await
+        } else {
+            let assigned = authority2
+                .epoch_store_for_testing()
+                .acquire_shared_version_assignments_from_effects(
+                    &executable,
+                    &effects1,
+                    authority2.get_object_cache_reader().as_ref(),
+                )
+                .unwrap();
+            let effects2 = execute(authority2.clone(), executable, assigned).await;
+            // The first commit holding it keeps it, so that it reaches the
+            // checkpoint as on the first validator; the scheduler skips running
+            // it again.
+            let (scheduled, _) = sequence(authority2.clone(), transaction.clone()).await;
+            assert_eq!(
+                scheduled
+                    .iter()
+                    .map(|executable| *executable.digest())
+                    .collect::<Vec<_>>(),
+                vec![digest]
+            );
+            effects2
+        };
+        if rng.random_bool(0.5) {
+            let (scheduled, _) = sequence(authority2.clone(), transaction.clone()).await;
+            assert!(scheduled.is_empty());
+        }
+
+        assert_eq!(effects1, effects2);
+        assert_eq!(
+            authority2
+                .get_transaction_cache_reader()
+                .get_executed_effects(&digest)
+                .unwrap(),
+            effects2
+        );
+        assert_eq!(next_version(&authority1), next_version(&authority2));
+    }
 }
 
 #[sim_test]

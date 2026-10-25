@@ -1221,13 +1221,28 @@ mod tests {
             backpressure::BackpressureManager, test_authority_builder::TestAuthorityBuilder,
         },
         checkpoints::CheckpointServiceNoop,
-        consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
+        consensus_adapter::consensus_tests::{
+            test_certificates, test_consensus_transactions, test_gas_objects,
+            test_shared_object_transactions,
+        },
         post_consensus_tx_reorder::PostConsensusTxReorder,
         post_consensus_validation::PostConsensusDecision,
     };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_consensus_handler() {
+        consensus_handler_with_shared_object_transactions(false).await;
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_with_user_transactions() {
+        consensus_handler_with_shared_object_transactions(true).await;
+    }
+
+    /// Commits shared-object transactions, as certificates or as
+    /// `UserTransactionV1`s, with backpressure, and checks the stats, the
+    /// execution and that replaying the commit changes nothing.
+    async fn consensus_handler_with_shared_object_transactions(user_transactions: bool) {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN
@@ -1267,15 +1282,13 @@ mod tests {
 
         // AND
         // Create test transactions
-        let transactions = test_certificates(&state, shared_object).await;
+        let consensus_transactions =
+            test_consensus_transactions(&state, shared_object, user_transactions).await;
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
 
-        for (i, transaction) in transactions.iter().enumerate() {
-            let transaction_bytes: Vec<u8> = bcs::to_bytes(
-                &ConsensusTransaction::new_certificate_message(&state.name, transaction.clone()),
-            )
-            .unwrap();
+        for (i, (consensus_transaction, _)) in consensus_transactions.iter().enumerate() {
+            let transaction_bytes: Vec<u8> = bcs::to_bytes(consensus_transaction).unwrap();
 
             // AND create a block header + separate transactions batch for each
             // transaction. In Starfish, transactions live on the subdag
@@ -1334,7 +1347,7 @@ mod tests {
 
         // AND capturing the consensus stats
         let num_blocks = headers.len();
-        let num_transactions = transactions.len();
+        let num_transactions = consensus_transactions.len();
         let last_consensus_stats_1 = consensus_handler.last_consensus_stats.clone();
         assert_eq!(
             last_consensus_stats_1.index.transaction_index,
@@ -1354,7 +1367,10 @@ mod tests {
 
         // AND the certificates execute. Bounded: a lost or mismatched assignment
         // leaves the transaction waiting forever.
-        let digests: Vec<_> = transactions.iter().map(|tx| *tx.digest()).collect();
+        let digests: Vec<_> = consensus_transactions
+            .iter()
+            .map(|(_, digest)| *digest)
+            .collect();
         tokio::time::timeout(
             Duration::from_secs(60),
             state
@@ -1362,7 +1378,7 @@ mod tests {
                 .notify_read_executed_effects_for_testing("", &digests),
         )
         .await
-        .expect("consensus-scheduled certificates did not execute");
+        .expect("consensus-scheduled transactions did not execute");
 
         // WHEN processing the same output multiple times
         // THEN the consensus stats do not update
@@ -1809,6 +1825,132 @@ mod tests {
             owned_effects.input_shared_objects().is_empty(),
             "the transaction paired with the empty env must be owned-only"
         );
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn mixed_owned_and_shared_user_transactions_in_one_commit() {
+        mixed_user_transactions_in_one_commit(false).await;
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn dropped_user_transaction_before_shared_one_in_one_commit() {
+        mixed_user_transactions_in_one_commit(true).await;
+    }
+
+    /// One commit holding an owned-object transfer and a shared-object
+    /// transaction, both `UserTransactionV1`s, with a transaction that is
+    /// dropped at the commit placed first when `dropped_first` is set. The
+    /// dropped one gets no shared version and no execution, and must not shift
+    /// the others' versions.
+    async fn mixed_user_transactions_in_one_commit(dropped_first: bool) {
+        telemetry_subscribers::init_for_testing();
+        let (sender, key): (_, AccountPrivateKey) = deterministic_random_account_private_key();
+        let shared_object = Object::shared_for_testing();
+        let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let owned_gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let dropped_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let dropped_gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let mut objects = test_gas_objects();
+        objects.extend([
+            shared_object.clone(),
+            owned_object.clone(),
+            owned_gas.clone(),
+            dropped_object.clone(),
+            dropped_gas.clone(),
+        ]);
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
+
+        let shared_transaction: iota_types::transaction::TransactionEnvelope =
+            test_shared_object_transactions(&state, &shared_object)
+                .swap_remove(0)
+                .into();
+        let owned_transaction = transfer_in_current_epoch(
+            &state,
+            &epoch,
+            sender,
+            &key,
+            owned_object.id(),
+            owned_gas.id(),
+        );
+        let dropped_transaction = {
+            let rgp = epoch.reference_gas_price();
+            copy_with_failing_authenticator(Transaction::new_transfer(
+                Address::random(),
+                state.get_object(&dropped_object.id()).unwrap().object_ref(),
+                sender,
+                state.get_object(&dropped_gas.id()).unwrap().object_ref(),
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            ))
+        };
+
+        let mut entries = vec![owned_transaction.clone(), shared_transaction.clone()];
+        if dropped_first {
+            entries.insert(0, dropped_transaction.clone());
+        }
+        let commit = commit_with_transactions(
+            1,
+            100,
+            entries
+                .into_iter()
+                .map(|transaction| (0, ConsensusTransaction::new_user_transaction(transaction)))
+                .collect(),
+        );
+
+        handler.handle_consensus_output_for_test(commit).await;
+
+        let digests = [*shared_transaction.digest(), *owned_transaction.digest()];
+        let effects = tokio::time::timeout(
+            Duration::from_secs(60),
+            state
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests),
+        )
+        .await
+        .expect("both kept transactions of the commit must execute");
+        assert!(
+            effects[1].status().is_success(),
+            "{:?}",
+            effects[1].status()
+        );
+        assert_eq!(
+            effects[0]
+                .input_shared_objects()
+                .into_iter()
+                .map(|iso| {
+                    let oref = iso.object_reference();
+                    (oref.object_id, oref.version)
+                })
+                .collect::<Vec<_>>(),
+            vec![(shared_object.id(), shared_object.version())]
+        );
+        assert!(effects[1].input_shared_objects().is_empty());
+
+        for digest in digests {
+            assert_eq!(
+                epoch
+                    .post_consensus_decision(1, digest)
+                    .unwrap()
+                    .map(|saved| saved.decision),
+                Some(PostConsensusDecision::Kept)
+            );
+        }
+        if dropped_first {
+            let dropped_digest = *dropped_transaction.digest();
+            assert_eq!(
+                epoch
+                    .post_consensus_decision(1, dropped_digest)
+                    .unwrap()
+                    .map(|saved| saved.decision),
+                Some(PostConsensusDecision::DroppedCopy)
+            );
+            assert!(
+                state
+                    .get_transaction_cache_reader()
+                    .get_executed_effects(&dropped_digest)
+                    .is_none()
+            );
+        }
     }
 
     /// With the P-COOL flow on, a dropped user transaction does not enter the
@@ -3633,6 +3775,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_order_by_gas_price_with_certificates_and_user_transactions() {
+        let mut v = vec![
+            user_v1_txn(50),
+            cap_txn(10, Chain::Unknown),
+            user_txn(100),
+            user_v1_txn(100),
+            user_txn(50),
+            user_v1_txn(200),
+            user_txn(300),
+        ];
+        PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
+        assert_eq!(
+            extract(v),
+            vec![
+                "cap(10)".to_string(),
+                "user(300)".to_string(),
+                "user_v1(200)".to_string(),
+                "user(100)".to_string(),
+                "user_v1(100)".to_string(),
+                "user_v1(50)".to_string(),
+                "user(50)".to_string(),
+            ]
+        );
+    }
+
     fn extract(v: Vec<VerifiedSequencedConsensusTransaction>) -> Vec<String> {
         v.into_iter().map(extract_one).collect()
     }
@@ -3648,6 +3816,12 @@ mod tests {
                 }
                 ConsensusTransactionKind::CertifiedTransaction(txn) => {
                     format!("user({})", txn.transaction().gas_price())
+                }
+                ConsensusTransactionKind::UserTransactionV1(txn) => {
+                    format!(
+                        "user_v1({})",
+                        txn.transaction.data().transaction().gas_price()
+                    )
                 }
                 _ => unreachable!(),
             },
@@ -3692,6 +3866,23 @@ mod tests {
         );
         txn(ConsensusTransactionKind::CertifiedTransaction(Box::new(
             CertifiedTransaction::new_from_keypairs_for_testing(tx, &keypairs, &committee),
+        )))
+    }
+
+    fn user_v1_txn(gas_price: u64) -> VerifiedSequencedConsensusTransaction {
+        let tx = SenderSignedTransaction::new(
+            Transaction::new_transfer(
+                Address::ZERO,
+                random_object_ref(),
+                Address::ZERO,
+                random_object_ref(),
+                1000 * gas_price,
+                gas_price,
+            ),
+            vec![],
+        );
+        txn(ConsensusTransactionKind::UserTransactionV1(Box::new(
+            AttestedTransaction::new(iota_types::transaction::TransactionEnvelope::new(tx), None),
         )))
     }
 

@@ -20,6 +20,7 @@ use iota_types::{
     crypto::AccountPrivateKey,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
+    messages_consensus::ConsensusTransaction,
     messages_grpc::HandleTransactionResponse,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
@@ -39,6 +40,9 @@ use crate::{
         },
         test_authority_builder::TestAuthorityBuilder,
     },
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
     test_utils::make_transfer_iota_transaction,
 };
 
@@ -463,6 +467,70 @@ async fn test_certificate_deny() {
             .unwrap(),
     );
     let (effects, _) = state.execute_for_test(&cert, ExecutionEnv::new());
+    assert!(matches!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::CertificateDenied,
+            ..
+        }
+    ));
+}
+
+#[tokio::test]
+async fn test_certificate_deny_user_transaction_v1() {
+    let (network_config, state) = setup_test(TransactionDenyConfig::default()).await;
+    let (sender, key, gas_objects) = get_accounts_and_coins(&network_config, &state)
+        .pop()
+        .unwrap();
+    let tx = make_transfer_iota_transaction(
+        gas_objects[0],
+        sender,
+        None,
+        sender,
+        &key,
+        state.reference_gas_price_for_testing().unwrap(),
+    );
+    let digest = *tx.digest();
+    let state = TestAuthorityBuilder::new()
+        .with_network_config(&network_config, 0)
+        .with_certificate_deny_config(
+            CertificateDenyConfigBuilder::new()
+                .add_certificate_deny(digest)
+                .build(),
+        )
+        .build()
+        .await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (mut schedulables, _) = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(
+                ConsensusTransaction::new_user_transaction(tx),
+            )],
+            &Arc::new(CheckpointServiceNoop {}),
+            state.get_object_cache_reader().as_ref(),
+            &state.metrics,
+            true,
+            &state,
+        )
+        .await
+        .unwrap();
+    assert_eq!(schedulables.len(), 1);
+    let executable = schedulables.pop().unwrap().as_tx().unwrap().clone();
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    state
+        .execution_scheduler()
+        .enqueue_transactions(vec![(executable, ExecutionEnv::new())], &epoch_store);
+    let effects = tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        state
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects("", &[digest]),
+    )
+    .await
+    .expect("the transaction did not execute")
+    .unwrap()
+    .pop()
+    .unwrap();
     assert!(matches!(
         effects.status(),
         &ExecutionStatus::Failure {

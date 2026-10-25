@@ -265,7 +265,7 @@ mod tests {
     use std::sync::Arc;
 
     use iota_macros::sim_test;
-    use iota_protocol_config::Chain;
+    use iota_protocol_config::{Chain, ProtocolConfig};
     use iota_sdk_types::{ObjectId, UserSignature};
     use iota_types::{
         attestation::AttestedTransaction,
@@ -352,6 +352,91 @@ mod tests {
         assert!(res_batch.is_err());
     }
 
+    #[sim_test]
+    async fn verify_batch_checks_user_transaction_v1_signature() {
+        use iota_types::crypto::{AccountPrivateKey, deterministic_random_account_private_key};
+
+        use crate::test_utils::make_transfer_iota_transaction;
+
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
+        let gas_object_id = ObjectId::random();
+        let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(vec![gas_object])
+                .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        assert!(epoch_store.protocol_config().enable_pcool_flow());
+
+        let rgp = epoch_store.reference_gas_price();
+        let gas_ref = state.get_object(&gas_object_id).unwrap().object_ref();
+        let valid_tx = make_transfer_iota_transaction(
+            gas_ref,
+            iota_sdk_types::Address::random(),
+            None,
+            sender,
+            &sender_key,
+            rgp,
+        );
+        // The sender's signature over other data, so that the signer check
+        // passes and only the signature itself is wrong.
+        let mut other_tx = make_transfer_iota_transaction(
+            gas_ref,
+            iota_sdk_types::Address::random(),
+            None,
+            sender,
+            &sender_key,
+            rgp,
+        );
+        let mut bad_tx = valid_tx.clone();
+        bad_tx.tx_signatures_mut_for_testing()[0] =
+            other_tx.tx_signatures_mut_for_testing()[0].clone();
+
+        let expected_error = epoch_store
+            .signature_verifier
+            .verify_tx(bad_tx.data())
+            .unwrap_err();
+        assert!(
+            matches!(expected_error, IotaError::InvalidSignature { .. }),
+            "{expected_error:?}"
+        );
+
+        let to_bytes = |tx: &iota_types::transaction::TransactionEnvelope| {
+            bcs::to_bytes(&ConsensusTransaction::new_user_transaction(tx.clone())).unwrap()
+        };
+        let valid_bytes = to_bytes(&valid_tx);
+        let bad_bytes = to_bytes(&bad_tx);
+
+        let metrics = IotaTxValidatorMetrics::new(&Default::default());
+        let validator = IotaTxValidator::new(
+            epoch_store,
+            Arc::new(CheckpointServiceNoop {}),
+            metrics.clone(),
+        );
+
+        let res = validator.verify_batch(&[&valid_bytes]);
+        assert!(res.is_ok(), "{res:?}");
+        assert_eq!(metrics.user_transaction_signatures_verified.get(), 1);
+
+        for batch in [vec![&bad_bytes[..]], vec![&valid_bytes[..], &bad_bytes[..]]] {
+            let res = validator.verify_batch(&batch);
+            assert!(
+                matches!(
+                    &res,
+                    Err(starfish_core::ValidationError::InvalidTransaction(msg))
+                        if *msg == expected_error.to_string()
+                ),
+                "{res:?}"
+            );
+        }
+        assert_eq!(metrics.user_transaction_signatures_verified.get(), 1);
+    }
+
     /// Verifies that `validate_transactions` correctly gates every
     /// `ConsensusTransactionKind` variant against the current protocol config's
     /// feature flags.
@@ -365,7 +450,16 @@ mod tests {
     /// ignored — its value lies in catching missing gates during the upgrade
     /// window between code deployment and protocol activation.
     #[sim_test]
-    async fn validate_transactions_feature_gating() {
+    async fn validate_transactions_feature_gating_with_pcool_flow() {
+        validate_transactions_feature_gating(true).await;
+    }
+
+    #[sim_test]
+    async fn validate_transactions_feature_gating_without_pcool_flow() {
+        validate_transactions_feature_gating(false).await;
+    }
+
+    async fn validate_transactions_feature_gating(enable_pcool_flow: bool) {
         use iota_types::crypto::{
             AccountPrivateKey, AuthorityPublicKeyBytes, deterministic_random_account_private_key,
         };
@@ -382,9 +476,12 @@ mod tests {
                 .with_objects(vec![gas_object.clone()])
                 .build();
 
+        let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_enable_pcool_flow_for_testing(enable_pcool_flow);
+            config
+        });
         let state = TestAuthorityBuilder::new()
             .with_network_config(&network_config, 0)
-            .with_chain_override(Chain::Mainnet)
             .build()
             .await;
 
@@ -402,6 +499,7 @@ mod tests {
         );
 
         let protocol_config = validator.epoch_store.protocol_config();
+        assert_eq!(protocol_config.enable_pcool_flow(), enable_pcool_flow);
         let authority = AuthorityPublicKeyBytes::default();
 
         // Variants that can be validated without signature verification setup

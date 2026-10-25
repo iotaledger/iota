@@ -32,7 +32,9 @@ use move_binary_format::{
 use move_package::source_package::manifest_parser;
 
 use crate::authority::{
-    authority_tests::{call_move, init_state_with_ids, send_and_confirm_transaction},
+    authority_tests::{
+        call_move, init_state_with_ids, rejection_error, send_and_confirm_transaction,
+    },
     move_integration_tests::{
         build_and_publish_test_package, build_multi_publish_txns, build_package,
         build_test_package, run_multi_txns,
@@ -529,24 +531,29 @@ async fn test_publish_non_canonical_version_header_before_the_check() {
 }
 
 /// A module using one of the deprecated global storage instructions is rejected
-/// at signing, so it is never certified or executed.
+/// at signing, so it is never certified or executed. As a `UserTransactionV1`
+/// it is dropped at the commit with the same error.
+#[rstest::rstest]
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
-async fn test_publish_deprecated_bytes_modules() {
-    assert_rejected_at_signing(publish_module_using_global_storage().await);
+async fn test_publish_deprecated_bytes_modules(#[values(false, true)] user_transaction: bool) {
+    assert_rejected_at_signing(publish_module_using_global_storage(user_transaction).await);
 }
 
 /// The same holds before execution rejects these instructions when it
 /// deserializes a module.
+#[rstest::rstest]
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
-async fn test_publish_deprecated_bytes_modules_before_the_flag() {
+async fn test_publish_deprecated_bytes_modules_before_the_flag(
+    #[values(false, true)] user_transaction: bool,
+) {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_deprecate_global_storage_ops_for_testing(false);
         config
     });
 
-    assert_rejected_at_signing(publish_module_using_global_storage().await);
+    assert_rejected_at_signing(publish_module_using_global_storage(user_transaction).await);
 }
 
 fn assert_rejected_at_signing(result: Result<ExecutionStatus, IotaError>) {
@@ -564,8 +571,11 @@ fn assert_rejected_at_signing(result: Result<ExecutionStatus, IotaError>) {
 
 /// Publish a test package, then the same package with a private function added
 /// that uses a deprecated global storage instruction, and return the outcome of
-/// the second publish.
-async fn publish_module_using_global_storage() -> Result<ExecutionStatus, IotaError> {
+/// the second publish. With `user_transaction`, the second publish is sequenced
+/// as a `UserTransactionV1` and the result is the error it is dropped with.
+async fn publish_module_using_global_storage(
+    user_transaction: bool,
+) -> Result<ExecutionStatus, IotaError> {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -678,6 +688,13 @@ async fn publish_module_using_global_storage() -> Result<ExecutionStatus, IotaEr
         rgp,
     );
     let transaction = to_sender_signed_transaction(tx, &sender_key);
+    if user_transaction {
+        let transaction = authority
+            .epoch_store_for_testing()
+            .verify_transaction(transaction)
+            .unwrap();
+        return Err(rejection_error(&authority, transaction, true).await);
+    }
     send_and_confirm_transaction(&authority, transaction)
         .await
         .map(|(_, effects)| effects.status().clone())
