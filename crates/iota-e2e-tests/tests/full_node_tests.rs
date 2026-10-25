@@ -1092,10 +1092,132 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
         confirmed_local_execution,
         ..
     } = response;
-    assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
+    let returned_effects = effects.unwrap();
+    assert_eq!(returned_effects.transaction_digest(), tx_digest);
     assert!(!confirmed_local_execution.unwrap());
 
+    test_cluster
+        .fullnode_handle
+        .iota_node
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects_for_testing("", &[*tx_digest])
+        .await;
+    let executed: IotaTransactionBlockResponse = jsonrpc_client
+        .request(
+            "iota_getTransactionBlock",
+            rpc_params![
+                *tx_digest,
+                IotaTransactionBlockResponseOptions::new().with_effects()
+            ],
+        )
+        .await
+        .unwrap();
+    assert_eq!(executed.effects.unwrap(), returned_effects);
+
     Ok(())
+}
+
+async fn execute_transaction_block_error(
+    client: &jsonrpsee::http_client::HttpClient,
+    txn: &iota_types::transaction::TransactionEnvelope,
+) -> jsonrpsee::types::ErrorObjectOwned {
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let result: Result<IotaTransactionBlockResponse, _> = client
+        .request(
+            "iota_executeTransactionBlock",
+            rpc_params![
+                tx_bytes,
+                signatures,
+                IotaTransactionBlockResponseOptions::new(),
+                ExecuteTransactionRequestType::WaitForEffectsCert
+            ],
+        )
+        .await;
+    match result.expect_err("the transaction must be rejected") {
+        jsonrpsee::core::ClientError::Call(error) => error,
+        other => panic!("expected a JSON-RPC error object, got: {other}"),
+    }
+}
+
+#[sim_test]
+async fn test_execute_transaction_block_error_for_missing_gas_object() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let (sender, _) = test_cluster
+        .wallet
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap();
+    let gas_price = test_cluster.get_reference_gas_price().await;
+    let missing_gas = ObjectReference::new(
+        ObjectId::new([7; 32]),
+        Version::from_u64(1),
+        iota_sdk_types::ObjectDigest::new([0; 32]),
+    );
+    let txn = test_cluster.wallet.sign_transaction(
+        &TestTransactionBuilder::new(sender, missing_gas, gas_price)
+            .transfer_iota(Some(1), sender)
+            .build(),
+    );
+
+    // Validators report a missing input as retriable, since it may only be
+    // missing locally, so the driver retries until it times out.
+    let error = execute_transaction_block_error(jsonrpc_client, &txn).await;
+    assert_eq!(error.code(), -32050, "{error:?}");
+    assert_eq!(
+        error.message(),
+        "Transaction timed out before reaching finality"
+    );
+    assert_eq!(error_data_reason(&error), "timeout_before_finality");
+}
+
+#[sim_test]
+async fn test_execute_transaction_block_error_for_double_used_object() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let wallet = &test_cluster.wallet;
+
+    let first = iota_test_transaction_builder::make_transfer_iota_transaction(
+        wallet,
+        Some(Address::random()),
+        Some(1),
+    )
+    .await;
+    let second = iota_test_transaction_builder::make_transfer_iota_transaction(
+        wallet,
+        Some(Address::random()),
+        Some(2),
+    )
+    .await;
+    assert_ne!(first.digest(), second.digest());
+
+    test_cluster.execute_transaction(first).await;
+
+    let error = execute_transaction_block_error(jsonrpc_client, &second).await;
+    assert_eq!(error.code(), -32002, "{error:?}");
+    assert!(
+        error.message().starts_with(
+            "Invalid transaction: unknown error: Transaction was rejected as invalid by more \
+             than 1/3 of validator stake during submission (non-retriable): "
+        ),
+        "{error:?}"
+    );
+    assert!(
+        error.message().contains("is not available for consumption"),
+        "{error:?}"
+    );
+    assert_eq!(error_data_reason(&error), "rejected_by_validators");
+}
+
+fn error_data_reason(error: &jsonrpsee::types::ErrorObjectOwned) -> String {
+    let data: serde_json::Value =
+        serde_json::from_str(error.data().expect("the error must carry data").get()).unwrap();
+    data["reason"]
+        .as_str()
+        .expect("the error data must have a reason")
+        .to_string()
 }
 
 async fn get_obj_read_from_node(
