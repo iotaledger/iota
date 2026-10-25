@@ -394,7 +394,23 @@ async fn test_needs_to_do_initialization_cases() {
             .tables
             .needs_to_do_initialization(&checkpoint_store, &groups)
             .unwrap(),
-        "an executed checkpoint past the indexed watermark must trigger a rebuild"
+        "a store without a watermark on a node with executed checkpoints must be rebuilt"
+    );
+
+    index_store.tables.watermark.insert(&(), &3).unwrap();
+    assert!(
+        !index_store
+            .tables
+            .needs_to_do_initialization(&checkpoint_store, &groups)
+            .unwrap(),
+        "a watermark behind the executed checkpoint is caught up, not rebuilt"
+    );
+    assert_eq!(
+        index_store
+            .tables
+            .checkpoints_to_replay(&checkpoint_store)
+            .unwrap(),
+        Some(4..=5)
     );
 
     index_store.tables.watermark.insert(&(), &5).unwrap();
@@ -403,6 +419,13 @@ async fn test_needs_to_do_initialization_cases() {
             .tables
             .needs_to_do_initialization(&checkpoint_store, &groups)
             .unwrap()
+    );
+    assert_eq!(
+        index_store
+            .tables
+            .checkpoints_to_replay(&checkpoint_store)
+            .unwrap(),
+        None
     );
 
     // A watermark ahead of the executed checkpoint still needs the
@@ -3309,9 +3332,95 @@ async fn test_a_watermark_far_ahead_of_the_executed_checkpoint_is_not_fatal() {
     );
 }
 
+/// Records the empty checkpoints `sequence_numbers` but `missing`, and the
+/// last of them as executed.
+fn store_empty_checkpoints(
+    checkpoint_store: &CheckpointStore,
+    sequence_numbers: std::ops::RangeInclusive<u64>,
+    missing: Option<u64>,
+) {
+    let contents = iota_sdk_types::CheckpointContents::new_with_digests_only_for_tests(vec![]);
+    let mut last = None;
+    for sequence_number in sequence_numbers {
+        let mut summary = crate::test_utils::certified_summary(0, sequence_number, None);
+        summary.data_mut_for_testing().contents_digest = contents.digest();
+        let checkpoint =
+            iota_types::messages_checkpoint::VerifiedCheckpoint::new_unchecked(summary);
+        if missing != Some(sequence_number) {
+            checkpoint_store
+                .insert_verified_checkpoint(&checkpoint)
+                .unwrap();
+            checkpoint_store
+                .insert_checkpoint_contents(contents.clone())
+                .unwrap();
+        }
+        last = Some(checkpoint);
+    }
+    checkpoint_store
+        .update_highest_executed_checkpoint(&last.unwrap())
+        .unwrap();
+}
+
+/// Opens a store whose watermark is at checkpoint 2 on a node that executed
+/// checkpoints up to 5, as after a power loss that lost the index commits of
+/// checkpoints 3 to 5. Returns whether the store kept the row it held, and
+/// its watermark.
+async fn open_after_lost_index_commits(missing: Option<u64>) -> (bool, Option<u64>) {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    store_empty_checkpoints(&checkpoint_store, 0..=5, missing);
+    let owner = iota_types::base_types::dbg_addr(1);
+    let object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let (key, info) = OwnerIndexKey::for_object(owner, &object).unwrap();
+    {
+        let index_store = open_index_store(index_dir.clone());
+        index_store.tables.seed_meta(&groups).unwrap();
+        index_store.tables.owner.insert(&key, &info).unwrap();
+        index_store.tables.watermark.insert(&(), &2).unwrap();
+        close_index_store(index_store).await;
+    }
+
+    let authority_store = open_authority_store(&dir.path().join("store"));
+    let index_store = RpcIndexesStore::new(
+        index_dir,
+        &Registry::default(),
+        groups,
+        Some(128),
+        None,
+        &authority_store,
+        &checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    (
+        index_store.tables.owner.get(&key).unwrap().is_some(),
+        index_store.tables.watermark.get(&()).unwrap(),
+    )
+}
+
+/// The checkpoints executed past the index watermark are indexed again at
+/// open, keeping the store.
+#[tokio::test]
+async fn test_lost_index_commits_are_indexed_again_at_open() {
+    let (kept, watermark) = open_after_lost_index_commits(None).await;
+    assert!(kept, "the store must be kept, not rebuilt");
+    assert_eq!(watermark, Some(5));
+}
+
+/// A store whose lost checkpoints cannot be indexed again, their data being
+/// gone, is rebuilt.
+#[tokio::test]
+async fn test_lost_index_commits_without_their_data_rebuild_the_store() {
+    let (kept, _) = open_after_lost_index_commits(Some(4)).await;
+    assert!(!kept, "the store must be rebuilt");
+}
+
 /// A store whose watermark is ahead of the checkpoints the checkpoint store
-/// holds, as after a power loss that kept the synced index commit but lost the
-/// unsynced checkpoint write, is kept rather than rebuilt; replaying the
+/// holds, as after a power loss that kept the index commit but lost the
+/// checkpoint write, is kept rather than rebuilt; replaying the
 /// checkpoints it already holds raises the transaction total again.
 #[tokio::test]
 async fn test_a_watermark_ahead_of_the_checkpoint_store_keeps_the_index() {

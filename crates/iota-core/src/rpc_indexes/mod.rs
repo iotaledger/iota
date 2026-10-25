@@ -21,6 +21,7 @@ pub mod schema;
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -29,7 +30,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{Owner, TransactionDigest};
+use iota_sdk_types::{
+    CheckpointContents, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
+};
 use iota_types::{
     base_types::TxSequenceNumber,
     committee::EpochId,
@@ -40,7 +43,9 @@ use iota_types::{
     storage::{
         DynamicFieldKey, PackageVersionInfo, PackageVersionKey,
         error::{Error as StorageError, Kind as StorageErrorKind},
+        get_transaction_input_objects, get_transaction_output_objects,
     },
+    transaction::TransactionEnvelope,
 };
 use parking_lot::Mutex;
 use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
@@ -282,9 +287,8 @@ impl IndexStoreTables {
     }
 
     /// Whether the store must be wiped and rebuilt: a schema mismatch, an
-    /// enabled group `meta` does not record, or an out-of-date watermark.
-    /// Read errors propagate rather than wipe a healthy store or adopt a
-    /// stale one.
+    /// enabled group `meta` does not record, or a missing watermark. Read
+    /// errors propagate rather than wipe a healthy store or adopt a stale one.
     fn needs_to_do_initialization(
         &self,
         checkpoint_store: &CheckpointStore,
@@ -297,36 +301,45 @@ impl IndexStoreTables {
             None => true,
         };
 
-        Ok(stale || self.is_indexed_watermark_out_of_date(checkpoint_store)?)
+        Ok(stale || self.is_watermark_missing(checkpoint_store)?)
     }
 
-    /// Whether the index watermark is behind `highest_executed_checkpoint`,
-    /// or absent on a store that already holds data.
+    /// Whether the store holds data, or the node has executed checkpoints,
+    /// but no watermark records what the store covers, as an interrupted
+    /// rebuild leaves it.
+    fn is_watermark_missing(&self, checkpoint_store: &CheckpointStore) -> IotaResult<bool> {
+        if self.watermark.get(&())?.is_some() {
+            return Ok(false);
+        }
+        // Not `is_empty`, which reads an unreadable table as non-empty.
+        let has_data = self.owner.safe_iter().next().transpose()?.is_some();
+        Ok(has_data
+            || checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()?
+                .is_some())
+    }
+
+    /// The executed checkpoints past the index watermark, which the open
+    /// indexes again. A checkpoint's index commit is written before the
+    /// checkpoint is recorded as executed, but not synced, so a power loss can
+    /// lose the last commits and keep those records.
     ///
-    /// A watermark ahead of what the checkpoint store holds is kept: after a
-    /// power loss the synced index commit can survive the unsynced write of
-    /// its certified checkpoint. State sync fetches that checkpoint again, the
-    /// executor executes it again with the same outputs, and the index skips
-    /// it as already indexed.
-    fn is_indexed_watermark_out_of_date(
+    /// A watermark ahead of the executed checkpoint needs nothing: after an
+    /// unclean stop it can be ahead by up to the execution concurrency, and
+    /// after a power loss also ahead of the checkpoints the checkpoint store
+    /// kept. Those checkpoints are executed again with the same outputs, and
+    /// the index skips them as already indexed.
+    fn checkpoints_to_replay(
         &self,
         checkpoint_store: &CheckpointStore,
-    ) -> IotaResult<bool> {
-        let highest_executed_checkpoint =
-            checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
+    ) -> IotaResult<Option<RangeInclusive<CheckpointSequenceNumber>>> {
         let Some(watermark) = self.watermark.get(&())? else {
-            // Data without a watermark is from an interrupted rebuild. Not
-            // `is_empty`, which reads an unreadable table as non-empty.
-            let has_data = self.owner.safe_iter().next().transpose()?.is_some();
-            return Ok(has_data || highest_executed_checkpoint.is_some());
+            return Ok(None);
         };
-        let Some(executed) = highest_executed_checkpoint else {
-            return Ok(false);
+        let Some(executed) = checkpoint_store.get_highest_executed_checkpoint_seq_number()? else {
+            return Ok(None);
         };
-        // After an unclean stop the watermark can be ahead of the executed
-        // checkpoint by up to the execution concurrency, and replaying those
-        // checkpoints writes nothing but the watermark.
-        Ok(watermark < executed)
+        Ok((watermark < executed).then(|| watermark + 1..=executed))
     }
 
     /// Rebuilds the live-state tables of `groups` from a parallel scan of the
@@ -542,10 +555,14 @@ impl RpcIndexesStore {
     /// is configured, `epochs_to_retain` bounds the replay to the epochs
     /// the pruner would retain.
     ///
-    /// Setting `cancelled` abandons a rebuild running here and the
-    /// background replay, and fails the open: the store is left unadopted
-    /// for the next open to rebuild, and must not serve reads in the
-    /// meantime.
+    /// Checkpoints executed past the index watermark, whose index commits a
+    /// power loss lost, are indexed again before this returns; the store is
+    /// rebuilt instead when their data is gone.
+    ///
+    /// Setting `cancelled` abandons a rebuild or such a replay running here
+    /// and the background replay, and fails the open: the store is left
+    /// unadopted for the next open to rebuild, or to resume the replay where
+    /// it stopped, and must not serve reads in the meantime.
     pub async fn new(
         path: PathBuf,
         registry: &Registry,
@@ -597,12 +614,34 @@ impl RpcIndexesStore {
         )
         .expect("failed to register the RPC index rebuild gauge");
 
-        let needs_initialization = opened.as_ref().is_none_or(|opened| {
+        let mut needs_initialization = opened.as_ref().is_none_or(|opened| {
             opened
                 .tables
                 .needs_to_do_initialization(checkpoint_store, &groups)
                 .expect("failed to determine whether the RPC index needs a rebuild")
         });
+        if let Some(lost) = match &opened {
+            Some(opened) if !needs_initialization => opened
+                .tables
+                .checkpoints_to_replay(checkpoint_store)
+                .map_err(StorageError::custom)?,
+            _ => None,
+        } {
+            let to_replay = opened.take().expect("checked above");
+            opened = Self::replay_lost_checkpoints(
+                to_replay,
+                lost,
+                &path,
+                &groups,
+                max_type_length,
+                epochs_to_retain,
+                authority_store,
+                checkpoint_store,
+                &cancelled,
+            )
+            .await?;
+            needs_initialization = opened.is_none();
+        }
         if needs_initialization {
             rebuild_gauge.set(1);
             let init_tables = {
@@ -714,7 +753,7 @@ impl RpcIndexesStore {
         // A store rebuilt without local history has no rows to derive the
         // transaction total from, so take it from the watermark's checkpoint,
         // or, when the checkpoint store lost it (see
-        // `is_indexed_watermark_out_of_date`), from the newest checkpoint it
+        // `checkpoints_to_replay`), from the newest checkpoint it
         // holds below it; replaying the checkpoints up to the watermark raises
         // the total again before anything new is indexed.
         let anchor = opened
@@ -761,6 +800,118 @@ impl RpcIndexesStore {
         )?);
         store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
         Ok(store)
+    }
+
+    /// Indexes the executed checkpoints `lost` again, through a store opened
+    /// on `opened` for the purpose, and returns the database reopened. Returns
+    /// `None`, for a rebuild, when the replay fails short of a shutdown, as
+    /// when the data of a checkpoint is gone.
+    async fn replay_lost_checkpoints(
+        opened: OpenedIndexDb,
+        lost: RangeInclusive<CheckpointSequenceNumber>,
+        path: &Path,
+        groups: &BTreeSet<IndexGroup>,
+        max_type_length: Option<u64>,
+        epochs_to_retain: Option<u64>,
+        authority_store: &Arc<AuthorityStore>,
+        checkpoint_store: &Arc<CheckpointStore>,
+        cancelled: &Arc<AtomicBool>,
+    ) -> Result<Option<OpenedIndexDb>, StorageError> {
+        // Its metrics go to a registry of their own, since the store this open
+        // returns registers them again. It numbers transactions from the
+        // checkpoint summaries, so it needs no transaction total to start
+        // from.
+        let store = Arc::new(
+            Self::finish_open(
+                opened,
+                &Registry::default(),
+                groups.clone(),
+                max_type_length,
+                0,
+                cancelled.clone(),
+                epochs_to_retain,
+            )
+            .map_err(StorageError::custom)?,
+        );
+        let replayed = tokio::task::spawn_blocking({
+            let store = store.clone();
+            let authority_store = authority_store.clone();
+            let checkpoint_store = checkpoint_store.clone();
+            let lost = lost.clone();
+            move || store.replay_checkpoints(lost, &authority_store, &checkpoint_store)
+        })
+        .await
+        .expect("RPC index replay task failed");
+
+        let weak_db = Arc::downgrade(&store.tables.meta.db);
+        drop(store);
+        if !wait_for_database_close(weak_db).await {
+            return Err(StorageError::custom(
+                "the RPC index database stayed open after the replay",
+            ));
+        }
+        match replayed {
+            Ok(()) => Self::open_index_db(path)
+                .map(Some)
+                .map_err(StorageError::custom),
+            Err(e) if is_cancelled(&e) => Err(e),
+            Err(e) => {
+                warn!(
+                    "unable to index the checkpoints {}..={} again, rebuilding the RPC index: {e}",
+                    lost.start(),
+                    lost.end()
+                );
+                Ok(None)
+            }
+        }
+    }
+
+    /// Indexes the executed checkpoints `checkpoints` in order, committing
+    /// each, as the checkpoint executor does.
+    fn replay_checkpoints(
+        &self,
+        checkpoints: RangeInclusive<CheckpointSequenceNumber>,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        info!(
+            "Indexing checkpoints {}..={} again: their RPC index commits were lost",
+            checkpoints.start(),
+            checkpoints.end()
+        );
+        let start_time = Instant::now();
+        let mut last_report = Instant::now();
+        let total = checkpoints.end() - checkpoints.start() + 1;
+        for (done, checkpoint_seq) in checkpoints.enumerate() {
+            if self.cancelled.load(Ordering::Relaxed) {
+                return Err(RebuildCancelled::error(format!(
+                    "the RPC index replay was cancelled by shutdown at checkpoint {checkpoint_seq}"
+                )));
+            }
+            let checkpoint =
+                load_executed_checkpoint(authority_store, checkpoint_store, checkpoint_seq)?;
+            self.index_checkpoint(&checkpoint)
+                .and_then(|()| self.commit_update_for_checkpoint(checkpoint_seq))
+                .map_err(|e| StorageError::custom(e.to_string()))?;
+            if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
+                last_report = Instant::now();
+                let done = done as u64 + 1;
+                let fraction = done as f64 / total as f64;
+                let elapsed = start_time.elapsed();
+                let rate = progress_rate(done, elapsed);
+                let eta = eta_display(elapsed, fraction);
+                info!(
+                    "Indexing lost checkpoints again: {:.1}% done ({done} of {total}), \
+                     {rate:.0} checkpoints/s, ETA ~{eta}",
+                    fraction * 100.0,
+                );
+            }
+        }
+        info!(
+            "Indexing {total} checkpoints again took {} seconds",
+            start_time.elapsed().as_secs()
+        );
+        Ok(())
     }
 
     /// Opens the store without the init logic of [`Self::new`] — for tests.
@@ -1139,13 +1290,18 @@ impl RpcIndexesStore {
         // Only expired epochs can be lost that way: `index_checkpoint`
         // created the bucket of the epoch being executed, so it is the
         // newest one, and `prune` retains at least the newest seven.
-        let mut write_options = drop_tolerant_write_options();
-        // The checkpoint is recorded as executed after this returns. Without a
-        // sync, a power loss could keep that record and lose this write, and
-        // an index watermark behind the executed checkpoint rebuilds the
-        // whole store at the next start.
-        write_options.set_sync(true);
-        let written = update.batch.write_opt(&write_options);
+        // Not synced: the checkpoint is recorded as executed after this
+        // returns, and a power loss that keeps that record but loses this
+        // write is repaired by the next open, which indexes the checkpoint
+        // again.
+        // Lets a test lose the commit, as a power loss can.
+        let lose_commit = std::cell::Cell::new(false);
+        iota_macros::fail_point_if!("rpc-index-lose-commit", || lose_commit.set(true));
+        let written = if lose_commit.get() {
+            Ok(())
+        } else {
+            update.batch.write_opt(&drop_tolerant_write_options())
+        };
         // Also after a failed write, which may have been applied in part.
         self.record_balance_commit(&cache_updates);
         written?;
@@ -1404,37 +1560,9 @@ impl RpcIndexesStore {
         let mut batch = self.tables.watermark.batch();
 
         if self.serves(IndexGroup::JsonRpc) {
-            for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
-                let transaction = authority_store
-                    .get_transaction_block(&digests.transaction)?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!(
-                            "missing transaction {}",
-                            digests.transaction
-                        ))
-                    })?
-                    .into_inner();
-                let effects = authority_store
-                    .get_effects(&digests.effects)
-                    .map_err(|e| StorageError::custom(e.to_string()))?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!("missing effects {}", digests.effects))
-                    })?;
-                let events = if effects.events_digest().is_some() {
-                    Some(
-                        authority_store
-                            .get_events(&digests.transaction)?
-                            .ok_or_else(|| {
-                                StorageError::missing(format!(
-                                    "missing events {}",
-                                    digests.transaction
-                                ))
-                            })?,
-                    )
-                } else {
-                    None
-                };
-
+            for (sequence, (transaction, effects, events)) in (first_sequence_number..)
+                .zip(load_checkpoint_transactions(authority_store, &contents)?)
+            {
                 let data = transaction_index_data(&transaction, &effects, events.as_ref())
                     .map_err(|e| StorageError::custom(e.to_string()))?;
                 bucket
@@ -1468,6 +1596,84 @@ impl RpcIndexesStore {
             .map_err(StorageError::from)?;
         Ok(())
     }
+}
+
+/// The transactions of a checkpoint, with their effects and events, in
+/// checkpoint order.
+fn load_checkpoint_transactions(
+    authority_store: &AuthorityStore,
+    contents: &CheckpointContents,
+) -> Result<
+    Vec<(
+        TransactionEnvelope,
+        TransactionEffects,
+        Option<TransactionEvents>,
+    )>,
+    StorageError,
+> {
+    contents
+        .iter()
+        .map(|digests| {
+            let transaction = authority_store
+                .get_transaction_block(&digests.transaction)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing transaction {}", digests.transaction))
+                })?
+                .into_inner();
+            let effects = authority_store
+                .get_effects(&digests.effects)
+                .map_err(|e| StorageError::custom(e.to_string()))?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing effects {}", digests.effects))
+                })?;
+            let events = if effects.events_digest().is_some() {
+                Some(
+                    authority_store
+                        .get_events(&digests.transaction)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!("missing events {}", digests.transaction))
+                        })?,
+                )
+            } else {
+                None
+            };
+            Ok((transaction, effects, events))
+        })
+        .collect()
+}
+
+/// The full data of the executed checkpoint `checkpoint_seq`, as the
+/// checkpoint executor hands it to the index.
+fn load_executed_checkpoint(
+    authority_store: &AuthorityStore,
+    checkpoint_store: &CheckpointStore,
+    checkpoint_seq: CheckpointSequenceNumber,
+) -> Result<CheckpointData, StorageError> {
+    let summary = checkpoint_store
+        .get_checkpoint_by_sequence_number(checkpoint_seq)?
+        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint_seq}")))?;
+    let contents = checkpoint_store
+        .get_checkpoint_contents(&summary.contents_digest)?
+        .ok_or_else(|| {
+            StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
+        })?;
+    let transactions = load_checkpoint_transactions(authority_store, &contents)?
+        .into_iter()
+        .map(|(transaction, effects, events)| {
+            Ok(CheckpointTransaction {
+                input_objects: get_transaction_input_objects(authority_store, &effects)?,
+                output_objects: get_transaction_output_objects(authority_store, &effects)?,
+                transaction,
+                effects,
+                events,
+            })
+        })
+        .collect::<Result<_, StorageError>>()?;
+    Ok(CheckpointData {
+        checkpoint_summary: summary.into(),
+        checkpoint_contents: contents,
+        transactions,
+    })
 }
 
 #[cfg(test)]
