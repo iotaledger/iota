@@ -11501,3 +11501,85 @@ async fn validation_at_commit_never_keeps_an_account_input_a_receive_moved() {
         other => panic!("expected the received version to drop, got {other:?}"),
     }
 }
+
+/// Transactions that `submit_tx` rejects for what they contain are also
+/// dropped at a commit, with the same error, when another validator
+/// sequences them.
+#[tokio::test]
+async fn invalid_transactions_are_dropped_at_the_commit_with_the_exact_error() {
+    telemetry_subscribers::init_for_testing();
+    let s = setup_handler_object_state(vec![], true).await;
+
+    let cases: Vec<_> = crate::rejection_cases::rejection_cases(&s.authority)
+        .into_iter()
+        .filter(|case| case.at_commit.is_some())
+        .collect();
+    let transactions: Vec<_> = cases
+        .iter()
+        .map(|case| VerifiedTransaction::new_unchecked(case.tx.clone()))
+        .collect();
+
+    let result = s.validate_at(1, &transactions).await;
+
+    assert!(
+        result.kept.is_empty(),
+        "no invalid transaction may be kept: {:?}",
+        result.kept
+    );
+    let dropped: std::collections::HashMap<_, _> = result.dropped.into_iter().collect();
+    for case in &cases {
+        eprintln!("case: {}", case.name);
+        let error = dropped
+            .get(case.tx.digest())
+            .unwrap_or_else(|| panic!("the transaction must be dropped: {}", case.name));
+        case.at_commit.as_ref().unwrap()(error);
+    }
+}
+
+/// A transaction paid for by a sponsor, signed by both, is kept.
+#[tokio::test]
+async fn sponsored_transaction_is_kept_at_the_commit() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+        ],
+        true,
+    )
+    .await;
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .transfer_object(Address::random(), s.latest_ref(&object_id))
+            .unwrap();
+        builder.finish()
+    };
+    let tx = Transaction::new_with_gas_data(
+        iota_sdk_types::TransactionKind::new_programmable(pt),
+        sender,
+        iota_sdk_types::GasPayment {
+            objects: vec![s.latest_ref(&gas_id)],
+            owner: sponsor,
+            price: s.rgp,
+            budget: iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER * s.rgp,
+        },
+    );
+    let tx = iota_types::utils::to_sender_signed_transaction_with_multi_signers(
+        tx,
+        vec![&sender_key, &sponsor_key],
+    );
+    let digest = *tx.digest();
+
+    let result = s
+        .validate_at(1, &[VerifiedTransaction::new_unchecked(tx)])
+        .await;
+
+    assert_eq!(result.kept, vec![digest]);
+    assert!(result.dropped.is_empty(), "{:?}", result.dropped);
+}

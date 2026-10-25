@@ -41,13 +41,13 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionAPI,
+        TransactionAPI, TransactionEnvelope,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use move_core_types::annotated_value::MoveStructLayout;
-use test_cluster::{TestClusterBuilder, override_pcool_flow};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::{
     sync::RwLock,
     time::{Duration, sleep},
@@ -1307,13 +1307,12 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_access_old_object_pruned() {
-    // This test checks that when we ask a validator to handle a transaction that
-    // uses an old object that's already been pruned, it's able to return an
-    // non-retriable error ObjectVersionUnavailableForConsumption, instead of
-    // the retriable error ObjectNotFound.
-    let test_cluster = TestClusterBuilder::new().build().await;
+/// Spends the gas object of a transaction, moves to the next epoch, and returns
+/// a transaction that names the gas object at its old version, with the
+/// object's reference at that version and its current version.
+async fn transaction_with_old_gas_version(
+    test_cluster: &TestCluster,
+) -> (TransactionEnvelope, ObjectReference, Version) {
     let tx_builder = test_cluster.test_transaction_builder().await;
     let sender = tx_builder.sender();
     let gas_object = tx_builder.gas_object();
@@ -1332,6 +1331,13 @@ async fn test_access_old_object_pruned() {
             .transfer_iota(Some(1), sender)
             .build(),
     );
+    (tx, gas_object, new_gas_version)
+}
+
+async fn prune_old_gas_version_on_validators(
+    test_cluster: &TestCluster,
+    gas_object: ObjectReference,
+) {
     for validator in test_cluster.swarm.active_validators() {
         validator
             .get_node_handle()
@@ -1352,6 +1358,26 @@ async fn test_access_old_object_pruned() {
                         .get_object_by_key(&gas_object.object_id, gas_object.version)
                         .is_none()
                 );
+            })
+            .await;
+    }
+}
+
+#[sim_test]
+async fn test_access_old_object_pruned() {
+    // This test checks that when we ask a validator to handle a transaction that
+    // uses an old object that's already been pruned, it's able to return an
+    // non-retriable error ObjectVersionUnavailableForConsumption, instead of
+    // the retriable error ObjectNotFound.
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let (tx, gas_object, new_gas_version) = transaction_with_old_gas_version(&test_cluster).await;
+    prune_old_gas_version_on_validators(&test_cluster, gas_object).await;
+    for validator in test_cluster.swarm.active_validators() {
+        validator
+            .get_node_handle()
+            .unwrap()
+            .with_async(|node| async {
+                let state = node.state();
                 let epoch_store = state.epoch_store_for_testing();
                 assert_eq!(
                     state
@@ -1382,6 +1408,66 @@ async fn test_access_old_object_pruned() {
             }
             .to_string()
         )
+    )
+}
+
+/// With the P-COOL flow, which is the default, a client sends a transaction to
+/// a validator with `submit_tx`. The validator rejects it with the same
+/// non-retriable error.
+#[sim_test]
+async fn test_access_old_object_pruned_submit_tx() {
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_types::messages_grpc::TxStatusUpdate;
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    for handle in test_cluster.all_validator_handles() {
+        handle.with(|node| {
+            assert!(
+                node.state()
+                    .epoch_store_for_testing()
+                    .protocol_config()
+                    .enable_pcool_flow()
+            );
+        });
+    }
+    let (tx, gas_object, new_gas_version) = transaction_with_old_gas_version(&test_cluster).await;
+    prune_old_gas_version_on_validators(&test_cluster, gas_object).await;
+
+    let client_ip = std::net::SocketAddr::new([127, 0, 0, 1].into(), 0);
+    let digest = *tx.digest();
+    let expected = UserInputError::ObjectVersionUnavailableForConsumption {
+        provided_obj_ref: gas_object,
+        current_version: new_gas_version,
+    };
+    let aggregator = test_cluster.authority_aggregator();
+    assert!(!aggregator.authority_clients.is_empty());
+    for client in aggregator.authority_clients.values() {
+        let results = client
+            .authority_client()
+            .submit_tx(vec![tx.clone()], Some(client_ip))
+            .await
+            .unwrap();
+        match results.as_slice() {
+            [(rejected_digest, TxStatusUpdate::Rejected { error })] => {
+                assert_eq!(*rejected_digest, digest);
+                assert_eq!(
+                    *error,
+                    IotaError::UserInput {
+                        error: expected.clone()
+                    }
+                );
+            }
+            other => panic!("expected one rejection, got {other:?}"),
+        }
+    }
+
+    // Check that fullnode would return the same error.
+    let result = test_cluster.wallet.execute_transaction_may_fail(tx).await;
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(&expected.to_string())
     )
 }
 

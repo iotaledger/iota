@@ -1361,6 +1361,10 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_bad_signature() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
