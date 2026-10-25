@@ -40,7 +40,6 @@ use iota_types::{
     storage::{
         DynamicFieldKey, PackageVersionInfo, PackageVersionKey,
         error::{Error as StorageError, Kind as StorageErrorKind},
-        get_transaction_input_objects, get_transaction_output_objects,
     },
     transaction::TransactionEnvelope,
 };
@@ -73,7 +72,10 @@ use self::{
     },
 };
 use crate::{
-    authority::AuthorityStore,
+    authority::{
+        AuthorityStore,
+        historic_objects::{get_transaction_input_objects, get_transaction_output_objects},
+    },
     checkpoints::CheckpointStore,
     epoch_buckets::{self, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
@@ -1646,12 +1648,24 @@ fn load_executed_checkpoint(
         .ok_or_else(|| {
             StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
         })?;
+    let historic_objects = authority_store.get_historic_objects();
+    let storage = |e: IotaError| StorageError::custom(e.to_string());
     let transactions = load_checkpoint_transactions(authority_store, &contents)?
         .into_iter()
         .map(|(transaction, effects, events)| {
             Ok(CheckpointTransaction {
-                input_objects: get_transaction_input_objects(authority_store, &effects)?,
-                output_objects: get_transaction_output_objects(authority_store, &effects)?,
+                input_objects: get_transaction_input_objects(
+                    authority_store,
+                    historic_objects,
+                    &effects,
+                )
+                .map_err(storage)?,
+                output_objects: get_transaction_output_objects(
+                    authority_store,
+                    historic_objects,
+                    &effects,
+                )
+                .map_err(storage)?,
                 transaction,
                 effects,
                 events,
