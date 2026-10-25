@@ -3446,6 +3446,127 @@ mod tests {
         );
     }
 
+    /// With a quorum load shedding percentage strictly between 0 and 100,
+    /// every validator drops the same user transactions of a commit, and a
+    /// submitter waiting on a dropped transaction is told to retry later.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_partial_load_shedding_drops_the_same_transactions_on_every_validator() {
+        const NUM_TRANSACTIONS: usize = 32;
+        const SHEDDING_PERCENTAGE: u8 = 50;
+        const ROUND: u32 = 100;
+
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<_> = (0..2 * NUM_TRANSACTIONS)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .with_objects(objects)
+                .build();
+
+        let mut validators = Vec::new();
+        for index in 0..2 {
+            let state = TestAuthorityBuilder::new()
+                .with_network_config(&network_config, index)
+                .build()
+                .await;
+            let epoch_store = state.epoch_store_for_testing().clone();
+            let handler = ConsensusHandler::new(
+                epoch_store.clone(),
+                state.clone(),
+                Arc::new(CheckpointServiceNoop {}),
+                state.execution_scheduler().clone(),
+                state.get_object_cache_reader().clone(),
+                Arc::new(ArcSwap::default()),
+                get_consensus_committee(epoch_store.epoch_start_state()),
+                state.metrics.clone(),
+                BackpressureManager::new_for_tests().subscribe(),
+            );
+            validators.push((state, epoch_store, handler));
+        }
+
+        let (state, epoch_store, _) = &validators[0];
+        let committee = epoch_store.committee().clone();
+        let transactions: Vec<_> = ids
+            .chunks(2)
+            .map(|pair| {
+                transfer_in_current_epoch(state, epoch_store, sender, &key, pair[0], pair[1])
+            })
+            .collect();
+        let mut entries: Vec<_> = (0..committee.num_members() as u32)
+            .map(|author| {
+                let authority = *committee.authority_by_index(author).unwrap();
+                (
+                    author as u8,
+                    ConsensusTransaction::new_overload_notification_v1(
+                        authority,
+                        SHEDDING_PERCENTAGE,
+                    ),
+                )
+            })
+            .collect();
+        entries.extend(
+            transactions
+                .iter()
+                .map(|tx| (0, ConsensusTransaction::new_user_transaction(tx.clone()))),
+        );
+        let commit = commit_with_transactions(1, ROUND, entries);
+
+        let expected_dropped: std::collections::BTreeSet<_> = transactions
+            .iter()
+            .map(|tx| *tx.digest())
+            .filter(|digest| {
+                crate::overload_monitor::should_reject_tx(
+                    SHEDDING_PERCENTAGE.into(),
+                    *digest,
+                    ROUND.into(),
+                )
+            })
+            .collect();
+        assert!(
+            !expected_dropped.is_empty() && expected_dropped.len() < NUM_TRANSACTIONS,
+            "the test needs some but not all transactions to be dropped, got {} of \
+             {NUM_TRANSACTIONS}",
+            expected_dropped.len()
+        );
+
+        for (state, epoch_store, handler) in &mut validators {
+            handler
+                .handle_consensus_output_for_test(commit.clone())
+                .await;
+            assert_eq!(
+                epoch_store.get_quorum_load_shedding_percentage().unwrap(),
+                SHEDDING_PERCENTAGE
+            );
+            let dropped: std::collections::BTreeSet<_> = transactions
+                .iter()
+                .map(|tx| *tx.digest())
+                .filter(|digest| {
+                    !epoch_store
+                        .is_consensus_message_processed(&user_transaction_key(*digest))
+                        .unwrap()
+                })
+                .collect();
+            assert_eq!(dropped, expected_dropped);
+            assert_eq!(
+                state
+                    .metrics
+                    .consensus_handler_load_shedding_dropped_transactions
+                    .get(),
+                expected_dropped.len() as u64
+            );
+            for digest in &dropped {
+                let error = epoch_store.notify_read_dropped_digests(*digest).await;
+                assert!(
+                    matches!(error, IotaError::ValidatorOverloadedRetryAfter { .. }),
+                    "expected ValidatorOverloadedRetryAfter for {digest}, got {error:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn test_order_by_gas_price() {
         let chain = Chain::Unknown;
