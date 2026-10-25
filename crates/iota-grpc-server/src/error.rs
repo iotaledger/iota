@@ -429,4 +429,200 @@ mod tests {
         let via_chain = RpcError::from(chained);
         assert_eq!(via_chain.into_status_proto().code, expected);
     }
+
+    fn quorum_driver_status(
+        error: iota_types::quorum_driver_types::QuorumDriverError,
+    ) -> iota_grpc_types::google::rpc::Status {
+        RpcError::from(error).into_status_proto()
+    }
+
+    fn error_info_reason(status: &iota_grpc_types::google::rpc::Status) -> String {
+        assert_eq!(status.details.len(), 1);
+        status.details[0]
+            .to_msg::<ErrorInfo>()
+            .expect("detail should be an ErrorInfo")
+            .reason
+    }
+
+    #[test]
+    fn quorum_driver_errors_without_details() {
+        use iota_types::{
+            error::{IotaError, UserInputError},
+            quorum_driver_types::QuorumDriverError::*,
+        };
+
+        let cases = [
+            (
+                InvalidUserSignature(IotaError::UserInput {
+                    error: UserInputError::EmptyCommandInput,
+                }),
+                Code::InvalidArgument,
+                format!(
+                    "Invalid user signature: {}",
+                    UserInputError::EmptyCommandInput
+                ),
+            ),
+            (
+                QuorumDriverInternal(IotaError::Unknown("boom".to_string())),
+                Code::Internal,
+                IotaError::Unknown("boom".to_string()).to_string(),
+            ),
+            (
+                TimeoutBeforeFinality,
+                Code::Unavailable,
+                "timed-out before finality could be reached".to_string(),
+            ),
+            (
+                FailedWithTransientErrorAfterMaximumAttempts { total_attempts: 3 },
+                Code::Unavailable,
+                "timed-out before finality could be reached".to_string(),
+            ),
+            (
+                SystemOverload {
+                    overloaded_stake: 1,
+                    errors: vec![],
+                },
+                Code::Unavailable,
+                "system is overloaded".to_string(),
+            ),
+            (
+                TxAlreadyFinalizedWithDifferentUserSignatures,
+                Code::Aborted,
+                "The transaction is already finalized but with different user signatures"
+                    .to_string(),
+            ),
+        ];
+
+        for (error, code, message) in cases {
+            let status = quorum_driver_status(error.clone());
+            assert_eq!(status.code, i32::from(code), "{error:?}");
+            assert_eq!(status.message, message, "{error:?}");
+            assert!(status.details.is_empty(), "{error:?}");
+        }
+    }
+
+    #[test]
+    fn invalid_and_rejected_transactions_carry_the_reason() {
+        use iota_types::{
+            error::{IotaError, UserInputError},
+            quorum_driver_types::QuorumDriverError::*,
+        };
+
+        let user_input = IotaError::UserInput {
+            error: UserInputError::EmptyCommandInput,
+        };
+        let expected_message =
+            format!("Invalid transaction: {}", UserInputError::EmptyCommandInput);
+
+        let status = quorum_driver_status(InvalidTransaction(user_input.clone()));
+        assert_eq!(status.code, i32::from(Code::InvalidArgument));
+        assert_eq!(status.message, expected_message);
+        assert_eq!(error_info_reason(&status), "INVALID_TRANSACTION");
+
+        let status = quorum_driver_status(RejectedByValidators(user_input));
+        assert_eq!(status.code, i32::from(Code::InvalidArgument));
+        assert_eq!(status.message, expected_message);
+        assert_eq!(error_info_reason(&status), "REJECTED_BY_VALIDATORS");
+
+        let other = IotaError::Unknown("rejected during submission".to_string());
+        let status = quorum_driver_status(RejectedByValidators(other.clone()));
+        assert_eq!(status.message, format!("Invalid transaction: {other}"));
+    }
+
+    #[test]
+    fn objects_double_used_is_aborted() {
+        use iota_sdk_types::{ObjectDigest, Version};
+        use iota_types::{
+            base_types::AuthorityName, crypto::AuthorityPublicKeyBytes,
+            quorum_driver_types::QuorumDriverError::ObjectsDoubleUsed,
+        };
+
+        let conflicting_txes = std::collections::BTreeMap::from([(
+            TransactionDigest::from([1; 32]),
+            (
+                vec![(
+                    AuthorityName::from(AuthorityPublicKeyBytes::default()),
+                    iota_sdk_types::ObjectReference::new(
+                        ObjectId::ZERO,
+                        Version::from_u64(7),
+                        ObjectDigest::new([0; 32]),
+                    ),
+                )],
+                8000,
+            ),
+        )]);
+
+        let status = quorum_driver_status(ObjectsDoubleUsed { conflicting_txes });
+        assert_eq!(status.code, i32::from(Code::Aborted));
+        assert!(
+            status
+                .message
+                .starts_with("Failed to sign transaction by a quorum of validators because of locked objects. Conflicting Transactions:"),
+            "{}",
+            status.message
+        );
+        assert!(status.details.is_empty());
+    }
+
+    #[test]
+    fn overload_retry_after_carries_the_delay() {
+        use iota_types::quorum_driver_types::QuorumDriverError::SystemOverloadRetryAfter;
+
+        let status = quorum_driver_status(SystemOverloadRetryAfter {
+            overload_stake: 1,
+            errors: vec![],
+            retry_after_secs: 42,
+        });
+        assert_eq!(status.code, i32::from(Code::Unavailable));
+        assert_eq!(status.message, "system is overloaded");
+        assert_eq!(status.details.len(), 1);
+        let retry_info = status.details[0]
+            .to_msg::<RetryInfo>()
+            .expect("detail should be a RetryInfo");
+        assert_eq!(retry_info.retry_delay.unwrap().seconds, 42);
+    }
+
+    #[test]
+    fn non_recoverable_transaction_error_lists_non_retryable_errors() {
+        use iota_types::{
+            error::{IotaError, UserInputError},
+            quorum_driver_types::{NON_RECOVERABLE_ERROR_MSG, QuorumDriverError::*},
+        };
+
+        let gas_error = UserInputError::GasBalanceTooLow {
+            gas_balance: 10,
+            needed_gas_amount: 100,
+        };
+        let retryable = IotaError::Rpc("Hello".to_string(), "Testing".to_string());
+
+        let status = quorum_driver_status(NonRecoverableTransactionError {
+            errors: vec![
+                (
+                    IotaError::UserInput {
+                        error: gas_error.clone(),
+                    },
+                    0,
+                    vec![],
+                ),
+                (retryable.clone(), 0, vec![]),
+            ],
+        });
+        assert_eq!(status.code, i32::from(Code::InvalidArgument));
+        assert_eq!(
+            status.message,
+            format!(
+                "Transaction execution failed due to issues with transaction inputs, \
+                 please review the errors and try again: {gas_error}."
+            )
+        );
+
+        let status = quorum_driver_status(NonRecoverableTransactionError {
+            errors: vec![(retryable.clone(), 0, vec![])],
+        });
+        assert_eq!(status.code, i32::from(Code::Unavailable));
+        assert_eq!(
+            status.message,
+            format!("{NON_RECOVERABLE_ERROR_MSG}: {retryable}.")
+        );
+    }
 }
