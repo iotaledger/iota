@@ -86,12 +86,6 @@ ignore = [
   # secp256r1 secret keys are only used client-side. Remove once fastcrypto
   # moves to elliptic-curve 0.14.
   "RUSTSEC-2026-0387",
-  # tokio `AsyncFd::new` accepts file descriptors it does not own. Fixed in
-  # 1.53.3, but simtests patch tokio with iota-sim's `tokio-1.53.1` branch,
-  # which no longer applies once the lock moves past 1.53.1. Nothing here calls
-  # the `AsyncFd` constructors; `inotify` does, on a file descriptor it owns.
-  # Remove once iota-sim has a branch for a fixed tokio.
-  "RUSTSEC-2026-0386",
   # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
   # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
   # all three once that switches to `imbl`.

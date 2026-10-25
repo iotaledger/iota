@@ -303,7 +303,7 @@ jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-cl
 lru = "0.12"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
-msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.53.1", package = "msim" }
+msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.53.3", package = "msim" }
 multiaddr = "0.18.2"
 nonempty = "0.9.0"
 num_cpus = "1.15.0"
@@ -363,7 +363,7 @@ test-fuzz = "3.0.4"
 thiserror = "1.0.40"
 # tokio is defined at a specific version to support patching with iota-sim
 # Do not upgrade without updating https://github.com/iotaledger/iota-sim first
-tokio = { version = "1.53.1", features = ["parking_lot"] }
+tokio = { version = "1.53.3", features = ["parking_lot"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12", "ring"] }
 tokio-stream = { version = "0.1.18", features = ["sync", "net"] }
 tokio-util = "0.7.18"
