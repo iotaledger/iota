@@ -1494,6 +1494,30 @@ async fn test_handle_shared_object_with_max_sequence_number() {
     );
 }
 
+/// Sequences enough empty commits that every transaction executed so far is
+/// at or below the horizon of the next commit. Validation at a commit does
+/// not see what was executed above its horizon.
+pub async fn sequence_past_executed_transactions(authority: &Arc<AuthorityState>) {
+    let epoch_store = authority.epoch_store_for_testing();
+    let horizon_distance = epoch_store
+        .protocol_config()
+        .pcool_deterministic_validation_horizon_distance();
+    for _ in 0..horizon_distance {
+        let (schedulables, _) = epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![],
+                &Arc::new(CheckpointServiceNoop {}),
+                authority.get_object_cache_reader().as_ref(),
+                &authority.metrics,
+                true,
+                authority,
+            )
+            .await
+            .unwrap();
+        assert!(schedulables.is_empty());
+    }
+}
+
 #[tokio::test]
 async fn test_handle_transfer_transaction_unknown_sender() {
     let sender = dbg_addr(1);
@@ -4925,7 +4949,58 @@ async fn make_test_transaction(
     gas_price: Option<u64>,
     gas_budget: Option<u64>,
 ) -> VerifiedCertificate {
-    // Make a sample transaction.
+    let transaction = make_signed_test_transaction(
+        sender,
+        sender_key,
+        owned_objects,
+        shared_objects,
+        gas_object_ref,
+        authorities,
+        arg_value,
+        gas_price,
+        gas_budget,
+    );
+
+    let committee = authorities[0].clone_committee_for_testing();
+    let mut sigs = vec![];
+
+    for authority in authorities {
+        use iota_types::transaction::CertifiedTransaction;
+
+        let epoch_store = authority.load_epoch_store_one_call_per_task();
+        let transaction = transaction.clone();
+        let transaction = epoch_store.verify_transaction(transaction).unwrap();
+        let response = authority
+            .handle_transaction(&epoch_store, transaction.clone())
+            .await
+            .unwrap();
+        let vote = response.status.into_signed_for_testing();
+        sigs.push(vote.clone());
+        if let Ok(cert) =
+            CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
+        {
+            return cert
+                .try_into_verified_for_testing(&committee, &Default::default())
+                .unwrap();
+        }
+    }
+
+    unreachable!("couldn't form cert")
+}
+
+/// Signs the `object_basics::set_value` call that `make_test_transaction`
+/// certifies.
+fn make_signed_test_transaction(
+    sender: &Address,
+    sender_key: &AccountPrivateKey,
+    owned_objects: &[Object],
+    shared_objects: &[(ObjectId, Version, bool)],
+    gas_object_ref: &ObjectReference,
+    authorities: &[&AuthorityState],
+    arg_value: u64,
+    gas_price: Option<u64>,
+    gas_budget: Option<u64>,
+) -> TransactionEnvelope {
     let module = "object_basics";
     let function = "set_value";
 
@@ -4964,33 +5039,51 @@ async fn make_test_transaction(
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(tx, sender_key);
+    to_sender_signed_transaction(tx, sender_key)
+}
 
-    let committee = authorities[0].clone_committee_for_testing();
-    let mut sigs = vec![];
-
-    for authority in authorities {
-        use iota_types::transaction::CertifiedTransaction;
-
-        let epoch_store = authority.load_epoch_store_one_call_per_task();
-        let transaction = transaction.clone();
-        let transaction = epoch_store.verify_transaction(transaction).unwrap();
-        let response = authority
-            .handle_transaction(&epoch_store, transaction.clone())
-            .await
-            .unwrap();
-        let vote = response.status.into_signed_for_testing();
-        sigs.push(vote.clone());
-        if let Ok(cert) =
-            CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
-        {
-            return cert
-                .try_into_verified_for_testing(&committee, &Default::default())
-                .unwrap();
-        }
+/// `make_test_transaction` for the certificate flow, or the same transaction
+/// left as a `UserTransactionV1` when `pcool` is set.
+async fn make_test_transaction_for_flow(
+    pcool: bool,
+    sender: &Address,
+    sender_key: &AccountPrivateKey,
+    owned_objects: &[Object],
+    shared_objects: &[(ObjectId, Version, bool)],
+    gas_object_ref: &ObjectReference,
+    authorities: &[&AuthorityState],
+    arg_value: u64,
+    gas_price: Option<u64>,
+    gas_budget: Option<u64>,
+) -> TestTransaction {
+    if pcool {
+        TestTransaction::UserTransaction(make_signed_test_transaction(
+            sender,
+            sender_key,
+            owned_objects,
+            shared_objects,
+            gas_object_ref,
+            authorities,
+            arg_value,
+            gas_price,
+            gas_budget,
+        ))
+    } else {
+        TestTransaction::Certificate(
+            make_test_transaction(
+                sender,
+                sender_key,
+                owned_objects,
+                shared_objects,
+                gas_object_ref,
+                authorities,
+                arg_value,
+                gas_price,
+                gas_budget,
+            )
+            .await,
+        )
     }
-
-    unreachable!("couldn't form cert")
 }
 
 async fn prepare_authority_and_shared_object_cert()
@@ -6683,6 +6776,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
 
 async fn test_consensus_handler_per_object_congestion_control(
     mode: PerObjectCongestionControlMode,
+    pcool: bool,
 ) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
@@ -6707,6 +6801,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     // Create the cluster with controlled per object congestion control.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(pcool);
     protocol_config.set_per_object_congestion_control_mode_for_testing(mode);
 
     match mode {
@@ -6746,9 +6841,10 @@ async fn test_consensus_handler_per_object_congestion_control(
     // For transaction operates on the expensive object, we use gas price from 1000
     // to 5000, and for transaction operates on the cheaper object, we use gas
     // price of 1000.
-    let mut certificates: Vec<VerifiedCertificate> = vec![];
+    let mut transactions: Vec<TestTransaction> = vec![];
     for (index, gas_object) in gas_objects_commit_1.iter().enumerate() {
-        let certificate = make_test_transaction(
+        let transaction = make_test_transaction_for_flow(
+            pcool,
             &sender,
             &sender_key,
             &[],
@@ -6776,18 +6872,18 @@ async fn test_consensus_handler_per_object_congestion_control(
             },
         )
         .await;
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
 
     // We shuffle the transactions so that transactions in the list do not have any
     // order in terms of gas price.
-    certificates.shuffle(&mut rand::rng());
+    transactions.shuffle(&mut rand::rng());
 
     // Sends the first batch of transactions. We should expect that 2 transactions
     // operate on the expensive object should go through, and all transactions
     // operate on the cheaper object should go through. We also check that the
     // scheduled transactions on the expensive object have the highest gas price.
-    let scheduled_txns = send_batch_consensus_no_execution(&authority, &certificates, true).await;
+    let scheduled_txns = send_test_transactions_no_execution(&authority, &transactions, true).await;
     assert_eq!(scheduled_txns.0.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.0.iter() {
         let cert = cert.as_tx().unwrap();
@@ -6824,9 +6920,10 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Create second batch of commits. Here, we create another
     // `non_congested_tx_count` transactions that operate on the cheap object.
-    let mut new_certificates: Vec<VerifiedCertificate> = vec![];
+    let mut new_transactions: Vec<TestTransaction> = vec![];
     for gas_object in gas_objects_commit_2.iter() {
-        let certificate = make_test_transaction(
+        let transaction = make_test_transaction_for_flow(
+            pcool,
             &sender,
             &sender_key,
             &[],
@@ -6838,7 +6935,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             Some(10_000_000),
         )
         .await;
-        new_certificates.push(certificate);
+        new_transactions.push(transaction);
     }
 
     // Sends the second batch of transactions. We should expect that another 2
@@ -6846,7 +6943,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     // previous round, should go through, and all the new transactions operate on
     // the cheaper object should go through.
     let scheduled_txns =
-        send_batch_consensus_no_execution(&authority, &new_certificates, true).await;
+        send_test_transactions_no_execution(&authority, &new_transactions, true).await;
     assert_eq!(scheduled_txns.0.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.0.iter() {
         let cert = cert.as_tx().unwrap();
@@ -6882,7 +6979,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Sends the last batch with no new transaction. The last deferred transactions
     // should go through.
-    let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], true).await;
+    let scheduled_txns = send_test_transactions_no_execution(&authority, &[], true).await;
     assert_eq!(scheduled_txns.0.len(), 1);
     assert!(
         authority
@@ -6896,6 +6993,16 @@ async fn test_consensus_handler_per_object_congestion_control(
 async fn test_consensus_handler_per_object_congestion_control_using_budget() {
     test_consensus_handler_per_object_congestion_control(
         PerObjectCongestionControlMode::TotalGasBudget,
+        false,
+    )
+    .await;
+}
+
+#[sim_test]
+async fn test_consensus_handler_per_object_congestion_control_using_budget_pcool() {
+    test_consensus_handler_per_object_congestion_control(
+        PerObjectCongestionControlMode::TotalGasBudget,
+        true,
     )
     .await;
 }
@@ -6904,6 +7011,16 @@ async fn test_consensus_handler_per_object_congestion_control_using_budget() {
 async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
     test_consensus_handler_per_object_congestion_control(
         PerObjectCongestionControlMode::TotalTxCount,
+        false,
+    )
+    .await;
+}
+
+#[sim_test]
+async fn test_consensus_handler_per_object_congestion_control_using_tx_count_pcool() {
+    test_consensus_handler_per_object_congestion_control(
+        PerObjectCongestionControlMode::TotalTxCount,
+        true,
     )
     .await;
 }
@@ -6916,6 +7033,15 @@ async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
 //   4. Consensus commit prologue contains cancelled transaction version assignment.
 #[sim_test]
 async fn test_consensus_handler_congestion_control_transaction_cancellation() {
+    consensus_handler_congestion_control_transaction_cancellation(false).await;
+}
+
+#[sim_test]
+async fn test_consensus_handler_congestion_control_transaction_cancellation_pcool() {
+    consensus_handler_congestion_control_transaction_cancellation(true).await;
+}
+
+async fn consensus_handler_congestion_control_transaction_cancellation(pcool: bool) {
     telemetry_subscribers::init_for_testing();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -6924,7 +7050,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // be cancelled at round 3.
     let shared_objects = create_shared_objects(2);
     let gas_objects = create_gas_objects(3, sender);
-    let gas_objects_cancelled_txn = create_gas_objects(1, sender);
+    let gas_objects_cancelled_txn = create_gas_objects(2, sender);
     let owned_objects_cancelled_txn = vec![
         Object::with_id_owner_version_for_testing(
             ObjectId::random(),
@@ -6942,6 +7068,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // cancellation.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(pcool);
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalGasBudget,
     );
@@ -6959,7 +7086,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     genesis_objects.extend(owned_objects_cancelled_txn.clone());
     authority.insert_genesis_objects(&genesis_objects);
 
-    let mut certificates: Vec<VerifiedCertificate> = vec![];
+    let mut transactions: Vec<TestTransaction> = vec![];
     let gas_price_of_non_cancelled_txs = 2_000;
     let gas_price_of_cancelled_txs = 1_000;
     let suggested_gas_price = gas_price_of_non_cancelled_txs + 1;
@@ -6967,7 +7094,8 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Create 3 transactions that operate on shared_objects[0]. These transactions
     // will go through eventually.
     for gas_object in gas_objects.iter() {
-        let certificate = make_test_transaction(
+        let transaction = make_test_transaction_for_flow(
+            pcool,
             &sender,
             &sender_key,
             &[],
@@ -6979,14 +7107,15 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             Some(100_000_000),
         )
         .await;
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
 
     // Create another transaction that operates on shared_objects[0] and
     // shared_objects[1]. Due to its lower gas price, it'll be deferred for 3
     // rounds and then cancelled. shared_objects[0] will be considered as
     // congested object.
-    let cancelled_txn = make_test_transaction(
+    let cancelled_txn = make_test_transaction_for_flow(
+        pcool,
         &sender,
         &sender_key,
         &owned_objects_cancelled_txn,
@@ -7001,16 +7130,16 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         Some(100_000_000),
     )
     .await;
-    certificates.push(cancelled_txn.clone());
+    transactions.push(cancelled_txn.clone());
 
     // We shuffle the transactions so that transactions in the list do not have any
     // order in terms of gas price.
-    certificates.shuffle(&mut rand::rng());
+    transactions.shuffle(&mut rand::rng());
 
     // Sends all transactions to consensus. Expect first 2 rounds with 1 user
     // transaction per round going through.
     let (scheduled_txns, _) =
-        send_batch_consensus_no_execution(&authority, &certificates, false).await;
+        send_test_transactions_no_execution(&authority, &transactions, false).await;
     assert_eq!(scheduled_txns.len(), 2);
     // Note that consensus handler also generates consensus commit prologue
     // transaction, and it must be the first one.
@@ -7033,7 +7162,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             == gas_price_of_non_cancelled_txs
     );
 
-    let (scheduled_txns, _) = send_batch_consensus_no_execution(&authority, &[], false).await;
+    let (scheduled_txns, _) = send_test_transactions_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 2);
     assert!(matches!(
         scheduled_txns[0]
@@ -7057,7 +7186,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Run consensus round 3. 2 user transactions will come out with 1 transaction
     // being cancelled.
     let (scheduled_txns, assigned_versions) =
-        send_batch_consensus_no_execution(&authority, &[], false).await;
+        send_test_transactions_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 3); // 3 = 2 user transactions + 1 consensus commit prologue transaction.
     assert!(
         authority
@@ -7158,6 +7287,94 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
     }
+
+    // Execute the cancelled transaction: gas is charged, the owned inputs stay as
+    // they are and can be spent by a later transaction.
+    let cancelled_executable = scheduled_txns
+        .iter()
+        .filter_map(|schedulable| schedulable.as_tx())
+        .find(|tx| tx.digest() == cancelled_txn.digest())
+        .expect("the cancelled transaction is scheduled in round 3")
+        .clone();
+    let (effects, _) = authority
+        .try_execute_immediately(
+            &cancelled_executable,
+            ExecutionEnv::new().with_assigned_versions(cancelled_txn_assigned_versions),
+            &authority.epoch_store_for_testing(),
+        )
+        .unwrap();
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                congested_objects: vec![shared_objects[0].id(), shared_objects[1].id()],
+                suggested_gas_price,
+            },
+            command: None
+        }
+    );
+
+    let gas_object_id = gas_objects_cancelled_txn[0].id();
+    assert!(
+        effects
+            .mutated()
+            .iter()
+            .any(|mutated| mutated.reference().object_id == gas_object_id)
+    );
+    assert!(effects.gas_cost_summary().computation_cost > 0);
+    let gas_balance_after = GasCoin::try_from(&authority.get_object(&gas_object_id).unwrap())
+        .unwrap()
+        .value();
+    assert_eq!(
+        gas_balance_after,
+        GAS_VALUE_FOR_TESTING - effects.gas_cost_summary().net_gas_usage() as u64
+    );
+    for owned_object in &owned_objects_cancelled_txn {
+        assert!(
+            effects
+                .mutated()
+                .iter()
+                .all(|mutated| mutated.reference().object_id != owned_object.id())
+        );
+        assert_eq!(
+            authority
+                .get_object(&owned_object.id())
+                .unwrap()
+                .object_ref(),
+            owned_object.object_ref()
+        );
+    }
+
+    let recipient = dbg_addr(2);
+    let spend_owned_object = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient,
+        owned_objects_cancelled_txn[0].object_ref(),
+        gas_objects_cancelled_txn[1].object_ref(),
+        1000 * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        1000,
+    );
+    let spend_effects = if pcool {
+        send_user_transaction_and_execute(&authority, spend_owned_object.into())
+            .await
+            .1
+    } else {
+        send_and_confirm_transaction(&authority, spend_owned_object.into())
+            .await
+            .unwrap()
+            .1
+            .into_data()
+    };
+    assert!(spend_effects.status().is_success());
+    assert_eq!(
+        authority
+            .get_object(&owned_objects_cancelled_txn[0].id())
+            .unwrap()
+            .owner,
+        Owner::Address(recipient)
+    );
 }
 
 // ============================================================================

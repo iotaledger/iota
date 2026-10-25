@@ -9,15 +9,16 @@ use std::sync::Arc;
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, RandomnessRound, Transaction, TransactionEffects,
-    Version, VersionAssignment,
+    Address, ObjectId, ObjectReference, Owner, RandomnessRound, SenderSignedTransaction,
+    Transaction, TransactionDigest, TransactionEffects, Version, VersionAssignment,
 };
 use iota_types::{
+    attestation::AttestedTransaction,
     crypto::{AccountPrivateKey, AuthorityKeyPair},
     effects::SignedTransactionEffects,
     error::{ExecutionError, IotaError},
     executable_transaction::VerifiedExecutableTransaction,
-    messages_consensus::ConsensusTransaction,
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -533,6 +534,175 @@ pub async fn send_batch_consensus_no_execution(
         )
         .await
         .unwrap()
+}
+
+/// A transaction ready to be sequenced by consensus, either as a certificate
+/// or as a `UserTransactionV1`.
+#[derive(Clone)]
+pub enum TestTransaction {
+    Certificate(VerifiedCertificate),
+    UserTransaction(TransactionEnvelope),
+}
+
+impl TestTransaction {
+    /// Signs and certifies `transaction` with `authority`, or keeps it as it
+    /// is for `UserTransactionV1` when `pcool` is set.
+    pub async fn prepare(
+        authority: &AuthorityState,
+        pcool: bool,
+        transaction: TransactionEnvelope,
+    ) -> Self {
+        if pcool {
+            Self::UserTransaction(transaction)
+        } else {
+            Self::Certificate(certify_transaction(authority, transaction).await.unwrap())
+        }
+    }
+
+    pub fn data(&self) -> &SenderSignedTransaction {
+        match self {
+            Self::Certificate(certificate) => certificate.data(),
+            Self::UserTransaction(transaction) => transaction.data(),
+        }
+    }
+
+    pub fn digest(&self) -> &TransactionDigest {
+        match self {
+            Self::Certificate(certificate) => certificate.digest(),
+            Self::UserTransaction(transaction) => transaction.digest(),
+        }
+    }
+
+    pub fn key(&self) -> TransactionKey {
+        TransactionKey::Digest(*self.digest())
+    }
+
+    pub fn gas_price(&self) -> u64 {
+        match self {
+            Self::Certificate(certificate) => certificate.gas_price(),
+            Self::UserTransaction(transaction) => transaction.gas_price(),
+        }
+    }
+}
+
+/// Sequences `transactions` in one commit without executing them. All of them
+/// must be of the same kind.
+///
+/// # Panics
+///
+/// Panics if certificates and `UserTransactionV1` are mixed.
+pub async fn send_test_transactions_no_execution(
+    authority: &AuthorityState,
+    transactions: &[TestTransaction],
+    skip_consensus_commit_prologue_in_test: bool,
+) -> (Vec<Schedulable>, AssignedTxAndVersions) {
+    let certificates: Vec<_> = transactions
+        .iter()
+        .filter_map(|transaction| match transaction {
+            TestTransaction::Certificate(certificate) => Some(certificate.clone()),
+            TestTransaction::UserTransaction(_) => None,
+        })
+        .collect();
+    let user_transactions: Vec<_> = transactions
+        .iter()
+        .filter_map(|transaction| match transaction {
+            TestTransaction::UserTransaction(transaction) => Some(transaction.clone()),
+            TestTransaction::Certificate(_) => None,
+        })
+        .collect();
+    assert!(
+        certificates.is_empty() || user_transactions.is_empty(),
+        "a commit holds either certificates or user transactions here"
+    );
+    if user_transactions.is_empty() {
+        send_batch_consensus_no_execution(
+            authority,
+            &certificates,
+            skip_consensus_commit_prologue_in_test,
+        )
+        .await
+    } else {
+        send_batch_user_transactions_no_execution(
+            authority,
+            &user_transactions,
+            skip_consensus_commit_prologue_in_test,
+        )
+        .await
+    }
+}
+
+/// Wraps `transaction` as a `UserTransactionV1` sequenced by consensus.
+pub fn sequenced_user_transaction(
+    transaction: TransactionEnvelope,
+) -> SequencedConsensusTransaction {
+    SequencedConsensusTransaction::new_test(ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            transaction,
+            None,
+        ))),
+        tracking_id: Default::default(),
+    })
+}
+
+/// Sequences `transactions` as `UserTransactionV1` in one commit, running
+/// post-consensus validation, without executing them.
+pub async fn send_batch_user_transactions_no_execution(
+    authority: &AuthorityState,
+    transactions: &[TransactionEnvelope],
+    skip_consensus_commit_prologue_in_test: bool,
+) -> (Vec<Schedulable>, AssignedTxAndVersions) {
+    authority
+        .epoch_store_for_testing()
+        .process_consensus_transactions_for_tests(
+            transactions
+                .iter()
+                .cloned()
+                .map(sequenced_user_transaction)
+                .collect(),
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            &authority.metrics,
+            skip_consensus_commit_prologue_in_test,
+            authority,
+        )
+        .await
+        .unwrap()
+}
+
+/// Sequences `transaction` as a `UserTransactionV1` in a commit of its own and
+/// executes it with the versions the commit assigned.
+///
+/// # Panics
+///
+/// Panics if post-consensus validation or congestion control does not schedule
+/// the transaction.
+pub async fn send_user_transaction_and_execute(
+    authority: &AuthorityState,
+    transaction: TransactionEnvelope,
+) -> (VerifiedExecutableTransaction, TransactionEffects) {
+    let (scheduled, assigned_versions) =
+        send_batch_user_transactions_no_execution(authority, &[transaction], true).await;
+    let assigned_versions = assigned_versions.into_map();
+    let [scheduled] = <[Schedulable; 1]>::try_from(scheduled).unwrap_or_else(|scheduled| {
+        panic!(
+            "expected one scheduled transaction, got {}",
+            scheduled.len()
+        )
+    });
+    let executable = scheduled
+        .as_tx()
+        .expect("the commit schedules a user transaction here")
+        .clone();
+    let env = ExecutionEnv::new().with_assigned_versions(
+        assigned_versions
+            .get(&executable.key())
+            .cloned()
+            .unwrap_or_default(),
+    );
+    let (effects, _) = authority
+        .try_execute_immediately(&executable, env, &authority.epoch_store_for_testing())
+        .expect("execution of a scheduled transaction should not fail");
+    (executable, effects)
 }
 
 /// Builds the randomness state update for `round`, persists it and records its
