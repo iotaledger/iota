@@ -505,6 +505,78 @@ async fn test_v2_submit_tx_resubmission_suppressed() {
     }
 }
 
+/// P-COOL counterpart of `test_authority_txn_signing_pushback`: with the
+/// consensus queue at its limit, `submit_tx` rejects the transaction without
+/// taking soft locks, also when it is already in flight. The validator's own
+/// execution overload is not checked at admission.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_pushback_when_consensus_queue_is_full() {
+    let (validator_service, tx, expected_digest) = setup_v2_transfer_tx().await;
+    let consensus_adapter = &validator_service.consensus_adapter;
+    let soft_locks = &validator_service.soft_locks;
+    let rejected_during_overload = || {
+        validator_service
+            .metrics
+            .num_rejected_tx_during_overload
+            .with_label_values(&["TooManyTransactionsPendingConsensus"])
+            .get()
+    };
+    let submit = || async {
+        let response = validator_service
+            .submit_tx(make_v2_submit_request(vec![tx.clone()]))
+            .await
+            .expect("submit_tx stream should open successfully");
+        let mut results = collect_v2_stream(response).await;
+        assert_eq!(results.len(), 1);
+        let (digest, update) = results.pop().unwrap();
+        assert_eq!(digest, expected_digest);
+        update
+    };
+    let fill_consensus_queue = || {
+        consensus_adapter.set_num_inflight_transactions_for_testing(
+            consensus_adapter.max_pending_transactions() as u64,
+        )
+    };
+
+    fill_consensus_queue();
+    let update = submit().await;
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::TooManyTransactionsPendingConsensus
+            }
+        ),
+        "Expected TooManyTransactionsPendingConsensus, got {update:?}"
+    );
+    assert_eq!(rejected_during_overload(), 1);
+    assert!(!soft_locks.check_in_flight(&expected_digest));
+    assert_eq!(soft_locks.lock_count(), 0);
+
+    consensus_adapter.set_num_inflight_transactions_for_testing(0);
+    validator_service.state.overload_info.set_overload(100);
+    let update = submit().await;
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "Expected Submitted, got {update:?}"
+    );
+    assert!(soft_locks.check_in_flight(&expected_digest));
+
+    fill_consensus_queue();
+    let update = submit().await;
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::TooManyTransactionsPendingConsensus
+            }
+        ),
+        "Expected TooManyTransactionsPendingConsensus, got {update:?}"
+    );
+    assert_eq!(rejected_during_overload(), 2);
+    assert!(soft_locks.check_in_flight(&expected_digest));
+}
+
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_invalid_signature() {
     telemetry_subscribers::init_for_testing();
