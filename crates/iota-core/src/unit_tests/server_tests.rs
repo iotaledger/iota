@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
+use iota_config::transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder};
 use iota_network::api::{
     GetCheckpointRequest, GetTxStatusRequest, NotifyCapabilitiesRequest, SubmitTxRequest,
     TxStatusQuery, ValidatorPeer, ValidatorV2,
@@ -10,10 +11,12 @@ use iota_network::api::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 // Additional imports for P-COOL tests
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, SplitCoins,
-    Transaction, TransactionDigest, TransactionEffectsDigest,
+    Address, Argument, Command, GasPayment, Identifier, ObjectId, ObjectReference,
+    ProgrammableTransaction, SplitCoins, Transaction, TransactionDigest, TransactionEffectsDigest,
+    TransactionKind,
     crypto::{Intent, IntentMessage, IntentScope, IntentScope::AuthorityCapabilities},
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
 // Additional imports for P-COOL tests
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
@@ -21,15 +24,19 @@ use iota_types::{
         AccountPrivateKey, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
         IotaAuthoritySignature, get_authority_key_pair, get_key_pair,
     },
-    error::IotaError,
+    error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::CheckpointResponse,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{LayoutGenerationOption, TxStatusUpdate},
     object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, VerifiedTransaction},
-    utils::to_sender_signed_transaction,
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        VerifiedTransaction,
+    },
+    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use tokio_stream::StreamExt;
 
@@ -1826,4 +1833,378 @@ async fn test_v2_notify_capabilities_feature_disabled() {
         matches!(err_kind, IotaError::UnsupportedFeature { .. }),
         "Expected UnsupportedFeature error, but got {err_kind:?}",
     );
+}
+
+// ── submit_tx rejections ─────────────────────────────────────────────────────
+
+fn v2_validator_service(authority_state: &Arc<AuthorityState>) -> Arc<ValidatorService> {
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ))
+}
+
+async fn submit_one(
+    validator_service: &Arc<ValidatorService>,
+    tx: TransactionEnvelope,
+) -> TxStatusUpdate {
+    let response = validator_service
+        .submit_tx(make_v2_submit_request(vec![tx]))
+        .await
+        .expect("submit_tx stream should open successfully");
+    let mut results = collect_v2_stream(response).await;
+    assert_eq!(results.len(), 1);
+    results.remove(0).1
+}
+
+/// Submits `tx`, expects the validator to reject it, and returns the error.
+/// A rejected transaction must not leave a soft lock behind.
+async fn submit_expecting_rejection(
+    validator_service: &Arc<ValidatorService>,
+    tx: TransactionEnvelope,
+) -> IotaError {
+    match submit_one(validator_service, tx).await {
+        TxStatusUpdate::Rejected { error } => {
+            assert_eq!(validator_service.soft_locks.lock_count(), 0);
+            error
+        }
+        other => panic!("Expected Rejected, got {other:?}"),
+    }
+}
+
+/// Every transaction the certificate-flow tests expect to be rejected with an
+/// exact error is rejected by `submit_tx` with the same error.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_rejects_invalid_transactions_with_the_exact_error() {
+    telemetry_subscribers::init_for_testing();
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let validator_service = v2_validator_service(&authority_state);
+
+    for case in crate::rejection_cases::rejection_cases(&authority_state) {
+        eprintln!("case: {}", case.name);
+        let error = submit_expecting_rejection(&validator_service, case.tx).await;
+        (case.at_submit)(&error);
+    }
+}
+
+/// A transaction paid for by a sponsor, signed by both, is accepted.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_accepts_a_sponsored_transaction() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (sponsor, sponsor_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+        ])
+        .build()
+        .await;
+    let validator_service = v2_validator_service(&authority_state);
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .transfer_object(
+                dbg_addr(2),
+                authority_state.get_object(&object_id).unwrap().object_ref(),
+            )
+            .unwrap();
+        builder.finish()
+    };
+    let tx = Transaction::new_with_gas_data(
+        TransactionKind::new_programmable(pt),
+        sender,
+        GasPayment {
+            objects: vec![authority_state.get_object(&gas_id).unwrap().object_ref()],
+            owner: sponsor,
+            price: rgp,
+            budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
+        },
+    );
+    let tx = to_sender_signed_transaction_with_multi_signers(tx, vec![&sender_key, &sponsor_key]);
+
+    let status = submit_one(&validator_service, tx).await;
+    assert!(
+        matches!(status, TxStatusUpdate::Submitted),
+        "Expected Submitted, got {status:?}"
+    );
+}
+
+// ── submit_tx and the local deny config ──────────────────────────────────────
+
+/// Builds a validator whose local config is `deny_config`, with `objects` in
+/// its genesis state.
+async fn deny_config_validator(
+    deny_config: TransactionDenyConfig,
+    objects: &[Object],
+) -> (Arc<AuthorityState>, Arc<ValidatorService>) {
+    telemetry_subscribers::init_for_testing();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_transaction_deny_config(deny_config)
+        .with_starting_objects(objects)
+        .build()
+        .await;
+    let validator_service = v2_validator_service(&authority_state);
+    (authority_state, validator_service)
+}
+
+async fn assert_denied_at_submit(
+    validator_service: &Arc<ValidatorService>,
+    tx: TransactionEnvelope,
+) {
+    let error = submit_expecting_rejection(validator_service, tx).await;
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "Expected TransactionDenied, got {error:?}"
+    );
+}
+
+/// A transfer of the gas coin to the sender, paid for by `sponsor` if given.
+fn transfer_iota_tx(
+    authority_state: &AuthorityState,
+    sender: (Address, &AccountPrivateKey),
+    gas: ObjectReference,
+    sponsor: Option<(Address, &AccountPrivateKey)>,
+) -> TransactionEnvelope {
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let tx = Transaction::new_transfer_iota_allow_sponsor(
+        sender.0,
+        sender.0,
+        None,
+        gas,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
+        rgp,
+        sponsor.map_or(sender.0, |(address, _)| address),
+    );
+    match sponsor {
+        Some((_, sponsor_key)) => {
+            to_sender_signed_transaction_with_multi_signers(tx, vec![sender.1, sponsor_key])
+        }
+        None => to_sender_signed_transaction(tx, sender.1),
+    }
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_denied_user_transactions_disabled() {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+    let (state, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .disable_user_transaction()
+            .build(),
+        std::slice::from_ref(&gas),
+    )
+    .await;
+
+    let tx = transfer_iota_tx(&state, (sender, &key), gas.object_ref(), None);
+    assert_denied_at_submit(&service, tx).await;
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_denied_object() {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+    let (state, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .add_denied_object(gas.id())
+            .build(),
+        std::slice::from_ref(&gas),
+    )
+    .await;
+
+    let tx = transfer_iota_tx(&state, (sender, &key), gas.object_ref(), None);
+    assert_denied_at_submit(&service, tx).await;
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_denied_sender_and_sponsor() {
+    let (denied_sender, denied_sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (denied_sponsor, denied_sponsor_key): (_, AccountPrivateKey) = get_key_pair();
+    let (other, other_key): (_, AccountPrivateKey) = get_key_pair();
+    let objects: Vec<_> = [denied_sender, denied_sponsor, other]
+        .into_iter()
+        .map(|owner| Object::with_id_owner_for_testing(ObjectId::random(), owner))
+        .collect();
+    let (state, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .add_denied_address(denied_sender)
+            .add_denied_address(denied_sponsor)
+            .build(),
+        &objects,
+    )
+    .await;
+
+    let tx = transfer_iota_tx(
+        &state,
+        (denied_sender, &denied_sender_key),
+        objects[0].object_ref(),
+        None,
+    );
+    assert_denied_at_submit(&service, tx).await;
+
+    let tx = transfer_iota_tx(
+        &state,
+        (other, &other_key),
+        objects[1].object_ref(),
+        Some((denied_sponsor, &denied_sponsor_key)),
+    );
+    assert_denied_at_submit(&service, tx).await;
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_denied_shared_object_transactions_disabled() {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+    let (state, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .disable_shared_object_transaction()
+            .build(),
+        std::slice::from_ref(&gas),
+    )
+    .await;
+
+    let rgp = state.reference_gas_price_for_testing().unwrap();
+    let tx = Transaction::new_move_call(
+        sender,
+        ObjectId::SYSTEM,
+        Identifier::IOTA_SYSTEM_MODULE,
+        Identifier::from_static("request_add_validator"),
+        vec![],
+        gas.object_ref(),
+        vec![CallArg::IOTA_SYSTEM_MUTABLE],
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
+        rgp,
+    )
+    .unwrap();
+    assert_denied_at_submit(&service, to_sender_signed_transaction(tx, &key)).await;
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_denied_package_publish_disabled() {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+    let (state, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .disable_package_publish()
+            .build(),
+        std::slice::from_ref(&gas),
+    )
+    .await;
+
+    let rgp = state.reference_gas_price_for_testing().unwrap();
+    let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("src/unit_tests/data/object_basics");
+    let tx = TestTransactionBuilder::new(sender, gas.object_ref(), rgp)
+        .publish(path)
+        .build_and_sign(&key);
+    assert_denied_at_submit(&service, tx).await;
+}
+
+/// A call into the `object_basics` package, which is in the genesis state of
+/// the validator, and depends on the framework.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_denied_package_and_its_dependents() {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let modules: Vec<_> = iota_move_build::test_utils::compile_basics_package()
+        .get_modules()
+        .cloned()
+        .collect();
+    let package = Object::new_package_for_testing(
+        &modules,
+        TransactionDigest::GENESIS_MARKER,
+        iota_framework::BuiltInFramework::genesis_move_packages(),
+    )
+    .unwrap();
+    let package_id = package.id();
+    let gas = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+    let objects = [package, gas.clone()];
+
+    let call_package = |state: &AuthorityState| {
+        let rgp = state.reference_gas_price_for_testing().unwrap();
+        let tx = Transaction::new_move_call(
+            sender,
+            package_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("use_clock"),
+            vec![],
+            gas.object_ref(),
+            vec![CallArg::CLOCK_IMMUTABLE],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+            rgp,
+        )
+        .unwrap();
+        to_sender_signed_transaction(tx, &key)
+    };
+
+    for denied in [package_id, ObjectId::FRAMEWORK] {
+        let (state, service) = deny_config_validator(
+            TransactionDenyConfigBuilder::new()
+                .add_denied_package(denied)
+                .build(),
+            &objects,
+        )
+        .await;
+        assert_denied_at_submit(&service, call_package(&state)).await;
+    }
+
+    let (state, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .add_denied_package(ObjectId::random())
+            .build(),
+        &objects,
+    )
+    .await;
+    let status = submit_one(&service, call_package(&state)).await;
+    assert!(
+        matches!(status, TxStatusUpdate::Submitted),
+        "Expected Submitted, got {status:?}"
+    );
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_denied_move_authenticator() {
+    let account = Address::random();
+    let tx = || iota_types::utils::make_move_authenticator_tx(account);
+
+    let (_, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .disable_move_authenticator()
+            .build(),
+        &[],
+    )
+    .await;
+    assert_denied_at_submit(&service, tx()).await;
+
+    let (_, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .add_denied_address(account)
+            .build(),
+        &[],
+    )
+    .await;
+    assert_denied_at_submit(&service, tx()).await;
+
+    let (_, service) = deny_config_validator(
+        TransactionDenyConfigBuilder::new()
+            .add_denied_object(account.into())
+            .build(),
+        &[],
+    )
+    .await;
+    assert_denied_at_submit(&service, tx()).await;
 }
