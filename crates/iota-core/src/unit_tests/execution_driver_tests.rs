@@ -520,6 +520,13 @@ async fn try_sign_on_first_three_authorities(
 async fn test_per_object_overload() {
     telemetry_subscribers::init_for_testing();
 
+    // Load shedding on the execution queue only applies to the pre-consensus
+    // flow, which `handle_transaction` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
+
     // Initialize a network with 1 account and 2000 gas objects.
     let (addr, key): (_, AccountPrivateKey) = get_key_pair();
     const NUM_GAS_OBJECTS_PER_ACCOUNT: usize = 2000;
@@ -649,6 +656,13 @@ async fn test_per_object_overload() {
 #[tokio::test]
 async fn test_txn_age_overload() {
     telemetry_subscribers::init_for_testing();
+
+    // Load shedding on the execution queue only applies to the pre-consensus
+    // flow, which `handle_transaction` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
 
     // Initialize a network with 1 account and 3 gas objects.
     let (addr, key): (_, AccountPrivateKey) = get_key_pair();
