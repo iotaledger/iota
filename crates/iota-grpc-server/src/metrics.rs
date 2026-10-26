@@ -10,6 +10,7 @@ use std::{
     time::Instant,
 };
 
+use iota_http::metrics::ListenerMetrics;
 use iota_metrics::peak::{PeakGauge, PeakGaugeVec};
 use pin_project_lite::pin_project;
 use prometheus_filtered::{
@@ -67,8 +68,9 @@ const RESPONSE_MESSAGE_SIZE_BUCKETS: &[f64] = &[
 /// Metrics for the public-facing gRPC server.
 ///
 /// Tracks in-flight requests, total request counts (by method and gRPC status),
-/// request latency per RPC method, the sizes of response messages and items,
-/// and the max message size that requests ask for.
+/// request latency per RPC method, checkpoint stream subscribers, the sizes of
+/// response messages and items, the max message size that requests ask for, and
+/// the connections of the listener.
 #[derive(Clone)]
 pub struct GrpcServerMetrics {
     inflight_requests: IntGaugeVec,
@@ -79,6 +81,7 @@ pub struct GrpcServerMetrics {
     response_item_bytes_peaks: Vec<PeakGauge>,
     requested_max_message_bytes: Histogram,
     response_message_bytes: HistogramVec,
+    listener: ListenerMetrics,
 }
 
 impl GrpcServerMetrics {
@@ -153,7 +156,13 @@ impl GrpcServerMetrics {
                 MetricLevel::Info
             )
             .expect("the gRPC server metrics register without collision"),
+            listener: ListenerMetrics::new("node_grpc", registry, MetricLevel::Warn),
         }
+    }
+
+    /// The metrics of the connections of the listener of the gRPC API.
+    pub fn listener_metrics(&self) -> ListenerMetrics {
+        self.listener.clone()
     }
 
     /// Gauge tracking the number of active subscribers to the checkpoint
