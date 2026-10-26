@@ -3410,7 +3410,7 @@ fn store_empty_checkpoints(
                 .insert_verified_checkpoint(&checkpoint)
                 .unwrap();
             checkpoint_store
-                .insert_checkpoint_contents(contents.clone())
+                .insert_checkpoint_contents(&checkpoint, contents.clone())
                 .unwrap();
         }
         last = Some(checkpoint);
