@@ -1345,6 +1345,14 @@ mod checked {
             (Visibility::Private | Visibility::Friend, false)
                 if Mode::allow_arbitrary_function_calls() =>
             {
+                // A non-public native trusts its Move callers to check its
+                // arguments.
+                if fdef.is_native() && !Mode::allow_non_public_native_calls() {
+                    return Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::NonEntryFunctionInvoked,
+                        "Cannot call a non-public native function directly",
+                    ));
+                }
                 FunctionKind::NonEntry
             }
             (Visibility::Private | Visibility::Friend, false) => {

@@ -1081,6 +1081,106 @@ async fn test_dev_inspect_on_validator() {
     assert!(result.is_err())
 }
 
+/// A dev inspect may call private and `public(package)` Move functions, but not
+/// such natives: they rely on their Move callers to check the arguments.
+#[tokio::test]
+async fn test_dev_inspect_rejects_non_public_natives() {
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let sender = Address::random();
+
+    let assert_rejected = |pt: ProgrammableTransaction, target: &str| {
+        let result = dev_inspect(
+            &fullnode,
+            sender,
+            TransactionKind::new_programmable(pt),
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{target}: {e}"));
+        assert!(
+            matches!(
+                result.effects.status(),
+                ExecutionStatus::Failure {
+                    error: ExecutionError::NonEntryFunctionInvoked,
+                    ..
+                }
+            ),
+            "{target}: {:?}",
+            result.effects.status()
+        );
+    };
+
+    // An end index past the end of the string.
+    assert_rejected(
+        ProgrammableTransaction {
+            inputs: vec![
+                CallArg::pure(&b"A".to_vec()),
+                CallArg::pure(&0_u64),
+                CallArg::pure(&2_u64),
+            ],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("string"),
+                Identifier::from_static("internal_sub_string"),
+                vec![],
+                vec![Argument::Input(0), Argument::Input(1), Argument::Input(2)],
+            )],
+        },
+        "0x1::string::internal_sub_string",
+    );
+
+    // The visibility check comes before arguments are read, so no arguments are
+    // needed to reach it.
+    let mut natives = 0;
+    for package in BuiltInFramework::iter_system_packages() {
+        for module in package.modules() {
+            for fdef in module.function_defs() {
+                if !fdef.is_native()
+                    || fdef.is_entry
+                    || fdef.visibility == file_format::Visibility::Public
+                {
+                    continue;
+                }
+                let function = module.identifier_at(module.function_handle_at(fdef.function).name);
+                assert_rejected(
+                    ProgrammableTransaction {
+                        inputs: vec![],
+                        commands: vec![Command::new_move_call(
+                            package.id,
+                            Identifier::new(module.self_id().name().as_str()).unwrap(),
+                            Identifier::new(function.as_str()).unwrap(),
+                            vec![],
+                            vec![],
+                        )],
+                    },
+                    &format!("{}::{function}", module.self_id()),
+                );
+                natives += 1;
+            }
+        }
+    }
+    assert!(natives > 0, "the framework should have non-public natives");
+
+    // The rule is limited to natives: a private Move function stays callable.
+    let result = dev_inspect(
+        &fullnode,
+        sender,
+        TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![CallArg::pure(&b'a')],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("ascii"),
+                Identifier::from_static("char_to_uppercase"),
+                vec![],
+                vec![Argument::Input(0)],
+            )],
+        }),
+        None,
+    )
+    .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+}
+
 #[tokio::test]
 async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
@@ -8637,4 +8737,58 @@ async fn simulate_rejects_a_transaction_above_the_size_limit() {
         transaction,
         "serialized transaction size exceeded maximum",
     );
+}
+
+/// A simulation meters the packages a transaction publishes with the node's
+/// own `VerifierSigningConfig` under both `VmChecks` modes. Execution verifies
+/// a published package with neither a limit nor a meter, trusting signing to
+/// have bounded it, so a simulation that skips the signing-time checks has to
+/// bound it itself.
+#[tokio::test]
+async fn simulate_meters_published_packages_with_the_node_signing_limits() {
+    use iota_config::verifier_signing_config::VerifierSigningConfig;
+    use iota_move_build::BuildConfig;
+    use iota_types::crypto::get_authority_key_pair;
+
+    // A one-tick meter fails the first function it meters.
+    let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
+        "max-per-fun-meter-units: 1\n",
+        "max-per-mod-meter-units: 1\n",
+        "max-per-pkg-meter-units: 1\n",
+    ))
+    .unwrap();
+    let fullnode_key_pair = get_authority_key_pair().1;
+    let fullnode = TestAuthorityBuilder::new()
+        .with_keypair(&fullnode_key_pair)
+        .with_verifier_signing_config(node_limits)
+        .build()
+        .await;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("src/unit_tests/data/object_basics");
+    let modules = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_package_bytes(false);
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.publish_immutable(modules, BuiltInFramework::all_package_ids());
+    // Gas is left unset for the simulation to fill in, the way the RPC layer
+    // leaves it.
+    let transaction =
+        Transaction::new_programmable(Address::random(), vec![], builder.finish(), 0, 0);
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject the package under the node's signing limits");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::PackageVerificationTimedout { .. }
+                }
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
 }
