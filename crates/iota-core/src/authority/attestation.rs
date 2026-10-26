@@ -304,7 +304,7 @@ pub(super) fn attestation_record(
                 refuted_units,
                 attestation.computation_units(),
                 executed_units,
-                protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
+                protocol_config.attestor_accuracy_tolerance_percentage_as_option(),
             );
             Some(AttestationRecord::new(attestation, verdict))
         }

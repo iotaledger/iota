@@ -1451,7 +1451,7 @@ pub struct ProtocolConfig {
     /// up to `gas_rounding_step` and capped at the budget on out-of-gas, and
     /// the check only applies when the transaction body ran. Unset disables
     /// it.
-    attestor_reward_accuracy_tolerance_percentage: Option<u64>,
+    attestor_accuracy_tolerance_percentage: Option<u64>,
 
     /// Wasted authentication units at which one refuted attestation takes the
     /// attestor's whole epoch reward, through its entry in the change-epoch
@@ -2724,7 +2724,7 @@ impl ProtocolConfig {
             checkpoint_rate_window_size: None,
 
             checkpoint_summary_version_specific_data: Some(1),
-            attestor_reward_accuracy_tolerance_percentage: None,
+            attestor_accuracy_tolerance_percentage: None,
             attestation_max_fault_units: None,
 
             max_soft_bundle_size: Some(5),
