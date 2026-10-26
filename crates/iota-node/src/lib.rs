@@ -554,6 +554,52 @@ impl IotaNode {
                 .clone()
                 .expect("`NodeConfig::validate` rejects an enabled gRPC API without a config")
         });
+
+        let (mut node, epoch_store) = Self::create_node(
+            config,
+            grpc_api_config.is_some(),
+            registry_service,
+            &server_version,
+            serving_rt_handle,
+        )
+        .await?;
+
+        if is_full_node {
+            node.start_fullnode_services(grpc_api_config, server_version)
+                .await?;
+        }
+
+        if node.state.is_committee_validator(&epoch_store) {
+            node.start_validator_components(&epoch_store).await?;
+        }
+
+        Ok(node.start_background_tasks(epoch_store))
+    }
+
+    /// Creates the node with the parts that every node runs: the database, the
+    /// p2p network and its services, the authority state and the tasks over
+    /// it. The authority state also gets the index store if `config` is a
+    /// fullnode config with index processing on, and the gRPC indexes if
+    /// `serves_grpc_api`. The snapshot uploader starts if `config` sets an
+    /// object store for it. The fields that `start_fullnode_services` and
+    /// `start_validator_components` fill are empty. Returns the node and the
+    /// store of the epoch it starts in.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database is marked as corrupted or its status cannot be
+    /// read or written, if a key file of `config` is invalid, if
+    /// `registry_service` already has a metric that the node registers, if
+    /// `config` has no supported protocol versions (`prepare_config` fills them
+    /// in), if the `epoch_info` row cannot be written, and in the cases that
+    /// the functions it calls document.
+    async fn create_node(
+        config: NodeConfig,
+        serves_grpc_api: bool,
+        registry_service: RegistryService,
+        server_version: &ServerVersion,
+        serving_rt_handle: tokio::runtime::Handle,
+    ) -> Result<(Self, Arc<AuthorityPerEpochStore>)> {
         let prometheus_registry = registry_service.default_registry();
 
         info!(node =? config.authority_public_key(),
@@ -576,7 +622,7 @@ impl IotaNode {
         Self::init_metrics(
             &config,
             &prometheus_registry,
-            &server_version,
+            server_version,
             chain_identifier,
         );
         // Unsupported (because of the use of static variable) and unnecessary in
@@ -627,7 +673,7 @@ impl IotaNode {
             stores.checkpoint_store.clone(),
         );
 
-        let index_store = if is_full_node && config.enable_index_processing {
+        let index_store = if !config.is_validator() && config.enable_index_processing {
             Some(Self::open_index_store(
                 &config,
                 &epoch_store,
@@ -637,7 +683,7 @@ impl IotaNode {
             None
         };
 
-        let grpc_indexes_store = if grpc_api_config.is_some() {
+        let grpc_indexes_store = if serves_grpc_api {
             Some(Self::open_grpc_indexes_store(&config, &stores).await)
         } else {
             None
@@ -724,7 +770,7 @@ impl IotaNode {
         // setup shutdown channel
         let (shutdown_channel, _) = broadcast::channel::<Option<RunWithRange>>(1);
 
-        let mut node = Self {
+        let node = Self {
             config,
             validator_components: Mutex::new(None),
             _http_server: None,
@@ -760,17 +806,14 @@ impl IotaNode {
             serving_rt_handle,
         };
 
-        if is_full_node {
-            node.start_fullnode_services(grpc_api_config, server_version)
-                .await?;
-        }
+        Ok((node, epoch_store))
+    }
 
-        if node.state.is_committee_validator(&epoch_store) {
-            node.start_validator_components(&epoch_store).await?;
-        }
-
+    /// Starts the tasks that run for the life of the node: the reconfiguration
+    /// at each epoch change, and the log of checkpoint progress.
+    fn start_background_tasks(self, epoch_store: Arc<AuthorityPerEpochStore>) -> Arc<Self> {
         info!("IotaNode started!");
-        let node = Arc::new(node);
+        let node = Arc::new(self);
         let node_copy = node.clone();
         spawn_monitored_task!(async move {
             let result = Self::monitor_reconfiguration(node_copy, epoch_store).await;
@@ -782,7 +825,7 @@ impl IotaNode {
         node.checkpoint_progress_tracker
             .spawn_logging_task(node.checkpoint_store.clone(), node.perpetual_tables.clone());
 
-        Ok(node)
+        node
     }
 
     /// Validates `config` and fills in the supported protocol versions if it
