@@ -22,7 +22,7 @@ use crate::{
 
 /// Consensus accepts a validator attestation only from the block author, which
 /// `SequencedConsensusTransaction::new_test` fixes at index 0.
-fn attestor_index() -> u8 {
+fn authority_index() -> u8 {
     0
 }
 
@@ -40,9 +40,9 @@ impl AbstractAccountTestEnv {
                 &self.authority.config.transaction_deny_config,
             )
             .expect("attesting must succeed while authentication passes");
-        Attestation::Validator {
+        Attestation::Authority {
             payload,
-            attestor_index: attestor_index(),
+            authority_index: authority_index(),
         }
     }
 
@@ -52,12 +52,12 @@ impl AbstractAccountTestEnv {
     /// is never preempted by the attested-units cap on the re-run.
     pub fn attest_with_versions(&self, object_versions: Vec<ObjectReference>) -> Attestation {
         let computation_units = self.budget() / self.rgp();
-        Attestation::Validator {
+        Attestation::Authority {
             payload: AttestationData::V1 {
                 computation_units,
                 object_versions,
             },
-            attestor_index: attestor_index(),
+            authority_index: authority_index(),
         }
     }
 
