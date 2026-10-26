@@ -2454,7 +2454,8 @@ impl DagState {
         taken
     }
 
-    /// Index of the last commit.
+    /// Index of the last commit. It can be ahead of the last solid commit while
+    /// commits wait for their transaction data.
     pub(crate) fn last_commit_index(&self) -> CommitIndex {
         match &self.last_commit {
             Some(commit) => commit.index(),

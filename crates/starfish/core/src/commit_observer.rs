@@ -81,8 +81,8 @@ pub(crate) struct CommitObserver {
     dag_state: Arc<RwLock<DagState>>,
 
     leader_schedule: Arc<LeaderSchedule>,
-    /// Tracks the last commit index sent through the channel.
-    /// Used to prevent resending already sent commits.
+    /// Tracks the last commit index sent through the channel. Only solid
+    /// commits are sent. Used to prevent resending already sent commits.
     last_sent_commit_index: CommitIndex,
 }
 
