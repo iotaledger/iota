@@ -61,6 +61,8 @@ async fn a_request_that_traffic_control_refuses_is_counted() {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 120,
         spam_policy_type: PolicyType::TestNConnIP(1),
+        // Error policy off, so the refusal comes from the spam policy.
+        error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
         dry_run: false,
         ..Default::default()
