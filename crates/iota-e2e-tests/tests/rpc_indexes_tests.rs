@@ -543,6 +543,8 @@ async fn lost_index_commits_are_indexed_again_at_start() {
 
     drop(lossy);
     cluster.stop_node(&lossy_name);
+    // The stopped node releases its databases only once its tasks wind down.
+    tokio::time::sleep(Duration::from_secs(5)).await;
     cluster.start_node(&lossy_name).await;
     let lossy = {
         let node = cluster.swarm.node(&lossy_name).unwrap();
