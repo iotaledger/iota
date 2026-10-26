@@ -8,7 +8,6 @@ use std::time::Duration;
 #[cfg(msim)]
 use iota_macros::register_fail_point_async;
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
 #[cfg(msim)]
@@ -118,16 +117,12 @@ async fn test_randomness_using_transaction_reaches_finality_execution_scheduler(
     run_randomness_using_transaction_reaches_finality(true).await;
 }
 
-/// With `enable_pcool_flow`, a validator stopped while the
-/// network completes randomness rounds catches up after restart. Its peers no
-/// longer send signatures for those rounds, so it relies on the signatures in
-/// certified checkpoints.
+/// With the P-COOL flow, a validator stopped while the network completes
+/// randomness rounds catches up after restart. Its peers no longer send
+/// signatures for those rounds, so it relies on the signatures in certified
+/// checkpoints.
 #[sim_test]
 async fn test_validator_catches_up_across_randomness_rounds() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
         .with_epoch_duration_ms(600_000)

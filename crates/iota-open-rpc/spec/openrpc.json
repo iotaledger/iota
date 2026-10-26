@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.35.0-alpha"
+    "version": "1.35.1-beta"
   },
   "methods": [
     {
@@ -4280,7 +4280,8 @@
             "value": "some_system_state"
           }
         }
-      ]
+      ],
+      "deprecated": true
     },
     {
       "name": "iotax_getLatestIotaSystemStateV2",
@@ -4340,7 +4341,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return the list of objects owned by an address. Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.",
+      "description": "Return the list of objects owned by an address. Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.\n\nA full node reads a limited number of objects per page, so a page can hold fewer objects than `limit`, even none, while `hasNextPage` is true: keep fetching pages until `hasNextPage` is false. A full node also refuses filters with more than 10 nested levels or more than 64 filters, counting each object ID of `ObjectIds`.",
       "params": [
         {
           "name": "address",
@@ -5198,7 +5199,8 @@
         "schema": {
           "$ref": "#/components/schemas/Event"
         }
-      }
+      },
+      "deprecated": true
     },
     {
       "name": "iotax_subscribeTransaction",
@@ -5229,7 +5231,8 @@
         "schema": {
           "$ref": "#/components/schemas/TransactionBlockEffects"
         }
-      }
+      },
+      "deprecated": true
     },
     {
       "name": "unsafe_batchTransaction",

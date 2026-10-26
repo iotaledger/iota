@@ -6,8 +6,8 @@
 //! boundaries, and their interaction with checkpoints, reconfiguration, and
 //! node faults.
 //!
-//! The protocol config override enabling the feature flags is thread-local,
-//! so these tests only work under the simulator, where all nodes share one
+//! The protocol config override setting the chunk limit is thread-local, so
+//! these tests only work under the simulator, where all nodes share one
 //! thread: `cargo simtest -p iota-e2e-tests deny_rule`.
 
 #![cfg(msim)]
@@ -23,11 +23,10 @@ use iota_types::{
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-/// Enables the P-COOL flow, which governs the deny rules, with the chunk
-/// limit. The returned guard must stay alive for the whole test.
+/// Sets the deny-rule chunk limit. The returned guard must stay alive for the
+/// whole test.
 fn governance_overrides(max_entries_per_tx: u64) -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries_per_tx);
         config
     })

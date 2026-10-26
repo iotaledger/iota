@@ -670,7 +670,7 @@ impl DataReader for ReadApi {
 pub trait PagedFn<O, C, F, E>: Sized + Fn(Option<C>) -> F
 where
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
     /// Get all items from the source and collect them into a vector.
@@ -691,7 +691,7 @@ impl<O, C, F, E, Fun> PagedFn<O, C, F, E> for Fun
 where
     Fun: Fn(Option<C>) -> F,
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
 }
@@ -703,7 +703,8 @@ pub struct PagedStream<O, C, F, E, Fun> {
     fut: Pin<Box<F>>,
     next: VecDeque<O>,
     has_next_page: bool,
-    _data: PhantomData<(E, C)>,
+    cursor: Option<C>,
+    _data: PhantomData<E>,
 }
 
 impl<O, C, F, E, Fun> PagedStream<O, C, F, E, Fun>
@@ -717,6 +718,7 @@ where
             fut: Box::pin(fut),
             next: Default::default(),
             has_next_page: true,
+            cursor: None,
             _data: PhantomData,
         }
     }
@@ -725,7 +727,7 @@ where
 impl<O, C, F, E, Fun> futures::Stream for PagedStream<O, C, F, E, Fun>
 where
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
     Fun: Fn(Option<C>) -> F,
 {
@@ -738,19 +740,28 @@ where
         let this = unsafe { self.get_unchecked_mut() };
         if this.next.is_empty() && this.has_next_page {
             match this.fut.as_mut().poll(cx) {
-                Poll::Ready(res) => match res {
-                    Ok(mut page) => {
-                        this.next.extend(page.data);
-                        this.has_next_page = page.has_next_page;
-                        if this.has_next_page {
-                            this.fut.set((this.fun)(page.next_cursor.take()));
+                Poll::Ready(Ok(page)) => {
+                    this.next.extend(page.data);
+                    // Without a new cursor, the next request would repeat an
+                    // earlier one and never reach the end.
+                    this.has_next_page = page.has_next_page
+                        && page.next_cursor.is_some()
+                        && page.next_cursor != this.cursor;
+                    if this.has_next_page {
+                        this.cursor = page.next_cursor;
+                        this.fut.set((this.fun)(this.cursor.clone()));
+                        // A page can be empty and still have a next page. Poll
+                        // for it on the next turn instead of looping here.
+                        if this.next.is_empty() {
+                            cx.waker().wake_by_ref();
+                            return Poll::Pending;
                         }
                     }
-                    Err(e) => {
-                        this.has_next_page = false;
-                        return Poll::Ready(Some(Err(e)));
-                    }
-                },
+                }
+                Poll::Ready(Err(e)) => {
+                    this.has_next_page = false;
+                    return Poll::Ready(Some(Err(e)));
+                }
                 Poll::Pending => return Poll::Pending,
             }
         }
@@ -811,5 +822,59 @@ mod test {
         let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)).await);
 
         assert!(bad_stream.try_next().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn paged_stream_continues_after_empty_pages() {
+        let pages = [vec![1], vec![], vec![], vec![2, 3], vec![]];
+        let get_page = |cursor: Option<usize>| {
+            let index = cursor.unwrap_or_default();
+            let page = Page {
+                data: pages[index].clone(),
+                next_cursor: Some(index + 1),
+                has_next_page: index + 1 < pages.len(),
+                oldest_available_checkpoint: None,
+            };
+            async move { anyhow::Ok(page) }
+        };
+
+        let items = PagedFn::stream(get_page)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(items, [1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn paged_stream_ends_when_the_cursor_does_not_advance() {
+        // Every page claims a next page, but the cursor stays the same.
+        let repeating = |_: Option<usize>| async {
+            anyhow::Ok(Page {
+                data: vec![1],
+                next_cursor: Some(0),
+                has_next_page: true,
+                oldest_available_checkpoint: None,
+            })
+        };
+        let items = PagedFn::stream(repeating)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(items, [1, 1]);
+
+        // A next page without a cursor would restart from the first page.
+        let no_cursor = |_: Option<usize>| async {
+            anyhow::Ok(Page {
+                data: Vec::<i32>::new(),
+                next_cursor: None,
+                has_next_page: true,
+                oldest_available_checkpoint: None,
+            })
+        };
+        let items = PagedFn::stream(no_cursor)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert!(items.is_empty());
     }
 }

@@ -233,11 +233,11 @@ impl UnresolvedAccountSetup {
     }
 }
 
-/// Turns the P-COOL flow on or off for authorities built while the returned
-/// guard lives.
-fn set_pcool_flow(enabled: bool) -> OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-        config.set_enable_pcool_flow_for_testing(enabled);
+/// Turns the P-COOL flow off, as on Mainnet and Testnet, for authorities built
+/// while the returned guard lives.
+fn disable_pcool_flow() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
         config
     })
 }
@@ -246,7 +246,7 @@ fn set_pcool_flow(enabled: bool) -> OverrideGuard {
 /// cannot be resolved fails the transaction, with gas charged to the sponsor.
 #[tokio::test]
 async fn unresolved_authenticator_account_fails_with_effects() {
-    let _guard = set_pcool_flow(false);
+    let _guard = disable_pcool_flow();
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -361,7 +361,7 @@ async fn unresolved_authenticator_account_effects_are_the_same_on_every_validato
 /// execution.
 #[tokio::test]
 async fn unresolved_gas_payer_account_fails_with_effects() {
-    let _guard = set_pcool_flow(false);
+    let _guard = disable_pcool_flow();
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -455,8 +455,7 @@ fn assert_moved_unchanged(before: &Object, after: &Object, version: Version) {
 /// contents unchanged, so the account can use them again. A mutable shared
 /// input moves to the version consensus assigned, with its contents unchanged.
 #[tokio::test]
-async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validation() {
-    let _guard = set_pcool_flow(true);
+async fn unresolved_gas_payer_account_is_not_charged_with_the_pcool_flow() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -520,7 +519,6 @@ async fn unresolved_gas_payer_account_is_not_charged_under_deterministic_validat
 /// recorded as cancelled and the gas coin stays usable at its next version.
 #[tokio::test]
 async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged() {
-    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let mut setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -568,7 +566,6 @@ async fn unauthorized_transaction_with_a_cancelled_shared_input_is_not_charged()
 /// first coin as the gas object.
 #[tokio::test]
 async fn unauthorized_transaction_merges_no_gas_coin() {
-    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let second_gas_id = ObjectId::random();
     let setup = UnresolvedAccountSetup::new_with_second_gas_coin(
@@ -626,7 +623,6 @@ async fn unauthorized_transaction_merges_no_gas_coin() {
 /// unchanged.
 #[tokio::test]
 async fn paying_sponsor_loses_only_its_merged_gas_coin() {
-    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let second_gas_id = ObjectId::random();
@@ -669,7 +665,6 @@ async fn paying_sponsor_loses_only_its_merged_gas_coin() {
 /// nobody.
 #[tokio::test]
 async fn effects_without_a_gas_charge_are_the_same_on_every_validator() {
-    let _guard = set_pcool_flow(true);
     let (account, shared) = (Object::shared_for_testing(), Object::shared_for_testing());
     let (transfer_id, gas_id) = (ObjectId::random(), ObjectId::random());
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
@@ -707,8 +702,7 @@ async fn effects_without_a_gas_charge_are_the_same_on_every_validator() {
 /// authorized paying for it, so it is still charged when the sender's account
 /// cannot be resolved.
 #[tokio::test]
-async fn signing_sponsor_is_charged_under_deterministic_validation() {
-    let _guard = set_pcool_flow(true);
+async fn signing_sponsor_is_charged_with_the_pcool_flow() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -721,15 +715,27 @@ async fn signing_sponsor_is_charged_under_deterministic_validation() {
     )
     .await;
 
-    let (effects, _) = setup.execute().unwrap();
+    let (effects, execution_error) = setup.execute().unwrap();
 
+    let expected = authenticator_function_not_found(setup.account_id);
+    assert_eq!(effects.status(), &expected);
     assert_eq!(
-        effects.status(),
-        &authenticator_function_not_found(setup.account_id)
+        ExecutionStatus::Failure {
+            error: execution_error
+                .expect("execution must report the failure")
+                .kind()
+                .clone(),
+            command: None,
+        },
+        expected
     );
     assert!(
         effects.gas_cost_summary().gas_used() > 0,
         "the sponsor that signed must be charged"
+    );
+    assert!(
+        effects.created().is_empty(),
+        "a failed transaction must not create objects"
     );
     assert_eq!(effects.gas_object().owner(), &Owner::Address(sponsor.0));
 }
@@ -740,7 +746,6 @@ async fn signing_sponsor_is_charged_under_deterministic_validation() {
 /// stay usable.
 #[tokio::test]
 async fn unresolved_sender_accounts_owned_inputs_stay_usable_when_a_sponsor_pays() {
-    let _guard = set_pcool_flow(true);
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sponsor: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -773,8 +778,7 @@ async fn unresolved_sender_accounts_owned_inputs_stay_usable_when_a_sponsor_pays
 /// sender: an account sponsoring a sender that signs is not charged when the
 /// account cannot be resolved.
 #[tokio::test]
-async fn unresolved_sponsoring_account_is_not_charged_under_deterministic_validation() {
-    let _guard = set_pcool_flow(true);
+async fn unresolved_sponsoring_account_is_not_charged_with_the_pcool_flow() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let sender: (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
@@ -1285,7 +1289,6 @@ fn is_authentication_abort(status: &ExecutionStatus, code: u64) -> bool {
 /// is. Both orders charge the same and change the same objects.
 #[tokio::test]
 async fn move_account_sponsor_pays_wherever_its_signature_is() {
-    let _guard = set_pcool_flow(true);
     let inputs = MoveAccountSponsorInputs::random();
     let mut effects = Vec::new();
     for position in [SponsorSignature::First, SponsorSignature::Second] {
@@ -1339,7 +1342,6 @@ async fn move_account_sponsor_pays_wherever_its_signature_is() {
 /// resolved. The resolution failure is reported.
 #[tokio::test]
 async fn move_account_sponsor_pays_when_the_sender_account_cannot_be_resolved() {
-    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Unresolvable,
@@ -1372,7 +1374,6 @@ async fn move_account_sponsor_pays_when_the_sender_account_cannot_be_resolved() 
 /// authenticator fails is not charged, and its failure is reported.
 #[tokio::test]
 async fn failing_move_account_sponsor_is_not_charged() {
-    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Account(TestAuthenticator::Passes),
@@ -1402,7 +1403,6 @@ async fn failing_move_account_sponsor_is_not_charged() {
 /// pays, even when the sender's signature comes first.
 #[tokio::test]
 async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
-    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Account(TestAuthenticator::Fails),
@@ -1426,7 +1426,7 @@ async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
 /// pays.
 #[tokio::test]
 async fn move_account_sponsor_order_is_unchanged_without_the_pcool_flow() {
-    let _guard = set_pcool_flow(false);
+    let _guard = disable_pcool_flow();
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Account(TestAuthenticator::Fails),
@@ -1460,7 +1460,6 @@ async fn move_account_sponsor_order_is_unchanged_without_the_pcool_flow() {
 /// that nobody pays, even when the sender's signature comes first.
 #[tokio::test]
 async fn unresolvable_sponsor_failure_is_reported_when_both_cannot_be_resolved() {
-    let _guard = set_pcool_flow(true);
     let setup = MoveAccountSponsorSetup::new(
         &MoveAccountSponsorInputs::random(),
         TestAccount::Unresolvable,

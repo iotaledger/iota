@@ -412,17 +412,6 @@ impl AuthorityStore {
         self.perpetual_tables.effects.multi_get(effects_digests)
     }
 
-    pub fn get_executed_effects(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEffects>, TypedStoreError> {
-        let effects_digest = self.perpetual_tables.executed_effects.get(tx_digest)?;
-        match effects_digest {
-            Some(digest) => Ok(self.perpetual_tables.effects.get(&digest)?),
-            None => Ok(None),
-        }
-    }
-
     /// Given a list of transaction digests, returns a list of the corresponding
     /// effects only if they have been executed. For transactions that have
     /// not been executed, None is returned.

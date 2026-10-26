@@ -1133,18 +1133,11 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
     }
 }
 
-/// Returns the max-version protocol config with deterministic validation on.
-fn config_with_deterministic_validation() -> ProtocolConfig {
-    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
-    config.set_enable_pcool_flow_for_testing(true);
-    config
-}
-
-/// With deterministic validation, a mutable shared call argument is refused
-/// from the transaction bytes alone. An immutable one passes.
+/// With the P-COOL flow, a mutable shared call argument is refused from the
+/// transaction bytes alone. An immutable one passes.
 #[test]
 fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator() {
-    let config = config_with_deterministic_validation();
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let context = TxValidityCheckContext {
         config: &config,
         epoch: 0,
@@ -1177,12 +1170,12 @@ fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator()
         .unwrap();
 }
 
-/// With deterministic validation, the authenticator state object is refused
-/// from the transaction bytes alone, as a call argument and as the object to
+/// With the P-COOL flow, the authenticator state object is refused from the
+/// transaction bytes alone, as a call argument and as the object to
 /// authenticate.
 #[test]
 fn validity_check_rejects_authenticator_state_in_move_authenticator() {
-    let config = config_with_deterministic_validation();
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let sender = Address::random();
     let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
@@ -1507,8 +1500,7 @@ fn test_transaction_deny_rules_update_transaction() {
 fn test_transaction_deny_rules_kinds_rejected_from_users() {
     let mut flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
     flag_off.set_enable_pcool_flow_for_testing(false);
-    let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
-    flag_on.set_enable_pcool_flow_for_testing(true);
+    let flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
 
     let create =
         TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);

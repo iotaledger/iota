@@ -2531,6 +2531,11 @@ impl AuthorityState {
     /// Anything the transaction does declare is metered as given, so a dry run
     /// still rejects the gas a validator would.
     ///
+    /// Under either `checks`, the packages the transaction publishes are run
+    /// through the bytecode verifier with this node's signing-time limits, so a
+    /// package that signing would reject with
+    /// [`UserInputError::PackageVerificationTimedout`] is rejected here too.
+    ///
     /// Whatever the budget resolves to, the gas coins have to cover it, since
     /// execution reserves the whole budget from them before running any command
     /// and refunds it afterwards. A caller leaving the budget at zero to have
@@ -2693,6 +2698,19 @@ impl AuthorityState {
                 input_objects,
                 receiving_objects,
             )?;
+
+            // Execution verifies the packages a transaction publishes with neither a
+            // limit nor a meter, trusting signing to have bounded them — so with the
+            // signing-time checks skipped here, this has to bound them. The node's
+            // own limits reject nothing that signing would accept. With the checks
+            // enabled, `check_transaction_input` covers it.
+            iota_transaction_checks::check_non_system_packages_to_be_published(
+                &transaction,
+                protocol_config,
+                &self.metrics.bytecode_verifier_metrics,
+                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
+            )?;
+
             let gas_status = IotaGasStatus::new(
                 transaction.gas_budget(),
                 transaction.gas_price(),

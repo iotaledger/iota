@@ -250,7 +250,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
 }
 
 #[test]
-fn replay_target_with_deterministic_validation_is_the_last_validated_commit() {
+fn replay_target_is_the_last_validated_commit() {
     assert_eq!(replay_target(Some(15), 13, None), 15);
 }
 
