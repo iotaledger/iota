@@ -31,6 +31,7 @@ use iota_config::{
     node::{GrpcApiConfig, RunWithRange},
     node_config_metrics::NodeConfigMetrics,
     object_storage_config::ObjectStoreConfig,
+    p2p::P2pConfig,
 };
 use iota_core::{
     authority::{
@@ -1579,103 +1580,12 @@ impl IotaNode {
                 .with_metrics(prometheus_registry)
                 .build();
 
-        let p2p_network = {
-            let routes = anemo::Router::new()
-                .add_rpc_service(discovery_server)
-                .add_rpc_service(state_sync_server);
-            let routes = routes.merge(randomness_router);
-
-            let inbound_network_metrics =
-                NetworkMetrics::new("iota", "inbound", prometheus_registry);
-            let outbound_network_metrics =
-                NetworkMetrics::new("iota", "outbound", prometheus_registry);
-
-            let service = ServiceBuilder::new()
-                .layer(
-                    TraceLayer::new_for_server_errors()
-                        .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::WARN)),
-                )
-                .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
-                    Arc::new(inbound_network_metrics),
-                    config.p2p_config.excessive_message_size(),
-                )))
-                .service(routes);
-
-            let outbound_layer = ServiceBuilder::new()
-                .layer(
-                    TraceLayer::new_for_client_and_server_errors()
-                        .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
-                )
-                .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
-                    Arc::new(outbound_network_metrics),
-                    config.p2p_config.excessive_message_size(),
-                )))
-                .into_inner();
-
-            let mut anemo_config = config.p2p_config.anemo_config.clone().unwrap_or_default();
-            // Inbound requests on this network are small (signatures, queries, summaries).
-            // Cap request frames at 1 MiB.
-            anemo_config.max_request_frame_size = Some(1 << 20);
-            // Responses can be larger (checkpoint contents).
-            // Cap response frames at 128 MiB.
-            anemo_config.max_response_frame_size = Some(128 << 20);
-
-            // Set a higher default value for socket send/receive buffers if not already
-            // configured.
-            let mut quic_config = anemo_config.quic.unwrap_or_default();
-            if quic_config.socket_send_buffer_size.is_none() {
-                quic_config.socket_send_buffer_size = Some(20 << 20);
-            }
-            if quic_config.socket_receive_buffer_size.is_none() {
-                quic_config.socket_receive_buffer_size = Some(20 << 20);
-            }
-            quic_config.allow_failed_socket_buffer_size_setting = true;
-
-            // Set high-performance defaults for quinn transport.
-            // With 200MiB buffer size and ~500ms RTT, max throughput ~400MiB/s.
-            if quic_config.max_concurrent_bidi_streams.is_none() {
-                quic_config.max_concurrent_bidi_streams = Some(500);
-            }
-            if quic_config.max_concurrent_uni_streams.is_none() {
-                quic_config.max_concurrent_uni_streams = Some(500);
-            }
-            if quic_config.stream_receive_window.is_none() {
-                quic_config.stream_receive_window = Some(100 << 20);
-            }
-            if quic_config.receive_window.is_none() {
-                quic_config.receive_window = Some(200 << 20);
-            }
-            if quic_config.send_window.is_none() {
-                quic_config.send_window = Some(200 << 20);
-            }
-            if quic_config.crypto_buffer_size.is_none() {
-                quic_config.crypto_buffer_size = Some(1 << 20);
-            }
-            if quic_config.max_idle_timeout_ms.is_none() {
-                quic_config.max_idle_timeout_ms = Some(10_000);
-            }
-            if quic_config.keep_alive_interval_ms.is_none() {
-                quic_config.keep_alive_interval_ms = Some(5_000);
-            }
-            anemo_config.quic = Some(quic_config);
-
-            let server_name = format!("iota-{chain_identifier}");
-            let network = Network::bind(config.p2p_config.listen_address)
-                .server_name(&server_name)
-                .private_key(config.network_key_pair().copy().private().0.to_bytes())
-                .config(anemo_config)
-                .outbound_request_layer(outbound_layer)
-                .start(service)?;
-            info!(
-                server_name = server_name,
-                "P2p network started on {}",
-                network.local_addr()
-            );
-
-            network
-        };
+        let routes = anemo::Router::new()
+            .add_rpc_service(discovery_server)
+            .add_rpc_service(state_sync_server);
+        let routes = routes.merge(randomness_router);
+        let p2p_network =
+            Self::start_p2p_network(config, routes, chain_identifier, prometheus_registry)?;
 
         let discovery_handle =
             discovery.start(p2p_network.clone(), config.network_key_pair().copy());
@@ -1699,6 +1609,119 @@ impl IotaNode {
             randomness_rx,
             sync_summaries_to_epoch_end,
         })
+    }
+
+    /// Starts the p2p network on the p2p listen address of `config`, serving
+    /// `routes`, with tracing and metrics on its inbound and outbound
+    /// requests.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `prometheus_registry` already has the p2p network metrics, or
+    /// if the network key of `config` cannot be read or is not an Ed25519 key.
+    fn start_p2p_network(
+        config: &NodeConfig,
+        routes: anemo::Router,
+        chain_identifier: ChainIdentifier,
+        prometheus_registry: &Registry,
+    ) -> Result<Network> {
+        let inbound_network_metrics = NetworkMetrics::new("iota", "inbound", prometheus_registry);
+        let outbound_network_metrics = NetworkMetrics::new("iota", "outbound", prometheus_registry);
+
+        let service = ServiceBuilder::new()
+            .layer(
+                TraceLayer::new_for_server_errors()
+                    .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
+                    .on_failure(DefaultOnFailure::new().level(tracing::Level::WARN)),
+            )
+            .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
+                Arc::new(inbound_network_metrics),
+                config.p2p_config.excessive_message_size(),
+            )))
+            .service(routes);
+
+        let outbound_layer = ServiceBuilder::new()
+            .layer(
+                TraceLayer::new_for_client_and_server_errors()
+                    .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
+                    .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
+            )
+            .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
+                Arc::new(outbound_network_metrics),
+                config.p2p_config.excessive_message_size(),
+            )))
+            .into_inner();
+
+        let anemo_config = Self::build_anemo_config(&config.p2p_config);
+
+        let server_name = format!("iota-{chain_identifier}");
+        let network = Network::bind(config.p2p_config.listen_address)
+            .server_name(&server_name)
+            .private_key(config.network_key_pair().copy().private().0.to_bytes())
+            .config(anemo_config)
+            .outbound_request_layer(outbound_layer)
+            .start(service)?;
+        info!(
+            server_name = server_name,
+            "P2p network started on {}",
+            network.local_addr()
+        );
+
+        Ok(network)
+    }
+
+    /// Builds the anemo config of the p2p network from the configured one: it
+    /// sets the request and response frame caps and allows failed socket buffer
+    /// size settings, whatever the config says, and fills in the QUIC values
+    /// that the config leaves out.
+    fn build_anemo_config(p2p_config: &P2pConfig) -> anemo::Config {
+        let mut anemo_config = p2p_config.anemo_config.clone().unwrap_or_default();
+        // Inbound requests on this network are small (signatures, queries, summaries).
+        // Cap request frames at 1 MiB.
+        anemo_config.max_request_frame_size = Some(1 << 20);
+        // Responses can be larger (checkpoint contents).
+        // Cap response frames at 128 MiB.
+        anemo_config.max_response_frame_size = Some(128 << 20);
+
+        // Set a higher default value for socket send/receive buffers if not already
+        // configured.
+        let mut quic_config = anemo_config.quic.unwrap_or_default();
+        if quic_config.socket_send_buffer_size.is_none() {
+            quic_config.socket_send_buffer_size = Some(20 << 20);
+        }
+        if quic_config.socket_receive_buffer_size.is_none() {
+            quic_config.socket_receive_buffer_size = Some(20 << 20);
+        }
+        quic_config.allow_failed_socket_buffer_size_setting = true;
+
+        // Set high-performance defaults for quinn transport.
+        // With 200MiB buffer size and ~500ms RTT, max throughput ~400MiB/s.
+        if quic_config.max_concurrent_bidi_streams.is_none() {
+            quic_config.max_concurrent_bidi_streams = Some(500);
+        }
+        if quic_config.max_concurrent_uni_streams.is_none() {
+            quic_config.max_concurrent_uni_streams = Some(500);
+        }
+        if quic_config.stream_receive_window.is_none() {
+            quic_config.stream_receive_window = Some(100 << 20);
+        }
+        if quic_config.receive_window.is_none() {
+            quic_config.receive_window = Some(200 << 20);
+        }
+        if quic_config.send_window.is_none() {
+            quic_config.send_window = Some(200 << 20);
+        }
+        if quic_config.crypto_buffer_size.is_none() {
+            quic_config.crypto_buffer_size = Some(1 << 20);
+        }
+        if quic_config.max_idle_timeout_ms.is_none() {
+            quic_config.max_idle_timeout_ms = Some(10_000);
+        }
+        if quic_config.keep_alive_interval_ms.is_none() {
+            quic_config.keep_alive_interval_ms = Some(5_000);
+        }
+        anemo_config.quic = Some(quic_config);
+        anemo_config
     }
 
     /// Asynchronously constructs and initializes the components necessary for
