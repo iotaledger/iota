@@ -206,27 +206,20 @@ impl AttestationFault {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttestationTotals {
     /// Committee index to the sum of the squared units of its `Refuted`
-    /// verdicts since the epoch started, each first capped at one max-gas
-    /// authentication run; saturating.
+    /// verdicts since the epoch started; saturating.
     pub refuted_units_squared: BTreeMap<AuthorityIndex, u64>,
 }
 
 impl AttestationTotals {
-    /// These totals plus the `Refuted` records of one more checkpoint, each
-    /// record's units capped at `max_auth_units`, one max-gas authentication
-    /// run.
-    pub fn with_records(
-        mut self,
-        records: &[Option<AttestationRecord>],
-        max_auth_units: u64,
-    ) -> Self {
+    /// These totals plus the `Refuted` records of one more checkpoint.
+    pub fn with_records(mut self, records: &[Option<AttestationRecord>]) -> Self {
         for record in records.iter().flatten() {
             if let AttestationVerdict::Refuted { units } = record.verdict {
                 let sum = self
                     .refuted_units_squared
                     .entry(record.attestor)
                     .or_default();
-                *sum = sum.saturating_add(units.min(max_auth_units).saturating_pow(2));
+                *sum = sum.saturating_add(units.saturating_pow(2));
             }
         }
         self
@@ -341,27 +334,23 @@ mod tests {
     }
 
     #[test]
-    fn totals_sum_the_capped_squared_units_of_refuted_records() {
+    fn totals_sum_the_squared_units_of_refuted_records() {
         let record = |attestor, verdict| Some(AttestationRecord { attestor, verdict });
         let refuted = |units| AttestationVerdict::Refuted { units };
-        let totals = AttestationTotals::default().with_records(
-            &[
-                record(2, refuted(3)),
-                record(1, AttestationVerdict::Valid),
-                record(1, AttestationVerdict::Inaccurate),
-                None,
-                // Capped at the max-gas run of 10 units.
-                record(2, refuted(25)),
-            ],
-            10,
-        );
-        assert_eq!(totals.refuted_units_squared, BTreeMap::from([(2, 9 + 100)]));
+        let totals = AttestationTotals::default().with_records(&[
+            record(2, refuted(3)),
+            record(1, AttestationVerdict::Valid),
+            record(1, AttestationVerdict::Inaccurate),
+            None,
+            record(2, refuted(25)),
+        ]);
+        assert_eq!(totals.refuted_units_squared, BTreeMap::from([(2, 9 + 625)]));
 
         // A later checkpoint adds to the running sums.
-        let totals = totals.with_records(&[record(0, refuted(1)), record(2, refuted(2))], 10);
+        let totals = totals.with_records(&[record(0, refuted(1)), record(2, refuted(2))]);
         assert_eq!(
             totals.refuted_units_squared,
-            BTreeMap::from([(0, 1), (2, 9 + 100 + 4)])
+            BTreeMap::from([(0, 1), (2, 9 + 625 + 4)])
         );
         assert_eq!(
             bcs::to_bytes(&AttestationTotals::default()).unwrap(),

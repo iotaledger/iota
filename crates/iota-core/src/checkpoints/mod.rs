@@ -85,7 +85,7 @@ pub use crate::checkpoints::{
 use crate::{
     authority::{
         AuthorityState,
-        attestation::{apply_fault_penalties, max_auth_units},
+        attestation::apply_fault_penalties,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
     authority_client::{
@@ -1949,10 +1949,10 @@ impl CheckpointBuilder {
                     // Give everyone in the committee the max score
                     vec![MAX_SCORE; self.epoch_store.committee().num_members()]
                 };
-                if let Some(penalty_percentage) = self
+                if let Some(max_fault_units) = self
                     .epoch_store
                     .protocol_config()
-                    .attestation_fault_penalty_percentage_as_option()
+                    .attestation_max_fault_units_as_option()
                 {
                     let committee_members: Vec<_> = self
                         .epoch_store
@@ -1964,13 +1964,9 @@ impl CheckpointBuilder {
                     apply_fault_penalties(
                         &mut scores,
                         &attestation_totals,
-                        max_auth_units(
-                            self.epoch_store.protocol_config(),
-                            self.epoch_store.reference_gas_price(),
-                        ),
+                        max_fault_units,
                         self.epoch_store.committee(),
                         &committee_members,
-                        penalty_percentage,
                     );
                 }
 
@@ -2148,10 +2144,7 @@ impl CheckpointBuilder {
             })
             .and_then(|data| data.attestation_totals().cloned())
             .unwrap_or_default()
-            .with_records(
-                attestations,
-                max_auth_units(protocol_config, self.epoch_store.reference_gas_price()),
-            )
+            .with_records(attestations)
     }
 
     fn get_epoch_total_gas_cost(

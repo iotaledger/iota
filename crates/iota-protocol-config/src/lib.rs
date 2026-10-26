@@ -1453,12 +1453,11 @@ pub struct ProtocolConfig {
     /// it.
     attestor_reward_accuracy_tolerance_percentage: Option<u64>,
 
-    /// Score cut, in percent of the maximum validator score, for a refuted
-    /// attestation that wasted one `max_auth_gas` authentication run, and by
-    /// the square of its fraction of that for a smaller one. Taken from the
-    /// attestor's entry in the change-epoch scores. Unset disables the
-    /// penalty.
-    attestation_fault_penalty_percentage: Option<u64>,
+    /// Wasted authentication units at which one refuted attestation takes the
+    /// attestor's whole epoch reward, through its entry in the change-epoch
+    /// scores; a smaller fault takes the square of its fraction. Unset
+    /// disables the penalty.
+    attestation_max_fault_units: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
@@ -2168,10 +2167,10 @@ impl ProtocolConfig {
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
         }
-        if ret.attestation_fault_penalty_percentage.is_some() {
+        if ret.attestation_max_fault_units.is_some() {
             assert!(
                 ret.enable_validator_attestation(),
-                "attestation_fault_penalty_percentage requires enable_validator_attestation"
+                "attestation_max_fault_units requires enable_validator_attestation"
             );
         }
 
@@ -2726,7 +2725,7 @@ impl ProtocolConfig {
 
             checkpoint_summary_version_specific_data: Some(1),
             attestor_reward_accuracy_tolerance_percentage: None,
-            attestation_fault_penalty_percentage: None,
+            attestation_max_fault_units: None,
 
             max_soft_bundle_size: Some(5),
 
