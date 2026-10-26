@@ -821,7 +821,8 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     // the JSON-RPC API serves.
     let reopened = RpcIndexesStore::new_without_init(tmp_dir.join(RPC_INDEXES_DIR), index_groups);
     let restored_owned_ids: HashSet<ObjectId> = reopened
-        .get_owner_objects(owner, None, 10, None, &restored_perpetual_db)?
+        .get_owner_objects(owner, None, 10, None, usize::MAX, &restored_perpetual_db)?
+        .0
         .into_iter()
         .map(|info| info.object_id)
         .collect();

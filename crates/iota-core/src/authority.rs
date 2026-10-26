@@ -3807,6 +3807,8 @@ impl AuthorityState {
         Ok(layout)
     }
 
+    /// One page of `owner`'s objects; see
+    /// [`RpcIndexesStore::get_owner_objects`].
     #[instrument(level = "trace", skip_all)]
     pub fn get_owner_objects(
         &self,
@@ -3815,13 +3817,15 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<Vec<ObjectInfo>> {
+        max_read: usize,
+    ) -> IotaResult<(Vec<ObjectInfo>, Option<ObjectId>)> {
         let indexes = self.require_jsonrpc_indexes()?;
         indexes.get_owner_objects(
             owner,
             cursor,
             limit,
             filter,
+            max_read,
             self.get_object_store().as_ref(),
         )
     }

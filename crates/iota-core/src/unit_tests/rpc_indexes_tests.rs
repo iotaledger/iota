@@ -9,12 +9,13 @@ use iota_sdk_types::{
     TransactionDigest, TypeTag, Version,
 };
 use iota_types::{
+    base_types::ObjectInfo,
     effects::TransactionEffectsAPI,
-    error::{IotaError, UserInputError},
+    error::{IotaError, IotaResult, UserInputError},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointContentsExt,
     object::{MoveStructExt, Object},
-    storage::{DynamicFieldKey, PackageVersionInfo, PackageVersionKey},
+    storage::{DynamicFieldKey, ObjectStore, PackageVersionInfo, PackageVersionKey},
     test_checkpoint_data_builder::TestCheckpointDataBuilder,
 };
 use prometheus_filtered::Registry;
@@ -1351,6 +1352,115 @@ fn seed_owner_objects_of_two_types(
     }
 }
 
+/// [`RpcIndexesStore::get_owner_objects`] without a bound on the rows read,
+/// for the tests about which objects a page holds and in what order.
+trait OwnerObjectsForTesting {
+    fn owner_objects(
+        &self,
+        owner: Address,
+        cursor: Option<ObjectId>,
+        limit: usize,
+        filter: Option<IotaObjectDataFilter>,
+        object_store: &dyn ObjectStore,
+    ) -> IotaResult<Vec<ObjectInfo>>;
+}
+
+impl OwnerObjectsForTesting for RpcIndexesStore {
+    fn owner_objects(
+        &self,
+        owner: Address,
+        cursor: Option<ObjectId>,
+        limit: usize,
+        filter: Option<IotaObjectDataFilter>,
+        object_store: &dyn ObjectStore,
+    ) -> IotaResult<Vec<ObjectInfo>> {
+        self.get_owner_objects(owner, cursor, limit, filter, usize::MAX, object_store)
+            .map(|(objects, _)| objects)
+    }
+}
+
+/// Seeds ten objects of one type owned by `owner`, and returns their ids in
+/// the owner index's order.
+fn seed_ten_owner_objects(
+    index_store: &RpcIndexesStore,
+    object_store: &mut BTreeMap<ObjectId, Object>,
+    owner: Address,
+) -> Vec<ObjectId> {
+    for _ in 0..10 {
+        let object =
+            typed_object_for_testing("0x42::thing::Thing".parse().unwrap(), Owner::Address(owner));
+        let (key, info) = OwnerIndexKey::for_object(owner, &object).unwrap();
+        index_store.tables.owner.insert(&key, &info).unwrap();
+        object_store.insert(object.id(), object);
+    }
+    index_store
+        .owner_objects(owner, None, 100, None, &*object_store)
+        .unwrap()
+        .into_iter()
+        .map(|info| info.object_id)
+        .collect()
+}
+
+/// A page holds the objects the filter keeps until it is full, and a full
+/// page does not read further to find out whether more objects match, so the
+/// last page can be empty.
+#[tokio::test]
+async fn test_owner_page_fills_from_the_objects_the_filter_keeps() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    let all = seed_ten_owner_objects(&index_store, &mut object_store, owner);
+    let odd: Vec<ObjectId> = all.iter().skip(1).step_by(2).copied().collect();
+    let page = |cursor: Option<ObjectId>, limit, filter: Option<IotaObjectDataFilter>| {
+        let (objects, next) = index_store
+            .get_owner_objects(owner, cursor, limit, filter, 100, &object_store)
+            .unwrap();
+        let ids: Vec<ObjectId> = objects.iter().map(|info| info.object_id).collect();
+        (ids, next)
+    };
+    let odd_filter = || Some(IotaObjectDataFilter::ObjectIds(odd.clone()));
+
+    assert_eq!(
+        page(None, 2, odd_filter()),
+        (odd[..2].to_vec(), Some(odd[1]))
+    );
+    assert_eq!(page(None, 5, odd_filter()), (odd.clone(), None));
+    assert_eq!(page(None, 10, None), (all.clone(), None));
+
+    let first = || Some(IotaObjectDataFilter::ObjectId(all[0]));
+    assert_eq!(page(None, 1, first()), (all[..1].to_vec(), Some(all[0])));
+    assert_eq!(page(Some(all[0]), 1, first()), (vec![], None));
+}
+
+/// A page stops after reading `max_read` rows, matching or not, and then
+/// continues from the last row read, which need not be on the page.
+#[tokio::test]
+async fn test_owner_page_stops_after_reading_the_limit() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    let all = seed_ten_owner_objects(&index_store, &mut object_store, owner);
+    let page = |filter: IotaObjectDataFilter, max_read| {
+        let (objects, next) = index_store
+            .get_owner_objects(owner, None, 5, Some(filter), max_read, &object_store)
+            .unwrap();
+        let ids: Vec<ObjectId> = objects.iter().map(|info| info.object_id).collect();
+        (ids, next)
+    };
+    let never = || IotaObjectDataFilter::ObjectIds(vec![]);
+
+    assert_eq!(page(never(), 4), (vec![], Some(all[3])));
+    assert_eq!(
+        page(IotaObjectDataFilter::ObjectId(all[0]), 4),
+        (all[..1].to_vec(), Some(all[3]))
+    );
+    assert_eq!(
+        page(never(), 10),
+        (vec![], None),
+        "reading exactly the remaining rows ends the listing"
+    );
+}
+
 /// A row whose object has moved on since the version it was written for is
 /// left out of the listing rather than reported under its old owner.
 #[tokio::test]
@@ -1362,7 +1472,7 @@ async fn test_owner_objects_omit_a_row_whose_object_moved_on() {
 
     let page = |store: &BTreeMap<ObjectId, Object>| -> Vec<ObjectId> {
         index_store
-            .get_owner_objects(owner, None, 10, None, store)
+            .owner_objects(owner, None, 10, None, store)
             .unwrap()
             .into_iter()
             .map(|info| info.object_id)
@@ -1404,16 +1514,16 @@ async fn test_owner_pages_follow_the_unified_key_order() {
     seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
 
     let full = index_store
-        .get_owner_objects(owner, None, 4, None, &object_store)
+        .owner_objects(owner, None, 4, None, &object_store)
         .unwrap();
     assert_eq!(full.len(), 4, "all four seeded objects must resolve");
 
     let page_1 = index_store
-        .get_owner_objects(owner, None, 2, None, &object_store)
+        .owner_objects(owner, None, 2, None, &object_store)
         .unwrap();
     let cursor = page_1.last().unwrap().object_id;
     let page_2 = index_store
-        .get_owner_objects(owner, Some(cursor), 2, None, &object_store)
+        .owner_objects(owner, Some(cursor), 2, None, &object_store)
         .unwrap();
 
     assert_eq!(page_1.len(), 2);
@@ -1430,7 +1540,7 @@ async fn test_owner_pages_follow_the_unified_key_order() {
 
     assert_eq!(
         index_store
-            .get_owner_objects(owner, None, 0, None, &object_store)
+            .owner_objects(owner, None, 0, None, &object_store)
             .unwrap(),
         vec![],
         "a zero limit must return no rows, not the first matching one"
@@ -1455,7 +1565,7 @@ async fn test_filtered_owner_pages_match_the_unfiltered_scan() {
     }
 
     let unfiltered = index_store
-        .get_owner_objects(owner, None, 100, None, &object_store)
+        .owner_objects(owner, None, 100, None, &object_store)
         .unwrap();
     assert_eq!(unfiltered.len(), 7, "all seeded objects must resolve");
 
@@ -1489,7 +1599,7 @@ async fn test_filtered_owner_pages_match_the_unfiltered_scan() {
         );
         assert_eq!(
             index_store
-                .get_owner_objects(owner, None, 100, Some(filter.clone()), &object_store)
+                .owner_objects(owner, None, 100, Some(filter.clone()), &object_store)
                 .unwrap(),
             expected,
             "the filter {filter:?} must page like the in-memory filter"
@@ -1499,7 +1609,7 @@ async fn test_filtered_owner_pages_match_the_unfiltered_scan() {
         let mut cursor = None;
         loop {
             let page = index_store
-                .get_owner_objects(owner, cursor, 1, Some(filter.clone()), &object_store)
+                .owner_objects(owner, cursor, 1, Some(filter.clone()), &object_store)
                 .unwrap();
             let Some(last) = page.last() else { break };
             cursor = Some(last.object_id);
@@ -1522,12 +1632,12 @@ async fn test_owner_cursor_of_a_deleted_object_is_refused() {
     seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
 
     let page_1 = index_store
-        .get_owner_objects(owner, None, 2, None, &object_store)
+        .owner_objects(owner, None, 2, None, &object_store)
         .unwrap();
     let cursor = page_1.last().unwrap().object_id;
     object_store.remove(&cursor);
 
-    let result = index_store.get_owner_objects(owner, Some(cursor), 2, None, &object_store);
+    let result = index_store.owner_objects(owner, Some(cursor), 2, None, &object_store);
     assert!(
         matches!(
             result,
@@ -1564,7 +1674,7 @@ async fn test_owner_cursor_of_a_package_is_refused() {
     );
     object_store.insert(package_id, package_object);
 
-    let result = index_store.get_owner_objects(owner, Some(package_id), 2, None, &object_store);
+    let result = index_store.owner_objects(owner, Some(package_id), 2, None, &object_store);
     assert!(
         matches!(
             result,
@@ -2255,7 +2365,7 @@ async fn test_restore_built_store_is_adopted_on_open() {
 
     let object_store = BTreeMap::from([(gas_object.id(), gas_object.clone())]);
     let owned = index_store
-        .get_owner_objects(owner, None, 10, None, &object_store)
+        .owner_objects(owner, None, 10, None, &object_store)
         .unwrap();
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].object_id, gas_object.id());
@@ -3567,7 +3677,7 @@ async fn test_owner_objects_page_excludes_only_the_cursor() {
 
     let page = |cursor: Option<ObjectId>| -> Vec<ObjectId> {
         index_store
-            .get_owner_objects(owner, cursor, 10, None, &object_store)
+            .owner_objects(owner, cursor, 10, None, &object_store)
             .unwrap()
             .into_iter()
             .map(|info| info.object_id)
@@ -3659,7 +3769,7 @@ async fn test_owner_objects_walk_returns_each_object_once() {
 
     let page = |cursor: Option<ObjectId>| -> Vec<ObjectId> {
         index_store
-            .get_owner_objects(owner, cursor, 10, None, &object_store)
+            .owner_objects(owner, cursor, 10, None, &object_store)
             .unwrap()
             .into_iter()
             .map(|info| info.object_id)

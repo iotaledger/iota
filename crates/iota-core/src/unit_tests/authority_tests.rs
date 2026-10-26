@@ -3917,8 +3917,9 @@ async fn test_owner_objects_queryable_through_authority_state() {
         create_and_retrieve_df(&Identifier::from_static("add_field")).await;
 
     let mut owned: Vec<_> = authority_state
-        .get_owner_objects(sender, None, 50, None)
+        .get_owner_objects(sender, None, 50, None, usize::MAX)
         .unwrap()
+        .0
         .iter()
         .map(|info| info.object_id)
         .collect();
@@ -4018,9 +4019,11 @@ async fn test_rpc_index_rebuild_on_open() {
             None,
             10,
             None,
+            usize::MAX,
             authority_state.get_object_store().as_ref(),
         )
-        .unwrap();
+        .unwrap()
+        .0;
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].object_id, gas_object.id());
     let balance = index_store
@@ -4130,9 +4133,11 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
             None,
             10,
             None,
+            usize::MAX,
             authority_state.get_object_store().as_ref(),
         )
-        .unwrap();
+        .unwrap()
+        .0;
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].object_id, gas_object.id());
 }
@@ -4191,9 +4196,11 @@ async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
             None,
             10,
             None,
+            usize::MAX,
             authority_state.get_object_store().as_ref(),
         )
-        .unwrap();
+        .unwrap()
+        .0;
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].object_id, gas_object.id());
 }

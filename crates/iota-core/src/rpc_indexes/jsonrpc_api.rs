@@ -790,9 +790,16 @@ impl RpcIndexesStore {
 
     /// Objects owned by `owner` in the unified key order (grouped by type,
     /// coins balance-descending, id-ascending), resolving the response fields
-    /// the index does not store from the object store. `cursor` is the last
-    /// object of the previous page; its key is rebuilt from the live object,
-    /// so a cursor whose object was deleted in between is refused.
+    /// the index does not store from the object store. `cursor` is the object
+    /// the previous page continued from; its key is rebuilt from the live
+    /// object, so a cursor whose object was deleted in between is refused.
+    ///
+    /// Returns at most `limit` objects `filter` keeps, read from at most
+    /// `max_read` index rows, and the object to continue from when rows are
+    /// left: that of the last row read, which need not be on the page. So a
+    /// page can hold fewer than `limit` objects, or none, and still have a
+    /// next one; a full page does not read further to find out whether more
+    /// objects match, so the last page can be empty.
     ///
     /// A `filter` that pins the object type narrows the scan to that type's
     /// rows, so the page resolves only objects that can match; every other
@@ -803,8 +810,9 @@ impl RpcIndexesStore {
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
+        max_read: usize,
         object_store: &dyn ObjectStore,
-    ) -> IotaResult<Vec<ObjectInfo>> {
+    ) -> IotaResult<(Vec<ObjectInfo>, Option<ObjectId>)> {
         self.require_jsonrpc()?;
         let cursor_key = cursor
             .map(|id| self.owner_key_for_cursor(owner, id, object_store))
@@ -813,11 +821,19 @@ impl RpcIndexesStore {
         // scan itself is skipped.
         let mut results = Vec::new();
         if limit == 0 {
-            return Ok(results);
+            return Ok((results, None));
         }
         let type_filter = owner_scan_filter(filter.as_ref());
-        for item in self.owner_iter(owner, cursor_key.as_ref(), type_filter)? {
+        let mut last_read = None;
+        for (read, item) in self
+            .owner_iter(owner, cursor_key.as_ref(), type_filter)?
+            .enumerate()
+        {
             let (key, info) = item?;
+            if results.len() == limit || read == max_read {
+                return Ok((results, last_read));
+            }
+            last_read = Some(key.object_id);
             if Some(key.object_id) == cursor {
                 // The scan starts after the cursor's rebuilt key, so this
                 // only fires when the index still holds the row at a balance
@@ -838,11 +854,8 @@ impl RpcIndexesStore {
             if filter.as_ref().is_none_or(|f| f.matches(&object_info)) {
                 results.push(object_info);
             }
-            if results.len() >= limit {
-                break;
-            }
         }
-        Ok(results)
+        Ok((results, None))
     }
 
     /// Rebuilds the cursor object's position in the owner index from its live
