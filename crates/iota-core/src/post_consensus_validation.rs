@@ -82,6 +82,7 @@ use tracing::{debug, warn};
 use typed_store::Map;
 
 use crate::{
+    attestation_checks::check_attested_units,
     authority::{
         AuthorityState,
         authority_per_epoch_store::{
@@ -473,29 +474,7 @@ pub async fn validate_and_resolve_conflicts(
                     actual: block_author,
                 })
             } else {
-                let protocol_config = epoch_store.protocol_config();
-                let min_attested_units = protocol_config
-                    .base_tx_cost_fixed()
-                    .min(protocol_config.gas_rounding_step());
-                let attested_units = attestation.computation_units();
-                let txn = transaction.data().transaction();
-                let max_attested_units = txn
-                    .gas_budget()
-                    .checked_div(txn.gas_price())
-                    .unwrap_or(u64::MAX);
-                if attested_units < min_attested_units {
-                    Err(IotaError::AttestationUnitsBelowMinimum {
-                        actual: attested_units,
-                        minimum: min_attested_units,
-                    })
-                } else if attested_units > max_attested_units {
-                    Err(IotaError::AttestationUnitsAboveBudget {
-                        actual: attested_units,
-                        maximum: max_attested_units,
-                    })
-                } else {
-                    Ok(())
-                }
+                check_attested_units(epoch_store.protocol_config(), transaction, attestation)
             };
             if let Err(e) = checked {
                 warn!(

@@ -181,7 +181,7 @@ impl AttestedTransaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base_types::random_object_ref;
+    use crate::{base_types::random_object_ref, utils::create_fake_transaction};
 
     fn make_attestation_data() -> AttestationData {
         AttestationData::V1 {
@@ -270,5 +270,19 @@ mod tests {
             AttestationVerdict::new(true, 3 * STEP, Some(3 * STEP), Some(10)),
             AttestationVerdict::Refuted
         );
+    }
+
+    #[test]
+    fn attested_transaction_bcs_round_trip() {
+        let attested = AttestedTransaction::new(
+            create_fake_transaction(),
+            Some(Attestation::Authority {
+                payload: make_attestation_data(),
+                authority_index: 0,
+            }),
+        );
+        let encoded = bcs::to_bytes(&attested).unwrap();
+        let decoded: AttestedTransaction = bcs::from_bytes(&encoded).unwrap();
+        assert_eq!(decoded, attested);
     }
 }
