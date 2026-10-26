@@ -29,7 +29,6 @@ The script supports the following test steps:
 - `test_extra` - Run extra tests, including stress tests and documentation tests
 - `run_tests` - Fine grained option to run test cases (used by CI, needs additional ENV vars, see below)
 - `run_simtests` - Fine grained option to run simtest cases (used by CI, needs additional ENV vars, see below)
-- `stress_new_tests_check_for_flakiness` - Verify new tests for flakiness
 - `unused_deps` - Check for unused dependencies
 - `audit_deps` - Audit dependencies for security and compliance
 - `audit_deps_external` - Audit external dependencies
