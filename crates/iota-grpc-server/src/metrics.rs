@@ -104,14 +104,16 @@ impl GrpcServerMetrics {
                 "node_grpc_inflight_requests",
                 "Total in-flight node gRPC requests per method",
                 &["method"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_requests: register_int_counter_vec_with_registry!(
                 "node_grpc_requests",
                 "Total node gRPC requests per method and status code",
                 &["method", "status"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             request_latency: register_histogram_vec_with_registry!(
@@ -119,13 +121,15 @@ impl GrpcServerMetrics {
                 "Latency of node gRPC requests per method in seconds",
                 &["method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             inflight_checkpoint_stream_subscribers: register_int_gauge_with_registry!(
                 "node_grpc_inflight_checkpoint_stream_subscribers",
                 "Number of active subscribers to the checkpoint data broadcast",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             response_item_bytes_peaks,
