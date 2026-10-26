@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests of the RPC index store on a running node: history buckets across
-//! epoch boundaries, index pruning, and indexing of transactions reported as
-//! final.
-//!
-//! Restarting a fullnode under the simulator is not covered, since its RocksDB
-//! `LOCK` files are not released; the `rpc_indexes` unit tests cover reopening.
+//! epoch boundaries, index pruning, indexing of transactions reported as
+//! final, and indexing again at start the checkpoints whose index commits
+//! were lost.
 
 use std::{num::NonZeroUsize, time::Duration};
 
@@ -399,5 +397,166 @@ async fn transaction_checkpoint_survives_a_shorter_index_window() {
         transaction.checkpoint,
         Some(checkpoint_seq),
         "gRPC must report the checkpoint of {digest} once its index bucket is gone"
+    );
+}
+
+/// The fullnode's highest executed checkpoint.
+#[cfg(msim)]
+fn highest_executed_checkpoint(fullnode: &test_cluster::FullNodeHandle) -> u64 {
+    fullnode.iota_node.with(|node| {
+        node.state()
+            .get_checkpoint_store()
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .unwrap_or_default()
+    })
+}
+
+/// Waits until `fullnode` has executed `checkpoint`.
+#[cfg(msim)]
+async fn wait_for_executed_checkpoint(fullnode: &test_cluster::FullNodeHandle, checkpoint: u64) {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        while highest_executed_checkpoint(fullnode) < checkpoint {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("the fullnode must execute checkpoint {checkpoint}"));
+}
+
+/// The digests of the transactions matching `filter`, oldest first.
+#[cfg(msim)]
+async fn indexed_transactions(
+    fullnode: &test_cluster::FullNodeHandle,
+    filter: TransactionFilter,
+) -> Vec<TransactionDigest> {
+    let mut digests = Vec::new();
+    let mut cursor = None;
+    loop {
+        let page = fullnode
+            .rpc_client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery::new_with_filter(filter.clone()),
+                cursor,
+                None,
+                Some(false),
+            )
+            .await
+            .unwrap();
+        digests.extend(page.data.iter().map(|response| response.digest));
+        if !page.has_next_page {
+            return digests;
+        }
+        cursor = page.next_cursor;
+    }
+}
+
+/// Every index-backed answer the fullnode gives about `addresses`, as JSON:
+/// balances, owned objects, coins, and the transactions sent and received.
+#[cfg(msim)]
+async fn index_backed_answers(
+    fullnode: &test_cluster::FullNodeHandle,
+    addresses: &[Address],
+) -> Vec<serde_json::Value> {
+    let client = &fullnode.rpc_client;
+    let mut answers = Vec::new();
+    for &address in addresses {
+        let balances = client.get_all_balances(address).await.unwrap();
+        answers.push(serde_json::to_value(balances).unwrap());
+        let mut cursor = None;
+        loop {
+            let page = client
+                .get_owned_objects(address, None, cursor, None)
+                .await
+                .unwrap();
+            answers.push(serde_json::to_value(&page.data).unwrap());
+            if !page.has_next_page {
+                break;
+            }
+            cursor = page.next_cursor;
+        }
+        let mut cursor = None;
+        loop {
+            let page = client.get_coins(address, None, cursor, None).await.unwrap();
+            answers.push(serde_json::to_value(&page.data).unwrap());
+            if !page.has_next_page {
+                break;
+            }
+            cursor = page.next_cursor;
+        }
+        for filter in [
+            TransactionFilter::FromAddress(address),
+            TransactionFilter::ToAddress(address),
+        ] {
+            let digests = indexed_transactions(fullnode, filter).await;
+            answers.push(serde_json::to_value(digests).unwrap());
+        }
+    }
+    answers
+}
+
+/// A fullnode that lost the index commits of its last checkpoints, as a
+/// power loss can lose them, indexes those checkpoints again when it starts,
+/// an epoch change among them, and then answers every index-backed read like
+/// the fullnode that lost nothing.
+///
+/// Simulator only: the fail point that loses the commits is compiled there.
+#[cfg(msim)]
+#[sim_test]
+async fn lost_index_commits_are_indexed_again_at_start() {
+    use test_cluster::FullNodeHandle;
+
+    const LOSE_COMMIT: &str = "rpc-index-lose-commit";
+
+    let mut cluster = TestClusterBuilder::new().build().await;
+    // The wallet reads through the cluster's fullnode, which loses nothing.
+    let lossy = cluster.spawn_new_fullnode().await;
+    let lossy_name = lossy.iota_node.with(|node| node.state().name);
+    let lossy_sim_id = lossy
+        .iota_node
+        .with(|_| iota_simulator::current_simnode_id());
+    let addresses = cluster.wallet.get_addresses();
+
+    transfer_coin(&cluster.wallet).await;
+    iota_macros::register_fail_point_if(LOSE_COMMIT, move || {
+        iota_simulator::current_simnode_id() == lossy_sim_id
+    });
+    let (sender, lost_in_first_epoch) = transfer_coin(&cluster.wallet).await;
+    cluster.force_new_epoch().await;
+    let (_, lost_in_second_epoch) = transfer_coin(&cluster.wallet).await;
+    let payment = make_transfer_iota_transaction(&cluster.wallet, None, Some(1_000)).await;
+    cluster
+        .wallet
+        .execute_transaction_must_succeed(payment)
+        .await;
+    wait_for_executed_checkpoint(
+        &lossy,
+        highest_executed_checkpoint(&cluster.fullnode_handle),
+    )
+    .await;
+    let indexed = indexed_transactions(&lossy, TransactionFilter::FromAddress(sender)).await;
+    assert!(
+        !indexed.contains(&lost_in_first_epoch) && !indexed.contains(&lost_in_second_epoch),
+        "the fullnode must have lost the index commits"
+    );
+    iota_macros::clear_fail_point(LOSE_COMMIT);
+
+    drop(lossy);
+    cluster.stop_node(&lossy_name);
+    cluster.start_node(&lossy_name).await;
+    let lossy = {
+        let node = cluster.swarm.node(&lossy_name).unwrap();
+        FullNodeHandle::new(node.get_node_handle().unwrap(), node.json_rpc_address()).await
+    };
+
+    transfer_coin(&cluster.wallet).await;
+    wait_for_executed_checkpoint(
+        &lossy,
+        highest_executed_checkpoint(&cluster.fullnode_handle),
+    )
+    .await;
+    assert_eq!(
+        index_backed_answers(&lossy, &addresses).await,
+        index_backed_answers(&cluster.fullnode_handle, &addresses).await
     );
 }
