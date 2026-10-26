@@ -10,7 +10,8 @@ use parking_lot::RwLock;
 use tracing::debug;
 
 use crate::{
-    CommitIndex, CommittedSubDag, commit::PendingSubDag, dag_state::DagState,
+    CommitIndex, CommittedSubDag, block_header::CommitmentVerifiedTransactions,
+    commit::PendingSubDag, context::Context, dag_state::DagState, storage::Store,
     transaction_ref::GenericTransactionRef,
 };
 
@@ -37,10 +38,18 @@ pub(crate) struct CommitSolidifier {
     pending_subdags: BTreeMap<u32, PendingSubDag>,
     // The highest solid commit_ref.index
     last_solid_committed_index: CommitIndex,
+    context: Arc<Context>,
+    // Read for transactions not held in the DAG state, after its lock is
+    // released.
+    store: Arc<dyn Store>,
 }
 
 impl CommitSolidifier {
-    pub(crate) fn new(dag_state: Arc<RwLock<DagState>>) -> Self {
+    pub(crate) fn new(
+        context: Arc<Context>,
+        dag_state: Arc<RwLock<DagState>>,
+        store: Arc<dyn Store>,
+    ) -> Self {
         // the last_solid_committed_index is set non-trivially during a recovery process
         // before the first usage of try_commit method.
         let last_solid_committed_index = 0;
@@ -48,6 +57,8 @@ impl CommitSolidifier {
             dag_state,
             pending_subdags: BTreeMap::new(),
             last_solid_committed_index,
+            context,
+            store,
         }
     }
 
@@ -61,19 +72,12 @@ impl CommitSolidifier {
     /// A `BTreeSet` of `GenericTransactionRef`s for which transactions are
     /// missing.
     pub(crate) fn get_missing_transaction_data(&self) -> BTreeSet<GenericTransactionRef> {
-        let mut missing = BTreeSet::new();
-        let dag_state = self.dag_state.read();
-
-        // Check all pending subdags for missing transactions
-        for subdag in self.pending_subdags.values() {
-            let exists = dag_state.contains_transactions(subdag.committed_transaction_refs.clone());
-            for (i, exists) in exists.iter().enumerate() {
-                if !exists {
-                    missing.insert(subdag.committed_transaction_refs[i]);
-                }
-            }
-        }
-        missing
+        let transaction_refs = self
+            .pending_subdags
+            .values()
+            .flat_map(|subdag| subdag.committed_transaction_refs.iter().copied())
+            .collect();
+        self.missing_transactions(transaction_refs)
     }
 
     /// Attempts to retrieve transactions included in the newly created commits.
@@ -100,7 +104,6 @@ impl CommitSolidifier {
         }
         let mut committed_subdags = Vec::new();
         let mut last_solid_committed = self.last_solid_committed_index;
-        let mut missing = BTreeSet::new();
 
         // Try to commit in order
         loop {
@@ -144,20 +147,12 @@ impl CommitSolidifier {
 
         // Only check for missing refs in the newly passed subdags that weren't
         // processed yet
-        for subdag in subdags {
-            if subdag.commit_ref.index > self.last_solid_committed_index {
-                // Query dag_state directly for missing transactions
-                let dag_state_guard = self.dag_state.read();
-                let exists = dag_state_guard
-                    .contains_transactions(subdag.committed_transaction_refs.clone());
-                drop(dag_state_guard);
-                for (i, exists) in exists.iter().enumerate() {
-                    if !exists {
-                        missing.insert(subdag.committed_transaction_refs[i]);
-                    }
-                }
-            }
-        }
+        let transaction_refs = subdags
+            .iter()
+            .filter(|subdag| subdag.commit_ref.index > self.last_solid_committed_index)
+            .flat_map(|subdag| subdag.committed_transaction_refs.iter().copied())
+            .collect();
+        let missing = self.missing_transactions(transaction_refs);
 
         (committed_subdags, missing.into_iter().collect())
     }
@@ -175,10 +170,9 @@ impl CommitSolidifier {
         &self,
         subdag: &PendingSubDag,
     ) -> Result<CommittedSubDag, Vec<GenericTransactionRef>> {
-        let dag_state = self.dag_state.read();
         // Get transactions and check if any are missing
         let transaction_results =
-            dag_state.get_verified_transactions(&subdag.committed_transaction_refs);
+            self.get_verified_transactions(&subdag.committed_transaction_refs);
         let mut missing = Vec::new();
         for (i, tx_opt) in transaction_results.iter().enumerate() {
             if tx_opt.is_none() {
@@ -195,7 +189,7 @@ impl CommitSolidifier {
 
             // Delayed subdags see current store state, not state at leader-round
             // commit time. Safe: counts are absolute and consumers merge-max.
-            let misbehavior_counts = dag_state.misbehavior_store().snapshot_totals();
+            let misbehavior_counts = self.dag_state.read().misbehavior_store().snapshot_totals();
             Ok(CommittedSubDag::new(
                 subdag.leader,
                 subdag.base.headers.clone(),
@@ -209,6 +203,83 @@ impl CommitSolidifier {
         } else {
             Err(missing)
         }
+    }
+
+    /// Returns the refs whose transactions are neither in the DAG state nor in
+    /// the store. The store is read after the DAG state lock is released.
+    fn missing_transactions(
+        &self,
+        transaction_refs: BTreeSet<GenericTransactionRef>,
+    ) -> BTreeSet<GenericTransactionRef> {
+        let not_in_memory: Vec<GenericTransactionRef> = {
+            let dag_state = self.dag_state.read();
+            transaction_refs
+                .into_iter()
+                .filter(|&transaction_ref| {
+                    !dag_state.contains_transactions_in_memory(transaction_ref)
+                })
+                .collect()
+        };
+        if not_in_memory.is_empty() {
+            return BTreeSet::new();
+        }
+        let stored = self
+            .store
+            .contains_transactions(&not_in_memory)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["contains_transactions"])
+            .inc();
+        not_in_memory
+            .into_iter()
+            .zip(stored)
+            .filter_map(|(transaction_ref, stored)| (!stored).then_some(transaction_ref))
+            .collect()
+    }
+
+    /// Returns the transactions of each ref, or `None` when they are neither in
+    /// the DAG state nor in the store. The store is read after the DAG state
+    /// lock is released.
+    fn get_verified_transactions(
+        &self,
+        transaction_refs: &[GenericTransactionRef],
+    ) -> Vec<Option<CommitmentVerifiedTransactions>> {
+        let mut transactions: Vec<Option<CommitmentVerifiedTransactions>> = {
+            let dag_state = self.dag_state.read();
+            transaction_refs
+                .iter()
+                .map(|&transaction_ref| {
+                    dag_state.get_verified_transactions_in_memory(transaction_ref)
+                })
+                .collect()
+        };
+        let not_in_memory: Vec<usize> = (0..transactions.len())
+            .filter(|&index| transactions[index].is_none())
+            .collect();
+        if not_in_memory.is_empty() {
+            return transactions;
+        }
+        let refs: Vec<GenericTransactionRef> = not_in_memory
+            .iter()
+            .map(|&index| transaction_refs[index])
+            .collect();
+        let stored = self
+            .store
+            .read_verified_transactions(&refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["get_verified_transactions"])
+            .inc();
+        for (index, stored) in not_in_memory.into_iter().zip(stored) {
+            transactions[index] = stored;
+        }
+        transactions
     }
 }
 
@@ -227,7 +298,7 @@ mod tests {
         context::Context,
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
-        storage::mem_store::MemStore,
+        storage::{WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
 
@@ -236,6 +307,7 @@ mod tests {
         dag_state: Arc<RwLock<DagState>>,
         dag_builder: DagBuilder,
         context: Arc<Context>,
+        store: Arc<MemStore>,
     }
 
     impl TestSetup {
@@ -244,10 +316,8 @@ mod tests {
         fn new(num_rounds: u32) -> Self {
             let (context, _) = Context::new_for_test(2);
             let context = Arc::new(context);
-            let dag_state = Arc::new(RwLock::new(DagState::new(
-                context.clone(),
-                Arc::new(crate::storage::mem_store::MemStore::new()),
-            )));
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
             let mut dag_builder = DagBuilder::new(context.clone());
             dag_builder
                 .layers(1..=num_rounds)
@@ -258,7 +328,17 @@ mod tests {
                 dag_state,
                 dag_builder,
                 context,
+                store,
             }
+        }
+
+        /// Creates a CommitSolidifier over the full DAG state
+        fn commit_solidifier(&self) -> CommitSolidifier {
+            CommitSolidifier::new(
+                self.context.clone(),
+                self.dag_state.clone(),
+                self.store.clone(),
+            )
         }
 
         /// Creates a selective DAG state that only contains transactions from
@@ -270,13 +350,12 @@ mod tests {
         ///   from specific blocks
         fn create_selective_dag_state(
             &self,
+            store: Arc<MemStore>,
             included_rounds: Vec<u32>,
             excluded_transactions: Vec<(u32, usize)>,
         ) -> Arc<RwLock<DagState>> {
-            let selective_dag_state = Arc::new(RwLock::new(DagState::new(
-                self.context.clone(),
-                Arc::new(MemStore::new()),
-            )));
+            let selective_dag_state =
+                Arc::new(RwLock::new(DagState::new(self.context.clone(), store)));
 
             let mut state = selective_dag_state.write();
 
@@ -324,9 +403,11 @@ mod tests {
             included_rounds: Vec<u32>,
             excluded_blocks: Vec<(u32, usize)>,
         ) -> (CommitSolidifier, Arc<RwLock<DagState>>) {
+            let store = Arc::new(MemStore::new());
             let selective_dag_state =
-                self.create_selective_dag_state(included_rounds, excluded_blocks);
-            let commit_solidifier = CommitSolidifier::new(selective_dag_state.clone());
+                self.create_selective_dag_state(store.clone(), included_rounds, excluded_blocks);
+            let commit_solidifier =
+                CommitSolidifier::new(self.context.clone(), selective_dag_state.clone(), store);
             (commit_solidifier, selective_dag_state)
         }
 
@@ -530,7 +611,7 @@ mod tests {
     #[tokio::test]
     async fn test_happy_path_commit() {
         let setup = Arc::new(TestSetup::new(3));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         let subdag = SubDagBuilder::new(setup, 1)
             .leader(3, 0)
@@ -586,7 +667,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_transactions_solidify_without_payload() {
         let setup = Arc::new(TestSetup::new(3));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         let mut encoder = create_encoder(&setup.context);
         let empty_header = VerifiedBlockHeader::new_for_test(
@@ -659,7 +740,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_subdags_in_order() {
         let setup = Arc::new(TestSetup::new(4));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -687,7 +768,7 @@ mod tests {
     #[tokio::test]
     async fn test_out_of_order_subdags() {
         let setup = Arc::new(TestSetup::new(4));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -723,7 +804,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_subdag_commit() {
         let setup = Arc::new(TestSetup::new(2));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert!(committed.is_empty());
@@ -735,7 +816,7 @@ mod tests {
     #[tokio::test]
     async fn test_duplicate_subdag_commit() {
         let setup = Arc::new(TestSetup::new(3));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         let subdag1 = SubDagBuilder::new(setup, 1)
             .leader(3, 0)
@@ -758,7 +839,7 @@ mod tests {
     #[tokio::test]
     async fn test_out_of_order_commit_calls() {
         let setup = Arc::new(TestSetup::new(4));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -988,7 +1069,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_last_committed_index() {
         let setup = Arc::new(TestSetup::new(3));
-        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = setup.commit_solidifier();
 
         // Initially should be 0
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
@@ -1060,5 +1141,53 @@ mod tests {
         // Should now have no missing transactions
         let missing = commit_solidifier.get_missing_transaction_data();
         assert!(missing.is_empty());
+    }
+
+    /// Transactions held only in the store, not in the DAG state, are not
+    /// reported missing and are read when their subdag solidifies.
+    #[tokio::test]
+    async fn test_transactions_only_in_store() {
+        let setup = Arc::new(TestSetup::new(4));
+        let (mut commit_solidifier, _selective_dag_state) = setup
+            .create_selective_commit_solidifier(
+                vec![1, 2, 3, 4],
+                vec![(1, 0)], // Exclude the first transactions from round 1
+            );
+        commit_solidifier
+            .store
+            .write(WriteBatch::default().transactions(vec![
+                setup.dag_builder.blocks(1..=1)[0]
+                    .verified_transactions
+                    .clone(),
+            ]))
+            .unwrap();
+        let stored_ref = setup.dag_builder.block_headers(1..=1)[0].transaction_ref();
+
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(2, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+            ])
+            .with_committed_refs(vec![])
+            .build();
+        let subdag2 = SubDagBuilder::new(setup, 2)
+            .leader(3, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(2)])
+            .with_committed_refs(vec![GenericTransactionRef::TransactionRef(stored_ref)])
+            .build();
+
+        // Subdag 2 waits for subdag 1; its transactions are found in the store.
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(std::slice::from_ref(&subdag2));
+        assert!(committed.is_empty());
+        assert!(missing.is_empty());
+        assert!(commit_solidifier.get_missing_transaction_data().is_empty());
+
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[subdag1]);
+        assert!(missing.is_empty());
+        assert_eq!(committed.len(), 2);
+        assert_eq!(committed[1].transactions[0].transaction_ref(), stored_ref);
+        assert!(commit_solidifier.pending_subdags.is_empty());
     }
 }

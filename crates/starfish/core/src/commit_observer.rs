@@ -101,7 +101,11 @@ impl CommitObserver {
                 dag_state.clone(),
                 leader_schedule.clone(),
             ),
-            commit_solidifier: CommitSolidifier::new(dag_state.clone()),
+            commit_solidifier: CommitSolidifier::new(
+                context.clone(),
+                dag_state.clone(),
+                store.clone(),
+            ),
             context,
             commit_consumer_monitor: commit_consumer.monitor(),
             sender: commit_consumer.sender,

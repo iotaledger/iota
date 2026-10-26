@@ -1061,6 +1061,7 @@ impl DagState {
     /// Gets transactions by checking cached recent transactions in memory, then
     /// storage. An element is None when the corresponding transaction is not
     /// found.
+    #[cfg(test)]
     pub(crate) fn get_verified_transactions(
         &self,
         transactions_refs: &[GenericTransactionRef],
@@ -1081,24 +1082,11 @@ impl DagState {
         let mut missing = Vec::new();
 
         for (index, transactions_ref) in transactions_refs.iter().enumerate() {
-            if transactions_ref.round() == GENESIS_ROUND {
-                if let Some(genesis_block) = self.get_genesis_block(*transactions_ref) {
-                    transactions[index] = Some(genesis_block.verified_transactions.clone());
-                }
-                continue;
+            if let Some(transaction) = self.get_verified_transactions_in_memory(*transactions_ref) {
+                transactions[index] = Some(transaction);
+            } else if transactions_ref.round() != GENESIS_ROUND {
+                missing.push((index, transactions_ref));
             }
-            if let Some(transaction) = self.recent_transactions_by_authority
-                [transactions_ref.author()]
-            .get(transactions_ref)
-            {
-                transactions[index] = Some(transaction.clone());
-                continue;
-            }
-            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
-                transactions[index] = Some(empty);
-                continue;
-            }
-            missing.push((index, transactions_ref));
         }
 
         if missing.is_empty() {
@@ -2023,6 +2011,7 @@ impl DagState {
     /// check in store. The method is not caching back the
     /// results, so it's expensive to keep asking for cache missing
     /// transactions.
+    #[cfg(test)]
     pub(crate) fn contains_transactions(
         &self,
         transaction_refs: Vec<GenericTransactionRef>,
@@ -2887,6 +2876,24 @@ impl DagState {
             .is_some()
             || self.recent_transactions_by_authority[transaction_ref.author()]
                 .contains_key(&transaction_ref)
+    }
+
+    /// Returns the payload of `transaction_ref` if it is available without
+    /// reading the store: genesis, empty, or among the recent transactions
+    /// held here.
+    pub(crate) fn get_verified_transactions_in_memory(
+        &self,
+        transaction_ref: GenericTransactionRef,
+    ) -> Option<CommitmentVerifiedTransactions> {
+        if transaction_ref.round() == GENESIS_ROUND {
+            return self
+                .get_genesis_block(transaction_ref)
+                .map(|genesis_block| genesis_block.verified_transactions.clone());
+        }
+        self.recent_transactions_by_authority[transaction_ref.author()]
+            .get(&transaction_ref)
+            .cloned()
+            .or_else(|| self.context.empty_transactions_for_ref(transaction_ref))
     }
 }
 #[cfg(test)]
