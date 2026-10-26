@@ -3103,6 +3103,11 @@ mod listener_metrics_tests {
     /// method, so it shows only once the gRPC API has sent a response.
     const GRPC_API_FAMILIES: &[&str] = &["response_item_bytes_peak", "requested_max_message_bytes"];
 
+    /// The families of the gRPC API that show by default. The request
+    /// metrics per method are `warn` too, but have no series before the first
+    /// request.
+    const GRPC_API_DEFAULT_FAMILIES: &[&str] = &["inflight_checkpoint_stream_subscribers"];
+
     /// Every family the validator listener registers.
     fn validator_families() -> BTreeSet<String> {
         prefix_names("authority_grpc", CONNECTION_FAMILIES)
@@ -3121,10 +3126,14 @@ mod listener_metrics_tests {
     }
 
     #[tokio::test]
-    async fn only_the_validator_listener_shows_by_default() {
+    async fn only_the_validator_listener_and_the_grpc_api_requests_show_by_default() {
         let shown =
             MetricsReader::new(&node_registry(&MetricGroups::default()).await).family_names();
-        assert_eq!(shown, validator_families());
+        let expected: BTreeSet<String> = validator_families()
+            .into_iter()
+            .chain(prefix_names("node_grpc", GRPC_API_DEFAULT_FAMILIES))
+            .collect();
+        assert_eq!(shown, expected);
     }
 
     #[tokio::test]
@@ -3135,6 +3144,7 @@ mod listener_metrics_tests {
             .into_iter()
             .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
             .chain(prefix_names("node_grpc", GRPC_API_FAMILIES))
+            .chain(prefix_names("node_grpc", GRPC_API_DEFAULT_FAMILIES))
             .collect();
         assert_eq!(shown, all);
     }
