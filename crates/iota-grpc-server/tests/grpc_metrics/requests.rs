@@ -4,8 +4,9 @@
 use std::{sync::Arc, time::Duration};
 
 use iota_grpc_server::GrpcServerMetrics;
-use iota_grpc_types::v1::state_service::{
-    ListOwnedObjectsRequest, state_service_client::StateServiceClient,
+use iota_grpc_types::v1::{
+    state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
+    transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient,
 };
 use iota_traffic_controller::TrafficController;
 use iota_types::traffic_control::{PolicyConfig, PolicyType, Weight};
@@ -15,7 +16,8 @@ use tonic::Code;
 use crate::{
     common::{
         EXECUTE_TRANSACTIONS_PATH, MockGrpcStateReader, PendingExecutor,
-        call_execute_transactions_with_grpc_timeout, start_test_server_with,
+        call_execute_transactions_with_grpc_timeout, execute_transactions_request,
+        start_test_server_with,
     },
     harness::{MetricsReader, PREFIX, connect, start_with_executor},
 };
@@ -47,6 +49,50 @@ async fn a_call_past_its_grpc_timeout_is_counted_as_deadline_exceeded() {
         (requests("DeadlineExceeded"), requests("canceled")),
         (1.0, 0.0),
         "(DeadlineExceeded, canceled)"
+    );
+}
+
+/// A call that the client ends before the server answers is counted as
+/// canceled.
+#[tokio::test]
+async fn a_call_that_the_client_ends_is_counted_as_canceled() {
+    let executor = Arc::new(PendingExecutor::default());
+    let (handle, reader) = start_with_executor(
+        MockGrpcStateReader::default(),
+        Some(executor.clone()),
+        |_| {},
+    )
+    .await;
+    let mut client = TransactionExecutionServiceClient::new(connect(&handle).await);
+    let call = tokio::spawn(async move {
+        client
+            .execute_transactions(execute_transactions_request())
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), executor.started.notified())
+        .await
+        .expect("the call must reach the executor");
+    call.abort();
+
+    let requests = |status| {
+        reader.value(
+            "requests",
+            &[("method", EXECUTE_TRANSACTIONS_PATH), ("status", status)],
+        )
+    };
+    // The server sees the end of the call only when the reset of the stream
+    // arrives.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while requests("canceled") == 0.0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the call must be counted");
+    assert_eq!(
+        (requests("canceled"), requests("DeadlineExceeded")),
+        (1.0, 0.0),
+        "(canceled, DeadlineExceeded)"
     );
 }
 
