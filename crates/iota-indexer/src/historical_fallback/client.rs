@@ -236,16 +236,16 @@ impl HttpRestKVClient {
     /// Reads the response body into memory, failing as soon as it is known to
     /// exceed `max_response_size_bytes`.
     ///
-    /// - If `Content-Length` is present, it is checked upfront. When within the limit, the body is
-    ///   read directly.
-    /// - If `Content-Length` is absent, the body is read and checked chunk-by-chunk.
+    /// - If the body size is known upfront ([`Response::content_length`]), it is checked against
+    ///   the limit before reading. Within the limit, the body is read directly.
+    /// - Otherwise the body is read and checked chunk by chunk.
     async fn read_body_bounded(&self, mut resp: Response) -> IndexerResult<Bytes> {
         let max = self.max_response_size_bytes;
 
-        if let Some(declared) = resp.content_length() {
-            if declared > max as u64 {
+        if let Some(known_size) = resp.content_length() {
+            if known_size > max as u64 {
                 return Err(IndexerError::HistoricalFallbackResponseTooLarge {
-                    size: declared,
+                    size: known_size,
                     max: max as u64,
                 });
             }
