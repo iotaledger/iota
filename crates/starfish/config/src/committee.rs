@@ -8,6 +8,7 @@ use std::{
 };
 
 use iota_network_stack::Multiaddr;
+use iota_sdk_types::ValidatorCommittee;
 use serde::{Deserialize, Serialize};
 
 use crate::{AuthorityPublicKey, NetworkPublicKey, ProtocolPublicKey};
@@ -68,8 +69,7 @@ impl Committee {
             .map(|a| a.stake)
             .try_fold(0u64, u64::checked_add)
             .expect("Total stake must not overflow u64!");
-        // Widen to u128 for the doubling; the result is at most total_stake.
-        let quorum_threshold = (2 * total_stake as u128 / 3 + 1) as u64;
+        let quorum_threshold = ValidatorCommittee::quorum_threshold(total_stake);
         let validity_threshold = total_stake.div_ceil(3);
         let committee_size = authorities.len();
         // f and info_length are computed for uniform stakes
