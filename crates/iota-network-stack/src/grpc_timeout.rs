@@ -20,9 +20,11 @@ use tower::Service;
 
 const GRPC_TIMEOUT_HEADER: &str = "grpc-timeout";
 
-/// Ends a call at the shorter of its `grpc-timeout` and `server_timeout`. At
-/// that point it answers with the status `DEADLINE_EXCEEDED` and the default
-/// response body, which must be empty.
+/// Answers with the status `DEADLINE_EXCEEDED` and the default response body,
+/// which must be empty, if the inner service has not returned a response by the
+/// shorter of the client's `grpc-timeout` and `server_timeout`. Paths in
+/// `timeout_exempt_paths` skip `server_timeout`. Once the response is returned,
+/// sending its body has no deadline.
 #[derive(Debug, Clone)]
 pub struct GrpcTimeout<S> {
     inner: S,
