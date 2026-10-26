@@ -20,7 +20,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
     TransactionFilter,
 };
-use iota_metrics::spawn_monitored_task;
+use iota_metrics::{spawn_monitored_blocking, spawn_monitored_task};
 use iota_names::{
     IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
     registry::NameRecord,
@@ -211,10 +211,17 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 validate_limit(limit, *QUERY_MAX_RESULT_LIMIT).map_err(IotaRpcInputError::from)?;
             self.metrics.get_owned_objects_limit.observe(limit as f64);
             let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
+            if let Some(filter) = &filter {
+                filter.check_size().map_err(|error| {
+                    IotaRpcInputError::GenericInvalid(format!("invalid object filter: {error}"))
+                })?;
+            }
             let options = options.unwrap_or_default();
-            let page = self
-                .state
-                .get_owner_objects_page(address, cursor, limit, filter)?;
+            let state = self.state.clone();
+            let page = spawn_monitored_blocking!(move || {
+                state.get_owner_objects_page(address, cursor, limit, filter)
+            })
+            .await??;
 
             let data = match options.is_not_in_object_info() {
                 true => {
@@ -618,5 +625,123 @@ impl<R: ReadApiServer> IotaRpcModule for IndexerApi<R> {
 
     fn rpc_doc_module() -> Module {
         IndexerApiOpenRpc::module_doc()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_json_rpc_types::MAX_FILTER_NODES;
+    use iota_sdk_types::{CheckpointDigest, TransactionEvents, Version};
+    use iota_storage::{
+        key_value_store::{
+            KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
+        },
+        key_value_store_metrics::KeyValueStoreMetrics,
+    };
+    use iota_types::{
+        error::IotaResult, messages_checkpoint::CheckpointSequenceNumber, object::Object,
+        storage::ObjectKey,
+    };
+    use jsonrpsee::{core::server::MethodsError, types::error::INVALID_PARAMS_CODE};
+    use mockall::mock;
+
+    use super::*;
+    use crate::{authority_state::MockStateRead, read_api::ReadApi};
+
+    mock! {
+        KeyValueStore {}
+        #[async_trait]
+        impl TransactionKeyValueStoreTrait for KeyValueStore {
+            async fn multi_get(
+                &self,
+                transaction_keys: &[TransactionDigest],
+                effects_keys: &[TransactionDigest],
+            ) -> IotaResult<KVStoreTransactionData>;
+            async fn multi_get_checkpoints(
+                &self,
+                checkpoint_summaries: &[CheckpointSequenceNumber],
+                checkpoint_contents: &[CheckpointSequenceNumber],
+                checkpoint_summaries_by_digest: &[CheckpointDigest],
+            ) -> IotaResult<KVStoreCheckpointData>;
+            async fn get_transaction_perpetual_checkpoint(
+                &self,
+                digest: TransactionDigest,
+            ) -> IotaResult<Option<CheckpointSequenceNumber>>;
+            async fn get_object(
+                &self,
+                object_id: ObjectId,
+                version: Version,
+            ) -> IotaResult<Option<Object>>;
+            async fn multi_get_objects(
+                &self,
+                object_keys: &[ObjectKey],
+            ) -> IotaResult<Vec<Option<Object>>>;
+            async fn multi_get_transactions_perpetual_checkpoints(
+                &self,
+                digests: &[TransactionDigest],
+            ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+            async fn multi_get_events_by_tx_digests(
+                &self,
+                digests: &[TransactionDigest],
+            ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+        }
+    }
+
+    fn indexer_rpc_module() -> RpcModule<IndexerApi<ReadApi>> {
+        let state: Arc<dyn StateRead> = Arc::new(MockStateRead::new());
+        let transaction_kv_store = Arc::new(TransactionKeyValueStore::new(
+            "test",
+            KeyValueStoreMetrics::new_for_tests(),
+            Arc::new(MockKeyValueStore::new()),
+        ));
+        let metrics = Arc::new(JsonRpcMetrics::new_for_tests());
+        IndexerApi {
+            read_api: ReadApi {
+                state: state.clone(),
+                transaction_kv_store: transaction_kv_store.clone(),
+                metrics: metrics.clone(),
+            },
+            state,
+            transaction_kv_store,
+            metrics,
+            iota_names_config: IotaNamesConfig::default(),
+            subscription_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_SUBSCRIPTIONS)),
+        }
+        .rpc()
+    }
+
+    fn assert_invalid_params(result: Result<impl std::fmt::Debug, MethodsError>, limit: &str) {
+        match result {
+            Err(MethodsError::JsonRpc(error)) => {
+                assert_eq!(error.code(), INVALID_PARAMS_CODE);
+                assert!(
+                    error.message().contains(limit),
+                    "message `{}` does not name the limit `{limit}`",
+                    error.message()
+                );
+            }
+            other => panic!("expected an invalid params error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn get_owned_objects_refuses_too_large_filter() {
+        let module = indexer_rpc_module();
+        let query = IotaObjectResponseQuery::new(
+            Some(IotaObjectDataFilter::ObjectIds(vec![
+                ObjectId::ZERO;
+                MAX_FILTER_NODES
+            ])),
+            None,
+        );
+        assert_invalid_params(
+            module
+                .call::<_, ObjectsPage>(
+                    "iotax_getOwnedObjects",
+                    (Address::ZERO, query, None::<ObjectId>, None::<usize>),
+                )
+                .await,
+            &format!("{MAX_FILTER_NODES} nodes"),
+        );
     }
 }
