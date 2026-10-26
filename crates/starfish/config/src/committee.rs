@@ -20,9 +20,13 @@ pub type Epoch = u64;
 /// Total stake / voting power of all authorities should sum to 10,000.
 pub type Stake = u64;
 
+/// Maximum number of authorities in a committee. A block header stores the end
+/// of its ancestor list, up to one ancestor per authority, as a `u8`.
+pub const MAX_COMMITTEE_SIZE: usize = u8::MAX as usize;
+
 /// Committee is the set of authorities that participate in the consensus
 /// protocol for this epoch. Its configuration is stored and computed on chain.
-/// Committee size is currently limited to 256 as AuthorityIndex is u8.
+/// It has at most `MAX_COMMITTEE_SIZE` (255) authorities.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Committee {
     /// The epoch number of this committee
@@ -33,8 +37,8 @@ pub struct Committee {
     quorum_threshold: Stake,
     /// The validity threshold (f+1).
     validity_threshold: Stake,
-    /// Protocol and network info of each authority. Max number limited to
-    /// u8::MAX (256)
+    /// Protocol and network info of each authority, at most
+    /// `MAX_COMMITTEE_SIZE`.
     authorities: Vec<Authority>,
     /// transaction data in a block is divided into info_length equal
     /// parts(shards) that are encoded into n shards with erasure correcting
@@ -50,7 +54,7 @@ impl Committee {
     pub fn new(epoch: Epoch, authorities: Vec<Authority>) -> Self {
         assert!(!authorities.is_empty(), "Committee cannot be empty!");
         assert!(
-            authorities.len() < u8::MAX as usize,
+            authorities.len() <= MAX_COMMITTEE_SIZE,
             "Too many authorities ({})!",
             authorities.len()
         );

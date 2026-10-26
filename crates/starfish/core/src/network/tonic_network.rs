@@ -24,8 +24,8 @@ use iota_network_stack::{
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{
-    AuthorityIndex, COMMITS_PER_FETCH_CEILING, HEADERS_PER_FETCH_CEILING, NetworkKeyPair,
-    NetworkPublicKey, TRANSACTIONS_PER_FETCH_CEILING,
+    AuthorityIndex, COMMITS_PER_FETCH_CEILING, HEADERS_PER_FETCH_CEILING, MAX_COMMITTEE_SIZE,
+    NetworkKeyPair, NetworkPublicKey, TRANSACTIONS_PER_FETCH_CEILING,
 };
 use tokio::sync::Mutex;
 use tokio_stream::iter;
@@ -1901,10 +1901,6 @@ pub(crate) struct FetchCommitsResponse {
     #[prost(bytes = "bytes", repeated, tag = "2")]
     certifier_block_headers: Vec<Bytes>,
 }
-
-/// Upper bound on any committee's size: the number of distinct authority
-/// indices.
-const MAX_COMMITTEE_SIZE: usize = AuthorityIndex::MAX.value() + 1;
 
 /// Maximum number of certifier headers in a commit-sync response, for any
 /// committee.
