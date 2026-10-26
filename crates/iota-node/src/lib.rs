@@ -339,6 +339,17 @@ struct P2pComponents {
     sync_summaries_to_epoch_end: Arc<AtomicBool>,
 }
 
+/// The stores that the services of a node use besides `NodeStores`.
+struct ServiceStores {
+    /// The store through which state sync, the gRPC API and the ledger client
+    /// use the database.
+    state_sync_store: RocksDbStore,
+    /// The JSON-RPC indexes, on a fullnode with index processing on.
+    index_store: Option<Arc<IndexStore>>,
+    /// The gRPC API indexes, on a node that serves the gRPC API.
+    grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
+}
+
 #[cfg(msim)]
 mod simulator {
     use std::sync::atomic::AtomicBool;
@@ -666,34 +677,19 @@ impl IotaNode {
             epoch_store.protocol_config()
         );
 
-        info!("creating state sync store");
-        let state_sync_store = RocksDbStore::new(
-            stores.cache_traits.clone(),
-            stores.committee_store.clone(),
-            stores.checkpoint_store.clone(),
-        );
-
-        let index_store = if !config.is_validator() && config.enable_index_processing {
-            Some(Self::open_index_store(
-                &config,
-                &epoch_store,
-                &prometheus_registry,
-            ))
-        } else {
-            None
-        };
-
-        let grpc_indexes_store = if serves_grpc_api {
-            Some(Self::open_grpc_indexes_store(&config, &stores).await)
-        } else {
-            None
-        };
-
-        // Seed the open epoch's `epoch_info` row before services start.
-        stores
-            .checkpoint_store
-            .seed_epoch_info(&stores.store, chain_identifier)
-            .expect("failed to seed the epoch_info chain");
+        let ServiceStores {
+            state_sync_store,
+            index_store,
+            grpc_indexes_store,
+        } = Self::prepare_database_for_services(
+            &config,
+            serves_grpc_api,
+            &stores,
+            &epoch_store,
+            chain_identifier,
+            &prometheus_registry,
+        )
+        .await;
 
         info!("creating archive reader");
         // Create network
@@ -1009,6 +1005,62 @@ impl IotaNode {
                 auth_agg_metrics,
             ),
         )))
+    }
+
+    /// Prepares the database for the services of the node: makes the store
+    /// that state sync, the gRPC API and the ledger client use, opens the index
+    /// store if `config` is a fullnode config with index processing on and the
+    /// gRPC indexes if `serves_grpc_api`, and seeds the `epoch_info` row of the
+    /// open epoch.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an index store cannot be opened or built, or registers a
+    /// metric that `prometheus_registry` already has, and if the `epoch_info`
+    /// row cannot be written or, on Mainnet and Testnet, the `epoch_info` chain
+    /// has a gap.
+    async fn prepare_database_for_services(
+        config: &NodeConfig,
+        serves_grpc_api: bool,
+        stores: &NodeStores,
+        epoch_store: &AuthorityPerEpochStore,
+        chain_identifier: ChainIdentifier,
+        prometheus_registry: &Registry,
+    ) -> ServiceStores {
+        info!("creating state sync store");
+        let state_sync_store = RocksDbStore::new(
+            stores.cache_traits.clone(),
+            stores.committee_store.clone(),
+            stores.checkpoint_store.clone(),
+        );
+
+        let index_store = if !config.is_validator() && config.enable_index_processing {
+            Some(Self::open_index_store(
+                config,
+                epoch_store,
+                prometheus_registry,
+            ))
+        } else {
+            None
+        };
+
+        let grpc_indexes_store = if serves_grpc_api {
+            Some(Self::open_grpc_indexes_store(config, stores).await)
+        } else {
+            None
+        };
+
+        // Seed the open epoch's `epoch_info` row before services start.
+        stores
+            .checkpoint_store
+            .seed_epoch_info(&stores.store, chain_identifier)
+            .expect("failed to seed the epoch_info chain");
+
+        ServiceStores {
+            state_sync_store,
+            index_store,
+            grpc_indexes_store,
+        }
     }
 
     fn open_index_store(
