@@ -8,19 +8,22 @@ pub mod utils;
 
 use std::{result::Result, str::FromStr, sync::Arc};
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
+    IotaData, IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput,
+    RPCTransactionRequestParams,
 };
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionKind,
+    Address, Command, Identifier, ObjectId, ObjectReference, StructTag, Transaction,
+    TransactionKind,
 };
 use iota_types::{
     coin,
     error::UserInputError,
     fp_ensure,
+    gas_coin::GasCoin,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
@@ -46,6 +49,50 @@ pub trait DataReader {
     ) -> Result<IotaObjectResponse, anyhow::Error>;
 
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error>;
+
+    /// A `Coin<IOTA>` of `signer` holding at least `gas_budget` that is not
+    /// one of `input_objects`, or `None` when there is no such coin.
+    ///
+    /// The default pages through all of `signer`'s `Coin<IOTA>` objects. A
+    /// reader that can list them by balance, largest first, should stop at the
+    /// first one that is not an input instead.
+    async fn select_gas_coin(
+        &self,
+        signer: Address,
+        gas_budget: u64,
+        input_objects: &[ObjectId],
+    ) -> Result<Option<ObjectReference>, anyhow::Error> {
+        let mut cursor = None;
+        loop {
+            let page = self
+                .get_owned_objects(
+                    signer,
+                    StructTag::new_gas_coin(),
+                    cursor,
+                    None,
+                    IotaObjectDataOptions::new().with_bcs(),
+                )
+                .await?;
+            for response in &page.data {
+                let obj = response.object()?;
+                let gas: GasCoin = bcs::from_bytes(
+                    &obj.bcs
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("bcs field is unexpectedly empty"))?
+                        .try_as_move()
+                        .ok_or_else(|| anyhow!("Cannot parse move object to gas object"))?
+                        .bcs_bytes,
+                )?;
+                if !input_objects.contains(&obj.object_id) && gas.value() >= gas_budget {
+                    return Ok(Some(obj.object_ref()));
+                }
+            }
+            if !page.has_next_page {
+                return Ok(None);
+            }
+            cursor = page.next_cursor;
+        }
+    }
 }
 
 #[derive(Clone)]
