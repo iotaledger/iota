@@ -306,30 +306,49 @@ impl WalletContext {
 
     /// Get a limited amount of [`ObjectReference`]s for gas objects owned by
     /// the provided address. Max limit is RPC_QUERY_MAX_RESULT_LIMIT (50 by
-    /// default).
+    /// default). Without a limit, returns the first page that holds gas
+    /// objects.
     pub async fn get_gas_objects_owned_by_address(
         &self,
         address: Address,
         limit: impl Into<Option<usize>>,
     ) -> anyhow::Result<Vec<ObjectReference>> {
+        let limit = limit.into();
         let client = self.get_client().await?;
-        let results: Vec<_> = client
-            .read_api()
-            .get_owned_objects(
-                address,
-                IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                    Some(IotaObjectDataOptions::full_content()),
-                ),
-                None,
-                limit,
-            )
-            .await?
-            .data
-            .into_iter()
-            .filter_map(|r| r.data.map(|o| o.object_ref()))
-            .collect();
-        Ok(results)
+        let mut results = Vec::new();
+        let mut cursor = None;
+        // A page can hold fewer objects than requested, even none, while more
+        // pages follow.
+        loop {
+            let page = client
+                .read_api()
+                .get_owned_objects(
+                    address,
+                    IotaObjectResponseQuery::new(
+                        Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
+                        Some(IotaObjectDataOptions::full_content()),
+                    ),
+                    cursor,
+                    limit.map(|limit| limit.saturating_sub(results.len())),
+                )
+                .await?;
+            results.extend(
+                page.data
+                    .into_iter()
+                    .filter_map(|r| r.data.map(|o| o.object_ref())),
+            );
+            if let Some(limit) = limit {
+                results.truncate(limit);
+            }
+            let filled = limit.map_or(!results.is_empty(), |limit| results.len() >= limit);
+            // Without a new cursor, the next request would repeat an earlier
+            // one and never reach the end.
+            let advanced = page.next_cursor.is_some() && page.next_cursor != cursor;
+            if filled || !page.has_next_page || !advanced {
+                return Ok(results);
+            }
+            cursor = page.next_cursor;
+        }
     }
 
     /// Given an address, return one gas object owned by this address.
