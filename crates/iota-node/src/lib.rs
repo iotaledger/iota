@@ -339,15 +339,6 @@ struct P2pComponents {
     sync_summaries_to_epoch_end: Arc<AtomicBool>,
 }
 
-/// The services a fullnode runs for clients. Each is `None` on a node that
-/// does not start it, so a node that is not a fullnode has the default value.
-#[derive(Default)]
-struct FullnodeServices {
-    transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
-    http_server: Option<iota_http::ServerHandle>,
-    grpc_server_handle: Option<GrpcServerHandle>,
-}
-
 #[cfg(msim)]
 mod simulator {
     use std::sync::atomic::AtomicBool;
@@ -717,7 +708,7 @@ impl IotaNode {
         // it.
         RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
 
-        let (end_of_epoch_channel, end_of_epoch_receiver) =
+        let (end_of_epoch_channel, _) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
             stores.cache_traits.global_state_hash_store.clone(),
@@ -730,56 +721,15 @@ impl IotaNode {
             &prometheus_registry,
         );
 
-        let FullnodeServices {
-            transaction_orchestrator,
-            http_server,
-            grpc_server_handle,
-        } = if is_full_node {
-            Self::start_fullnode_services(
-                &config,
-                grpc_api_config,
-                &state,
-                &auth_agg,
-                end_of_epoch_receiver,
-                &state_sync_store,
-                &prometheus_registry,
-                &serving_rt_handle,
-                server_version,
-            )
-            .await?
-        } else {
-            FullnodeServices::default()
-        };
-
-        let validator_components = if state.is_committee_validator(&epoch_store) {
-            Some(
-                Self::start_validator_components(
-                    &config,
-                    &state,
-                    &epoch_store,
-                    &stores,
-                    &state_sync_handle,
-                    &randomness_handle,
-                    &global_state_hasher,
-                    &connection_monitor_status,
-                    &registry_service,
-                    &serving_rt_handle,
-                )
-                .await?,
-            )
-        } else {
-            None
-        };
-
         // setup shutdown channel
         let (shutdown_channel, _) = broadcast::channel::<Option<RunWithRange>>(1);
 
-        let node = Self {
+        let mut node = Self {
             config,
-            validator_components: Mutex::new(validator_components),
-            _http_server: http_server,
+            validator_components: Mutex::new(None),
+            _http_server: None,
             state,
-            transaction_orchestrator,
+            transaction_orchestrator: None,
             registry_service,
             metrics: iota_node_metrics,
 
@@ -803,12 +753,21 @@ impl IotaNode {
             _state_snapshot_uploader_handle: state_snapshot_handle,
             shutdown_channel_tx: shutdown_channel,
 
-            grpc_server_handle: Mutex::new(grpc_server_handle),
+            grpc_server_handle: Mutex::new(None),
 
             auth_agg,
 
             serving_rt_handle,
         };
+
+        if is_full_node {
+            node.start_fullnode_services(grpc_api_config, server_version)
+                .await?;
+        }
+
+        if node.state.is_committee_validator(&epoch_store) {
+            node.start_validator_components(&epoch_store).await?;
+        }
 
         info!("IotaNode started!");
         let node = Arc::new(node);
@@ -1208,7 +1167,8 @@ impl IotaNode {
 
     /// Starts the services a fullnode runs for clients: the transaction
     /// orchestrator unless the node runs with a range, the JSON-RPC server,
-    /// and the gRPC API server if `grpc_api_config` is set.
+    /// and the gRPC API server if `grpc_api_config` is set. The node gets
+    /// them only when all of them have started.
     ///
     /// # Panics
     ///
@@ -1216,48 +1176,43 @@ impl IotaNode {
     /// opened, or if a task that builds a server on the serving runtime panics
     /// or is cancelled.
     async fn start_fullnode_services(
-        config: &NodeConfig,
+        &mut self,
         grpc_api_config: Option<GrpcApiConfig>,
-        state: &Arc<AuthorityState>,
-        auth_agg: &Arc<ArcSwap<AuthorityAggregator<NetworkAuthorityClient>>>,
-        end_of_epoch_receiver: broadcast::Receiver<IotaSystemState>,
-        state_sync_store: &RocksDbStore,
-        prometheus_registry: &Registry,
-        serving_rt_handle: &tokio::runtime::Handle,
         server_version: ServerVersion,
-    ) -> Result<FullnodeServices> {
-        let transaction_orchestrator = if config.run_with_range.is_none() {
+    ) -> Result<()> {
+        let prometheus_registry = self.registry_service.default_registry();
+        let transaction_orchestrator = if self.config.run_with_range.is_none() {
             Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
-                auth_agg.load_full(),
-                state.clone(),
-                end_of_epoch_receiver,
-                &config.db_path(),
-                prometheus_registry,
-                Some(config),
+                self.auth_agg.load_full(),
+                self.state.clone(),
+                self.end_of_epoch_channel.subscribe(),
+                &self.config.db_path(),
+                &prometheus_registry,
+                Some(&self.config),
             )))
         } else {
             None
         };
 
         let http_server = Self::start_http_server(
-            serving_rt_handle,
-            state.clone(),
+            &self.serving_rt_handle,
+            self.state.clone(),
             transaction_orchestrator.clone(),
-            config,
-            prometheus_registry,
+            &self.config,
+            &prometheus_registry,
         )
         .await?;
 
         let grpc_server_handle = match grpc_api_config {
             Some(grpc_api_config) => Some(
                 Self::start_grpc_api_server(
-                    serving_rt_handle,
+                    &self.serving_rt_handle,
                     grpc_api_config,
-                    config,
-                    state.clone(),
-                    state_sync_store.clone(),
+                    &self.config,
+                    self.state.clone(),
+                    self.state_sync_store.clone(),
                     transaction_orchestrator.clone(),
-                    prometheus_registry,
+                    &prometheus_registry,
                     server_version,
                 )
                 .await?,
@@ -1265,11 +1220,10 @@ impl IotaNode {
             None => None,
         };
 
-        Ok(FullnodeServices {
-            transaction_orchestrator,
-            http_server: Some(http_server),
-            grpc_server_handle,
-        })
+        self.transaction_orchestrator = transaction_orchestrator;
+        self._http_server = Some(http_server);
+        self.grpc_server_handle = Mutex::new(grpc_server_handle);
+        Ok(())
     }
 
     /// Starts the JSON-RPC server on the serving runtime.
@@ -1362,33 +1316,31 @@ impl IotaNode {
     /// pending certificates, if the node has no randomness manager for the
     /// epoch, or if the validator gRPC server fails to start.
     async fn start_validator_components(
-        config: &NodeConfig,
-        state: &Arc<AuthorityState>,
+        &mut self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-        stores: &NodeStores,
-        state_sync_handle: &state_sync::Handle,
-        randomness_handle: &randomness::Handle,
-        global_state_hasher: &Arc<GlobalStateHasher>,
-        connection_monitor_status: &Arc<ConnectionMonitorStatus>,
-        registry_service: &RegistryService,
-        serving_rt_handle: &tokio::runtime::Handle,
-    ) -> Result<ValidatorComponents> {
+    ) -> Result<()> {
+        let global_state_hasher = Arc::downgrade(
+            self.global_state_hasher
+                .get_mut()
+                .as_ref()
+                .expect("only `monitor_reconfiguration` takes the global state hasher"),
+        );
         let (components, _) = futures::join!(
             Self::construct_validator_components(
-                config.clone(),
-                state.clone(),
+                self.config.clone(),
+                self.state.clone(),
                 epoch_store.committee().clone(),
                 epoch_store.clone(),
-                stores.checkpoint_store.clone(),
-                state_sync_handle.clone(),
-                randomness_handle.clone(),
-                Arc::downgrade(global_state_hasher),
-                stores.backpressure_manager.clone(),
-                connection_monitor_status.clone(),
-                registry_service,
-                serving_rt_handle.clone(),
+                self.checkpoint_store.clone(),
+                self.state_sync_handle.clone(),
+                self.randomness_handle.clone(),
+                global_state_hasher,
+                self.backpressure_manager.clone(),
+                self.connection_monitor_status.clone(),
+                &self.registry_service,
+                self.serving_rt_handle.clone(),
             ),
-            Self::reexecute_pending_consensus_certs(epoch_store, state)
+            Self::reexecute_pending_consensus_certs(epoch_store, &self.state)
         );
         let mut components = components?;
 
@@ -1397,7 +1349,8 @@ impl IotaNode {
         // Start the validator gRPC server
         components.validator_server_handle = components.validator_server_handle.start().await;
 
-        Ok(components)
+        self.validator_components = Mutex::new(Some(components));
+        Ok(())
     }
 
     pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<IotaSystemState> {
