@@ -27,6 +27,7 @@ use crate::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs,
         CommitmentVerifiedTransactions, GENESIS_ROUND, ShardWithProof, ShardWithProofAPI,
         SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+        max_signed_block_header_bytes,
     },
     block_verifier::{BlockVerifier, max_shard_bytes},
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -41,10 +42,12 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{
-        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlock,
-        SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-        SerializedTransactionsV2, StreamPosition, TransactionChunkStream,
-        tonic_network::MAX_FETCH_RESPONSE_BYTES,
+        BlockBundleStream, ChunkStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
+        SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
+        tonic_network::{
+            MAX_FETCH_RESPONSE_BYTES, chunk_data, max_serialized_transactions_entry_bytes,
+        },
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -1063,14 +1066,73 @@ impl TransactionCursor {
     }
 }
 
-/// Serves `cursor` as a stream, building each chunk on the blocking pool when
-/// the transport asks for it.
-fn transaction_chunk_stream(cursor: TransactionCursor) -> TransactionChunkStream {
-    stream::unfold(Some(cursor), |state| async move {
-        let mut cursor = state?;
-        let (cursor, chunk) = match spawn_blocking(move || {
-            let chunk = cursor.next_chunk();
-            (cursor, chunk)
+/// Builds the chunks of a response serving the entries of the requested refs
+/// in request order, reading refs only when the next chunk has room for them.
+struct RefCursor<R, F> {
+    refs: VecDeque<R>,
+    /// Takes refs from the front of the queue and reads their entries, in
+    /// their order, until the entries reach the given number of bytes; the
+    /// last entry may pass it. Takes at least one ref, and skips the refs this
+    /// node has no entry for.
+    read_entries: F,
+    /// Maximum total size of the entries in one chunk. An entry larger than
+    /// this is sent in a chunk of its own.
+    chunk_bytes: usize,
+    /// Entries read but not sent yet.
+    read: VecDeque<Bytes>,
+}
+
+impl<R, F> RefCursor<R, F>
+where
+    F: FnMut(&mut VecDeque<R>, usize) -> ConsensusResult<Vec<Bytes>>,
+{
+    fn new(refs: Vec<R>, chunk_bytes: usize, read_entries: F) -> Self {
+        Self {
+            refs: refs.into(),
+            read_entries,
+            chunk_bytes,
+            read: VecDeque::new(),
+        }
+    }
+
+    /// Builds the next chunk, `None` once the response is over.
+    fn next_chunk(&mut self) -> ConsensusResult<Option<Vec<Bytes>>> {
+        let mut chunk: Vec<Bytes> = Vec::new();
+        let mut chunk_size = 0;
+        loop {
+            while let Some(entry) = self.read.pop_front() {
+                if !chunk.is_empty() && chunk_size + entry.len() > self.chunk_bytes {
+                    self.read.push_front(entry);
+                    return Ok(Some(chunk));
+                }
+                chunk_size += entry.len();
+                chunk.push(entry);
+            }
+            if self.refs.is_empty() {
+                return Ok((!chunk.is_empty()).then_some(chunk));
+            }
+            let space = self.chunk_bytes.saturating_sub(chunk_size);
+            if space == 0 && !chunk.is_empty() {
+                return Ok(Some(chunk));
+            }
+            self.read
+                .extend((self.read_entries)(&mut self.refs, space)?);
+        }
+    }
+}
+
+/// Serves the chunks `next_chunk` builds as a stream, building each on the
+/// blocking pool when the transport asks for it. `next_chunk` returns `None`
+/// once the response is over.
+fn chunk_stream<F>(next_chunk: F) -> ChunkStream
+where
+    F: FnMut() -> ConsensusResult<Option<Vec<Bytes>>> + Send + 'static,
+{
+    stream::unfold(Some(next_chunk), |state| async move {
+        let mut next_chunk = state?;
+        let (next_chunk, chunk) = match spawn_blocking(move || {
+            let chunk = next_chunk();
+            (next_chunk, chunk)
         })
         .await
         {
@@ -1078,12 +1140,133 @@ fn transaction_chunk_stream(cursor: TransactionCursor) -> TransactionChunkStream
             Err(e) => return Some((Err(e), None)),
         };
         match chunk {
-            Ok(Some(chunk)) => Some((Ok(chunk), Some(cursor))),
+            Ok(Some(chunk)) => Some((Ok(chunk), Some(next_chunk))),
             Ok(None) => None,
             Err(e) => Some((Err(e), None)),
         }
     })
     .boxed()
+}
+
+/// Serves the headers of `block_refs` to commit sync in their order, reading
+/// them as the transport asks for each chunk.
+fn header_fetch_response(
+    context: &Context,
+    store: Arc<dyn Store>,
+    dag_state: Arc<RwLock<DagState>>,
+    block_refs: Vec<BlockRef>,
+) -> ChunkStream {
+    let max_header_bytes = max_signed_block_header_bytes(context.committee.size());
+    let mut cursor = RefCursor::new(
+        block_refs,
+        MAX_FETCH_RESPONSE_BYTES,
+        move |refs: &mut VecDeque<BlockRef>, byte_budget: usize| {
+            // Headers are small, so they are read by count at the maximum
+            // header size: a few hundred per read.
+            let count = (byte_budget / max_header_bytes).clamp(1, refs.len());
+            let batch: Vec<BlockRef> = refs.drain(..count).collect();
+            read_requested_block_headers(store.as_ref(), &dag_state, &batch)
+        },
+    );
+    chunk_stream(move || cursor.next_chunk())
+}
+
+/// Serves the payloads of `transaction_refs` in their order, reading them as
+/// the transport asks for each chunk. A ref listed more than once is served
+/// once.
+fn transaction_fetch_response(
+    context: Arc<Context>,
+    store: Arc<dyn Store>,
+    dag_state: Arc<RwLock<DagState>>,
+    mut transaction_refs: Vec<TransactionRef>,
+) -> ChunkStream {
+    let mut listed = BTreeSet::new();
+    transaction_refs.retain(|transaction_ref| listed.insert(*transaction_ref));
+    let mut cursor = RefCursor::new(
+        transaction_refs,
+        MAX_FETCH_RESPONSE_BYTES,
+        move |refs: &mut VecDeque<TransactionRef>, byte_budget: usize| {
+            read_requested_transactions(&context, store.as_ref(), &dag_state, refs, byte_budget)
+        },
+    );
+    chunk_stream(move || cursor.next_chunk())
+}
+
+/// Takes refs from the front of `refs` and reads their entries in order, until
+/// the payloads read reach `byte_budget`; the last one may pass it. Takes at
+/// least one ref.
+///
+/// Payloads at or above the GC round are taken from the DAG state. A run of
+/// refs below it is looked up in the store, in groups of as many refs as the
+/// budget left holds at the maximum entry size: they are whatever the
+/// requester asked for, so a scan over the range they span would read entries
+/// no one wants.
+fn read_requested_transactions(
+    context: &Context,
+    store: &dyn Store,
+    dag_state: &RwLock<DagState>,
+    refs: &mut VecDeque<TransactionRef>,
+    byte_budget: usize,
+) -> ConsensusResult<Vec<Bytes>> {
+    let max_entry_bytes = max_serialized_transactions_entry_bytes(context);
+    let mut payloads = Vec::new();
+    let mut total_bytes = 0;
+    let below_gc: Vec<TransactionRef> = {
+        let dag_state = dag_state.read();
+        let gc_round = dag_state.gc_round_for_last_solid_commit();
+        while let Some(&transaction_ref) = refs.front() {
+            if transaction_ref.round < gc_round
+                || (!payloads.is_empty() && total_bytes >= byte_budget)
+            {
+                break;
+            }
+            refs.pop_front();
+            if let Some(payload) = dag_state
+                .get_serialized_transactions(&[transaction_ref.into()])
+                .pop()
+                .flatten()
+            {
+                total_bytes += payload.len();
+                payloads.push((transaction_ref, payload));
+            }
+        }
+        if !payloads.is_empty() && total_bytes >= byte_budget {
+            Vec::new()
+        } else {
+            refs.iter()
+                .take_while(|transaction_ref| transaction_ref.round < gc_round)
+                .copied()
+                .collect()
+        }
+    };
+
+    let mut below_gc = below_gc.as_slice();
+    while !below_gc.is_empty() && (payloads.is_empty() || total_bytes < byte_budget) {
+        let count =
+            (byte_budget.saturating_sub(total_bytes) / max_entry_bytes).clamp(1, below_gc.len());
+        let (group, rest) = below_gc.split_at(count);
+        below_gc = rest;
+        let generic_refs: Vec<GenericTransactionRef> =
+            group.iter().copied().map(Into::into).collect();
+        let stored = store.read_serialized_transactions(&generic_refs)?;
+        for (&transaction_ref, payload) in group.iter().zip(stored) {
+            refs.pop_front();
+            let payload = payload.or_else(|| {
+                context
+                    .empty_transactions_for_ref(transaction_ref.into())
+                    .map(|empty| empty.serialized().clone())
+            });
+            if let Some(payload) = payload {
+                total_bytes += payload.len();
+                payloads.push((transaction_ref, payload));
+            }
+        }
+    }
+
+    payloads
+        .into_iter()
+        .map(|(transaction_ref, payload)| serialize_transactions_entry(transaction_ref, payload))
+        .collect()
 }
 
 /// Wraps a payload and its ref into the entry a transaction-fetch response
@@ -1574,7 +1757,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         peer: AuthorityIndex,
         mut block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>> {
+    ) -> ConsensusResult<ChunkStream> {
         fail_point_async!("consensus-rpc-response");
 
         if !highest_accepted_rounds.is_empty()
@@ -1618,7 +1801,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            read_block_headers(self.store.as_ref(), &self.dag_state, &block_refs)?
+            header_fetch_response(
+                &self.context,
+                self.store.clone(),
+                self.dag_state.clone(),
+                block_refs,
+            )
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
@@ -1673,7 +1861,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 }
             }
 
-            headers
+            // At most `max_headers_per_header_sync_fetch` recent headers, so
+            // they are read at once.
+            stream::iter(
+                chunk_data(headers, MAX_FETCH_RESPONSE_BYTES)
+                    .into_iter()
+                    .map(Ok),
+            )
+            .boxed()
         };
         Ok(serialized_headers)
     }
@@ -1846,13 +2041,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 first_commit_refs,
             )?;
         }
-        let transactions = transaction_chunk_stream(TransactionCursor::new(
+        let mut cursor = TransactionCursor::new(
             self.context.clone(),
             self.store.clone(),
             self.dag_state.clone(),
             MAX_FETCH_RESPONSE_BYTES,
             commits_transaction_refs,
-        ));
+        );
+        let transactions = chunk_stream(move || cursor.next_chunk());
 
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
@@ -1918,11 +2114,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         mut committed_transactions_refs: Vec<TransactionRef>,
-    ) -> ConsensusResult<Vec<Bytes>> {
+    ) -> ConsensusResult<ChunkStream> {
         fail_point_async!("consensus-rpc-response");
 
         if committed_transactions_refs.is_empty() {
-            return Ok(Vec::new());
+            return Ok(stream::empty().boxed());
         }
 
         let max_transactions = max(
@@ -1944,42 +2140,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Evicted refs are looked up one by one: they are whatever the
-        // requester asked for, so a scan over the range they span would read
-        // entries no one wants.
-        let mut transactions_by_ref =
-            read_transaction_payloads(&self.dag_state, &committed_transactions_refs, |evicted| {
-                let refs: Vec<GenericTransactionRef> =
-                    evicted.iter().copied().map(Into::into).collect();
-                Ok(self
-                    .store
-                    .read_serialized_transactions(&refs)?
-                    .into_iter()
-                    .zip(evicted)
-                    .filter_map(|(payload, transaction_ref)| {
-                        payload
-                            .or_else(|| {
-                                self.context
-                                    .empty_transactions_for_ref(transaction_ref.into())
-                                    .map(|empty| empty.serialized().clone())
-                            })
-                            .map(|payload| (transaction_ref, payload))
-                    })
-                    .collect())
-            })?;
-
-        let mut result = Vec::new();
-        for transaction_ref in committed_transactions_refs {
-            // Drained, so a payload is freed as soon as its envelope is built.
-            if let Some(serialized_tx) = transactions_by_ref.remove(&transaction_ref) {
-                result.push(serialize_transactions_entry(
-                    transaction_ref,
-                    serialized_tx,
-                )?);
-            }
-        }
-
-        Ok(result)
+        Ok(transaction_fetch_response(
+            self.context.clone(),
+            self.store.clone(),
+            self.dag_state.clone(),
+            committed_transactions_refs,
+        ))
     }
 }
 
@@ -2226,14 +2392,14 @@ fn fast_sync_search_bound(
 mod tests {
     use std::{
         cmp::min,
-        collections::{BTreeMap, BTreeSet},
+        collections::{BTreeMap, BTreeSet, VecDeque},
         sync::Arc,
         time::Duration,
     };
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::StreamExt;
+    use futures::{StreamExt, TryStreamExt};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
@@ -2246,10 +2412,11 @@ mod tests {
     use crate::{
         CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
-            AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
-            SubscriptionCounter, TransactionCursor, check_first_commit_payloads,
-            fast_sync_search_bound, filtered_header_info, read_transaction_payloads,
-            serialize_transactions_entry, transaction_chunk_stream,
+            AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE, RefCursor,
+            SubscriptionCounter, TransactionCursor, check_first_commit_payloads, chunk_stream,
+            fast_sync_search_bound, filtered_header_info, header_fetch_response,
+            read_requested_transactions, read_transaction_payloads, serialize_transactions_entry,
+            transaction_fetch_response,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -4858,7 +5025,10 @@ mod tests {
         let truncated_headers = authority_service
             .handle_fetch_headers(peer, oversized_request, vec![])
             .await
-            .expect("Should return a valid vector of serialized block headers");
+            .expect("Should return a valid vector of serialized block headers")
+            .try_concat()
+            .await
+            .unwrap();
 
         // Verify that we received requested block headers
         assert_eq!(
@@ -5004,7 +5174,8 @@ mod tests {
         let err = authority_service
             .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators + 1])
             .await
-            .expect_err("Expected InvalidSizeOfHighestAcceptedRounds error");
+            .err()
+            .expect("Expected InvalidSizeOfHighestAcceptedRounds error");
 
         assert!(matches!(
             err,
@@ -5013,7 +5184,10 @@ mod tests {
         let truncated_headers = authority_service
             .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
             .await
-            .expect("Should return a valid vector of serialized block headers");
+            .expect("Should return a valid vector of serialized block headers")
+            .try_concat()
+            .await
+            .unwrap();
 
         // Verify that we received requested block headers
         assert_eq!(
@@ -5039,7 +5213,10 @@ mod tests {
         let serialized_block_headers = authority_service
             .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
             .await
-            .expect("Should return a valid vector of serialized block headers");
+            .expect("Should return a valid vector of serialized block headers")
+            .try_concat()
+            .await
+            .unwrap();
 
         // Verify that we received requested block headers and additional from previous
         // rounds
@@ -5428,7 +5605,10 @@ mod tests {
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, tx_refs_to_request_first_batch.clone())
             .await
-            .expect("We should expect a correct return of serialized transactions");
+            .expect("We should expect a correct return of serialized transactions")
+            .try_concat()
+            .await
+            .unwrap();
 
         tx_refs_to_request_first_batch.truncate(
             context
@@ -5475,7 +5655,10 @@ mod tests {
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, tx_refs_to_request_second_batch.clone())
             .await
-            .expect("Should return an empty vector");
+            .expect("Should return an empty vector")
+            .try_concat()
+            .await
+            .unwrap();
 
         // Verify that we received zero transactions since they are not present in the
         // dag
@@ -5503,6 +5686,9 @@ mod tests {
 
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, vec![empty_ref])
+            .await
+            .unwrap()
+            .try_concat()
             .await
             .unwrap();
         let returned: SerializedTransactionsV2 =
@@ -5698,7 +5884,10 @@ mod tests {
         let returned_headers = authority_service
             .handle_fetch_headers(peer, interleaved_refs.clone(), vec![])
             .await
-            .expect("Should return valid serialized block headers");
+            .expect("Should return valid serialized block headers")
+            .try_concat()
+            .await
+            .unwrap();
 
         // THEN: each returned header should match the corresponding input ref at the
         // same index
@@ -5734,6 +5923,9 @@ mod tests {
             .collect();
         let returned_transactions = authority_service
             .handle_fetch_transactions(peer, transaction_refs.clone())
+            .await
+            .unwrap()
+            .try_concat()
             .await
             .unwrap();
         let returned_refs: Vec<TransactionRef> = returned_transactions
@@ -6251,13 +6443,14 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = dag_state_reading_from_the_store(&context, store.clone());
         let commits_transaction_refs = refs_by_round(&blocks);
-        let mut transactions = transaction_chunk_stream(TransactionCursor::new(
+        let mut cursor = TransactionCursor::new(
             context,
             store.clone(),
             dag_state,
             MAX_FETCH_RESPONSE_BYTES,
             commits_transaction_refs.clone(),
-        ));
+        );
+        let mut transactions = chunk_stream(move || cursor.next_chunk());
 
         // Written after the response was built: an eager reader would have
         // found none of them.
@@ -6352,5 +6545,211 @@ mod tests {
         .unwrap();
 
         assert!(payloads.contains_key(&transaction_ref));
+    }
+
+    /// Serves refs `0..count`, each with an entry of `entry_bytes`, through a
+    /// reader that takes refs until their entries reach the space it is given.
+    /// Returns the chunks and the space given to every read.
+    fn ref_cursor_chunks(
+        count: u8,
+        entry_bytes: usize,
+        chunk_bytes: usize,
+    ) -> (Vec<Vec<Bytes>>, Vec<usize>) {
+        let mut spaces = Vec::new();
+        let mut cursor = RefCursor::new(
+            (0..count).collect(),
+            chunk_bytes,
+            |refs: &mut VecDeque<u8>, byte_budget: usize| {
+                spaces.push(byte_budget);
+                let mut entries = Vec::new();
+                while let Some(r) = refs.pop_front() {
+                    entries.push(Bytes::from(vec![r; entry_bytes]));
+                    if entries.len() * entry_bytes >= byte_budget {
+                        break;
+                    }
+                }
+                Ok(entries)
+            },
+        );
+        let mut chunks = Vec::new();
+        while let Some(chunk) = cursor.next_chunk().unwrap() {
+            chunks.push(chunk);
+        }
+        (chunks, spaces)
+    }
+
+    /// Each read is given the space left in the chunk, so a full chunk ends
+    /// the reads for it.
+    #[test]
+    fn requested_refs_are_read_up_to_the_space_left_in_the_chunk() {
+        let (chunks, spaces) = ref_cursor_chunks(10, 10, 30);
+
+        assert_eq!(
+            chunks.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![3, 3, 3, 1]
+        );
+        assert_eq!(spaces, vec![30, 30, 30, 30]);
+        assert_eq!(
+            chunks.concat(),
+            (0..10)
+                .map(|r| Bytes::from(vec![r; 10]))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// An entry read past the space left is sent first in the next chunk.
+    #[test]
+    fn an_entry_read_past_the_chunk_is_sent_in_the_next_one() {
+        let (chunks, spaces) = ref_cursor_chunks(10, 7, 30);
+
+        assert_eq!(
+            chunks.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![4, 4, 2]
+        );
+        assert_eq!(spaces, vec![30, 23, 23]);
+        assert_eq!(
+            chunks.concat(),
+            (0..10).map(|r| Bytes::from(vec![r; 7])).collect::<Vec<_>>()
+        );
+    }
+
+    /// An entry larger than a chunk is sent on its own.
+    #[test]
+    fn a_requested_entry_larger_than_a_chunk_is_sent_alone() {
+        let (chunks, spaces) = ref_cursor_chunks(3, 10, 4);
+
+        assert_eq!(
+            chunks.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![1, 1, 1]
+        );
+        assert_eq!(spaces, vec![4, 4, 4]);
+    }
+
+    /// Refs this node has no entry for are skipped, and a response with no
+    /// entry at all has no chunk.
+    #[test]
+    fn requested_refs_without_an_entry_are_skipped() {
+        let odd_entries = |refs: &mut VecDeque<u8>, _: usize| {
+            Ok(refs
+                .pop_front()
+                .filter(|r| r % 2 == 1)
+                .map(|r| Bytes::from(vec![r; 10]))
+                .into_iter()
+                .collect())
+        };
+
+        let mut cursor = RefCursor::new((0..6).collect(), 30, odd_entries);
+        assert_eq!(
+            cursor.next_chunk().unwrap().unwrap(),
+            [1, 3, 5].map(|r| Bytes::from(vec![r; 10]))
+        );
+        assert!(cursor.next_chunk().unwrap().is_none());
+
+        let mut cursor = RefCursor::new(vec![0, 2, 4], 30, odd_entries);
+        assert!(cursor.next_chunk().unwrap().is_none());
+    }
+
+    /// Refs are taken until their payloads reach the budget, whether the
+    /// payloads come from the store below the GC round or from the DAG state.
+    #[rstest]
+    #[tokio::test]
+    async fn requested_transactions_are_read_up_to_the_budget(
+        #[values(false, true)] below_gc: bool,
+    ) {
+        let blocks = two_rounds_of_payloads();
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        let dag_state = if below_gc {
+            write_payloads(&store, &blocks);
+            dag_state_reading_from_the_store(&context, store.clone())
+        } else {
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+            for block in &blocks {
+                dag_state
+                    .write()
+                    .add_transactions(block.verified_transactions.clone(), DataSource::Test);
+            }
+            dag_state
+        };
+        let transaction_refs: Vec<TransactionRef> = blocks
+            .iter()
+            .map(|block| block.verified_block_header.transaction_ref())
+            .collect();
+        let payload_bytes = blocks[0].verified_transactions.serialized().len();
+        let mut refs: VecDeque<TransactionRef> = transaction_refs.iter().copied().collect();
+
+        let entries = read_requested_transactions(
+            &context,
+            store.as_ref(),
+            &dag_state,
+            &mut refs,
+            2 * payload_bytes,
+        )
+        .unwrap();
+
+        assert_eq!(entry_refs(&entries), transaction_refs[..2]);
+        assert_eq!(refs, &transaction_refs[2..]);
+    }
+
+    /// The headers commit sync asks for are read when the transport asks for a
+    /// chunk, and are served in request order.
+    #[tokio::test]
+    async fn requested_headers_are_read_when_polled() {
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let headers: Vec<VerifiedBlockHeader> = two_rounds_of_payloads()
+            .into_iter()
+            .rev()
+            .map(|block| block.verified_block_header)
+            .collect();
+        let block_refs: Vec<BlockRef> = headers.iter().map(|header| header.reference()).collect();
+        let mut response =
+            header_fetch_response(&context, store.clone(), dag_state, block_refs.clone());
+
+        // Written after the response was built: an eager reader would have
+        // found none of them.
+        store
+            .write(WriteBatch::default().block_headers(headers))
+            .unwrap();
+
+        let chunk = response.next().await.unwrap().unwrap();
+        let served: Vec<BlockRef> = chunk
+            .into_iter()
+            .map(|serialized| {
+                let signed: SignedBlockHeader = bcs::from_bytes(&serialized).unwrap();
+                VerifiedBlockHeader::new_verified(signed, serialized).reference()
+            })
+            .collect();
+        assert_eq!(served, block_refs);
+        assert!(response.next().await.is_none());
+    }
+
+    /// The payloads a transaction fetch asks for are read when the transport
+    /// asks for a chunk, in request order, and a ref listed twice is served
+    /// once.
+    #[tokio::test]
+    async fn requested_transactions_are_read_when_polled() {
+        let blocks = two_rounds_of_payloads();
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let distinct_refs: Vec<TransactionRef> = blocks
+            .iter()
+            .rev()
+            .map(|block| block.verified_block_header.transaction_ref())
+            .collect();
+        let mut requested_refs = distinct_refs.clone();
+        requested_refs.push(distinct_refs[0]);
+        let mut response =
+            transaction_fetch_response(context, store.clone(), dag_state, requested_refs);
+
+        // Written after the response was built: an eager reader would have
+        // found none of them.
+        write_payloads(&store, &blocks);
+
+        let chunk = response.next().await.unwrap().unwrap();
+        assert_eq!(entry_refs(&chunk), distinct_refs);
+        assert!(response.next().await.is_none());
     }
 }

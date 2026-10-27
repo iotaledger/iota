@@ -69,17 +69,16 @@ use crate::{
 pub(crate) struct FetchedCommitsAndTransactions {
     pub(crate) commits: Vec<Bytes>,
     pub(crate) certifier_block_headers: Vec<Bytes>,
-    pub(crate) transactions: TransactionChunkStream,
+    pub(crate) transactions: ChunkStream,
 }
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
 
-/// Transaction entries of a fast commit-sync response, one response message per
-/// item. An error item is the last one.
-pub(crate) type TransactionChunkStream =
-    Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
+/// Entries of a fetch response, one response message per item. An error item
+/// is the last one.
+pub(crate) type ChunkStream = Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
 
 /// Network client for communicating with peers.
 ///
@@ -203,12 +202,13 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<BlockBundleStream>;
 
     /// Handles the request to fetch block headers by references from the peer.
+    /// Headers asked for by commit sync are read as the stream is polled.
     async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+    ) -> ConsensusResult<ChunkStream>;
 
     /// Handles the request to fetch commits by index range from the peer.
     /// Batch size limit depends on the sync type.
@@ -236,12 +236,13 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch transactions by references from the peer.
-    /// Results are truncated to the per-fetch transaction count cap.
+    /// Results are truncated to the per-fetch transaction count cap, and are
+    /// read as the stream is polled.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
         transactions_refs: Vec<TransactionRef>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+    ) -> ConsensusResult<ChunkStream>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
