@@ -1617,6 +1617,30 @@ impl AuthorityPerEpochStore {
         self.epoch_start_configuration.epoch_start_state()
     }
 
+    /// Feeds `report` into this epoch's report aggregator as if `reporter`
+    /// had sent it through consensus, then republishes the score vector. The
+    /// aggregator row is not persisted, so the report does not survive a
+    /// restart of the node.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn process_misbehavior_report_for_testing(
+        &self,
+        reporter: crate::consensus_types::AuthorityIndex,
+        report: &iota_types::messages_consensus::VersionedMisbehaviorReport,
+    ) {
+        self.report_aggregator
+            .validate_report(report)
+            .expect("report must match the epoch's scorer version and committee size");
+        self.report_aggregator.process_report(reporter, report);
+        self.scoreboard.update_scores(&self.report_aggregator);
+    }
+
+    /// The score vector the checkpoint builder passes to the change-epoch
+    /// transaction, one entry per consensus authority index.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn current_scores_for_testing(&self) -> Vec<u64> {
+        self.scoreboard.current_scores()
+    }
+
     pub fn get_chain_identifier(&self) -> ChainIdentifier {
         self.chain.0
     }

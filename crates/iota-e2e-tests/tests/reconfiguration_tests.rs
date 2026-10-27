@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
@@ -10,6 +14,7 @@ use iota_core::{
     authority_aggregator::AggregatorSendCapabilityNotificationError,
     consensus_adapter::position_submit_certificate,
 };
+use iota_json_rpc_types::EventFilter;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
@@ -20,15 +25,23 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
-    base_types::{AuthorityName, EpochId},
-    crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
+    base_types::{AuthorityName, ConciseableName, EpochId},
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignature, IotaAuthoritySignature,
+        get_key_pair_from_rng,
+    },
     effects::TransactionEffectsAPI,
     error::IotaError,
     iota_system_state::{
-        IotaSystemStateTrait, get_validator_from_table,
+        IotaSystemStateTrait,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
     },
-    messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
+    messages_consensus::{
+        AuthorityCapabilitiesV1, MisbehaviorObservationsV1, MisbehaviorObservationsV2,
+        SignedAuthorityCapabilitiesV1, VersionedMisbehaviorReport,
+    },
     messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, VerifiedTransaction},
@@ -1635,4 +1648,251 @@ async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
     test_cluster
         .wait_for_epoch_on_node(&handle, Some(2), Duration::from_secs(120))
         .await;
+}
+
+/// Every validator's `tallying_rule_global_score` in the epoch-end
+/// `ValidatorEpochInfoEventV1` must be the score the scoreboard holds for that
+/// validator. The scoreboard is indexed by consensus authority index
+/// (authority-name order) while Move reads the change-epoch `scores` vector by
+/// `committee_members` position. The two orders agree for a genesis committee
+/// but not after a join, unless the new key sorts last: Move appends the new
+/// validator last, while its consensus index follows its authority key. The
+/// test gives the new validator a key that sorts first, so its consensus index
+/// and its `committee_members` position differ, and asserts that before it
+/// injects the misbehavior reports. After the next epoch change, the published
+/// scores must match the scoreboard validator by validator. If the node builds
+/// the vector in consensus order instead, the new validator's zero score is
+/// published for the genesis validator at `committee_members` position 0.
+#[sim_test]
+async fn test_validator_scores_reach_their_validator_after_join() {
+    let mut rng = UnwrapErr(SysRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new()
+        .with_authority_key_pair(authority_key_pair_sorting_first(&mut rng))
+        .build(&mut rng);
+    let new_authority_name: AuthorityName = new_validator.authority_key_pair.public().into();
+    let new_validator_address = new_validator.account_key_pair.public_key().derive_address();
+
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_validator_candidates([new_validator_address])
+        .enable_fullnode_events()
+        .build()
+        .await;
+    assert!(
+        test_cluster
+            .protocol_config()
+            .pass_calculated_validator_scores_to_advance_epoch(),
+        "the change-epoch transaction must carry the scoreboard's scores"
+    );
+
+    execute_add_validator_transactions(&test_cluster, &new_validator).await;
+    let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
+
+    // Joining takes two epochs: activation first, committee membership once
+    // the new validator has announced its capabilities.
+    test_cluster.force_new_epoch().await;
+    test_cluster.wait_for_epoch_all_nodes(1).await;
+    test_cluster.force_new_epoch().await;
+    test_cluster.wait_for_epoch_all_nodes(2).await;
+
+    let (consensus_order, move_order) = new_validator_handle.with(|node| {
+        let epoch_store = node.state().epoch_store_for_testing();
+        assert!(node.state().is_committee_validator(&epoch_store));
+        let consensus_order: Vec<AuthorityName> =
+            epoch_store.committee().names().copied().collect();
+        let move_order: Vec<(AuthorityName, Address)> = epoch_store
+            .epoch_start_state()
+            .committee_validators()
+            .iter()
+            .map(|validator| (validator.authority_name(), validator.iota_address))
+            .collect();
+        (consensus_order, move_order)
+    });
+    let committee_size = consensus_order.len();
+    let newcomer_index = consensus_order
+        .iter()
+        .position(|name| *name == new_authority_name)
+        .unwrap();
+    let newcomer_position = move_order
+        .iter()
+        .position(|(name, _)| *name == new_authority_name)
+        .unwrap();
+    assert_eq!(
+        newcomer_position,
+        committee_size - 1,
+        "a validator that joins after genesis is appended to active_validators"
+    );
+    assert_ne!(
+        newcomer_index, newcomer_position,
+        "the newcomer's key must not sort last, or both orders coincide"
+    );
+
+    // Give the newcomer a zero score on every validator the way real reports
+    // would: each committee member reports one equivocation at the newcomer's
+    // consensus index. Equivocation is the major metric, so the score is 0.
+    let handles = test_cluster.swarm.validator_node_handles();
+    let mut scoreboard: Option<Vec<u64>> = None;
+    for handle in &handles {
+        let scores = handle.with(|node| {
+            let epoch_store = node.state().epoch_store_for_testing();
+            assert_eq!(epoch_store.epoch(), 2);
+            let committee = epoch_store.committee().clone();
+            let scorer_version = epoch_store.protocol_config().scorer_version_as_option();
+            for reporter in committee.names() {
+                let report =
+                    equivocation_report(*reporter, committee_size, newcomer_index, scorer_version);
+                epoch_store.process_misbehavior_report_for_testing(
+                    committee.authority_index(reporter).unwrap(),
+                    &report,
+                );
+            }
+            epoch_store.current_scores_for_testing()
+        });
+        match &scoreboard {
+            None => scoreboard = Some(scores),
+            Some(previous) => assert_eq!(previous, &scores, "validators disagree on scores"),
+        }
+    }
+    assert_eq!(handles.len(), committee_size);
+    let scoreboard = scoreboard.unwrap();
+    for (index, score) in scoreboard.iter().enumerate() {
+        assert_eq!(
+            *score == 0,
+            index == newcomer_index,
+            "scoreboard {scoreboard:?} must be zero only at the newcomer's index {newcomer_index}"
+        );
+    }
+
+    test_cluster.force_new_epoch().await;
+    test_cluster.wait_for_epoch_all_nodes(3).await;
+
+    let published = validator_epoch_scores(&test_cluster, 3).await;
+    assert_eq!(
+        published.len(),
+        committee_size,
+        "one event per committee member"
+    );
+    let mut rows = vec![format!(
+        "{:<13}  {:<15}  {:<13}  {:>10}  {:>9}",
+        "Move position", "consensus index", "validator", "scoreboard", "published"
+    )];
+    let mut wrong = 0;
+    for (position, (name, address)) in move_order.iter().enumerate() {
+        let index = consensus_order.iter().position(|n| n == name).unwrap();
+        let expected = scoreboard[index];
+        let score = published.get(address).copied();
+        if score != Some(expected) {
+            wrong += 1;
+        }
+        rows.push(format!(
+            "{position:<13}  {index:<15}  {:<13}  {expected:>10}  {:>9}",
+            name.concise().to_string(),
+            score.map_or("missing".to_string(), |score| score.to_string()),
+        ));
+    }
+    assert!(
+        wrong == 0,
+        "{wrong} of {committee_size} published scores differ from the scoreboard; \
+         the newcomer {} has consensus index {newcomer_index} and Move position \
+         {newcomer_position}\n{}",
+        new_authority_name.concise(),
+        rows.join("\n"),
+    );
+}
+
+/// Generates an authority key pair whose public key sorts below almost every
+/// other one: the first byte of a compressed BLS12-381 public key is `0x80`
+/// only for about the lowest two percent of the key space.
+fn authority_key_pair_sorting_first<R: rand::CryptoRng>(rng: &mut R) -> AuthorityKeyPair {
+    loop {
+        let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair_from_rng(rng);
+        let name = AuthorityPublicKeyBytes::from(key_pair.public());
+        let bytes: &[u8] = name.as_ref();
+        if bytes[0] == 0x80 && bytes[1] < 0x40 {
+            return key_pair;
+        }
+    }
+}
+
+/// A report from `reporter` that observes one equivocation by the authority at
+/// consensus index `offender` and nothing else, in the wire format of
+/// `scorer_version`.
+fn equivocation_report(
+    reporter: AuthorityName,
+    committee_size: usize,
+    offender: usize,
+    scorer_version: Option<u16>,
+) -> VersionedMisbehaviorReport {
+    let zeros = || vec![0; committee_size];
+    let mut equivocations = zeros();
+    equivocations[offender] = 1;
+    match scorer_version {
+        Some(2) => VersionedMisbehaviorReport::new_v2(
+            reporter,
+            0,
+            MisbehaviorObservationsV2 {
+                faulty_blocks_provable: zeros(),
+                faulty_blocks_unprovable: zeros(),
+                missing_proposals: zeros(),
+                equivocations,
+                invalid_bundle_parts: zeros(),
+            },
+        ),
+        _ => VersionedMisbehaviorReport::new_v1(
+            reporter,
+            0,
+            MisbehaviorObservationsV1 {
+                faulty_blocks_provable: zeros(),
+                faulty_blocks_unprovable: zeros(),
+                missing_proposals: zeros(),
+                equivocations,
+            },
+        ),
+    }
+}
+
+/// The `tallying_rule_global_score` of every `ValidatorEpochInfoEventV1`
+/// emitted for `epoch`, by validator address, as the fullnode serves them.
+async fn validator_epoch_scores(
+    test_cluster: &TestCluster,
+    epoch: EpochId,
+) -> BTreeMap<Address, u64> {
+    let events = test_cluster
+        .iota_client()
+        .event_api()
+        .query_events(
+            EventFilter::MoveEventType(
+                "0x3::validator_set::ValidatorEpochInfoEventV1"
+                    .parse()
+                    .unwrap(),
+            ),
+            None,
+            Some(50),
+            true,
+        )
+        .await
+        .unwrap();
+    events
+        .data
+        .iter()
+        .filter(|event| json_u64(&event.parsed_json["epoch"]) == epoch)
+        .map(|event| {
+            let address = event.parsed_json["validator_address"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+            (
+                address,
+                json_u64(&event.parsed_json["tallying_rule_global_score"]),
+            )
+        })
+        .collect()
+}
+
+/// A Move `u64` in event JSON, which the RPC renders as a string.
+fn json_u64(value: &serde_json::Value) -> u64 {
+    match value {
+        serde_json::Value::String(number) => number.parse().unwrap(),
+        other => other.as_u64().unwrap(),
+    }
 }
