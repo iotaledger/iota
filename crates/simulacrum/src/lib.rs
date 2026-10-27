@@ -252,7 +252,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let (checkpoint, contents) = {
             let mut inner = self.inner.write().unwrap();
             let committee = CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-            let timestamp_ms = inner.store.get_clock().timestamp_ms();
+            let timestamp_ms = inner.store.get_clock().timestamp_ms;
             let (checkpoint, contents, _) =
                 inner.checkpoint_builder.build(&committee, timestamp_ms);
             inner.store.insert_checkpoint(checkpoint.clone());
@@ -273,7 +273,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let mut inner = self.inner.write().unwrap();
         let epoch = inner.epoch_state.epoch();
         let round = inner.epoch_state.next_consensus_round();
-        let timestamp_ms = inner.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
+        let timestamp_ms = inner.store.get_clock().timestamp_ms + duration.as_millis() as u64;
         drop(inner);
 
         let consensus_commit_prologue_transaction =
@@ -318,7 +318,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .checkpoint_builder
             .epoch_rolling_gas_cost_summary()
             .clone();
-        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms;
         let pass_validator_scores = inner
             .epoch_state
             .protocol_config()
@@ -405,7 +405,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let (checkpoint, contents, _) = {
                 let committee =
                     CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-                let timestamp_ms = inner.store.get_clock().timestamp_ms();
+                let timestamp_ms = inner.store.get_clock().timestamp_ms;
                 inner.checkpoint_builder.build_end_of_epoch(
                     &committee,
                     timestamp_ms,
@@ -1018,7 +1018,7 @@ mod tests {
         let start_time_ms = sim.with_store(|store| {
             let clock = store.get_clock();
             println!("clock: {clock:#?}");
-            clock.timestamp_ms()
+            clock.timestamp_ms
         });
 
         for _ in 0..steps {
@@ -1029,7 +1029,7 @@ mod tests {
                 println!("clock: {clock:#?}");
             });
         }
-        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms());
+        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms);
         assert_eq!(end_time_ms - start_time_ms, steps);
         sim.with_store(|store| {
             dbg!(store.get_highest_checkpoint());
