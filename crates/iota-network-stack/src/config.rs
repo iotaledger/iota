@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    num::{NonZeroU32, NonZeroUsize},
-    time::Duration,
-};
+use std::{num::NonZeroU32, time::Duration};
 
 use eyre::Result;
 use serde::{Deserialize, Serialize};
@@ -19,32 +16,36 @@ use crate::{
     server::ServerBuilder,
 };
 
+/// Settings for clients, and for the gRPC layers of a server. A server's
+/// connection and HTTP/2 settings are an [`iota_http::Config`], passed to
+/// [`ServerBuilder::http_config`].
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
-    /// Set the concurrency limit applied to on requests inbound per connection.
+    /// Only affects clients. How many requests a connection may have in
+    /// flight at once.
     pub concurrency_limit_per_connection: Option<usize>,
 
     /// Set a timeout for all request handlers.
     pub request_timeout: Option<Duration>,
 
-    /// Set a timeout for establishing an outbound connection.
+    /// Only affects clients. Set a timeout for establishing an outbound
+    /// connection.
     pub connect_timeout: Option<Duration>,
 
-    /// Sets the SETTINGS_INITIAL_WINDOW_SIZE option for HTTP2 stream-level flow
-    /// control. Default is 65,535
+    /// Only affects clients. Sets the SETTINGS_INITIAL_WINDOW_SIZE option for
+    /// HTTP2 stream-level flow control.
+    ///
+    /// Default is 65,535
     pub http2_initial_stream_window_size: Option<NonZeroU32>,
 
-    /// Sets the max connection-level flow control for HTTP2
+    /// Only affects clients. Sets the max connection-level flow control for
+    /// HTTP2
     ///
     /// Default is 65,535
     pub http2_initial_connection_window_size: Option<NonZeroU32>,
 
-    /// Sets the SETTINGS_MAX_CONCURRENT_STREAMS option for HTTP2 connections.
-    ///
-    /// Default is no limit (None).
-    pub http2_max_concurrent_streams: Option<NonZeroU32>,
-
-    /// Set whether TCP keepalive messages are enabled on accepted connections.
+    /// Only affects clients. Set whether TCP keepalive messages are enabled on
+    /// outbound connections.
     ///
     /// If None is specified, keepalive is disabled, otherwise the duration
     /// specified will be the time to remain idle before sending TCP
@@ -53,7 +54,8 @@ pub struct Config {
     /// Default is no keepalive (None)
     pub tcp_keepalive: Option<Duration>,
 
-    /// Set whether HTTP2 Ping frames are enabled on accepted connections.
+    /// Only affects clients. Set whether HTTP2 Ping frames are enabled on
+    /// outbound connections.
     ///
     /// If None is specified, HTTP2 keepalive is disabled, otherwise the
     /// duration specified will be the time interval between HTTP2 Ping
@@ -63,30 +65,14 @@ pub struct Config {
     /// Default is no HTTP2 keepalive (None)
     pub http2_keepalive_interval: Option<Duration>,
 
-    /// Sets a timeout for receiving an acknowledgement of the keepalive ping.
+    /// Only affects clients. Sets a timeout for receiving an acknowledgement
+    /// of the keepalive ping.
     ///
     /// If the ping is not acknowledged within the timeout, the connection will
     /// be closed. Does nothing if http2_keep_alive_interval is disabled.
     ///
     /// Default is 20 seconds.
     pub http2_keepalive_timeout: Option<Duration>,
-
-    /// Only affects servers. How many connections this listener may hold at
-    /// once, counting those still in their TLS handshake. Further connections
-    /// are closed as soon as they are accepted, before any handshake.
-    ///
-    /// Default is no limit (`None`).
-    pub max_connections: Option<NonZeroUsize>,
-
-    /// Only affects servers. How long a connection may serve no request
-    /// before it is closed. Keepalive closes a connection whose peer has
-    /// gone; this closes one whose peer is present and doing nothing.
-    ///
-    /// Must exceed the longest gap between requests a peer that is behaving
-    /// leaves.
-    ///
-    /// Default is no deadline (`None`).
-    pub max_connection_idle: Option<Duration>,
 
     // Only affects servers
     pub load_shed: Option<bool>,
@@ -120,17 +106,5 @@ impl Config {
 
     pub fn connect_lazy(&self, addr: &Multiaddr, tls_config: ClientConfig) -> Result<Channel> {
         connect_lazy_with_config(addr, tls_config, self)
-    }
-
-    pub(crate) fn http_config(&self) -> iota_http::Config {
-        iota_http::Config::default()
-            .initial_stream_window_size(self.http2_initial_stream_window_size)
-            .initial_connection_window_size(self.http2_initial_connection_window_size)
-            .max_concurrent_streams(self.http2_max_concurrent_streams)
-            .http2_keepalive_timeout(self.http2_keepalive_timeout)
-            .http2_keepalive_interval(self.http2_keepalive_interval)
-            .tcp_keepalive(self.tcp_keepalive)
-            .max_connections(self.max_connections)
-            .max_connection_idle(self.max_connection_idle)
     }
 }

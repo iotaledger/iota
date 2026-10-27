@@ -3,7 +3,12 @@
 
 //! Shared gRPC server utilities
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroUsize},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Result;
 use iota_grpc_types::v1::{
@@ -111,11 +116,30 @@ pub async fn start_grpc_server(
     let state_service = StateGrpcService::new(grpc_reader.clone());
     let move_package_service = MovePackageGrpcService::new(grpc_reader);
 
+    // The listener is public, so its connection count is bounded only by this,
+    // well inside the process fd limit it shares with RocksDB and the other
+    // listeners.
+    const MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+    // Frees the connections of clients that stopped sending requests. A
+    // checkpoint subscription counts as a request for as long as it streams.
+    const MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
+    // The smallest value RFC 9113 recommends. Subscriptions are streams too,
+    // and are also capped across all connections by
+    // `max_concurrent_stream_subscribers`.
+    const MAX_CONCURRENT_STREAMS: NonZeroU32 = NonZeroU32::new(100).unwrap();
+    // Closes a connection whose peer has gone while a subscription is still
+    // streaming to it, which the idle deadline does not.
+    const HTTP2_KEEPALIVE: Duration = Duration::from_secs(60);
+
     // gRPC runs over HTTP/2 only, and no route of this API uses the extended
     // CONNECT protocol.
     let http_config = iota_http::Config::default()
         .accept_http1(false)
-        .enable_connect_protocol(false);
+        .enable_connect_protocol(false)
+        .max_connections(MAX_CONNECTIONS)
+        .max_connection_idle(MAX_CONNECTION_IDLE)
+        .max_concurrent_streams(MAX_CONCURRENT_STREAMS)
+        .http2_keepalive_interval(HTTP2_KEEPALIVE);
     let mut http_builder = iota_http::Builder::new().config(http_config);
 
     if let Some(tls_config) = config.tls_config() {

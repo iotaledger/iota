@@ -10,7 +10,6 @@ use std::{
 };
 
 use eyre::{Result, eyre};
-use iota_http::metrics::ListenerMetrics;
 use tokio_rustls::rustls::ServerConfig;
 use tonic::{
     body::Body,
@@ -45,7 +44,7 @@ pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProv
     metrics_provider: M,
     router: tonic::service::Routes,
     health_reporter: tonic_health::server::HealthReporter,
-    listener_metrics: Option<ListenerMetrics>,
+    http_config: iota_http::Config,
 }
 
 impl<M: MetricsCallbackProvider> ServerBuilder<M> {
@@ -58,14 +57,15 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             metrics_provider,
             router,
             health_reporter,
-            listener_metrics: None,
+            http_config: iota_http::Config::default(),
         }
     }
 
-    /// Measures the connections of the listener. See
-    /// [`iota_http::Config::metrics`].
-    pub fn listener_metrics(mut self, metrics: ListenerMetrics) -> Self {
-        self.listener_metrics = Some(metrics);
+    /// Sets the listener's connection and HTTP/2 settings, and its metrics.
+    ///
+    /// Default is [`iota_http::Config::default`].
+    pub fn http_config(mut self, http_config: iota_http::Config) -> Self {
+        self.http_config = http_config;
         self
     }
 
@@ -125,7 +125,6 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
         let request_timeout = self.request_timeout();
-        let http_config = self.config.http_config().metrics(self.listener_metrics);
 
         let metrics_provider = self.metrics_provider;
         let metrics = MetricsHandler::new(metrics_provider.clone());
@@ -165,7 +164,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
                 crate::grpc_timeout::GrpcTimeout::new(service, Some(request_timeout))
             });
 
-        let mut builder = iota_http::Builder::new().config(http_config);
+        let mut builder = iota_http::Builder::new().config(self.http_config);
 
         let has_tls = tls_config.is_some();
         if let Some(tls_config) = tls_config {
@@ -365,11 +364,13 @@ mod test {
         let config = Config::new();
         let server = config
             .server_builder()
-            .listener_metrics(iota_http::metrics::ListenerMetrics::new(
-                "test",
-                &registry,
-                prometheus_filtered::MetricLevel::Info,
-            ))
+            .http_config(iota_http::Config::default().metrics(Some(
+                iota_http::metrics::ListenerMetrics::new(
+                    "test",
+                    &registry,
+                    prometheus_filtered::MetricLevel::Info,
+                ),
+            )))
             .bind(&address, None)
             .await
             .unwrap();
@@ -406,11 +407,13 @@ mod test {
         let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
         let server = config
             .server_builder()
-            .listener_metrics(iota_http::metrics::ListenerMetrics::new(
-                "test",
-                &registry,
-                prometheus_filtered::MetricLevel::Info,
-            ))
+            .http_config(iota_http::Config::default().metrics(Some(
+                iota_http::metrics::ListenerMetrics::new(
+                    "test",
+                    &registry,
+                    prometheus_filtered::MetricLevel::Info,
+                ),
+            )))
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
@@ -745,11 +748,14 @@ mod test {
         const STREAM_CAP: u32 = 2;
 
         let started = Started::default();
-        let mut config = Config::new();
-        config.http2_max_concurrent_streams = std::num::NonZeroU32::new(STREAM_CAP);
+        let config = Config::new();
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = config
             .server_builder_with_metrics(started.clone())
+            .http_config(
+                iota_http::Config::default()
+                    .max_concurrent_streams(std::num::NonZeroU32::new(STREAM_CAP)),
+            )
             .add_service(DrainBody)
             .bind(&address, None)
             .await
