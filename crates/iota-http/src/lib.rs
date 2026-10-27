@@ -28,10 +28,15 @@ mod fuse;
 mod io;
 mod listener;
 pub mod metrics;
+mod response_limit;
 
 pub use config::{Config, PeerConnectionEvent};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
 pub use listener::{Listener, ListenerExt};
+pub use response_limit::{
+    ResponseLimitBody, ResponseLimitLayer, ResponseLimitService, ResponseSlot, ResponseSlots,
+    chunk_with_slot,
+};
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 /// h2 alpn in plain format for rustls.
@@ -127,8 +132,13 @@ impl Builder {
             Arc::new(tls)
         });
 
-        if let (Some(metrics), Some(_)) = (&self.config.metrics, &tls_config) {
-            metrics.enable_tls();
+        if let Some(metrics) = &self.config.metrics {
+            if tls_config.is_some() {
+                metrics.enable_tls();
+            }
+            if self.config.concurrency_limit_per_connection.is_some() {
+                metrics.enable_response_slots();
+            }
         }
 
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
@@ -362,6 +372,10 @@ where
             remote_addr: *connection_info.remote_address(),
         };
         let peer_certificates = connection_info.peer_certificates().cloned();
+        let response_slots = self
+            .config
+            .concurrency_limit_per_connection
+            .map(|limit| ResponseSlots::new(limit, self.config.metrics.clone()));
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
         let hyper_svc = TowerToHyperService::new(self.service.clone().map_request(
@@ -369,6 +383,9 @@ where
                 request.extensions_mut().insert(connect_info.clone());
                 if let Some(peer_certificates) = peer_certificates.clone() {
                     request.extensions_mut().insert(peer_certificates);
+                }
+                if let Some(response_slots) = response_slots.clone() {
+                    request.extensions_mut().insert(response_slots);
                 }
 
                 request.map(body::boxed)

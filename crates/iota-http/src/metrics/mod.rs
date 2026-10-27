@@ -20,6 +20,7 @@ use prometheus_filtered::{
 
 mod connection;
 mod io;
+mod response_slots;
 mod scope;
 mod tls;
 
@@ -46,7 +47,8 @@ impl fmt::Debug for ListenerMetrics {
 
 impl ListenerMetrics {
     /// Registers the metrics as `{prefix}_<name>` in `registry`, all at
-    /// `level`. The TLS metrics are registered later, by `enable_tls`.
+    /// `level`. The TLS metrics and the response slot metrics are registered
+    /// later, by `enable_tls` and `enable_response_slots`.
     ///
     /// # Panics
     ///
@@ -58,7 +60,33 @@ impl ListenerMetrics {
             level,
             metrics: Metrics::new(prefix, registry, level),
             tls: OnceLock::new(),
+            response_slots: OnceLock::new(),
         }))
+    }
+
+    /// Registers the metrics of the response slots. The server calls it when
+    /// it starts with a limit of responses per connection; a second call does
+    /// nothing.
+    pub(crate) fn enable_response_slots(&self) {
+        self.0.response_slots.get_or_init(|| {
+            response_slots::Metrics::new(&self.0.prefix, &self.0.registry, self.0.level)
+        });
+    }
+
+    /// Observes the responses in progress on a connection, with the one that
+    /// starts now.
+    pub(crate) fn record_response_start(&self, in_progress: usize) {
+        if let Some(metrics) = self.0.response_slots.get() {
+            metrics.record_response_start(in_progress);
+        }
+    }
+
+    /// Observes the requests that wait for a slot on a connection, with the
+    /// one that starts to wait now.
+    pub(crate) fn record_response_waiting(&self, waiting: usize) {
+        if let Some(metrics) = self.0.response_slots.get() {
+            metrics.record_response_waiting(waiting);
+        }
     }
 
     /// Registers the TLS metrics. The server calls it when it starts with TLS;
@@ -94,6 +122,9 @@ struct Inner {
     metrics: Metrics,
     /// Registered when the listener starts with TLS.
     tls: OnceLock<Arc<tls::Metrics>>,
+    /// Registered when the listener starts with a limit of responses per
+    /// connection.
+    response_slots: OnceLock<response_slots::Metrics>,
 }
 
 struct Metrics {

@@ -19,6 +19,15 @@ const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 /// handshakes only build up when peers are slow or silent, so this leaves ample
 /// room for a legitimate reconnect burst.
 const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 4096;
+/// hyper's own default for `SETTINGS_MAX_CONCURRENT_STREAMS`
+/// (`hyper::proto::h2::server`, 1.8). This crate passes its own setting to
+/// hyper, so hyper's default applies only through this constant.
+const HYPER_DEFAULT_MAX_CONCURRENT_STREAMS: u32 = 200;
+/// hyper's own default for the stream window (`hyper::proto::h2::server`,
+/// 1.8).
+const HYPER_DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024;
+/// The largest HTTP/2 flow-control window (RFC 9113, section 6.9.1).
+const MAX_WINDOW_SIZE: u32 = (1 << 31) - 1;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -40,7 +49,14 @@ pub struct Config {
     pub(crate) max_pending_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
+    pub(crate) concurrency_limit_per_connection: Option<usize>,
     pub(crate) metrics: Option<ListenerMetrics>,
+}
+
+/// The HTTP/2 settings that `concurrency_limit_per_connection` derives.
+struct Http2Settings {
+    max_concurrent_streams: Option<u32>,
+    init_connection_window_size: Option<u32>,
 }
 
 /// A change to the connections an authenticated peer holds, with the number
@@ -95,6 +111,7 @@ impl Default for Config {
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
             on_peer_connection_event: None,
+            concurrency_limit_per_connection: None,
             metrics: None,
         }
     }
@@ -332,6 +349,34 @@ impl Config {
         }
     }
 
+    /// Limits the responses in progress on each connection. A response is in
+    /// progress from before its handler runs until h2 has dropped the last
+    /// data chunk of it, so a response that the client reads slowly or not at
+    /// all keeps its slot. Requests over the limit wait on the server, in
+    /// arrival order. The limit applies to the requests that pass through a
+    /// [`ResponseLimitLayer`](crate::ResponseLimitLayer) in the service; every
+    /// request also gets the [`ResponseSlots`](crate::ResponseSlots) of its
+    /// connection in its extensions, for a handler that takes slots itself.
+    ///
+    /// A waiting request does not read its request body, so with the limit
+    /// set the listener announces its stream limit and opens the connection
+    /// window to one stream window for each stream, unless a larger one is
+    /// set. With a smaller connection window the request bodies of the
+    /// waiting requests could take all of it, and a served request could not
+    /// receive the rest of its own. Without
+    /// [`max_concurrent_streams`](Self::max_concurrent_streams) the stream
+    /// limit is hyper's default of 200; set it to make the announced limit
+    /// part of the listener's own configuration.
+    ///
+    /// `Some(0)` counts the responses in the metrics without limiting them.
+    /// Default is no limit and no counting (`None`).
+    pub fn concurrency_limit_per_connection(self, limit: Option<usize>) -> Self {
+        Self {
+            concurrency_limit_per_connection: limit,
+            ..self
+        }
+    }
+
     /// Measures the connections of the listener. The measuring changes no
     /// behaviour.
     ///
@@ -340,8 +385,73 @@ impl Config {
         Self { metrics, ..self }
     }
 
-    /// Rejects settings the accept loop cannot recover from.
+    /// The stream limit and the connection window that the listener announces
+    /// with `concurrency_limit_per_connection` set, or why the settings do
+    /// not allow the limit.
+    fn settings_with_response_limit(&self) -> Result<Http2Settings, crate::BoxError> {
+        let Some(limit) = self.concurrency_limit_per_connection else {
+            return Ok(Http2Settings {
+                max_concurrent_streams: self.max_concurrent_streams,
+                init_connection_window_size: self.init_connection_window_size,
+            });
+        };
+        if self.http2_adaptive_window == Some(true) {
+            return Err(
+                "'concurrency_limit_per_connection' needs fixed HTTP/2 windows, so it \
+                 cannot be combined with an adaptive window"
+                    .into(),
+            );
+        }
+        let max_concurrent_streams = self
+            .max_concurrent_streams
+            .unwrap_or(HYPER_DEFAULT_MAX_CONCURRENT_STREAMS);
+        // A response in progress uses a stream, so a higher limit could never
+        // be reached.
+        if limit > max_concurrent_streams as usize {
+            return Err(format!(
+                "'concurrency_limit_per_connection' is {limit}, but a connection has at most \
+                 {max_concurrent_streams} streams; set it to at most that, or to 0 to turn the \
+                 limit off"
+            )
+            .into());
+        }
+        let stream_window = self
+            .init_stream_window_size
+            .unwrap_or(HYPER_DEFAULT_STREAM_WINDOW);
+        let window_for_all_streams = u64::from(max_concurrent_streams) * u64::from(stream_window);
+        let window_for_all_streams = u32::try_from(window_for_all_streams)
+            .ok()
+            .filter(|window| *window <= MAX_WINDOW_SIZE)
+            .ok_or_else(|| {
+                format!(
+                    "'concurrency_limit_per_connection' needs a connection window of \
+                     {max_concurrent_streams} streams x {stream_window} bytes, which is over the \
+                     largest HTTP/2 window of {MAX_WINDOW_SIZE} bytes; lower \
+                     'max_concurrent_streams' or 'initial_stream_window_size'"
+                )
+            })?;
+        let init_connection_window_size = match self.init_connection_window_size {
+            Some(configured) if configured < window_for_all_streams => {
+                return Err(format!(
+                    "'initial_connection_window_size' is {configured}, but with \
+                     'concurrency_limit_per_connection' it must hold the windows of all \
+                     {max_concurrent_streams} streams, {window_for_all_streams} bytes"
+                )
+                .into());
+            }
+            Some(configured) => configured,
+            None => window_for_all_streams,
+        };
+        Ok(Http2Settings {
+            max_concurrent_streams: Some(max_concurrent_streams),
+            init_connection_window_size: Some(init_connection_window_size),
+        })
+    }
+
+    /// Rejects settings the accept loop cannot recover from, and a limit of
+    /// responses per connection that the HTTP/2 settings do not allow.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        self.settings_with_response_limit()?;
         if self.max_connections_per_peer == Some(0) {
             return Err("'max_connections_per_peer' must be greater than zero, \
                         a peer allowed no connection can never be served"
@@ -385,13 +495,19 @@ impl Config {
         let http2_keepalive_timeout = self
             .http2_keepalive_timeout
             .unwrap_or_else(|| Duration::new(DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS, 0));
+        let Http2Settings {
+            max_concurrent_streams,
+            init_connection_window_size,
+        } = self
+            .settings_with_response_limit()
+            .expect("the config was validated when the server started");
 
         builder
             .http2()
             .timer(hyper_util::rt::TokioTimer::new())
-            .initial_connection_window_size(self.init_connection_window_size)
+            .initial_connection_window_size(init_connection_window_size)
             .initial_stream_window_size(self.init_stream_window_size)
-            .max_concurrent_streams(self.max_concurrent_streams)
+            .max_concurrent_streams(max_concurrent_streams)
             .keep_alive_interval(self.http2_keepalive_interval)
             .keep_alive_timeout(http2_keepalive_timeout)
             .adaptive_window(self.http2_adaptive_window.unwrap_or_default())
