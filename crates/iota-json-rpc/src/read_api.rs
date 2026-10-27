@@ -32,13 +32,12 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+use iota_sdk_move_types::iota_framework::{display::VersionUpdated, vec_map::VecMap};
 use iota_sdk_types::{
     Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     iota_serde::BigInt,
@@ -1196,7 +1195,9 @@ async fn get_display_fields(
     if let Some(display_object) =
         get_display_object_by_type(kv_store, fullnode_api, &object_type).await?
     {
-        return get_rendered_fields(display_object.fields, &layout);
+        let fields = VecMap::<String, String>::try_from(display_object.fields)
+            .map_err(|_| bcs::Error::Utf8)?;
+        return get_rendered_fields(fields, &layout);
     }
     Ok(DisplayFieldsResponse {
         data: None,
@@ -1209,7 +1210,7 @@ async fn get_display_object_by_type(
     fullnode_api: &ReadApi,
     object_type: &StructTag,
     // TODO: add query version support
-) -> Result<Option<DisplayVersionUpdatedEvent>, ObjectDisplayError> {
+) -> Result<Option<VersionUpdated<()>>, ObjectDisplayError> {
     let mut events = fullnode_api
         .state
         .query_events(
@@ -1224,7 +1225,7 @@ async fn get_display_object_by_type(
     // If there's any recent version of Display, give it to the client.
     // TODO: add support for version query.
     if let Some(event) = events.pop() {
-        let display: DisplayVersionUpdatedEvent = bcs::from_bytes(&event.bcs.into_bytes())?;
+        let display: VersionUpdated<()> = bcs::from_bytes(&event.bcs.into_bytes())?;
         Ok(Some(display))
     } else {
         Ok(None)
