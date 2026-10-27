@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
@@ -50,6 +50,11 @@ impl IndexerApi {
         limit: usize,
     ) -> RpcResult<ObjectsPage> {
         let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
+        if let Some(filter) = &filter {
+            filter.check_size().map_err(|e| {
+                IotaRpcInputError::GenericInvalid(format!("invalid object filter: {e}"))
+            })?;
+        }
         let options = options.unwrap_or_default();
         let objects = self
             .inner
