@@ -182,7 +182,7 @@ use handler_object_state::{
     handler_rows_for_commit,
 };
 use iota_types::crypto::AggregateAuthorityPublicKey;
-use scorer::Scoreboard;
+use scorer::{Scoreboard, scores_by_committee_member_index};
 
 // `TxLockGuard` and `TxGuard` are functionally identical right now, but we
 // retain a distinction anyway. If we need to support distributed object
@@ -1708,6 +1708,29 @@ impl AuthorityPerEpochStore {
 
     pub fn committee(&self) -> &Arc<Committee> {
         &self.committee
+    }
+
+    /// Returns the scores in committee member index order, which is how
+    /// `validator_set::advance_epoch()` reads the scores vector of the
+    /// change-epoch transaction: the entry at position `p` is the score of
+    /// the validator whose committee member index is `p`.
+    /// `scores_by_authority_index` is as `Scoreboard::current_scores()`
+    /// returns it; the committee member indices come from this epoch's
+    /// [`EpochStartSystemState::authority_indices_to_committee_member_indices()`].
+    ///
+    /// # Panics
+    ///
+    /// If `scores_by_authority_index` has more or fewer entries than the
+    /// committee has members.
+    pub fn scores_for_advance_epoch(&self, scores_by_authority_index: &[u64]) -> Vec<u64> {
+        let committee_member_indices_by_authority_index = self
+            .epoch_start_state()
+            .authority_indices_to_committee_member_indices(&self.committee);
+
+        scores_by_committee_member_index(
+            scores_by_authority_index,
+            &committee_member_indices_by_authority_index,
+        )
     }
 
     pub fn protocol_config(&self) -> &ProtocolConfig {

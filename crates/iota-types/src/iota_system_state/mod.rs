@@ -553,6 +553,8 @@ pub struct AdvanceEpochParams {
     pub epoch_start_timestamp_ms: u64,
     pub max_committee_members_count: u64,
     pub eligible_active_validators: Vec<u64>,
+    /// One score per committee member, in the order of the validator set's
+    /// `committee_members`.
     pub scores: Vec<u64>,
     pub adjust_rewards_by_score: bool,
 }

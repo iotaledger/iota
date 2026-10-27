@@ -102,8 +102,11 @@ pub(crate) struct ChangeEpochTransactionV2 {
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Option<Vec<u64>>,
-    /// Scores for the epoch being finalized. Each value corresponds to
-    /// an authority, ordered by the ending epoch's AuthorityIndex.
+    /// Scores for the epoch being finalized, one per committee member, in
+    /// the order of the ending epoch's committee in the Move validator set,
+    /// [`ValidatorSetV2::committee_members`].
+    ///
+    /// [`ValidatorSetV2::committee_members`]: iota_types::iota_system_state::iota_system_state_inner_v2::ValidatorSetV2::committee_members
     pub scores: Option<Vec<u64>>,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
