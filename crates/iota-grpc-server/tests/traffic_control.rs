@@ -13,11 +13,12 @@
 
 mod common;
 
-use std::{collections::HashMap, future::Future, net::IpAddr, sync::Arc};
+use std::{collections::HashMap, future::Future, net::IpAddr, sync::Arc, time::Duration};
 
 use common::{
-    MockGrpcStateReader, TestCertificate, UnreachableExecutor, create_large_object,
-    start_test_server, start_test_server_with, start_test_server_with_traffic_controller,
+    MockGrpcStateReader, PendingExecutor, TestCertificate, UnreachableExecutor,
+    call_execute_transactions_with_grpc_timeout, create_large_object, start_test_server,
+    start_test_server_with, start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
 use iota_grpc_server::GrpcServerHandle;
@@ -246,6 +247,74 @@ async fn a_blocked_client_does_not_block_a_client_from_another_address() {
         Code::InvalidArgument,
         "the client from another address must reach the handler: {status:?}"
     );
+}
+
+/// A call that the server ends at its `grpc-timeout` counts as a request for
+/// the spam policy: at a threshold of one, the next request of the client is
+/// refused.
+#[tokio::test]
+async fn a_call_past_its_grpc_timeout_accrues_spam() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            spam_policy_type: PolicyType::TestNConnIP(1),
+            // Error policy off, so any block is attributable to the spam policy.
+            error_policy_type: PolicyType::NoOp,
+            // Count every tally deterministically.
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            ..Default::default()
+        },
+        Some(Arc::new(PendingExecutor::default())),
+    )
+    .await;
+    assert_eq!(
+        call_execute_transactions_with_grpc_timeout(handle.address(), Duration::from_millis(200))
+            .await,
+        Code::DeadlineExceeded
+    );
+
+    let client = StateServiceClient::new(connect(&handle).await);
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+}
+
+/// A call that the server ends at its `grpc-timeout` is not a client error, so
+/// it does not feed the error policy.
+#[tokio::test]
+async fn a_call_past_its_grpc_timeout_does_not_feed_the_error_policy() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            // Block on the first error tally, so a call past its deadline wrongly
+            // fed to the error policy would block the client and fail this test.
+            error_policy_type: PolicyType::TestNConnIP(1),
+            dry_run: false,
+            ..Default::default()
+        },
+        Some(Arc::new(PendingExecutor::default())),
+    )
+    .await;
+    assert_eq!(
+        call_execute_transactions_with_grpc_timeout(handle.address(), Duration::from_millis(200))
+            .await,
+        Code::DeadlineExceeded
+    );
+
+    StateServiceClient::new(connect(&handle).await)
+        .list_owned_objects(
+            ListOwnedObjectsRequest::default()
+                .with_owner(ProtoAddress::default().with_address(vec![1u8; 32])),
+        )
+        .await
+        .expect("a valid request after the call must be served");
 }
 
 /// Batch APIs embed per-item errors inside a successful gRPC response, where
